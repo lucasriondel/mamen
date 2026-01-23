@@ -1,0 +1,1488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>mamen - Design Direction Showcase</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --background: hsl(222 47% 4%);
+      --foreground: hsl(210 40% 98%);
+      --card: hsl(222 47% 6%);
+      --card-foreground: hsl(210 40% 98%);
+      --popover: hsl(222 47% 8%);
+      --primary: hsl(210 40% 98%);
+      --primary-foreground: hsl(222 47% 4%);
+      --secondary: hsl(217 33% 17%);
+      --muted: hsl(217 33% 17%);
+      --muted-foreground: hsl(215 20% 65%);
+      --accent: hsl(217 33% 17%);
+      --border: hsl(217 33% 17%);
+      --ring: hsl(212 100% 47%);
+      --success: hsl(142 76% 36%);
+      --warning: hsl(38 92% 50%);
+      --destructive: hsl(0 84% 60%);
+      --radius: 6px;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--background);
+      color: var(--foreground);
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+
+    /* Navigation */
+    .nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 100;
+    }
+
+    .nav-title {
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .nav-tabs {
+      display: flex;
+      gap: 4px;
+    }
+
+    .nav-tab {
+      padding: 8px 16px;
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+      border: none;
+      background: transparent;
+      color: var(--muted-foreground);
+    }
+
+    .nav-tab:hover {
+      background: var(--secondary);
+      color: var(--foreground);
+    }
+
+    .nav-tab.active {
+      background: var(--secondary);
+      color: var(--foreground);
+    }
+
+    /* Main Content */
+    .main {
+      padding-top: 60px;
+    }
+
+    .direction {
+      display: none;
+      min-height: calc(100vh - 60px);
+    }
+
+    .direction.active {
+      display: block;
+    }
+
+    /* Direction 1: Classic Linear Layout */
+    .d1-container {
+      display: grid;
+      grid-template-columns: 240px 1fr 320px;
+      height: calc(100vh - 60px);
+    }
+
+    .sidebar {
+      background: var(--card);
+      border-right: 1px solid var(--border);
+      padding: 16px;
+    }
+
+    .sidebar-section {
+      margin-bottom: 24px;
+    }
+
+    .sidebar-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted-foreground);
+      margin-bottom: 8px;
+    }
+
+    .sidebar-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: var(--radius);
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.15s;
+      color: var(--muted-foreground);
+    }
+
+    .sidebar-item:hover {
+      background: var(--secondary);
+      color: var(--foreground);
+    }
+
+    .sidebar-item.active {
+      background: var(--secondary);
+      color: var(--foreground);
+    }
+
+    .sidebar-item .icon {
+      width: 16px;
+      height: 16px;
+      opacity: 0.7;
+    }
+
+    .sidebar-item .badge {
+      margin-left: auto;
+      background: var(--warning);
+      color: var(--background);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 10px;
+    }
+
+    .content-area {
+      padding: 24px;
+      overflow-y: auto;
+    }
+
+    .content-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    }
+
+    .content-title {
+      font-size: 24px;
+      font-weight: 600;
+    }
+
+    .unmatched-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--warning);
+      color: var(--background);
+      padding: 6px 12px;
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    /* Transaction List */
+    .transaction-list {
+      background: var(--card);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+
+    .transaction-header {
+      display: grid;
+      grid-template-columns: 1fr 120px 100px 100px;
+      gap: 16px;
+      padding: 12px 16px;
+      background: var(--secondary);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted-foreground);
+    }
+
+    .transaction-row {
+      display: grid;
+      grid-template-columns: 1fr 120px 100px 100px;
+      gap: 16px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .transaction-row:hover {
+      background: var(--secondary);
+    }
+
+    .transaction-row.focused {
+      background: var(--secondary);
+      outline: 2px solid var(--ring);
+      outline-offset: -2px;
+    }
+
+    .transaction-row:last-child {
+      border-bottom: none;
+    }
+
+    .merchant {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+    }
+
+    .date {
+      color: var(--muted-foreground);
+    }
+
+    .amount {
+      font-family: 'JetBrains Mono', monospace;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .amount.negative {
+      color: var(--foreground);
+    }
+
+    .category-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    .category-badge.unmatched {
+      background: hsl(38 92% 50% / 0.2);
+      color: var(--warning);
+    }
+
+    .category-badge.matched {
+      background: hsl(142 76% 36% / 0.2);
+      color: var(--success);
+    }
+
+    /* Details Panel */
+    .details-panel {
+      background: var(--card);
+      border-left: 1px solid var(--border);
+      padding: 24px;
+    }
+
+    .details-title {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+
+    .details-section {
+      margin-bottom: 24px;
+    }
+
+    .details-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted-foreground);
+      margin-bottom: 4px;
+    }
+
+    .details-value {
+      font-size: 14px;
+    }
+
+    .quick-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .action-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      background: var(--secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.15s;
+      color: var(--foreground);
+    }
+
+    .action-btn:hover {
+      background: var(--accent);
+      border-color: var(--muted-foreground);
+    }
+
+    .action-btn .kbd {
+      margin-left: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      padding: 2px 6px;
+      background: var(--background);
+      border-radius: 4px;
+      color: var(--muted-foreground);
+    }
+
+    /* Command Palette */
+    .command-palette-overlay {
+      position: fixed;
+      inset: 0;
+      background: hsl(0 0% 0% / 0.8);
+      display: none;
+      align-items: flex-start;
+      justify-content: center;
+      padding-top: 120px;
+      z-index: 200;
+    }
+
+    .command-palette-overlay.active {
+      display: flex;
+    }
+
+    .command-palette {
+      width: 560px;
+      background: var(--popover);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.5);
+    }
+
+    .command-input-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .command-input-wrapper .icon {
+      color: var(--muted-foreground);
+    }
+
+    .command-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      font-size: 15px;
+      color: var(--foreground);
+      outline: none;
+    }
+
+    .command-input::placeholder {
+      color: var(--muted-foreground);
+    }
+
+    .command-list {
+      max-height: 320px;
+      overflow-y: auto;
+    }
+
+    .command-group {
+      padding: 8px;
+    }
+
+    .command-group-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted-foreground);
+      padding: 8px;
+    }
+
+    .command-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: all 0.1s;
+    }
+
+    .command-item:hover,
+    .command-item.selected {
+      background: var(--secondary);
+    }
+
+    .command-item .icon {
+      color: var(--muted-foreground);
+    }
+
+    .command-item-text {
+      flex: 1;
+      font-size: 13px;
+    }
+
+    .command-item .kbd {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      padding: 2px 6px;
+      background: var(--background);
+      border-radius: 4px;
+      color: var(--muted-foreground);
+    }
+
+    /* Direction 2: Minimal Single Column */
+    .d2-container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    .d2-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 32px;
+    }
+
+    .d2-tabs {
+      display: flex;
+      gap: 4px;
+      background: var(--card);
+      padding: 4px;
+      border-radius: var(--radius);
+    }
+
+    .d2-tab {
+      padding: 8px 16px;
+      border-radius: 4px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      color: var(--muted-foreground);
+      background: transparent;
+      border: none;
+    }
+
+    .d2-tab.active {
+      background: var(--secondary);
+      color: var(--foreground);
+    }
+
+    .d2-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    .d2-stat-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+    }
+
+    .d2-stat-label {
+      font-size: 12px;
+      color: var(--muted-foreground);
+      margin-bottom: 4px;
+    }
+
+    .d2-stat-value {
+      font-size: 28px;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .d2-stat-value.warning {
+      color: var(--warning);
+    }
+
+    /* Direction 3: Dashboard First */
+    .d3-container {
+      display: grid;
+      grid-template-columns: 1fr 400px;
+      height: calc(100vh - 60px);
+    }
+
+    .d3-dashboard {
+      padding: 24px;
+      overflow-y: auto;
+    }
+
+    .d3-chart-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .d3-chart-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+    }
+
+    .d3-chart-title {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+
+    .d3-chart-placeholder {
+      height: 160px;
+      background: linear-gradient(135deg, var(--secondary) 0%, var(--background) 100%);
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted-foreground);
+      font-size: 12px;
+    }
+
+    .d3-category-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .d3-category-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .d3-category-item:hover {
+      border-color: var(--muted-foreground);
+    }
+
+    .d3-category-color {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+    }
+
+    .d3-category-name {
+      flex: 1;
+      font-size: 13px;
+    }
+
+    .d3-category-amount {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+    }
+
+    .d3-category-percent {
+      font-size: 12px;
+      color: var(--muted-foreground);
+      width: 40px;
+      text-align: right;
+    }
+
+    /* Direction 4: Full-Width List Focus */
+    .d4-container {
+      padding: 24px;
+    }
+
+    .d4-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 24px;
+      padding: 12px 16px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+
+    .d4-search {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: var(--secondary);
+      border-radius: var(--radius);
+    }
+
+    .d4-search input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      font-size: 13px;
+      color: var(--foreground);
+      outline: none;
+    }
+
+    .d4-filters {
+      display: flex;
+      gap: 8px;
+    }
+
+    .d4-filter {
+      padding: 8px 12px;
+      background: var(--secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 12px;
+      cursor: pointer;
+      color: var(--muted-foreground);
+    }
+
+    .d4-filter.active {
+      border-color: var(--ring);
+      color: var(--foreground);
+    }
+
+    .d4-table {
+      width: 100%;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .d4-table-header {
+      display: grid;
+      grid-template-columns: 40px 1fr 140px 120px 120px 140px;
+      gap: 16px;
+      padding: 12px 16px;
+      background: var(--secondary);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted-foreground);
+    }
+
+    .d4-table-row {
+      display: grid;
+      grid-template-columns: 40px 1fr 140px 120px 120px 140px;
+      gap: 16px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.15s;
+      align-items: center;
+    }
+
+    .d4-table-row:hover {
+      background: var(--secondary);
+    }
+
+    .d4-checkbox {
+      width: 16px;
+      height: 16px;
+      border: 2px solid var(--border);
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .d4-checkbox.checked {
+      background: var(--ring);
+      border-color: var(--ring);
+    }
+
+    /* Direction 5: Split View */
+    .d5-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      height: calc(100vh - 60px);
+    }
+
+    .d5-left, .d5-right {
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+    }
+
+    .d5-right {
+      border-right: none;
+    }
+
+    .d5-panel-header {
+      position: sticky;
+      top: 0;
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .d5-panel-title {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .d5-panel-content {
+      padding: 16px;
+    }
+
+    /* Direction 6: Command-Centric */
+    .d6-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: calc(100vh - 60px);
+      padding: 24px;
+    }
+
+    .d6-hero {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+
+    .d6-hero-title {
+      font-size: 32px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .d6-hero-subtitle {
+      font-size: 16px;
+      color: var(--muted-foreground);
+    }
+
+    .d6-prompt {
+      width: 100%;
+      max-width: 600px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .d6-prompt:hover {
+      border-color: var(--muted-foreground);
+    }
+
+    .d6-prompt-text {
+      flex: 1;
+      font-size: 15px;
+      color: var(--muted-foreground);
+    }
+
+    .d6-prompt-kbd {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      padding: 4px 8px;
+      background: var(--secondary);
+      border-radius: 4px;
+      color: var(--muted-foreground);
+    }
+
+    .d6-shortcuts {
+      display: flex;
+      gap: 24px;
+      margin-top: 32px;
+    }
+
+    .d6-shortcut {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--muted-foreground);
+    }
+
+    .d6-shortcut .kbd {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      padding: 4px 8px;
+      background: var(--secondary);
+      border-radius: 4px;
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 13px;
+      box-shadow: 0 10px 25px -5px rgb(0 0 0 / 0.3);
+      z-index: 150;
+    }
+
+    .toast-success {
+      border-left: 3px solid var(--success);
+    }
+
+    .toast .undo {
+      color: var(--ring);
+      cursor: pointer;
+      font-weight: 500;
+    }
+
+    /* Info panel for each direction */
+    .direction-info {
+      position: fixed;
+      bottom: 24px;
+      left: 24px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      max-width: 320px;
+      z-index: 150;
+    }
+
+    .direction-info h3 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .direction-info p {
+      font-size: 12px;
+      color: var(--muted-foreground);
+      line-height: 1.5;
+    }
+
+    .direction-info ul {
+      margin-top: 8px;
+      padding-left: 16px;
+      font-size: 12px;
+      color: var(--muted-foreground);
+    }
+
+    .direction-info li {
+      margin-bottom: 4px;
+    }
+  </style>
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="nav">
+    <div class="nav-title">mamen Design Directions</div>
+    <div class="nav-tabs">
+      <button class="nav-tab active" data-direction="1">1. Linear Layout</button>
+      <button class="nav-tab" data-direction="2">2. Minimal</button>
+      <button class="nav-tab" data-direction="3">3. Dashboard</button>
+      <button class="nav-tab" data-direction="4">4. Full Table</button>
+      <button class="nav-tab" data-direction="5">5. Split View</button>
+      <button class="nav-tab" data-direction="6">6. Command-Centric</button>
+    </div>
+  </nav>
+
+  <main class="main">
+    <!-- Direction 1: Classic Linear Layout -->
+    <section class="direction active" id="d1">
+      <div class="d1-container">
+        <aside class="sidebar">
+          <div class="sidebar-section">
+            <div class="sidebar-title">Views</div>
+            <div class="sidebar-item active">
+              <span class="icon">&#9679;</span>
+              All Transactions
+            </div>
+            <div class="sidebar-item">
+              <span class="icon">&#9888;</span>
+              Unmatched
+              <span class="badge">23</span>
+            </div>
+            <div class="sidebar-item">
+              <span class="icon">&#8634;</span>
+              Subscriptions
+            </div>
+            <div class="sidebar-item">
+              <span class="icon">&#9888;</span>
+              Anomalies
+            </div>
+          </div>
+          <div class="sidebar-section">
+            <div class="sidebar-title">Categories</div>
+            <div class="sidebar-item">
+              <span class="icon" style="color: hsl(212 100% 60%);">&#9632;</span>
+              Shopping
+            </div>
+            <div class="sidebar-item">
+              <span class="icon" style="color: hsl(142 76% 46%);">&#9632;</span>
+              Groceries
+            </div>
+            <div class="sidebar-item">
+              <span class="icon" style="color: hsl(38 92% 55%);">&#9632;</span>
+              Dining
+            </div>
+            <div class="sidebar-item">
+              <span class="icon" style="color: hsl(280 80% 60%);">&#9632;</span>
+              Transport
+            </div>
+          </div>
+        </aside>
+
+        <div class="content-area">
+          <div class="content-header">
+            <h1 class="content-title">Unmatched Transactions</h1>
+            <div class="unmatched-badge">
+              <span>&#9888;</span>
+              23 unmatched
+            </div>
+          </div>
+
+          <div class="transaction-list">
+            <div class="transaction-header">
+              <span>Merchant</span>
+              <span>Date</span>
+              <span>Category</span>
+              <span style="text-align: right;">Amount</span>
+            </div>
+            <div class="transaction-row focused">
+              <span class="merchant">AMZN*1234XYZ</span>
+              <span class="date">Jan 18, 2026</span>
+              <span><span class="category-badge unmatched">Unmatched</span></span>
+              <span class="amount negative">-€29.99</span>
+            </div>
+            <div class="transaction-row">
+              <span class="merchant">NETFLIX.COM</span>
+              <span class="date">Jan 17, 2026</span>
+              <span><span class="category-badge matched">Entertainment</span></span>
+              <span class="amount negative">-€15.99</span>
+            </div>
+            <div class="transaction-row">
+              <span class="merchant">UBER *TRIP</span>
+              <span class="date">Jan 16, 2026</span>
+              <span><span class="category-badge unmatched">Unmatched</span></span>
+              <span class="amount negative">-€12.50</span>
+            </div>
+            <div class="transaction-row">
+              <span class="merchant">CARREFOUR</span>
+              <span class="date">Jan 15, 2026</span>
+              <span><span class="category-badge matched">Groceries</span></span>
+              <span class="amount negative">-€67.42</span>
+            </div>
+            <div class="transaction-row">
+              <span class="merchant">SPOTIFY</span>
+              <span class="date">Jan 15, 2026</span>
+              <span><span class="category-badge matched">Entertainment</span></span>
+              <span class="amount negative">-€9.99</span>
+            </div>
+          </div>
+        </div>
+
+        <aside class="details-panel">
+          <div class="details-title">Transaction Details</div>
+
+          <div class="details-section">
+            <div class="details-label">Merchant</div>
+            <div class="details-value" style="font-family: 'JetBrains Mono', monospace;">AMZN*1234XYZ</div>
+          </div>
+
+          <div class="details-section">
+            <div class="details-label">Amount</div>
+            <div class="details-value" style="font-size: 20px; font-weight: 600;">-€29.99</div>
+          </div>
+
+          <div class="details-section">
+            <div class="details-label">Date</div>
+            <div class="details-value">January 18, 2026</div>
+          </div>
+
+          <div class="details-section">
+            <div class="details-label">Quick Actions</div>
+            <div class="quick-actions">
+              <button class="action-btn">
+                <span>Create Rule</span>
+                <span class="kbd">R</span>
+              </button>
+              <button class="action-btn">
+                <span>Set Category</span>
+                <span class="kbd">C</span>
+              </button>
+              <button class="action-btn">
+                <span>Mark as Refund</span>
+                <span class="kbd">F</span>
+              </button>
+            </div>
+          </div>
+        </aside>
+      </div>
+
+      <div class="direction-info">
+        <h3>Direction 1: Linear Layout</h3>
+        <p>Three-column layout inspired by Linear. Sidebar for navigation, main content area, details panel.</p>
+        <ul>
+          <li>Clear information hierarchy</li>
+          <li>Persistent details panel</li>
+          <li>Focus state visible on rows</li>
+          <li>Quick actions always accessible</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Direction 2: Minimal Single Column -->
+    <section class="direction" id="d2">
+      <div class="d2-container">
+        <div class="d2-header">
+          <h1 style="font-size: 24px; font-weight: 600;">mamen</h1>
+          <div class="d2-tabs">
+            <button class="d2-tab active">Transactions</button>
+            <button class="d2-tab">Dashboard</button>
+            <button class="d2-tab">Rules</button>
+          </div>
+        </div>
+
+        <div class="d2-stats">
+          <div class="d2-stat-card">
+            <div class="d2-stat-label">Total Spending</div>
+            <div class="d2-stat-value">€2,847.32</div>
+          </div>
+          <div class="d2-stat-card">
+            <div class="d2-stat-label">Transactions</div>
+            <div class="d2-stat-value">127</div>
+          </div>
+          <div class="d2-stat-card">
+            <div class="d2-stat-label">Unmatched</div>
+            <div class="d2-stat-value warning">23</div>
+          </div>
+        </div>
+
+        <div class="transaction-list">
+          <div class="transaction-header" style="grid-template-columns: 1fr 120px 100px;">
+            <span>Merchant</span>
+            <span>Category</span>
+            <span style="text-align: right;">Amount</span>
+          </div>
+          <div class="transaction-row" style="grid-template-columns: 1fr 120px 100px;">
+            <div>
+              <div class="merchant">AMZN*1234XYZ</div>
+              <div class="date" style="font-size: 12px;">Jan 18, 2026</div>
+            </div>
+            <span><span class="category-badge unmatched">Unmatched</span></span>
+            <span class="amount negative">-€29.99</span>
+          </div>
+          <div class="transaction-row" style="grid-template-columns: 1fr 120px 100px;">
+            <div>
+              <div class="merchant">NETFLIX.COM</div>
+              <div class="date" style="font-size: 12px;">Jan 17, 2026</div>
+            </div>
+            <span><span class="category-badge matched">Entertainment</span></span>
+            <span class="amount negative">-€15.99</span>
+          </div>
+          <div class="transaction-row" style="grid-template-columns: 1fr 120px 100px;">
+            <div>
+              <div class="merchant">UBER *TRIP</div>
+              <div class="date" style="font-size: 12px;">Jan 16, 2026</div>
+            </div>
+            <span><span class="category-badge unmatched">Unmatched</span></span>
+            <span class="amount negative">-€12.50</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="direction-info">
+        <h3>Direction 2: Minimal</h3>
+        <p>Clean, single-column layout with focus on content. Stats at top, transactions below.</p>
+        <ul>
+          <li>Maximum content focus</li>
+          <li>Simple tab navigation</li>
+          <li>Compact transaction rows</li>
+          <li>Mobile-friendly structure</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Direction 3: Dashboard First -->
+    <section class="direction" id="d3">
+      <div class="d3-container">
+        <div class="d3-dashboard">
+          <h1 style="font-size: 24px; font-weight: 600; margin-bottom: 24px;">January 2026</h1>
+
+          <div class="d3-chart-grid">
+            <div class="d3-chart-card" style="grid-column: span 2;">
+              <div class="d3-chart-title">Spending by Category</div>
+              <div class="d3-chart-placeholder" style="height: 200px;">
+                [Donut Chart Visualization]
+              </div>
+            </div>
+            <div class="d3-chart-card">
+              <div class="d3-chart-title">Daily Spending</div>
+              <div class="d3-chart-placeholder">
+                [Bar Chart]
+              </div>
+            </div>
+            <div class="d3-chart-card">
+              <div class="d3-chart-title">vs Last Month</div>
+              <div class="d3-chart-placeholder">
+                [Comparison Chart]
+              </div>
+            </div>
+          </div>
+
+          <h2 style="font-size: 16px; font-weight: 600; margin-bottom: 16px;">Categories</h2>
+          <div class="d3-category-list">
+            <div class="d3-category-item">
+              <div class="d3-category-color" style="background: hsl(212 100% 60%);"></div>
+              <div class="d3-category-name">Shopping</div>
+              <div class="d3-category-amount">€847.32</div>
+              <div class="d3-category-percent">29.8%</div>
+            </div>
+            <div class="d3-category-item">
+              <div class="d3-category-color" style="background: hsl(142 76% 46%);"></div>
+              <div class="d3-category-name">Groceries</div>
+              <div class="d3-category-amount">€523.10</div>
+              <div class="d3-category-percent">18.4%</div>
+            </div>
+            <div class="d3-category-item">
+              <div class="d3-category-color" style="background: hsl(38 92% 55%);"></div>
+              <div class="d3-category-name">Dining</div>
+              <div class="d3-category-amount">€312.45</div>
+              <div class="d3-category-percent">11.0%</div>
+            </div>
+          </div>
+        </div>
+
+        <aside class="details-panel" style="border-left: 1px solid var(--border);">
+          <div class="details-title" style="display: flex; align-items: center; justify-content: space-between;">
+            <span>Unmatched</span>
+            <span class="unmatched-badge" style="font-size: 11px; padding: 4px 8px;">23</span>
+          </div>
+
+          <div style="margin-top: 16px;">
+            <div class="transaction-row" style="grid-template-columns: 1fr 80px; padding: 12px 0; border-bottom: 1px solid var(--border);">
+              <div class="merchant">AMZN*1234XYZ</div>
+              <span class="amount negative">-€29.99</span>
+            </div>
+            <div class="transaction-row" style="grid-template-columns: 1fr 80px; padding: 12px 0; border-bottom: 1px solid var(--border);">
+              <div class="merchant">UBER *TRIP</div>
+              <span class="amount negative">-€12.50</span>
+            </div>
+            <div class="transaction-row" style="grid-template-columns: 1fr 80px; padding: 12px 0; border-bottom: 1px solid var(--border);">
+              <div class="merchant">PAYPAL *STORE</div>
+              <span class="amount negative">-€45.00</span>
+            </div>
+          </div>
+        </aside>
+      </div>
+
+      <div class="direction-info">
+        <h3>Direction 3: Dashboard First</h3>
+        <p>Visualization-focused layout. Dashboard is primary view with unmatched panel on side.</p>
+        <ul>
+          <li>Answers "where did money go?" immediately</li>
+          <li>Charts prominent</li>
+          <li>Unmatched always visible</li>
+          <li>Click category to drill down</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Direction 4: Full-Width Table -->
+    <section class="direction" id="d4">
+      <div class="d4-container">
+        <div class="d4-toolbar">
+          <div class="d4-search">
+            <span style="color: var(--muted-foreground);">&#128269;</span>
+            <input type="text" placeholder="Search transactions... (Cmd+K)">
+          </div>
+          <div class="d4-filters">
+            <button class="d4-filter active">All</button>
+            <button class="d4-filter">Unmatched (23)</button>
+            <button class="d4-filter">This Month</button>
+            <button class="d4-filter">Subscriptions</button>
+          </div>
+        </div>
+
+        <div class="d4-table">
+          <div class="d4-table-header">
+            <span></span>
+            <span>Merchant</span>
+            <span>Date</span>
+            <span>Category</span>
+            <span>Account</span>
+            <span style="text-align: right;">Amount</span>
+          </div>
+          <div class="d4-table-row">
+            <div class="d4-checkbox"></div>
+            <div class="merchant">AMZN*1234XYZ</div>
+            <div class="date">Jan 18, 2026</div>
+            <span class="category-badge unmatched">Unmatched</span>
+            <div style="color: var(--muted-foreground);">Main Account</div>
+            <div class="amount negative">-€29.99</div>
+          </div>
+          <div class="d4-table-row">
+            <div class="d4-checkbox checked"></div>
+            <div class="merchant">NETFLIX.COM</div>
+            <div class="date">Jan 17, 2026</div>
+            <span class="category-badge matched">Entertainment</span>
+            <div style="color: var(--muted-foreground);">Main Account</div>
+            <div class="amount negative">-€15.99</div>
+          </div>
+          <div class="d4-table-row">
+            <div class="d4-checkbox checked"></div>
+            <div class="merchant">UBER *TRIP</div>
+            <div class="date">Jan 16, 2026</div>
+            <span class="category-badge unmatched">Unmatched</span>
+            <div style="color: var(--muted-foreground);">Credit Card</div>
+            <div class="amount negative">-€12.50</div>
+          </div>
+          <div class="d4-table-row">
+            <div class="d4-checkbox"></div>
+            <div class="merchant">CARREFOUR</div>
+            <div class="date">Jan 15, 2026</div>
+            <span class="category-badge matched">Groceries</span>
+            <div style="color: var(--muted-foreground);">Main Account</div>
+            <div class="amount negative">-€67.42</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="direction-info">
+        <h3>Direction 4: Full Table</h3>
+        <p>Spreadsheet-like layout maximizing data density. Batch operations prominent.</p>
+        <ul>
+          <li>Maximum transactions visible</li>
+          <li>Checkbox for batch select</li>
+          <li>Filter toolbar always visible</li>
+          <li>Account column for multi-account</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Direction 5: Split View -->
+    <section class="direction" id="d5">
+      <div class="d5-container">
+        <div class="d5-left">
+          <div class="d5-panel-header">
+            <div class="d5-panel-title">Unmatched (23)</div>
+            <button class="action-btn" style="padding: 6px 10px; font-size: 12px;">
+              Import
+            </button>
+          </div>
+          <div class="d5-panel-content">
+            <div class="transaction-row focused" style="grid-template-columns: 1fr 80px; margin-bottom: 8px; border-radius: var(--radius);">
+              <div>
+                <div class="merchant">AMZN*1234XYZ</div>
+                <div class="date" style="font-size: 11px;">Jan 18, 2026</div>
+              </div>
+              <span class="amount negative">-€29.99</span>
+            </div>
+            <div class="transaction-row" style="grid-template-columns: 1fr 80px; margin-bottom: 8px; border-radius: var(--radius);">
+              <div>
+                <div class="merchant">UBER *TRIP</div>
+                <div class="date" style="font-size: 11px;">Jan 16, 2026</div>
+              </div>
+              <span class="amount negative">-€12.50</span>
+            </div>
+            <div class="transaction-row" style="grid-template-columns: 1fr 80px; margin-bottom: 8px; border-radius: var(--radius);">
+              <div>
+                <div class="merchant">PAYPAL *STORE</div>
+                <div class="date" style="font-size: 11px;">Jan 14, 2026</div>
+              </div>
+              <span class="amount negative">-€45.00</span>
+            </div>
+          </div>
+        </div>
+        <div class="d5-right">
+          <div class="d5-panel-header">
+            <div class="d5-panel-title">Create Rule</div>
+          </div>
+          <div class="d5-panel-content" style="padding: 24px;">
+            <div class="details-section">
+              <div class="details-label">Pattern</div>
+              <input type="text" value="AMZN.*" style="width: 100%; padding: 10px 12px; background: var(--secondary); border: 1px solid var(--border); border-radius: var(--radius); color: var(--foreground); font-family: 'JetBrains Mono', monospace; font-size: 13px;">
+              <div style="margin-top: 8px; font-size: 12px; color: var(--success);">&#10003; Matches 12 transactions</div>
+            </div>
+
+            <div class="details-section">
+              <div class="details-label">Category</div>
+              <select style="width: 100%; padding: 10px 12px; background: var(--secondary); border: 1px solid var(--border); border-radius: var(--radius); color: var(--foreground); font-size: 13px;">
+                <option>Shopping > Online</option>
+                <option>Shopping > General</option>
+                <option>Entertainment</option>
+              </select>
+            </div>
+
+            <div class="details-section">
+              <div class="details-label">Preview</div>
+              <div style="background: var(--secondary); border-radius: var(--radius); padding: 12px; max-height: 200px; overflow-y: auto;">
+                <div style="font-size: 12px; color: var(--muted-foreground); margin-bottom: 8px;">Will categorize:</div>
+                <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; margin-bottom: 4px;">AMZN*1234XYZ  -€29.99</div>
+                <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; margin-bottom: 4px;">AMZN*5678ABC  -€15.00</div>
+                <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; margin-bottom: 4px;">AMZN*9012DEF  -€42.50</div>
+                <div style="font-size: 11px; color: var(--muted-foreground); margin-top: 8px;">...and 9 more</div>
+              </div>
+            </div>
+
+            <button class="action-btn" style="width: 100%; justify-content: center; background: var(--primary); color: var(--primary-foreground); border: none; font-weight: 500;">
+              Create Rule
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="direction-info">
+        <h3>Direction 5: Split View</h3>
+        <p>Side-by-side layout for triage workflow. List on left, rule creation on right.</p>
+        <ul>
+          <li>Focus on triage flow</li>
+          <li>Rule preview always visible</li>
+          <li>No modal interruption</li>
+          <li>Efficient keyboard flow</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Direction 6: Command-Centric -->
+    <section class="direction" id="d6">
+      <div class="d6-container">
+        <div class="d6-hero">
+          <div class="d6-hero-title">mamen</div>
+          <div class="d6-hero-subtitle">23 unmatched transactions</div>
+        </div>
+
+        <div class="d6-prompt">
+          <span style="color: var(--muted-foreground);">&#128269;</span>
+          <span class="d6-prompt-text">Type a command or search...</span>
+          <span class="d6-prompt-kbd">&#8984;K</span>
+        </div>
+
+        <div class="d6-shortcuts">
+          <div class="d6-shortcut">
+            <span class="kbd">U</span>
+            <span>Unmatched</span>
+          </div>
+          <div class="d6-shortcut">
+            <span class="kbd">M</span>
+            <span>This Month</span>
+          </div>
+          <div class="d6-shortcut">
+            <span class="kbd">S</span>
+            <span>Subscriptions</span>
+          </div>
+          <div class="d6-shortcut">
+            <span class="kbd">D</span>
+            <span>Dashboard</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="direction-info">
+        <h3>Direction 6: Command-Centric</h3>
+        <p>Raycast-inspired home screen. Command palette as primary interface.</p>
+        <ul>
+          <li>Keyboard-first philosophy</li>
+          <li>Minimal visual chrome</li>
+          <li>Quick access shortcuts</li>
+          <li>Glanceable status</li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <!-- Command Palette (shown on Cmd+K) -->
+  <div class="command-palette-overlay" id="commandPalette">
+    <div class="command-palette">
+      <div class="command-input-wrapper">
+        <span class="icon">&#128269;</span>
+        <input class="command-input" type="text" placeholder="Type a command or search..." autofocus>
+      </div>
+      <div class="command-list">
+        <div class="command-group">
+          <div class="command-group-title">Views</div>
+          <div class="command-item selected">
+            <span class="icon">&#9679;</span>
+            <span class="command-item-text">All Transactions</span>
+          </div>
+          <div class="command-item">
+            <span class="icon">&#9888;</span>
+            <span class="command-item-text">Unmatched (23)</span>
+            <span class="kbd">U</span>
+          </div>
+          <div class="command-item">
+            <span class="icon">&#8634;</span>
+            <span class="command-item-text">Subscriptions</span>
+            <span class="kbd">S</span>
+          </div>
+        </div>
+        <div class="command-group">
+          <div class="command-group-title">Actions</div>
+          <div class="command-item">
+            <span class="icon">&#10010;</span>
+            <span class="command-item-text">Import Statement</span>
+          </div>
+          <div class="command-item">
+            <span class="icon">&#9881;</span>
+            <span class="command-item-text">Create Rule</span>
+            <span class="kbd">R</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Example -->
+  <div class="toast toast-success">
+    <span style="color: var(--success);">&#10003;</span>
+    <span>12 transactions matched!</span>
+    <span class="undo">Undo</span>
+  </div>
+
+  <script>
+    // Tab navigation
+    document.querySelectorAll('.nav-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.direction').forEach(d => d.classList.remove('active'));
+
+        tab.classList.add('active');
+        const direction = tab.dataset.direction;
+        document.getElementById('d' + direction).classList.add('active');
+      });
+    });
+
+    // Command palette toggle
+    document.addEventListener('keydown', (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        document.getElementById('commandPalette').classList.toggle('active');
+      }
+      if (e.key === 'Escape') {
+        document.getElementById('commandPalette').classList.remove('active');
+      }
+    });
+
+    document.getElementById('commandPalette').addEventListener('click', (e) => {
+      if (e.target.classList.contains('command-palette-overlay')) {
+        document.getElementById('commandPalette').classList.remove('active');
+      }
+    });
+  </script>
+</body>
+</html>

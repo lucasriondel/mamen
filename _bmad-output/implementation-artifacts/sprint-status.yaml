@@ -1,0 +1,126 @@
+# generated: 2026-01-22
+# project: mamen
+# project_key: mamen
+# tracking_system: file-system
+# story_location: /Users/lucas/dev/perso/mamen/_bmad-output/implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog → in-progress: Automatically when first story is created (via create-story)
+#   - in-progress → done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - SM typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+
+generated: 2026-01-22
+project: mamen
+project_key: mamen
+tracking_system: file-system
+story_location: /Users/lucas/dev/perso/mamen/_bmad-output/implementation-artifacts
+
+development_status:
+  # Epic 1: Project Foundation & Core Data Layer
+  epic-1: in-progress
+  1-1-initialize-project-with-vite-and-shadcn-ui: ready-for-dev
+  1-2-establish-dexie-database-schema: ready-for-dev
+  1-3-create-app-shell-with-linear-layout: ready-for-dev
+  epic-1-retrospective: optional
+
+  # Epic 2: Account Setup & Statement Import
+  epic-2: in-progress
+  2-1-create-and-manage-bank-accounts: ready-for-dev
+  2-2-account-month-grid-for-statement-management: ready-for-dev
+  2-3-csv-statement-import-and-parsing: ready-for-dev
+  2-4-llm-settings-configuration: backlog
+  2-5-pdf-statement-import-with-llm-parsing: backlog
+  2-6-duplicate-transaction-detection: backlog
+  epic-2-retrospective: optional
+
+  # Epic 3: Transaction Viewing & Keyboard Navigation
+  epic-3: backlog
+  3-1-transaction-list-view: backlog
+  3-2-keyboard-navigation-with-jk: backlog
+  3-3-command-palette-foundation: backlog
+  3-4-transaction-search-via-command-palette: backlog
+  3-5-breadcrumb-navigation: backlog
+  epic-3-retrospective: optional
+
+  # Epic 4: Merchants, Rules & Categorization
+  epic-4: backlog
+  4-1-category-system-setup: backlog
+  4-2-unmatched-transactions-view: backlog
+  4-3-create-merchant-with-rule-r-key: backlog
+  4-4-assign-transaction-to-existing-merchant: backlog
+  4-5-rules-engine-auto-apply-on-import: backlog
+  4-6-view-and-manage-rules: backlog
+  4-7-quick-category-assignment-c-key: backlog
+  4-8-cascade-animation-feedback: backlog
+  epic-4-retrospective: optional
+
+  # Epic 5: Batch Operations & Quick Actions
+  epic-5: backlog
+  5-1-multi-select-transactions-shift-jk: backlog
+  5-2-batch-merchant-assignment: backlog
+  5-3-batch-category-assignment: backlog
+  5-4-focus-mode-current-month-m-key: backlog
+  5-5-focus-mode-subscriptions-placeholder-s-key: backlog
+  epic-5-retrospective: optional
+
+  # Epic 6: Dashboard & Spending Visualization
+  epic-6: backlog
+  6-1-spending-breakdown-by-category: backlog
+  6-2-time-period-selection: backlog
+  6-3-month-over-month-comparison: backlog
+  6-4-drill-down-to-transactions: backlog
+  epic-6-retrospective: optional
+
+  # Epic 7: Merchant Management & Investigation
+  epic-7: backlog
+  7-1-merchants-list-view: backlog
+  7-2-merchant-detail-page: backlog
+  7-3-first-time-merchant-detection: backlog
+  epic-7-retrospective: optional
+
+  # Epic 8: Refund Handling
+  epic-8: backlog
+  8-1-mark-transaction-as-refund-f-key: backlog
+  8-2-link-refund-to-original-purchase: backlog
+  8-3-net-spending-calculation: backlog
+  epic-8-retrospective: optional
+
+  # Epic 9: Subscription & Anomaly Detection
+  epic-9: backlog
+  9-1-subscription-detection-algorithm: backlog
+  9-2-subscriptions-view-s-key: backlog
+  9-3-anomaly-detection-high-amounts: backlog
+  9-4-anomaly-detection-new-merchants: backlog
+  9-5-anomaly-detection-potential-duplicates: backlog
+  epic-9-retrospective: optional
+
+  # Epic 10: Data Export & Settings
+  epic-10: backlog
+  10-1-export-all-data: backlog
+  10-2-settings-page-consolidation: backlog
+  10-3-data-import-from-backup: backlog
+  epic-10-retrospective: optional
