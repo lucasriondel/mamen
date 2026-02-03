@@ -74,7 +74,7 @@ development_status:
   4-4-assign-transaction-to-existing-merchant: ready-for-dev
   4-5-rules-engine-auto-apply-on-import: ready-for-dev
   4-6-view-and-manage-rules: ready-for-dev
-  4-7-quick-category-assignment-c-key: backlog
+  4-7-quick-category-assignment-c-key: ready-for-dev
   4-8-cascade-animation-feedback: backlog
   epic-4-retrospective: optional
 
