@@ -62,7 +62,7 @@ development_status:
   3-1-transaction-list-view: ready-for-dev
   3-2-keyboard-navigation-with-jk: ready-for-dev
   3-3-command-palette-foundation: ready-for-dev
-  3-4-transaction-search-via-command-palette: backlog
+  3-4-transaction-search-via-command-palette: ready-for-dev
   3-5-breadcrumb-navigation: backlog
   epic-3-retrospective: optional
 
