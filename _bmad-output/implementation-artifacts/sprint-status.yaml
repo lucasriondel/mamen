@@ -67,9 +67,9 @@ development_status:
   epic-3-retrospective: optional
 
   # Epic 4: Merchants, Rules & Categorization
-  epic-4: backlog
-  4-1-category-system-setup: backlog
-  4-2-unmatched-transactions-view: backlog
+  epic-4: in-progress
+  4-1-category-system-setup: ready-for-dev
+  4-2-unmatched-transactions-view: ready-for-dev
   4-3-create-merchant-with-rule-r-key: backlog
   4-4-assign-transaction-to-existing-merchant: backlog
   4-5-rules-engine-auto-apply-on-import: backlog
