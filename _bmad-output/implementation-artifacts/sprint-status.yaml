@@ -53,7 +53,7 @@ development_status:
   2-2-account-month-grid-for-statement-management: ready-for-dev
   2-3-csv-statement-import-and-parsing: ready-for-dev
   2-4-llm-settings-configuration: ready-for-dev
-  2-5-pdf-statement-import-with-llm-parsing: backlog
+  2-5-pdf-statement-import-with-llm-parsing: ready-for-dev
   2-6-duplicate-transaction-detection: backlog
   epic-2-retrospective: optional
 
