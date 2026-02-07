@@ -122,5 +122,5 @@ development_status:
   epic-10: in-progress
   10-1-export-all-data: ready-for-dev
   10-2-settings-page-consolidation: ready-for-dev
-  10-3-data-import-from-backup: backlog
+  10-3-data-import-from-backup: ready-for-dev
   epic-10-retrospective: optional
