@@ -1,6 +1,6 @@
 # Story 1.1: Initialize Project with Vite and shadcn/ui
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -57,43 +57,43 @@ So that **I have a solid foundation matching the architecture decisions for buil
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Create Vite project with React + TypeScript + SWC (AC: #1, #2)
-  - [ ] Run `npm create vite@latest mamen -- --template react-swc-ts`
-  - [ ] Navigate to project: `cd mamen && npm install`
-  - [ ] Verify React 19 and TypeScript 5 in package.json
+- [x] Task 1: Create Vite project with React + TypeScript + SWC (AC: #1, #2)
+  - [x] Run `npm create vite@latest mamen -- --template react-swc-ts`
+  - [x] Navigate to project: `cd mamen && npm install`
+  - [x] Verify React 19 and TypeScript 5 in package.json
 
-- [ ] Task 2: Configure TypeScript path aliases (AC: #5)
-  - [ ] Update tsconfig.json with baseUrl and paths
-  - [ ] Update tsconfig.app.json with matching paths
-  - [ ] Configure vite.config.ts with resolve.alias
+- [x] Task 2: Configure TypeScript path aliases (AC: #5)
+  - [x] Update tsconfig.json with baseUrl and paths
+  - [x] Update tsconfig.app.json with matching paths
+  - [x] Configure vite.config.ts with resolve.alias
 
-- [ ] Task 3: Initialize shadcn/ui with Tailwind v4 (AC: #3)
-  - [ ] Run `npx shadcn@latest init`
-  - [ ] Select new-york style when prompted
-  - [ ] Leave tailwind.config.js path blank (Tailwind v4)
-  - [ ] Verify tw-animate-css is installed (not tailwindcss-animate)
+- [x] Task 3: Initialize shadcn/ui with Tailwind v4 (AC: #3)
+  - [x] Run `npx shadcn@latest init`
+  - [x] Select new-york style when prompted
+  - [x] Leave tailwind.config.js path blank (Tailwind v4)
+  - [x] Verify tw-animate-css is installed (not tailwindcss-animate)
 
-- [ ] Task 4: Add required shadcn components (AC: #4)
-  - [ ] Run `npx shadcn@latest add command dialog table form button dropdown-menu select toast badge card tooltip popover`
-  - [ ] Verify all components are in src/components/ui/
+- [x] Task 4: Add required shadcn components (AC: #4)
+  - [x] Run `npx shadcn@latest add command dialog table form button dropdown-menu select sonner badge card tooltip popover`
+  - [x] Verify all components are in src/components/ui/
 
-- [ ] Task 5: Install core dependencies (AC: #7)
-  - [ ] Run `npm install zustand dexie dexie-react-hooks @tanstack/react-router @tanstack/react-virtual lucide-react`
-  - [ ] Verify versions meet minimums in package.json
+- [x] Task 5: Install core dependencies (AC: #7)
+  - [x] Run `npm install zustand dexie dexie-react-hooks @tanstack/react-router @tanstack/react-virtual lucide-react`
+  - [x] Verify versions meet minimums in package.json
 
-- [ ] Task 6: Install dev dependencies (AC: #8)
-  - [ ] Run `npm install -D vitest @testing-library/react @testing-library/jest-dom @testing-library/user-event jsdom`
-  - [ ] Create vitest.config.ts with React Testing Library setup
+- [x] Task 6: Install dev dependencies (AC: #8)
+  - [x] Run `npm install -D vitest @testing-library/react @testing-library/jest-dom @testing-library/user-event jsdom`
+  - [x] Create vitest.config.ts with React Testing Library setup
 
-- [ ] Task 7: Verify project runs (AC: #6)
-  - [ ] Run `npm run dev`
-  - [ ] Verify no errors in terminal
-  - [ ] Verify app loads in browser at localhost:5173
+- [x] Task 7: Verify project runs (AC: #6)
+  - [x] Run `npm run dev`
+  - [x] Verify no errors in terminal
+  - [x] Verify app loads in browser at localhost:5173
 
-- [ ] Task 8: Set up initial project structure (Architecture compliance)
-  - [ ] Create directory structure per architecture doc
-  - [ ] Add .gitignore with appropriate entries
-  - [ ] Add .env.example for LLM settings placeholder
+- [x] Task 8: Set up initial project structure (Architecture compliance)
+  - [x] Create directory structure per architecture doc
+  - [x] Add .gitignore with appropriate entries
+  - [x] Add .env.example for LLM settings placeholder
 
 ## Dev Notes
 
@@ -283,11 +283,72 @@ Before marking this story complete, verify:
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.6 (claude-opus-4-6)
 
 ### Debug Log References
 
+- shadcn `toast` component is deprecated; replaced with `sonner` (functionally equivalent)
+- Tailwind CSS v4 required pre-installation before `shadcn init` would succeed
+- tsconfig.app.json has JSONC comments requiring test adjustment for parsing
+- Test files excluded from `tsconfig.app.json` includes to prevent build errors with Node.js modules
+
 ### Completion Notes List
+
+- Project scaffolded with Vite 7.x + React 19 + TypeScript 5.x + SWC
+- shadcn/ui initialized with Tailwind CSS v4 (OKLCH colors, tw-animate-css, new-york style)
+- 12 shadcn components installed (sonner replaces deprecated toast): command, dialog, table, form, button, dropdown-menu, select, sonner, badge, card, tooltip, popover (+ label as dependency)
+- Path aliases configured across tsconfig.json, tsconfig.app.json, and vite.config.ts
+- Core deps: zustand 5.0.11, dexie 4.3.0, dexie-react-hooks 4.2.0, @tanstack/react-router 1.158.4, @tanstack/react-virtual 3.13.18, lucide-react 0.563.0
+- Dev deps: vitest 4.0.18, @testing-library/react, @testing-library/jest-dom, @testing-library/user-event, jsdom
+- vitest.config.ts created with jsdom environment, globals, and path aliases
+- Directory structure created per architecture doc
+- 43 setup verification tests pass, build succeeds
 
 ### File List
 
+- package.json (new)
+- vite.config.ts (new)
+- vitest.config.ts (new)
+- tsconfig.json (new)
+- tsconfig.app.json (new)
+- tsconfig.node.json (new)
+- eslint.config.js (new)
+- components.json (new)
+- index.html (new)
+- .gitignore (new)
+- .env.example (new)
+- src/index.css (new)
+- src/main.tsx (new)
+- src/App.tsx (new)
+- src/App.css (new)
+- src/vite-env.d.ts (new)
+- src/lib/utils.ts (new)
+- src/test/setup.ts (new)
+- src/setup.test.ts (new)
+- src/components/ui/button.tsx (new)
+- src/components/ui/badge.tsx (new)
+- src/components/ui/card.tsx (new)
+- src/components/ui/command.tsx (new)
+- src/components/ui/dialog.tsx (new)
+- src/components/ui/dropdown-menu.tsx (new)
+- src/components/ui/form.tsx (new)
+- src/components/ui/label.tsx (new)
+- src/components/ui/popover.tsx (new)
+- src/components/ui/select.tsx (new)
+- src/components/ui/sonner.tsx (new)
+- src/components/ui/table.tsx (new)
+- src/components/ui/tooltip.tsx (new)
+- src/features/.gitkeep (new)
+- src/hooks/.gitkeep (new)
+- src/lib/db/.gitkeep (new)
+- src/lib/schemas/.gitkeep (new)
+- src/lib/llm/.gitkeep (new)
+- src/types/.gitkeep (new)
+- src/context/.gitkeep (new)
+- src/routes/.gitkeep (new)
+- public/vite.svg (new)
+- src/assets/react.svg (new)
+
+## Change Log
+
+- 2026-02-07: Initial project setup — Vite + React 19 + TypeScript 5 + SWC + shadcn/ui with Tailwind v4, all core/dev dependencies installed, project structure created, 43 verification tests passing
