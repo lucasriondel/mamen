@@ -96,8 +96,8 @@ development_status:
   epic-6-retrospective: optional
 
   # Epic 7: Merchant Management & Investigation
-  epic-7: backlog
-  7-1-merchants-list-view: backlog
+  epic-7: in-progress
+  7-1-merchants-list-view: ready-for-dev
   7-2-merchant-detail-page: backlog
   7-3-first-time-merchant-detection: backlog
   epic-7-retrospective: optional
