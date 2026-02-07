@@ -90,7 +90,7 @@ development_status:
   # Epic 6: Dashboard & Spending Visualization
   epic-6: in-progress
   6-1-spending-breakdown-by-category: ready-for-dev
-  6-2-time-period-selection: backlog
+  6-2-time-period-selection: ready-for-dev
   6-3-month-over-month-comparison: backlog
   6-4-drill-down-to-transactions: backlog
   epic-6-retrospective: optional
