@@ -114,7 +114,7 @@ development_status:
   9-1-subscription-detection-algorithm: ready-for-dev
   9-2-subscriptions-view-s-key: ready-for-dev
   9-3-anomaly-detection-high-amounts: ready-for-dev
-  9-4-anomaly-detection-new-merchants: backlog
+  9-4-anomaly-detection-new-merchants: ready-for-dev
   9-5-anomaly-detection-potential-duplicates: backlog
   epic-9-retrospective: optional
 
