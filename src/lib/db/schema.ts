@@ -16,3 +16,11 @@ db.version(1).stores({
   rules: '++id, merchantId, pattern',
   settings: '++id, &key',
 })
+
+db.version(2).stores({
+  accounts: '++id, name, type, createdAt',
+  transactions: '++id, accountId, date, amount, merchantId, categoryId, importMonth, importBatchId, [accountId+importMonth]',
+  merchants: '++id, name, defaultCategoryId, firstSeen',
+  rules: '++id, merchantId, pattern',
+  settings: '++id, &key',
+})

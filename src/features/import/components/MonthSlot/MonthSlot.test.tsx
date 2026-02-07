@@ -106,7 +106,7 @@ describe('MonthSlot', () => {
   it('has correct aria-label for empty month', () => {
     render(<MonthSlot {...defaultProps} transactionCount={0} />)
 
-    expect(screen.getByLabelText('Jan 2026: Drop statement here')).toBeInTheDocument()
+    expect(screen.getByLabelText('Jan 2026: Browse files or drop statement here')).toBeInTheDocument()
   })
 
   it('formats monthKey correctly for December', () => {

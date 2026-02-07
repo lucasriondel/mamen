@@ -11,4 +11,5 @@ export type Transaction = {
   linkedRefundId?: number
   importedAt: Date
   importMonth: string
+  importBatchId?: string
 }

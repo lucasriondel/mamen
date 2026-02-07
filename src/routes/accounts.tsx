@@ -17,8 +17,10 @@ import {
 } from '@/components/ui/alert-dialog'
 import { AccountCard } from '@/features/accounts/components/AccountCard'
 import { AccountMonthGrid } from '@/features/import/components/AccountMonthGrid'
+import { ImportCSVModal } from '@/features/import/components/ImportCSVModal'
 import { CreateAccountModal } from '@/features/accounts/components/CreateAccountModal'
 import { EditAccountModal } from '@/features/accounts/components/EditAccountModal'
+import { deleteTransactionsForMonth } from '@/features/import/services/csvImporter'
 import type { Account } from '@/types'
 import type { Transaction } from '@/types'
 
@@ -26,6 +28,12 @@ type UndoState = {
   account: Account
   transactions: Transaction[]
   timeoutId: number
+}
+
+type ImportModalState = {
+  file: File
+  monthKey: string
+  accountId: number
 }
 
 type ReimportState = {
@@ -45,6 +53,7 @@ export function AccountsPage(): React.ReactElement {
   const [deletingAccount, setDeletingAccount] = useState<Account | null>(null)
   const [deleteTransactionCount, setDeleteTransactionCount] = useState(0)
   const [reimportState, setReimportState] = useState<ReimportState | null>(null)
+  const [importModalState, setImportModalState] = useState<ImportModalState | null>(null)
   const undoRef = useRef<UndoState | null>(null)
   const navigate = useNavigate()
 
@@ -65,25 +74,27 @@ export function AccountsPage(): React.ReactElement {
     if (transactionCount > 0) {
       setReimportState({ file, monthKey, accountId, existingCount: transactionCount })
     } else {
-      handleImportFile(file)
+      handleImportFile(file, monthKey, accountId)
     }
   }
 
-  const handleImportFile = (file: File): void => {
+  const handleImportFile = (file: File, monthKey: string, accountId: number): void => {
     const ext = file.name.split('.').pop()?.toLowerCase()
     if (ext === 'csv') {
-      toast.info('CSV import will be available in Story 2.3')
+      setImportModalState({ file, monthKey, accountId })
     } else if (ext === 'pdf') {
-      toast.info('PDF import coming in Story 2.5')
+      toast.info('PDF import coming in Story 2.5. Please use CSV for now.')
     } else {
       toast.error('Unsupported file type. Please upload a CSV or PDF file.')
     }
   }
 
-  const handleConfirmReimport = (): void => {
+  const handleConfirmReimport = async (): Promise<void> => {
     if (!reimportState) return
-    handleImportFile(reimportState.file)
+    const { file, monthKey, accountId } = reimportState
+    await deleteTransactionsForMonth(accountId, monthKey)
     setReimportState(null)
+    handleImportFile(file, monthKey, accountId)
   }
 
   const handleEdit = (account: Account): void => {
@@ -255,6 +266,18 @@ export function AccountsPage(): React.ReactElement {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {importModalState && (
+        <ImportCSVModal
+          file={importModalState.file}
+          accountId={importModalState.accountId}
+          monthKey={importModalState.monthKey}
+          open={importModalState !== null}
+          onOpenChange={(open) => {
+            if (!open) setImportModalState(null)
+          }}
+        />
+      )}
     </div>
   )
 }
