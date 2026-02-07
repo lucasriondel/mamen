@@ -119,8 +119,8 @@ development_status:
   epic-9-retrospective: optional
 
   # Epic 10: Data Export & Settings
-  epic-10: backlog
-  10-1-export-all-data: backlog
+  epic-10: in-progress
+  10-1-export-all-data: ready-for-dev
   10-2-settings-page-consolidation: backlog
   10-3-data-import-from-backup: backlog
   epic-10-retrospective: optional
