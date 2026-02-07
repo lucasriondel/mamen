@@ -1,0 +1,21 @@
+import { z } from 'zod'
+import type { Transaction } from '@/types'
+
+export const transactionSchema = z.object({
+  id: z.number().optional(),
+  accountId: z.number(),
+  date: z.date(),
+  amount: z.number(),
+  rawMerchantString: z.string(),
+  merchantId: z.number().optional(),
+  categoryId: z.number().optional(),
+  categoryOverride: z.string().optional(),
+  isRefund: z.boolean().optional(),
+  linkedRefundId: z.number().optional(),
+  importedAt: z.date(),
+  importMonth: z.string(),
+}) satisfies z.ZodType<Transaction>
+
+export const createTransactionSchema = transactionSchema.omit({ id: true })
+
+export type CreateTransactionInput = z.infer<typeof createTransactionSchema>
