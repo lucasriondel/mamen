@@ -1,6 +1,6 @@
 # Story 1.3: Create App Shell with Linear Layout
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -39,45 +39,45 @@ So that **I can navigate between different sections of the app efficiently**.
 
 **Implementation Order:** Complete tasks in this sequence to avoid circular dependencies.
 
-- [ ] Task 1: Install and configure TanStack Router Vite plugin (AC: #3)
-  - [ ] Run `npm install -D @tanstack/router-plugin`
-  - [ ] Update `vite.config.ts` to add TanStackRouterVite plugin
-  - [ ] Verify route generation works with `npm run dev`
+- [x] Task 1: Install and configure TanStack Router Vite plugin (AC: #3)
+  - [x] Run `npm install -D @tanstack/router-plugin`
+  - [x] Update `vite.config.ts` to add TanStackRouterVite plugin
+  - [x] Verify route generation works with `npm run dev`
 
-- [ ] Task 2: Create Layout components (AC: #1, #2)
-  - [ ] Create `src/components/Layout/index.tsx` - main layout wrapper
-  - [ ] Create `src/components/Layout/Sidebar.tsx` - 220px left sidebar
-  - [ ] Create `src/components/Layout/Header.tsx` - top header bar with search trigger
-  - [ ] Create `src/components/EmptyState/index.tsx` - reusable empty state component
+- [x] Task 2: Create Layout components (AC: #1, #2)
+  - [x] Create `src/components/Layout/index.tsx` - main layout wrapper
+  - [x] Create `src/components/Layout/Sidebar.tsx` - 220px left sidebar
+  - [x] Create `src/components/Layout/Header.tsx` - top header bar with search trigger
+  - [x] Create `src/components/EmptyState/index.tsx` - reusable empty state component
 
-- [ ] Task 3: Create route files with TanStack Router (AC: #3)
-  - [ ] Create `src/routes/__root.tsx` with Layout wrapper
-  - [ ] Create `src/routes/index.tsx` for Dashboard (/)
-  - [ ] Create `src/routes/transactions.tsx` for /transactions
-  - [ ] Create `src/routes/merchants.tsx` for /merchants
-  - [ ] Create `src/routes/accounts.tsx` for /accounts
+- [x] Task 3: Create route files with TanStack Router (AC: #3)
+  - [x] Create `src/routes/__root.tsx` with Layout wrapper
+  - [x] Create `src/routes/index.tsx` for Dashboard (/)
+  - [x] Create `src/routes/transactions.tsx` for /transactions
+  - [x] Create `src/routes/merchants.tsx` for /merchants
+  - [x] Create `src/routes/accounts.tsx` for /accounts
 
-- [ ] Task 4: Configure router in main.tsx (AC: #3)
-  - [ ] Import generated routeTree from `./routeTree.gen`
-  - [ ] Create router instance with createRouter
-  - [ ] Add type declaration for router
-  - [ ] Wrap app with RouterProvider
+- [x] Task 4: Configure router in main.tsx (AC: #3)
+  - [x] Import generated routeTree from `./routeTree.gen`
+  - [x] Create router instance with createRouter
+  - [x] Add type declaration for router
+  - [x] Wrap app with RouterProvider
 
-- [ ] Task 5: Implement Sidebar navigation with active states (AC: #3)
-  - [ ] Add navigation items with lucide-react icons
-  - [ ] Use TanStack Router Link component with activeProps
-  - [ ] Style active nav item with accent background
-  - [ ] Add stats section with useLiveQuery counts
+- [x] Task 5: Implement Sidebar navigation with active states (AC: #3)
+  - [x] Add navigation items with lucide-react icons
+  - [x] Use TanStack Router Link component with activeProps
+  - [x] Style active nav item with accent background
+  - [x] Add stats section with useLiveQuery counts
 
-- [ ] Task 6: Enable dark mode as default (AC: #1)
-  - [ ] Add `class="dark"` to `<html>` element in index.html
-  - [ ] Verify shadcn dark theme colors are applied
-  - [ ] Confirm dark background and light text render correctly
+- [x] Task 6: Enable dark mode as default (AC: #1)
+  - [x] Add `class="dark"` to `<html>` element in index.html
+  - [x] Verify shadcn dark theme colors are applied
+  - [x] Confirm dark background and light text render correctly
 
-- [ ] Task 7: Create Dashboard with empty state (AC: #4)
-  - [ ] Use EmptyState component when no transactions
-  - [ ] Display "No transactions yet" with import CTA
-  - [ ] CTA button is disabled (placeholder for Epic 2)
+- [x] Task 7: Create Dashboard with empty state (AC: #4)
+  - [x] Use EmptyState component when no transactions
+  - [x] Display "No transactions yet" with import CTA
+  - [x] CTA button is disabled (placeholder for Epic 2)
 
 ## Dev Notes
 
@@ -430,14 +430,50 @@ Before marking this story complete, verify:
 - [Source: project-context.md#Data-Access-MOST-IMPORTANT]
 - [Source: epics.md#Story-1.3]
 
+## Change Log
+
+- 2026-02-07: Implemented full app shell with Linear-inspired layout, TanStack Router file-based routing, sidebar navigation with live Dexie stats, dark mode, and dashboard empty state. All 7 tasks completed with 13 new tests passing.
+
 ## Dev Agent Record
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.6
 
 ### Debug Log References
 
+- Initial test run had 2 failures due to "Merchants" text appearing in both nav link and stats section. Fixed by using role-based queries (`getByRole('link')`) instead of text matching.
+
 ### Completion Notes List
 
+- Installed `@tanstack/router-plugin` and configured TanStackRouterVite in vite.config.ts
+- Created Layout components: Layout wrapper (flex h-screen), Sidebar (220px with nav + stats), Header (app name + disabled search trigger ⌘K)
+- Created EmptyState reusable component with icon, title, description, and optional action button
+- Created 5 route files: `__root.tsx` (root layout), `index.tsx` (dashboard), `transactions.tsx`, `merchants.tsx`, `accounts.tsx`
+- Updated main.tsx to use RouterProvider with generated routeTree
+- Enabled dark mode by adding `class="dark"` to html element and updating title to "mamen"
+- Dashboard shows EmptyState with disabled "Import Statement" CTA when no transactions exist
+- Sidebar shows live stats (Unmatched, Merchants) via useLiveQuery from Dexie
+- Active nav item highlighted with `bg-accent text-foreground` via TanStack Router activeProps
+- All conventions followed: `type` not `interface`, named exports only, co-located tests, no Dexie data in React state
+- TypeScript: 0 errors, Build: success, Tests: 111 passed (13 new), ESLint: 3 pre-existing warnings in shadcn files only
+
 ### File List
+
+- `vite.config.ts` (modified) - Added TanStackRouterVite plugin
+- `index.html` (modified) - Added `class="dark"` to html, updated title to "mamen"
+- `src/main.tsx` (modified) - Replaced App with RouterProvider + createRouter
+- `src/components/Layout/index.tsx` (new) - Main layout wrapper with sidebar + header + content
+- `src/components/Layout/Sidebar.tsx` (new) - 220px sidebar with navigation and live stats
+- `src/components/Layout/Header.tsx` (new) - Header bar with app name and search trigger
+- `src/components/Layout/Layout.test.tsx` (new) - 8 tests for layout, navigation, and stats
+- `src/components/EmptyState/index.tsx` (new) - Reusable empty state component
+- `src/components/EmptyState/EmptyState.test.tsx` (new) - 5 tests for empty state component
+- `src/routes/__root.tsx` (new) - Root route with Layout wrapper
+- `src/routes/index.tsx` (new) - Dashboard route with empty state
+- `src/routes/transactions.tsx` (new) - Transactions placeholder route
+- `src/routes/merchants.tsx` (new) - Merchants placeholder route
+- `src/routes/accounts.tsx` (new) - Accounts placeholder route
+- `src/routeTree.gen.ts` (new, auto-generated) - TanStack Router generated route tree
+- `package-lock.json` (modified) - Updated with @tanstack/router-plugin
+- `src/routes/.gitkeep` (deleted) - Removed placeholder file
