@@ -24,6 +24,10 @@ export function Sidebar(): React.ReactElement {
     () => db.merchants.count()
   ) ?? 0
 
+  const accountCount = useLiveQuery(
+    () => db.accounts.count()
+  ) ?? 0
+
   return (
     <aside className="flex flex-col w-[220px] border-r bg-card p-4">
       <nav className="flex flex-col gap-1">
@@ -55,6 +59,10 @@ export function Sidebar(): React.ReactElement {
           <div className="flex justify-between">
             <span>Merchants</span>
             <span>{merchantCount}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Accounts</span>
+            <span>{accountCount}</span>
           </div>
         </div>
       </div>

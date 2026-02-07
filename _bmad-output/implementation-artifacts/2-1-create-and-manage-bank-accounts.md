@@ -1,6 +1,6 @@
 # Story 2.1: Create and Manage Bank Accounts
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -40,50 +40,50 @@ So that **I can organize my statements by account and import from multiple banks
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Create Accounts page placeholder route content (AC: #5)
-  - [ ] Update `src/routes/accounts.tsx` with AccountsPage component
-  - [ ] Import and use EmptyState component from Story 1.3
-  - [ ] Configure EmptyState with CreditCard icon, appropriate title/description
-  - [ ] Add "Add Account" button as CTA (actionLabel prop)
+- [x] Task 1: Create Accounts page placeholder route content (AC: #5)
+  - [x] Update `src/routes/accounts.tsx` with AccountsPage component
+  - [x] Import and use EmptyState component from Story 1.3
+  - [x] Configure EmptyState with CreditCard icon, appropriate title/description
+  - [x] Add "Add Account" button as CTA (actionLabel prop)
 
-- [ ] Task 2: Create AccountCard component (AC: #2)
-  - [ ] Create `src/features/accounts/components/AccountCard/index.tsx`
-  - [ ] Display account name, type badge, and transaction count
-  - [ ] Add edit and delete action buttons (icon buttons)
-  - [ ] Use shadcn Card component as base
-  - [ ] Style with 48px row pattern matching transaction rows
+- [x] Task 2: Create AccountCard component (AC: #2)
+  - [x] Create `src/features/accounts/components/AccountCard/index.tsx`
+  - [x] Display account name, type badge, and transaction count
+  - [x] Add edit and delete action buttons (icon buttons)
+  - [x] Use shadcn Card component as base
+  - [x] Style with 48px row pattern matching transaction rows
 
-- [ ] Task 3: Create CreateAccountModal component (AC: #1)
-  - [ ] Create `src/features/accounts/components/CreateAccountModal/index.tsx`
-  - [ ] Use shadcn Dialog component
-  - [ ] Create form with: name input (required), type select dropdown
-  - [ ] Use shadcn Form, Input, Select components
-  - [ ] Add Zod validation using existing accountSchema
-  - [ ] On submit: validate, save to Dexie db.accounts, close modal, show success toast
+- [x] Task 3: Create CreateAccountModal component (AC: #1)
+  - [x] Create `src/features/accounts/components/CreateAccountModal/index.tsx`
+  - [x] Use shadcn Dialog component
+  - [x] Create form with: name input (required), type select dropdown
+  - [x] Use shadcn Form, Input, Select components
+  - [x] Add Zod validation using existing accountSchema
+  - [x] On submit: validate, save to Dexie db.accounts, close modal, show success toast
 
-- [ ] Task 4: Create EditAccountModal component (AC: #3)
-  - [ ] Create `src/features/accounts/components/EditAccountModal/index.tsx`
-  - [ ] Similar structure to CreateAccountModal
-  - [ ] Pre-populate form with existing account data
-  - [ ] On submit: update account in Dexie, close modal, show toast
+- [x] Task 4: Create EditAccountModal component (AC: #3)
+  - [x] Create `src/features/accounts/components/EditAccountModal/index.tsx`
+  - [x] Similar structure to CreateAccountModal
+  - [x] Pre-populate form with existing account data
+  - [x] On submit: update account in Dexie, close modal, show toast
 
-- [ ] Task 5: Implement delete with undo functionality (AC: #4)
-  - [ ] Add delete handler in AccountCard
-  - [ ] Show confirmation dialog with transaction count warning
-  - [ ] On confirm: delete account and related transactions from Dexie
-  - [ ] Show toast with "Undo" action (10-second window)
-  - [ ] Implement undo: restore account and transactions from backup
+- [x] Task 5: Implement delete with undo functionality (AC: #4)
+  - [x] Add delete handler in AccountCard
+  - [x] Show confirmation dialog with transaction count warning
+  - [x] On confirm: delete account and related transactions from Dexie
+  - [x] Show toast with "Undo" action (10-second window)
+  - [x] Implement undo: restore account and transactions from backup
 
-- [ ] Task 6: Wire up AccountsPage with live data (AC: #2, #5)
-  - [ ] Use `useLiveQuery` to fetch accounts from db.accounts
-  - [ ] Use `useLiveQuery` to get transaction counts per account
-  - [ ] Show EmptyState when no accounts exist
-  - [ ] Show AccountCard grid when accounts exist
-  - [ ] Add "Add Account" button in header area
+- [x] Task 6: Wire up AccountsPage with live data (AC: #2, #5)
+  - [x] Use `useLiveQuery` to fetch accounts from db.accounts
+  - [x] Use `useLiveQuery` to get transaction counts per account
+  - [x] Show EmptyState when no accounts exist
+  - [x] Show AccountCard grid when accounts exist
+  - [x] Add "Add Account" button in header area
 
-- [ ] Task 7: Update sidebar stats to show account count (Enhancement)
-  - [ ] Update Sidebar.tsx to show account count in stats section
-  - [ ] Use `useLiveQuery` to count accounts
+- [x] Task 7: Update sidebar stats to show account count (Enhancement)
+  - [x] Update Sidebar.tsx to show account count in stats section
+  - [x] Use `useLiveQuery` to count accounts
 
 ## Dev Notes
 
@@ -359,15 +359,43 @@ Before marking complete:
 - [Dexie.js Transactions](https://dexie.org/docs/Dexie/Dexie.transaction())
 - [sonner Toast](https://sonner.emilkowal.ski/)
 
+## Change Log
+
+- 2026-02-07: Implemented full account CRUD with empty state, create/edit modals, delete with undo, and sidebar stats
+
 ## Dev Agent Record
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.6
 
 ### Debug Log References
 
+- Fixed 3 test failures caused by duplicate text matches in DOM (dialog title matching button text, transaction count appearing in both card and alert dialog)
+
 ### Completion Notes List
 
+- AC #1: CreateAccountModal with name input (required, Zod validated), type select (4 options), save to Dexie with success toast
+- AC #2: AccountCard displays name, type badge, transaction count via useLiveQuery, edit/delete icon buttons; accounts listed in responsive grid
+- AC #3: EditAccountModal pre-populates form with existing data, updates Dexie on save with success toast
+- AC #4: Delete shows AlertDialog confirmation with transaction count warning, atomic deletion via Dexie transaction, sonner toast with Undo action (10s window), undo restores account + transactions from memory backup
+- AC #5: EmptyState with CreditCard icon, "No accounts yet" title, "Add Account" CTA button
+- Task 7: Sidebar stats section extended with account count via useLiveQuery
+- All implementations use useLiveQuery (no React state duplication), type (no interface), named exports only
+- Installed shadcn Input and AlertDialog components as dependencies
+- 21 new tests added (13 in accounts.test.tsx, 8 in AccountCard.test.tsx), all passing
+- Full test suite: 132 tests passing across 11 test files, 0 regressions
+- TypeScript compilation: 0 errors
+
 ### File List
+
+- `src/routes/accounts.tsx` (MODIFIED) - Full AccountsPage with CRUD, empty state, delete with undo
+- `src/routes/accounts.test.tsx` (CREATED) - 13 tests covering empty state, account display, CRUD operations
+- `src/features/accounts/components/AccountCard/index.tsx` (CREATED) - Account card with name, type badge, transaction count, edit/delete buttons
+- `src/features/accounts/components/AccountCard/AccountCard.test.tsx` (CREATED) - 8 tests for AccountCard component
+- `src/features/accounts/components/CreateAccountModal/index.tsx` (CREATED) - Create account modal with Zod validation
+- `src/features/accounts/components/EditAccountModal/index.tsx` (CREATED) - Edit account modal with pre-populated data
+- `src/components/Layout/Sidebar.tsx` (MODIFIED) - Added account count to stats section
+- `src/components/ui/input.tsx` (CREATED) - shadcn Input component (installed via CLI)
+- `src/components/ui/alert-dialog.tsx` (CREATED) - shadcn AlertDialog component (installed via CLI)
 
