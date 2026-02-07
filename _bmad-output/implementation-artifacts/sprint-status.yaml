@@ -81,7 +81,7 @@ development_status:
   # Epic 5: Batch Operations & Quick Actions
   epic-5: in-progress
   5-1-multi-select-transactions-shift-jk: ready-for-dev
-  5-2-batch-merchant-assignment: backlog
+  5-2-batch-merchant-assignment: ready-for-dev
   5-3-batch-category-assignment: backlog
   5-4-focus-mode-current-month-m-key: backlog
   5-5-focus-mode-subscriptions-placeholder-s-key: backlog
