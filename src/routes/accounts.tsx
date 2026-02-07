@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { CreditCard, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { db, useLiveQuery } from '@/lib/db'
@@ -16,6 +16,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { AccountCard } from '@/features/accounts/components/AccountCard'
+import { AccountMonthGrid } from '@/features/import/components/AccountMonthGrid'
 import { CreateAccountModal } from '@/features/accounts/components/CreateAccountModal'
 import { EditAccountModal } from '@/features/accounts/components/EditAccountModal'
 import type { Account } from '@/types'
@@ -27,6 +28,13 @@ type UndoState = {
   timeoutId: number
 }
 
+type ReimportState = {
+  file: File
+  monthKey: string
+  accountId: number
+  existingCount: number
+}
+
 export const Route = createFileRoute('/accounts')({
   component: AccountsPage,
 })
@@ -36,12 +44,46 @@ export function AccountsPage(): React.ReactElement {
   const [editingAccount, setEditingAccount] = useState<Account | null>(null)
   const [deletingAccount, setDeletingAccount] = useState<Account | null>(null)
   const [deleteTransactionCount, setDeleteTransactionCount] = useState(0)
+  const [reimportState, setReimportState] = useState<ReimportState | null>(null)
   const undoRef = useRef<UndoState | null>(null)
+  const navigate = useNavigate()
 
   const accounts = useLiveQuery(() => db.accounts.toArray()) ?? []
 
   const handleOpenCreate = (): void => {
     setCreateOpen(true)
+  }
+
+  const handleMonthClick = (monthKey: string, accountId: number): void => {
+    navigate({
+      to: '/transactions',
+      search: { accountId, month: monthKey },
+    })
+  }
+
+  const handleFileDropped = (file: File, monthKey: string, accountId: number, transactionCount: number): void => {
+    if (transactionCount > 0) {
+      setReimportState({ file, monthKey, accountId, existingCount: transactionCount })
+    } else {
+      handleImportFile(file)
+    }
+  }
+
+  const handleImportFile = (file: File): void => {
+    const ext = file.name.split('.').pop()?.toLowerCase()
+    if (ext === 'csv') {
+      toast.info('CSV import will be available in Story 2.3')
+    } else if (ext === 'pdf') {
+      toast.info('PDF import coming in Story 2.5')
+    } else {
+      toast.error('Unsupported file type. Please upload a CSV or PDF file.')
+    }
+  }
+
+  const handleConfirmReimport = (): void => {
+    if (!reimportState) return
+    handleImportFile(reimportState.file)
+    setReimportState(null)
   }
 
   const handleEdit = (account: Account): void => {
@@ -138,14 +180,22 @@ export function AccountsPage(): React.ReactElement {
         </Button>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="space-y-6">
         {accounts.map((account) => (
-          <AccountCard
-            key={account.id}
-            account={account}
-            onEdit={handleEdit}
-            onDelete={handleDeleteRequest}
-          />
+          <div key={account.id}>
+            <AccountCard
+              account={account}
+              onEdit={handleEdit}
+              onDelete={handleDeleteRequest}
+            />
+            {account.id !== undefined && (
+              <AccountMonthGrid
+                accountId={account.id}
+                onMonthClick={handleMonthClick}
+                onFileDropped={handleFileDropped}
+              />
+            )}
+          </div>
         ))}
       </div>
 
@@ -177,6 +227,30 @@ export function AccountsPage(): React.ReactElement {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction variant="destructive" onClick={handleConfirmDelete}>
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={reimportState !== null}
+        onOpenChange={(open) => {
+          if (!open) setReimportState(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Replace Existing Transactions</AlertDialogTitle>
+            <AlertDialogDescription>
+              This month already has {reimportState?.existingCount ?? 0}{' '}
+              {reimportState?.existingCount === 1 ? 'transaction' : 'transactions'}.
+              Replace them?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmReimport}>
+              Replace
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
