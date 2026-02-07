@@ -107,11 +107,11 @@ describe('Navigation', () => {
     expect(transactionsLink).toHaveClass('bg-accent')
   })
 
-  it('renders all 4 navigation links', async () => {
+  it('renders all 5 navigation links', async () => {
     const router = createTestRouter()
     render(<RouterProvider router={router} />)
 
     const links = await screen.findAllByRole('link')
-    expect(links).toHaveLength(4)
+    expect(links).toHaveLength(5)
   })
 })

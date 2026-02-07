@@ -52,7 +52,7 @@ development_status:
   2-1-create-and-manage-bank-accounts: review
   2-2-account-month-grid-for-statement-management: review
   2-3-csv-statement-import-and-parsing: review
-  2-4-llm-settings-configuration: ready-for-dev
+  2-4-llm-settings-configuration: review
   2-5-pdf-statement-import-with-llm-parsing: ready-for-dev
   2-6-duplicate-transaction-detection: ready-for-dev
   epic-2-retrospective: optional

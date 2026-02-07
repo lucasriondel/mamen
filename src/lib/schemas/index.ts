@@ -2,4 +2,4 @@ export { accountSchema, accountTypeSchema, createAccountSchema, type CreateAccou
 export { transactionSchema, createTransactionSchema, type CreateTransactionInput } from './transaction.schema'
 export { merchantSchema, createMerchantSchema, type CreateMerchantInput } from './merchant.schema'
 export { ruleSchema, createRuleSchema, type CreateRuleInput } from './rule.schema'
-export { settingSchema, settingKeySchema, createSettingSchema, type CreateSettingInput } from './settings.schema'
+export { settingSchema, settingKeySchema, createSettingSchema, type CreateSettingInput, llmProviderSchema, llmSettingsSchema, appSettingsSchema } from './settings.schema'

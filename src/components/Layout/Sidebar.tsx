@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { LayoutDashboard, Receipt, Store, CreditCard } from 'lucide-react'
+import { LayoutDashboard, Receipt, Store, CreditCard, Settings } from 'lucide-react'
 import { db, useLiveQuery } from '@/lib/db'
 
 type NavItem = {
@@ -13,6 +13,7 @@ const navItems: NavItem[] = [
   { to: '/transactions', label: 'Transactions', icon: <Receipt className="h-4 w-4" /> },
   { to: '/merchants', label: 'Merchants', icon: <Store className="h-4 w-4" /> },
   { to: '/accounts', label: 'Accounts', icon: <CreditCard className="h-4 w-4" /> },
+  { to: '/settings', label: 'Settings', icon: <Settings className="h-4 w-4" /> },
 ]
 
 export function Sidebar(): React.ReactElement {

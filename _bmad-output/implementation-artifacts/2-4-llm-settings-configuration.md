@@ -1,6 +1,6 @@
 # Story 2.4: LLM Settings Configuration
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -39,17 +39,17 @@ So that **I can use a local LLM for privacy or my own cloud API key**.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Create Settings route and page structure (AC: #1)
-  - [ ] Create route at `src/routes/settings.tsx` using TanStack Router
-  - [ ] Add "Settings" navigation item to sidebar in Layout component
-  - [ ] Create `src/features/settings/components/SettingsPage/index.tsx`
-  - [ ] Structure page with sections: LLM Configuration (primary focus of this story)
-  - [ ] Use shadcn Card component for section containers
-  - [ ] Add appropriate page header/breadcrumb
+- [x] Task 1: Create Settings route and page structure (AC: #1)
+  - [x]Create route at `src/routes/settings.tsx` using TanStack Router
+  - [x]Add "Settings" navigation item to sidebar in Layout component
+  - [x]Create `src/features/settings/components/SettingsPage/index.tsx`
+  - [x]Structure page with sections: LLM Configuration (primary focus of this story)
+  - [x]Use shadcn Card component for section containers
+  - [x]Add appropriate page header/breadcrumb
 
-- [ ] Task 2: Define Settings data model and schema (AC: #1, #2)
-  - [ ] Add `settings` table to Dexie schema if not exists in `src/lib/db/schema.ts`
-  - [ ] Define settings type in `src/types/settings.types.ts`:
+- [x] Task 2: Define Settings data model and schema (AC: #1, #2)
+  - [x]Add `settings` table to Dexie schema if not exists in `src/lib/db/schema.ts`
+  - [x]Define settings type in `src/types/settings.types.ts`:
     ```typescript
     type LLMSettings = {
       endpoint: string        // API endpoint URL
@@ -64,37 +64,37 @@ So that **I can use a local LLM for privacy or my own cloud API key**.
       // Future settings will be added here
     }
     ```
-  - [ ] Create Zod schema in `src/lib/schemas/settings.schema.ts` for validation
-  - [ ] Ensure settings singleton pattern (single row with id='app')
+  - [x]Create Zod schema in `src/lib/schemas/settings.schema.ts` for validation
+  - [x]Ensure settings singleton pattern (single row with id='app')
 
-- [ ] Task 3: Create LLM Configuration form UI (AC: #1)
-  - [ ] Create `src/features/settings/components/LLMConfigForm/index.tsx`
-  - [ ] Add Provider Select dropdown with options:
+- [x] Task 3: Create LLM Configuration form UI (AC: #1)
+  - [x]Create `src/features/settings/components/LLMConfigForm/index.tsx`
+  - [x]Add Provider Select dropdown with options:
     - Ollama (Local) - default
     - LM Studio (Local)
     - OpenAI
     - Anthropic
     - Custom
-  - [ ] Add Endpoint URL input field with placeholders per provider:
+  - [x]Add Endpoint URL input field with placeholders per provider:
     - Ollama: http://localhost:11434/v1
     - LM Studio: http://localhost:1234/v1
     - OpenAI: https://api.openai.com/v1
     - Anthropic: https://api.anthropic.com/v1
     - Custom: User enters full URL
-  - [ ] Add API Key input field (type="password") with visibility toggle
+  - [x]Add API Key input field (type="password") with visibility toggle
     - Show "Not required for local LLM" help text when Ollama selected
-  - [ ] Add Model Name input field with common model suggestions per provider:
+  - [x]Add Model Name input field with common model suggestions per provider:
     - Ollama: llama3.2, mistral, qwen2.5
     - OpenAI: gpt-4o, gpt-4o-mini
     - Anthropic: claude-3-5-sonnet-latest, claude-3-5-haiku-latest
-  - [ ] Use shadcn form components: Input, Select, Button, Label
-  - [ ] Apply dark theme styling per UX spec
+  - [x]Use shadcn form components: Input, Select, Button, Label
+  - [x]Apply dark theme styling per UX spec
 
-- [ ] Task 4: Implement settings persistence (AC: #2, #3)
-  - [ ] Create `src/features/settings/hooks/useSettings.ts`
-  - [ ] Use `useLiveQuery` to read settings from Dexie
-  - [ ] Implement `saveSettings` function using `db.settings.put()`
-  - [ ] Handle initial state (no settings row) with defaults:
+- [x] Task 4: Implement settings persistence (AC: #2, #3)
+  - [x]Create `src/features/settings/hooks/useSettings.ts`
+  - [x]Use `useLiveQuery` to read settings from Dexie
+  - [x]Implement `saveSettings` function using `db.settings.put()`
+  - [x]Handle initial state (no settings row) with defaults:
     ```typescript
     const DEFAULT_LLM_SETTINGS: LLMSettings = {
       endpoint: 'http://localhost:11434/v1',
@@ -103,13 +103,13 @@ So that **I can use a local LLM for privacy or my own cloud API key**.
       provider: 'ollama'
     }
     ```
-  - [ ] Auto-save on form change with debounce (500ms)
-  - [ ] Show "Saved" indicator briefly when settings persist
+  - [x]Auto-save on form change with debounce (500ms)
+  - [x]Show "Saved" indicator briefly when settings persist
 
-- [ ] Task 5: Implement "Test Connection" functionality (AC: #4)
-  - [ ] Add "Test Connection" button to form
-  - [ ] Create `src/lib/llm/client.ts` with OpenAI-compatible client
-  - [ ] Implement `testConnection` function:
+- [x] Task 5: Implement "Test Connection" functionality (AC: #4)
+  - [x]Add "Test Connection" button to form
+  - [x]Create `src/lib/llm/client.ts` with OpenAI-compatible client
+  - [x]Implement `testConnection` function:
     ```typescript
     export const testConnection = async (settings: LLMSettings): Promise<{
       success: boolean
@@ -117,14 +117,14 @@ So that **I can use a local LLM for privacy or my own cloud API key**.
       modelInfo?: string
     }>
     ```
-  - [ ] For Ollama: Call `/api/tags` endpoint to list models
-  - [ ] For OpenAI-compatible: Call `/models` endpoint
-  - [ ] Handle errors: network error, auth error, timeout
-  - [ ] Show loading spinner on button during test
-  - [ ] Display result in toast: success (green) or error (red)
+  - [x]For Ollama: Call `/api/tags` endpoint to list models
+  - [x]For OpenAI-compatible: Call `/models` endpoint
+  - [x]Handle errors: network error, auth error, timeout
+  - [x]Show loading spinner on button during test
+  - [x]Display result in toast: success (green) or error (red)
 
-- [ ] Task 6: Create LLM client abstraction (AC: #4, #5)
-  - [ ] Create `src/lib/llm/client.ts` with:
+- [x] Task 6: Create LLM client abstraction (AC: #4, #5)
+  - [x]Create `src/lib/llm/client.ts` with:
     ```typescript
     export const createLLMClient = (settings: LLMSettings) => {
       // Returns client configured for the provider
@@ -138,25 +138,25 @@ So that **I can use a local LLM for privacy or my own cloud API key**.
       // Returns user-friendly error message if not configured
     }
     ```
-  - [ ] Support OpenAI-compatible API format (same code works for all providers)
-  - [ ] Include proper headers (Authorization, Content-Type)
-  - [ ] Handle Ollama's slightly different API structure
+  - [x]Support OpenAI-compatible API format (same code works for all providers)
+  - [x]Include proper headers (Authorization, Content-Type)
+  - [x]Handle Ollama's slightly different API structure
 
-- [ ] Task 7: Add provider-specific form behavior (AC: #1, #3)
-  - [ ] When provider changes, auto-update endpoint to default
-  - [ ] When provider is 'ollama', hide API key field entirely or show as optional
-  - [ ] When provider is 'openai' or 'anthropic', show API key as required
-  - [ ] Validate endpoint URL format before saving
-  - [ ] Validate API key is provided for cloud providers before test
+- [x] Task 7: Add provider-specific form behavior (AC: #1, #3)
+  - [x]When provider changes, auto-update endpoint to default
+  - [x]When provider is 'ollama', hide API key field entirely or show as optional
+  - [x]When provider is 'openai' or 'anthropic', show API key as required
+  - [x]Validate endpoint URL format before saving
+  - [x]Validate API key is provided for cloud providers before test
 
-- [ ] Task 8: Implement LLM status indicator (AC: #5)
-  - [ ] Add status indicator in sidebar or settings showing LLM connection state
-  - [ ] States: Not configured, Configured (untested), Connected, Error
-  - [ ] Show subtle warning if PDF import is attempted without valid LLM config
-  - [ ] Status should update after successful "Test Connection"
+- [x] Task 8: Implement LLM status indicator (AC: #5)
+  - [x]Add status indicator in sidebar or settings showing LLM connection state
+  - [x]States: Not configured, Configured (untested), Connected, Error
+  - [x]Show subtle warning if PDF import is attempted without valid LLM config
+  - [x]Status should update after successful "Test Connection"
 
-- [ ] Task 9: Create helper for PDF import error handling (AC: #5)
-  - [ ] Create `src/lib/llm/guards.ts` with:
+- [x] Task 9: Create helper for PDF import error handling (AC: #5)
+  - [x]Create `src/lib/llm/guards.ts` with:
     ```typescript
     export const checkLLMRequirements = async (): Promise<{
       ready: boolean
@@ -164,20 +164,20 @@ So that **I can use a local LLM for privacy or my own cloud API key**.
       redirectToSettings?: boolean
     }>
     ```
-  - [ ] This will be called by PDF import flow in Story 2.5
-  - [ ] Returns user-friendly message if LLM not configured
-  - [ ] Includes link/button to navigate to Settings
+  - [x]This will be called by PDF import flow in Story 2.5
+  - [x]Returns user-friendly message if LLM not configured
+  - [x]Includes link/button to navigate to Settings
 
-- [ ] Task 10: Write unit tests (AC: all)
-  - [ ] Create `src/features/settings/components/LLMConfigForm/LLMConfigForm.test.tsx`
-  - [ ] Test form renders with default values
-  - [ ] Test provider selection updates endpoint placeholder
-  - [ ] Test settings are saved to Dexie on change
-  - [ ] Create `src/lib/llm/client.test.ts`
-  - [ ] Test testConnection handles success case
-  - [ ] Test testConnection handles network error
-  - [ ] Test testConnection handles auth error
-  - [ ] Test isLLMConfigured logic
+- [x] Task 10: Write unit tests (AC: all)
+  - [x]Create `src/features/settings/components/LLMConfigForm/LLMConfigForm.test.tsx`
+  - [x]Test form renders with default values
+  - [x]Test provider selection updates endpoint placeholder
+  - [x]Test settings are saved to Dexie on change
+  - [x]Create `src/lib/llm/client.test.ts`
+  - [x]Test testConnection handles success case
+  - [x]Test testConnection handles network error
+  - [x]Test testConnection handles auth error
+  - [x]Test isLLMConfigured logic
 
 ## Dev Notes
 
@@ -484,10 +484,53 @@ Before marking complete:
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.6
 
 ### Debug Log References
 
+- Fixed `useLiveQuery` returning `undefined` for both loading and missing record states by mapping missing records to `null`
+- Fixed Layout test that expected 4 nav links (now 5 with Settings)
+- Fixed testConnection for Ollama: changed from throwing error to returning result for non-ok responses
+
 ### Completion Notes List
 
+- Created Settings route at `/settings` with TanStack Router file-based routing
+- Added Settings navigation item to sidebar with Settings icon
+- Created SettingsPage component with LLM Configuration section using shadcn Card
+- Defined `LLMSettings`, `LLMProvider`, and `AppSettings` types with Zod validation schemas
+- Added `appSettings` table to Dexie (version 3) with singleton pattern (`&id`)
+- Built LLMConfigForm with provider select (5 options), endpoint URL, API key with visibility toggle, and model name with clickable suggestion chips
+- Implemented `useSettings` hook with `useLiveQuery` for reactive settings and debounced auto-save (500ms)
+- Created LLM client abstraction: `createLLMClient`, `testConnection`, `isLLMConfigured`, `getLLMError`, `getProviderDefaults`
+- Implemented Test Connection with 10-second timeout, Ollama `/api/tags` support, OpenAI-compatible `/models` support
+- Added connection status badge (Not configured / Untested / Connected / Error)
+- Created `checkLLMRequirements` guard for PDF import pre-check
+- Provider change auto-updates endpoint and model defaults, resets test status
+- API key field hidden for local providers, shown for cloud providers with security warning
+- 34 new tests: 24 client tests + 10 form component tests
+- All 215 tests pass with zero regressions
+- Zero TypeScript errors, all named exports, uses `type` not `interface`
+
 ### File List
+
+- src/routes/settings.tsx (new)
+- src/features/settings/components/SettingsPage/index.tsx (new)
+- src/features/settings/components/LLMConfigForm/index.tsx (new)
+- src/features/settings/components/LLMConfigForm/LLMConfigForm.test.tsx (new)
+- src/features/settings/hooks/useSettings.ts (new)
+- src/features/settings/index.ts (new)
+- src/lib/llm/client.ts (new)
+- src/lib/llm/client.test.ts (new)
+- src/lib/llm/guards.ts (new)
+- src/types/settings.types.ts (modified)
+- src/types/index.ts (modified)
+- src/lib/db/schema.ts (modified)
+- src/lib/schemas/settings.schema.ts (modified)
+- src/lib/schemas/index.ts (modified)
+- src/components/Layout/Sidebar.tsx (modified)
+- src/components/Layout/Layout.test.tsx (modified)
+- src/routeTree.gen.ts (auto-generated)
+
+### Change Log
+
+- 2026-02-07: Implemented Story 2.4 - LLM Settings Configuration. Created settings page with full LLM provider configuration (Ollama, LM Studio, OpenAI, Anthropic, Custom), test connection functionality, auto-save with Dexie, and LLM client abstraction for Story 2.5 PDF import.

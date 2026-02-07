@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { Setting } from '@/types'
+import type { Setting, AppSettings } from '@/types'
 
 export const settingKeySchema = z.enum([
   'llm_endpoint',
@@ -19,3 +19,19 @@ export const settingSchema = z.object({
 export const createSettingSchema = settingSchema.omit({ id: true })
 
 export type CreateSettingInput = z.infer<typeof createSettingSchema>
+
+export const llmProviderSchema = z.enum(['ollama', 'lm-studio', 'openai', 'anthropic', 'custom'])
+
+export const llmSettingsSchema = z.object({
+  endpoint: z.string().url('Please enter a valid URL'),
+  apiKey: z.string().optional(),
+  modelName: z.string().min(1, 'Model name is required'),
+  provider: llmProviderSchema,
+  lastTestedAt: z.date().optional(),
+  lastTestSuccess: z.boolean().optional(),
+})
+
+export const appSettingsSchema = z.object({
+  id: z.literal('app'),
+  llm: llmSettingsSchema,
+}) satisfies z.ZodType<AppSettings>

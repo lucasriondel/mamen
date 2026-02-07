@@ -1,3 +1,19 @@
+export type LLMProvider = 'ollama' | 'lm-studio' | 'openai' | 'anthropic' | 'custom'
+
+export type LLMSettings = {
+  endpoint: string
+  apiKey?: string
+  modelName: string
+  provider: LLMProvider
+  lastTestedAt?: Date
+  lastTestSuccess?: boolean
+}
+
+export type AppSettings = {
+  id: 'app'
+  llm: LLMSettings
+}
+
 export type SettingKey =
   | 'llm_endpoint'
   | 'llm_api_key'
