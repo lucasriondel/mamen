@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { CategoryBreakdown } from './index'
 import type { SpendingBreakdownItem } from '../../hooks/useSpendingBreakdown'
+import type { ComparisonResult } from '../../utils/computeComparison'
 
 const makeItem = (overrides: Partial<SpendingBreakdownItem> = {}): SpendingBreakdownItem => ({
   categoryId: 1,
@@ -79,5 +80,62 @@ describe('CategoryBreakdown', () => {
     const rows = screen.getAllByTestId('category-row')
     expect(rows[0]).toHaveTextContent('First')
     expect(rows[1]).toHaveTextContent('Second')
+  })
+
+  it('shows per-category comparison indicators', () => {
+    const items = [
+      makeItem({ categoryId: 1, categoryName: 'Shopping', totalAmount: -100, percentage: 60 }),
+      makeItem({ categoryId: 2, categoryName: 'Dining', totalAmount: -75, percentage: 40, color: '#F97316' }),
+    ]
+
+    const catComparisons = new Map<number | null, ComparisonResult>([
+      [1, { absoluteChange: 20, percentageChange: 25, direction: 'up', hasPreviousData: true }],
+      [2, { absoluteChange: -10, percentageChange: -12, direction: 'down', hasPreviousData: true }],
+    ])
+
+    render(
+      <CategoryBreakdown
+        items={items}
+        totalExpenses={-175}
+        categoryComparisons={catComparisons}
+        comparisonLabel="vs last month"
+      />
+    )
+
+    const indicators = screen.getAllByTestId('comparison-indicator')
+    expect(indicators).toHaveLength(2)
+    expect(indicators[0].className).toContain('text-destructive')
+    expect(indicators[1].className).toContain('text-green-500')
+  })
+
+  it('hides comparison when no data', () => {
+    const items = [
+      makeItem({ categoryName: 'Shopping', totalAmount: -100, percentage: 100 }),
+    ]
+
+    render(<CategoryBreakdown items={items} totalExpenses={-100} />)
+
+    expect(screen.queryByTestId('comparison-indicator')).not.toBeInTheDocument()
+  })
+
+  it('shows "New" for categories not in previous period', () => {
+    const items = [
+      makeItem({ categoryId: 1, categoryName: 'Shopping', totalAmount: -100, percentage: 100 }),
+    ]
+
+    const catComparisons = new Map<number | null, ComparisonResult>([
+      [1, { absoluteChange: 100, percentageChange: 100, direction: 'up', hasPreviousData: false }],
+    ])
+
+    render(
+      <CategoryBreakdown
+        items={items}
+        totalExpenses={-100}
+        categoryComparisons={catComparisons}
+        comparisonLabel="vs last month"
+      />
+    )
+
+    expect(screen.getByText('New')).toBeInTheDocument()
   })
 })

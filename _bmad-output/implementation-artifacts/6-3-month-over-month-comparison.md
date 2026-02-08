@@ -1,6 +1,6 @@
 # Story 6.3: Month-over-Month Comparison
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -47,146 +47,60 @@ So that **I can see if I'm spending more or less than before (FR31)**.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Create comparison utility functions (AC: #1, #2, #3, #5, #6)
-  - [ ] Create `src/features/dashboard/utils/computeComparison.ts`
-  - [ ] Create `src/features/dashboard/utils/computeComparison.test.ts`
-  - [ ] Implement `getPreviousPeriodRange(period: TimePeriod): ResolvedDateRange`:
-    - `this-month`: previous calendar month
-    - `last-month`: the month before last month
-    - `last-3-months`: the 3-month window before the current 3 months
-    - `this-year`: same date range in the previous year
-    - `custom`: shift the custom range back by its own duration
-  - [ ] Implement `computeComparison(current: number, previous: number): ComparisonResult`:
-    ```typescript
-    type ComparisonResult = {
-      absoluteChange: number      // current - previous (e.g., +150 or -75)
-      percentageChange: number    // percentage change (e.g., 12 or -8)
-      direction: 'up' | 'down' | 'flat'
-      hasPreviousData: boolean
-    }
-    ```
-    - `direction`: 'up' if increased, 'down' if decreased, 'flat' if within ±0.5%
-    - Handle edge case: previous = 0 (show "New" or 100% increase)
-    - Handle edge case: current = 0 (show -100%)
-  - [ ] Implement `getComparisonLabel(period: TimePeriod): string`:
-    - `this-month`: "vs last month"
-    - `last-month`: "vs [month before last]"
-    - `last-3-months`: "vs previous 3 months"
-    - `this-year`: "vs last year"
-    - `custom`: "vs previous period"
+- [x] Task 1: Create comparison utility functions (AC: #1, #2, #3, #5, #6)
+  - [x] Create `src/features/dashboard/utils/computeComparison.ts`
+  - [x] Create `src/features/dashboard/utils/computeComparison.test.ts`
+  - [x] Implement `getPreviousPeriodRange(period: TimePeriod): ResolvedDateRange`
+  - [x] Implement `computeComparison(current: number, previous: number): ComparisonResult`
+  - [x] Implement `getComparisonLabel(period: TimePeriod): string`
 
-- [ ] Task 2: Create `useSpendingComparison` hook (AC: #1, #4, #5, #6)
-  - [ ] Create `src/features/dashboard/hooks/useSpendingComparison.ts`
-  - [ ] Create `src/features/dashboard/hooks/useSpendingComparison.test.ts`
-  - [ ] Accept `selectedPeriod: TimePeriod` parameter
-  - [ ] Use `getPreviousPeriodRange` to compute previous date range
-  - [ ] Use `useLiveQuery` to query previous period transactions from Dexie:
-    ```typescript
-    const prevTransactions = useLiveQuery(
-      () => prevRange
-        ? db.transactions.where('date').between(prevRange.startDate, prevRange.endDate, true, true).toArray()
-        : Promise.resolve([]),
-      [prevRange?.startDate, prevRange?.endDate]
-    )
-    ```
-  - [ ] Aggregate previous period data: group by categoryId, sum amounts (same logic as `useSpendingBreakdown`)
-  - [ ] Compute comparison for total spending AND per-category:
-    ```typescript
-    type SpendingComparison = {
-      totalComparison: ComparisonResult
-      comparisonLabel: string
-      categoryComparisons: Map<string | null, ComparisonResult>
-      previousPeriodTotal: number
-    }
-    ```
-  - [ ] Return `undefined` when previous period has no transactions (AC: #6)
+- [x] Task 2: Create `useSpendingComparison` hook (AC: #1, #4, #5, #6)
+  - [x] Create `src/features/dashboard/hooks/useSpendingComparison.ts`
+  - [x] Create `src/features/dashboard/hooks/useSpendingComparison.test.ts`
+  - [x] Accept `selectedPeriod: TimePeriod` and `currentBreakdown: SpendingBreakdown` parameters
+  - [x] Use `getPreviousPeriodRange` to compute previous date range
+  - [x] Use `useLiveQuery` to query previous period transactions from Dexie
+  - [x] Derive current aggregation from breakdown (avoids duplicate queries)
+  - [x] Compute comparison for total spending AND per-category
+  - [x] Return `undefined` when previous period has no transactions (AC: #6)
 
-- [ ] Task 3: Create `ComparisonIndicator` component (AC: #2, #3, #6)
-  - [ ] Create `src/features/dashboard/components/ComparisonIndicator/index.tsx`
-  - [ ] Create `src/features/dashboard/components/ComparisonIndicator/ComparisonIndicator.test.tsx`
-  - [ ] Props:
-    ```typescript
-    type ComparisonIndicatorProps = {
-      comparison: ComparisonResult | undefined
-      label: string   // e.g., "vs last month"
-      size?: 'sm' | 'md'
-    }
-    ```
-  - [ ] Render:
-    - **Up (spending increased):** `↑ +€150 (+12%) vs last month` in `text-destructive` (warning/red)
-    - **Down (spending decreased):** `↓ -€75 (-8%) vs last month` in `text-green-500` (success/green)
-    - **Flat:** `→ No change vs last month` in `text-muted-foreground`
-    - **No data:** `No previous data to compare` in `text-muted-foreground`
-  - [ ] Use `TrendingUp` / `TrendingDown` / `Minus` icons from `lucide-react`
-  - [ ] Format amounts with `formatCurrency` utility
-  - [ ] `size='sm'` for per-category indicators (smaller font, inline)
-  - [ ] `size='md'` for total spending indicator (default)
+- [x] Task 3: Create `ComparisonIndicator` component (AC: #2, #3, #6)
+  - [x] Create `src/features/dashboard/components/ComparisonIndicator/index.tsx`
+  - [x] Create `src/features/dashboard/components/ComparisonIndicator/ComparisonIndicator.test.tsx`
+  - [x] Render up/down/flat/no-data states with correct colors and icons
+  - [x] Use `TrendingUp` / `TrendingDown` / `Minus` icons from `lucide-react`
+  - [x] Format amounts with `formatCurrency` utility
+  - [x] `size='sm'` for per-category indicators (smaller font, inline)
+  - [x] `size='md'` for total spending indicator (default)
 
-- [ ] Task 4: Update `SpendingSummary` to show total comparison (AC: #1, #2, #3, #6)
-  - [ ] Modify `src/features/dashboard/components/SpendingSummary/index.tsx`
-  - [ ] Add optional `comparison` prop: `SpendingComparison | undefined`
-  - [ ] Render `ComparisonIndicator` below total expenses with `size='md'`
-  - [ ] Update `SpendingSummary.test.tsx`:
-    - Test: Shows comparison when data available
-    - Test: Shows "No previous data" when no comparison
-    - Test: Correct color for increase (destructive)
-    - Test: Correct color for decrease (success/green)
-    - Test: Hides comparison gracefully when undefined
+- [x] Task 4: Update `SpendingSummary` to show total comparison (AC: #1, #2, #3, #6)
+  - [x] Modify `src/features/dashboard/components/SpendingSummary/index.tsx`
+  - [x] Add optional `comparison` prop: `SpendingComparison | undefined`
+  - [x] Render `ComparisonIndicator` below total expenses with `size='md'`
+  - [x] Update `SpendingSummary.test.tsx` with comparison tests
 
-- [ ] Task 5: Update `CategoryBreakdown` to show per-category comparison (AC: #4)
-  - [ ] Modify `src/features/dashboard/components/CategoryBreakdown/index.tsx`
-  - [ ] Add optional `categoryComparisons` prop: `Map<string | null, ComparisonResult> | undefined`
-  - [ ] For each category row, render inline `ComparisonIndicator` with `size='sm'`:
-    ```
-    ┌─────────────────────────────────────────────────────────────┐
-    │ [Color] Shopping        €1,200.00  (35%)  ↑ +12% vs last   │
-    │ ████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░         │
-    ├─────────────────────────────────────────────────────────────┤
-    │ [Color] Dining            €450.00  (13%)  ↓ -8% vs last    │
-    │ ██████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░         │
-    └─────────────────────────────────────────────────────────────┘
-    ```
-  - [ ] Only show comparison if `categoryComparisons` is defined
-  - [ ] Categories not present in previous period show "New"
-  - [ ] Update `CategoryBreakdown.test.tsx`:
-    - Test: Shows per-category comparison indicators
-    - Test: Hides comparison when no data
-    - Test: Shows "New" for categories not in previous period
+- [x] Task 5: Update `CategoryBreakdown` to show per-category comparison (AC: #4)
+  - [x] Modify `src/features/dashboard/components/CategoryBreakdown/index.tsx`
+  - [x] Add optional `categoryComparisons` prop
+  - [x] Render inline `ComparisonIndicator` with `size='sm'` per category row
+  - [x] Categories not present in previous period show "New"
+  - [x] Update `CategoryBreakdown.test.tsx` with comparison tests
 
-- [ ] Task 6: Wire comparison into `DashboardPage` (AC: all)
-  - [ ] Modify `src/features/dashboard/components/DashboardPage/index.tsx`
-  - [ ] Add `useSpendingComparison(selectedPeriod)` hook
-  - [ ] Pass `comparison` to `SpendingSummary`
-  - [ ] Pass `categoryComparisons` to `CategoryBreakdown`
-  - [ ] Comparison updates reactively when time period changes
-  - [ ] Update `DashboardPage.test.tsx`:
-    - Test: Comparison data flows to SpendingSummary
-    - Test: Comparison data flows to CategoryBreakdown
-    - Test: Comparison updates when period changes
+- [x] Task 6: Wire comparison into `DashboardPage` (AC: all)
+  - [x] Modify `src/features/dashboard/components/DashboardPage/index.tsx`
+  - [x] Add `useSpendingComparison(selectedPeriod, breakdown)` hook
+  - [x] Pass `comparison` to `SpendingSummary`
+  - [x] Pass `categoryComparisons` to `CategoryBreakdown`
+  - [x] Comparison updates reactively when time period changes
+  - [x] Update `DashboardPage.test.tsx` with comparison tests
 
-- [ ] Task 7: Write tests (AC: all)
-  - [ ] `computeComparison.test.ts`:
-    - Test: `getPreviousPeriodRange` returns correct range for each preset
-    - Test: `getPreviousPeriodRange` returns correct range for custom period
-    - Test: `computeComparison` returns 'up' when current > previous
-    - Test: `computeComparison` returns 'down' when current < previous
-    - Test: `computeComparison` returns 'flat' when within ±0.5%
-    - Test: Handles previous = 0 (new spending)
-    - Test: Handles current = 0 (stopped spending)
-    - Test: `getComparisonLabel` returns correct labels
-  - [ ] `useSpendingComparison.test.ts`:
-    - Test: Returns comparison when both periods have data
-    - Test: Returns undefined when no previous period data
-    - Test: Correctly computes per-category comparisons
-    - Test: Handles categories present in only one period
-    - Test: Recomputes when selected period changes
-  - [ ] `ComparisonIndicator.test.tsx`:
-    - Test: Renders upward indicator with destructive color
-    - Test: Renders downward indicator with success color
-    - Test: Renders flat indicator with muted color
-    - Test: Renders "No previous data" when undefined
-    - Test: Formats amounts with currency
-    - Test: Renders correctly in 'sm' and 'md' sizes
+- [x] Task 7: Write tests (AC: all)
+  - [x] `computeComparison.test.ts` — 17 tests covering all presets, edge cases, labels
+  - [x] `useSpendingComparison.test.ts` — 5 tests covering data flow, per-category, recompute
+  - [x] `ComparisonIndicator.test.tsx` — 8 tests covering all states, sizes, formatting
+  - [x] `SpendingSummary.test.tsx` — 4 new tests for comparison
+  - [x] `CategoryBreakdown.test.tsx` — 3 new tests for comparison
+  - [x] `DashboardPage.test.tsx` — 2 new tests for comparison integration
 
 ## Dev Notes
 
@@ -442,10 +356,44 @@ Before marking complete:
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.6
 
 ### Debug Log References
 
+- Fixed `useSpendingComparison` to accept `currentBreakdown` from `useSpendingBreakdown` instead of running duplicate Dexie query for current period — resolves `useLiveQuery` subscription issues in test environment and reduces redundant queries
+- Used `useRef` to stabilize `now` parameter to prevent unnecessary re-renders from `new Date()` creating new objects each render
+
 ### Completion Notes List
 
+- Implemented `computeComparison.ts` with `getPreviousPeriodRange`, `computeComparison`, and `getComparisonLabel` utilities
+- Created `useSpendingComparison` hook that queries previous period via `useLiveQuery` and derives current aggregation from the existing breakdown
+- Built `ComparisonIndicator` component with `sm`/`md` sizes, destructive/green/muted colors, TrendingUp/TrendingDown/Minus icons
+- Extended `SpendingSummary` with optional comparison indicator below total expenses
+- Extended `CategoryBreakdown` with per-category comparison indicators (compact `sm` size)
+- Wired everything through `DashboardPage` — comparison updates reactively when time period changes
+- Updated feature barrel exports in `index.ts`
+- All 91 dashboard tests pass, 840 total project tests pass (1 pre-existing failure in `accounts.test.tsx` unrelated to this story)
+- No new dependencies added, no aggregation logic extracted (hook derives from breakdown to avoid DRY violation while keeping simplicity)
+
+### Change Log
+
+- 2026-02-08: Implemented story 6-3 month-over-month comparison — all tasks complete
+
 ### File List
+
+New files:
+- `src/features/dashboard/utils/computeComparison.ts`
+- `src/features/dashboard/utils/computeComparison.test.ts`
+- `src/features/dashboard/hooks/useSpendingComparison.ts`
+- `src/features/dashboard/hooks/useSpendingComparison.test.ts`
+- `src/features/dashboard/components/ComparisonIndicator/index.tsx`
+- `src/features/dashboard/components/ComparisonIndicator/ComparisonIndicator.test.tsx`
+
+Modified files:
+- `src/features/dashboard/index.ts`
+- `src/features/dashboard/components/SpendingSummary/index.tsx`
+- `src/features/dashboard/components/SpendingSummary/SpendingSummary.test.tsx`
+- `src/features/dashboard/components/CategoryBreakdown/index.tsx`
+- `src/features/dashboard/components/CategoryBreakdown/CategoryBreakdown.test.tsx`
+- `src/features/dashboard/components/DashboardPage/index.tsx`
+- `src/features/dashboard/components/DashboardPage/DashboardPage.test.tsx`

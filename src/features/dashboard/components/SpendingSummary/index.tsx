@@ -1,12 +1,15 @@
 import { Card, CardContent } from '@/components/ui/card'
 import { formatCurrency } from '@/lib/utils/formatCurrency'
 import { AlertTriangle } from 'lucide-react'
+import { ComparisonIndicator } from '../ComparisonIndicator'
+import type { SpendingComparison } from '../../hooks/useSpendingComparison'
 
 type SpendingSummaryProps = {
   totalExpenses: number
   totalIncome: number
   categoryCount: number
   uncategorizedCount: number
+  comparison?: SpendingComparison
 }
 
 export function SpendingSummary({
@@ -14,6 +17,7 @@ export function SpendingSummary({
   totalIncome,
   categoryCount,
   uncategorizedCount,
+  comparison,
 }: SpendingSummaryProps): React.ReactElement {
   return (
     <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
@@ -23,6 +27,14 @@ export function SpendingSummary({
           <div className="text-2xl font-semibold font-mono tabular-nums mt-1">
             {formatCurrency(Math.abs(totalExpenses))}
           </div>
+          {comparison && (
+            <div className="mt-1">
+              <ComparisonIndicator
+                comparison={comparison.totalComparison}
+                label={comparison.comparisonLabel}
+              />
+            </div>
+          )}
         </CardContent>
       </Card>
 

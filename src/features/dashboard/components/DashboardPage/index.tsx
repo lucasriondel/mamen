@@ -4,6 +4,7 @@ import { EmptyState } from '@/components/EmptyState'
 import { db, useLiveQuery } from '@/lib/db'
 import { useSpendingBreakdown } from '../../hooks/useSpendingBreakdown'
 import { useTimePeriod } from '../../hooks/useTimePeriod'
+import { useSpendingComparison } from '../../hooks/useSpendingComparison'
 import { SpendingSummary } from '../SpendingSummary'
 import { CategoryBreakdown } from '../CategoryBreakdown'
 import { TimePeriodSelector } from '../TimePeriodSelector'
@@ -13,6 +14,7 @@ export function DashboardPage(): React.ReactElement {
   const transactionCount = useLiveQuery(() => db.transactions.count()) ?? 0
   const { selectedPeriod, setSelectedPeriod, resolvedRange, periodLabel } = useTimePeriod()
   const breakdown = useSpendingBreakdown(resolvedRange)
+  const comparison = useSpendingComparison(selectedPeriod, breakdown)
 
   if (transactionCount === 0) {
     return (
@@ -36,6 +38,7 @@ export function DashboardPage(): React.ReactElement {
           totalIncome={breakdown.totalIncome}
           categoryCount={categoryCount}
           uncategorizedCount={breakdown.uncategorizedCount}
+          comparison={comparison}
         />
         <TimePeriodSelector
           selectedPeriod={selectedPeriod}
@@ -46,6 +49,8 @@ export function DashboardPage(): React.ReactElement {
       <CategoryBreakdown
         items={breakdown.items}
         totalExpenses={breakdown.totalExpenses}
+        categoryComparisons={comparison?.categoryComparisons}
+        comparisonLabel={comparison?.comparisonLabel}
       />
     </div>
   )

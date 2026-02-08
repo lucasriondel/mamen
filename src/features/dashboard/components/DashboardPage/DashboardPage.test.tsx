@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, beforeAll, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { db } from '@/lib/db'
 import { DashboardPage } from './index'
@@ -107,5 +107,55 @@ describe('DashboardPage', () => {
 
     // Data should update - January transaction should be visible
     expect(await screen.findByText('Shopping')).toBeInTheDocument()
+  })
+
+  it('shows comparison data when previous period has transactions', async () => {
+    const catId = await db.categories.add(makeCategory() as Category)
+
+    // Current period (this month)
+    await db.transactions.bulkAdd([
+      makeTransaction({ amount: -200, categoryId: catId as number, date: now }),
+    ])
+
+    // Previous period (last month)
+    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 15)
+    const lastMonthImport = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, '0')}`
+    await db.transactions.bulkAdd([
+      makeTransaction({ amount: -100, categoryId: catId as number, date: lastMonth, importMonth: lastMonthImport }),
+    ])
+
+    render(<DashboardPage />)
+
+    // Should show comparison indicators (spending went up)
+    await screen.findByText('Total Expenses')
+    await waitFor(() => {
+      const indicators = screen.getAllByTestId('comparison-indicator')
+      expect(indicators.length).toBeGreaterThanOrEqual(1)
+    }, { timeout: 3000 })
+  })
+
+  it('shows comparison in CategoryBreakdown when previous period exists', async () => {
+    const catId = await db.categories.add(makeCategory() as Category)
+
+    // Current period
+    await db.transactions.bulkAdd([
+      makeTransaction({ amount: -200, categoryId: catId as number, date: now }),
+    ])
+
+    // Previous period
+    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 15)
+    const lastMonthImport = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, '0')}`
+    await db.transactions.bulkAdd([
+      makeTransaction({ amount: -100, categoryId: catId as number, date: lastMonth, importMonth: lastMonthImport }),
+    ])
+
+    render(<DashboardPage />)
+
+    // Should have comparison indicators (total + per-category)
+    await screen.findByText('Shopping')
+    await waitFor(() => {
+      const indicators = screen.getAllByTestId('comparison-indicator')
+      expect(indicators.length).toBeGreaterThanOrEqual(2) // total + category
+    })
   })
 })

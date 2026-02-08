@@ -1,12 +1,16 @@
 import { formatCurrency } from '@/lib/utils/formatCurrency'
 import type { SpendingBreakdownItem } from '../../hooks/useSpendingBreakdown'
+import type { ComparisonResult } from '../../utils/computeComparison'
+import { ComparisonIndicator } from '../ComparisonIndicator'
 
 type CategoryBreakdownProps = {
   items: SpendingBreakdownItem[]
   totalExpenses: number
+  categoryComparisons?: Map<number | null, ComparisonResult>
+  comparisonLabel?: string
 }
 
-export function CategoryBreakdown({ items, totalExpenses }: CategoryBreakdownProps): React.ReactElement {
+export function CategoryBreakdown({ items, totalExpenses, categoryComparisons, comparisonLabel }: CategoryBreakdownProps): React.ReactElement {
   if (items.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground">
@@ -49,6 +53,13 @@ export function CategoryBreakdown({ items, totalExpenses }: CategoryBreakdownPro
                 <span className="text-xs text-muted-foreground w-10 text-right">
                   {item.percentage}%
                 </span>
+                {categoryComparisons && (
+                  <ComparisonIndicator
+                    comparison={categoryComparisons.get(item.categoryId ?? null)}
+                    label={comparisonLabel ?? ''}
+                    size="sm"
+                  />
+                )}
               </div>
             </div>
             <div className="h-2 rounded-full bg-muted overflow-hidden" data-testid="category-bar">

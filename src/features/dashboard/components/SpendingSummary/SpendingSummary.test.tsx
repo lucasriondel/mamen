@@ -1,6 +1,31 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { SpendingSummary } from './index'
+import type { SpendingComparison } from '../../hooks/useSpendingComparison'
+
+const mockComparison: SpendingComparison = {
+  totalComparison: {
+    absoluteChange: 150,
+    percentageChange: 12,
+    direction: 'up',
+    hasPreviousData: true,
+  },
+  comparisonLabel: 'vs last month',
+  categoryComparisons: new Map(),
+  previousPeriodTotal: -1000,
+}
+
+const mockDecreaseComparison: SpendingComparison = {
+  totalComparison: {
+    absoluteChange: -75,
+    percentageChange: -8,
+    direction: 'down',
+    hasPreviousData: true,
+  },
+  comparisonLabel: 'vs last month',
+  categoryComparisons: new Map(),
+  previousPeriodTotal: -1000,
+}
 
 describe('SpendingSummary', () => {
   it('shows total expenses', () => {
@@ -69,5 +94,63 @@ describe('SpendingSummary', () => {
     )
 
     expect(screen.queryByText('Uncategorized')).not.toBeInTheDocument()
+  })
+
+  it('shows comparison when data available', () => {
+    render(
+      <SpendingSummary
+        totalExpenses={-1500}
+        totalIncome={0}
+        categoryCount={3}
+        uncategorizedCount={0}
+        comparison={mockComparison}
+      />
+    )
+
+    expect(screen.getByText(/\+12%/)).toBeInTheDocument()
+    expect(screen.getByText(/vs last month/)).toBeInTheDocument()
+  })
+
+  it('shows correct color for increase (destructive)', () => {
+    render(
+      <SpendingSummary
+        totalExpenses={-1500}
+        totalIncome={0}
+        categoryCount={3}
+        uncategorizedCount={0}
+        comparison={mockComparison}
+      />
+    )
+
+    const indicator = screen.getByTestId('comparison-indicator')
+    expect(indicator.className).toContain('text-destructive')
+  })
+
+  it('shows correct color for decrease (success/green)', () => {
+    render(
+      <SpendingSummary
+        totalExpenses={-1500}
+        totalIncome={0}
+        categoryCount={3}
+        uncategorizedCount={0}
+        comparison={mockDecreaseComparison}
+      />
+    )
+
+    const indicator = screen.getByTestId('comparison-indicator')
+    expect(indicator.className).toContain('text-green-500')
+  })
+
+  it('hides comparison gracefully when undefined', () => {
+    render(
+      <SpendingSummary
+        totalExpenses={-1500}
+        totalIncome={0}
+        categoryCount={3}
+        uncategorizedCount={0}
+      />
+    )
+
+    expect(screen.queryByTestId('comparison-indicator')).not.toBeInTheDocument()
   })
 })
