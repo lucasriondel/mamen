@@ -1,10 +1,13 @@
 import { useCallback, useState, type KeyboardEvent } from 'react'
 import { formatCurrency } from '@/lib/utils/formatCurrency'
+import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import type { SpendingBreakdownItem } from '../../hooks/useSpendingBreakdown'
 import type { ComparisonResult } from '../../utils/computeComparison'
 import { useCategoryTooltipData } from '../../hooks/useCategoryTooltipData'
 import { ComparisonIndicator } from '../ComparisonIndicator'
+
+export type SpendingView = 'net' | 'gross'
 
 type CategoryBreakdownProps = {
   items: SpendingBreakdownItem[]
@@ -13,6 +16,9 @@ type CategoryBreakdownProps = {
   comparisonLabel?: string
   onCategoryClick?: (categoryId: number) => void
   dateRange?: { startDate: Date; endDate: Date }
+  spendingView?: SpendingView
+  onViewChange?: (view: SpendingView) => void
+  orphanRefunds?: number
 }
 
 type CategoryRowProps = {
@@ -113,7 +119,7 @@ function CategoryRow({ item, isClickable, categoryComparisons, comparisonLabel, 
   )
 }
 
-export function CategoryBreakdown({ items, totalExpenses, categoryComparisons, comparisonLabel, onCategoryClick, dateRange }: CategoryBreakdownProps): React.ReactElement {
+export function CategoryBreakdown({ items, totalExpenses, categoryComparisons, comparisonLabel, onCategoryClick, dateRange, spendingView, onViewChange, orphanRefunds }: CategoryBreakdownProps): React.ReactElement {
   const handleKeyDown = useCallback(
     (e: KeyboardEvent, categoryId: number | null) => {
       if (e.key === 'Enter' && categoryId !== null && onCategoryClick) {
@@ -136,10 +142,35 @@ export function CategoryBreakdown({ items, totalExpenses, categoryComparisons, c
     <TooltipProvider>
       <div className="space-y-3">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-medium text-muted-foreground">Spending by Category</h3>
-          <span className="font-mono text-sm tabular-nums font-semibold">
-            {formatCurrency(Math.abs(totalExpenses))}
-          </span>
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-medium text-muted-foreground">Spending by Category</h3>
+            {spendingView === 'net' && (
+              <span className="text-xs text-muted-foreground">Net of refunds</span>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            {onViewChange && (
+              <div className="flex items-center gap-1">
+                <Button
+                  variant={spendingView === 'net' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => onViewChange('net')}
+                >
+                  Net
+                </Button>
+                <Button
+                  variant={spendingView === 'gross' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => onViewChange('gross')}
+                >
+                  Gross
+                </Button>
+              </div>
+            )}
+            <span className="font-mono text-sm tabular-nums font-semibold">
+              {formatCurrency(Math.abs(totalExpenses))}
+            </span>
+          </div>
         </div>
         <div className="space-y-2">
           {items.map((item) => (
@@ -155,6 +186,12 @@ export function CategoryBreakdown({ items, totalExpenses, categoryComparisons, c
             />
           ))}
         </div>
+        {orphanRefunds !== undefined && orphanRefunds > 0 && (
+          <div className="text-muted-foreground border-t pt-2 mt-2 flex items-center justify-between px-3" data-testid="orphan-refunds-row">
+            <span className="text-sm">Refunds (unlinked)</span>
+            <span className="text-green-500 font-mono text-sm tabular-nums">+{formatCurrency(orphanRefunds)}</span>
+          </div>
+        )}
       </div>
     </TooltipProvider>
   )

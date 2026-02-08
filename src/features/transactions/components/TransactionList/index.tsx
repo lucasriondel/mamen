@@ -20,6 +20,7 @@ import { useBatchCategoryAssign } from '../../hooks/useBatchCategoryAssign'
 import { useDrillDownFilter } from '../../hooks/useDrillDownFilter'
 import { useNavigateToTransaction } from '../../hooks/useNavigateToTransaction'
 import { useFocusMode } from '@/context/FocusModeContext'
+import { formatCurrency } from '@/lib/utils/formatCurrency'
 import { db, useLiveQuery } from '@/lib/db'
 import type { Transaction } from '@/types'
 
@@ -291,6 +292,30 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
     [multiSelect, selectedId],
   )
 
+  // Compute refund summary for drill-down view (must be before early returns)
+  const drillDownRefundSummary = useMemo(() => {
+    if (!isDrillDown) return null
+
+    let grossAmount = 0
+    let refundAmount = 0
+
+    for (const tx of transactions) {
+      if (tx.isRefund && tx.linkedRefundId) {
+        refundAmount += tx.amount // positive
+      } else if (tx.amount < 0 && !tx.isRefund) {
+        grossAmount += Math.abs(tx.amount)
+      }
+    }
+
+    if (refundAmount === 0) return null
+
+    return {
+      grossAmount,
+      refundAmount,
+      netAmount: grossAmount - refundAmount,
+    }
+  }, [isDrillDown, transactions])
+
   if (isSubscriptionsMode) {
     return <SubscriptionsPlaceholder />
   }
@@ -380,6 +405,13 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
           </button>
           <span className="text-xs text-muted-foreground">
             Showing {transactions.length} transactions
+          </span>
+        </div>
+      )}
+      {isDrillDown && drillDownRefundSummary && (
+        <div className="text-sm text-muted-foreground px-4 py-1.5 border-b" data-testid="drill-down-refund-summary">
+          <span>
+            Gross: {formatCurrency(drillDownRefundSummary.grossAmount)} | Refunds: -{formatCurrency(drillDownRefundSummary.refundAmount)} | <strong className="text-foreground">Net: {formatCurrency(drillDownRefundSummary.netAmount)}</strong>
           </span>
         </div>
       )}

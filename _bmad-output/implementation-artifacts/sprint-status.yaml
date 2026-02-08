@@ -106,7 +106,7 @@ development_status:
   epic-8: in-progress
   8-1-mark-transaction-as-refund-f-key: review
   8-2-link-refund-to-original-purchase: review
-  8-3-net-spending-calculation: ready-for-dev
+  8-3-net-spending-calculation: review
   epic-8-retrospective: optional
 
   # Epic 9: Subscription & Anomaly Detection

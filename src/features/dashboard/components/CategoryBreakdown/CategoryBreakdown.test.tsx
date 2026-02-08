@@ -236,4 +236,133 @@ describe('CategoryBreakdown', () => {
     await user.tab()
     expect(document.activeElement).toBe(rows[1])
   })
+
+  it('shows "Net of refunds" label when spendingView is net', () => {
+    const items = [
+      makeItem({ categoryName: 'Shopping', totalAmount: -100, percentage: 100 }),
+    ]
+
+    render(
+      <CategoryBreakdown
+        items={items}
+        totalExpenses={-100}
+        spendingView="net"
+        onViewChange={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('Net of refunds')).toBeInTheDocument()
+  })
+
+  it('does not show "Net of refunds" when spendingView is gross', () => {
+    const items = [
+      makeItem({ categoryName: 'Shopping', totalAmount: -100, percentage: 100 }),
+    ]
+
+    render(
+      <CategoryBreakdown
+        items={items}
+        totalExpenses={-100}
+        spendingView="gross"
+        onViewChange={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByText('Net of refunds')).not.toBeInTheDocument()
+  })
+
+  it('renders gross/net toggle buttons when onViewChange is provided', () => {
+    const items = [
+      makeItem({ categoryName: 'Shopping', totalAmount: -100, percentage: 100 }),
+    ]
+
+    render(
+      <CategoryBreakdown
+        items={items}
+        totalExpenses={-100}
+        spendingView="net"
+        onViewChange={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'Net' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Gross' })).toBeInTheDocument()
+  })
+
+  it('calls onViewChange when toggle is clicked', async () => {
+    const handleChange = vi.fn()
+    const items = [
+      makeItem({ categoryName: 'Shopping', totalAmount: -100, percentage: 100 }),
+    ]
+
+    const user = userEvent.setup()
+    render(
+      <CategoryBreakdown
+        items={items}
+        totalExpenses={-100}
+        spendingView="net"
+        onViewChange={handleChange}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Gross' }))
+    expect(handleChange).toHaveBeenCalledWith('gross')
+  })
+
+  it('does not render toggle or label when spendingView is not provided', () => {
+    const items = [
+      makeItem({ categoryName: 'Shopping', totalAmount: -100, percentage: 100 }),
+    ]
+
+    render(<CategoryBreakdown items={items} totalExpenses={-100} />)
+
+    expect(screen.queryByText('Net of refunds')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Net' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Gross' })).not.toBeInTheDocument()
+  })
+
+  it('shows orphan refunds row when orphanRefunds > 0', () => {
+    const items = [
+      makeItem({ categoryName: 'Shopping', totalAmount: -100, percentage: 100 }),
+    ]
+
+    render(<CategoryBreakdown items={items} totalExpenses={-100} orphanRefunds={50} />)
+
+    expect(screen.getByTestId('orphan-refunds-row')).toBeInTheDocument()
+    expect(screen.getByText('Refunds (unlinked)')).toBeInTheDocument()
+    // Amount shown as positive with + prefix
+    expect(screen.getByText(/\+.*50/)).toBeInTheDocument()
+  })
+
+  it('hides orphan refunds row when orphanRefunds is 0', () => {
+    const items = [
+      makeItem({ categoryName: 'Shopping', totalAmount: -100, percentage: 100 }),
+    ]
+
+    render(<CategoryBreakdown items={items} totalExpenses={-100} orphanRefunds={0} />)
+
+    expect(screen.queryByTestId('orphan-refunds-row')).not.toBeInTheDocument()
+  })
+
+  it('hides orphan refunds row when orphanRefunds is undefined', () => {
+    const items = [
+      makeItem({ categoryName: 'Shopping', totalAmount: -100, percentage: 100 }),
+    ]
+
+    render(<CategoryBreakdown items={items} totalExpenses={-100} />)
+
+    expect(screen.queryByTestId('orphan-refunds-row')).not.toBeInTheDocument()
+  })
+
+  it('shows orphan refund amount in green', () => {
+    const items = [
+      makeItem({ categoryName: 'Shopping', totalAmount: -100, percentage: 100 }),
+    ]
+
+    render(<CategoryBreakdown items={items} totalExpenses={-100} orphanRefunds={75} />)
+
+    const orphanRow = screen.getByTestId('orphan-refunds-row')
+    const greenAmount = orphanRow.querySelector('.text-green-500')
+    expect(greenAmount).toBeInTheDocument()
+  })
 })

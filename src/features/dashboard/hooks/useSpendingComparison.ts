@@ -49,18 +49,39 @@ export const useSpendingComparison = (
       currentByCategory.set(item.categoryId, Math.abs(item.totalAmount))
     }
 
-    // Aggregate previous period by category
-    const prevByCategory = new Map<number | null, number>()
-    let prevTotal = 0
+    // Aggregate previous period by category (net of refunds)
+    const prevGrossByCategory = new Map<number | null, number>()
+    const prevRefundsByCategory = new Map<number | null, number>()
+    let prevGrossTotal = 0
+    let prevLinkedRefundsTotal = 0
+
     for (const tx of prevTransactions) {
-      if (tx.amount >= 0) continue
-      prevTotal += tx.amount
-      const catId = tx.categoryId ?? null
-      prevByCategory.set(catId, (prevByCategory.get(catId) ?? 0) + Math.abs(tx.amount))
+      if (tx.isRefund && tx.linkedRefundId) {
+        // Linked refund — subtract from its category
+        const catId = tx.categoryId ?? null
+        prevRefundsByCategory.set(catId, (prevRefundsByCategory.get(catId) ?? 0) + tx.amount)
+        prevLinkedRefundsTotal += tx.amount
+      } else if (tx.amount < 0 && !tx.isRefund) {
+        // Expense
+        prevGrossTotal += tx.amount
+        const catId = tx.categoryId ?? null
+        prevGrossByCategory.set(catId, (prevGrossByCategory.get(catId) ?? 0) + Math.abs(tx.amount))
+      }
+      // Skip income (positive, not refund) and orphan refunds
     }
 
+    // Compute net per category for previous period
+    const prevByCategory = new Map<number | null, number>()
+    const allPrevCatIds = new Set([...prevGrossByCategory.keys(), ...prevRefundsByCategory.keys()])
+    for (const catId of allPrevCatIds) {
+      const gross = prevGrossByCategory.get(catId) ?? 0
+      const refunds = prevRefundsByCategory.get(catId) ?? 0
+      prevByCategory.set(catId, gross - refunds)
+    }
+    const prevTotal = Math.abs(prevGrossTotal) - prevLinkedRefundsTotal
+
     // Compute total comparison
-    const totalComparison = computeComparison(currentTotal, Math.abs(prevTotal))
+    const totalComparison = computeComparison(currentTotal, prevTotal)
 
     // Compute per-category comparisons
     const allCategoryIds = new Set([...currentByCategory.keys(), ...prevByCategory.keys()])
@@ -78,7 +99,7 @@ export const useSpendingComparison = (
       totalComparison,
       comparisonLabel,
       categoryComparisons,
-      previousPeriodTotal: prevTotal,
+      previousPeriodTotal: -prevTotal, // negative convention
     }
   }, [prevTransactions, currentBreakdown, selectedPeriod, now])
 }

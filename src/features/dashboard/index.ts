@@ -1,6 +1,7 @@
 export { useSpendingBreakdown } from './hooks/useSpendingBreakdown'
 export { useTimePeriod } from './hooks/useTimePeriod'
 export { useSpendingComparison } from './hooks/useSpendingComparison'
+export { useNetSpending } from './hooks/useNetSpending'
 export { CategoryBreakdown } from './components/CategoryBreakdown'
 export { SpendingSummary } from './components/SpendingSummary'
 export { ComparisonIndicator } from './components/ComparisonIndicator'
@@ -11,3 +12,5 @@ export { getPreviousPeriodRange, computeComparison, getComparisonLabel } from '.
 export type { TimePeriod, TimePeriodPreset, TimePeriodCustom, ResolvedDateRange } from './types'
 export type { ComparisonResult } from './utils/computeComparison'
 export type { SpendingComparison } from './hooks/useSpendingComparison'
+export type { SpendingSummary, CategorySpending } from './hooks/useNetSpending'
+export type { SpendingView } from './components/CategoryBreakdown'

@@ -142,6 +142,67 @@ describe('useSpendingComparison', () => {
     })
   })
 
+  it('uses net figures when refunds exist in previous period', async () => {
+    const now = new Date(2026, 1, 15)
+    const catId = await db.categories.add(makeCategory({ name: 'Shopping', slug: 'shopping' }) as Category) as number
+
+    // Current period (Feb): -200 (no refunds) => net 200
+    await db.transactions.bulkAdd([
+      makeTransaction({ amount: -200, categoryId: catId, date: new Date(2026, 1, 10) }),
+    ])
+
+    // Previous period (Jan): -300 expense + 100 linked refund => net 200
+    const purchaseId = await db.transactions.add(
+      makeTransaction({ amount: -300, categoryId: catId, date: new Date(2026, 0, 10), importMonth: '2026-01' }) as Transaction,
+    ) as number
+    const refundId = await db.transactions.add(
+      makeTransaction({ amount: 100, categoryId: catId, isRefund: true, linkedRefundId: purchaseId, date: new Date(2026, 0, 20), importMonth: '2026-01' }) as Transaction,
+    ) as number
+    await db.transactions.update(purchaseId, { linkedRefundId: refundId })
+
+    const period: TimePeriod = { type: 'this-month' }
+    const { result } = renderHook(() => useComparisonWithBreakdown(period, now))
+
+    await waitFor(() => {
+      expect(result.current.comparison).toBeDefined()
+      // Both periods net to 200, so direction should be flat
+      expect(result.current.comparison!.totalComparison.direction).toBe('flat')
+    })
+  })
+
+  it('uses net figures per category for comparison', async () => {
+    const now = new Date(2026, 1, 15)
+    const catId = await db.categories.add(makeCategory({ name: 'Shopping', slug: 'shopping' }) as Category) as number
+
+    // Current period (Feb): -100 => net 100
+    await db.transactions.bulkAdd([
+      makeTransaction({ amount: -100, categoryId: catId, date: new Date(2026, 1, 10) }),
+    ])
+
+    // Previous period (Jan): -200 expense + 50 linked refund => net 150
+    const purchaseId = await db.transactions.add(
+      makeTransaction({ amount: -200, categoryId: catId, date: new Date(2026, 0, 10), importMonth: '2026-01' }) as Transaction,
+    ) as number
+    const refundId = await db.transactions.add(
+      makeTransaction({ amount: 50, categoryId: catId, isRefund: true, linkedRefundId: purchaseId, date: new Date(2026, 0, 20), importMonth: '2026-01' }) as Transaction,
+    ) as number
+    await db.transactions.update(purchaseId, { linkedRefundId: refundId })
+
+    const period: TimePeriod = { type: 'this-month' }
+    const { result } = renderHook(() => useComparisonWithBreakdown(period, now))
+
+    await waitFor(() => {
+      expect(result.current.comparison).toBeDefined()
+      // Current: 100, Previous net: 150 => down
+      expect(result.current.comparison!.totalComparison.direction).toBe('down')
+      const catComparison = result.current.comparison!.categoryComparisons.get(catId)
+      expect(catComparison).toBeDefined()
+      expect(catComparison!.direction).toBe('down')
+      // 100 - 150 = -50
+      expect(catComparison!.absoluteChange).toBeCloseTo(-50)
+    })
+  })
+
   it('recomputes when selected period changes', async () => {
     const now = new Date(2026, 1, 15)
 
