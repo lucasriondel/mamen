@@ -92,7 +92,7 @@ development_status:
   6-1-spending-breakdown-by-category: review
   6-2-time-period-selection: review
   6-3-month-over-month-comparison: review
-  6-4-drill-down-to-transactions: ready-for-dev
+  6-4-drill-down-to-transactions: review
   epic-6-retrospective: optional
 
   # Epic 7: Merchant Management & Investigation

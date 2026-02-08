@@ -1,7 +1,7 @@
 import { useRef, useState, useCallback, useEffect, useMemo } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { ListIcon } from 'lucide-react'
+import { ListIcon, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { TransactionRow } from '@/components/TransactionRow'
 import { InboxZeroEmpty } from '@/components/InboxZeroEmpty'
@@ -15,8 +15,9 @@ import { useCascadeAnimation } from '@/hooks/useCascadeAnimation'
 import { useFilteredTransactions } from '../../hooks/useFilteredTransactions'
 import { useQuickCategoryAssign } from '../../hooks/useQuickCategoryAssign'
 import { useBatchCategoryAssign } from '../../hooks/useBatchCategoryAssign'
+import { useDrillDownFilter } from '../../hooks/useDrillDownFilter'
 import { useFocusMode } from '@/context/FocusModeContext'
-import { db } from '@/lib/db'
+import { db, useLiveQuery } from '@/lib/db'
 import type { Transaction } from '@/types'
 
 type TransactionListProps = {
@@ -29,9 +30,26 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
   const isMonthMode = activeFilters.has('month')
   const isSubscriptionsMode = activeFilters.has('subscriptions')
 
+  const { filter: drillDown, isActive: isDrillDown, clearDrillDownFilter, clearAllFilters } = useDrillDownFilter()
+
+  const categoryName = useLiveQuery(async () => {
+    if (drillDown.categoryId == null) return null
+    const cat = await db.categories.get(drillDown.categoryId)
+    if (!cat) return null
+    if (cat.parentId !== null) {
+      const parent = await db.categories.get(cat.parentId)
+      return parent ? `${parent.name} > ${cat.name}` : cat.name
+    }
+    return cat.name
+  }, [drillDown.categoryId])
+
   const { transactions, isLoading } = useFilteredTransactions({
-    unmatchedOnly: isUnmatchedMode,
-    monthRange: isMonthMode ? currentMonthRange : undefined,
+    unmatchedOnly: isDrillDown ? false : isUnmatchedMode,
+    monthRange: isDrillDown ? undefined : (isMonthMode ? currentMonthRange : undefined),
+    categoryId: drillDown.categoryId,
+    periodRange: drillDown.periodStart && drillDown.periodEnd
+      ? { start: drillDown.periodStart, end: drillDown.periodEnd }
+      : undefined,
   })
 
   const [selectedId, setSelectedId] = useState<number | null>(null)
@@ -162,6 +180,21 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
     enabled: !anyModalOpen,
   })
 
+  // Clear drill-down URL params when A key is pressed (complements FocusModeContext A handler)
+  useEffect(() => {
+    if (!isDrillDown) return
+    const handleKeyDown = (e: globalThis.KeyboardEvent): void => {
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
+      if (e.metaKey || e.ctrlKey || e.altKey) return
+      if (e.key.toLowerCase() === 'a') {
+        clearDrillDownFilter()
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [isDrillDown, clearDrillDownFilter])
+
   // Clear selection and reset focus when focus mode changes (skip initial mount)
   const filtersKey = Array.from(activeFilters).sort().join(',')
   const prevFiltersKeyRef = useRef(filtersKey)
@@ -273,6 +306,20 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
     )
   }
 
+  if (transactions.length === 0 && isDrillDown) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-4 text-center p-8">
+        <div className="text-muted-foreground">
+          <ListIcon className="w-12 h-12 mb-4 mx-auto opacity-50" />
+          <h3 className="text-lg font-medium">No transactions in {categoryName ?? 'this category'} for this period</h3>
+        </div>
+        <Button variant="outline" onClick={clearDrillDownFilter}>
+          View All Transactions
+        </Button>
+      </div>
+    )
+  }
+
   if (transactions.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4 text-center p-8">
@@ -292,6 +339,30 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
 
   return (
     <div className="flex flex-col h-full">
+      {isDrillDown && (
+        <div className="flex items-center gap-2 px-4 py-2 border-b bg-muted/30" data-testid="drill-down-filter-bar">
+          <span className="text-xs text-muted-foreground">Filtered:</span>
+          {categoryName && (
+            <button
+              onClick={clearDrillDownFilter}
+              className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+              data-testid="category-filter-chip"
+            >
+              {categoryName}
+              <X className="h-3 w-3" />
+            </button>
+          )}
+          <button
+            onClick={clearAllFilters}
+            className="ml-auto text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Clear All (A)
+          </button>
+          <span className="text-xs text-muted-foreground">
+            Showing {transactions.length} transactions
+          </span>
+        </div>
+      )}
       <div className="flex items-center h-10 px-4 gap-4 text-xs font-medium text-muted-foreground uppercase tracking-wider border-b">
         <div className="w-20 shrink-0">Date</div>
         <div className="flex-1">Description</div>

@@ -1,3 +1,4 @@
+import { useCallback } from 'react'
 import { FileSpreadsheet } from 'lucide-react'
 import { useNavigate } from '@tanstack/react-router'
 import { EmptyState } from '@/components/EmptyState'
@@ -15,6 +16,21 @@ export function DashboardPage(): React.ReactElement {
   const { selectedPeriod, setSelectedPeriod, resolvedRange, periodLabel } = useTimePeriod()
   const breakdown = useSpendingBreakdown(resolvedRange)
   const comparison = useSpendingComparison(selectedPeriod, breakdown)
+
+  const handleCategoryClick = useCallback(
+    (categoryId: number) => {
+      navigate({
+        to: '/transactions',
+        search: {
+          categoryId,
+          periodStart: resolvedRange.startDate.toISOString(),
+          periodEnd: resolvedRange.endDate.toISOString(),
+          from: 'dashboard',
+        },
+      })
+    },
+    [navigate, resolvedRange],
+  )
 
   if (transactionCount === 0) {
     return (
@@ -51,6 +67,8 @@ export function DashboardPage(): React.ReactElement {
         totalExpenses={breakdown.totalExpenses}
         categoryComparisons={comparison?.categoryComparisons}
         comparisonLabel={comparison?.comparisonLabel}
+        onCategoryClick={handleCategoryClick}
+        dateRange={resolvedRange}
       />
     </div>
   )

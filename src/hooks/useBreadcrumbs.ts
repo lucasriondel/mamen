@@ -1,6 +1,7 @@
 import { useLocation } from '@tanstack/react-router'
 import type { BreadcrumbSegment } from '@/components/Breadcrumb'
 import { useFocusMode } from '@/context/FocusModeContext'
+import { db, useLiveQuery } from '@/lib/db'
 
 export const routeLabelMap: Record<string, string> = {
   '/': 'Dashboard',
@@ -22,8 +23,24 @@ const formatMonthLabel = (date: Date): string => {
 
 export function useBreadcrumbs(): BreadcrumbSegment[] {
   const location = useLocation()
-  const { pathname } = location
+  const { pathname, searchStr } = location
   const { activeFilters, currentMonthRange } = useFocusMode()
+
+  const params = new URLSearchParams(searchStr)
+  const categoryIdParam = params.get('categoryId')
+  const fromParam = params.get('from')
+  const categoryId = categoryIdParam ? Number(categoryIdParam) : null
+
+  const categoryName = useLiveQuery(async () => {
+    if (categoryId == null || isNaN(categoryId)) return null
+    const cat = await db.categories.get(categoryId)
+    if (!cat) return null
+    if (cat.parentId !== null) {
+      const parent = await db.categories.get(cat.parentId)
+      return parent ? `${parent.name} > ${cat.name}` : cat.name
+    }
+    return cat.name
+  }, [categoryId])
 
   if (pathname === '/') {
     return [{ label: routeLabelMap['/'], href: '/' }]
@@ -40,6 +57,19 @@ export function useBreadcrumbs(): BreadcrumbSegment[] {
   }
 
   if (pathname === '/transactions') {
+    // Drill-down breadcrumb: "Dashboard > [Category Name]"
+    if (categoryId != null && !isNaN(categoryId)) {
+      if (fromParam === 'dashboard') {
+        // Replace "Transactions" with "Dashboard" link, then category name
+        segments.length = 0
+        segments.push({ label: 'Dashboard', href: '/' })
+      }
+      if (categoryName) {
+        segments.push({ label: categoryName })
+      }
+      return segments
+    }
+
     if (activeFilters.has('month')) {
       segments.push({ label: formatMonthLabel(currentMonthRange.start) })
     }

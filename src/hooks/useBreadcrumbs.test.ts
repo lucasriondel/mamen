@@ -18,18 +18,25 @@ vi.mock('@/context/FocusModeContext', () => ({
   }),
 }))
 
+let mockCategoryName: string | null = null
+
+vi.mock('@/lib/db', () => ({
+  db: { categories: { get: vi.fn() } },
+  useLiveQuery: vi.fn(() => mockCategoryName),
+}))
+
 import { useLocation } from '@tanstack/react-router'
 import { useFocusMode } from '@/context/FocusModeContext'
 
 const mockUseLocation = vi.mocked(useLocation)
 const mockUseFocusMode = vi.mocked(useFocusMode)
 
-const makeLocation = (pathname: string) => ({
+const makeLocation = (pathname: string, searchStr = '') => ({
   pathname,
   search: {},
   hash: '',
-  href: pathname,
-  searchStr: '',
+  href: pathname + (searchStr ? `?${searchStr}` : ''),
+  searchStr: searchStr ? `?${searchStr}` : '',
   state: {} as never,
   maskedLocation: undefined,
 } as ReturnType<typeof useLocation>)
@@ -37,6 +44,7 @@ const makeLocation = (pathname: string) => ({
 describe('useBreadcrumbs', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockCategoryName = null
     mockUseFocusMode.mockReturnValue({
       focusMode: 'all',
       activeFilters: new Set(),
@@ -239,5 +247,30 @@ describe('useBreadcrumbs', () => {
     const segments = useBreadcrumbs()
     expect(segments).toHaveLength(1)
     expect(segments[0]).toEqual({ label: 'Merchants', href: '/merchants' })
+  })
+
+  it('shows "Dashboard > Shopping" when drilled down from dashboard', () => {
+    mockUseLocation.mockReturnValue(makeLocation('/transactions', 'categoryId=5&from=dashboard'))
+    mockCategoryName = 'Shopping'
+
+    const segments = useBreadcrumbs()
+    expect(segments[0]).toEqual({ label: 'Dashboard', href: '/' })
+    expect(segments[1]).toEqual({ label: 'Shopping' })
+  })
+
+  it('shows "Transactions > Shopping" when drilled down without from=dashboard', () => {
+    mockUseLocation.mockReturnValue(makeLocation('/transactions', 'categoryId=5'))
+    mockCategoryName = 'Shopping'
+
+    const segments = useBreadcrumbs()
+    expect(segments[0]).toEqual({ label: 'Transactions', href: '/transactions' })
+    expect(segments[1]).toEqual({ label: 'Shopping' })
+  })
+
+  it('shows "Transactions" when no category filter (normal view)', () => {
+    mockUseLocation.mockReturnValue(makeLocation('/transactions'))
+
+    const segments = useBreadcrumbs()
+    expect(segments).toEqual([{ label: 'Transactions', href: '/transactions' }])
   })
 })

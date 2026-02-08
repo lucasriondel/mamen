@@ -1,7 +1,19 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { CategoryBreakdown } from './index'
 import type { SpendingBreakdownItem } from '../../hooks/useSpendingBreakdown'
+
+vi.mock('@/components/ui/tooltip', () => ({
+  TooltipProvider: ({ children }: { children: React.ReactNode }) => children,
+  Tooltip: ({ children }: { children: React.ReactNode }) => children,
+  TooltipTrigger: ({ children }: { children: React.ReactNode }) => children,
+  TooltipContent: () => null,
+}))
+
+vi.mock('../../hooks/useCategoryTooltipData', () => ({
+  useCategoryTooltipData: () => null,
+}))
 import type { ComparisonResult } from '../../utils/computeComparison'
 
 const makeItem = (overrides: Partial<SpendingBreakdownItem> = {}): SpendingBreakdownItem => ({
@@ -137,5 +149,91 @@ describe('CategoryBreakdown', () => {
     )
 
     expect(screen.getByText('New')).toBeInTheDocument()
+  })
+
+  it('clicking a category row calls onCategoryClick with categoryId', async () => {
+    const handleClick = vi.fn()
+    const items = [
+      makeItem({ categoryId: 5, categoryName: 'Shopping' }),
+    ]
+
+    const user = userEvent.setup()
+    render(<CategoryBreakdown items={items} totalExpenses={-100} onCategoryClick={handleClick} />)
+
+    const row = screen.getByTestId('category-row')
+    await user.click(row)
+
+    expect(handleClick).toHaveBeenCalledWith(5)
+  })
+
+  it('Enter key on focused category triggers onCategoryClick', async () => {
+    const handleClick = vi.fn()
+    const items = [
+      makeItem({ categoryId: 3, categoryName: 'Dining' }),
+    ]
+
+    const user = userEvent.setup()
+    render(<CategoryBreakdown items={items} totalExpenses={-100} onCategoryClick={handleClick} />)
+
+    const row = screen.getByTestId('category-row')
+    row.focus()
+    await user.keyboard('{Enter}')
+
+    expect(handleClick).toHaveBeenCalledWith(3)
+  })
+
+  it('category rows have cursor-pointer when onCategoryClick is provided', () => {
+    const items = [
+      makeItem({ categoryId: 1, categoryName: 'Shopping' }),
+    ]
+
+    render(<CategoryBreakdown items={items} totalExpenses={-100} onCategoryClick={vi.fn()} />)
+
+    const row = screen.getByTestId('category-row')
+    expect(row.className).toContain('cursor-pointer')
+  })
+
+  it('category rows have role=button and aria-label when clickable', () => {
+    const items = [
+      makeItem({ categoryId: 1, categoryName: 'Shopping' }),
+    ]
+
+    render(<CategoryBreakdown items={items} totalExpenses={-100} onCategoryClick={vi.fn()} />)
+
+    const button = screen.getByRole('button', { name: 'View Shopping transactions' })
+    expect(button).toBeInTheDocument()
+  })
+
+  it('uncategorized row is not clickable even when onCategoryClick is provided', async () => {
+    const handleClick = vi.fn()
+    const items = [
+      makeItem({ categoryId: null, categoryName: 'Uncategorized' }),
+    ]
+
+    const user = userEvent.setup()
+    render(<CategoryBreakdown items={items} totalExpenses={-100} onCategoryClick={handleClick} />)
+
+    const row = screen.getByTestId('category-row')
+    await user.click(row)
+
+    expect(handleClick).not.toHaveBeenCalled()
+    expect(row.className).not.toContain('cursor-pointer')
+  })
+
+  it('Tab navigates between category rows', async () => {
+    const items = [
+      makeItem({ categoryId: 1, categoryName: 'Shopping' }),
+      makeItem({ categoryId: 2, categoryName: 'Dining', color: '#F97316' }),
+    ]
+
+    const user = userEvent.setup()
+    render(<CategoryBreakdown items={items} totalExpenses={-200} onCategoryClick={vi.fn()} />)
+
+    const rows = screen.getAllByTestId('category-row')
+    rows[0].focus()
+    expect(document.activeElement).toBe(rows[0])
+
+    await user.tab()
+    expect(document.activeElement).toBe(rows[1])
   })
 })

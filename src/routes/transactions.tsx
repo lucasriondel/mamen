@@ -4,6 +4,10 @@ import { TransactionList } from '@/features/transactions'
 
 const transactionSearchSchema = z.object({
   highlight: z.coerce.number().optional(),
+  categoryId: z.coerce.number().optional(),
+  periodStart: z.string().optional(),
+  periodEnd: z.string().optional(),
+  from: z.string().optional(),
 })
 
 export const Route = createFileRoute('/transactions')({

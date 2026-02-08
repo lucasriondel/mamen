@@ -17,8 +17,13 @@ const makeTransaction = (overrides: Partial<Transaction> = {}): Omit<Transaction
   ...overrides,
 })
 
-function renderWithRouter(component: () => React.ReactElement): ReturnType<typeof render> {
-  const rootRoute = createRootRoute({
+function renderWithRouter(component: () => React.ReactElement, search = ''): ReturnType<typeof render> {
+  const rootRoute = createRootRoute()
+
+  const transactionsRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/transactions',
+    validateSearch: (input: Record<string, unknown>) => input,
     component: () => (
       <FocusModeProvider>
         {component()}
@@ -32,11 +37,11 @@ function renderWithRouter(component: () => React.ReactElement): ReturnType<typeo
     component: () => <div>Accounts</div>,
   })
 
-  const routeTree = rootRoute.addChildren([accountsRoute])
+  const routeTree = rootRoute.addChildren([transactionsRoute, accountsRoute])
 
   const router = createRouter({
     routeTree,
-    history: createMemoryHistory({ initialEntries: ['/'] }),
+    history: createMemoryHistory({ initialEntries: [`/transactions${search}`] }),
   })
 
   return render(<RouterProvider router={router} />)
