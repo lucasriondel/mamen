@@ -6,6 +6,7 @@ import {
   applyRulesToTransactions,
   applyMatchResults,
 } from '@/features/rules/services/rulesEngine'
+import { runDetection } from '@/features/subscriptions/services/subscriptionDetector'
 
 export type ImportWithRulesResult = ImportResult & {
   matchedCount: number
@@ -22,6 +23,15 @@ export const importWithRules = async (
 
   const rulesResult = await applyRulesToTransactions(result.transactionIds)
   await applyMatchResults(rulesResult.matched)
+
+  // Fire-and-forget subscription detection after import
+  runDetection().then(detectionResult => {
+    if (detectionResult.created > 0) {
+      toast.success(`${detectionResult.created} subscription(s) detected`, {
+        duration: 10000,
+      })
+    }
+  })
 
   return {
     ...result,

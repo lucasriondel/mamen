@@ -5,7 +5,7 @@ import { ListIcon, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { TransactionRow } from '@/components/TransactionRow'
 import { InboxZeroEmpty } from '@/components/InboxZeroEmpty'
-import { SubscriptionsPlaceholder } from '@/features/subscriptions/components/SubscriptionsPlaceholder'
+import { useSubscriptions } from '@/features/subscriptions/hooks/useSubscriptions'
 import { SelectionStatusBar } from '@/components/SelectionStatusBar'
 import { MerchantAssignmentModal } from '@/features/merchants/components/MerchantAssignmentModal'
 import { QuickCategoryPicker } from '../QuickCategoryPicker'
@@ -33,6 +33,18 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
   const isUnmatchedMode = activeFilters.has('unmatched')
   const isMonthMode = activeFilters.has('month')
   const isSubscriptionsMode = activeFilters.has('subscriptions')
+  const { subscriptions: allSubscriptions, count: subscriptionCount } = useSubscriptions()
+
+  const subscriptionTxIds = useMemo(() => {
+    if (!isSubscriptionsMode) return undefined
+    const ids = new Set<number>()
+    for (const sub of allSubscriptions) {
+      for (const txId of sub.transactionIds) {
+        ids.add(txId)
+      }
+    }
+    return ids
+  }, [isSubscriptionsMode, allSubscriptions])
 
   const { filter: drillDown, isActive: isDrillDown, clearDrillDownFilter, clearAllFilters } = useDrillDownFilter()
 
@@ -54,6 +66,7 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
     periodRange: drillDown.periodStart && drillDown.periodEnd
       ? { start: drillDown.periodStart, end: drillDown.periodEnd }
       : undefined,
+    subscriptionTransactionIds: subscriptionTxIds,
   })
 
   const merchantsMap = useLiveQuery(async () => {
@@ -316,8 +329,21 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
     }
   }, [isDrillDown, transactions])
 
-  if (isSubscriptionsMode) {
-    return <SubscriptionsPlaceholder />
+  if (isSubscriptionsMode && subscriptionCount === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-4 text-center p-8">
+        <div className="text-muted-foreground">
+          <ListIcon className="w-12 h-12 mb-4 mx-auto opacity-50" />
+          <h3 className="text-lg font-medium">No subscriptions detected yet</h3>
+          <p className="text-sm mt-2">
+            Import more statements to enable recurring charge detection.
+          </p>
+        </div>
+        <Button variant="outline" onClick={() => toggleFocusMode('all')}>
+          View All Transactions
+        </Button>
+      </div>
+    )
   }
 
   if (isLoading) {

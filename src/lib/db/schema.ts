@@ -1,5 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie'
-import type { Account, Transaction, Merchant, Rule, Setting, AppSettings, Category } from '@/types'
+import type { Account, Transaction, Merchant, Rule, Setting, AppSettings, Category, Subscription } from '@/types'
 
 export const db = new Dexie('mamenDb') as Dexie & {
   accounts: EntityTable<Account, 'id'>
@@ -9,6 +9,7 @@ export const db = new Dexie('mamenDb') as Dexie & {
   settings: EntityTable<Setting, 'id'>
   appSettings: EntityTable<AppSettings, 'id'>
   categories: EntityTable<Category, 'id'>
+  subscriptions: EntityTable<Subscription, 'id'>
 }
 
 db.version(1).stores({
@@ -64,5 +65,16 @@ db.version(6).stores({
   settings: '++id, &key',
   appSettings: '&id',
   categories: '++id, parentId, slug, sortOrder',
+})
+
+db.version(7).stores({
+  accounts: '++id, name, type, createdAt',
+  transactions: '++id, accountId, date, amount, merchantId, categoryId, subcategoryId, manualCategory, linkedRefundId, importMonth, importBatchId, [accountId+importMonth]',
+  merchants: '++id, name, defaultCategoryId, firstSeen',
+  rules: '++id, merchantId, pattern',
+  settings: '++id, &key',
+  appSettings: '&id',
+  categories: '++id, parentId, slug, sortOrder',
+  subscriptions: '++id, merchantId, status',
 })
 

@@ -4,6 +4,7 @@ import { db, useLiveQuery } from '@/lib/db'
 import { useFocusMode } from '@/context/FocusModeContext'
 import { useUnmatchedCount } from '@/hooks/useUnmatchedCount'
 import { useCurrentMonthCount } from '@/hooks/useCurrentMonthCount'
+import { useSubscriptions } from '@/features/subscriptions/hooks/useSubscriptions'
 import { cn } from '@/lib/utils'
 import { AnimatedCounter } from '@/components/AnimatedCounter'
 
@@ -25,6 +26,7 @@ const navItems: NavItem[] = [
 export function Sidebar(): React.ReactElement {
   const { count: unmatchedCount } = useUnmatchedCount()
   const monthCount = useCurrentMonthCount()
+  const { count: subscriptionCount } = useSubscriptions()
   const { activeFilters, toggleFocusMode, setFocusMode } = useFocusMode()
   const navigate = useNavigate()
 
@@ -117,10 +119,15 @@ export function Sidebar(): React.ReactElement {
             'flex items-center gap-3 px-3 py-2 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors w-full text-left',
             activeFilters.has('subscriptions') && 'bg-accent text-foreground',
           )}
-          aria-label="Subscriptions"
+          aria-label={`Subscriptions: ${subscriptionCount}`}
         >
           <Repeat className="h-4 w-4" />
           <span>Subscriptions</span>
+          {subscriptionCount > 0 && (
+            <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-purple-500/20" aria-hidden="true">
+              <AnimatedCounter value={subscriptionCount} />
+            </span>
+          )}
         </button>
       </nav>
 

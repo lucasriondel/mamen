@@ -111,7 +111,7 @@ development_status:
 
   # Epic 9: Subscription & Anomaly Detection
   epic-9: in-progress
-  9-1-subscription-detection-algorithm: ready-for-dev
+  9-1-subscription-detection-algorithm: review
   9-2-subscriptions-view-s-key: ready-for-dev
   9-3-anomaly-detection-high-amounts: ready-for-dev
   9-4-anomaly-detection-new-merchants: ready-for-dev

@@ -7,6 +7,7 @@ beforeEach(async () => {
   await db.merchants.clear()
   await db.rules.clear()
   await db.settings.clear()
+  await db.subscriptions.clear()
 })
 
 describe('Dexie database schema', () => {
@@ -252,6 +253,79 @@ describe('Dexie database schema', () => {
       const linked = await db.transactions.where('linkedRefundId').equals(purchaseId).toArray()
       expect(linked).toHaveLength(1)
       expect(linked[0].id).toBe(refundId)
+    })
+  })
+
+  describe('subscriptions table', () => {
+    it('adds and retrieves a subscription', async () => {
+      const merchantId = await db.merchants.add({ name: 'Netflix', createdAt: new Date(), firstSeen: new Date() })
+
+      const id = await db.subscriptions.add({
+        merchantId,
+        merchantName: 'Netflix',
+        typicalAmount: -15.99,
+        frequency: 'monthly',
+        intervalDays: 30,
+        lastChargeDate: '2026-01-15',
+        firstChargeDate: '2025-10-15',
+        chargeCount: 4,
+        status: 'active',
+        transactionIds: [1, 2, 3, 4],
+        detectedAt: '2026-01-15',
+        updatedAt: '2026-01-15',
+      })
+
+      const sub = await db.subscriptions.get(id)
+      expect(sub).toBeDefined()
+      expect(sub!.merchantId).toBe(merchantId)
+      expect(sub!.merchantName).toBe('Netflix')
+      expect(sub!.frequency).toBe('monthly')
+      expect(sub!.status).toBe('active')
+    })
+
+    it('queries subscriptions by merchantId', async () => {
+      const merchantId = await db.merchants.add({ name: 'Apple', createdAt: new Date(), firstSeen: new Date() })
+
+      await db.subscriptions.bulkAdd([
+        {
+          merchantId, merchantName: 'Apple', typicalAmount: -2.99, frequency: 'monthly',
+          intervalDays: 30, lastChargeDate: '2026-01-15', firstChargeDate: '2025-10-15',
+          chargeCount: 4, status: 'active', transactionIds: [1, 2, 3, 4],
+          detectedAt: '2026-01-15', updatedAt: '2026-01-15',
+        },
+        {
+          merchantId, merchantName: 'Apple', typicalAmount: -99.99, frequency: 'yearly',
+          intervalDays: 365, lastChargeDate: '2026-01-15', firstChargeDate: '2025-01-15',
+          chargeCount: 2, status: 'active', transactionIds: [5, 6],
+          detectedAt: '2026-01-15', updatedAt: '2026-01-15',
+        },
+      ])
+
+      const subs = await db.subscriptions.where('merchantId').equals(merchantId).toArray()
+      expect(subs).toHaveLength(2)
+    })
+
+    it('queries subscriptions by status', async () => {
+      const merchantId = await db.merchants.add({ name: 'Test', createdAt: new Date(), firstSeen: new Date() })
+
+      await db.subscriptions.bulkAdd([
+        {
+          merchantId, merchantName: 'Test', typicalAmount: -10, frequency: 'monthly',
+          intervalDays: 30, lastChargeDate: '2026-01-15', firstChargeDate: '2025-10-15',
+          chargeCount: 3, status: 'active', transactionIds: [1, 2, 3],
+          detectedAt: '2026-01-15', updatedAt: '2026-01-15',
+        },
+        {
+          merchantId: merchantId + 1, merchantName: 'Old', typicalAmount: -5, frequency: 'monthly',
+          intervalDays: 30, lastChargeDate: '2025-06-15', firstChargeDate: '2025-01-15',
+          chargeCount: 6, status: 'possibly-cancelled', transactionIds: [4, 5, 6, 7, 8, 9],
+          detectedAt: '2025-06-15', updatedAt: '2025-06-15',
+        },
+      ])
+
+      const active = await db.subscriptions.where('status').equals('active').toArray()
+      expect(active).toHaveLength(1)
+      expect(active[0].merchantName).toBe('Test')
     })
   })
 
