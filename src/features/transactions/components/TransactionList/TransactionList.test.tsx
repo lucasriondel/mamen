@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { createMemoryHistory, createRootRoute, createRoute, createRouter, RouterProvider } from '@tanstack/react-router'
 import { db } from '@/lib/db'
 import { TransactionList } from './index'
+import { FocusModeProvider } from '@/context/FocusModeContext'
 import type { Transaction } from '@/types'
 
 const makeTransaction = (overrides: Partial<Transaction> = {}): Omit<Transaction, 'id'> => ({
@@ -18,7 +19,11 @@ const makeTransaction = (overrides: Partial<Transaction> = {}): Omit<Transaction
 
 function renderWithRouter(component: () => React.ReactElement): ReturnType<typeof render> {
   const rootRoute = createRootRoute({
-    component,
+    component: () => (
+      <FocusModeProvider>
+        {component()}
+      </FocusModeProvider>
+    ),
   })
 
   const accountsRoute = createRoute({

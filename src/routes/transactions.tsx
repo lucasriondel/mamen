@@ -37,6 +37,10 @@ function TransactionsPage(): React.ReactElement {
           <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px]">Esc</kbd>
           {' '}Clear
         </span>
+        <span>
+          <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px]">U</kbd>
+          {' '}Unmatched
+        </span>
       </div>
     </div>
   )

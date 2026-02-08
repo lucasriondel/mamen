@@ -5,6 +5,14 @@ vi.mock('@tanstack/react-router', () => ({
   useLocation: vi.fn(),
 }))
 
+vi.mock('@/context/FocusModeContext', () => ({
+  useFocusMode: vi.fn().mockReturnValue({
+    focusMode: 'all',
+    setFocusMode: vi.fn(),
+    toggleFocusMode: vi.fn(),
+  }),
+}))
+
 import { useLocation } from '@tanstack/react-router'
 
 const mockUseLocation = vi.mocked(useLocation)

@@ -1,5 +1,6 @@
 import { useLocation } from '@tanstack/react-router'
 import type { BreadcrumbSegment } from '@/components/Breadcrumb'
+import { useFocusMode } from '@/context/FocusModeContext'
 
 export const routeLabelMap: Record<string, string> = {
   '/': 'Dashboard',
@@ -18,6 +19,7 @@ function pathToLabel(segment: string): string {
 export function useBreadcrumbs(): BreadcrumbSegment[] {
   const location = useLocation()
   const { pathname } = location
+  const { focusMode } = useFocusMode()
 
   if (pathname === '/') {
     return [{ label: routeLabelMap['/'], href: '/' }]
@@ -31,6 +33,10 @@ export function useBreadcrumbs(): BreadcrumbSegment[] {
     currentPath += `/${part}`
     const label = routeLabelMap[currentPath] ?? pathToLabel(part)
     segments.push({ label, href: currentPath })
+  }
+
+  if (pathname === '/transactions' && focusMode === 'unmatched') {
+    segments.push({ label: 'Unmatched' })
   }
 
   return segments

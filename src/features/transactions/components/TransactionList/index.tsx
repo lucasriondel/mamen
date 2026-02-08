@@ -2,19 +2,24 @@ import { useRef, useState, useCallback, useEffect } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { ListIcon } from 'lucide-react'
-import { db, useLiveQuery } from '@/lib/db'
 import { Button } from '@/components/ui/button'
 import { TransactionRow } from '@/components/TransactionRow'
+import { InboxZeroEmpty } from '@/components/InboxZeroEmpty'
 import { useKeyboardNavigation } from '@/hooks/useKeyboardNavigation'
+import { useFilteredTransactions } from '../../hooks/useFilteredTransactions'
+import { useFocusMode } from '@/context/FocusModeContext'
 
 type TransactionListProps = {
   highlightId?: number
 }
 
 export function TransactionList({ highlightId }: TransactionListProps): React.ReactElement {
-  const transactions = useLiveQuery(
-    () => db.transactions.orderBy('date').reverse().toArray()
-  )
+  const { focusMode } = useFocusMode()
+  const isUnmatchedMode = focusMode === 'unmatched'
+
+  const { transactions, isLoading } = useFilteredTransactions({
+    unmatchedOnly: isUnmatchedMode,
+  })
 
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const parentRef = useRef<HTMLDivElement>(null)
@@ -22,9 +27,9 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
   const highlightHandledRef = useRef<number | undefined>(undefined)
 
   const { focusedIndex } = useKeyboardNavigation({
-    itemCount: transactions?.length ?? 0,
+    itemCount: transactions.length,
     onSelect: (index) => {
-      const transaction = transactions?.[index]
+      const transaction = transactions[index]
       if (transaction?.id !== undefined) {
         setSelectedId((prev) => (prev === transaction.id ? null : transaction.id!))
       }
@@ -36,7 +41,7 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
   })
 
   const virtualizer = useVirtualizer({
-    count: transactions?.length ?? 0,
+    count: transactions.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => 48,
     overscan: 5,
@@ -55,7 +60,7 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
   useEffect(() => {
     if (
       highlightId === undefined ||
-      !transactions ||
+      transactions.length === 0 ||
       highlightHandledRef.current === highlightId
     ) {
       return
@@ -82,8 +87,12 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
     setSelectedId((prev) => (prev === id ? null : id))
   }, [])
 
-  if (transactions === undefined) {
+  if (isLoading) {
     return <div className="p-4 text-muted-foreground">Loading...</div>
+  }
+
+  if (transactions.length === 0 && isUnmatchedMode) {
+    return <InboxZeroEmpty />
   }
 
   if (transactions.length === 0) {

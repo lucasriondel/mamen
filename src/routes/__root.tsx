@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { createRootRoute, Outlet } from '@tanstack/react-router'
 import { Layout } from '@/components/Layout'
 import { CommandPaletteProvider } from '@/context/CommandPaletteContext'
+import { FocusModeProvider } from '@/context/FocusModeContext'
 import { CommandPalette } from '@/components/CommandPalette'
 import { seedCategories } from '@/lib/db'
 
@@ -15,11 +16,13 @@ function RootComponent(): React.ReactElement {
   }, [])
 
   return (
-    <CommandPaletteProvider>
-      <Layout>
-        <Outlet />
-      </Layout>
-      <CommandPalette />
-    </CommandPaletteProvider>
+    <FocusModeProvider>
+      <CommandPaletteProvider>
+        <Layout>
+          <Outlet />
+        </Layout>
+        <CommandPalette />
+      </CommandPaletteProvider>
+    </FocusModeProvider>
   )
 }

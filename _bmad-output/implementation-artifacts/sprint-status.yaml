@@ -69,7 +69,7 @@ development_status:
   # Epic 4: Merchants, Rules & Categorization
   epic-4: in-progress
   4-1-category-system-setup: review
-  4-2-unmatched-transactions-view: ready-for-dev
+  4-2-unmatched-transactions-view: review
   4-3-create-merchant-with-rule-r-key: ready-for-dev
   4-4-assign-transaction-to-existing-merchant: ready-for-dev
   4-5-rules-engine-auto-apply-on-import: ready-for-dev

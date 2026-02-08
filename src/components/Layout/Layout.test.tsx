@@ -3,15 +3,18 @@ import { render, screen } from '@testing-library/react'
 import { createMemoryHistory, createRootRoute, createRoute, createRouter, Outlet, RouterProvider } from '@tanstack/react-router'
 import { Layout } from './index'
 import { CommandPaletteProvider } from '@/context/CommandPaletteContext'
+import { FocusModeProvider } from '@/context/FocusModeContext'
 
 function createTestRouter(initialPath = '/') {
   const rootRoute = createRootRoute({
     component: () => (
-      <CommandPaletteProvider>
-        <Layout>
-          <Outlet />
-        </Layout>
-      </CommandPaletteProvider>
+      <FocusModeProvider>
+        <CommandPaletteProvider>
+          <Layout>
+            <Outlet />
+          </Layout>
+        </CommandPaletteProvider>
+      </FocusModeProvider>
     ),
   })
 
@@ -86,8 +89,10 @@ describe('Layout', () => {
     render(<RouterProvider router={router} />)
 
     expect(await screen.findByText('Stats')).toBeInTheDocument()
-    expect(screen.getByText('Unmatched')).toBeInTheDocument()
-    // "Merchants" appears in both nav and stats; verify stats counts are present
+    // "Unmatched" appears in both nav and stats; "Merchants" appears in both nav and stats
+    const unmatchedTexts = screen.getAllByText('Unmatched')
+    expect(unmatchedTexts.length).toBeGreaterThanOrEqual(2)
+    // Verify stats counts are present
     const zeros = screen.getAllByText('0')
     expect(zeros.length).toBeGreaterThanOrEqual(2)
   })
