@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { AlertTriangle, Loader2, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { importWithRules, showImportToast } from '../../services/importWithRules'
 import {
   Dialog,
   DialogContent,
@@ -36,7 +37,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { importTransactions, undoImport } from '../../services/csvImporter'
 import { detectDuplicates } from '../../services/duplicateDetector'
 import type { DuplicateCheckResult, ParsedTransaction } from '../../types/duplicate.types'
 import type { LLMTransaction } from '@/lib/schemas/llmTransaction.schema'
@@ -82,6 +82,7 @@ export function PDFImportPreview({
   )
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [isImporting, setIsImporting] = useState(false)
+  const [importPhase, setImportPhase] = useState<'idle' | 'importing' | 'applying-rules'>('idle')
   const [duplicateResult, setDuplicateResult] = useState<DuplicateCheckResult | null>(null)
   const [showImportAnywayConfirm, setShowImportAnywayConfirm] = useState(false)
 
@@ -135,6 +136,7 @@ export function PDFImportPreview({
     if (!validate()) return
 
     setIsImporting(true)
+    setImportPhase('importing')
     try {
       const parsed = toParsedTransactions(transactions)
       const dupResult = await detectDuplicates(accountId, parsed)
@@ -142,26 +144,19 @@ export function PDFImportPreview({
       if (dupResult.hasDuplicates) {
         setDuplicateResult(dupResult)
         setIsImporting(false)
+        setImportPhase('idle')
         return
       }
 
-      const result = await importTransactions(parsed, accountId, monthKey)
+      setImportPhase('applying-rules')
+      const result = await importWithRules(parsed, accountId, monthKey)
       onOpenChange(false)
-      toast.success(`${result.count} transactions imported`, {
-        action: {
-          label: 'Undo',
-          onClick: () => {
-            undoImport(result.importBatchId).then((count) => {
-              toast.info(`${count} transactions removed`)
-            })
-          },
-        },
-        duration: 10000,
-      })
+      showImportToast(result)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Import failed')
     } finally {
       setIsImporting(false)
+      setImportPhase('idle')
     }
   }
 
@@ -169,57 +164,36 @@ export function PDFImportPreview({
     if (!duplicateResult) return
 
     setIsImporting(true)
+    setImportPhase('importing')
     try {
-      const result = await importTransactions(duplicateResult.unique, accountId, monthKey)
+      setImportPhase('applying-rules')
+      const result = await importWithRules(duplicateResult.unique, accountId, monthKey)
       onOpenChange(false)
-      toast.success(
-        `${result.count} transactions imported, ${duplicateResult.duplicates.length} duplicates skipped`,
-        {
-          action: {
-            label: 'Undo',
-            onClick: () => {
-              undoImport(result.importBatchId).then((count) => {
-                toast.info(`${count} transactions removed`)
-              })
-            },
-          },
-          duration: 10000,
-        },
-      )
+      showImportToast(result, `, ${duplicateResult.duplicates.length} duplicates skipped`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Import failed')
     } finally {
       setIsImporting(false)
+      setImportPhase('idle')
     }
   }
 
   const handleImportAnyway = async (): Promise<void> => {
     setIsImporting(true)
+    setImportPhase('importing')
     setShowImportAnywayConfirm(false)
     try {
+      setImportPhase('applying-rules')
       const parsed = toParsedTransactions(transactions)
-      const result = await importTransactions(parsed, accountId, monthKey)
-      onOpenChange(false)
-
       const dupCount = duplicateResult?.duplicates.length ?? 0
-      toast.success(
-        `${result.count} transactions imported (including ${dupCount} duplicates)`,
-        {
-          action: {
-            label: 'Undo',
-            onClick: () => {
-              undoImport(result.importBatchId).then((count) => {
-                toast.info(`${count} transactions removed`)
-              })
-            },
-          },
-          duration: 10000,
-        },
-      )
+      const result = await importWithRules(parsed, accountId, monthKey)
+      onOpenChange(false)
+      showImportToast(result, ` (including ${dupCount} duplicates)`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Import failed')
     } finally {
       setIsImporting(false)
+      setImportPhase('idle')
     }
   }
 
@@ -385,10 +359,15 @@ export function PDFImportPreview({
                   onClick={handleImport}
                   disabled={transactions.length === 0 || isImporting}
                 >
-                  {isImporting ? (
+                  {importPhase === 'applying-rules' ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Checking...
+                      Applying rules...
+                    </>
+                  ) : isImporting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Importing...
                     </>
                   ) : (
                     `Import ${transactions.length} transactions`
@@ -425,7 +404,12 @@ export function PDFImportPreview({
                   </Button>
                 ) : (
                   <Button onClick={handleSkipDuplicates} disabled={isImporting}>
-                    {isImporting ? (
+                    {importPhase === 'applying-rules' ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Applying rules...
+                      </>
+                    ) : isImporting ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" />
                         Importing...

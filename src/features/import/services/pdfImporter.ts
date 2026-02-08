@@ -5,6 +5,7 @@ import type { LLMTransaction } from '@/lib/schemas/llmTransaction.schema'
 export type PDFImportResult = {
   count: number
   importBatchId: string
+  transactionIds: number[]
 }
 
 export const importPDFTransactions = async (
@@ -29,9 +30,11 @@ export const importPDFTransactions = async (
     importBatchId,
   }))
 
+  let transactionIds: number[] = []
   await db.transaction('rw', db.transactions, async () => {
-    await db.transactions.bulkAdd(records)
+    const ids = await db.transactions.bulkAdd(records, { allKeys: true })
+    transactionIds = ids as number[]
   })
 
-  return { count: records.length, importBatchId }
+  return { count: records.length, importBatchId, transactionIds }
 }

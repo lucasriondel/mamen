@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { AlertTriangle } from 'lucide-react'
-import { toast } from 'sonner'
 import {
   Dialog,
   DialogContent,
@@ -49,8 +48,9 @@ import {
   detectDateFormat,
 } from '@/lib/csv/parser'
 import type { CSVPreviewResult, ColumnMapping, DateFormatOption } from '@/lib/csv/parser'
-import { parseCSVTransactions, importTransactions, undoImport } from '../../services/csvImporter'
+import { parseCSVTransactions } from '../../services/csvImporter'
 import { detectDuplicates } from '../../services/duplicateDetector'
+import { importWithRules, showImportToast } from '../../services/importWithRules'
 import type { DuplicateCheckResult, ParsedTransaction } from '../../types/duplicate.types'
 import { cn } from '@/lib/utils'
 
@@ -87,6 +87,7 @@ export function ImportCSVModal({
   const [preview, setPreview] = useState<CSVPreviewResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isImporting, setIsImporting] = useState(false)
+  const [importPhase, setImportPhase] = useState<'idle' | 'importing' | 'applying-rules'>('idle')
   const [dateColumn, setDateColumn] = useState(UNMAPPED)
   const [amountColumn, setAmountColumn] = useState(UNMAPPED)
   const [descriptionColumn, setDescriptionColumn] = useState(UNMAPPED)
@@ -145,6 +146,7 @@ export function ImportCSVModal({
     if (!preview || !isMappingComplete) return
 
     setIsImporting(true)
+    setImportPhase('importing')
     setError(null)
 
     try {
@@ -161,27 +163,19 @@ export function ImportCSVModal({
         setParsedTransactions(parsed)
         setDuplicateResult(dupResult)
         setIsImporting(false)
+        setImportPhase('idle')
         return
       }
 
-      const result = await importTransactions(parsed, accountId, monthKey)
+      setImportPhase('applying-rules')
+      const result = await importWithRules(parsed, accountId, monthKey)
       onOpenChange(false)
-
-      toast.success(`${result.count} transactions imported`, {
-        action: {
-          label: 'Undo',
-          onClick: () => {
-            undoImport(result.importBatchId).then((count) => {
-              toast.info(`${count} transactions removed`)
-            })
-          },
-        },
-        duration: 10000,
-      })
+      showImportToast(result)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Import failed')
     } finally {
       setIsImporting(false)
+      setImportPhase('idle')
     }
   }
 
@@ -189,28 +183,17 @@ export function ImportCSVModal({
     if (!duplicateResult) return
 
     setIsImporting(true)
+    setImportPhase('importing')
     try {
-      const result = await importTransactions(duplicateResult.unique, accountId, monthKey)
+      setImportPhase('applying-rules')
+      const result = await importWithRules(duplicateResult.unique, accountId, monthKey)
       onOpenChange(false)
-
-      toast.success(
-        `${result.count} transactions imported, ${duplicateResult.duplicates.length} duplicates skipped`,
-        {
-          action: {
-            label: 'Undo',
-            onClick: () => {
-              undoImport(result.importBatchId).then((count) => {
-                toast.info(`${count} transactions removed`)
-              })
-            },
-          },
-          duration: 10000,
-        },
-      )
+      showImportToast(result, `, ${duplicateResult.duplicates.length} duplicates skipped`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Import failed')
     } finally {
       setIsImporting(false)
+      setImportPhase('idle')
     }
   }
 
@@ -218,30 +201,19 @@ export function ImportCSVModal({
     if (!parsedTransactions) return
 
     setIsImporting(true)
+    setImportPhase('importing')
     setShowImportAnywayConfirm(false)
     try {
-      const result = await importTransactions(parsedTransactions, accountId, monthKey)
-      onOpenChange(false)
-
+      setImportPhase('applying-rules')
       const dupCount = duplicateResult?.duplicates.length ?? 0
-      toast.success(
-        `${result.count} transactions imported (including ${dupCount} duplicates)`,
-        {
-          action: {
-            label: 'Undo',
-            onClick: () => {
-              undoImport(result.importBatchId).then((count) => {
-                toast.info(`${count} transactions removed`)
-              })
-            },
-          },
-          duration: 10000,
-        },
-      )
+      const result = await importWithRules(parsedTransactions, accountId, monthKey)
+      onOpenChange(false)
+      showImportToast(result, ` (including ${dupCount} duplicates)`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Import failed')
     } finally {
       setIsImporting(false)
+      setImportPhase('idle')
     }
   }
 
@@ -473,7 +445,11 @@ export function ImportCSVModal({
                   onClick={handleImport}
                   disabled={!isMappingComplete || isImporting || !preview}
                 >
-                  {isImporting ? 'Checking...' : 'Import'}
+                  {importPhase === 'applying-rules'
+                    ? 'Applying rules...'
+                    : isImporting
+                      ? 'Importing...'
+                      : 'Import'}
                 </Button>
               </>
             ) : (
@@ -499,9 +475,11 @@ export function ImportCSVModal({
                   </Button>
                 ) : (
                   <Button onClick={handleSkipDuplicates} disabled={isImporting}>
-                    {isImporting
-                      ? 'Importing...'
-                      : `Import ${duplicateResult.unique.length} (Skip ${duplicateResult.duplicates.length} duplicates)`
+                    {importPhase === 'applying-rules'
+                      ? 'Applying rules...'
+                      : isImporting
+                        ? 'Importing...'
+                        : `Import ${duplicateResult.unique.length} (Skip ${duplicateResult.duplicates.length} duplicates)`
                     }
                   </Button>
                 )}

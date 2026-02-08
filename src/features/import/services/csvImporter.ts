@@ -8,6 +8,7 @@ import type { ParsedTransaction } from '../types/duplicate.types'
 export type ImportResult = {
   count: number
   importBatchId: string
+  transactionIds: number[]
 }
 
 export const parseCSVTransactions = async (
@@ -85,11 +86,13 @@ export const importTransactions = async (
     importBatchId,
   }))
 
+  let transactionIds: number[] = []
   await db.transaction('rw', db.transactions, async () => {
-    await db.transactions.bulkAdd(transactions)
+    const ids = await db.transactions.bulkAdd(transactions, { allKeys: true })
+    transactionIds = ids as number[]
   })
 
-  return { count: transactions.length, importBatchId }
+  return { count: transactions.length, importBatchId, transactionIds }
 }
 
 export const importCSV = async (
