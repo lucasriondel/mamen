@@ -91,4 +91,88 @@ describe('useFilteredTransactions', () => {
       expect(result.current.transactions[0].rawMerchantString).toBe('UNMATCHED')
     })
   })
+
+  it('filters by month range', async () => {
+    const monthRange = {
+      start: new Date(2026, 0, 1, 0, 0, 0, 0),
+      end: new Date(2026, 0, 31, 23, 59, 59, 999),
+    }
+
+    await db.transactions.bulkAdd([
+      makeTransaction({ date: new Date(2026, 0, 15), rawMerchantString: 'JAN' }),
+      makeTransaction({ date: new Date(2026, 1, 5), rawMerchantString: 'FEB' }),
+      makeTransaction({ date: new Date(2025, 11, 20), rawMerchantString: 'DEC' }),
+    ])
+
+    const { result } = renderHook(() =>
+      useFilteredTransactions({ monthRange }),
+    )
+
+    await waitFor(() => {
+      expect(result.current.transactions).toHaveLength(1)
+      expect(result.current.transactions[0].rawMerchantString).toBe('JAN')
+    })
+  })
+
+  it('returns empty when no transactions in month range', async () => {
+    const monthRange = {
+      start: new Date(2026, 5, 1, 0, 0, 0, 0),
+      end: new Date(2026, 5, 30, 23, 59, 59, 999),
+    }
+
+    await db.transactions.bulkAdd([
+      makeTransaction({ date: new Date(2026, 0, 15) }),
+      makeTransaction({ date: new Date(2026, 1, 5) }),
+    ])
+
+    const { result } = renderHook(() =>
+      useFilteredTransactions({ monthRange }),
+    )
+
+    await waitFor(() => {
+      expect(result.current.transactions).toHaveLength(0)
+    })
+  })
+
+  it('combines month range and unmatched filters', async () => {
+    const monthRange = {
+      start: new Date(2026, 0, 1, 0, 0, 0, 0),
+      end: new Date(2026, 0, 31, 23, 59, 59, 999),
+    }
+
+    await db.transactions.bulkAdd([
+      makeTransaction({ date: new Date(2026, 0, 10), rawMerchantString: 'JAN_UNMATCHED' }),
+      makeTransaction({ date: new Date(2026, 0, 15), rawMerchantString: 'JAN_MATCHED', merchantId: 1 }),
+      makeTransaction({ date: new Date(2026, 1, 5), rawMerchantString: 'FEB_UNMATCHED' }),
+    ])
+
+    const { result } = renderHook(() =>
+      useFilteredTransactions({ monthRange, unmatchedOnly: true }),
+    )
+
+    await waitFor(() => {
+      expect(result.current.transactions).toHaveLength(1)
+      expect(result.current.transactions[0].rawMerchantString).toBe('JAN_UNMATCHED')
+    })
+  })
+
+  it('includes transactions on month boundaries', async () => {
+    const monthRange = {
+      start: new Date(2026, 0, 1, 0, 0, 0, 0),
+      end: new Date(2026, 0, 31, 23, 59, 59, 999),
+    }
+
+    await db.transactions.bulkAdd([
+      makeTransaction({ date: new Date(2026, 0, 1, 0, 0, 0, 0), rawMerchantString: 'FIRST_DAY' }),
+      makeTransaction({ date: new Date(2026, 0, 31, 23, 59, 59, 999), rawMerchantString: 'LAST_DAY' }),
+    ])
+
+    const { result } = renderHook(() =>
+      useFilteredTransactions({ monthRange }),
+    )
+
+    await waitFor(() => {
+      expect(result.current.transactions).toHaveLength(2)
+    })
+  })
 })

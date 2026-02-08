@@ -16,10 +16,14 @@ function pathToLabel(segment: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
+const formatMonthLabel = (date: Date): string => {
+  return new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(date)
+}
+
 export function useBreadcrumbs(): BreadcrumbSegment[] {
   const location = useLocation()
   const { pathname } = location
-  const { focusMode } = useFocusMode()
+  const { activeFilters, currentMonthRange } = useFocusMode()
 
   if (pathname === '/') {
     return [{ label: routeLabelMap['/'], href: '/' }]
@@ -35,8 +39,13 @@ export function useBreadcrumbs(): BreadcrumbSegment[] {
     segments.push({ label, href: currentPath })
   }
 
-  if (pathname === '/transactions' && focusMode === 'unmatched') {
-    segments.push({ label: 'Unmatched' })
+  if (pathname === '/transactions') {
+    if (activeFilters.has('month')) {
+      segments.push({ label: formatMonthLabel(currentMonthRange.start) })
+    }
+    if (activeFilters.has('unmatched')) {
+      segments.push({ label: 'Unmatched' })
+    }
   }
 
   return segments

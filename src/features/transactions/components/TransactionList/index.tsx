@@ -23,11 +23,13 @@ type TransactionListProps = {
 }
 
 export function TransactionList({ highlightId }: TransactionListProps): React.ReactElement {
-  const { focusMode } = useFocusMode()
-  const isUnmatchedMode = focusMode === 'unmatched'
+  const { activeFilters, currentMonthRange, toggleFocusMode } = useFocusMode()
+  const isUnmatchedMode = activeFilters.has('unmatched')
+  const isMonthMode = activeFilters.has('month')
 
   const { transactions, isLoading } = useFilteredTransactions({
     unmatchedOnly: isUnmatchedMode,
+    monthRange: isMonthMode ? currentMonthRange : undefined,
   })
 
   const [selectedId, setSelectedId] = useState<number | null>(null)
@@ -158,6 +160,17 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
     enabled: !anyModalOpen,
   })
 
+  // Clear selection and reset focus when focus mode changes (skip initial mount)
+  const filtersKey = Array.from(activeFilters).sort().join(',')
+  const prevFiltersKeyRef = useRef(filtersKey)
+  useEffect(() => {
+    if (prevFiltersKeyRef.current === filtersKey) return
+    prevFiltersKeyRef.current = filtersKey
+    multiSelect.clearSelection()
+    setFocusedIndex(0)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtersKey])
+
   useEffect(() => {
     prevFocusedRef.current = focusedIndex
   }, [focusedIndex])
@@ -229,6 +242,29 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
 
   if (transactions.length === 0 && isUnmatchedMode) {
     return <InboxZeroEmpty />
+  }
+
+  if (transactions.length === 0 && isMonthMode) {
+    const monthLabel = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(currentMonthRange.start)
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-4 text-center p-8">
+        <div className="text-muted-foreground">
+          <ListIcon className="w-12 h-12 mb-4 mx-auto opacity-50" />
+          <h3 className="text-lg font-medium">No transactions this month</h3>
+          <p className="text-sm mt-2">
+            Import a statement to see your spending for {monthLabel}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button asChild>
+            <Link to="/accounts">Import Statement</Link>
+          </Button>
+          <Button variant="outline" onClick={() => toggleFocusMode('all')}>
+            View All Transactions
+          </Button>
+        </div>
+      </div>
+    )
   }
 
   if (transactions.length === 0) {

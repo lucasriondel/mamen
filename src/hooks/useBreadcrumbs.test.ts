@@ -8,120 +8,91 @@ vi.mock('@tanstack/react-router', () => ({
 vi.mock('@/context/FocusModeContext', () => ({
   useFocusMode: vi.fn().mockReturnValue({
     focusMode: 'all',
+    activeFilters: new Set(),
+    currentMonthRange: {
+      start: new Date(2026, 1, 1, 0, 0, 0, 0),
+      end: new Date(2026, 1, 28, 23, 59, 59, 999),
+    },
     setFocusMode: vi.fn(),
     toggleFocusMode: vi.fn(),
   }),
 }))
 
 import { useLocation } from '@tanstack/react-router'
+import { useFocusMode } from '@/context/FocusModeContext'
 
 const mockUseLocation = vi.mocked(useLocation)
+const mockUseFocusMode = vi.mocked(useFocusMode)
+
+const makeLocation = (pathname: string) => ({
+  pathname,
+  search: {},
+  hash: '',
+  href: pathname,
+  searchStr: '',
+  state: {} as never,
+  maskedLocation: undefined,
+} as ReturnType<typeof useLocation>)
 
 describe('useBreadcrumbs', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockUseFocusMode.mockReturnValue({
+      focusMode: 'all',
+      activeFilters: new Set(),
+      currentMonthRange: {
+        start: new Date(2026, 1, 1, 0, 0, 0, 0),
+        end: new Date(2026, 1, 28, 23, 59, 59, 999),
+      },
+      setFocusMode: vi.fn(),
+      toggleFocusMode: vi.fn(),
+    })
   })
 
   it('returns single segment for dashboard route', () => {
-    mockUseLocation.mockReturnValue({
-      pathname: '/',
-      search: {},
-      hash: '',
-      href: '/',
-      searchStr: '',
-      state: {} as never,
-      maskedLocation: undefined,
-    } as ReturnType<typeof useLocation>)
+    mockUseLocation.mockReturnValue(makeLocation('/'))
 
     const segments = useBreadcrumbs()
     expect(segments).toEqual([{ label: 'Dashboard', href: '/' }])
   })
 
   it('returns single segment for transactions route', () => {
-    mockUseLocation.mockReturnValue({
-      pathname: '/transactions',
-      search: {},
-      hash: '',
-      href: '/transactions',
-      searchStr: '',
-      state: {} as never,
-      maskedLocation: undefined,
-    } as ReturnType<typeof useLocation>)
+    mockUseLocation.mockReturnValue(makeLocation('/transactions'))
 
     const segments = useBreadcrumbs()
     expect(segments).toEqual([{ label: 'Transactions', href: '/transactions' }])
   })
 
   it('returns single segment for merchants route', () => {
-    mockUseLocation.mockReturnValue({
-      pathname: '/merchants',
-      search: {},
-      hash: '',
-      href: '/merchants',
-      searchStr: '',
-      state: {} as never,
-      maskedLocation: undefined,
-    } as ReturnType<typeof useLocation>)
+    mockUseLocation.mockReturnValue(makeLocation('/merchants'))
 
     const segments = useBreadcrumbs()
     expect(segments).toEqual([{ label: 'Merchants', href: '/merchants' }])
   })
 
   it('returns single segment for settings route', () => {
-    mockUseLocation.mockReturnValue({
-      pathname: '/settings',
-      search: {},
-      hash: '',
-      href: '/settings',
-      searchStr: '',
-      state: {} as never,
-      maskedLocation: undefined,
-    } as ReturnType<typeof useLocation>)
+    mockUseLocation.mockReturnValue(makeLocation('/settings'))
 
     const segments = useBreadcrumbs()
     expect(segments).toEqual([{ label: 'Settings', href: '/settings' }])
   })
 
   it('returns single segment for accounts route', () => {
-    mockUseLocation.mockReturnValue({
-      pathname: '/accounts',
-      search: {},
-      hash: '',
-      href: '/accounts',
-      searchStr: '',
-      state: {} as never,
-      maskedLocation: undefined,
-    } as ReturnType<typeof useLocation>)
+    mockUseLocation.mockReturnValue(makeLocation('/accounts'))
 
     const segments = useBreadcrumbs()
     expect(segments).toEqual([{ label: 'Accounts', href: '/accounts' }])
   })
 
   it('returns fallback label for unknown routes', () => {
-    mockUseLocation.mockReturnValue({
-      pathname: '/unknown-page',
-      search: {},
-      hash: '',
-      href: '/unknown-page',
-      searchStr: '',
-      state: {} as never,
-      maskedLocation: undefined,
-    } as ReturnType<typeof useLocation>)
+    mockUseLocation.mockReturnValue(makeLocation('/unknown-page'))
 
     const segments = useBreadcrumbs()
     expect(segments).toEqual([{ label: 'Unknown Page', href: '/unknown-page' }])
   })
 
   it('handles nested routes like /merchants/123', () => {
-    mockUseLocation.mockReturnValue({
-      pathname: '/merchants/123',
-      search: {},
-      hash: '',
-      href: '/merchants/123',
-      searchStr: '',
-      state: {} as never,
-      maskedLocation: undefined,
-    } as ReturnType<typeof useLocation>)
+    mockUseLocation.mockReturnValue(makeLocation('/merchants/123'))
 
     const segments = useBreadcrumbs()
     expect(segments).toHaveLength(2)
@@ -133,5 +104,81 @@ describe('useBreadcrumbs', () => {
     expect(routeLabelMap).toBeDefined()
     expect(routeLabelMap['/']).toBe('Dashboard')
     expect(routeLabelMap['/transactions']).toBe('Transactions')
+  })
+
+  it('shows Unmatched segment when unmatched filter active on transactions page', () => {
+    mockUseLocation.mockReturnValue(makeLocation('/transactions'))
+    mockUseFocusMode.mockReturnValue({
+      focusMode: 'unmatched',
+      activeFilters: new Set(['unmatched'] as const),
+      currentMonthRange: {
+        start: new Date(2026, 1, 1, 0, 0, 0, 0),
+        end: new Date(2026, 1, 28, 23, 59, 59, 999),
+      },
+      setFocusMode: vi.fn(),
+      toggleFocusMode: vi.fn(),
+    })
+
+    const segments = useBreadcrumbs()
+    expect(segments).toHaveLength(2)
+    expect(segments[0]).toEqual({ label: 'Transactions', href: '/transactions' })
+    expect(segments[1]).toEqual({ label: 'Unmatched' })
+  })
+
+  it('shows month name segment when month filter active on transactions page', () => {
+    mockUseLocation.mockReturnValue(makeLocation('/transactions'))
+    mockUseFocusMode.mockReturnValue({
+      focusMode: 'month',
+      activeFilters: new Set(['month'] as const),
+      currentMonthRange: {
+        start: new Date(2026, 1, 1, 0, 0, 0, 0),
+        end: new Date(2026, 1, 28, 23, 59, 59, 999),
+      },
+      setFocusMode: vi.fn(),
+      toggleFocusMode: vi.fn(),
+    })
+
+    const segments = useBreadcrumbs()
+    expect(segments).toHaveLength(2)
+    expect(segments[0]).toEqual({ label: 'Transactions', href: '/transactions' })
+    expect(segments[1]).toEqual({ label: 'February 2026' })
+  })
+
+  it('shows combined breadcrumb: month + unmatched', () => {
+    mockUseLocation.mockReturnValue(makeLocation('/transactions'))
+    mockUseFocusMode.mockReturnValue({
+      focusMode: 'unmatched',
+      activeFilters: new Set(['month', 'unmatched'] as const),
+      currentMonthRange: {
+        start: new Date(2026, 1, 1, 0, 0, 0, 0),
+        end: new Date(2026, 1, 28, 23, 59, 59, 999),
+      },
+      setFocusMode: vi.fn(),
+      toggleFocusMode: vi.fn(),
+    })
+
+    const segments = useBreadcrumbs()
+    expect(segments).toHaveLength(3)
+    expect(segments[0]).toEqual({ label: 'Transactions', href: '/transactions' })
+    expect(segments[1]).toEqual({ label: 'February 2026' })
+    expect(segments[2]).toEqual({ label: 'Unmatched' })
+  })
+
+  it('does not show focus mode segments on non-transactions pages', () => {
+    mockUseLocation.mockReturnValue(makeLocation('/merchants'))
+    mockUseFocusMode.mockReturnValue({
+      focusMode: 'month',
+      activeFilters: new Set(['month'] as const),
+      currentMonthRange: {
+        start: new Date(2026, 1, 1, 0, 0, 0, 0),
+        end: new Date(2026, 1, 28, 23, 59, 59, 999),
+      },
+      setFocusMode: vi.fn(),
+      toggleFocusMode: vi.fn(),
+    })
+
+    const segments = useBreadcrumbs()
+    expect(segments).toHaveLength(1)
+    expect(segments[0]).toEqual({ label: 'Merchants', href: '/merchants' })
   })
 })

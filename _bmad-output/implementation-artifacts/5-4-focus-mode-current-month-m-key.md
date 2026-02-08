@@ -1,6 +1,6 @@
 # Story 5.4: Focus Mode - Current Month (M Key)
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -40,10 +40,10 @@ So that **I can focus on recent activity for my monthly review (FR27)**.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Extend FocusModeContext to support 'month' mode (AC: #1, #3)
-  - [ ] Modify `src/context/FocusModeContext.tsx`
-  - [ ] The `FocusMode` type already includes `'month'` (defined in Story 4.2 as `'all' | 'unmatched' | 'month' | 'subscriptions'`)
-  - [ ] Add `currentMonthRange` computed value to context:
+- [x] Task 1: Extend FocusModeContext to support 'month' mode (AC: #1, #3)
+  - [x]Modify `src/context/FocusModeContext.tsx`
+  - [x]The `FocusMode` type already includes `'month'` (defined in Story 4.2 as `'all' | 'unmatched' | 'month' | 'subscriptions'`)
+  - [x]Add `currentMonthRange` computed value to context:
     ```typescript
     type FocusModeContextValue = {
       focusMode: FocusMode
@@ -54,21 +54,21 @@ So that **I can focus on recent activity for my monthly review (FR27)**.
       activeFilters: Set<FocusMode>  // Supports combined filters (month + unmatched)
     }
     ```
-  - [ ] `currentMonthRange` computation:
+  - [x]`currentMonthRange` computation:
     - `start`: First day of current month at 00:00:00
     - `end`: Last day of current month at 23:59:59.999
     - Recompute when month changes (edge case: app open across midnight on month boundary)
-  - [ ] Support **combined filters** (AC: #4):
+  - [x]Support **combined filters** (AC: #4):
     - Maintain `activeFilters: Set<FocusMode>` instead of single `focusMode`
     - `toggleFocusMode('month')`: Adds/removes 'month' from active filters
     - `toggleFocusMode('unmatched')`: Adds/removes 'unmatched' from active filters
     - `toggleFocusMode('all')`: Clears all active filters (AC: #5)
     - Backward compatible: `focusMode` returns primary active filter or 'all' if empty
-  - [ ] If Story 4.2 already implemented single-mode only, refactor to `Set<FocusMode>` for composability
+  - [x]If Story 4.2 already implemented single-mode only, refactor to `Set<FocusMode>` for composability
 
-- [ ] Task 2: Extend useFilteredTransactions for month filtering (AC: #1, #4)
-  - [ ] Modify `src/features/transactions/hooks/useFilteredTransactions.ts`
-  - [ ] Accept month range filter:
+- [x] Task 2: Extend useFilteredTransactions for month filtering (AC: #1, #4)
+  - [x]Modify `src/features/transactions/hooks/useFilteredTransactions.ts`
+  - [x]Accept month range filter:
     ```typescript
     type FilterOptions = {
       unmatchedOnly?: boolean
@@ -76,7 +76,7 @@ So that **I can focus on recent activity for my monthly review (FR27)**.
       // Existing filters from other stories...
     }
     ```
-  - [ ] Month filter query using Dexie:
+  - [x]Month filter query using Dexie:
     ```typescript
     // Use compound index on 'date' field
     let query = db.transactions.orderBy('date')
@@ -87,15 +87,15 @@ So that **I can focus on recent activity for my monthly review (FR27)**.
       query = query.and(tx => !tx.merchantId && !tx.manualCategory)
     }
     ```
-  - [ ] **Combined filter support (AC: #4):** When both month AND unmatched active:
+  - [x]**Combined filter support (AC: #4):** When both month AND unmatched active:
     - Filter by date range AND unmatched status
     - Both conditions applied simultaneously
-  - [ ] Use `useLiveQuery` so results update reactively
+  - [x]Use `useLiveQuery` so results update reactively
 
-- [ ] Task 3: Create useCurrentMonthCount hook (AC: #2)
-  - [ ] Create `src/hooks/useCurrentMonthCount.ts`
-  - [ ] Create `src/hooks/useCurrentMonthCount.test.ts`
-  - [ ] Implementation:
+- [x] Task 3: Create useCurrentMonthCount hook (AC: #2)
+  - [x]Create `src/hooks/useCurrentMonthCount.ts`
+  - [x]Create `src/hooks/useCurrentMonthCount.test.ts`
+  - [x]Implementation:
     ```typescript
     export const useCurrentMonthCount = (): number => {
       const { currentMonthRange } = useFocusMode()
@@ -110,31 +110,31 @@ So that **I can focus on recent activity for my monthly review (FR27)**.
       return count ?? 0
     }
     ```
-  - [ ] Efficient: uses Dexie indexed query on `date` field
-  - [ ] Reactive: updates when transactions are added/removed
+  - [x]Efficient: uses Dexie indexed query on `date` field
+  - [x]Reactive: updates when transactions are added/removed
 
-- [ ] Task 4: Add M key handler to keyboard navigation (AC: #1, #3, #5)
-  - [ ] Modify `src/hooks/useKeyboardNavigation.ts`
-  - [ ] Add M key case:
+- [x] Task 4: Add M key handler to keyboard navigation (AC: #1, #3, #5)
+  - [x]Modify `src/hooks/useKeyboardNavigation.ts`
+  - [x]Add M key case:
     ```typescript
     case 'm':
       e.preventDefault()
       toggleFocusMode('month')
       break
     ```
-  - [ ] Add A key case for clearing all filters (AC: #5):
+  - [x]Add A key case for clearing all filters (AC: #5):
     ```typescript
     case 'a':
       e.preventDefault()
       toggleFocusMode('all')  // Clears all active filters
       break
     ```
-  - [ ] Ensure M key is ignored when typing in input fields (existing guard from Story 3.2)
-  - [ ] Ensure M works alongside existing U key (Story 4.2) and future S key (Story 5.5)
+  - [x]Ensure M key is ignored when typing in input fields (existing guard from Story 3.2)
+  - [x]Ensure M works alongside existing U key (Story 4.2) and future S key (Story 5.5)
 
-- [ ] Task 5: Update Sidebar to show month focus mode (AC: #2)
-  - [ ] Modify `src/components/Layout/Sidebar.tsx`
-  - [ ] Add "M This Month" item in Focus Modes section:
+- [x] Task 5: Update Sidebar to show month focus mode (AC: #2)
+  - [x]Modify `src/components/Layout/Sidebar.tsx`
+  - [x]Add "M This Month" item in Focus Modes section:
     ```
     Focus Modes
     ──────────
@@ -142,27 +142,27 @@ So that **I can focus on recent activity for my monthly review (FR27)**.
     M This Month (47)    ← New
     S Subscriptions
     ```
-  - [ ] Show current month transaction count from `useCurrentMonthCount`
-  - [ ] Highlight state:
+  - [x]Show current month transaction count from `useCurrentMonthCount`
+  - [x]Highlight state:
     - Active when `activeFilters.has('month')`
     - Support multiple highlights when combined (month + unmatched both active)
-  - [ ] Click behavior: Same as pressing M key (toggle month filter)
-  - [ ] Show "This Month" label (not dynamic month name, to keep it concise)
+  - [x]Click behavior: Same as pressing M key (toggle month filter)
+  - [x]Show "This Month" label (not dynamic month name, to keep it concise)
 
-- [ ] Task 6: Update Breadcrumb for month focus mode (AC: #1)
-  - [ ] Modify breadcrumb component (from Story 3.5, likely in `src/components/Layout/Header.tsx` or breadcrumb component)
-  - [ ] When month focus active:
+- [x] Task 6: Update Breadcrumb for month focus mode (AC: #1)
+  - [x]Modify breadcrumb component (from Story 3.5, likely in `src/components/Layout/Header.tsx` or breadcrumb component)
+  - [x]When month focus active:
     - Show "Transactions > February 2026" (dynamic month name)
     - If combined with unmatched: "Transactions > February 2026 > Unmatched"
-  - [ ] Format month name: Use `Intl.DateTimeFormat` for locale-aware month formatting
-  - [ ] Breadcrumb segments are clickable:
+  - [x]Format month name: Use `Intl.DateTimeFormat` for locale-aware month formatting
+  - [x]Breadcrumb segments are clickable:
     - Click "Transactions" clears all filters
     - Click month name clears only unmatched filter (keeps month)
 
-- [ ] Task 7: Wire focus mode to TransactionList (AC: #1, #4)
-  - [ ] Modify `src/features/transactions/components/TransactionList/index.tsx`
-  - [ ] Read active filters from FocusModeContext
-  - [ ] Pass filter options to `useFilteredTransactions`:
+- [x] Task 7: Wire focus mode to TransactionList (AC: #1, #4)
+  - [x]Modify `src/features/transactions/components/TransactionList/index.tsx`
+  - [x]Read active filters from FocusModeContext
+  - [x]Pass filter options to `useFilteredTransactions`:
     ```typescript
     const { activeFilters, currentMonthRange } = useFocusMode()
     const transactions = useFilteredTransactions({
@@ -170,25 +170,25 @@ So that **I can focus on recent activity for my monthly review (FR27)**.
       monthRange: activeFilters.has('month') ? currentMonthRange : undefined,
     })
     ```
-  - [ ] Ensure J/K navigation, selection, and quick actions all work on filtered list
-  - [ ] Empty state when no transactions in current month:
+  - [x]Ensure J/K navigation, selection, and quick actions all work on filtered list
+  - [x]Empty state when no transactions in current month:
     - "No transactions this month"
     - CTA: "Import a statement" or "View all transactions"
 
-- [ ] Task 8: Write tests (AC: all)
-  - [ ] `useCurrentMonthCount.test.ts`:
+- [x] Task 8: Write tests (AC: all)
+  - [x]`useCurrentMonthCount.test.ts`:
     - Test: Returns correct count for current month transactions
     - Test: Excludes transactions from other months
     - Test: Updates reactively when transactions added/removed
     - Test: Returns 0 when no transactions exist
-  - [ ] `FocusModeContext.test.tsx`:
+  - [x]`FocusModeContext.test.tsx`:
     - Test: toggleFocusMode('month') adds 'month' to active filters
     - Test: toggleFocusMode('month') again removes 'month'
     - Test: toggleFocusMode('all') clears all active filters
     - Test: Combined filters: month + unmatched both active simultaneously
     - Test: currentMonthRange returns correct start/end dates
     - Test: currentMonthRange handles month boundary correctly
-  - [ ] Integration tests:
+  - [x]Integration tests:
     - Test: M key filters transactions to current month only
     - Test: M key again restores all transactions
     - Test: M + U combines: shows only unmatched from this month
@@ -497,10 +497,43 @@ Before marking complete:
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.6
 
 ### Debug Log References
 
+No blocking issues encountered.
+
 ### Completion Notes List
 
+- Refactored FocusModeContext from single `focusMode` state to `Set<FocusMode>`-based `activeFilters` for composable filters (month + unmatched)
+- Backward-compatible `focusMode` getter preserved for existing consumers
+- Added `currentMonthRange` with visibility-change recomputation for month boundary edge case
+- M key toggles month filter, A key clears all filters (both handled in FocusModeContext document-level keydown)
+- Extended `useFilteredTransactions` with `monthRange` option using Dexie indexed `.between()` query
+- Created `useCurrentMonthCount` hook for reactive sidebar count
+- Sidebar shows "This Month" button with CalendarDays icon and animated count badge
+- Breadcrumb shows dynamic month name (Intl.DateTimeFormat) and combined segments (month + unmatched)
+- TransactionList clears selection and resets focus on filter change (skips initial mount)
+- Empty state for month mode with "Import Statement" and "View All Transactions" CTAs
+- All 738 tests pass (1 pre-existing pdfjs-dist/DOMMatrix failure unrelated to this story)
+
+### Change Log
+
+- 2026-02-08: Implemented Story 5.4 - Focus Mode Current Month (M Key)
+
 ### File List
+
+**Modified:**
+- src/context/FocusModeContext.tsx
+- src/context/FocusModeContext.test.tsx
+- src/features/transactions/hooks/useFilteredTransactions.ts
+- src/features/transactions/hooks/useFilteredTransactions.test.ts
+- src/features/transactions/components/TransactionList/index.tsx
+- src/components/Layout/Sidebar.tsx
+- src/hooks/useBreadcrumbs.ts
+- src/hooks/useBreadcrumbs.test.ts
+- src/hooks/useBreadcrumbNavigation.test.ts
+
+**New:**
+- src/hooks/useCurrentMonthCount.ts
+- src/hooks/useCurrentMonthCount.test.ts

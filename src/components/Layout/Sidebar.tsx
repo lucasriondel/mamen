@@ -1,8 +1,9 @@
 import { Link, useNavigate } from '@tanstack/react-router'
-import { LayoutDashboard, Receipt, Store, CreditCard, Settings, Inbox, FileText } from 'lucide-react'
+import { LayoutDashboard, Receipt, Store, CreditCard, Settings, Inbox, FileText, CalendarDays } from 'lucide-react'
 import { db, useLiveQuery } from '@/lib/db'
 import { useFocusMode } from '@/context/FocusModeContext'
 import { useUnmatchedCount } from '@/hooks/useUnmatchedCount'
+import { useCurrentMonthCount } from '@/hooks/useCurrentMonthCount'
 import { cn } from '@/lib/utils'
 import { AnimatedCounter } from '@/components/AnimatedCounter'
 
@@ -23,7 +24,8 @@ const navItems: NavItem[] = [
 
 export function Sidebar(): React.ReactElement {
   const { count: unmatchedCount } = useUnmatchedCount()
-  const { focusMode, toggleFocusMode, setFocusMode } = useFocusMode()
+  const monthCount = useCurrentMonthCount()
+  const { activeFilters, toggleFocusMode, setFocusMode } = useFocusMode()
   const navigate = useNavigate()
 
   const merchantCount = useLiveQuery(
@@ -44,6 +46,11 @@ export function Sidebar(): React.ReactElement {
 
   const handleUnmatchedClick = (): void => {
     toggleFocusMode('unmatched')
+    navigate({ to: '/transactions' })
+  }
+
+  const handleMonthClick = (): void => {
+    toggleFocusMode('month')
     navigate({ to: '/transactions' })
   }
 
@@ -73,7 +80,7 @@ export function Sidebar(): React.ReactElement {
           onClick={handleUnmatchedClick}
           className={cn(
             'flex items-center gap-3 px-3 py-2 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors w-full text-left',
-            focusMode === 'unmatched' && 'bg-accent text-foreground',
+            activeFilters.has('unmatched') && 'bg-accent text-foreground',
           )}
           aria-label={`Unmatched transactions: ${unmatchedCount}`}
         >
@@ -81,6 +88,21 @@ export function Sidebar(): React.ReactElement {
           <span>Unmatched</span>
           <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-amber-500/20" aria-hidden="true">
             <AnimatedCounter value={unmatchedCount} />
+          </span>
+        </button>
+
+        <button
+          onClick={handleMonthClick}
+          className={cn(
+            'flex items-center gap-3 px-3 py-2 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors w-full text-left',
+            activeFilters.has('month') && 'bg-accent text-foreground',
+          )}
+          aria-label={`This month transactions: ${monthCount}`}
+        >
+          <CalendarDays className="h-4 w-4" />
+          <span>This Month</span>
+          <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-blue-500/20" aria-hidden="true">
+            <AnimatedCounter value={monthCount} />
           </span>
         </button>
       </nav>

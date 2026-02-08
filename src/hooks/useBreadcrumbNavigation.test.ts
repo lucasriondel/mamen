@@ -12,6 +12,11 @@ vi.mock('@tanstack/react-router', () => ({
 vi.mock('@/context/FocusModeContext', () => ({
   useFocusMode: vi.fn().mockReturnValue({
     focusMode: 'all',
+    activeFilters: new Set(),
+    currentMonthRange: {
+      start: new Date(2026, 1, 1, 0, 0, 0, 0),
+      end: new Date(2026, 1, 28, 23, 59, 59, 999),
+    },
     setFocusMode: vi.fn(),
     toggleFocusMode: vi.fn(),
   }),
