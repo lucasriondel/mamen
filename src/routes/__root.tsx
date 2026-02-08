@@ -4,6 +4,7 @@ import { Layout } from '@/components/Layout'
 import { CommandPaletteProvider } from '@/context/CommandPaletteContext'
 import { FocusModeProvider } from '@/context/FocusModeContext'
 import { CommandPalette } from '@/components/CommandPalette'
+import { Toaster } from '@/components/ui/sonner'
 import { seedCategories } from '@/lib/db'
 
 export const Route = createRootRoute({
@@ -22,6 +23,7 @@ function RootComponent(): React.ReactElement {
           <Outlet />
         </Layout>
         <CommandPalette />
+        <Toaster />
       </CommandPaletteProvider>
     </FocusModeProvider>
   )

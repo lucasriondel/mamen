@@ -4,6 +4,7 @@ import { db, useLiveQuery } from '@/lib/db'
 import { useFocusMode } from '@/context/FocusModeContext'
 import { useUnmatchedCount } from '@/hooks/useUnmatchedCount'
 import { cn } from '@/lib/utils'
+import { AnimatedCounter } from '@/components/AnimatedCounter'
 
 type NavItem = {
   to: string
@@ -78,14 +79,9 @@ export function Sidebar(): React.ReactElement {
         >
           <Inbox className="h-4 w-4" />
           <span>Unmatched</span>
-          {unmatchedCount > 0 && (
-            <span
-              className="ml-auto text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-500"
-              aria-hidden="true"
-            >
-              {unmatchedCount}
-            </span>
-          )}
+          <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-amber-500/20" aria-hidden="true">
+            <AnimatedCounter value={unmatchedCount} />
+          </span>
         </button>
       </nav>
 
@@ -96,7 +92,9 @@ export function Sidebar(): React.ReactElement {
         <div className="flex flex-col gap-1 px-3 text-sm text-muted-foreground">
           <div className="flex justify-between">
             <span>Unmatched</span>
-            <span aria-live="polite">{unmatchedCount}</span>
+            <span aria-live="polite">
+              <AnimatedCounter value={unmatchedCount} />
+            </span>
           </div>
           <div className="flex justify-between">
             <span>Merchants</span>

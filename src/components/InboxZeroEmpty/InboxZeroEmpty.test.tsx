@@ -33,7 +33,7 @@ describe('InboxZeroEmpty', () => {
     renderWithRouter(() => <InboxZeroEmpty />)
 
     expect(
-      await screen.findByText('No unmatched transactions. Great job!'),
+      await screen.findByText('Every transaction has a merchant.'),
     ).toBeInTheDocument()
   })
 

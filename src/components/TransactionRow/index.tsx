@@ -9,16 +9,28 @@ export type TransactionRowProps = {
   transaction: Transaction
   isFocused?: boolean
   isSelected?: boolean
+  isHighlighted?: boolean
+  badgeAnimating?: boolean
+  cascadeIndex?: number
   onClick?: () => void
 }
+
+const STAGGER_MS = 50
 
 export function TransactionRow({
   transaction,
   isFocused = false,
   isSelected = false,
+  isHighlighted = false,
+  badgeAnimating = false,
+  cascadeIndex,
   onClick,
 }: TransactionRowProps): React.ReactElement {
   const isUnmatched = !transaction.merchantId && !transaction.manualCategory
+
+  const cascadeStyle = isHighlighted && cascadeIndex !== undefined
+    ? { '--cascade-delay': `${cascadeIndex * STAGGER_MS}ms` } as React.CSSProperties
+    : undefined
 
   return (
     <div
@@ -27,8 +39,10 @@ export function TransactionRow({
         'hover:bg-muted/50 transition-colors',
         isFocused && 'ring-2 ring-ring ring-offset-2 ring-offset-background z-10',
         isSelected && 'bg-muted border-l-2 border-primary',
-        !isFocused && !isSelected && isUnmatched && 'border-l-2 border-amber-500/50'
+        !isFocused && !isSelected && isUnmatched && 'border-l-2 border-amber-500/50',
+        isHighlighted && 'cascade-highlight',
       )}
+      style={cascadeStyle}
       onClick={onClick}
       role="row"
       tabIndex={0}
@@ -49,10 +63,12 @@ export function TransactionRow({
           </Badge>
         ) : transaction.categoryId ? (
           <>
-            <CategoryBadge
-              categoryId={transaction.categoryId}
-              subcategoryId={transaction.subcategoryId}
-            />
+            <span className={cn(badgeAnimating && 'badge-cascade-enter')}>
+              <CategoryBadge
+                categoryId={transaction.categoryId}
+                subcategoryId={transaction.subcategoryId}
+              />
+            </span>
             {transaction.manualCategory && (
               <Badge variant="outline" className="text-xs h-5 text-muted-foreground border-dashed">
                 Manual

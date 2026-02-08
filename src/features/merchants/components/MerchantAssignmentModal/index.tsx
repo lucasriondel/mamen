@@ -42,6 +42,7 @@ type MerchantAssignmentModalProps = {
   transaction: Transaction | null
   powerMode?: boolean
   onComplete?: () => void
+  onCascade?: (affectedIds: string[]) => void
 }
 
 type ConflictWarning = {
@@ -56,6 +57,7 @@ export function MerchantAssignmentModal({
   transaction,
   powerMode = false,
   onComplete,
+  onCascade,
 }: MerchantAssignmentModalProps): React.ReactElement {
   const { createMerchant, getMerchantByName } = useMerchants()
   const { getCategoryById } = useCategories()
@@ -245,6 +247,7 @@ export function MerchantAssignmentModal({
 
         onOpenChange(false)
         onComplete?.()
+        onCascade?.(affectedIds.map(String))
 
         toast(`${count} transaction${count !== 1 ? 's' : ''} → ${merchantName.trim()}`, {
           action: {
@@ -269,6 +272,7 @@ export function MerchantAssignmentModal({
 
         onOpenChange(false)
         onComplete?.()
+        onCascade?.(result.affectedTransactionIds.map(String))
 
         const merchantDisplayName = existingMerchant?.name ?? 'merchant'
         toast(

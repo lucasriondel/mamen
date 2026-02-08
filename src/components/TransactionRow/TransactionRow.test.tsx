@@ -177,4 +177,53 @@ describe('TransactionRow', () => {
     const row = container.firstElementChild!
     expect(row.className).not.toContain('border-amber-500/50')
   })
+
+  it('applies cascade-highlight class when isHighlighted is true', () => {
+    const { container } = render(
+      <TransactionRow
+        transaction={makeTransaction()}
+        isHighlighted={true}
+        cascadeIndex={0}
+      />
+    )
+
+    const row = container.firstElementChild!
+    expect(row.className).toContain('cascade-highlight')
+  })
+
+  it('sets cascade delay CSS variable based on cascadeIndex', () => {
+    const { container } = render(
+      <TransactionRow
+        transaction={makeTransaction()}
+        isHighlighted={true}
+        cascadeIndex={3}
+      />
+    )
+
+    const row = container.firstElementChild as HTMLElement
+    expect(row.style.getPropertyValue('--cascade-delay')).toBe('150ms')
+  })
+
+  it('does not apply highlight class by default', () => {
+    const { container } = render(
+      <TransactionRow transaction={makeTransaction()} />
+    )
+
+    const row = container.firstElementChild!
+    expect(row.className).not.toContain('cascade-highlight')
+  })
+
+  it('applies badge-cascade-enter class when badgeAnimating is true and has category', () => {
+    const { container } = render(
+      <TransactionRow
+        transaction={makeTransaction({ merchantId: 1, categoryId: 1 })}
+        badgeAnimating={true}
+        cascadeIndex={2}
+      />
+    )
+
+    // The span wrapper around CategoryBadge gets the animation class
+    const badgeWrapper = container.querySelector('.badge-cascade-enter')
+    expect(badgeWrapper).toBeTruthy()
+  })
 })

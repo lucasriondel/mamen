@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback, useEffect } from 'react'
+import { useRef, useState, useCallback, useEffect, useMemo } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { ListIcon } from 'lucide-react'
@@ -8,6 +8,7 @@ import { InboxZeroEmpty } from '@/components/InboxZeroEmpty'
 import { MerchantAssignmentModal } from '@/features/merchants/components/MerchantAssignmentModal'
 import { QuickCategoryPicker } from '../QuickCategoryPicker'
 import { useKeyboardNavigation } from '@/hooks/useKeyboardNavigation'
+import { useCascadeAnimation } from '@/hooks/useCascadeAnimation'
 import { useFilteredTransactions } from '../../hooks/useFilteredTransactions'
 import { useQuickCategoryAssign } from '../../hooks/useQuickCategoryAssign'
 import { useFocusMode } from '@/context/FocusModeContext'
@@ -32,6 +33,8 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
   const [categoryPickerOpen, setCategoryPickerOpen] = useState(false)
   const [categoryPickerTransaction, setCategoryPickerTransaction] = useState<Transaction | null>(null)
   const { assignCategory } = useQuickCategoryAssign()
+  const { triggerCascade, animatingIds, animationPhase } = useCascadeAnimation()
+  const animatingIdSet = useMemo(() => new Set(animatingIds), [animatingIds])
   const parentRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
   const highlightHandledRef = useRef<number | undefined>(undefined)
@@ -188,6 +191,9 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
                   transaction={transaction}
                   isFocused={focusedIndex === virtualRow.index}
                   isSelected={selectedId === transaction.id}
+                  isHighlighted={animatingIdSet.has(String(transaction.id)) && (animationPhase === 'highlight' || animationPhase === 'settle')}
+                  badgeAnimating={animatingIdSet.has(String(transaction.id)) && animationPhase === 'badge'}
+                  cascadeIndex={animatingIdSet.has(String(transaction.id)) ? animatingIds.indexOf(String(transaction.id)) : undefined}
                   onClick={() => handleRowClick(transaction.id)}
                 />
               </div>
@@ -201,6 +207,7 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
         onOpenChange={setMerchantModalOpen}
         transaction={merchantModalTransaction}
         powerMode={merchantModalPowerMode}
+        onCascade={triggerCascade}
       />
 
       <QuickCategoryPicker
