@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { TransactionRow } from '@/components/TransactionRow'
 import { InboxZeroEmpty } from '@/components/InboxZeroEmpty'
 import { useSubscriptions } from '@/features/subscriptions/hooks/useSubscriptions'
+import { SubscriptionsView } from '@/features/subscriptions/components/SubscriptionsView'
 import { SelectionStatusBar } from '@/components/SelectionStatusBar'
 import { MerchantAssignmentModal } from '@/features/merchants/components/MerchantAssignmentModal'
 import { QuickCategoryPicker } from '../QuickCategoryPicker'
@@ -329,21 +330,8 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
     }
   }, [isDrillDown, transactions])
 
-  if (isSubscriptionsMode && subscriptionCount === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full gap-4 text-center p-8">
-        <div className="text-muted-foreground">
-          <ListIcon className="w-12 h-12 mb-4 mx-auto opacity-50" />
-          <h3 className="text-lg font-medium">No subscriptions detected yet</h3>
-          <p className="text-sm mt-2">
-            Import more statements to enable recurring charge detection.
-          </p>
-        </div>
-        <Button variant="outline" onClick={() => toggleFocusMode('all')}>
-          View All Transactions
-        </Button>
-      </div>
-    )
+  if (isSubscriptionsMode) {
+    return <SubscriptionsView />
   }
 
   if (isLoading) {

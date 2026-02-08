@@ -1,2 +1,8 @@
 export { detectSubscriptions, runDetection, areAmountsSimilar } from './services/subscriptionDetector'
 export { useSubscriptions, type UseSubscriptionsReturn } from './hooks/useSubscriptions'
+export { SubscriptionsView } from './components/SubscriptionsView'
+export { SubscriptionRow } from './components/SubscriptionRow'
+export { SubscriptionsSummary } from './components/SubscriptionsSummary'
+export { SubscriptionDetail } from './components/SubscriptionDetail'
+export { SubscriptionsList } from './components/SubscriptionsList'
+export { SubscriptionsEmptyState } from './components/SubscriptionsEmptyState'
