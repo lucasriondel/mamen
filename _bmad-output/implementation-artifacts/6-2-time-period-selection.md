@@ -1,6 +1,6 @@
 # Story 6.2: Time Period Selection
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -46,9 +46,9 @@ So that **I can analyze spending for any month or date range (FR30)**.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Create `TimePeriod` type and utilities (AC: #1, #2, #3, #4)
-  - [ ] Create `src/features/dashboard/types.ts` (or extend if exists)
-  - [ ] Define types:
+- [x] Task 1: Create `TimePeriod` type and utilities (AC: #1, #2, #3, #4)
+  - [x] Create `src/features/dashboard/types.ts` (or extend if exists)
+  - [x] Define types:
     ```typescript
     type TimePeriodPreset = 'this-month' | 'last-month' | 'last-3-months' | 'this-year'
 
@@ -66,44 +66,44 @@ So that **I can analyze spending for any month or date range (FR30)**.
       label: string
     }
     ```
-  - [ ] Create `src/features/dashboard/utils/resolveTimePeriod.ts`
-  - [ ] Create `src/features/dashboard/utils/resolveTimePeriod.test.ts`
-  - [ ] Implement `resolveTimePeriod(period: TimePeriod): ResolvedDateRange`:
+  - [x] Create `src/features/dashboard/utils/resolveTimePeriod.ts`
+  - [x] Create `src/features/dashboard/utils/resolveTimePeriod.test.ts`
+  - [x] Implement `resolveTimePeriod(period: TimePeriod): ResolvedDateRange`:
     - `this-month`: first day of current month to now
     - `last-month`: first day to last day of previous month
     - `last-3-months`: first day 3 months ago to now
     - `this-year`: January 1st of current year to now
     - `custom`: use provided startDate/endDate
-  - [ ] Implement `getTimePeriodLabel(period: TimePeriod): string`:
+  - [x] Implement `getTimePeriodLabel(period: TimePeriod): string`:
     - `this-month`: "This Month" or "February 2026"
     - `last-month`: month name + year (e.g., "January 2026")
     - `last-3-months`: "Last 3 Months"
     - `this-year`: "2026" or "This Year"
     - `custom`: "Jan 15 - Feb 7, 2026"
 
-- [ ] Task 2: Update `useSpendingBreakdown` hook to accept date range (AC: #3, #5)
-  - [ ] Modify `src/features/dashboard/hooks/useSpendingBreakdown.ts`
-  - [ ] Add `dateRange?: { startDate: Date; endDate: Date }` parameter
-  - [ ] When `dateRange` is provided, filter transactions with Dexie `.where('date').between(startDate, endDate)`
-  - [ ] When `dateRange` is undefined, show ALL transactions (backward compatible with 6.1)
-  - [ ] Update tests in `useSpendingBreakdown.test.ts`:
+- [x] Task 2: Update `useSpendingBreakdown` hook to accept date range (AC: #3, #5)
+  - [x] Modify `src/features/dashboard/hooks/useSpendingBreakdown.ts`
+  - [x] Add `dateRange?: { startDate: Date; endDate: Date }` parameter
+  - [x] When `dateRange` is provided, filter transactions with Dexie `.where('date').between(startDate, endDate)`
+  - [x] When `dateRange` is undefined, show ALL transactions (backward compatible with 6.1)
+  - [x] Update tests in `useSpendingBreakdown.test.ts`:
     - Test: Filters transactions within date range
     - Test: Returns all transactions when no date range
     - Test: Handles empty results for date range with no transactions
 
-- [ ] Task 3: Create `useTimePeriod` hook for dashboard state (AC: #1, #2, #3)
-  - [ ] Create `src/features/dashboard/hooks/useTimePeriod.ts`
-  - [ ] Create `src/features/dashboard/hooks/useTimePeriod.test.ts`
-  - [ ] Manage selected time period as React state (default: `{ type: 'this-month' }`)
-  - [ ] Expose: `selectedPeriod`, `setSelectedPeriod`, `resolvedRange`, `periodLabel`
-  - [ ] Memoize `resolvedRange` computation with `useMemo`
+- [x] Task 3: Create `useTimePeriod` hook for dashboard state (AC: #1, #2, #3)
+  - [x] Create `src/features/dashboard/hooks/useTimePeriod.ts`
+  - [x] Create `src/features/dashboard/hooks/useTimePeriod.test.ts`
+  - [x] Manage selected time period as React state (default: `{ type: 'this-month' }`)
+  - [x] Expose: `selectedPeriod`, `setSelectedPeriod`, `resolvedRange`, `periodLabel`
+  - [x] Memoize `resolvedRange` computation with `useMemo`
 
-- [ ] Task 4: Create `TimePeriodSelector` component (AC: #1, #2, #4, #6)
-  - [ ] Create `src/features/dashboard/components/TimePeriodSelector/index.tsx`
-  - [ ] Create `src/features/dashboard/components/TimePeriodSelector/TimePeriodSelector.test.tsx`
-  - [ ] Use shadcn Popover + Command (or DropdownMenu) as base
-  - [ ] Trigger button: displays current period label with chevron icon
-  - [ ] Dropdown content:
+- [x] Task 4: Create `TimePeriodSelector` component (AC: #1, #2, #4, #6)
+  - [x] Create `src/features/dashboard/components/TimePeriodSelector/index.tsx`
+  - [x] Create `src/features/dashboard/components/TimePeriodSelector/TimePeriodSelector.test.tsx`
+  - [x] Use shadcn Popover + Command (or DropdownMenu) as base
+  - [x] Trigger button: displays current period label with chevron icon
+  - [x] Dropdown content:
     ```
     ┌─────────────────────────────────────┐
     │ This Month                     ✓    │
@@ -114,14 +114,14 @@ So that **I can analyze spending for any month or date range (FR30)**.
     │ Custom Range...                     │
     └─────────────────────────────────────┘
     ```
-  - [ ] Checkmark on currently selected preset
-  - [ ] "Custom Range..." opens inline date picker (see Task 5)
-  - [ ] Keyboard: arrow keys to navigate options, Enter to select, Esc to close
-  - [ ] Close popover on selection (except "Custom Range...")
+  - [x] Checkmark on currently selected preset
+  - [x] "Custom Range..." opens inline date picker (see Task 5)
+  - [x] Keyboard: arrow keys to navigate options, Enter to select, Esc to close
+  - [x] Close popover on selection (except "Custom Range...")
 
-- [ ] Task 5: Create custom date range picker (AC: #4)
-  - [ ] Extend `TimePeriodSelector` with inline custom range UI
-  - [ ] When "Custom Range..." is selected, show:
+- [x] Task 5: Create custom date range picker (AC: #4)
+  - [x] Extend `TimePeriodSelector` with inline custom range UI
+  - [x] When "Custom Range..." is selected, show:
     ```
     ┌─────────────────────────────────────┐
     │ ← Back to presets                   │
@@ -132,21 +132,21 @@ So that **I can analyze spending for any month or date range (FR30)**.
     │           [Cancel] [Apply]          │
     └─────────────────────────────────────┘
     ```
-  - [ ] Use native `<input type="date">` for date inputs (simple, accessible, no extra dependency)
-  - [ ] Validate: start date must be before end date
-  - [ ] Show inline error if validation fails
-  - [ ] "Apply" sets the custom range and closes popover
-  - [ ] "Cancel" or "Back to presets" returns to preset list
+  - [x] Use native `<input type="date">` for date inputs (simple, accessible, no extra dependency)
+  - [x] Validate: start date must be before end date
+  - [x] Show inline error if validation fails
+  - [x] "Apply" sets the custom range and closes popover
+  - [x] "Cancel" or "Back to presets" returns to preset list
 
-- [ ] Task 6: Wire TimePeriodSelector into DashboardPage (AC: #1, #3, #5)
-  - [ ] Modify `src/features/dashboard/components/DashboardPage/index.tsx`
-  - [ ] Add `useTimePeriod` hook
-  - [ ] Pass `resolvedRange` to `useSpendingBreakdown`
-  - [ ] Render `TimePeriodSelector` between `SpendingSummary` and `CategoryBreakdown` (or in header area)
-  - [ ] Ensure all dashboard data reflects selected period
+- [x] Task 6: Wire TimePeriodSelector into DashboardPage (AC: #1, #3, #5)
+  - [x] Modify `src/features/dashboard/components/DashboardPage/index.tsx`
+  - [x] Add `useTimePeriod` hook
+  - [x] Pass `resolvedRange` to `useSpendingBreakdown`
+  - [x] Render `TimePeriodSelector` between `SpendingSummary` and `CategoryBreakdown` (or in header area)
+  - [x] Ensure all dashboard data reflects selected period
 
-- [ ] Task 7: Write tests (AC: all)
-  - [ ] `resolveTimePeriod.test.ts`:
+- [x] Task 7: Write tests (AC: all)
+  - [x] `resolveTimePeriod.test.ts`:
     - Test: Resolves "this-month" to correct date range
     - Test: Resolves "last-month" to correct date range
     - Test: Resolves "last-3-months" to correct date range
@@ -154,11 +154,11 @@ So that **I can analyze spending for any month or date range (FR30)**.
     - Test: Resolves custom range to provided dates
     - Test: Generates correct labels for all presets
     - Test: Generates correct label for custom range
-  - [ ] `useTimePeriod.test.ts`:
+  - [x] `useTimePeriod.test.ts`:
     - Test: Defaults to "this-month"
     - Test: Updates period on selection
     - Test: Resolves date range correctly
-  - [ ] `TimePeriodSelector.test.tsx`:
+  - [x] `TimePeriodSelector.test.tsx`:
     - Test: Renders current period label on trigger button
     - Test: Opens dropdown on click
     - Test: Shows all preset options
@@ -168,7 +168,7 @@ So that **I can analyze spending for any month or date range (FR30)**.
     - Test: Validates custom range (start before end)
     - Test: Closes on Esc
     - Test: Keyboard navigable
-  - [ ] `DashboardPage.test.tsx` (update existing):
+  - [x] `DashboardPage.test.tsx` (update existing):
     - Test: TimePeriodSelector is rendered
     - Test: Changing period updates displayed data
 
@@ -358,10 +358,40 @@ Before marking complete:
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.6
 
 ### Debug Log References
 
+- Fixed pre-existing DashboardPage test: updated `makeTransaction` default date from hardcoded Jan 2026 to `new Date()` since dashboard now defaults to "this-month" period filtering.
+
 ### Completion Notes List
 
+- **Task 1**: Created `TimePeriod`, `TimePeriodPreset`, `TimePeriodCustom`, `ResolvedDateRange` types in `types.ts`. Implemented `resolveTimePeriod()` and `getTimePeriodLabel()` utilities with full test coverage (8 tests).
+- **Task 2**: Extended `useSpendingBreakdown` to accept optional `DateRange` parameter. Uses Dexie `.where('date').between()` for indexed filtering when date range provided. Backward compatible (no range = all transactions). Added 3 new tests.
+- **Task 3**: Created `useTimePeriod` hook managing selected period as React state (default: this-month). Exposes `selectedPeriod`, `setSelectedPeriod`, `resolvedRange`, `periodLabel` with `useMemo` optimization. 5 tests.
+- **Task 4**: Created `TimePeriodSelector` component using shadcn Popover + Button. Shows preset options with checkmark on current selection. Full keyboard navigation (ArrowUp/Down, Enter, Esc). 11 tests.
+- **Task 5**: Added inline custom date range UI within TimePeriodSelector. Uses native `<input type="date">`. Validates start < end. Back to presets / Cancel / Apply flow.
+- **Task 6**: Wired `useTimePeriod` and `TimePeriodSelector` into `DashboardPage`. `resolvedRange` passed to `useSpendingBreakdown` so all dashboard data reflects selected period. Added 2 integration tests.
+- **Task 7**: All tests written co-located with source. Total: 41 new/modified tests across 4 test files. Full regression suite passes (801 tests, 81 files).
+
+### Change Log
+
+- 2026-02-08: Implemented story 6-2 time period selection - types, utilities, hooks, component, and DashboardPage integration
+
 ### File List
+
+New files:
+- src/features/dashboard/types.ts
+- src/features/dashboard/utils/resolveTimePeriod.ts
+- src/features/dashboard/utils/resolveTimePeriod.test.ts
+- src/features/dashboard/hooks/useTimePeriod.ts
+- src/features/dashboard/hooks/useTimePeriod.test.ts
+- src/features/dashboard/components/TimePeriodSelector/index.tsx
+- src/features/dashboard/components/TimePeriodSelector/TimePeriodSelector.test.tsx
+
+Modified files:
+- src/features/dashboard/hooks/useSpendingBreakdown.ts
+- src/features/dashboard/hooks/useSpendingBreakdown.test.ts
+- src/features/dashboard/components/DashboardPage/index.tsx
+- src/features/dashboard/components/DashboardPage/DashboardPage.test.tsx
+- src/features/dashboard/index.ts

@@ -1,16 +1,28 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, beforeAll, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { db } from '@/lib/db'
 import { DashboardPage } from './index'
 import type { Transaction, Category } from '@/types'
 
+beforeAll(() => {
+  global.ResizeObserver = class {
+    observe(): void {}
+    unobserve(): void {}
+    disconnect(): void {}
+  }
+})
+
+const now = new Date()
+const currentImportMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+
 const makeTransaction = (overrides: Partial<Transaction> = {}): Omit<Transaction, 'id'> => ({
   accountId: 1,
-  date: new Date(2026, 0, 15),
+  date: now,
   amount: -50,
   rawMerchantString: 'STORE',
   importedAt: new Date(),
-  importMonth: '2026-01',
+  importMonth: currentImportMonth,
   ...overrides,
 })
 
@@ -59,5 +71,41 @@ describe('DashboardPage', () => {
 
     const button = await screen.findByRole('button', { name: /Import Statement/i })
     expect(button).toBeInTheDocument()
+  })
+
+  it('renders TimePeriodSelector when data exists', async () => {
+    const catId = await db.categories.add(makeCategory() as Category)
+
+    await db.transactions.bulkAdd([
+      makeTransaction({ amount: -100, categoryId: catId as number, date: new Date() }),
+    ])
+
+    render(<DashboardPage />)
+
+    // The period selector trigger button should be visible with a period label
+    const periodButton = await screen.findByRole('button', { name: /2026/i })
+    expect(periodButton).toBeInTheDocument()
+  })
+
+  it('changing period updates displayed data', async () => {
+    const catId = await db.categories.add(makeCategory() as Category)
+
+    // Transaction in January (last month from Feb perspective)
+    await db.transactions.bulkAdd([
+      makeTransaction({ amount: -100, categoryId: catId as number, date: new Date(2026, 0, 15) }),
+    ])
+
+    const user = userEvent.setup()
+    render(<DashboardPage />)
+
+    // Wait for the period selector to render
+    const periodButton = await screen.findByRole('button', { name: /2026/i })
+
+    // Open period selector and choose "Last Month"
+    await user.click(periodButton)
+    await user.click(screen.getByText('Last Month'))
+
+    // Data should update - January transaction should be visible
+    expect(await screen.findByText('Shopping')).toBeInTheDocument()
   })
 })

@@ -22,6 +22,11 @@ export type SpendingBreakdown = {
   uncategorizedCount: number
 }
 
+export type DateRange = {
+  startDate: Date
+  endDate: Date
+}
+
 const UNCATEGORIZED_COLOR = 'hsl(215 20% 65%)'
 
 const EMPTY_BREAKDOWN: SpendingBreakdown = {
@@ -32,8 +37,14 @@ const EMPTY_BREAKDOWN: SpendingBreakdown = {
   uncategorizedCount: 0,
 }
 
-export const useSpendingBreakdown = (): SpendingBreakdown => {
-  const transactions = useLiveQuery(() => db.transactions.toArray())
+export const useSpendingBreakdown = (dateRange?: DateRange): SpendingBreakdown => {
+  const transactions = useLiveQuery(
+    () =>
+      dateRange
+        ? db.transactions.where('date').between(dateRange.startDate, dateRange.endDate, true, true).toArray()
+        : db.transactions.toArray(),
+    [dateRange?.startDate, dateRange?.endDate],
+  )
   const categories = useLiveQuery(() => db.categories.toArray())
 
   if (!transactions || !categories) {

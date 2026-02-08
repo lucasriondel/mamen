@@ -170,6 +170,54 @@ describe('useSpendingBreakdown', () => {
     })
   })
 
+  it('filters transactions within date range', async () => {
+    const catId = await db.categories.add(makeCategory({ name: 'Shopping', slug: 'shopping' }) as Category)
+
+    await db.transactions.bulkAdd([
+      makeTransaction({ amount: -100, categoryId: catId as number, date: new Date(2026, 0, 10) }),
+      makeTransaction({ amount: -50, categoryId: catId as number, date: new Date(2026, 0, 20) }),
+      makeTransaction({ amount: -200, categoryId: catId as number, date: new Date(2026, 1, 5) }),
+    ])
+
+    const dateRange = { startDate: new Date(2026, 0, 1), endDate: new Date(2026, 0, 31) }
+    const { result } = renderHook(() => useSpendingBreakdown(dateRange))
+
+    await waitFor(() => {
+      expect(result.current.totalExpenses).toBe(-150)
+      expect(result.current.items).toHaveLength(1)
+      expect(result.current.items[0].totalAmount).toBe(-150)
+    })
+  })
+
+  it('returns all transactions when no date range', async () => {
+    const catId = await db.categories.add(makeCategory({ name: 'Shopping', slug: 'shopping' }) as Category)
+
+    await db.transactions.bulkAdd([
+      makeTransaction({ amount: -100, categoryId: catId as number, date: new Date(2026, 0, 10) }),
+      makeTransaction({ amount: -200, categoryId: catId as number, date: new Date(2026, 1, 5) }),
+    ])
+
+    const { result } = renderHook(() => useSpendingBreakdown())
+
+    await waitFor(() => {
+      expect(result.current.totalExpenses).toBe(-300)
+    })
+  })
+
+  it('handles empty results for date range with no transactions', async () => {
+    await db.transactions.bulkAdd([
+      makeTransaction({ amount: -100, date: new Date(2026, 0, 10) }),
+    ])
+
+    const dateRange = { startDate: new Date(2026, 5, 1), endDate: new Date(2026, 5, 30) }
+    const { result } = renderHook(() => useSpendingBreakdown(dateRange))
+
+    await waitFor(() => {
+      expect(result.current.items).toHaveLength(0)
+      expect(result.current.totalExpenses).toBe(0)
+    })
+  })
+
   it('rolls up subcategories into parent categories', async () => {
     const parentId = await db.categories.add(makeCategory({ name: 'Shopping', slug: 'shopping', color: '#3B82F6' }) as Category) as number
     const subId1 = await db.categories.add(makeCategory({ name: 'Online', slug: 'shopping-online', color: '#3B82F6', parentId }) as Category)

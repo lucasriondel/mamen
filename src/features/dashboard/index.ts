@@ -1,4 +1,8 @@
 export { useSpendingBreakdown } from './hooks/useSpendingBreakdown'
+export { useTimePeriod } from './hooks/useTimePeriod'
 export { CategoryBreakdown } from './components/CategoryBreakdown'
 export { SpendingSummary } from './components/SpendingSummary'
+export { TimePeriodSelector } from './components/TimePeriodSelector'
 export { DashboardPage } from './components/DashboardPage'
+export { resolveTimePeriod, getTimePeriodLabel } from './utils/resolveTimePeriod'
+export type { TimePeriod, TimePeriodPreset, TimePeriodCustom, ResolvedDateRange } from './types'
