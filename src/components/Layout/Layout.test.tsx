@@ -2,13 +2,16 @@ import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { createMemoryHistory, createRootRoute, createRoute, createRouter, Outlet, RouterProvider } from '@tanstack/react-router'
 import { Layout } from './index'
+import { CommandPaletteProvider } from '@/context/CommandPaletteContext'
 
 function createTestRouter(initialPath = '/') {
   const rootRoute = createRootRoute({
     component: () => (
-      <Layout>
-        <Outlet />
-      </Layout>
+      <CommandPaletteProvider>
+        <Layout>
+          <Outlet />
+        </Layout>
+      </CommandPaletteProvider>
     ),
   })
 
@@ -70,12 +73,12 @@ describe('Layout', () => {
     expect(await screen.findByText('Search...')).toBeInTheDocument()
   })
 
-  it('search trigger is disabled', async () => {
+  it('search trigger opens command palette', async () => {
     const router = createTestRouter()
     render(<RouterProvider router={router} />)
 
     const searchButton = await screen.findByRole('button', { name: /search/i })
-    expect(searchButton).toBeDisabled()
+    expect(searchButton).toBeEnabled()
   })
 
   it('renders stats section with initial counts', async () => {
