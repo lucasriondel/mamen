@@ -3,28 +3,25 @@ import { db } from '@/lib/db'
 import { parseFullCSV, parseDate, parseAmount } from '@/lib/csv/parser'
 import type { ColumnMapping, DateFormatOption } from '@/lib/csv/parser'
 import type { Transaction } from '@/types'
+import type { ParsedTransaction } from '../types/duplicate.types'
 
 export type ImportResult = {
   count: number
   importBatchId: string
 }
 
-export const importCSV = async (
+export const parseCSVTransactions = async (
   file: File,
   hasHeaders: boolean,
   mapping: ColumnMapping,
   dateFormat: DateFormatOption,
-  accountId: number,
-  importMonth: string,
-): Promise<ImportResult> => {
+): Promise<ParsedTransaction[]> => {
   const rows = await parseFullCSV(file, hasHeaders)
 
   if (rows.length === 0) {
     throw new Error('No data rows found in the CSV file')
   }
 
-  // We need to get header indices from the preview headers
-  // Re-parse to get headers
   const headerRow = hasHeaders
     ? await getHeaderRow(file)
     : rows[0].map((_, i) => `Column ${i + 1}`)
@@ -37,10 +34,7 @@ export const importCSV = async (
     throw new Error('Column mapping is invalid')
   }
 
-  const importBatchId = crypto.randomUUID()
-  const now = new Date()
-
-  const transactions: Omit<Transaction, 'id'>[] = []
+  const transactions: ParsedTransaction[] = []
 
   for (const row of rows) {
     const dateStr = row[dateIdx]
@@ -56,13 +50,9 @@ export const importCSV = async (
     if (amount === null) continue
 
     transactions.push({
-      accountId,
       date,
       amount,
       rawMerchantString: (description ?? '').trim(),
-      importedAt: now,
-      importMonth,
-      importBatchId,
     })
   }
 
@@ -70,11 +60,48 @@ export const importCSV = async (
     throw new Error('No valid transactions found in the CSV file')
   }
 
+  return transactions
+}
+
+export const importTransactions = async (
+  parsedTransactions: ParsedTransaction[],
+  accountId: number,
+  importMonth: string,
+): Promise<ImportResult> => {
+  if (parsedTransactions.length === 0) {
+    throw new Error('No transactions to import')
+  }
+
+  const importBatchId = crypto.randomUUID()
+  const now = new Date()
+
+  const transactions: Omit<Transaction, 'id'>[] = parsedTransactions.map((t) => ({
+    accountId,
+    date: t.date,
+    amount: t.amount,
+    rawMerchantString: t.rawMerchantString,
+    importedAt: now,
+    importMonth,
+    importBatchId,
+  }))
+
   await db.transaction('rw', db.transactions, async () => {
     await db.transactions.bulkAdd(transactions)
   })
 
   return { count: transactions.length, importBatchId }
+}
+
+export const importCSV = async (
+  file: File,
+  hasHeaders: boolean,
+  mapping: ColumnMapping,
+  dateFormat: DateFormatOption,
+  accountId: number,
+  importMonth: string,
+): Promise<ImportResult> => {
+  const parsed = await parseCSVTransactions(file, hasHeaders, mapping, dateFormat)
+  return importTransactions(parsed, accountId, importMonth)
 }
 
 export const undoImport = async (importBatchId: string): Promise<number> => {
