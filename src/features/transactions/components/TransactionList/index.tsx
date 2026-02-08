@@ -5,9 +5,11 @@ import { ListIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { TransactionRow } from '@/components/TransactionRow'
 import { InboxZeroEmpty } from '@/components/InboxZeroEmpty'
+import { MerchantAssignmentModal } from '@/features/merchants/components/MerchantAssignmentModal'
 import { useKeyboardNavigation } from '@/hooks/useKeyboardNavigation'
 import { useFilteredTransactions } from '../../hooks/useFilteredTransactions'
 import { useFocusMode } from '@/context/FocusModeContext'
+import type { Transaction } from '@/types'
 
 type TransactionListProps = {
   highlightId?: number
@@ -22,6 +24,9 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
   })
 
   const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [merchantModalOpen, setMerchantModalOpen] = useState(false)
+  const [merchantModalTransaction, setMerchantModalTransaction] = useState<Transaction | null>(null)
+  const [merchantModalPowerMode, setMerchantModalPowerMode] = useState(false)
   const parentRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
   const highlightHandledRef = useRef<number | undefined>(undefined)
@@ -37,7 +42,21 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
     onEscape: () => {
       setSelectedId(null)
     },
+    onAction: useCallback(
+      (action) => {
+        if (action.key.toLowerCase() === 'r' && !merchantModalOpen) {
+          const tx = transactions[action.index]
+          if (tx) {
+            setMerchantModalTransaction(tx)
+            setMerchantModalPowerMode(action.shiftKey)
+            setMerchantModalOpen(true)
+          }
+        }
+      },
+      [transactions, merchantModalOpen],
+    ),
     containerRef: parentRef,
+    enabled: !merchantModalOpen,
   })
 
   const virtualizer = useVirtualizer({
@@ -165,6 +184,13 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
           })}
         </div>
       </div>
+
+      <MerchantAssignmentModal
+        open={merchantModalOpen}
+        onOpenChange={setMerchantModalOpen}
+        transaction={merchantModalTransaction}
+        powerMode={merchantModalPowerMode}
+      />
     </div>
   )
 }

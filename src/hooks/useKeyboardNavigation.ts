@@ -1,9 +1,16 @@
 import { useState, useCallback, useEffect, type RefObject } from 'react'
 
+type KeyAction = {
+  key: string
+  shiftKey: boolean
+  index: number
+}
+
 type UseKeyboardNavigationOptions = {
   itemCount: number
   onSelect?: (index: number) => void
   onEscape?: () => void
+  onAction?: (action: KeyAction) => void
   containerRef: RefObject<HTMLElement | null>
   enabled?: boolean
 }
@@ -18,6 +25,7 @@ export const useKeyboardNavigation = ({
   itemCount,
   onSelect,
   onEscape,
+  onAction,
   containerRef,
   enabled = true,
 }: UseKeyboardNavigationOptions): UseKeyboardNavigationReturn => {
@@ -68,9 +76,15 @@ export const useKeyboardNavigation = ({
           onEscape?.()
           containerRef.current?.focus()
           break
+
+        default:
+          if (focusedIndex !== null && onAction) {
+            onAction({ key: event.key, shiftKey: event.shiftKey, index: focusedIndex })
+          }
+          break
       }
     },
-    [enabled, itemCount, focusedIndex, onSelect, onEscape, containerRef]
+    [enabled, itemCount, focusedIndex, onSelect, onEscape, onAction, containerRef]
   )
 
   useEffect(() => {
