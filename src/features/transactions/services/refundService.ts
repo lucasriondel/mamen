@@ -39,6 +39,9 @@ export const linkRefund = async (
     await db.transactions.update(refundTransactionId, {
       isRefund: true,
       linkedRefundId: purchaseTransactionId,
+      ...(purchaseTx.categoryId && !refundTx.categoryId
+        ? { categoryId: purchaseTx.categoryId }
+        : {}),
     })
     await db.transactions.update(purchaseTransactionId, {
       linkedRefundId: refundTransactionId,
@@ -83,5 +86,80 @@ export const undoOrphanRefund = async (
 ): Promise<void> => {
   await db.transactions.update(transactionId, {
     isRefund: false,
+  })
+}
+
+export const unlinkRefund = async (
+  refundTransactionId: number,
+  purchaseTransactionId: number,
+): Promise<void> => {
+  await db.transaction('rw', db.transactions, async () => {
+    await db.transactions.update(refundTransactionId, {
+      isRefund: false,
+      linkedRefundId: undefined,
+    })
+    await db.transactions.update(purchaseTransactionId, {
+      linkedRefundId: undefined,
+    })
+  })
+}
+
+export const undoUnlinkRefund = async (
+  refundTransactionId: number,
+  purchaseTransactionId: number,
+): Promise<void> => {
+  await db.transaction('rw', db.transactions, async () => {
+    await db.transactions.update(refundTransactionId, {
+      isRefund: true,
+      linkedRefundId: purchaseTransactionId,
+    })
+    await db.transactions.update(purchaseTransactionId, {
+      linkedRefundId: refundTransactionId,
+    })
+  })
+}
+
+export const replaceLinkRefund = async (
+  refundTransactionId: number,
+  oldPurchaseTransactionId: number,
+  newPurchaseTransactionId: number,
+): Promise<void> => {
+  const [refundTx, newPurchaseTx] = await Promise.all([
+    db.transactions.get(refundTransactionId),
+    db.transactions.get(newPurchaseTransactionId),
+  ])
+
+  await db.transaction('rw', db.transactions, async () => {
+    await db.transactions.update(oldPurchaseTransactionId, {
+      linkedRefundId: undefined,
+    })
+    await db.transactions.update(refundTransactionId, {
+      isRefund: true,
+      linkedRefundId: newPurchaseTransactionId,
+      ...(newPurchaseTx?.categoryId && !refundTx?.categoryId
+        ? { categoryId: newPurchaseTx.categoryId }
+        : {}),
+    })
+    await db.transactions.update(newPurchaseTransactionId, {
+      linkedRefundId: refundTransactionId,
+    })
+  })
+}
+
+export const undoReplaceLinkRefund = async (
+  refundTransactionId: number,
+  oldPurchaseTransactionId: number,
+  newPurchaseTransactionId: number,
+): Promise<void> => {
+  await db.transaction('rw', db.transactions, async () => {
+    await db.transactions.update(newPurchaseTransactionId, {
+      linkedRefundId: undefined,
+    })
+    await db.transactions.update(refundTransactionId, {
+      linkedRefundId: oldPurchaseTransactionId,
+    })
+    await db.transactions.update(oldPurchaseTransactionId, {
+      linkedRefundId: refundTransactionId,
+    })
   })
 }

@@ -16,6 +16,7 @@ export type TransactionRowProps = {
   cascadeIndex?: number
   merchantCreatedAt?: Date | null
   onClick?: () => void
+  onLinkClick?: (linkedTransactionId: number) => void
 }
 
 const STAGGER_MS = 50
@@ -29,6 +30,7 @@ export function TransactionRow({
   cascadeIndex,
   merchantCreatedAt,
   onClick,
+  onLinkClick,
 }: TransactionRowProps): React.ReactElement {
   const isUnmatched = !transaction.merchantId && !transaction.manualCategory
 
@@ -116,11 +118,18 @@ export function TransactionRow({
           </Badge>
         )}
         {transaction.linkedRefundId && (
-          <Link2
-            className="h-3 w-3 text-muted-foreground shrink-0"
-            aria-label="Linked transaction"
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              onLinkClick?.(transaction.linkedRefundId!)
+            }}
+            className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors"
+            aria-label={`Navigate to linked ${transaction.isRefund ? 'purchase' : 'refund'}`}
             data-testid="link-icon"
-          />
+          >
+            <Link2 className="h-3 w-3" />
+          </button>
         )}
         <span>{formatCurrency(transaction.amount)}</span>
       </div>

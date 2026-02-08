@@ -337,4 +337,57 @@ describe('TransactionRow', () => {
     expect(screen.queryByTestId('refund-badge')).not.toBeInTheDocument()
     expect(screen.queryByTestId('link-icon')).not.toBeInTheDocument()
   })
+
+  it('link icon is clickable and calls onLinkClick with linkedRefundId', async () => {
+    const user = userEvent.setup()
+    const onLinkClick = vi.fn()
+
+    render(
+      <TransactionRow
+        transaction={makeTransaction({ isRefund: true, linkedRefundId: 42 })}
+        onLinkClick={onLinkClick}
+      />
+    )
+
+    await user.click(screen.getByTestId('link-icon'))
+    expect(onLinkClick).toHaveBeenCalledWith(42)
+  })
+
+  it('link icon click does not propagate to row onClick', async () => {
+    const user = userEvent.setup()
+    const onClick = vi.fn()
+    const onLinkClick = vi.fn()
+
+    render(
+      <TransactionRow
+        transaction={makeTransaction({ isRefund: true, linkedRefundId: 42 })}
+        onClick={onClick}
+        onLinkClick={onLinkClick}
+      />
+    )
+
+    await user.click(screen.getByTestId('link-icon'))
+    expect(onLinkClick).toHaveBeenCalledWith(42)
+    expect(onClick).not.toHaveBeenCalled()
+  })
+
+  it('link icon has correct aria-label for refund', () => {
+    render(
+      <TransactionRow
+        transaction={makeTransaction({ isRefund: true, linkedRefundId: 42 })}
+      />
+    )
+
+    expect(screen.getByLabelText('Navigate to linked purchase')).toBeInTheDocument()
+  })
+
+  it('link icon has correct aria-label for purchase side', () => {
+    render(
+      <TransactionRow
+        transaction={makeTransaction({ isRefund: false, linkedRefundId: 42, amount: -29.99 })}
+      />
+    )
+
+    expect(screen.getByLabelText('Navigate to linked refund')).toBeInTheDocument()
+  })
 })

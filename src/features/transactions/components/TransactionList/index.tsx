@@ -18,6 +18,7 @@ import { useFilteredTransactions } from '../../hooks/useFilteredTransactions'
 import { useQuickCategoryAssign } from '../../hooks/useQuickCategoryAssign'
 import { useBatchCategoryAssign } from '../../hooks/useBatchCategoryAssign'
 import { useDrillDownFilter } from '../../hooks/useDrillDownFilter'
+import { useNavigateToTransaction } from '../../hooks/useNavigateToTransaction'
 import { useFocusMode } from '@/context/FocusModeContext'
 import { db, useLiveQuery } from '@/lib/db'
 import type { Transaction } from '@/types'
@@ -79,6 +80,7 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
   const { assignCategory } = useQuickCategoryAssign()
   const { batchAssignCategory } = useBatchCategoryAssign()
   const refundLink = useRefundLink()
+  const { navigateToTransaction } = useNavigateToTransaction()
   const { triggerCascade, animatingIds, animationPhase } = useCascadeAnimation()
   const animatingIdSet = useMemo(() => new Set(animatingIds), [animatingIds])
   const parentRef = useRef<HTMLDivElement>(null)
@@ -432,6 +434,7 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
                   cascadeIndex={animatingIdSet.has(String(transaction.id)) ? animatingIds.indexOf(String(transaction.id)) : undefined}
                   merchantCreatedAt={getMerchantCreatedAt(transaction.merchantId)}
                   onClick={() => handleRowClick(transaction.id)}
+                  onLinkClick={navigateToTransaction}
                 />
               </div>
             )
@@ -491,8 +494,12 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
         open={refundLink.isOpen}
         onOpenChange={(open) => { if (!open) refundLink.closeRefundLink() }}
         sourceTransaction={refundLink.sourceTransaction}
+        modalView={refundLink.modalView}
         onConfirmLink={refundLink.handleConfirmLink}
         onConfirmOrphan={refundLink.handleConfirmOrphan}
+        onUnlink={refundLink.handleUnlink}
+        onChangeLink={refundLink.handleChangeLink}
+        onReplaceLink={refundLink.handleReplaceLink}
       />
     </div>
   )

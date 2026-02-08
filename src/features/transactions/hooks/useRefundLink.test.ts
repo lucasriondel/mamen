@@ -145,4 +145,109 @@ describe('useRefundLink', () => {
 
     expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('not found'))
   })
+
+  it('opens in linked view when source has linkedRefundId', () => {
+    const { result } = renderHook(() => useRefundLink())
+
+    act(() => {
+      result.current.openRefundLink(makeTransaction({ id: 1, linkedRefundId: 2 }))
+    })
+
+    expect(result.current.modalView).toBe('linked')
+  })
+
+  it('opens in search view when source has no linkedRefundId', () => {
+    const { result } = renderHook(() => useRefundLink())
+
+    act(() => {
+      result.current.openRefundLink(makeTransaction({ id: 1 }))
+    })
+
+    expect(result.current.modalView).toBe('search')
+  })
+
+  it('handleUnlink calls unlinkRefund and closes modal', async () => {
+    const purchaseId = await db.transactions.add({
+      accountId: 1, date: new Date(2026, 0, 10), amount: -29.99,
+      rawMerchantString: 'AMAZON', importedAt: new Date(), importMonth: '2026-01',
+    })
+    const refundId = await db.transactions.add({
+      accountId: 1, date: new Date(2026, 0, 15), amount: 29.99,
+      rawMerchantString: 'AMAZON REFUND', importedAt: new Date(), importMonth: '2026-01',
+      isRefund: true, linkedRefundId: purchaseId,
+    })
+    await db.transactions.update(purchaseId, { linkedRefundId: refundId })
+
+    const { result } = renderHook(() => useRefundLink())
+
+    act(() => {
+      result.current.openRefundLink(makeTransaction({ id: refundId, linkedRefundId: purchaseId }))
+    })
+
+    await act(async () => {
+      await result.current.handleUnlink()
+    })
+
+    expect(result.current.isOpen).toBe(false)
+    expect(toast).toHaveBeenCalledWith(
+      'Refund unlinked',
+      expect.objectContaining({ action: expect.objectContaining({ label: 'Undo' }), duration: 10000 }),
+    )
+
+    const refund = await db.transactions.get(refundId)
+    expect(refund!.isRefund).toBe(false)
+    expect(refund!.linkedRefundId).toBeUndefined()
+  })
+
+  it('handleChangeLink switches view to search', () => {
+    const { result } = renderHook(() => useRefundLink())
+
+    act(() => {
+      result.current.openRefundLink(makeTransaction({ id: 1, linkedRefundId: 2 }))
+    })
+
+    expect(result.current.modalView).toBe('linked')
+
+    act(() => {
+      result.current.handleChangeLink()
+    })
+
+    expect(result.current.modalView).toBe('search')
+  })
+
+  it('handleReplaceLink calls replaceLinkRefund and closes modal', async () => {
+    const oldPurchaseId = await db.transactions.add({
+      accountId: 1, date: new Date(2026, 0, 10), amount: -29.99,
+      rawMerchantString: 'AMAZON', importedAt: new Date(), importMonth: '2026-01',
+    })
+    const newPurchaseId = await db.transactions.add({
+      accountId: 1, date: new Date(2026, 0, 12), amount: -31.50,
+      rawMerchantString: 'STORE', importedAt: new Date(), importMonth: '2026-01',
+    })
+    const refundId = await db.transactions.add({
+      accountId: 1, date: new Date(2026, 0, 15), amount: 29.99,
+      rawMerchantString: 'AMAZON REFUND', importedAt: new Date(), importMonth: '2026-01',
+      isRefund: true, linkedRefundId: oldPurchaseId,
+    })
+    await db.transactions.update(oldPurchaseId, { linkedRefundId: refundId })
+
+    const { result } = renderHook(() => useRefundLink())
+
+    act(() => {
+      result.current.openRefundLink(makeTransaction({ id: refundId, linkedRefundId: oldPurchaseId }))
+    })
+
+    await act(async () => {
+      await result.current.handleReplaceLink(newPurchaseId, oldPurchaseId)
+    })
+
+    expect(result.current.isOpen).toBe(false)
+    expect(toast).toHaveBeenCalledWith(
+      'Refund link updated',
+      expect.objectContaining({ action: expect.objectContaining({ label: 'Undo' }), duration: 10000 }),
+    )
+
+    const refund = await db.transactions.get(refundId)
+    expect(refund!.linkedRefundId).toBe(newPurchaseId)
+  })
 })

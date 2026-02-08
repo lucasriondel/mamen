@@ -16,32 +16,53 @@ import { formatCurrency } from '@/lib/utils/formatCurrency'
 import { formatDate } from '@/lib/utils/formatDate'
 import type { Transaction } from '@/types'
 
+type RefundModalView = 'linked' | 'search'
+
 type RefundLinkModalProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   sourceTransaction: Transaction | null
+  modalView: RefundModalView
   onConfirmLink: (targetTransactionId: number) => void
   onConfirmOrphan: () => void
+  onUnlink: () => void
+  onChangeLink: () => void
+  onReplaceLink: (newPurchaseId: number, oldPurchaseId: number) => void
 }
 
 export function RefundLinkModal({
   open,
   onOpenChange,
   sourceTransaction,
+  modalView,
   onConfirmLink,
   onConfirmOrphan,
+  onUnlink,
+  onChangeLink,
+  onReplaceLink,
 }: RefundLinkModalProps): React.ReactElement {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [showReplaceWarning, setShowReplaceWarning] = useState(false)
+  const [conflictingRefund, setConflictingRefund] = useState<Transaction | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   const sourceAmount = sourceTransaction ? Math.abs(sourceTransaction.amount) : 0
   const isExpense = sourceTransaction ? sourceTransaction.amount < 0 : false
 
+  // Fetch the currently linked transaction (for linked-state view)
+  const linkedTransaction = useLiveQuery(
+    async () => {
+      if (!sourceTransaction?.linkedRefundId || !open) return undefined
+      return db.transactions.get(sourceTransaction.linkedRefundId)
+    },
+    [sourceTransaction?.linkedRefundId, open],
+  )
+
   // Pre-filter candidates by similar amount (+/-10%), opposite sign
   const candidates = useLiveQuery(
     async () => {
-      if (!sourceTransaction || !open) return []
+      if (!sourceTransaction || !open || modalView === 'linked') return []
 
       const tolerance = sourceAmount * 0.1
       const minAmount = -(sourceAmount + tolerance)
@@ -49,16 +70,13 @@ export function RefundLinkModal({
 
       let results: Transaction[]
       if (sourceAmount === 0) {
-        // Zero-amount: show all transactions
         results = await db.transactions.toArray()
       } else if (sourceTransaction.amount > 0) {
-        // Refund is positive, look for negative purchases
         results = await db.transactions
           .where('amount')
           .between(minAmount, maxAmount)
           .toArray()
       } else {
-        // Expense pressed with F, look for positive amounts
         const posMin = sourceAmount - tolerance
         const posMax = sourceAmount + tolerance
         results = await db.transactions
@@ -67,16 +85,14 @@ export function RefundLinkModal({
           .toArray()
       }
 
-      // Filter out self and already-linked transactions
       return results
         .filter((tx) => tx.id !== sourceTransaction.id && !tx.linkedRefundId)
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     },
-    [sourceTransaction, open, sourceAmount],
+    [sourceTransaction, open, sourceAmount, modalView],
     [],
   )
 
-  // Apply search filter on candidates
   const filteredCandidates = useMemo(() => {
     if (!searchQuery.trim()) return candidates
     const query = searchQuery.toLowerCase()
@@ -85,7 +101,6 @@ export function RefundLinkModal({
     )
   }, [candidates, searchQuery])
 
-  // Prioritize same-merchant transactions
   const sortedCandidates = useMemo(() => {
     if (!sourceTransaction) return filteredCandidates
     const sourceMerchant = sourceTransaction.rawMerchantString.toLowerCase()
@@ -98,27 +113,122 @@ export function RefundLinkModal({
     })
   }, [filteredCandidates, sourceTransaction])
 
-  // Reset state when modal opens/closes
   useEffect(() => {
     if (open) {
       setSearchQuery('')
       setSelectedId(null)
-      // Focus search input on open
-      setTimeout(() => searchInputRef.current?.focus(), 50)
+      setShowReplaceWarning(false)
+      setConflictingRefund(null)
+      if (modalView === 'search') {
+        setTimeout(() => searchInputRef.current?.focus(), 50)
+      }
     }
-  }, [open])
+  }, [open, modalView])
 
   const selectedTransaction = useMemo(
     () => sortedCandidates.find((tx) => tx.id === selectedId),
     [sortedCandidates, selectedId],
   )
 
+  const handleSelectCandidate = async (txId: number): Promise<void> => {
+    const tx = await db.transactions.get(txId)
+    if (tx?.linkedRefundId) {
+      const existingRefund = await db.transactions.get(tx.linkedRefundId)
+      setConflictingRefund(existingRefund ?? null)
+      setSelectedId(txId)
+      setShowReplaceWarning(true)
+    } else {
+      setSelectedId(txId)
+      setShowReplaceWarning(false)
+      setConflictingRefund(null)
+    }
+  }
+
   const handleConfirm = (): void => {
-    if (selectedId !== null) {
+    if (selectedId === null) return
+    if (showReplaceWarning && sourceTransaction?.linkedRefundId) {
+      onReplaceLink(selectedId, sourceTransaction.linkedRefundId)
+    } else {
       onConfirmLink(selectedId)
     }
   }
 
+  // Linked-state view
+  if (modalView === 'linked') {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent
+          className="sm:max-w-[480px]"
+          aria-labelledby="refund-link-title"
+        >
+          <DialogHeader>
+            <DialogTitle id="refund-link-title">Link Refund</DialogTitle>
+            <DialogDescription>
+              Refund Transaction:{' '}
+              <code className="bg-muted px-1.5 py-0.5 rounded text-xs font-mono">
+                {sourceTransaction?.rawMerchantString}
+              </code>
+              {' '}
+              <span className="text-green-500 font-mono">
+                {sourceTransaction ? formatCurrency(sourceTransaction.amount) : ''}
+              </span>
+              {' on '}
+              {sourceTransaction ? formatDate(sourceTransaction.date) : ''}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>This refund is linked to:</Label>
+              {linkedTransaction ? (
+                <div className="flex items-center gap-2 px-3 py-2 border rounded-md text-sm bg-muted/30" data-testid="linked-transaction-info">
+                  <span className="w-16 shrink-0 text-xs text-muted-foreground">
+                    {formatDate(linkedTransaction.date)}
+                  </span>
+                  <span className="flex-1 truncate">{linkedTransaction.rawMerchantString}</span>
+                  <span className="shrink-0 font-mono text-xs">
+                    {formatCurrency(linkedTransaction.amount)}
+                  </span>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground" data-testid="linked-transaction-unavailable">
+                  Linked transaction unavailable
+                </p>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={onUnlink}
+              data-testid="unlink-btn"
+            >
+              Unlink Refund
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onChangeLink}
+              data-testid="change-link-btn"
+            >
+              Change Link
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    )
+  }
+
+  // Search view (default / change-link flow)
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -148,7 +258,6 @@ export function RefundLinkModal({
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          {/* Expense warning */}
           {isExpense && (
             <div
               className="flex items-start gap-2 rounded-md border border-amber-500/50 bg-amber-500/10 p-3"
@@ -167,7 +276,29 @@ export function RefundLinkModal({
             </div>
           )}
 
-          {/* Search */}
+          {/* Replace warning */}
+          {showReplaceWarning && conflictingRefund && (
+            <div
+              className="flex items-start gap-2 rounded-md border border-amber-500/50 bg-amber-500/10 p-3"
+              role="alert"
+              data-testid="replace-warning"
+            >
+              <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" aria-hidden="true" />
+              <div className="text-sm">
+                <p className="font-medium text-amber-500">
+                  This purchase already has a linked refund:
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {formatDate(conflictingRefund.date)} {conflictingRefund.rawMerchantString}{' '}
+                  {formatCurrency(conflictingRefund.amount)}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Linking will replace the existing link.
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="refund-search">Find Original Purchase</Label>
             <Input
@@ -179,7 +310,6 @@ export function RefundLinkModal({
             />
           </div>
 
-          {/* Candidate list */}
           <div className="space-y-1">
             <Label>
               {sortedCandidates.length > 0
@@ -201,7 +331,7 @@ export function RefundLinkModal({
                     className={`w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted/50 transition-colors ${
                       selectedId === tx.id ? 'bg-primary/10 ring-1 ring-primary/30' : ''
                     }`}
-                    onClick={() => setSelectedId(tx.id!)}
+                    onClick={() => handleSelectCandidate(tx.id!)}
                   >
                     <span className="w-16 shrink-0 text-xs text-muted-foreground">
                       {formatDate(tx.date)}
@@ -220,8 +350,7 @@ export function RefundLinkModal({
             )}
           </div>
 
-          {/* Preview */}
-          {selectedTransaction && sourceTransaction && (
+          {selectedTransaction && sourceTransaction && !showReplaceWarning && (
             <p className="text-sm text-muted-foreground" data-testid="link-preview">
               Link {formatCurrency(Math.abs(sourceTransaction.amount))} refund to{' '}
               {formatCurrency(Math.abs(selectedTransaction.amount))} purchase from{' '}
@@ -229,7 +358,6 @@ export function RefundLinkModal({
             </p>
           )}
 
-          {/* Orphan refund option */}
           <div className="border-t pt-3">
             <p className="text-xs text-muted-foreground mb-2">No matching purchase?</p>
             <Button
@@ -257,7 +385,7 @@ export function RefundLinkModal({
             onClick={handleConfirm}
             disabled={selectedId === null}
           >
-            Link Refund
+            {showReplaceWarning ? 'Replace Link' : 'Link Refund'}
           </Button>
         </DialogFooter>
       </DialogContent>

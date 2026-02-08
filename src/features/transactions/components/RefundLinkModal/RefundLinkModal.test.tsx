@@ -39,8 +39,12 @@ const defaultProps = {
   open: true,
   onOpenChange: vi.fn(),
   sourceTransaction: mockRefund,
+  modalView: 'search' as const,
   onConfirmLink: vi.fn(),
   onConfirmOrphan: vi.fn(),
+  onUnlink: vi.fn(),
+  onChangeLink: vi.fn(),
+  onReplaceLink: vi.fn(),
 }
 
 const renderModal = (props: Partial<typeof defaultProps> = {}) =>
@@ -199,5 +203,77 @@ describe('RefundLinkModal', () => {
     await user.keyboard('{Escape}')
 
     expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  describe('linked-state view', () => {
+    const linkedRefund: Transaction = {
+      ...mockRefund,
+      isRefund: true,
+      linkedRefundId: 201,
+    }
+
+    it('shows linked transaction info when in linked view', async () => {
+      renderModal({
+        sourceTransaction: linkedRefund,
+        modalView: 'linked',
+      })
+
+      await waitFor(() => {
+        expect(screen.getByTestId('linked-transaction-info')).toBeInTheDocument()
+        expect(screen.getByText('AMZN*1234XYZ')).toBeInTheDocument()
+      })
+    })
+
+    it('shows "Unlink Refund" button in linked view', () => {
+      renderModal({
+        sourceTransaction: linkedRefund,
+        modalView: 'linked',
+      })
+
+      expect(screen.getByTestId('unlink-btn')).toBeInTheDocument()
+    })
+
+    it('"Unlink Refund" calls onUnlink', async () => {
+      const user = userEvent.setup()
+      const onUnlink = vi.fn()
+      renderModal({
+        sourceTransaction: linkedRefund,
+        modalView: 'linked',
+        onUnlink,
+      })
+
+      await user.click(screen.getByTestId('unlink-btn'))
+      expect(onUnlink).toHaveBeenCalled()
+    })
+
+    it('"Change Link" calls onChangeLink', async () => {
+      const user = userEvent.setup()
+      const onChangeLink = vi.fn()
+      renderModal({
+        sourceTransaction: linkedRefund,
+        modalView: 'linked',
+        onChangeLink,
+      })
+
+      await user.click(screen.getByTestId('change-link-btn'))
+      expect(onChangeLink).toHaveBeenCalled()
+    })
+
+    it('shows unavailable message when linked transaction is missing', async () => {
+      const missingLinked: Transaction = {
+        ...mockRefund,
+        isRefund: true,
+        linkedRefundId: 99999,
+      }
+
+      renderModal({
+        sourceTransaction: missingLinked,
+        modalView: 'linked',
+      })
+
+      await waitFor(() => {
+        expect(screen.getByTestId('linked-transaction-unavailable')).toBeInTheDocument()
+      })
+    })
   })
 })
