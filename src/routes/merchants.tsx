@@ -1,14 +1,19 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Outlet, useMatch } from '@tanstack/react-router'
+import { MerchantsPage } from '@/features/merchants/components/MerchantsPage'
 
 export const Route = createFileRoute('/merchants')({
-  component: MerchantsPage,
+  component: MerchantsLayout,
 })
 
-function MerchantsPage(): React.ReactElement {
-  return (
-    <div>
-      <h2 className="text-2xl font-bold mb-4">Merchants</h2>
-      <p className="text-muted-foreground">Merchant management will be implemented in Epic 7.</p>
-    </div>
-  )
+function MerchantsLayout(): React.ReactElement {
+  const childMatch = useMatch({
+    from: '/merchants/$merchantId',
+    shouldThrow: false,
+  })
+
+  if (childMatch) {
+    return <Outlet />
+  }
+
+  return <MerchantsPage />
 }

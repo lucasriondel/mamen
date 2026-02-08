@@ -97,7 +97,7 @@ development_status:
 
   # Epic 7: Merchant Management & Investigation
   epic-7: in-progress
-  7-1-merchants-list-view: ready-for-dev
+  7-1-merchants-list-view: review
   7-2-merchant-detail-page: ready-for-dev
   7-3-first-time-merchant-detection: ready-for-dev
   epic-7-retrospective: optional
