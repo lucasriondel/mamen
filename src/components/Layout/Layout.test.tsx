@@ -36,13 +36,19 @@ function createTestRouter(initialPath = '/') {
     component: () => <div>Merchants Content</div>,
   })
 
+  const rulesRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/rules',
+    component: () => <div>Rules Content</div>,
+  })
+
   const accountsRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: '/accounts',
     component: () => <div>Accounts Content</div>,
   })
 
-  const routeTree = rootRoute.addChildren([indexRoute, transactionsRoute, merchantsRoute, accountsRoute])
+  const routeTree = rootRoute.addChildren([indexRoute, transactionsRoute, merchantsRoute, rulesRoute, accountsRoute])
 
   return createRouter({
     routeTree,
@@ -59,6 +65,7 @@ describe('Layout', () => {
     expect(screen.getByRole('link', { name: /dashboard/i })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /transactions/i })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /merchants/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /rules/i })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /accounts/i })).toBeInTheDocument()
   })
 
@@ -115,11 +122,11 @@ describe('Navigation', () => {
     expect(transactionsLink).toHaveClass('bg-accent')
   })
 
-  it('renders all 5 navigation links', async () => {
+  it('renders all 6 navigation links', async () => {
     const router = createTestRouter()
     render(<RouterProvider router={router} />)
 
     const links = await screen.findAllByRole('link')
-    expect(links).toHaveLength(5)
+    expect(links).toHaveLength(6)
   })
 })

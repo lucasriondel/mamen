@@ -1,5 +1,5 @@
 import { Link, useNavigate } from '@tanstack/react-router'
-import { LayoutDashboard, Receipt, Store, CreditCard, Settings, Inbox } from 'lucide-react'
+import { LayoutDashboard, Receipt, Store, CreditCard, Settings, Inbox, FileText } from 'lucide-react'
 import { db, useLiveQuery } from '@/lib/db'
 import { useFocusMode } from '@/context/FocusModeContext'
 import { useUnmatchedCount } from '@/hooks/useUnmatchedCount'
@@ -15,6 +15,7 @@ const navItems: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: <LayoutDashboard className="h-4 w-4" /> },
   { to: '/transactions', label: 'Transactions', icon: <Receipt className="h-4 w-4" /> },
   { to: '/merchants', label: 'Merchants', icon: <Store className="h-4 w-4" /> },
+  { to: '/rules', label: 'Rules', icon: <FileText className="h-4 w-4" /> },
   { to: '/accounts', label: 'Accounts', icon: <CreditCard className="h-4 w-4" /> },
   { to: '/settings', label: 'Settings', icon: <Settings className="h-4 w-4" /> },
 ]
@@ -30,6 +31,10 @@ export function Sidebar(): React.ReactElement {
 
   const accountCount = useLiveQuery(
     () => db.accounts.count()
+  ) ?? 0
+
+  const ruleCount = useLiveQuery(
+    () => db.rules.count()
   ) ?? 0
 
   const handleTransactionsClick = (): void => {
@@ -57,6 +62,9 @@ export function Sidebar(): React.ReactElement {
           >
             {item.icon}
             {item.label}
+            {item.to === '/rules' && ruleCount > 0 && (
+              <span className="ml-auto text-xs text-muted-foreground">({ruleCount})</span>
+            )}
           </Link>
         ))}
 

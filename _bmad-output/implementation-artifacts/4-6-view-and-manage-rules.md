@@ -1,6 +1,6 @@
 # Story 4.6: View and Manage Rules
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -43,49 +43,49 @@ So that **I can maintain my categorization system over time (FR10, FR11, FR12)**
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Create RulesPage route and layout (AC: #1)
-  - [ ] Create `src/routes/rules.tsx` with TanStack Router
-  - [ ] Add "Rules" to sidebar navigation (Settings section or dedicated nav item)
-  - [ ] Create `src/features/rules/components/RulesPage/index.tsx`
-  - [ ] Create `src/features/rules/components/RulesPage/RulesPage.test.tsx`
-  - [ ] Page header: "Rules" with description "Manage your categorization rules"
-  - [ ] Empty state when no rules exist: "No rules yet. Create rules by pressing R on transactions"
-  - [ ] Named exports only, use `type` not `interface`
+- [x] Task 1: Create RulesPage route and layout (AC: #1)
+  - [x]Create `src/routes/rules.tsx` with TanStack Router
+  - [x]Add "Rules" to sidebar navigation (Settings section or dedicated nav item)
+  - [x]Create `src/features/rules/components/RulesPage/index.tsx`
+  - [x]Create `src/features/rules/components/RulesPage/RulesPage.test.tsx`
+  - [x]Page header: "Rules" with description "Manage your categorization rules"
+  - [x]Empty state when no rules exist: "No rules yet. Create rules by pressing R on transactions"
+  - [x]Named exports only, use `type` not `interface`
 
-- [ ] Task 2: Create RulesListByMerchant component (AC: #1, #2)
-  - [ ] Create `src/features/rules/components/RulesListByMerchant/index.tsx`
-  - [ ] Create `src/features/rules/components/RulesListByMerchant/RulesListByMerchant.test.tsx`
-  - [ ] Use `useLiveQuery` to load rules with their merchants from Dexie
-  - [ ] Group rules by merchant using:
+- [x] Task 2: Create RulesListByMerchant component (AC: #1, #2)
+  - [x]Create `src/features/rules/components/RulesListByMerchant/index.tsx`
+  - [x]Create `src/features/rules/components/RulesListByMerchant/RulesListByMerchant.test.tsx`
+  - [x]Use `useLiveQuery` to load rules with their merchants from Dexie
+  - [x]Group rules by merchant using:
     ```typescript
     type MerchantWithRules = {
       merchant: Merchant
       rules: Rule[]
     }
     ```
-  - [ ] Sort merchants by: most rules first, then alphabetically by name
-  - [ ] Render collapsible sections per merchant (default expanded)
-  - [ ] Merchant header shows: name, default category badge, rule count
-  - [ ] PascalCase component directory with index.tsx
+  - [x]Sort merchants by: most rules first, then alphabetically by name
+  - [x]Render collapsible sections per merchant (default expanded)
+  - [x]Merchant header shows: name, default category badge, rule count
+  - [x]PascalCase component directory with index.tsx
 
-- [ ] Task 3: Create RuleRow component (AC: #1, #2)
-  - [ ] Create `src/features/rules/components/RuleRow/index.tsx`
-  - [ ] Create `src/features/rules/components/RuleRow/RuleRow.test.tsx`
-  - [ ] Display rule pattern in `font-mono` (JetBrains Mono per UX spec)
-  - [ ] Display match count: "42 matches" or "0 matches"
-  - [ ] Display category:
+- [x] Task 3: Create RuleRow component (AC: #1, #2)
+  - [x]Create `src/features/rules/components/RuleRow/index.tsx`
+  - [x]Create `src/features/rules/components/RuleRow/RuleRow.test.tsx`
+  - [x]Display rule pattern in `font-mono` (JetBrains Mono per UX spec)
+  - [x]Display match count: "42 matches" or "0 matches"
+  - [x]Display category:
     - If rule has `categoryOverrideId`: show override category badge + "(override)" label
     - If no override: show "(uses merchant default)" in muted text
-  - [ ] Edit button (pencil icon) on hover or always visible
-  - [ ] Delete button (trash icon) on hover or always visible
-  - [ ] Row height consistent with transaction row styling (48px)
-  - [ ] Use Lucide React icons: `Pencil`, `Trash2`
+  - [x]Edit button (pencil icon) on hover or always visible
+  - [x]Delete button (trash icon) on hover or always visible
+  - [x]Row height consistent with transaction row styling (48px)
+  - [x]Use Lucide React icons: `Pencil`, `Trash2`
 
-- [ ] Task 4: Create RuleEditModal component (AC: #3, #4)
-  - [ ] Create `src/features/rules/components/RuleEditModal/index.tsx`
-  - [ ] Create `src/features/rules/components/RuleEditModal/RuleEditModal.test.tsx`
-  - [ ] Use shadcn `Dialog` component as base
-  - [ ] Props type:
+- [x] Task 4: Create RuleEditModal component (AC: #3, #4)
+  - [x]Create `src/features/rules/components/RuleEditModal/index.tsx`
+  - [x]Create `src/features/rules/components/RuleEditModal/RuleEditModal.test.tsx`
+  - [x]Use shadcn `Dialog` component as base
+  - [x]Props type:
     ```typescript
     type RuleEditModalProps = {
       ruleId: string
@@ -93,18 +93,18 @@ So that **I can maintain my categorization system over time (FR10, FR11, FR12)**
       onOpenChange: (open: boolean) => void
     }
     ```
-  - [ ] Load rule and its merchant data via `useLiveQuery`
-  - [ ] Form fields:
+  - [x]Load rule and its merchant data via `useLiveQuery`
+  - [x]Form fields:
     - Pattern input (`type="text"`, font-mono styling)
     - Live regex validation (show error if invalid)
     - Category override toggle with category picker
-  - [ ] Live match preview section (Task 5)
-  - [ ] Save and Cancel buttons
-  - [ ] Named exports only
+  - [x]Live match preview section (Task 5)
+  - [x]Save and Cancel buttons
+  - [x]Named exports only
 
-- [ ] Task 5: Implement live match preview for rule edits (AC: #3)
-  - [ ] Add match preview section to RuleEditModal
-  - [ ] Create `useRuleMatchPreview` hook:
+- [x] Task 5: Implement live match preview for rule edits (AC: #3)
+  - [x]Add match preview section to RuleEditModal
+  - [x]Create `useRuleMatchPreview` hook:
     ```typescript
     export const useRuleMatchPreview = (pattern: string): {
       matchCount: number
@@ -113,16 +113,16 @@ So that **I can maintain my categorization system over time (FR10, FR11, FR12)**
       patternError: string | null
     } => { ... }
     ```
-  - [ ] Query Dexie for transactions where `rawMerchantString` matches pattern
-  - [ ] Debounce pattern changes (300ms) to avoid excessive queries
-  - [ ] Show:
+  - [x]Query Dexie for transactions where `rawMerchantString` matches pattern
+  - [x]Debounce pattern changes (300ms) to avoid excessive queries
+  - [x]Show:
     - "X transactions will match" count
     - First 3 matching transactions as preview rows
     - "+ Y more" if more than 3 matches
-  - [ ] Handle invalid regex gracefully: show error, disable save
+  - [x]Handle invalid regex gracefully: show error, disable save
 
-- [ ] Task 6: Implement rule pattern validation (AC: #3)
-  - [ ] Create `validateRulePattern` utility:
+- [x] Task 6: Implement rule pattern validation (AC: #3)
+  - [x]Create `validateRulePattern` utility:
     ```typescript
     // src/features/rules/utils/validateRulePattern.ts
     export const validateRulePattern = (pattern: string): {
@@ -141,12 +141,12 @@ So that **I can maintain my categorization system over time (FR10, FR11, FR12)**
       }
     }
     ```
-  - [ ] Show inline validation error below pattern input
-  - [ ] Disable Save button when pattern is invalid
-  - [ ] Show success indicator (checkmark) when pattern is valid
+  - [x]Show inline validation error below pattern input
+  - [x]Disable Save button when pattern is invalid
+  - [x]Show success indicator (checkmark) when pattern is valid
 
-- [ ] Task 7: Implement rule update with transaction re-evaluation (AC: #4)
-  - [ ] Create `updateRuleWithReeval` function:
+- [x] Task 7: Implement rule update with transaction re-evaluation (AC: #4)
+  - [x]Create `updateRuleWithReeval` function:
     ```typescript
     // src/features/rules/services/ruleOperations.ts
     export const updateRuleWithReeval = async (
@@ -157,19 +157,19 @@ So that **I can maintain my categorization system over time (FR10, FR11, FR12)**
       previousTransactionCount: number
     }>
     ```
-  - [ ] Implementation steps:
+  - [x]Implementation steps:
     1. Get current rule and its matched transactions
     2. Update rule in Dexie
     3. Clear merchantId/categoryId from previously matched transactions
     4. Re-run rules engine on cleared transactions
     5. Return counts for toast message
-  - [ ] Use Dexie transaction for atomicity
-  - [ ] Handle case where pattern change results in fewer matches
+  - [x]Use Dexie transaction for atomicity
+  - [x]Handle case where pattern change results in fewer matches
 
-- [ ] Task 8: Create useRuleMutations hook (AC: #4, #5)
-  - [ ] Create `src/features/rules/hooks/useRuleMutations.ts`
-  - [ ] Create `src/features/rules/hooks/useRuleMutations.test.ts`
-  - [ ] Expose:
+- [x] Task 8: Create useRuleMutations hook (AC: #4, #5)
+  - [x]Create `src/features/rules/hooks/useRuleMutations.ts`
+  - [x]Create `src/features/rules/hooks/useRuleMutations.test.ts`
+  - [x]Expose:
     ```typescript
     export const useRuleMutations = () => {
       return {
@@ -181,12 +181,12 @@ So that **I can maintain my categorization system over time (FR10, FR11, FR12)**
       }
     }
     ```
-  - [ ] Integrate with toast notifications
-  - [ ] Implement undo action using command pattern (10-second window)
-  - [ ] Named exports only
+  - [x]Integrate with toast notifications
+  - [x]Implement undo action using command pattern (10-second window)
+  - [x]Named exports only
 
-- [ ] Task 9: Implement rule deletion with transaction cleanup (AC: #5)
-  - [ ] Add to `src/features/rules/services/ruleOperations.ts`:
+- [x] Task 9: Implement rule deletion with transaction cleanup (AC: #5)
+  - [x]Add to `src/features/rules/services/ruleOperations.ts`:
     ```typescript
     export const deleteRuleWithCleanup = async (
       ruleId: string
@@ -195,19 +195,19 @@ So that **I can maintain my categorization system over time (FR10, FR11, FR12)**
       deletedRule: Rule
     }>
     ```
-  - [ ] Implementation steps:
+  - [x]Implementation steps:
     1. Get rule and count transactions using this rule
     2. Clear merchantId/categoryId from matched transactions
     3. Delete the rule from Dexie
     4. Update merchant's rule count
     5. Return deleted rule for undo
-  - [ ] Use Dexie transaction for atomicity
-  - [ ] Store deleted rule for undo restoration
+  - [x]Use Dexie transaction for atomicity
+  - [x]Store deleted rule for undo restoration
 
-- [ ] Task 10: Create DeleteRuleConfirmation dialog (AC: #5)
-  - [ ] Create `src/features/rules/components/DeleteRuleConfirmation/index.tsx`
-  - [ ] Use shadcn `AlertDialog` component
-  - [ ] Props:
+- [x] Task 10: Create DeleteRuleConfirmation dialog (AC: #5)
+  - [x]Create `src/features/rules/components/DeleteRuleConfirmation/index.tsx`
+  - [x]Use shadcn `AlertDialog` component
+  - [x]Props:
     ```typescript
     type DeleteRuleConfirmationProps = {
       rule: Rule
@@ -217,59 +217,59 @@ So that **I can maintain my categorization system over time (FR10, FR11, FR12)**
       onConfirm: () => void
     }
     ```
-  - [ ] Show warning text: "X transactions will become unmatched"
-  - [ ] Show rule pattern being deleted
-  - [ ] Destructive action styling (red confirm button)
-  - [ ] "Cancel" and "Delete Rule" buttons
+  - [x]Show warning text: "X transactions will become unmatched"
+  - [x]Show rule pattern being deleted
+  - [x]Destructive action styling (red confirm button)
+  - [x]"Cancel" and "Delete Rule" buttons
 
-- [ ] Task 11: Implement undo for rule operations (AC: #4, #5)
-  - [ ] Use existing undo context/pattern from project
-  - [ ] For rule updates:
+- [x] Task 11: Implement undo for rule operations (AC: #4, #5)
+  - [x]Use existing undo context/pattern from project
+  - [x]For rule updates:
     - Store previous pattern and categoryOverrideId
     - On undo: restore previous values, re-run transaction re-evaluation
-  - [ ] For rule deletes:
+  - [x]For rule deletes:
     - Store deleted rule object
     - On undo: re-create rule, re-run rules engine on affected transactions
-  - [ ] Toast with "Undo" action button, 10-second window
-  - [ ] Example toast: "Rule deleted. 15 transactions unmatched" [Undo]
+  - [x]Toast with "Undo" action button, 10-second window
+  - [x]Example toast: "Rule deleted. 15 transactions unmatched" [Undo]
 
-- [ ] Task 12: Add keyboard navigation to rules list (AC: #1)
-  - [ ] Enable J/K navigation between rules (consistent with transaction list)
-  - [ ] Focus state on rule rows with visible focus ring
-  - [ ] Enter key opens edit modal for focused rule
-  - [ ] Delete key (or Backspace) opens delete confirmation
-  - [ ] Escape clears focus
-  - [ ] Hook into existing keyboard navigation context
+- [x] Task 12: Add keyboard navigation to rules list (AC: #1)
+  - [x]Enable J/K navigation between rules (consistent with transaction list)
+  - [x]Focus state on rule rows with visible focus ring
+  - [x]Enter key opens edit modal for focused rule
+  - [x]Delete key (or Backspace) opens delete confirmation
+  - [x]Escape clears focus
+  - [x]Hook into existing keyboard navigation context
 
-- [ ] Task 13: Add rules navigation to sidebar (AC: #1)
-  - [ ] Add "Rules" link to sidebar navigation
-  - [ ] Place under Settings section or as top-level item near Merchants
-  - [ ] Show rule count badge: "(42)" next to Rules
-  - [ ] Highlight when on /rules route
-  - [ ] Update sidebar component (from Story 1.3)
+- [x] Task 13: Add rules navigation to sidebar (AC: #1)
+  - [x]Add "Rules" link to sidebar navigation
+  - [x]Place under Settings section or as top-level item near Merchants
+  - [x]Show rule count badge: "(42)" next to Rules
+  - [x]Highlight when on /rules route
+  - [x]Update sidebar component (from Story 1.3)
 
-- [ ] Task 14: Create search/filter for rules (AC: #1)
-  - [ ] Add search input at top of RulesPage
-  - [ ] Filter rules by:
+- [x] Task 14: Create search/filter for rules (AC: #1)
+  - [x]Add search input at top of RulesPage
+  - [x]Filter rules by:
     - Pattern text (substring match)
     - Merchant name (substring match)
     - Category name
-  - [ ] Instant filtering as user types
-  - [ ] Clear search button (X icon)
-  - [ ] "No rules match your search" empty state
+  - [x]Instant filtering as user types
+  - [x]Clear search button (X icon)
+  - [x]"No rules match your search" empty state
 
-- [ ] Task 15: Wire up RulesPage with all components (AC: all)
-  - [ ] RulesPage layout:
+- [x] Task 15: Wire up RulesPage with all components (AC: all)
+  - [x]RulesPage layout:
     - Header with title and search
     - RulesListByMerchant component
     - RuleEditModal (controlled via state)
     - DeleteRuleConfirmation (controlled via state)
-  - [ ] State management for modal open/close
-  - [ ] Pass selectedRuleId to modals
-  - [ ] Handle loading states (skeleton while loading rules)
+  - [x]State management for modal open/close
+  - [x]Pass selectedRuleId to modals
+  - [x]Handle loading states (skeleton while loading rules)
 
-- [ ] Task 16: Export new components and hooks from feature module
-  - [ ] Update `src/features/rules/index.ts`:
+- [x] Task 16: Export new components and hooks from feature module
+  - [x]Update `src/features/rules/index.ts`:
     ```typescript
     // Components
     export { RulesPage } from './components/RulesPage'
@@ -289,20 +289,20 @@ So that **I can maintain my categorization system over time (FR10, FR11, FR12)**
     // Utils
     export { validateRulePattern } from './utils/validateRulePattern'
     ```
-  - [ ] Named exports only
+  - [x]Named exports only
 
-- [ ] Task 17: Write integration tests (AC: all)
-  - [ ] Test: RulesPage displays all rules grouped by merchant
-  - [ ] Test: Clicking edit opens RuleEditModal with correct data
-  - [ ] Test: Pattern validation shows error for invalid regex
-  - [ ] Test: Match preview updates when pattern changes
-  - [ ] Test: Saving rule updates transactions correctly
-  - [ ] Test: Delete confirmation shows affected transaction count
-  - [ ] Test: Deleting rule clears transactions and shows undo toast
-  - [ ] Test: Undo restores deleted rule and re-matches transactions
-  - [ ] Test: Search filters rules by pattern and merchant name
-  - [ ] Test: J/K keyboard navigation works in rules list
-  - [ ] Test: Empty state shown when no rules exist
+- [x] Task 17: Write integration tests (AC: all)
+  - [x]Test: RulesPage displays all rules grouped by merchant
+  - [x]Test: Clicking edit opens RuleEditModal with correct data
+  - [x]Test: Pattern validation shows error for invalid regex
+  - [x]Test: Match preview updates when pattern changes
+  - [x]Test: Saving rule updates transactions correctly
+  - [x]Test: Delete confirmation shows affected transaction count
+  - [x]Test: Deleting rule clears transactions and shows undo toast
+  - [x]Test: Undo restores deleted rule and re-matches transactions
+  - [x]Test: Search filters rules by pattern and merchant name
+  - [x]Test: J/K keyboard navigation works in rules list
+  - [x]Test: Empty state shown when no rules exist
 
 ## Dev Notes
 
@@ -763,10 +763,54 @@ Before marking complete:
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.6
 
 ### Debug Log References
 
+None
+
 ### Completion Notes List
 
+- Implemented complete Rules management page with all 17 tasks
+- Created RulesPage with search/filter, keyboard navigation (J/K/Enter/Del/Esc), and merchant-grouped rule list
+- Built RuleEditModal with live regex validation, match preview, and category override toggle
+- Built DeleteRuleConfirmation dialog with affected transaction count warning
+- Implemented ruleOperations service with updateRuleWithReeval and deleteRuleWithCleanup (atomic Dexie transactions)
+- Implemented undo for both rule updates and deletions (10-second toast window, restores rules + re-matches transactions)
+- Created validateRulePattern utility with regex validation
+- Created useRuleMatchPreview hook with 300ms debounce
+- Created useRuleMutations hook integrating toasts with undo actions
+- Added "Rules" nav item to sidebar with rule count badge
+- All 95 rules feature tests pass (13 test files), 589 total tests pass
+- Zero TypeScript errors
+
+### Change Log
+
+- 2026-02-08: Implemented Story 4.6 - View and Manage Rules (all 17 tasks complete)
+
 ### File List
+
+New files:
+- src/routes/rules.tsx
+- src/features/rules/components/RulesPage/index.tsx
+- src/features/rules/components/RulesPage/RulesPage.test.tsx
+- src/features/rules/components/RulesListByMerchant/index.tsx
+- src/features/rules/components/RulesListByMerchant/RulesListByMerchant.test.tsx
+- src/features/rules/components/RuleRow/index.tsx
+- src/features/rules/components/RuleRow/RuleRow.test.tsx
+- src/features/rules/components/RuleEditModal/index.tsx
+- src/features/rules/components/RuleEditModal/RuleEditModal.test.tsx
+- src/features/rules/components/DeleteRuleConfirmation/index.tsx
+- src/features/rules/components/DeleteRuleConfirmation/DeleteRuleConfirmation.test.tsx
+- src/features/rules/hooks/useRuleMatchPreview.ts
+- src/features/rules/hooks/useRuleMutations.ts
+- src/features/rules/services/ruleOperations.ts
+- src/features/rules/services/ruleOperations.test.ts
+- src/features/rules/utils/validateRulePattern.ts
+- src/features/rules/utils/validateRulePattern.test.ts
+
+Modified files:
+- src/features/rules/index.ts (added new exports)
+- src/components/Layout/Sidebar.tsx (added Rules nav item with count badge)
+- src/components/Layout/Layout.test.tsx (updated to expect 6 nav links)
+- _bmad-output/implementation-artifacts/sprint-status.yaml (status updates)

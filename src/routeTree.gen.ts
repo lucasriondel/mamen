@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TransactionsRouteImport } from './routes/transactions'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as RulesRouteImport } from './routes/rules'
 import { Route as MerchantsRouteImport } from './routes/merchants'
 import { Route as AccountsRouteImport } from './routes/accounts'
 import { Route as IndexRouteImport } from './routes/index'
@@ -23,6 +24,11 @@ const TransactionsRoute = TransactionsRouteImport.update({
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RulesRoute = RulesRouteImport.update({
+  id: '/rules',
+  path: '/rules',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MerchantsRoute = MerchantsRouteImport.update({
@@ -45,6 +51,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/accounts': typeof AccountsRoute
   '/merchants': typeof MerchantsRoute
+  '/rules': typeof RulesRoute
   '/settings': typeof SettingsRoute
   '/transactions': typeof TransactionsRoute
 }
@@ -52,6 +59,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/accounts': typeof AccountsRoute
   '/merchants': typeof MerchantsRoute
+  '/rules': typeof RulesRoute
   '/settings': typeof SettingsRoute
   '/transactions': typeof TransactionsRoute
 }
@@ -60,19 +68,33 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/accounts': typeof AccountsRoute
   '/merchants': typeof MerchantsRoute
+  '/rules': typeof RulesRoute
   '/settings': typeof SettingsRoute
   '/transactions': typeof TransactionsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/accounts' | '/merchants' | '/settings' | '/transactions'
+  fullPaths:
+    | '/'
+    | '/accounts'
+    | '/merchants'
+    | '/rules'
+    | '/settings'
+    | '/transactions'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/accounts' | '/merchants' | '/settings' | '/transactions'
+  to:
+    | '/'
+    | '/accounts'
+    | '/merchants'
+    | '/rules'
+    | '/settings'
+    | '/transactions'
   id:
     | '__root__'
     | '/'
     | '/accounts'
     | '/merchants'
+    | '/rules'
     | '/settings'
     | '/transactions'
   fileRoutesById: FileRoutesById
@@ -81,6 +103,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AccountsRoute: typeof AccountsRoute
   MerchantsRoute: typeof MerchantsRoute
+  RulesRoute: typeof RulesRoute
   SettingsRoute: typeof SettingsRoute
   TransactionsRoute: typeof TransactionsRoute
 }
@@ -99,6 +122,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rules': {
+      id: '/rules'
+      path: '/rules'
+      fullPath: '/rules'
+      preLoaderRoute: typeof RulesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/merchants': {
@@ -129,6 +159,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccountsRoute: AccountsRoute,
   MerchantsRoute: MerchantsRoute,
+  RulesRoute: RulesRoute,
   SettingsRoute: SettingsRoute,
   TransactionsRoute: TransactionsRoute,
 }
