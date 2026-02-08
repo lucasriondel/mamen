@@ -53,7 +53,7 @@ development_status:
   2-2-account-month-grid-for-statement-management: review
   2-3-csv-statement-import-and-parsing: review
   2-4-llm-settings-configuration: review
-  2-5-pdf-statement-import-with-llm-parsing: in-progress
+  2-5-pdf-statement-import-with-llm-parsing: review
   2-6-duplicate-transaction-detection: review
   epic-2-retrospective: optional
 

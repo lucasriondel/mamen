@@ -1,0 +1,37 @@
+import { db } from '@/lib/db'
+import type { Transaction } from '@/types'
+import type { LLMTransaction } from '@/lib/schemas/llmTransaction.schema'
+
+export type PDFImportResult = {
+  count: number
+  importBatchId: string
+}
+
+export const importPDFTransactions = async (
+  transactions: LLMTransaction[],
+  accountId: number,
+  importMonth: string,
+): Promise<PDFImportResult> => {
+  if (transactions.length === 0) {
+    throw new Error('No transactions to import')
+  }
+
+  const importBatchId = crypto.randomUUID()
+  const now = new Date()
+
+  const records: Omit<Transaction, 'id'>[] = transactions.map((t) => ({
+    accountId,
+    date: new Date(t.date),
+    amount: t.amount,
+    rawMerchantString: t.description.trim(),
+    importedAt: now,
+    importMonth,
+    importBatchId,
+  }))
+
+  await db.transaction('rw', db.transactions, async () => {
+    await db.transactions.bulkAdd(records)
+  })
+
+  return { count: records.length, importBatchId }
+}

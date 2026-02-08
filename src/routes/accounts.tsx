@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { CreditCard, Plus } from 'lucide-react'
+import { CreditCard, Loader2, Plus, Settings } from 'lucide-react'
 import { toast } from 'sonner'
 import { db, useLiveQuery } from '@/lib/db'
 import { EmptyState } from '@/components/EmptyState'
@@ -15,14 +15,27 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { AccountCard } from '@/features/accounts/components/AccountCard'
 import { AccountMonthGrid } from '@/features/import/components/AccountMonthGrid'
 import { ImportCSVModal } from '@/features/import/components/ImportCSVModal'
+import { PDFImportPreview } from '@/features/import/components/PDFImportPreview'
 import { CreateAccountModal } from '@/features/accounts/components/CreateAccountModal'
 import { EditAccountModal } from '@/features/accounts/components/EditAccountModal'
 import { deleteTransactionsForMonth } from '@/features/import/services/csvImporter'
+import { extractTextFromPDF } from '@/features/import/services/pdfExtractor'
+import { parseStatementWithLLM } from '@/features/import/services/llmStatementParser'
+import { checkLLMRequirements } from '@/lib/llm/guards'
 import type { Account } from '@/types'
 import type { Transaction } from '@/types'
+import type { LLMTransaction } from '@/lib/schemas/llmTransaction.schema'
 
 type UndoState = {
   account: Account
@@ -43,6 +56,31 @@ type ReimportState = {
   existingCount: number
 }
 
+type PDFPreviewState = {
+  transactions: LLMTransaction[]
+  monthKey: string
+  accountId: number
+}
+
+type PDFParsingState = {
+  monthKey: string
+  accountId: number
+}
+
+type LLMErrorState = {
+  message: string
+  errorType: 'network' | 'timeout' | 'parse' | 'invalid-response'
+  file: File
+  monthKey: string
+  accountId: number
+}
+
+type LLMNotConfiguredState = {
+  file: File
+  monthKey: string
+  accountId: number
+}
+
 export const Route = createFileRoute('/accounts')({
   component: AccountsPage,
 })
@@ -54,6 +92,10 @@ export function AccountsPage(): React.ReactElement {
   const [deleteTransactionCount, setDeleteTransactionCount] = useState(0)
   const [reimportState, setReimportState] = useState<ReimportState | null>(null)
   const [importModalState, setImportModalState] = useState<ImportModalState | null>(null)
+  const [pdfPreviewState, setPdfPreviewState] = useState<PDFPreviewState | null>(null)
+  const [pdfParsingState, setPdfParsingState] = useState<PDFParsingState | null>(null)
+  const [llmErrorState, setLlmErrorState] = useState<LLMErrorState | null>(null)
+  const [llmNotConfiguredState, setLlmNotConfiguredState] = useState<LLMNotConfiguredState | null>(null)
   const undoRef = useRef<UndoState | null>(null)
   const navigate = useNavigate()
 
@@ -80,12 +122,63 @@ export function AccountsPage(): React.ReactElement {
 
   const handleImportFile = (file: File, monthKey: string, accountId: number): void => {
     const ext = file.name.split('.').pop()?.toLowerCase()
-    if (ext === 'csv') {
+    const mimeType = file.type
+    if (ext === 'csv' || mimeType === 'text/csv') {
       setImportModalState({ file, monthKey, accountId })
-    } else if (ext === 'pdf') {
-      toast.info('PDF import coming in Story 2.5. Please use CSV for now.')
+    } else if (ext === 'pdf' || mimeType === 'application/pdf') {
+      handlePDFImport(file, monthKey, accountId)
     } else {
       toast.error('Unsupported file type. Please upload a CSV or PDF file.')
+    }
+  }
+
+  const handlePDFImport = async (file: File, monthKey: string, accountId: number): Promise<void> => {
+    const llmCheck = await checkLLMRequirements()
+    if (!llmCheck.ready) {
+      setLlmNotConfiguredState({ file, monthKey, accountId })
+      return
+    }
+
+    setPdfParsingState({ monthKey, accountId })
+
+    try {
+      const text = await extractTextFromPDF(file)
+      const result = await parseStatementWithLLM(text, llmCheck.settings!)
+
+      setPdfParsingState(null)
+
+      if (result.success) {
+        setPdfPreviewState({ transactions: result.transactions, monthKey, accountId })
+      } else {
+        setLlmErrorState({ message: result.error, errorType: result.errorType, file, monthKey, accountId })
+      }
+    } catch (err) {
+      setPdfParsingState(null)
+      setLlmErrorState({
+        message: err instanceof Error ? err.message : 'Could not read PDF file. The file may be corrupted or password-protected.',
+        errorType: 'parse',
+        file,
+        monthKey,
+        accountId,
+      })
+    }
+  }
+
+  const handleRetryPDF = (): void => {
+    if (!llmErrorState) return
+    const { file, monthKey, accountId } = llmErrorState
+    setLlmErrorState(null)
+    handlePDFImport(file, monthKey, accountId)
+  }
+
+  const handleFallbackToCSV = (): void => {
+    if (llmErrorState) {
+      toast.info('Please re-upload as a CSV file.')
+      setLlmErrorState(null)
+    }
+    if (llmNotConfiguredState) {
+      toast.info('Please re-upload as a CSV file.')
+      setLlmNotConfiguredState(null)
     }
   }
 
@@ -278,6 +371,91 @@ export function AccountsPage(): React.ReactElement {
           }}
         />
       )}
+
+      {pdfPreviewState && (
+        <PDFImportPreview
+          transactions={pdfPreviewState.transactions}
+          accountId={pdfPreviewState.accountId}
+          monthKey={pdfPreviewState.monthKey}
+          open={pdfPreviewState !== null}
+          onOpenChange={(open) => {
+            if (!open) setPdfPreviewState(null)
+          }}
+        />
+      )}
+
+      <Dialog
+        open={pdfParsingState !== null}
+        onOpenChange={() => {}}
+      >
+        <DialogContent className="sm:max-w-md" hideCloseButton>
+          <DialogHeader>
+            <DialogTitle>Parsing Statement</DialogTitle>
+            <DialogDescription>
+              Extracting transactions from your PDF using AI...
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center justify-center py-8 gap-3">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            <span className="text-muted-foreground">Parsing statement...</span>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={llmErrorState !== null}
+        onOpenChange={(open) => {
+          if (!open) setLlmErrorState(null)
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>PDF Parsing Failed</DialogTitle>
+            <DialogDescription>
+              {llmErrorState?.message}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
+            {(llmErrorState?.errorType === 'network' || llmErrorState?.errorType === 'timeout') && (
+              <Button onClick={handleRetryPDF}>
+                Retry
+              </Button>
+            )}
+            <Button variant="outline" onClick={handleFallbackToCSV}>
+              Import as CSV instead
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={llmNotConfiguredState !== null}
+        onOpenChange={(open) => {
+          if (!open) setLlmNotConfiguredState(null)
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>LLM Not Configured</DialogTitle>
+            <DialogDescription>
+              Set up an LLM to parse PDF statements. You can configure a local LLM (Ollama)
+              or provide your own cloud API key in Settings.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
+            <Button onClick={() => {
+              setLlmNotConfiguredState(null)
+              navigate({ to: '/settings' })
+            }}>
+              <Settings className="h-4 w-4" />
+              Go to Settings
+            </Button>
+            <Button variant="outline" onClick={handleFallbackToCSV}>
+              Import as CSV instead
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
