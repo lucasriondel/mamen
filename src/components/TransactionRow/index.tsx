@@ -6,12 +6,14 @@ import type { Transaction } from '@/types'
 
 export type TransactionRowProps = {
   transaction: Transaction
+  isFocused?: boolean
   isSelected?: boolean
   onClick?: () => void
 }
 
 export function TransactionRow({
   transaction,
+  isFocused = false,
   isSelected = false,
   onClick,
 }: TransactionRowProps): React.ReactElement {
@@ -22,8 +24,9 @@ export function TransactionRow({
       className={cn(
         'flex items-center h-12 px-4 gap-4 cursor-pointer',
         'hover:bg-muted/50 transition-colors',
+        isFocused && 'ring-2 ring-ring ring-offset-2 ring-offset-background z-10',
         isSelected && 'bg-muted border-l-2 border-primary',
-        !isSelected && isUnmatched && 'border-l-2 border-amber-500/50'
+        !isFocused && !isSelected && isUnmatched && 'border-l-2 border-amber-500/50'
       )}
       onClick={onClick}
       role="row"

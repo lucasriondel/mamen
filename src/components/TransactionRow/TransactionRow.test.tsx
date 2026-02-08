@@ -102,4 +102,56 @@ describe('TransactionRow', () => {
     const row = container.firstElementChild!
     expect(row.className).toContain('border-amber-500/50')
   })
+
+  it('applies focus ring styling when isFocused is true', () => {
+    const { container } = render(
+      <TransactionRow transaction={makeTransaction()} isFocused={true} />
+    )
+
+    const row = container.firstElementChild!
+    expect(row.className).toContain('ring-2')
+    expect(row.className).toContain('ring-ring')
+    expect(row.className).toContain('ring-offset-2')
+  })
+
+  it('does not apply focus ring by default', () => {
+    const { container } = render(
+      <TransactionRow transaction={makeTransaction()} />
+    )
+
+    const row = container.firstElementChild!
+    expect(row.className).not.toContain('ring-2')
+  })
+
+  it('visually distinguishes focused from selected state', () => {
+    const { container: focusedContainer } = render(
+      <TransactionRow transaction={makeTransaction()} isFocused={true} />
+    )
+    const { container: selectedContainer } = render(
+      <TransactionRow transaction={makeTransaction()} isSelected={true} />
+    )
+
+    const focusedRow = focusedContainer.firstElementChild!
+    const selectedRow = selectedContainer.firstElementChild!
+
+    // Focused has ring but not bg-muted (only bg-muted without hover: prefix)
+    expect(focusedRow.className).toContain('ring-2')
+    expect(focusedRow.className).not.toMatch(/(?<!\S)bg-muted(?!\/)/);
+    // Selected has bg-muted but not ring-2
+    expect(selectedRow.className).toMatch(/(?<!\S)bg-muted(?!\/)/);
+    expect(selectedRow.className).not.toContain('ring-2')
+  })
+
+  it('hides amber border when focused on unmatched row', () => {
+    const { container } = render(
+      <TransactionRow
+        transaction={makeTransaction({ merchantId: undefined })}
+        isFocused={true}
+      />
+    )
+
+    const row = container.firstElementChild!
+    expect(row.className).toContain('ring-2')
+    expect(row.className).not.toContain('border-amber-500/50')
+  })
 })

@@ -1,10 +1,11 @@
-import { useRef, useState, useCallback } from 'react'
+import { useRef, useState, useCallback, useEffect } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Link } from '@tanstack/react-router'
 import { ListIcon } from 'lucide-react'
 import { db, useLiveQuery } from '@/lib/db'
 import { Button } from '@/components/ui/button'
 import { TransactionRow } from '@/components/TransactionRow'
+import { useKeyboardNavigation } from '@/hooks/useKeyboardNavigation'
 
 export function TransactionList(): React.ReactElement {
   const transactions = useLiveQuery(
@@ -14,12 +15,35 @@ export function TransactionList(): React.ReactElement {
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const parentRef = useRef<HTMLDivElement>(null)
 
+  const { focusedIndex } = useKeyboardNavigation({
+    itemCount: transactions?.length ?? 0,
+    onSelect: (index) => {
+      const transaction = transactions?.[index]
+      if (transaction?.id !== undefined) {
+        setSelectedId((prev) => (prev === transaction.id ? null : transaction.id!))
+      }
+    },
+    onEscape: () => {
+      setSelectedId(null)
+    },
+    containerRef: parentRef,
+  })
+
   const virtualizer = useVirtualizer({
     count: transactions?.length ?? 0,
     getScrollElement: () => parentRef.current,
     estimateSize: () => 48,
     overscan: 5,
   })
+
+  useEffect(() => {
+    if (focusedIndex !== null) {
+      virtualizer.scrollToIndex(focusedIndex, {
+        align: 'auto',
+        behavior: 'smooth',
+      })
+    }
+  }, [focusedIndex, virtualizer])
 
   const handleRowClick = useCallback((id: number | undefined) => {
     if (id === undefined) return
@@ -56,7 +80,15 @@ export function TransactionList(): React.ReactElement {
         <div className="w-24 text-right shrink-0">Amount</div>
       </div>
 
-      <div ref={parentRef} className="flex-1 overflow-auto">
+      <div
+        ref={parentRef}
+        tabIndex={0}
+        role="listbox"
+        aria-activedescendant={
+          focusedIndex !== null ? `tx-${transactions[focusedIndex]?.id}` : undefined
+        }
+        className="flex-1 overflow-auto outline-none focus:outline-none"
+      >
         <div
           style={{
             height: `${virtualizer.getTotalSize()}px`,
@@ -69,6 +101,9 @@ export function TransactionList(): React.ReactElement {
             return (
               <div
                 key={transaction.id ?? virtualRow.index}
+                id={`tx-${transaction.id}`}
+                role="option"
+                aria-selected={selectedId === transaction.id}
                 style={{
                   position: 'absolute',
                   top: 0,
@@ -80,6 +115,7 @@ export function TransactionList(): React.ReactElement {
               >
                 <TransactionRow
                   transaction={transaction}
+                  isFocused={focusedIndex === virtualRow.index}
                   isSelected={selectedId === transaction.id}
                   onClick={() => handleRowClick(transaction.id)}
                 />

@@ -127,12 +127,114 @@ describe('TransactionList', () => {
     renderWithRouter(() => <TransactionList />)
 
     const row = await screen.findByRole('row')
-    expect(row).toHaveAttribute('aria-selected', 'false')
+    await user.click(row)
+
+    const option = screen.getByRole('option')
+    expect(option).toHaveAttribute('aria-selected', 'true')
 
     await user.click(row)
-    expect(row).toHaveAttribute('aria-selected', 'true')
+    expect(option).toHaveAttribute('aria-selected', 'false')
+  })
 
-    await user.click(row)
-    expect(row).toHaveAttribute('aria-selected', 'false')
+  it('has a focusable listbox container', async () => {
+    await db.transactions.add(makeTransaction())
+
+    renderWithRouter(() => <TransactionList />)
+
+    const listbox = await screen.findByRole('listbox')
+    expect(listbox).toBeInTheDocument()
+    expect(listbox).toHaveAttribute('tabIndex', '0')
+  })
+
+  it('renders option roles for virtual rows', async () => {
+    await db.transactions.bulkAdd([
+      makeTransaction({ rawMerchantString: 'STORE A', amount: -10 }),
+      makeTransaction({ rawMerchantString: 'STORE B', amount: -20, date: new Date(2026, 0, 17) }),
+    ])
+
+    renderWithRouter(() => <TransactionList />)
+
+    await waitFor(() => {
+      expect(screen.getByText('STORE A')).toBeInTheDocument()
+    })
+
+    const options = screen.getAllByRole('option')
+    expect(options.length).toBe(2)
+  })
+
+  it('applies focus ring on J key press', async () => {
+    await db.transactions.bulkAdd([
+      makeTransaction({ rawMerchantString: 'STORE A', amount: -10 }),
+      makeTransaction({ rawMerchantString: 'STORE B', amount: -20, date: new Date(2026, 0, 17) }),
+    ])
+
+    const user = userEvent.setup()
+    renderWithRouter(() => <TransactionList />)
+
+    const listbox = await screen.findByRole('listbox')
+    listbox.focus()
+
+    await user.keyboard('j')
+
+    await waitFor(() => {
+      const rows = screen.getAllByRole('row')
+      expect(rows[0].className).toContain('ring-2')
+    })
+  })
+
+  it('moves focus down with J and up with K', async () => {
+    await db.transactions.bulkAdd([
+      makeTransaction({ rawMerchantString: 'STORE A', amount: -10 }),
+      makeTransaction({ rawMerchantString: 'STORE B', amount: -20, date: new Date(2026, 0, 17) }),
+    ])
+
+    const user = userEvent.setup()
+    renderWithRouter(() => <TransactionList />)
+
+    const listbox = await screen.findByRole('listbox')
+    listbox.focus()
+
+    // Press J twice to focus second row
+    await user.keyboard('j')
+    await user.keyboard('j')
+
+    await waitFor(() => {
+      const rows = screen.getAllByRole('row')
+      expect(rows[0].className).not.toContain('ring-2')
+      expect(rows[1].className).toContain('ring-2')
+    })
+
+    // Press K to go back to first row
+    await user.keyboard('k')
+
+    await waitFor(() => {
+      const rows = screen.getAllByRole('row')
+      expect(rows[0].className).toContain('ring-2')
+      expect(rows[1].className).not.toContain('ring-2')
+    })
+  })
+
+  it('clears focus on Escape', async () => {
+    await db.transactions.add(makeTransaction())
+
+    const user = userEvent.setup()
+    renderWithRouter(() => <TransactionList />)
+
+    const listbox = await screen.findByRole('listbox')
+    listbox.focus()
+
+    await user.keyboard('j')
+
+    await waitFor(() => {
+      const row = screen.getByRole('row')
+      expect(row.className).toContain('ring-2')
+    })
+
+    await user.keyboard('{Escape}')
+
+    await waitFor(() => {
+      const row = screen.getByRole('row')
+      expect(row.className).not.toContain('ring-2')
+    })
   })
 })
