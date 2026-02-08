@@ -1,5 +1,5 @@
 import { Link, useNavigate } from '@tanstack/react-router'
-import { LayoutDashboard, Receipt, Store, CreditCard, Settings, Inbox, FileText, CalendarDays } from 'lucide-react'
+import { LayoutDashboard, Receipt, Store, CreditCard, Settings, Inbox, FileText, CalendarDays, Repeat } from 'lucide-react'
 import { db, useLiveQuery } from '@/lib/db'
 import { useFocusMode } from '@/context/FocusModeContext'
 import { useUnmatchedCount } from '@/hooks/useUnmatchedCount'
@@ -54,6 +54,11 @@ export function Sidebar(): React.ReactElement {
     navigate({ to: '/transactions' })
   }
 
+  const handleSubscriptionsClick = (): void => {
+    toggleFocusMode('subscriptions')
+    navigate({ to: '/transactions' })
+  }
+
   return (
     <aside className="flex flex-col w-[220px] border-r bg-card p-4">
       <nav className="flex flex-col gap-1">
@@ -104,6 +109,18 @@ export function Sidebar(): React.ReactElement {
           <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-blue-500/20" aria-hidden="true">
             <AnimatedCounter value={monthCount} />
           </span>
+        </button>
+
+        <button
+          onClick={handleSubscriptionsClick}
+          className={cn(
+            'flex items-center gap-3 px-3 py-2 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors w-full text-left',
+            activeFilters.has('subscriptions') && 'bg-accent text-foreground',
+          )}
+          aria-label="Subscriptions"
+        >
+          <Repeat className="h-4 w-4" />
+          <span>Subscriptions</span>
         </button>
       </nav>
 

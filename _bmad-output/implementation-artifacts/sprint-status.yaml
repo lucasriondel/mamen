@@ -84,7 +84,7 @@ development_status:
   5-2-batch-merchant-assignment: review
   5-3-batch-category-assignment: review
   5-4-focus-mode-current-month-m-key: review
-  5-5-focus-mode-subscriptions-placeholder-s-key: ready-for-dev
+  5-5-focus-mode-subscriptions-placeholder-s-key: review
   epic-5-retrospective: optional
 
   # Epic 6: Dashboard & Spending Visualization

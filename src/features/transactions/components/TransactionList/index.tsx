@@ -5,6 +5,7 @@ import { ListIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { TransactionRow } from '@/components/TransactionRow'
 import { InboxZeroEmpty } from '@/components/InboxZeroEmpty'
+import { SubscriptionsPlaceholder } from '@/features/subscriptions/components/SubscriptionsPlaceholder'
 import { SelectionStatusBar } from '@/components/SelectionStatusBar'
 import { MerchantAssignmentModal } from '@/features/merchants/components/MerchantAssignmentModal'
 import { QuickCategoryPicker } from '../QuickCategoryPicker'
@@ -26,6 +27,7 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
   const { activeFilters, currentMonthRange, toggleFocusMode } = useFocusMode()
   const isUnmatchedMode = activeFilters.has('unmatched')
   const isMonthMode = activeFilters.has('month')
+  const isSubscriptionsMode = activeFilters.has('subscriptions')
 
   const { transactions, isLoading } = useFilteredTransactions({
     unmatchedOnly: isUnmatchedMode,
@@ -235,6 +237,10 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
     },
     [multiSelect, selectedId],
   )
+
+  if (isSubscriptionsMode) {
+    return <SubscriptionsPlaceholder />
+  }
 
   if (isLoading) {
     return <div className="p-4 text-muted-foreground">Loading...</div>

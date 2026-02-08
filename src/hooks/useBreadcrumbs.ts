@@ -43,6 +43,9 @@ export function useBreadcrumbs(): BreadcrumbSegment[] {
     if (activeFilters.has('month')) {
       segments.push({ label: formatMonthLabel(currentMonthRange.start) })
     }
+    if (activeFilters.has('subscriptions')) {
+      segments.push({ label: 'Subscriptions' })
+    }
     if (activeFilters.has('unmatched')) {
       segments.push({ label: 'Unmatched' })
     }

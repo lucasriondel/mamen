@@ -164,6 +164,65 @@ describe('useBreadcrumbs', () => {
     expect(segments[2]).toEqual({ label: 'Unmatched' })
   })
 
+  it('shows Subscriptions segment when subscriptions filter active on transactions page', () => {
+    mockUseLocation.mockReturnValue(makeLocation('/transactions'))
+    mockUseFocusMode.mockReturnValue({
+      focusMode: 'subscriptions',
+      activeFilters: new Set(['subscriptions'] as const),
+      currentMonthRange: {
+        start: new Date(2026, 1, 1, 0, 0, 0, 0),
+        end: new Date(2026, 1, 28, 23, 59, 59, 999),
+      },
+      setFocusMode: vi.fn(),
+      toggleFocusMode: vi.fn(),
+    })
+
+    const segments = useBreadcrumbs()
+    expect(segments).toHaveLength(2)
+    expect(segments[0]).toEqual({ label: 'Transactions', href: '/transactions' })
+    expect(segments[1]).toEqual({ label: 'Subscriptions' })
+  })
+
+  it('shows combined breadcrumb: month + subscriptions', () => {
+    mockUseLocation.mockReturnValue(makeLocation('/transactions'))
+    mockUseFocusMode.mockReturnValue({
+      focusMode: 'month',
+      activeFilters: new Set(['month', 'subscriptions'] as const),
+      currentMonthRange: {
+        start: new Date(2026, 1, 1, 0, 0, 0, 0),
+        end: new Date(2026, 1, 28, 23, 59, 59, 999),
+      },
+      setFocusMode: vi.fn(),
+      toggleFocusMode: vi.fn(),
+    })
+
+    const segments = useBreadcrumbs()
+    expect(segments).toHaveLength(3)
+    expect(segments[0]).toEqual({ label: 'Transactions', href: '/transactions' })
+    expect(segments[1]).toEqual({ label: 'February 2026' })
+    expect(segments[2]).toEqual({ label: 'Subscriptions' })
+  })
+
+  it('shows combined breadcrumb: subscriptions + unmatched', () => {
+    mockUseLocation.mockReturnValue(makeLocation('/transactions'))
+    mockUseFocusMode.mockReturnValue({
+      focusMode: 'unmatched',
+      activeFilters: new Set(['subscriptions', 'unmatched'] as const),
+      currentMonthRange: {
+        start: new Date(2026, 1, 1, 0, 0, 0, 0),
+        end: new Date(2026, 1, 28, 23, 59, 59, 999),
+      },
+      setFocusMode: vi.fn(),
+      toggleFocusMode: vi.fn(),
+    })
+
+    const segments = useBreadcrumbs()
+    expect(segments).toHaveLength(3)
+    expect(segments[0]).toEqual({ label: 'Transactions', href: '/transactions' })
+    expect(segments[1]).toEqual({ label: 'Subscriptions' })
+    expect(segments[2]).toEqual({ label: 'Unmatched' })
+  })
+
   it('does not show focus mode segments on non-transactions pages', () => {
     mockUseLocation.mockReturnValue(makeLocation('/merchants'))
     mockUseFocusMode.mockReturnValue({

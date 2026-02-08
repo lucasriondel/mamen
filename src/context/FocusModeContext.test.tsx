@@ -249,6 +249,71 @@ describe('FocusModeContext', () => {
     expect(screen.getByTestId('mode')).toHaveTextContent('all')
   })
 
+  it('S key toggles subscriptions mode', async () => {
+    const user = userEvent.setup()
+    render(
+      <FocusModeProvider>
+        <TestConsumer />
+      </FocusModeProvider>,
+    )
+
+    expect(screen.getByTestId('mode')).toHaveTextContent('all')
+
+    await user.keyboard('s')
+    expect(screen.getByTestId('mode')).toHaveTextContent('subscriptions')
+    expect(screen.getByTestId('filters')).toHaveTextContent('subscriptions')
+
+    await user.keyboard('s')
+    expect(screen.getByTestId('mode')).toHaveTextContent('all')
+    expect(screen.getByTestId('filters')).toHaveTextContent('none')
+  })
+
+  it('A key clears subscriptions filter', async () => {
+    const user = userEvent.setup()
+    render(
+      <FocusModeProvider>
+        <TestConsumer />
+      </FocusModeProvider>,
+    )
+
+    await user.keyboard('s')
+    expect(screen.getByTestId('filters')).toHaveTextContent('subscriptions')
+
+    await user.keyboard('a')
+    expect(screen.getByTestId('filters')).toHaveTextContent('none')
+    expect(screen.getByTestId('mode')).toHaveTextContent('all')
+  })
+
+  it('S key does not trigger when in input field', async () => {
+    const user = userEvent.setup()
+    render(
+      <FocusModeProvider>
+        <TestConsumer />
+      </FocusModeProvider>,
+    )
+
+    const input = screen.getByTestId('text-input')
+    await user.click(input)
+    await user.keyboard('s')
+
+    expect(screen.getByTestId('mode')).toHaveTextContent('all')
+  })
+
+  it('S + M combined: shows both active', async () => {
+    const user = userEvent.setup()
+    render(
+      <FocusModeProvider>
+        <TestConsumer />
+      </FocusModeProvider>,
+    )
+
+    await user.keyboard('s')
+    expect(screen.getByTestId('filters')).toHaveTextContent('subscriptions')
+
+    await user.keyboard('m')
+    expect(screen.getByTestId('filters')).toHaveTextContent('month,subscriptions')
+  })
+
   it('throws error when used outside provider', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     expect(() => render(<TestConsumer />)).toThrow(

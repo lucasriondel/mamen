@@ -93,6 +93,9 @@ export const FocusModeProvider = ({ children }: FocusModeProviderProps): React.R
       } else if (key === 'm') {
         event.preventDefault()
         toggleFocusMode('month')
+      } else if (key === 's') {
+        event.preventDefault()
+        toggleFocusMode('subscriptions')
       } else if (key === 'a') {
         event.preventDefault()
         toggleFocusMode('all')
