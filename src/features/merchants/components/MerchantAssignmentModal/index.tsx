@@ -28,11 +28,23 @@ import { generatePatternSuggestions, type PatternSuggestion } from '@/features/r
 import { applyRuleToTransactions, undoRuleApplication } from '@/features/rules/services/applyRule'
 import { addRuleToMerchant, undoAddRule } from '@/features/rules/services/addRuleToMerchant'
 import { detectRuleConflict } from '@/features/rules/services/detectRuleConflict'
+import {
+  analyzeBatchPatterns,
+  getMatchingTransactionsOutsideSelection,
+  type BatchPatternSuggestion,
+} from '@/features/rules/services/batchPatternAnalyzer'
+import {
+  batchAssignMerchant,
+  undoBatchAssign,
+  type BatchUndoParams,
+} from '@/features/merchants/services/batchAssignMerchant'
 import { cleanMerchantString, validateRegexPattern } from '@/lib/utils/patternUtils'
 import { useMerchants } from '@/hooks/useMerchants'
 import { useCategories } from '@/hooks/useCategories'
 import { useExistingMerchant } from '../../hooks/useExistingMerchant'
 import { db } from '@/lib/db'
+import { formatCurrency } from '@/lib/utils/formatCurrency'
+import { formatDate } from '@/lib/utils/formatDate'
 import type { Transaction } from '@/types'
 import { AlertTriangle, ChevronDown } from 'lucide-react'
 
@@ -40,6 +52,7 @@ type MerchantAssignmentModalProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   transaction: Transaction | null
+  transactions?: Transaction[]
   powerMode?: boolean
   onComplete?: () => void
   onCascade?: (affectedIds: string[]) => void
@@ -51,16 +64,21 @@ type ConflictWarning = {
   specificity: 'more' | 'less' | 'equal'
 }
 
+type NoPatternOption = 'multiple-rules' | 'assign-without-rule' | null
+
 export function MerchantAssignmentModal({
   open,
   onOpenChange,
   transaction,
+  transactions,
   powerMode = false,
   onComplete,
   onCascade,
 }: MerchantAssignmentModalProps): React.ReactElement {
   const { createMerchant, getMerchantByName } = useMerchants()
   const { getCategoryById } = useCategories()
+
+  const isBatchMode = !!transactions && transactions.length > 1
 
   // Assignment mode: new or existing
   const [assignmentMode, setAssignmentMode] = useState<'new' | 'existing'>('new')
@@ -85,6 +103,15 @@ export function MerchantAssignmentModal({
   const [conflictWarning, setConflictWarning] = useState<ConflictWarning | null>(null)
   const [duplicatePatternError, setDuplicatePatternError] = useState('')
 
+  // Batch mode state
+  const [batchSuggestions, setBatchSuggestions] = useState<BatchPatternSuggestion[]>([])
+  const [batchResultType, setBatchResultType] = useState<'common-prefix' | 'combined' | 'no-pattern'>('no-pattern')
+  const [noPatternOption, setNoPatternOption] = useState<NoPatternOption>(null)
+  const [outsideWarningExpanded, setOutsideWarningExpanded] = useState(false)
+  const [outsideMatches, setOutsideMatches] = useState<
+    { rawMerchantString: string; date: Date; amount: number }[]
+  >([])
+
   const { merchant: existingMerchant, rules: existingRules } = useExistingMerchant(
     assignmentMode === 'existing' ? selectedMerchantId : null,
   )
@@ -92,11 +119,18 @@ export function MerchantAssignmentModal({
   const activePattern = isCustomMode ? customPattern : selectedPattern
   const patternValidation = isCustomMode ? validateRegexPattern(customPattern) : { valid: true }
 
+  // Form validity for no-pattern batch mode
+  const isNoPatternValid =
+    isBatchMode &&
+    batchResultType === 'no-pattern' &&
+    noPatternOption !== null &&
+    categoryId !== undefined &&
+    (assignmentMode === 'new' ? merchantName.trim().length > 0 : selectedMerchantId !== null)
+
   const isNewFormValid =
     assignmentMode === 'new' &&
     merchantName.trim().length > 0 &&
-    activePattern.length > 0 &&
-    patternValidation.valid &&
+    (isNoPatternValid || (activePattern.length > 0 && patternValidation.valid)) &&
     categoryId !== undefined &&
     !duplicateWarning &&
     !duplicatePatternError
@@ -104,16 +138,47 @@ export function MerchantAssignmentModal({
   const isExistingFormValid =
     assignmentMode === 'existing' &&
     selectedMerchantId !== null &&
-    activePattern.length > 0 &&
-    patternValidation.valid &&
+    (isNoPatternValid || (activePattern.length > 0 && patternValidation.valid)) &&
     !duplicatePatternError &&
     (categoryOverrideEnabled ? categoryId !== undefined : existingMerchant?.defaultCategoryId !== undefined)
 
   const isFormValid = isNewFormValid || isExistingFormValid
 
-  // Reset form when transaction changes
+  // Reset form when transaction/transactions changes
   useEffect(() => {
-    if (transaction && open) {
+    if (!open) return
+
+    if (isBatchMode && transactions) {
+      // Batch mode initialization
+      const rawStrings = transactions.map((t) => t.rawMerchantString)
+      const firstCleaned = cleanMerchantString(rawStrings[0])
+      setMerchantName(firstCleaned)
+      setAssignmentMode('new')
+      setSelectedMerchantId(null)
+      setSelectedPattern('')
+      setCustomPattern('')
+      setIsCustomMode(false)
+      setCategoryId(undefined)
+      setSetAsDefault(true)
+      setCategoryOverrideEnabled(false)
+      setDuplicateWarning('')
+      setCategoryPickerOpen(false)
+      setConflictWarning(null)
+      setDuplicatePatternError('')
+      setNoPatternOption(null)
+      setOutsideWarningExpanded(false)
+      setOutsideMatches([])
+      setSuggestions([])
+
+      analyzeBatchPatterns(rawStrings).then((result) => {
+        setBatchResultType(result.type)
+        setBatchSuggestions(result.suggestions)
+        if (result.suggestions.length > 0) {
+          setSelectedPattern(result.suggestions[0].pattern)
+        }
+      })
+    } else if (transaction) {
+      // Single mode initialization (existing behavior)
       const cleaned = cleanMerchantString(transaction.rawMerchantString)
       setMerchantName(cleaned)
       setAssignmentMode('new')
@@ -128,6 +193,11 @@ export function MerchantAssignmentModal({
       setCategoryPickerOpen(false)
       setConflictWarning(null)
       setDuplicatePatternError('')
+      setBatchSuggestions([])
+      setBatchResultType('no-pattern')
+      setNoPatternOption(null)
+      setOutsideWarningExpanded(false)
+      setOutsideMatches([])
 
       generatePatternSuggestions(transaction.rawMerchantString).then(
         (result) => {
@@ -138,7 +208,7 @@ export function MerchantAssignmentModal({
         },
       )
     }
-  }, [transaction, open, powerMode])
+  }, [transaction, transactions, open, powerMode, isBatchMode])
 
   // Check for duplicate merchant names (new mode only)
   useEffect(() => {
@@ -205,6 +275,18 @@ export function MerchantAssignmentModal({
     }
   }, [activePattern, existingRules, existingMerchant, assignmentMode, selectedMerchantId])
 
+  // Load outside-selection matches when a batch suggestion with outside matches is selected
+  useEffect(() => {
+    if (!isBatchMode || !activePattern || !transactions) return
+    const selectedSuggestion = batchSuggestions.find((s) => s.pattern === activePattern)
+    if (!selectedSuggestion || selectedSuggestion.matchesOutsideSelection <= 0) {
+      setOutsideMatches([])
+      return
+    }
+    const rawStrings = transactions.map((t) => t.rawMerchantString)
+    getMatchingTransactionsOutsideSelection(activePattern, rawStrings).then(setOutsideMatches)
+  }, [activePattern, batchSuggestions, isBatchMode, transactions])
+
   const handleCategorySelect = useCallback(
     (catId: number, subCatId?: number) => {
       setCategoryId(subCatId ?? catId)
@@ -214,80 +296,14 @@ export function MerchantAssignmentModal({
   )
 
   const handleSubmit = async (): Promise<void> => {
-    if (!isFormValid || !transaction) return
+    if (!isFormValid) return
 
     setIsSubmitting(true)
     try {
-      if (assignmentMode === 'new') {
-        // Existing Story 4.3 flow
-        const merchantId = await createMerchant(
-          merchantName.trim(),
-          setAsDefault ? categoryId : undefined,
-        )
-
-        const ruleId = (await db.rules.add({
-          merchantId,
-          pattern: activePattern,
-          matchCount: 0,
-          createdAt: new Date(),
-        })) as number
-
-        const rule = {
-          id: ruleId,
-          merchantId,
-          pattern: activePattern,
-          matchCount: 0,
-          createdAt: new Date(),
-        }
-
-        const { count, affectedIds } = await applyRuleToTransactions(
-          rule,
-          categoryId!,
-        )
-
-        onOpenChange(false)
-        onComplete?.()
-        onCascade?.(affectedIds.map(String))
-
-        toast(`${count} transaction${count !== 1 ? 's' : ''} → ${merchantName.trim()}`, {
-          action: {
-            label: 'Undo',
-            onClick: () => {
-              undoRuleApplication(merchantId, ruleId, affectedIds)
-              toast('Merchant creation undone')
-            },
-          },
-          duration: 10000,
-        })
-      } else {
-        // Existing merchant flow
-        if (!selectedMerchantId) return
-
-        const overrideId = categoryOverrideEnabled ? (categoryId ?? null) : null
-        const result = await addRuleToMerchant({
-          merchantId: selectedMerchantId,
-          pattern: activePattern,
-          categoryOverrideId: overrideId,
-        })
-
-        onOpenChange(false)
-        onComplete?.()
-        onCascade?.(result.affectedTransactionIds.map(String))
-
-        const merchantDisplayName = existingMerchant?.name ?? 'merchant'
-        toast(
-          `${result.matchCount} transaction${result.matchCount !== 1 ? 's' : ''} → ${merchantDisplayName}`,
-          {
-            action: {
-              label: 'Undo',
-              onClick: () => {
-                undoAddRule(result.ruleId, result.affectedTransactionIds)
-                toast('Rule addition undone')
-              },
-            },
-            duration: 10000,
-          },
-        )
+      if (isBatchMode && transactions) {
+        await handleBatchSubmit()
+      } else if (transaction) {
+        await handleSingleSubmit()
       }
     } catch (error) {
       toast.error(
@@ -301,6 +317,202 @@ export function MerchantAssignmentModal({
     }
   }
 
+  const handleSingleSubmit = async (): Promise<void> => {
+    if (!transaction) return
+
+    if (assignmentMode === 'new') {
+      const merchantId = await createMerchant(
+        merchantName.trim(),
+        setAsDefault ? categoryId : undefined,
+      )
+
+      const ruleId = (await db.rules.add({
+        merchantId,
+        pattern: activePattern,
+        matchCount: 0,
+        createdAt: new Date(),
+      })) as number
+
+      const rule = {
+        id: ruleId,
+        merchantId,
+        pattern: activePattern,
+        matchCount: 0,
+        createdAt: new Date(),
+      }
+
+      const { count, affectedIds } = await applyRuleToTransactions(
+        rule,
+        categoryId!,
+      )
+
+      onOpenChange(false)
+      onComplete?.()
+      onCascade?.(affectedIds.map(String))
+
+      toast(`${count} transaction${count !== 1 ? 's' : ''} → ${merchantName.trim()}`, {
+        action: {
+          label: 'Undo',
+          onClick: () => {
+            undoRuleApplication(merchantId, ruleId, affectedIds)
+            toast('Merchant creation undone')
+          },
+        },
+        duration: 10000,
+      })
+    } else {
+      if (!selectedMerchantId) return
+
+      const overrideId = categoryOverrideEnabled ? (categoryId ?? null) : null
+      const result = await addRuleToMerchant({
+        merchantId: selectedMerchantId,
+        pattern: activePattern,
+        categoryOverrideId: overrideId,
+      })
+
+      onOpenChange(false)
+      onComplete?.()
+      onCascade?.(result.affectedTransactionIds.map(String))
+
+      const merchantDisplayName = existingMerchant?.name ?? 'merchant'
+      toast(
+        `${result.matchCount} transaction${result.matchCount !== 1 ? 's' : ''} → ${merchantDisplayName}`,
+        {
+          action: {
+            label: 'Undo',
+            onClick: () => {
+              undoAddRule(result.ruleId, result.affectedTransactionIds)
+              toast('Rule addition undone')
+            },
+          },
+          duration: 10000,
+        },
+      )
+    }
+  }
+
+  const handleBatchSubmit = async (): Promise<void> => {
+    if (!transactions) return
+
+    const txIds = transactions.map((t) => t.id!).filter(Boolean)
+
+    // Save previous state for undo
+    const previousState = transactions.map((t) => ({
+      id: t.id!,
+      merchantId: (t.merchantId as number) ?? null,
+      categoryId: (t.categoryId as number) ?? null,
+    }))
+
+    const isAssignWithoutRule = noPatternOption === 'assign-without-rule'
+    const isMultipleRules = noPatternOption === 'multiple-rules' && batchResultType === 'no-pattern'
+
+    // For multiple-rules: compute per-group patterns
+    let additionalPatterns: string[] | undefined
+    if (isMultipleRules) {
+      const { extractPrefix, escapeRegex } = await import('@/lib/utils/patternUtils')
+      const groups: Record<string, boolean> = {}
+      for (const tx of transactions) {
+        const prefix = extractPrefix(tx.rawMerchantString)
+        const root = prefix ?? tx.rawMerchantString.split(/\s+/)[0] ?? tx.rawMerchantString
+        groups[root.toUpperCase()] = true
+      }
+      const rootKeys = Object.keys(groups)
+      additionalPatterns = rootKeys.slice(1).map((r) => `^${escapeRegex(r)}.*`)
+      // First pattern used as primary
+      const firstPattern = `^${escapeRegex(rootKeys[0])}.*`
+      // We'll set this as the main pattern
+      // (selectedPattern might not be set in no-pattern mode)
+      await doBatchAssign(
+        firstPattern,
+        additionalPatterns,
+        txIds,
+        previousState,
+        false,
+      )
+      return
+    }
+
+    await doBatchAssign(
+      activePattern,
+      undefined,
+      txIds,
+      previousState,
+      isAssignWithoutRule,
+    )
+  }
+
+  const doBatchAssign = async (
+    pattern: string,
+    additionalPatterns: string[] | undefined,
+    txIds: number[],
+    previousState: Array<{ id: number; merchantId: number | null; categoryId: number | null }>,
+    assignWithoutRule: boolean,
+  ): Promise<void> => {
+    const effectiveCategoryId = categoryOverrideEnabled && existingMerchant
+      ? (categoryId ?? existingMerchant.defaultCategoryId!)
+      : categoryId!
+
+    const result = await batchAssignMerchant({
+      mode: assignmentMode,
+      merchantName: assignmentMode === 'new' ? merchantName.trim() : undefined,
+      merchantId: assignmentMode === 'existing' ? selectedMerchantId! : undefined,
+      pattern,
+      additionalPatterns,
+      categoryId: effectiveCategoryId,
+      categoryOverrideId: categoryOverrideEnabled ? (categoryId ?? null) : undefined,
+      transactionIds: txIds,
+      assignWithoutRule,
+    })
+
+    // Also capture any additional affected transactions for undo (rule applied globally)
+    const allAffectedPreviousState: BatchUndoParams['previousState'] = []
+    const previousIds = new Set(previousState.map((p) => p.id))
+    for (const affId of result.affectedTransactionIds) {
+      if (previousIds.has(affId)) {
+        allAffectedPreviousState.push(previousState.find((p) => p.id === affId)!)
+      } else {
+        // Fetch previous state for transactions outside selection
+        const tx = await db.transactions.get(affId)
+        if (tx) {
+          allAffectedPreviousState.push({
+            id: affId,
+            merchantId: (tx.merchantId as number) ?? null,
+            categoryId: (tx.categoryId as number) ?? null,
+          })
+        }
+      }
+    }
+
+    const isNewMerchant = assignmentMode === 'new'
+    const merchantDisplayName = isNewMerchant
+      ? merchantName.trim()
+      : (existingMerchant?.name ?? 'merchant')
+
+    onOpenChange(false)
+    onComplete?.()
+    onCascade?.(result.affectedTransactionIds.map(String))
+
+    toast(
+      `${result.matchCount} transaction${result.matchCount !== 1 ? 's' : ''} → ${merchantDisplayName}`,
+      {
+        action: {
+          label: 'Undo',
+          onClick: () => {
+            undoBatchAssign({
+              merchantId: result.merchantId,
+              ruleIds: result.ruleIds,
+              affectedTransactionIds: result.affectedTransactionIds,
+              previousState: allAffectedPreviousState,
+              deleteNewMerchant: isNewMerchant,
+            })
+            toast('Batch assignment undone')
+          },
+        },
+        duration: 10000,
+      },
+    )
+  }
+
   const selectedCategory = categoryId ? getCategoryById(categoryId) : undefined
   const defaultCategory = existingMerchant?.defaultCategoryId
     ? getCategoryById(existingMerchant.defaultCategoryId)
@@ -312,10 +524,13 @@ export function MerchantAssignmentModal({
       ? 'Your rule is less specific and will be overridden'
       : 'Both rules have equal specificity'
 
+  const selectedBatchSuggestion = batchSuggestions.find((s) => s.pattern === activePattern)
+  const hasOutsideMatches = selectedBatchSuggestion && selectedBatchSuggestion.matchesOutsideSelection > 0
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="sm:max-w-[480px]"
+        className="sm:max-w-[480px] max-h-[85vh] overflow-y-auto"
         aria-labelledby="merchant-modal-title"
         onKeyDown={(e) => {
           if (e.key === 'Enter' && isFormValid && !isSubmitting) {
@@ -325,12 +540,41 @@ export function MerchantAssignmentModal({
         }}
       >
         <DialogHeader>
-          <DialogTitle id="merchant-modal-title">Assign to Merchant</DialogTitle>
+          <DialogTitle id="merchant-modal-title">
+            {isBatchMode
+              ? `Assign ${transactions!.length} Transactions to Merchant`
+              : 'Assign to Merchant'}
+          </DialogTitle>
           <DialogDescription>
-            Transaction:{' '}
-            <code className="bg-muted px-1.5 py-0.5 rounded text-xs font-mono">
-              {transaction?.rawMerchantString}
-            </code>
+            {isBatchMode ? (
+              <span className="space-y-1 block">
+                <span className="text-xs text-muted-foreground block">
+                  Selected transactions:
+                </span>
+                <span className="block max-h-24 overflow-y-auto space-y-0.5">
+                  {transactions!.slice(0, 5).map((tx, i) => (
+                    <code
+                      key={tx.id ?? i}
+                      className="bg-muted px-1.5 py-0.5 rounded text-xs font-mono block truncate"
+                    >
+                      {tx.rawMerchantString}
+                    </code>
+                  ))}
+                  {transactions!.length > 5 && (
+                    <span className="text-xs text-muted-foreground block">
+                      +{transactions!.length - 5} more
+                    </span>
+                  )}
+                </span>
+              </span>
+            ) : (
+              <>
+                Transaction:{' '}
+                <code className="bg-muted px-1.5 py-0.5 rounded text-xs font-mono">
+                  {transaction?.rawMerchantString}
+                </code>
+              </>
+            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -397,71 +641,149 @@ export function MerchantAssignmentModal({
           )}
 
           {/* Pattern Selection */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Label>
-                {assignmentMode === 'new' ? 'Create rule from pattern' : 'Add rule pattern'}
-              </Label>
-              {isCustomMode && <RegexCheatsheet />}
-            </div>
-
-            {isCustomMode ? (
-              <div className="space-y-1">
-                <Input
-                  value={customPattern}
-                  onChange={(e) => setCustomPattern(e.target.value)}
-                  placeholder="Enter regex pattern"
-                  className="font-mono text-sm"
-                  aria-invalid={!patternValidation.valid || !!duplicatePatternError}
-                  aria-describedby={
-                    !patternValidation.valid ? 'pattern-error' :
-                    duplicatePatternError ? 'duplicate-pattern-error' : undefined
-                  }
-                />
-                {!patternValidation.valid && patternValidation.error && (
-                  <p
-                    id="pattern-error"
-                    className="text-xs text-destructive"
-                    role="alert"
-                  >
-                    {patternValidation.error}
-                  </p>
-                )}
-                <Button
-                  type="button"
-                  variant="link"
-                  size="sm"
-                  className="h-auto p-0 text-xs"
-                  onClick={() => {
-                    setIsCustomMode(false)
-                    if (suggestions.length > 0) {
-                      setSelectedPattern(suggestions[0].pattern)
-                    }
-                  }}
-                >
-                  Use suggestions
-                </Button>
-              </div>
-            ) : (
-              <PatternSuggestionRadioGroup
-                suggestions={suggestions}
-                value={selectedPattern}
-                onChange={setSelectedPattern}
-                onCustomMode={() => setIsCustomMode(true)}
-              />
-            )}
-
-            {/* Duplicate pattern error */}
-            {duplicatePatternError && (
-              <p
-                id="duplicate-pattern-error"
-                className="text-xs text-destructive"
-                role="alert"
-              >
-                {duplicatePatternError}
+          {isBatchMode && batchResultType === 'no-pattern' ? (
+            /* No-pattern batch mode */
+            <div className="space-y-2">
+              <Label>No common pattern found</Label>
+              <p className="text-xs text-muted-foreground">
+                The selected transactions are too diverse for a single pattern.
               </p>
-            )}
-          </div>
+              <RadioGroup
+                value={noPatternOption ?? ''}
+                onValueChange={(val) => setNoPatternOption(val as NoPatternOption)}
+                className="space-y-2"
+              >
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem value="multiple-rules" id="opt-multi-rules" />
+                  <Label htmlFor="opt-multi-rules" className="cursor-pointer text-sm">
+                    Create merchant with multiple rules
+                  </Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem value="assign-without-rule" id="opt-no-rule" />
+                  <Label htmlFor="opt-no-rule" className="cursor-pointer text-sm">
+                    Assign without rule
+                  </Label>
+                </div>
+              </RadioGroup>
+            </div>
+          ) : (
+            /* Pattern suggestions (single or batch with pattern) */
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Label>
+                  {assignmentMode === 'new' ? 'Create rule from pattern' : 'Add rule pattern'}
+                </Label>
+                {isCustomMode && <RegexCheatsheet />}
+              </div>
+
+              {isCustomMode ? (
+                <div className="space-y-1">
+                  <Input
+                    value={customPattern}
+                    onChange={(e) => setCustomPattern(e.target.value)}
+                    placeholder="Enter regex pattern"
+                    className="font-mono text-sm"
+                    aria-invalid={!patternValidation.valid || !!duplicatePatternError}
+                    aria-describedby={
+                      !patternValidation.valid ? 'pattern-error' :
+                      duplicatePatternError ? 'duplicate-pattern-error' : undefined
+                    }
+                  />
+                  {!patternValidation.valid && patternValidation.error && (
+                    <p
+                      id="pattern-error"
+                      className="text-xs text-destructive"
+                      role="alert"
+                    >
+                      {patternValidation.error}
+                    </p>
+                  )}
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="sm"
+                    className="h-auto p-0 text-xs"
+                    onClick={() => {
+                      setIsCustomMode(false)
+                      const allSuggestions = isBatchMode ? batchSuggestions : suggestions
+                      if (allSuggestions.length > 0) {
+                        setSelectedPattern(allSuggestions[0].pattern)
+                      }
+                    }}
+                  >
+                    Use suggestions
+                  </Button>
+                </div>
+              ) : isBatchMode && batchSuggestions.length > 0 ? (
+                <BatchPatternSuggestions
+                  suggestions={batchSuggestions}
+                  value={selectedPattern}
+                  onChange={setSelectedPattern}
+                  onCustomMode={() => setIsCustomMode(true)}
+                />
+              ) : (
+                <PatternSuggestionRadioGroup
+                  suggestions={suggestions}
+                  value={selectedPattern}
+                  onChange={setSelectedPattern}
+                  onCustomMode={() => setIsCustomMode(true)}
+                />
+              )}
+
+              {/* Duplicate pattern error */}
+              {duplicatePatternError && (
+                <p
+                  id="duplicate-pattern-error"
+                  className="text-xs text-destructive"
+                  role="alert"
+                >
+                  {duplicatePatternError}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Outside Selection Warning (batch mode) */}
+          {isBatchMode && hasOutsideMatches && (
+            <div className="space-y-1">
+              <button
+                type="button"
+                className="flex items-center gap-2 text-xs text-amber-500 hover:text-amber-400"
+                onClick={() => setOutsideWarningExpanded(!outsideWarningExpanded)}
+              >
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <span>
+                  Pattern also matches{' '}
+                  <span className="font-medium text-destructive">
+                    {selectedBatchSuggestion!.matchesOutsideSelection}
+                  </span>{' '}
+                  other transaction{selectedBatchSuggestion!.matchesOutsideSelection !== 1 ? 's' : ''}
+                </span>
+              </button>
+              {outsideWarningExpanded && outsideMatches.length > 0 && (
+                <div className="ml-5 space-y-0.5 border-l-2 border-amber-500/30 pl-2">
+                  {outsideMatches.slice(0, 5).map((tx, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center gap-2 text-xs text-muted-foreground"
+                    >
+                      <span className="truncate flex-1 font-mono">
+                        {tx.rawMerchantString}
+                      </span>
+                      <span className="shrink-0">{formatDate(tx.date)}</span>
+                      <span className="shrink-0 font-mono">{formatCurrency(tx.amount)}</span>
+                    </div>
+                  ))}
+                  {selectedBatchSuggestion!.matchesOutsideSelection > 5 && (
+                    <p className="text-xs text-muted-foreground">
+                      and {selectedBatchSuggestion!.matchesOutsideSelection - 5} more
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Conflict Warning */}
           {conflictWarning && (
@@ -578,24 +900,26 @@ export function MerchantAssignmentModal({
                   </PopoverContent>
                 </Popover>
 
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="set-default"
-                    checked={setAsDefault}
-                    onCheckedChange={(checked) =>
-                      setSetAsDefault(checked === true)
-                    }
-                  />
-                  <Label htmlFor="set-default" className="text-xs cursor-pointer">
-                    Set as default category for this merchant
-                  </Label>
-                </div>
+                {!isBatchMode && (
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="set-default"
+                      checked={setAsDefault}
+                      onCheckedChange={(checked) =>
+                        setSetAsDefault(checked === true)
+                      }
+                    />
+                    <Label htmlFor="set-default" className="text-xs cursor-pointer">
+                      Set as default category for this merchant
+                    </Label>
+                  </div>
+                )}
               </>
             )}
           </div>
 
           {/* Match Preview */}
-          {activePattern && (
+          {activePattern && !(isBatchMode && batchResultType === 'no-pattern') && (
             <div className="space-y-2">
               <Label>Preview</Label>
               <MatchPreviewList pattern={activePattern} />
@@ -621,5 +945,69 @@ export function MerchantAssignmentModal({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+// Batch pattern suggestion radio group
+function BatchPatternSuggestions({
+  suggestions,
+  value,
+  onChange,
+  onCustomMode,
+}: {
+  suggestions: BatchPatternSuggestion[]
+  value: string
+  onChange: (pattern: string) => void
+  onCustomMode: () => void
+}): React.ReactElement {
+  return (
+    <RadioGroup
+      value={value}
+      onValueChange={(val) => {
+        if (val === '__custom__') {
+          onCustomMode()
+        } else {
+          onChange(val)
+        }
+      }}
+      aria-label="Pattern suggestions"
+      className="space-y-2"
+    >
+      {suggestions.map((suggestion) => (
+        <div key={suggestion.pattern} className="flex items-start gap-2">
+          <RadioGroupItem
+            value={suggestion.pattern}
+            id={`batch-pattern-${suggestion.type}`}
+            className="mt-0.5"
+          />
+          <Label
+            htmlFor={`batch-pattern-${suggestion.type}`}
+            className="flex flex-col gap-0.5 cursor-pointer text-sm"
+          >
+            <code className="bg-muted px-1.5 py-0.5 rounded font-mono text-xs">
+              {suggestion.pattern}
+            </code>
+            <span className="text-muted-foreground text-xs">
+              {suggestion.matchCount} transaction
+              {suggestion.matchCount !== 1 ? 's' : ''} will match
+              {suggestion.matchesOutsideSelection > 0 && (
+                <span className="ml-1 text-destructive font-medium">
+                  (+{suggestion.matchesOutsideSelection} outside selection)
+                </span>
+              )}
+            </span>
+          </Label>
+        </div>
+      ))}
+      <div className="flex items-center gap-2">
+        <RadioGroupItem value="__custom__" id="batch-pattern-custom" />
+        <Label
+          htmlFor="batch-pattern-custom"
+          className="cursor-pointer text-sm text-muted-foreground"
+        >
+          Custom pattern...
+        </Label>
+      </div>
+    </RadioGroup>
   )
 }

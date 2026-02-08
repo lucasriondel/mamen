@@ -14,6 +14,7 @@ import { useCascadeAnimation } from '@/hooks/useCascadeAnimation'
 import { useFilteredTransactions } from '../../hooks/useFilteredTransactions'
 import { useQuickCategoryAssign } from '../../hooks/useQuickCategoryAssign'
 import { useFocusMode } from '@/context/FocusModeContext'
+import { db } from '@/lib/db'
 import type { Transaction } from '@/types'
 
 type TransactionListProps = {
@@ -31,6 +32,7 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [merchantModalOpen, setMerchantModalOpen] = useState(false)
   const [merchantModalTransaction, setMerchantModalTransaction] = useState<Transaction | null>(null)
+  const [merchantModalTransactions, setMerchantModalTransactions] = useState<Transaction[] | undefined>(undefined)
   const [merchantModalPowerMode, setMerchantModalPowerMode] = useState(false)
   const [categoryPickerOpen, setCategoryPickerOpen] = useState(false)
   const [categoryPickerTransaction, setCategoryPickerTransaction] = useState<Transaction | null>(null)
@@ -107,15 +109,31 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
         if (!tx) return
 
         if (action.key.toLowerCase() === 'r') {
-          setMerchantModalTransaction(tx)
-          setMerchantModalPowerMode(action.shiftKey)
-          setMerchantModalOpen(true)
+          if (multiSelect.selectionCount > 1) {
+            // Batch mode: fetch full transaction objects for selected IDs
+            const selectedIdArray = Array.from(multiSelect.selectedIds).map(Number)
+            db.transactions.bulkGet(selectedIdArray).then((txs) => {
+              const validTxs = txs.filter(Boolean) as Transaction[]
+              if (validTxs.length > 1) {
+                setMerchantModalTransactions(validTxs)
+                setMerchantModalTransaction(null)
+                setMerchantModalPowerMode(false)
+                setMerchantModalOpen(true)
+              }
+            })
+          } else {
+            // Single mode (existing behavior)
+            setMerchantModalTransaction(tx)
+            setMerchantModalTransactions(undefined)
+            setMerchantModalPowerMode(action.shiftKey)
+            setMerchantModalOpen(true)
+          }
         } else if (action.key.toLowerCase() === 'c') {
           setCategoryPickerTransaction(tx)
           setCategoryPickerOpen(true)
         }
       },
-      [transactions, anyModalOpen],
+      [transactions, anyModalOpen, multiSelect.selectionCount, multiSelect.selectedIds],
     ),
     onShiftNavigate: handleShiftNavigate,
     onNavigate: handleNavigate,
@@ -282,7 +300,13 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
         open={merchantModalOpen}
         onOpenChange={setMerchantModalOpen}
         transaction={merchantModalTransaction}
+        transactions={merchantModalTransactions}
         powerMode={merchantModalPowerMode}
+        onComplete={() => {
+          if (merchantModalTransactions) {
+            multiSelect.clearSelection()
+          }
+        }}
         onCascade={triggerCascade}
       />
 
