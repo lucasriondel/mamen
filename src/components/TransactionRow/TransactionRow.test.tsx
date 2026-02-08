@@ -44,7 +44,18 @@ describe('TransactionRow', () => {
 
     const row = container.firstElementChild!
     expect(row).toHaveAttribute('aria-selected', 'true')
-    expect(row.className).toContain('bg-muted')
+    expect(row.className).toContain('border-ring')
+    expect((row as HTMLElement).style.backgroundColor).toBe('hsl(var(--ring) / 0.08)')
+  })
+
+  it('shows checkbox indicator when selected', () => {
+    render(<TransactionRow transaction={makeTransaction()} isSelected={true} />)
+    expect(screen.getByTestId('selection-checkbox')).toBeInTheDocument()
+  })
+
+  it('does not show checkbox when not selected', () => {
+    render(<TransactionRow transaction={makeTransaction()} />)
+    expect(screen.queryByTestId('selection-checkbox')).not.toBeInTheDocument()
   })
 
   it('does not apply selected styling by default', () => {
@@ -134,12 +145,23 @@ describe('TransactionRow', () => {
     const focusedRow = focusedContainer.firstElementChild!
     const selectedRow = selectedContainer.firstElementChild!
 
-    // Focused has ring but not bg-muted (only bg-muted without hover: prefix)
+    // Focused has ring but not selected border
     expect(focusedRow.className).toContain('ring-2')
-    expect(focusedRow.className).not.toMatch(/(?<!\S)bg-muted(?!\/)/);
-    // Selected has bg-muted but not ring-2
-    expect(selectedRow.className).toMatch(/(?<!\S)bg-muted(?!\/)/);
+    expect(focusedRow.className).not.toContain('border-ring')
+    // Selected has border-ring but not ring-2
+    expect(selectedRow.className).toContain('border-ring')
     expect(selectedRow.className).not.toContain('ring-2')
+  })
+
+  it('applies combined styling when both focused and selected', () => {
+    const { container } = render(
+      <TransactionRow transaction={makeTransaction()} isFocused={true} isSelected={true} />
+    )
+
+    const row = container.firstElementChild as HTMLElement
+    expect(row.className).toContain('ring-2')
+    expect(row.className).toContain('border-ring')
+    expect(row.style.backgroundColor).toBe('hsl(var(--ring) / 0.12)')
   })
 
   it('hides amber border when focused on unmatched row', () => {

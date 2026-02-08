@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, type RefObject } from 'react'
+import { useState, useCallback, useEffect, useRef, type RefObject } from 'react'
 
 type KeyAction = {
   key: string
@@ -11,6 +11,9 @@ type UseKeyboardNavigationOptions = {
   onSelect?: (index: number) => void
   onEscape?: () => void
   onAction?: (action: KeyAction) => void
+  onShiftNavigate?: (index: number) => void
+  onNavigate?: (index: number) => void
+  onToggleSelect?: (index: number) => void
   containerRef: RefObject<HTMLElement | null>
   enabled?: boolean
 }
@@ -26,10 +29,16 @@ export const useKeyboardNavigation = ({
   onSelect,
   onEscape,
   onAction,
+  onShiftNavigate,
+  onNavigate,
+  onToggleSelect,
   containerRef,
   enabled = true,
 }: UseKeyboardNavigationOptions): UseKeyboardNavigationReturn => {
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null)
+
+  const focusedIndexRef = useRef(focusedIndex)
+  focusedIndexRef.current = focusedIndex
 
   const handleKeyDown = useCallback(
     (event: KeyboardEvent) => {
@@ -44,33 +53,52 @@ export const useKeyboardNavigation = ({
         return
       }
 
-      switch (event.key) {
+      const key = event.key.toLowerCase()
+      const prev = focusedIndexRef.current
+
+      switch (key) {
         case 'j':
-        case 'ArrowDown':
+        case 'arrowdown': {
           event.preventDefault()
-          setFocusedIndex((prev) => {
-            if (prev === null) return 0
-            return Math.min(prev + 1, itemCount - 1)
-          })
+          const newIndex = prev === null ? 0 : Math.min(prev + 1, itemCount - 1)
+          setFocusedIndex(newIndex)
+          if (event.shiftKey) {
+            onShiftNavigate?.(newIndex)
+          } else {
+            onNavigate?.(newIndex)
+          }
           break
+        }
 
         case 'k':
-        case 'ArrowUp':
+        case 'arrowup': {
           event.preventDefault()
-          setFocusedIndex((prev) => {
-            if (prev === null) return 0
-            return Math.max(prev - 1, 0)
-          })
+          const newIndex = prev === null ? 0 : Math.max(prev - 1, 0)
+          setFocusedIndex(newIndex)
+          if (event.shiftKey) {
+            onShiftNavigate?.(newIndex)
+          } else {
+            onNavigate?.(newIndex)
+          }
           break
+        }
 
-        case 'Enter':
-          if (focusedIndex !== null && onSelect) {
+        case 'enter':
+          if (prev !== null && onSelect) {
             event.preventDefault()
-            onSelect(focusedIndex)
+            onSelect(prev)
           }
           break
 
-        case 'Escape':
+        case ' ':
+        case 'x':
+          if (prev !== null) {
+            event.preventDefault()
+            onToggleSelect?.(prev)
+          }
+          break
+
+        case 'escape':
           event.preventDefault()
           setFocusedIndex(null)
           onEscape?.()
@@ -78,13 +106,13 @@ export const useKeyboardNavigation = ({
           break
 
         default:
-          if (focusedIndex !== null && onAction) {
-            onAction({ key: event.key, shiftKey: event.shiftKey, index: focusedIndex })
+          if (prev !== null && onAction) {
+            onAction({ key: event.key, shiftKey: event.shiftKey, index: prev })
           }
           break
       }
     },
-    [enabled, itemCount, focusedIndex, onSelect, onEscape, onAction, containerRef]
+    [enabled, itemCount, onSelect, onEscape, onAction, onShiftNavigate, onNavigate, onToggleSelect, containerRef]
   )
 
   useEffect(() => {

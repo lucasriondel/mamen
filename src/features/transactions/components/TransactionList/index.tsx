@@ -5,9 +5,11 @@ import { ListIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { TransactionRow } from '@/components/TransactionRow'
 import { InboxZeroEmpty } from '@/components/InboxZeroEmpty'
+import { SelectionStatusBar } from '@/components/SelectionStatusBar'
 import { MerchantAssignmentModal } from '@/features/merchants/components/MerchantAssignmentModal'
 import { QuickCategoryPicker } from '../QuickCategoryPicker'
 import { useKeyboardNavigation } from '@/hooks/useKeyboardNavigation'
+import { useMultiSelect } from '@/hooks/useMultiSelect'
 import { useCascadeAnimation } from '@/hooks/useCascadeAnimation'
 import { useFilteredTransactions } from '../../hooks/useFilteredTransactions'
 import { useQuickCategoryAssign } from '../../hooks/useQuickCategoryAssign'
@@ -39,7 +41,49 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
   const navigate = useNavigate()
   const highlightHandledRef = useRef<number | undefined>(undefined)
 
+  const multiSelect = useMultiSelect()
+
+  // Track previous focused index for shift-navigate anchor
+  const prevFocusedRef = useRef<number | null>(null)
+
   const anyModalOpen = merchantModalOpen || categoryPickerOpen
+
+  const handleShiftNavigate = useCallback(
+    (index: number) => {
+      const tx = transactions[index]
+      if (!tx?.id) return
+      const id = String(tx.id)
+
+      if (!multiSelect.isSelecting && prevFocusedRef.current !== null) {
+        // First shift-navigate: also select the anchor (the item we came from)
+        const anchorTx = transactions[prevFocusedRef.current]
+        if (anchorTx?.id) {
+          multiSelect.extendSelection(String(anchorTx.id))
+        }
+      }
+
+      multiSelect.extendSelection(id)
+    },
+    [transactions, multiSelect],
+  )
+
+  const handleNavigate = useCallback(
+    (_index: number) => {
+      if (multiSelect.isSelecting) {
+        multiSelect.clearSelection()
+      }
+    },
+    [multiSelect],
+  )
+
+  const handleToggleSelect = useCallback(
+    (index: number) => {
+      const tx = transactions[index]
+      if (!tx?.id) return
+      multiSelect.toggleSelection(String(tx.id))
+    },
+    [transactions, multiSelect],
+  )
 
   const { focusedIndex } = useKeyboardNavigation({
     itemCount: transactions.length,
@@ -50,7 +94,11 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
       }
     },
     onEscape: () => {
-      setSelectedId(null)
+      if (multiSelect.isSelecting) {
+        multiSelect.clearSelection()
+      } else {
+        setSelectedId(null)
+      }
     },
     onAction: useCallback(
       (action) => {
@@ -69,9 +117,16 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
       },
       [transactions, anyModalOpen],
     ),
+    onShiftNavigate: handleShiftNavigate,
+    onNavigate: handleNavigate,
+    onToggleSelect: handleToggleSelect,
     containerRef: parentRef,
     enabled: !anyModalOpen,
   })
+
+  useEffect(() => {
+    prevFocusedRef.current = focusedIndex
+  }, [focusedIndex])
 
   const virtualizer = useVirtualizer({
     count: transactions.length,
@@ -117,8 +172,22 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
 
   const handleRowClick = useCallback((id: number | undefined) => {
     if (id === undefined) return
-    setSelectedId((prev) => (prev === id ? null : id))
-  }, [])
+    if (multiSelect.isSelecting) {
+      multiSelect.toggleSelection(String(id))
+    } else {
+      setSelectedId((prev) => (prev === id ? null : id))
+    }
+  }, [multiSelect])
+
+  const isRowSelected = useCallback(
+    (tx: Transaction) => {
+      if (multiSelect.isSelecting) {
+        return multiSelect.isSelected(String(tx.id))
+      }
+      return selectedId === tx.id
+    },
+    [multiSelect, selectedId],
+  )
 
   if (isLoading) {
     return <div className="p-4 text-muted-foreground">Loading...</div>
@@ -158,6 +227,7 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
         ref={parentRef}
         tabIndex={0}
         role="listbox"
+        aria-multiselectable={multiSelect.isSelecting}
         aria-activedescendant={
           focusedIndex !== null ? `tx-${transactions[focusedIndex]?.id}` : undefined
         }
@@ -172,12 +242,13 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
         >
           {virtualizer.getVirtualItems().map((virtualRow) => {
             const transaction = transactions[virtualRow.index]
+            const selected = isRowSelected(transaction)
             return (
               <div
                 key={transaction.id ?? virtualRow.index}
                 id={`tx-${transaction.id}`}
                 role="option"
-                aria-selected={selectedId === transaction.id}
+                aria-selected={selected}
                 style={{
                   position: 'absolute',
                   top: 0,
@@ -190,7 +261,7 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
                 <TransactionRow
                   transaction={transaction}
                   isFocused={focusedIndex === virtualRow.index}
-                  isSelected={selectedId === transaction.id}
+                  isSelected={selected}
                   isHighlighted={animatingIdSet.has(String(transaction.id)) && (animationPhase === 'highlight' || animationPhase === 'settle')}
                   badgeAnimating={animatingIdSet.has(String(transaction.id)) && animationPhase === 'badge'}
                   cascadeIndex={animatingIdSet.has(String(transaction.id)) ? animatingIds.indexOf(String(transaction.id)) : undefined}
@@ -201,6 +272,11 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
           })}
         </div>
       </div>
+
+      <SelectionStatusBar
+        count={multiSelect.selectionCount}
+        onClear={multiSelect.clearSelection}
+      />
 
       <MerchantAssignmentModal
         open={merchantModalOpen}

@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils'
+import { CheckIcon } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { CategoryBadge } from '@/components/CategoryBadge'
 import { formatCurrency } from '@/lib/utils/formatCurrency'
@@ -28,27 +29,40 @@ export function TransactionRow({
 }: TransactionRowProps): React.ReactElement {
   const isUnmatched = !transaction.merchantId && !transaction.manualCategory
 
-  const cascadeStyle = isHighlighted && cascadeIndex !== undefined
-    ? { '--cascade-delay': `${cascadeIndex * STAGGER_MS}ms` } as React.CSSProperties
-    : undefined
+  const rowStyle: React.CSSProperties = {
+    ...(isHighlighted && cascadeIndex !== undefined
+      ? { '--cascade-delay': `${cascadeIndex * STAGGER_MS}ms` } as React.CSSProperties
+      : {}),
+    ...(isSelected
+      ? { backgroundColor: 'hsl(var(--ring) / 0.08)' }
+      : {}),
+    ...(isSelected && isFocused
+      ? { backgroundColor: 'hsl(var(--ring) / 0.12)' }
+      : {}),
+  }
 
   return (
     <div
       className={cn(
         'flex items-center h-12 px-4 gap-4 cursor-pointer',
-        'hover:bg-muted/50 transition-colors',
+        'hover:bg-muted/50 transition-colors duration-100',
         isFocused && 'ring-2 ring-ring ring-offset-2 ring-offset-background z-10',
-        isSelected && 'bg-muted border-l-2 border-primary',
+        isSelected && 'border-l-2 border-ring',
         !isFocused && !isSelected && isUnmatched && 'border-l-2 border-amber-500/50',
         isHighlighted && 'cascade-highlight',
       )}
-      style={cascadeStyle}
+      style={rowStyle}
       onClick={onClick}
       role="row"
       tabIndex={0}
       aria-selected={isSelected}
     >
-      <div className="w-20 text-sm text-muted-foreground shrink-0">
+      {isSelected && (
+        <div className="shrink-0 w-5 h-5 rounded-sm bg-ring flex items-center justify-center -ml-1" data-testid="selection-checkbox">
+          <CheckIcon className="w-3 h-3 text-background" />
+        </div>
+      )}
+      <div className={cn('w-20 text-sm text-muted-foreground shrink-0', isSelected && 'w-16')}>
         {formatDate(transaction.date)}
       </div>
 

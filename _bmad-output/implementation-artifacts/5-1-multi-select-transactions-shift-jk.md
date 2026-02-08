@@ -1,6 +1,6 @@
 # Story 5.1: Multi-Select Transactions (Shift+J/K)
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -49,10 +49,10 @@ So that **I can perform batch operations efficiently (FR17)**.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Create useMultiSelect hook (AC: #1, #2, #3, #5, #6, #7)
-  - [ ] Create `src/hooks/useMultiSelect.ts`
-  - [ ] Create `src/hooks/useMultiSelect.test.ts`
-  - [ ] Props/return type:
+- [x] Task 1: Create useMultiSelect hook (AC: #1, #2, #3, #5, #6, #7)
+  - [x]Create `src/hooks/useMultiSelect.ts`
+  - [x]Create `src/hooks/useMultiSelect.test.ts`
+  - [x]Props/return type:
     ```typescript
     type UseMultiSelectReturn = {
       selectedIds: Set<string>
@@ -66,40 +66,40 @@ So that **I can perform batch operations efficiently (FR17)**.
       selectRange: (fromId: string, toId: string, orderedIds: string[]) => void
     }
     ```
-  - [ ] Selection anchor: Track the first selected item for range operations
-  - [ ] Range selection: `extendSelection` adds all items between anchor and target
-  - [ ] Toggle selection: `toggleSelection` for non-contiguous selection (Space/X key)
-  - [ ] Clear on Esc or on plain J/K navigation
-  - [ ] Use `Set<string>` for O(1) lookup performance
-  - [ ] Named exports only, use `type` not `interface`
+  - [x]Selection anchor: Track the first selected item for range operations
+  - [x]Range selection: `extendSelection` adds all items between anchor and target
+  - [x]Toggle selection: `toggleSelection` for non-contiguous selection (Space/X key)
+  - [x]Clear on Esc or on plain J/K navigation
+  - [x]Use `Set<string>` for O(1) lookup performance
+  - [x]Named exports only, use `type` not `interface`
 
-- [ ] Task 2: Integrate Shift+J/K into useKeyboardNavigation hook (AC: #1, #2, #3, #6)
-  - [ ] Modify `src/hooks/useKeyboardNavigation.ts` (or create if not yet present)
-  - [ ] Detect `Shift+J` and `Shift+K` key combinations
-  - [ ] On `Shift+J`:
+- [x] Task 2: Integrate Shift+J/K into useKeyboardNavigation hook (AC: #1, #2, #3, #6)
+  - [x]Modify `src/hooks/useKeyboardNavigation.ts` (or create if not yet present)
+  - [x]Detect `Shift+J` and `Shift+K` key combinations
+  - [x]On `Shift+J`:
     1. If no selection yet, set current focused item as anchor
     2. Move focus to next item
     3. Call `extendSelection` with new focused item
-  - [ ] On `Shift+K`:
+  - [x]On `Shift+K`:
     1. If no selection yet, set current focused item as anchor
     2. Move focus to previous item
     3. Call `extendSelection` with new focused item
-  - [ ] On plain `J`/`K` (no Shift):
+  - [x]On plain `J`/`K` (no Shift):
     1. Call `clearSelection()`
     2. Standard single-item navigation
-  - [ ] Ensure keyboard events don't fire when input/textarea is focused
-  - [ ] Performance: <16ms response (60fps) for all keyboard interactions
+  - [x]Ensure keyboard events don't fire when input/textarea is focused
+  - [x]Performance: <16ms response (60fps) for all keyboard interactions
 
-- [ ] Task 3: Add non-contiguous selection via Space/X key (AC: #7)
-  - [ ] In keyboard handler, detect `Space` or `X` key press on focused transaction
-  - [ ] Call `toggleSelection(focusedId)` to toggle selection state
-  - [ ] Do NOT move focus after toggle (user stays on current item)
-  - [ ] If toggling off the last selected item, clear selection mode
-  - [ ] Prevent `Space` from scrolling the page (call `e.preventDefault()`)
+- [x] Task 3: Add non-contiguous selection via Space/X key (AC: #7)
+  - [x]In keyboard handler, detect `Space` or `X` key press on focused transaction
+  - [x]Call `toggleSelection(focusedId)` to toggle selection state
+  - [x]Do NOT move focus after toggle (user stays on current item)
+  - [x]If toggling off the last selected item, clear selection mode
+  - [x]Prevent `Space` from scrolling the page (call `e.preventDefault()`)
 
-- [ ] Task 4: Update TransactionRow to show selected state (AC: #4)
-  - [ ] Modify `src/components/TransactionRow/index.tsx`
-  - [ ] Add `isSelected` prop to TransactionRow:
+- [x] Task 4: Update TransactionRow to show selected state (AC: #4)
+  - [x]Modify `src/components/TransactionRow/index.tsx`
+  - [x]Add `isSelected` prop to TransactionRow:
     ```typescript
     type TransactionRowProps = {
       // ... existing props
@@ -107,76 +107,76 @@ So that **I can perform batch operations efficiently (FR17)**.
       onToggleSelect?: () => void
     }
     ```
-  - [ ] Selected state visual:
+  - [x]Selected state visual:
     - Background: `hsl(var(--ring) / 0.1)` subtle highlight
     - Left border: 2px solid `hsl(var(--ring))` accent indicator
     - Checkbox: Show a small filled checkbox on the left when selected
-  - [ ] Transition: Smooth 100ms transition for selection state changes
-  - [ ] Ensure selected state is visually distinct from focused state
-  - [ ] Selected + Focused: Both highlight + focus ring visible
+  - [x]Transition: Smooth 100ms transition for selection state changes
+  - [x]Ensure selected state is visually distinct from focused state
+  - [x]Selected + Focused: Both highlight + focus ring visible
 
-- [ ] Task 5: Create SelectionStatusBar component (AC: #4)
-  - [ ] Create `src/components/SelectionStatusBar/index.tsx`
-  - [ ] Create `src/components/SelectionStatusBar/SelectionStatusBar.test.tsx`
-  - [ ] Props type:
+- [x] Task 5: Create SelectionStatusBar component (AC: #4)
+  - [x]Create `src/components/SelectionStatusBar/index.tsx`
+  - [x]Create `src/components/SelectionStatusBar/SelectionStatusBar.test.tsx`
+  - [x]Props type:
     ```typescript
     type SelectionStatusBarProps = {
       count: number
       onClear: () => void
     }
     ```
-  - [ ] Render when `count > 0`:
+  - [x]Render when `count > 0`:
     ```
     ┌─────────────────────────────────────────────────────────────┐
     │  ✓ 4 selected     [R] Assign merchant  [C] Category  [Esc] Clear │
     └─────────────────────────────────────────────────────────────┘
     ```
-  - [ ] Position: Fixed bottom bar or floating indicator above transaction list
-  - [ ] Show available batch actions as hints (R, C for future stories 5.2 and 5.3)
-  - [ ] Show Esc to clear
-  - [ ] Animate in/out (slide up on appear, slide down on disappear)
-  - [ ] Respect `prefers-reduced-motion`
+  - [x]Position: Fixed bottom bar or floating indicator above transaction list
+  - [x]Show available batch actions as hints (R, C for future stories 5.2 and 5.3)
+  - [x]Show Esc to clear
+  - [x]Animate in/out (slide up on appear, slide down on disappear)
+  - [x]Respect `prefers-reduced-motion`
 
-- [ ] Task 6: Wire selection into TransactionList (AC: #1-7)
-  - [ ] Modify `src/features/transactions/components/TransactionList/index.tsx`
-  - [ ] Instantiate `useMultiSelect` hook
-  - [ ] Pass `isSelected` prop to each `TransactionRow`
-  - [ ] Render `SelectionStatusBar` when selection count > 0
-  - [ ] Ensure virtualized list (TanStack Virtual) re-renders selected rows correctly
-  - [ ] Pass ordered transaction IDs to multi-select for range calculation
-  - [ ] Wire Esc key to clear selection
+- [x] Task 6: Wire selection into TransactionList (AC: #1-7)
+  - [x]Modify `src/features/transactions/components/TransactionList/index.tsx`
+  - [x]Instantiate `useMultiSelect` hook
+  - [x]Pass `isSelected` prop to each `TransactionRow`
+  - [x]Render `SelectionStatusBar` when selection count > 0
+  - [x]Ensure virtualized list (TanStack Virtual) re-renders selected rows correctly
+  - [x]Pass ordered transaction IDs to multi-select for range calculation
+  - [x]Wire Esc key to clear selection
 
-- [ ] Task 7: Handle selection with virtualized scrolling (AC: #3, #4)
-  - [ ] Ensure selection state persists when rows scroll out of view
-  - [ ] Selection stored in `useMultiSelect` hook (not in row component state)
-  - [ ] When scrolling, re-entering rows check `isSelected(id)` from the hook
-  - [ ] TanStack Virtual only renders visible rows; selection state is centralized
-  - [ ] Scroll-into-view: When extending selection, ensure the newly selected row is visible
+- [x] Task 7: Handle selection with virtualized scrolling (AC: #3, #4)
+  - [x]Ensure selection state persists when rows scroll out of view
+  - [x]Selection stored in `useMultiSelect` hook (not in row component state)
+  - [x]When scrolling, re-entering rows check `isSelected(id)` from the hook
+  - [x]TanStack Virtual only renders visible rows; selection state is centralized
+  - [x]Scroll-into-view: When extending selection, ensure the newly selected row is visible
 
-- [ ] Task 8: Accessibility for multi-select (AC: #4)
-  - [ ] Transaction rows: `aria-selected="true"` when selected
-  - [ ] Selection count announced via `aria-live="polite"` region
-  - [ ] Screen reader: "4 transactions selected. Press Escape to clear selection."
-  - [ ] Selection status bar: `role="status"` with live region
-  - [ ] Ensure focus management works correctly with selection
+- [x] Task 8: Accessibility for multi-select (AC: #4)
+  - [x]Transaction rows: `aria-selected="true"` when selected
+  - [x]Selection count announced via `aria-live="polite"` region
+  - [x]Screen reader: "4 transactions selected. Press Escape to clear selection."
+  - [x]Selection status bar: `role="status"` with live region
+  - [x]Ensure focus management works correctly with selection
 
-- [ ] Task 9: Write unit and integration tests (AC: all)
-  - [ ] Test: Shift+J extends selection to next item
-  - [ ] Test: Shift+K extends selection to previous item
-  - [ ] Test: Continued Shift+J/K keeps extending selection
-  - [ ] Test: Plain J/K clears selection and moves focus
-  - [ ] Test: Esc clears all selections
-  - [ ] Test: Space/X toggles individual selection
-  - [ ] Test: Non-contiguous selection via Space/X works
-  - [ ] Test: Selection count updates in real-time
-  - [ ] Test: Selected rows show visual state (checkbox, highlight)
-  - [ ] Test: SelectionStatusBar appears when count > 0
-  - [ ] Test: SelectionStatusBar disappears when selection cleared
-  - [ ] Test: Selection persists across virtual scroll (rows leaving/entering view)
-  - [ ] Test: Selection works with 1000+ transactions (performance)
-  - [ ] Test: aria-selected attribute toggles correctly
-  - [ ] Test: Shift+J at last item doesn't crash
-  - [ ] Test: Shift+K at first item doesn't crash
+- [x] Task 9: Write unit and integration tests (AC: all)
+  - [x]Test: Shift+J extends selection to next item
+  - [x]Test: Shift+K extends selection to previous item
+  - [x]Test: Continued Shift+J/K keeps extending selection
+  - [x]Test: Plain J/K clears selection and moves focus
+  - [x]Test: Esc clears all selections
+  - [x]Test: Space/X toggles individual selection
+  - [x]Test: Non-contiguous selection via Space/X works
+  - [x]Test: Selection count updates in real-time
+  - [x]Test: Selected rows show visual state (checkbox, highlight)
+  - [x]Test: SelectionStatusBar appears when count > 0
+  - [x]Test: SelectionStatusBar disappears when selection cleared
+  - [x]Test: Selection persists across virtual scroll (rows leaving/entering view)
+  - [x]Test: Selection works with 1000+ transactions (performance)
+  - [x]Test: aria-selected attribute toggles correctly
+  - [x]Test: Shift+J at last item doesn't crash
+  - [x]Test: Shift+K at first item doesn't crash
 
 ## Dev Notes
 
@@ -463,10 +463,37 @@ Before marking complete:
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.6
 
 ### Debug Log References
 
+- Used `useRef` to track focusedIndex synchronously for keyboard navigation callbacks (React state batching prevented direct use in event handler)
+- Lowercase `event.key` in switch to handle both `j`/`J` and `k`/`K` uniformly when shift is held
+- `prevFocusedRef` tracks the previously-focused index so Shift+J/K can select the anchor item on first extend
+
 ### Completion Notes List
 
+- Created `useMultiSelect` hook with `Set<string>` for O(1) selection operations (15 unit tests)
+- Extended `useKeyboardNavigation` with `onShiftNavigate`, `onNavigate`, and `onToggleSelect` callbacks (24 tests total)
+- Added Space/X key toggle for non-contiguous selection with `preventDefault()` to stop page scroll
+- Updated TransactionRow selected state with `hsl(var(--ring) / 0.08)` background, `border-ring` left border, and CheckIcon checkbox indicator (24 tests total)
+- Created SelectionStatusBar with batch action hints (R, C), clear button, `role="status"`, `aria-live="polite"`, and `prefers-reduced-motion` animation support (8 tests)
+- Wired multi-select into TransactionList: centralized selection state survives virtual scroll, Esc clears multi-select first then single-select, click toggles during multi-select mode
+- Added `aria-multiselectable` to listbox when selecting, `aria-selected` reflects multi-select state on option elements
+- All 693 tests pass (1 pre-existing failure in accounts.test.tsx due to DOMMatrix/pdfjs-dist jsdom limitation)
+
+### Change Log
+
+- 2026-02-08: Implemented Story 5.1 - Multi-Select Transactions (Shift+J/K) with full keyboard support, visual selection state, SelectionStatusBar, virtualization support, and accessibility
+
 ### File List
+
+- src/hooks/useMultiSelect.ts (new)
+- src/hooks/useMultiSelect.test.ts (new)
+- src/hooks/useKeyboardNavigation.ts (modified)
+- src/hooks/useKeyboardNavigation.test.ts (modified)
+- src/components/TransactionRow/index.tsx (modified)
+- src/components/TransactionRow/TransactionRow.test.tsx (modified)
+- src/components/SelectionStatusBar/index.tsx (new)
+- src/components/SelectionStatusBar/SelectionStatusBar.test.tsx (new)
+- src/features/transactions/components/TransactionList/index.tsx (modified)
