@@ -1,6 +1,6 @@
 # Story 6.1: Spending Breakdown by Category
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -46,30 +46,30 @@ So that **I can answer "where does my money go?" at a glance (FR29)**.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Create dashboard feature module structure (AC: all)
-  - [ ] Create `src/features/dashboard/` directory
-  - [ ] Create `src/features/dashboard/index.ts` (feature exports)
-  - [ ] Create `src/features/dashboard/hooks/` directory
-  - [ ] Create `src/features/dashboard/components/` directory
+- [x] Task 1: Create dashboard feature module structure (AC: all)
+  - [x] Create `src/features/dashboard/` directory
+  - [x] Create `src/features/dashboard/index.ts` (feature exports)
+  - [x] Create `src/features/dashboard/hooks/` directory
+  - [x] Create `src/features/dashboard/components/` directory
 
-- [ ] Task 2: Create `useSpendingBreakdown` hook (AC: #1, #2, #3, #4, #6)
-  - [ ] Create `src/features/dashboard/hooks/useSpendingBreakdown.ts`
-  - [ ] Create `src/features/dashboard/hooks/useSpendingBreakdown.test.ts`
-  - [ ] Use `useLiveQuery` from Dexie to query transactions reactively
-  - [ ] Query logic:
+- [x] Task 2: Create `useSpendingBreakdown` hook (AC: #1, #2, #3, #4, #6)
+  - [x] Create `src/features/dashboard/hooks/useSpendingBreakdown.ts`
+  - [x] Create `src/features/dashboard/hooks/useSpendingBreakdown.test.ts`
+  - [x] Use `useLiveQuery` from Dexie to query transactions reactively
+  - [x] Query logic:
     ```typescript
     // Query all transactions (default: current month — Story 6.2 will add time period selection)
     // For now, show ALL transactions since there's no time filter yet
     const transactions = useLiveQuery(() => db.transactions.toArray())
     ```
-  - [ ] Aggregation logic:
+  - [x] Aggregation logic:
     - Group transactions by `categoryId` (parent category)
     - Sum amounts per category (negative amounts = expenses, positive = income)
     - Separate expenses from income
     - Calculate percentage of total for each category
     - Sort by absolute amount descending
     - Include "Uncategorized" for transactions without a category
-  - [ ] Return type:
+  - [x] Return type:
     ```typescript
     type SpendingBreakdownItem = {
       categoryId: string | null
@@ -88,14 +88,14 @@ So that **I can answer "where does my money go?" at a glance (FR29)**.
       uncategorizedCount: number
     }
     ```
-  - [ ] Map category IDs to display names using category data from Dexie
-  - [ ] Assign colors from the category color palette (see Dev Notes)
+  - [x] Map category IDs to display names using category data from Dexie
+  - [x] Assign colors from the category color palette (see Dev Notes)
 
-- [ ] Task 3: Create `CategoryBreakdown` component (AC: #1, #2, #3, #4)
-  - [ ] Create `src/features/dashboard/components/CategoryBreakdown/index.tsx`
-  - [ ] Create `src/features/dashboard/components/CategoryBreakdown/CategoryBreakdown.test.tsx`
-  - [ ] Display total spending at top: "Total Spending: €X,XXX.XX"
-  - [ ] Render each category as a row:
+- [x] Task 3: Create `CategoryBreakdown` component (AC: #1, #2, #3, #4)
+  - [x] Create `src/features/dashboard/components/CategoryBreakdown/index.tsx`
+  - [x] Create `src/features/dashboard/components/CategoryBreakdown/CategoryBreakdown.test.tsx`
+  - [x] Display total spending at top: "Total Spending: €X,XXX.XX"
+  - [x] Render each category as a row:
     ```
     ┌─────────────────────────────────────────────────────────────┐
     │ [Color] Shopping                    €1,200.00  (35%)        │
@@ -108,30 +108,30 @@ So that **I can answer "where does my money go?" at a glance (FR29)**.
     │ ████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░         │
     └─────────────────────────────────────────────────────────────┘
     ```
-  - [ ] Each row: category color dot, name, amount (monospace, right-aligned), percentage
-  - [ ] Proportional bar showing relative spend per category
-  - [ ] "Uncategorized" row uses muted/warning color and is visually distinct
-  - [ ] Categories sorted by amount descending
-  - [ ] Amounts formatted with `formatCurrency` utility (from `src/lib/utils/formatCurrency.ts`)
-  - [ ] Keyboard accessible: Tab to navigate categories, Enter to drill down (wired in Story 6.4)
-  - [ ] Focus ring on focused category row (per UX spec: `ring` color)
+  - [x] Each row: category color dot, name, amount (monospace, right-aligned), percentage
+  - [x] Proportional bar showing relative spend per category
+  - [x] "Uncategorized" row uses muted/warning color and is visually distinct
+  - [x] Categories sorted by amount descending
+  - [x] Amounts formatted with `formatCurrency` utility (from `src/lib/utils/formatCurrency.ts`)
+  - [x] Keyboard accessible: Tab to navigate categories, Enter to drill down (wired in Story 6.4)
+  - [x] Focus ring on focused category row (per UX spec: `ring` color)
 
-- [ ] Task 4: Create `SpendingSummary` component (AC: #3, #6)
-  - [ ] Create `src/features/dashboard/components/SpendingSummary/index.tsx`
-  - [ ] Create `src/features/dashboard/components/SpendingSummary/SpendingSummary.test.tsx`
-  - [ ] Display:
+- [x] Task 4: Create `SpendingSummary` component (AC: #3, #6)
+  - [x] Create `src/features/dashboard/components/SpendingSummary/index.tsx`
+  - [x] Create `src/features/dashboard/components/SpendingSummary/SpendingSummary.test.tsx`
+  - [x] Display:
     - Total expenses (sum of negative amounts)
     - Optionally show total income if positive transactions exist
     - Number of categories with spending
     - Number of uncategorized transactions (if > 0, show as warning)
-  - [ ] Use Card component from shadcn/ui for stats
-  - [ ] Amounts in monospace (JetBrains Mono per UX spec)
+  - [x] Use Card component from shadcn/ui for stats
+  - [x] Amounts in monospace (JetBrains Mono per UX spec)
 
-- [ ] Task 5: Create `DashboardPage` component (AC: #5, all)
-  - [ ] Create `src/features/dashboard/components/DashboardPage/index.tsx`
-  - [ ] Create `src/features/dashboard/components/DashboardPage/DashboardPage.test.tsx`
-  - [ ] Compose `SpendingSummary` + `CategoryBreakdown`
-  - [ ] Empty state when no transactions:
+- [x] Task 5: Create `DashboardPage` component (AC: #5, all)
+  - [x] Create `src/features/dashboard/components/DashboardPage/index.tsx`
+  - [x] Create `src/features/dashboard/components/DashboardPage/DashboardPage.test.tsx`
+  - [x] Compose `SpendingSummary` + `CategoryBreakdown`
+  - [x] Empty state when no transactions:
     ```
     ┌─────────────────────────────────────────────────────────────┐
     │                                                             │
@@ -143,17 +143,17 @@ So that **I can answer "where does my money go?" at a glance (FR29)**.
     │                                                             │
     └─────────────────────────────────────────────────────────────┘
     ```
-  - [ ] "Import Statements" button navigates to Accounts/Import page
-  - [ ] Page layout: SpendingSummary at top, CategoryBreakdown below
-  - [ ] Breadcrumb shows "Dashboard" (single segment)
+  - [x] "Import Statements" button navigates to Accounts/Import page
+  - [x] Page layout: SpendingSummary at top, CategoryBreakdown below
+  - [x] Breadcrumb shows "Dashboard" (single segment)
 
-- [ ] Task 6: Wire Dashboard route (AC: all)
-  - [ ] Modify `src/routes/index.tsx` (Dashboard route — this is the app home page)
-  - [ ] Render `DashboardPage` component
-  - [ ] Ensure sidebar "Dashboard" nav item is active when on this route
+- [x] Task 6: Wire Dashboard route (AC: all)
+  - [x] Modify `src/routes/index.tsx` (Dashboard route — this is the app home page)
+  - [x] Render `DashboardPage` component
+  - [x] Ensure sidebar "Dashboard" nav item is active when on this route
 
-- [ ] Task 7: Write tests (AC: all)
-  - [ ] `useSpendingBreakdown.test.ts`:
+- [x] Task 7: Write tests (AC: all)
+  - [x] `useSpendingBreakdown.test.ts`:
     - Test: Returns empty breakdown when no transactions
     - Test: Correctly groups expenses by category
     - Test: Separates income from expenses
@@ -161,18 +161,18 @@ So that **I can answer "where does my money go?" at a glance (FR29)**.
     - Test: Includes "Uncategorized" for transactions without category
     - Test: Sorts categories by amount descending
     - Test: Assigns correct colors to categories
-  - [ ] `CategoryBreakdown.test.tsx`:
+  - [x] `CategoryBreakdown.test.tsx`:
     - Test: Renders category rows with name, amount, percentage
     - Test: Renders proportional bars
     - Test: "Uncategorized" row uses distinct styling
     - Test: Empty state shown when no data
     - Test: Amounts formatted with currency symbol
     - Test: Categories sorted by amount
-  - [ ] `SpendingSummary.test.tsx`:
+  - [x] `SpendingSummary.test.tsx`:
     - Test: Shows total expenses
     - Test: Shows income separately when present
     - Test: Shows uncategorized count as warning
-  - [ ] `DashboardPage.test.tsx`:
+  - [x] `DashboardPage.test.tsx`:
     - Test: Renders empty state when no transactions
     - Test: Renders SpendingSummary and CategoryBreakdown when data exists
     - Test: "Import Statements" button navigates correctly
@@ -439,10 +439,35 @@ Before marking complete:
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.6
 
 ### Debug Log References
 
+No blocking issues encountered during implementation.
+
 ### Completion Notes List
 
+- Implemented `useSpendingBreakdown` hook using `useLiveQuery` for reactive Dexie queries. Groups transactions by parent categoryId, separates income (positive) from expenses (negative), calculates percentages, and sorts by absolute amount descending.
+- Created `CategoryBreakdown` component with proportional bars built with Tailwind CSS (no charting library). Each category row shows color dot, name, formatted amount, percentage, and a proportional bar. Uncategorized items use muted color and italic styling. Rows are keyboard accessible with `tabIndex={0}` and focus ring.
+- Created `SpendingSummary` component using shadcn Card components to display total expenses, optional income, category count, and uncategorized warning count.
+- Created `DashboardPage` component composing SpendingSummary + CategoryBreakdown with empty state using existing `EmptyState` component. "Import Statement" button navigates to `/accounts`.
+- Updated `src/routes/index.tsx` to render the new `DashboardPage` from the dashboard feature module, replacing the previous placeholder implementation.
+- All 23 new tests pass across 4 test files. No regressions (pre-existing `accounts.test.tsx` pdfjs-dist/DOMMatrix failure is unrelated).
+- Used `type` not `interface`, named exports only, co-located tests, `useLiveQuery` for data access (no state duplication). Category colors sourced from Dexie categories table.
+
+### Change Log
+
+- 2026-02-08: Implemented Story 6.1 - Dashboard spending breakdown by category with hook, 3 components, route wiring, and 23 tests.
+
 ### File List
+
+- src/features/dashboard/index.ts (new)
+- src/features/dashboard/hooks/useSpendingBreakdown.ts (new)
+- src/features/dashboard/hooks/useSpendingBreakdown.test.ts (new)
+- src/features/dashboard/components/CategoryBreakdown/index.tsx (new)
+- src/features/dashboard/components/CategoryBreakdown/CategoryBreakdown.test.tsx (new)
+- src/features/dashboard/components/SpendingSummary/index.tsx (new)
+- src/features/dashboard/components/SpendingSummary/SpendingSummary.test.tsx (new)
+- src/features/dashboard/components/DashboardPage/index.tsx (new)
+- src/features/dashboard/components/DashboardPage/DashboardPage.test.tsx (new)
+- src/routes/index.tsx (modified)
