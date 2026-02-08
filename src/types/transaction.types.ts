@@ -6,7 +6,9 @@ export type Transaction = {
   rawMerchantString: string
   merchantId?: number
   categoryId?: number
+  subcategoryId?: number
   categoryOverride?: string
+  manualCategory?: boolean
   isRefund?: boolean
   linkedRefundId?: number
   importedAt: Date

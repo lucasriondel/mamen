@@ -30,10 +30,10 @@ describe('TransactionRow', () => {
     expect(screen.getByText('Unmatched')).toBeInTheDocument()
   })
 
-  it('shows Category badge when merchantId is set', () => {
+  it('shows Matched badge when merchantId is set but no categoryId', () => {
     render(<TransactionRow transaction={makeTransaction({ merchantId: 5 })} />)
 
-    expect(screen.getByText('Category')).toBeInTheDocument()
+    expect(screen.getByText('Matched')).toBeInTheDocument()
     expect(screen.queryByText('Unmatched')).not.toBeInTheDocument()
   })
 
@@ -152,6 +152,29 @@ describe('TransactionRow', () => {
 
     const row = container.firstElementChild!
     expect(row.className).toContain('ring-2')
+    expect(row.className).not.toContain('border-amber-500/50')
+  })
+
+  it('shows Manual badge when manualCategory is true', () => {
+    render(
+      <TransactionRow
+        transaction={makeTransaction({ manualCategory: true, categoryId: 1 })}
+      />
+    )
+
+    expect(screen.getByText('Manual')).toBeInTheDocument()
+    expect(screen.queryByText('Unmatched')).not.toBeInTheDocument()
+  })
+
+  it('does not show Unmatched when manualCategory is true even without merchantId', () => {
+    const { container } = render(
+      <TransactionRow
+        transaction={makeTransaction({ manualCategory: true, categoryId: 1, merchantId: undefined })}
+      />
+    )
+
+    expect(screen.queryByText('Unmatched')).not.toBeInTheDocument()
+    const row = container.firstElementChild!
     expect(row.className).not.toContain('border-amber-500/50')
   })
 })

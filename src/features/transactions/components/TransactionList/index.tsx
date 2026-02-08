@@ -6,8 +6,10 @@ import { Button } from '@/components/ui/button'
 import { TransactionRow } from '@/components/TransactionRow'
 import { InboxZeroEmpty } from '@/components/InboxZeroEmpty'
 import { MerchantAssignmentModal } from '@/features/merchants/components/MerchantAssignmentModal'
+import { QuickCategoryPicker } from '../QuickCategoryPicker'
 import { useKeyboardNavigation } from '@/hooks/useKeyboardNavigation'
 import { useFilteredTransactions } from '../../hooks/useFilteredTransactions'
+import { useQuickCategoryAssign } from '../../hooks/useQuickCategoryAssign'
 import { useFocusMode } from '@/context/FocusModeContext'
 import type { Transaction } from '@/types'
 
@@ -27,9 +29,14 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
   const [merchantModalOpen, setMerchantModalOpen] = useState(false)
   const [merchantModalTransaction, setMerchantModalTransaction] = useState<Transaction | null>(null)
   const [merchantModalPowerMode, setMerchantModalPowerMode] = useState(false)
+  const [categoryPickerOpen, setCategoryPickerOpen] = useState(false)
+  const [categoryPickerTransaction, setCategoryPickerTransaction] = useState<Transaction | null>(null)
+  const { assignCategory } = useQuickCategoryAssign()
   const parentRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
   const highlightHandledRef = useRef<number | undefined>(undefined)
+
+  const anyModalOpen = merchantModalOpen || categoryPickerOpen
 
   const { focusedIndex } = useKeyboardNavigation({
     itemCount: transactions.length,
@@ -44,19 +51,23 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
     },
     onAction: useCallback(
       (action) => {
-        if (action.key.toLowerCase() === 'r' && !merchantModalOpen) {
-          const tx = transactions[action.index]
-          if (tx) {
-            setMerchantModalTransaction(tx)
-            setMerchantModalPowerMode(action.shiftKey)
-            setMerchantModalOpen(true)
-          }
+        if (anyModalOpen) return
+        const tx = transactions[action.index]
+        if (!tx) return
+
+        if (action.key.toLowerCase() === 'r') {
+          setMerchantModalTransaction(tx)
+          setMerchantModalPowerMode(action.shiftKey)
+          setMerchantModalOpen(true)
+        } else if (action.key.toLowerCase() === 'c') {
+          setCategoryPickerTransaction(tx)
+          setCategoryPickerOpen(true)
         }
       },
-      [transactions, merchantModalOpen],
+      [transactions, anyModalOpen],
     ),
     containerRef: parentRef,
-    enabled: !merchantModalOpen,
+    enabled: !anyModalOpen,
   })
 
   const virtualizer = useVirtualizer({
@@ -190,6 +201,18 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
         onOpenChange={setMerchantModalOpen}
         transaction={merchantModalTransaction}
         powerMode={merchantModalPowerMode}
+      />
+
+      <QuickCategoryPicker
+        open={categoryPickerOpen}
+        onOpenChange={setCategoryPickerOpen}
+        onCategorySelect={(categoryId, subcategoryId) => {
+          if (categoryPickerTransaction?.id !== undefined) {
+            assignCategory(categoryPickerTransaction.id, categoryId, subcategoryId)
+          }
+          setCategoryPickerOpen(false)
+          setCategoryPickerTransaction(null)
+        }}
       />
     </div>
   )

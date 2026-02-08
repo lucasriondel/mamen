@@ -74,4 +74,21 @@ describe('useFilteredTransactions', () => {
       expect(result.current.isLoading).toBe(false)
     })
   })
+
+  it('excludes manually categorized transactions from unmatched filter', async () => {
+    await db.transactions.bulkAdd([
+      makeTransaction({ rawMerchantString: 'UNMATCHED' }),
+      makeTransaction({ rawMerchantString: 'MANUAL', manualCategory: true, categoryId: 1 }),
+      makeTransaction({ rawMerchantString: 'MATCHED', merchantId: 1 }),
+    ])
+
+    const { result } = renderHook(() =>
+      useFilteredTransactions({ unmatchedOnly: true }),
+    )
+
+    await waitFor(() => {
+      expect(result.current.transactions).toHaveLength(1)
+      expect(result.current.transactions[0].rawMerchantString).toBe('UNMATCHED')
+    })
+  })
 })

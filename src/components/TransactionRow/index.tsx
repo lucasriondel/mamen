@@ -1,5 +1,6 @@
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
+import { CategoryBadge } from '@/components/CategoryBadge'
 import { formatCurrency } from '@/lib/utils/formatCurrency'
 import { formatDate } from '@/lib/utils/formatDate'
 import type { Transaction } from '@/types'
@@ -17,7 +18,7 @@ export function TransactionRow({
   isSelected = false,
   onClick,
 }: TransactionRowProps): React.ReactElement {
-  const isUnmatched = !transaction.merchantId
+  const isUnmatched = !transaction.merchantId && !transaction.manualCategory
 
   return (
     <div
@@ -41,14 +42,26 @@ export function TransactionRow({
         {transaction.rawMerchantString}
       </div>
 
-      <div className="w-28 shrink-0">
+      <div className="w-32 shrink-0 flex items-center gap-1">
         {isUnmatched ? (
           <Badge variant="outline" className="text-amber-500 border-amber-500/50">
             Unmatched
           </Badge>
+        ) : transaction.categoryId ? (
+          <>
+            <CategoryBadge
+              categoryId={transaction.categoryId}
+              subcategoryId={transaction.subcategoryId}
+            />
+            {transaction.manualCategory && (
+              <Badge variant="outline" className="text-xs h-5 text-muted-foreground border-dashed">
+                Manual
+              </Badge>
+            )}
+          </>
         ) : (
           <Badge variant="secondary">
-            Category
+            Matched
           </Badge>
         )}
       </div>

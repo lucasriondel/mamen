@@ -19,7 +19,7 @@ export const useFilteredTransactions = (
     () => {
       if (unmatchedOnly) {
         return db.transactions
-          .filter((t) => t.merchantId === undefined)
+          .filter((t) => !t.merchantId && !t.manualCategory)
           .reverse()
           .sortBy('date')
       }
