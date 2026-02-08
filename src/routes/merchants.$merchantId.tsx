@@ -1,18 +1,12 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { MerchantDetailPage } from '@/features/merchants/components/MerchantDetailPage'
 
 export const Route = createFileRoute('/merchants/$merchantId')({
-  component: MerchantDetailPage,
+  component: MerchantDetailRoute,
 })
 
-function MerchantDetailPage(): React.ReactElement {
+function MerchantDetailRoute(): React.ReactElement {
   const { merchantId } = Route.useParams()
 
-  return (
-    <div>
-      <h2 className="text-2xl font-bold mb-4">Merchant Detail</h2>
-      <p className="text-muted-foreground">
-        Merchant #{merchantId} — Detail view coming in Story 7.2
-      </p>
-    </div>
-  )
+  return <MerchantDetailPage merchantId={Number(merchantId)} />
 }

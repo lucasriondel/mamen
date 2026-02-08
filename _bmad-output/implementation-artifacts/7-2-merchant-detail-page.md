@@ -1,6 +1,6 @@
 # Story 7.2: Merchant Detail Page
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -69,17 +69,17 @@ So that **I can investigate spending and manage rules for that merchant (FR33, F
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Create `useMerchantDetail` hook for data aggregation (AC: #1, #2, #3, #7, #8)
-  - [ ] Create `src/features/merchants/hooks/useMerchantDetail.ts`
-  - [ ] Create `src/features/merchants/hooks/useMerchantDetail.test.ts`
-  - [ ] Accept `merchantId: string` parameter
-  - [ ] Use `useLiveQuery` to load merchant, rules, and transactions from Dexie:
+- [x] Task 1: Create `useMerchantDetail` hook for data aggregation (AC: #1, #2, #3, #7, #8)
+  - [x] Create `src/features/merchants/hooks/useMerchantDetail.ts`
+  - [x] Create `src/features/merchants/hooks/useMerchantDetail.test.ts`
+  - [x] Accept `merchantId: string` parameter
+  - [x] Use `useLiveQuery` to load merchant, rules, and transactions from Dexie:
     ```typescript
     const merchant = await db.merchants.get(merchantId)
     const transactions = await db.transactions.where('merchantId').equals(merchantId).toArray()
     const rules = await db.rules.where('merchantId').equals(merchantId).toArray()
     ```
-  - [ ] Compute stats:
+  - [x] Compute stats:
     ```typescript
     type MerchantStats = {
       totalSpent: number        // Math.abs(sum of negative amounts)
@@ -95,7 +95,7 @@ So that **I can investigate spending and manage rules for that merchant (FR33, F
       }
     }
     ```
-  - [ ] Compute category distribution:
+  - [x] Compute category distribution:
     ```typescript
     type CategoryDistribution = Array<{
       categoryId: string | null
@@ -103,12 +103,12 @@ So that **I can investigate spending and manage rules for that merchant (FR33, F
       count: number
     }>
     ```
-  - [ ] Compute rule match counts by regex-testing each rule pattern against merchant transactions
-  - [ ] Accept optional `timePeriod` filter for transactions section:
+  - [x] Compute rule match counts by regex-testing each rule pattern against merchant transactions
+  - [x] Accept optional `timePeriod` filter for transactions section:
     ```typescript
     type TimePeriod = 'this-month' | 'last-month' | 'last-3-months' | 'this-year' | 'all-time'
     ```
-  - [ ] Return type:
+  - [x] Return type:
     ```typescript
     type MerchantDetailData = {
       merchant: Merchant | undefined
@@ -120,27 +120,27 @@ So that **I can investigate spending and manage rules for that merchant (FR33, F
       isLoading: boolean
     }
     ```
-  - [ ] Test: Returns undefined merchant when ID not found
-  - [ ] Test: Computes totalSpent correctly (absolute value of negative amounts only)
-  - [ ] Test: Computes averageAmount as totalSpent / expense count
-  - [ ] Test: Computes monthlyAverage across distinct months
-  - [ ] Test: Returns firstSeen and lastSeen dates correctly
-  - [ ] Test: Computes month-over-month change correctly
-  - [ ] Test: Returns hasData=false when no previous month data
-  - [ ] Test: Returns correct category distribution
-  - [ ] Test: isMixed=true when multiple categories present
-  - [ ] Test: Filters transactions by timePeriod
-  - [ ] Test: Returns rule match counts correctly
+  - [x] Test: Returns undefined merchant when ID not found
+  - [x] Test: Computes totalSpent correctly (absolute value of negative amounts only)
+  - [x] Test: Computes averageAmount as totalSpent / expense count
+  - [x] Test: Computes monthlyAverage across distinct months
+  - [x] Test: Returns firstSeen and lastSeen dates correctly
+  - [x] Test: Computes month-over-month change correctly
+  - [x] Test: Returns hasData=false when no previous month data
+  - [x] Test: Returns correct category distribution
+  - [x] Test: isMixed=true when multiple categories present
+  - [x] Test: Filters transactions by timePeriod
+  - [x] Test: Returns rule match counts correctly
 
-- [ ] Task 2: Create `MerchantHeader` component (AC: #1)
-  - [ ] Create `src/features/merchants/components/MerchantHeader/index.tsx`
-  - [ ] Create `src/features/merchants/components/MerchantHeader/MerchantHeader.test.tsx`
-  - [ ] Display:
+- [x] Task 2: Create `MerchantHeader` component (AC: #1)
+  - [x] Create `src/features/merchants/components/MerchantHeader/index.tsx`
+  - [x] Create `src/features/merchants/components/MerchantHeader/MerchantHeader.test.tsx`
+  - [x] Display:
     - Back link: "← Merchants" using `useNavigate()` to go to `/merchants`
     - Merchant name as `h1` (`text-2xl font-bold`)
     - Default category as Badge below name (using `getCategoryLabel()`)
     - "Uncategorized" in muted style if no default category
-  - [ ] Props:
+  - [x] Props:
     ```typescript
     type MerchantHeaderProps = {
       name: string
@@ -148,46 +148,46 @@ So that **I can investigate spending and manage rules for that merchant (FR33, F
       onBack: () => void
     }
     ```
-  - [ ] Test: Renders merchant name and category
-  - [ ] Test: Calls onBack when back button clicked
-  - [ ] Test: Shows "Uncategorized" when no category
+  - [x] Test: Renders merchant name and category
+  - [x] Test: Calls onBack when back button clicked
+  - [x] Test: Shows "Uncategorized" when no category
 
-- [ ] Task 3: Create `MerchantStatsCards` component (AC: #2, #3)
-  - [ ] Create `src/features/merchants/components/MerchantStatsCards/index.tsx`
-  - [ ] Create `src/features/merchants/components/MerchantStatsCards/MerchantStatsCards.test.tsx`
-  - [ ] 4-column grid of shadcn `Card` components:
+- [x] Task 3: Create `MerchantStatsCards` component (AC: #2, #3)
+  - [x] Create `src/features/merchants/components/MerchantStatsCards/index.tsx`
+  - [x] Create `src/features/merchants/components/MerchantStatsCards/MerchantStatsCards.test.tsx`
+  - [x] 4-column grid of shadcn `Card` components:
     ```
     ┌─────────────┬─────────────┬─────────────┬─────────────┐
     │ Total Spent │ Transactions│   Average   │  Last Seen  │
     │  €1,247.50  │     34      │   €36.69    │  3 days ago │
     └─────────────┴─────────────┴─────────────┴─────────────┘
     ```
-  - [ ] Below cards: "Monthly avg: €156.88 | First seen: Jan 2024"
-  - [ ] Month-over-month line: "vs last month: +€150 (+12%)" or "-€75 (-8%)"
+  - [x] Below cards: "Monthly avg: €156.88 | First seen: Jan 2024"
+  - [x] Month-over-month line: "vs last month: +€150 (+12%)" or "-€75 (-8%)"
     - Increase: `text-warning` color + `TrendingUp` icon (lucide)
     - Decrease: `text-success` color + `TrendingDown` icon (lucide)
     - No data: "No previous data" in `text-muted-foreground`
-  - [ ] Use `formatCurrency()` for amounts, `formatRelativeTime()` for last seen
-  - [ ] Props: `{ stats: MerchantStats }`
-  - [ ] Responsive: 4 columns desktop, 2 columns tablet, stacked mobile
-  - [ ] Test: Renders all stat values
-  - [ ] Test: Correct color for positive/negative month-over-month
-  - [ ] Test: Handles hasData=false
+  - [x] Use `formatCurrency()` for amounts, `formatRelativeTime()` for last seen
+  - [x] Props: `{ stats: MerchantStats }`
+  - [x] Responsive: 4 columns desktop, 2 columns tablet, stacked mobile
+  - [x] Test: Renders all stat values
+  - [x] Test: Correct color for positive/negative month-over-month
+  - [x] Test: Handles hasData=false
 
-- [ ] Task 4: Create `MerchantRulesList` component (AC: #4, #5, #6)
-  - [ ] Create `src/features/merchants/components/MerchantRulesList/index.tsx`
-  - [ ] Create `src/features/merchants/components/MerchantRulesList/MerchantRulesList.test.tsx`
-  - [ ] Section header: "Matching Rules" with "+ Add" button
-  - [ ] Each rule row:
+- [x] Task 4: Create `MerchantRulesList` component (AC: #4, #5, #6)
+  - [x] Create `src/features/merchants/components/MerchantRulesList/index.tsx`
+  - [x] Create `src/features/merchants/components/MerchantRulesList/MerchantRulesList.test.tsx`
+  - [x] Section header: "Matching Rules" with "+ Add" button
+  - [x] Each rule row:
     ```
     │ AMZN.*              │ 28 matches │ (default)           │ [Edit] │
     │ AMAZON PRIME.*      │  2 matches │ → Subscriptions     │ [Edit] │
     ```
-  - [ ] Pattern: `font-mono text-sm`
-  - [ ] Match count: `text-muted-foreground`
-  - [ ] Category: "(default)" or "→ CategoryName"
-  - [ ] Empty state: "No rules defined" with "+ Add Rule" CTA
-  - [ ] Props:
+  - [x] Pattern: `font-mono text-sm`
+  - [x] Match count: `text-muted-foreground`
+  - [x] Category: "(default)" or "→ CategoryName"
+  - [x] Empty state: "No rules defined" with "+ Add Rule" CTA
+  - [x] Props:
     ```typescript
     type RuleWithMatchCount = {
       id: number
@@ -204,25 +204,25 @@ So that **I can investigate spending and manage rules for that merchant (FR33, F
       onAddRule: () => void
     }
     ```
-  - [ ] Test: Renders rules with pattern, match count, category indicator
-  - [ ] Test: "(default)" for null categoryId, "→ Name" for overrides
-  - [ ] Test: Calls onEditRule/onAddRule
+  - [x] Test: Renders rules with pattern, match count, category indicator
+  - [x] Test: "(default)" for null categoryId, "→ Name" for overrides
+  - [x] Test: Calls onEditRule/onAddRule
 
-- [ ] Task 5: Create `RuleEditModal` component (AC: #5, #6)
-  - [ ] Create `src/features/merchants/components/RuleEditModal/index.tsx`
-  - [ ] Create `src/features/merchants/components/RuleEditModal/RuleEditModal.test.tsx`
-  - [ ] Uses shadcn `Dialog`
-  - [ ] Mode: "edit" (existing rule) or "add" (new rule, when `rule` prop is null)
-  - [ ] Fields:
+- [x] Task 5: Create `RuleEditModal` component (AC: #5, #6)
+  - [x] Create `src/features/merchants/components/RuleEditModal/index.tsx`
+  - [x] Create `src/features/merchants/components/RuleEditModal/RuleEditModal.test.tsx`
+  - [x] Uses shadcn `Dialog`
+  - [x] Mode: "edit" (existing rule) or "add" (new rule, when `rule` prop is null)
+  - [x] Fields:
     - Pattern input (`font-mono`, regex validated live)
     - Category: radio "Use merchant default" / "Override" with category picker
     - Live match count preview
-  - [ ] Regex validation: `try { new RegExp(pattern) }` — show inline error if invalid
-  - [ ] On save (edit): `db.rules.update(ruleId, { pattern, categoryId })` + re-apply + toast with Undo
-  - [ ] On save (add): `db.rules.add(...)` + apply to matching transactions + toast with Undo
-  - [ ] On delete (edit only): confirmation → `db.rules.delete(ruleId)` → unlink transactions → toast with Undo
-  - [ ] Keyboard: Enter to confirm, Esc to cancel
-  - [ ] Props:
+  - [x] Regex validation: `try { new RegExp(pattern) }` — show inline error if invalid
+  - [x] On save (edit): `db.rules.update(ruleId, { pattern, categoryId })` + re-apply + toast with Undo
+  - [x] On save (add): `db.rules.add(...)` + apply to matching transactions + toast with Undo
+  - [x] On delete (edit only): confirmation → `db.rules.delete(ruleId)` → unlink transactions → toast with Undo
+  - [x] Keyboard: Enter to confirm, Esc to cancel
+  - [x] Props:
     ```typescript
     type RuleEditModalProps = {
       isOpen: boolean
@@ -232,25 +232,25 @@ So that **I can investigate spending and manage rules for that merchant (FR33, F
       rule: RuleWithMatchCount | null // null = add mode
     }
     ```
-  - [ ] Test: Edit mode pre-fills, add mode empty
-  - [ ] Test: Validates regex
-  - [ ] Test: Shows live match count
-  - [ ] Test: Save and delete flows
+  - [x] Test: Edit mode pre-fills, add mode empty
+  - [x] Test: Validates regex
+  - [x] Test: Shows live match count
+  - [x] Test: Save and delete flows
 
-- [ ] Task 6: Create `MerchantTransactionList` component (AC: #7, #8)
-  - [ ] Create `src/features/merchants/components/MerchantTransactionList/index.tsx`
-  - [ ] Create `src/features/merchants/components/MerchantTransactionList/MerchantTransactionList.test.tsx`
-  - [ ] Section header: "Transactions" with time period `Select` on right
-  - [ ] Time periods: This Month, Last Month, Last 3 Months, This Year, All Time (default)
-  - [ ] Transaction rows: date | raw merchant string | amount (mono) | category badge
-  - [ ] Row height: 48px (dense), reuse Epic 3 styling patterns
-  - [ ] Mixed category note when `isMixed`:
+- [x] Task 6: Create `MerchantTransactionList` component (AC: #7, #8)
+  - [x] Create `src/features/merchants/components/MerchantTransactionList/index.tsx`
+  - [x] Create `src/features/merchants/components/MerchantTransactionList/MerchantTransactionList.test.tsx`
+  - [x] Section header: "Transactions" with time period `Select` on right
+  - [x] Time periods: This Month, Last Month, Last 3 Months, This Year, All Time (default)
+  - [x] Transaction rows: date | raw merchant string | amount (mono) | category badge
+  - [x] Row height: 48px (dense), reuse Epic 3 styling patterns
+  - [x] Mixed category note when `isMixed`:
     ```
     ⚠ Mixed categories: 32 Shopping, 2 Subscriptions
        This is expected — override rules assign different categories
     ```
-  - [ ] Empty state: "No transactions for this period"
-  - [ ] Props:
+  - [x] Empty state: "No transactions for this period"
+  - [x] Props:
     ```typescript
     type MerchantTransactionListProps = {
       transactions: Transaction[]
@@ -260,15 +260,15 @@ So that **I can investigate spending and manage rules for that merchant (FR33, F
       onTimePeriodChange: (period: TimePeriod) => void
     }
     ```
-  - [ ] Test: Renders transactions, filters by period, shows/hides mixed note
+  - [x] Test: Renders transactions, filters by period, shows/hides mixed note
 
-- [ ] Task 7: Create `EditMerchantModal` component (AC: #9)
-  - [ ] Create `src/features/merchants/components/EditMerchantModal/index.tsx`
-  - [ ] Create `src/features/merchants/components/EditMerchantModal/EditMerchantModal.test.tsx`
-  - [ ] shadcn `Dialog` with fields: merchant name (required), default category picker
-  - [ ] Pre-filled with current data
-  - [ ] On save: `db.merchants.update(merchantId, { name, defaultCategoryId })` + toast with Undo
-  - [ ] Props:
+- [x] Task 7: Create `EditMerchantModal` component (AC: #9)
+  - [x] Create `src/features/merchants/components/EditMerchantModal/index.tsx`
+  - [x] Create `src/features/merchants/components/EditMerchantModal/EditMerchantModal.test.tsx`
+  - [x] shadcn `Dialog` with fields: merchant name (required), default category picker
+  - [x] Pre-filled with current data
+  - [x] On save: `db.merchants.update(merchantId, { name, defaultCategoryId })` + toast with Undo
+  - [x] Props:
     ```typescript
     type EditMerchantModalProps = {
       isOpen: boolean
@@ -278,32 +278,32 @@ So that **I can investigate spending and manage rules for that merchant (FR33, F
       currentCategoryId: string | null
     }
     ```
-  - [ ] Test: Pre-fills, validates name, saves changes
+  - [x] Test: Pre-fills, validates name, saves changes
 
-- [ ] Task 8: Assemble `MerchantDetailPage` and wire route (AC: all)
-  - [ ] Create `src/features/merchants/components/MerchantDetailPage/index.tsx`
-  - [ ] Create `src/features/merchants/components/MerchantDetailPage/MerchantDetailPage.test.tsx`
-  - [ ] Update `src/routes/merchants/$merchantId.tsx` — replace Story 7.1 placeholder
-  - [ ] Extract `merchantId` from route params via `useParams()`
-  - [ ] Compose: Header → StatsCards → RulesList → TransactionList → Footer shortcuts
-  - [ ] Local state: `timePeriod`, `editingRuleId`, `isAddingRule`, `isEditingMerchant`
-  - [ ] Keyboard shortcuts (E/D) with input/modal guard
-  - [ ] Footer: `[E] Edit Merchant  [D] Change Default  [+ Add Rule]`
-  - [ ] Breadcrumb: "Merchants > {Merchant Name}"
-  - [ ] Loading: skeleton matching final layout
-  - [ ] 404: "Merchant not found" with back link
-  - [ ] Sidebar: "Merchants" stays highlighted (TanStack Router handles `/merchants/*`)
+- [x] Task 8: Assemble `MerchantDetailPage` and wire route (AC: all)
+  - [x] Create `src/features/merchants/components/MerchantDetailPage/index.tsx`
+  - [x] Create `src/features/merchants/components/MerchantDetailPage/MerchantDetailPage.test.tsx`
+  - [x] Update `src/routes/merchants/$merchantId.tsx` — replace Story 7.1 placeholder
+  - [x] Extract `merchantId` from route params via `useParams()`
+  - [x] Compose: Header → StatsCards → RulesList → TransactionList → Footer shortcuts
+  - [x] Local state: `timePeriod`, `editingRuleId`, `isAddingRule`, `isEditingMerchant`
+  - [x] Keyboard shortcuts (E/D) with input/modal guard
+  - [x] Footer: `[E] Edit Merchant  [D] Change Default  [+ Add Rule]`
+  - [x] Breadcrumb: "Merchants > {Merchant Name}"
+  - [x] Loading: skeleton matching final layout
+  - [x] 404: "Merchant not found" with back link
+  - [x] Sidebar: "Merchants" stays highlighted (TanStack Router handles `/merchants/*`)
 
-- [ ] Task 9: Write integration tests (AC: all)
-  - [ ] Full page render with mock Dexie data (merchant + rules + transactions)
-  - [ ] Stats display correctly
-  - [ ] Edit rule flow: click Edit → modify → save → verify
-  - [ ] Add rule flow: click "+ Add" → fill → save → verify
-  - [ ] Time period filter changes transaction list
-  - [ ] E key opens edit modal, D opens category change
-  - [ ] Breadcrumb back navigation
-  - [ ] Mixed categories note appears when applicable
-  - [ ] 404 for non-existent merchant
+- [x] Task 9: Write integration tests (AC: all)
+  - [x] Full page render with mock Dexie data (merchant + rules + transactions)
+  - [x] Stats display correctly
+  - [x] Edit rule flow: click Edit → modify → save → verify
+  - [x] Add rule flow: click "+ Add" → fill → save → verify
+  - [x] Time period filter changes transaction list
+  - [x] E key opens edit modal, D opens category change
+  - [x] Breadcrumb back navigation
+  - [x] Mixed categories note appears when applicable
+  - [x] 404 for non-existent merchant
 
 ## Dev Notes
 
@@ -713,10 +713,58 @@ Patterns to follow from Story 7.1:
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.6
 
 ### Debug Log References
 
+None — clean implementation.
+
 ### Completion Notes List
 
+- Created `useMerchantDetail` hook with comprehensive stats computation (totalSpent, averageAmount, monthlyAverage, firstSeen, lastSeen, month-over-month, category distribution, rule match counts, time period filtering)
+- Created `MerchantHeader` component with back navigation, merchant name, and category badge
+- Created `MerchantStatsCards` component with 4-column responsive grid showing stats, monthly average, first seen, and month-over-month trend with color-coded indicators
+- Created `MerchantDetailRules` component (new name to avoid conflict with existing `MerchantRulesList` from Story 4.4) with rule list, match counts, category indicators, edit/add buttons
+- Created `RuleDetailModal` component supporting both edit and add modes with regex validation, category override picker, live match preview, and delete functionality
+- Created `MerchantTransactionList` component with time period Select filter, transaction rows, and mixed categories warning note
+- Created `EditMerchantModal` component with name editing, category picker, and undo toast
+- Assembled `MerchantDetailPage` composing all components with keyboard shortcuts (E/D), local state management, loading skeleton, and 404 handling
+- Updated route file `merchants.$merchantId.tsx` to render the detail page
+- Updated `useBreadcrumbs` hook to resolve merchant names for `/merchants/$merchantId` paths
+- Reused existing services: `useRuleMutations`, `addRuleToMerchant`, `undoAddRule` from rules feature
+- All existing tests (951) continue to pass — no regressions
+
+### Implementation Notes
+
+- Story specified IDs as `string` but actual DB uses auto-increment `number` IDs — adapted accordingly
+- Story specified `categoryId: string | null` on rules but actual type is `categoryOverride?: number` — adapted
+- Named the detail rules component `MerchantDetailRules` instead of overwriting existing `MerchantRulesList` from Story 4.4 which is used by `MerchantAssignmentModal`
+- No `getCategoryLabel()` utility exists — built category labels inline using category map pattern from `useMerchantsList`
+- No `Skeleton` UI component existed — used `animate-pulse` with `bg-muted` divs
+
 ### File List
+
+**New files:**
+- src/features/merchants/hooks/useMerchantDetail.ts
+- src/features/merchants/hooks/useMerchantDetail.test.ts
+- src/features/merchants/components/MerchantHeader/index.tsx
+- src/features/merchants/components/MerchantHeader/MerchantHeader.test.tsx
+- src/features/merchants/components/MerchantStatsCards/index.tsx
+- src/features/merchants/components/MerchantStatsCards/MerchantStatsCards.test.tsx
+- src/features/merchants/components/MerchantDetailRules/index.tsx
+- src/features/merchants/components/MerchantDetailRules/MerchantDetailRules.test.tsx
+- src/features/merchants/components/RuleDetailModal/index.tsx
+- src/features/merchants/components/RuleDetailModal/RuleDetailModal.test.tsx
+- src/features/merchants/components/MerchantTransactionList/index.tsx
+- src/features/merchants/components/MerchantTransactionList/MerchantTransactionList.test.tsx
+- src/features/merchants/components/EditMerchantModal/index.tsx
+- src/features/merchants/components/EditMerchantModal/EditMerchantModal.test.tsx
+- src/features/merchants/components/MerchantDetailPage/index.tsx
+- src/features/merchants/components/MerchantDetailPage/MerchantDetailPage.test.tsx
+
+**Modified files:**
+- src/routes/merchants.$merchantId.tsx (replaced placeholder with MerchantDetailPage)
+- src/hooks/useBreadcrumbs.ts (added merchant name resolution for detail route)
+
+**Change Log:**
+- 2026-02-08: Implemented Story 7.2 — Merchant Detail Page with all 9 tasks complete

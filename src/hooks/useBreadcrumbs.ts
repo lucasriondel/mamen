@@ -42,6 +42,17 @@ export function useBreadcrumbs(): BreadcrumbSegment[] {
     return cat.name
   }, [categoryId])
 
+  const merchantIdMatch = pathname.match(/^\/merchants\/(\d+)$/)
+  const merchantIdNum = merchantIdMatch ? Number(merchantIdMatch[1]) : null
+  const merchantName = useLiveQuery(
+    async () => {
+      if (merchantIdNum == null) return null
+      const m = await db.merchants.get(merchantIdNum)
+      return m?.name ?? null
+    },
+    [merchantIdNum],
+  )
+
   if (pathname === '/') {
     return [{ label: routeLabelMap['/'], href: '/' }]
   }
@@ -52,7 +63,10 @@ export function useBreadcrumbs(): BreadcrumbSegment[] {
   let currentPath = ''
   for (const part of parts) {
     currentPath += `/${part}`
-    const label = routeLabelMap[currentPath] ?? pathToLabel(part)
+    let label = routeLabelMap[currentPath] ?? pathToLabel(part)
+    if (merchantIdNum != null && currentPath === pathname && merchantName) {
+      label = merchantName
+    }
     segments.push({ label, href: currentPath })
   }
 
