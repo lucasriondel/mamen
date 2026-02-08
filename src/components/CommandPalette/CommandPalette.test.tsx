@@ -67,7 +67,7 @@ describe('CommandPalette', () => {
 
     await openPalette(user)
 
-    expect(screen.getByPlaceholderText('Search actions, pages...')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Search transactions, merchants, actions...')).toBeInTheDocument()
   })
 
   it('opens with Meta+K', async () => {
@@ -76,7 +76,7 @@ describe('CommandPalette', () => {
 
     await user.keyboard('{Meta>}k{/Meta}')
 
-    expect(screen.getByPlaceholderText('Search actions, pages...')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Search transactions, merchants, actions...')).toBeInTheDocument()
   })
 
   it('closes with Esc', async () => {
@@ -84,10 +84,10 @@ describe('CommandPalette', () => {
     renderWithProviders()
 
     await openPalette(user)
-    expect(screen.getByPlaceholderText('Search actions, pages...')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Search transactions, merchants, actions...')).toBeInTheDocument()
 
     await user.keyboard('{Escape}')
-    expect(screen.queryByPlaceholderText('Search actions, pages...')).not.toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('Search transactions, merchants, actions...')).not.toBeInTheDocument()
   })
 
   it('shows Actions section with expected items', async () => {
@@ -172,7 +172,7 @@ describe('CommandPalette', () => {
     await openPalette(user)
     await user.click(screen.getByText('Dashboard'))
 
-    expect(screen.queryByPlaceholderText('Search actions, pages...')).not.toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('Search transactions, merchants, actions...')).not.toBeInTheDocument()
   })
 
   it('filters items by search input', async () => {
@@ -181,7 +181,7 @@ describe('CommandPalette', () => {
 
     await openPalette(user)
 
-    const input = screen.getByPlaceholderText('Search actions, pages...')
+    const input = screen.getByPlaceholderText('Search transactions, merchants, actions...')
     await user.type(input, 'settings')
 
     expect(screen.getByText('Settings')).toBeInTheDocument()
@@ -194,10 +194,10 @@ describe('CommandPalette', () => {
 
     await openPalette(user)
 
-    const input = screen.getByPlaceholderText('Search actions, pages...')
+    const input = screen.getByPlaceholderText('Search transactions, merchants, actions...')
     await user.type(input, 'xyznonexistent')
 
-    expect(screen.getByText('No results found.')).toBeInTheDocument()
+    expect(screen.getByText(/No results for/)).toBeInTheDocument()
   })
 
   it('navigates items with arrow keys', async () => {
@@ -227,7 +227,7 @@ describe('CommandPalette', () => {
 
     await openPalette(user)
 
-    const input = screen.getByPlaceholderText('Search actions, pages...')
+    const input = screen.getByPlaceholderText('Search transactions, merchants, actions...')
     expect(input).toHaveFocus()
   })
 })

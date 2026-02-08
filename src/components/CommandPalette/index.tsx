@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import {
   CommandDialog,
@@ -11,6 +11,8 @@ import {
   CommandShortcut,
 } from '@/components/ui/command'
 import { useCommandPalette } from '@/context/CommandPaletteContext'
+import { useTransactionSearch } from '@/features/search'
+import { formatCurrency } from '@/lib/utils/formatCurrency'
 import { isMac } from '@/lib/utils/platform'
 
 type CommandPaletteProps = Record<string, never>
@@ -19,23 +21,74 @@ export const CommandPalette = (_props: CommandPaletteProps): React.ReactElement 
   const { isOpen, close } = useCommandPalette()
   const navigate = useNavigate()
   const modifierSymbol = useMemo(() => (isMac() ? '⌘' : 'Ctrl+'), [])
+  const [query, setQuery] = useState('')
+
+  const { results: transactionResults } = useTransactionSearch(query)
 
   const handleSelect = (action: () => void): void => {
     action()
     close()
+    setQuery('')
   }
+
+  const handleTransactionSelect = (transactionId: number): void => {
+    navigate({ to: '/transactions', search: { highlight: transactionId } })
+    close()
+    setQuery('')
+  }
+
+  const handleOpenChange = (open: boolean): void => {
+    if (!open) {
+      close()
+      setQuery('')
+    }
+  }
+
+  const hasQuery = query.trim().length > 0
+  const resultCount = transactionResults.length
 
   return (
     <CommandDialog
       open={isOpen}
-      onOpenChange={(open) => {
-        if (!open) close()
-      }}
+      onOpenChange={handleOpenChange}
       showCloseButton={false}
     >
-      <CommandInput placeholder="Search actions, pages..." />
+      <CommandInput
+        placeholder="Search transactions, merchants, actions..."
+        value={query}
+        onValueChange={setQuery}
+      />
       <CommandList>
-        <CommandEmpty>No results found.</CommandEmpty>
+        <CommandEmpty>No results for &ldquo;{query}&rdquo;</CommandEmpty>
+
+        {hasQuery && resultCount > 0 && (
+          <>
+            <CommandGroup heading="Transactions">
+              {transactionResults.map((tx) => (
+                <CommandItem
+                  key={`tx-${tx.id}`}
+                  value={`transaction-${tx.id}-${tx.rawMerchantString}`}
+                  onSelect={() => handleTransactionSelect(tx.id)}
+                >
+                  <span className="text-muted-foreground text-xs w-16 shrink-0">
+                    {tx.dateFormatted}
+                  </span>
+                  <span className="flex-1 truncate">{tx.rawMerchantString}</span>
+                  <span className="font-mono text-xs shrink-0">
+                    {formatCurrency(tx.amount)}
+                  </span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+            <CommandSeparator />
+          </>
+        )}
+
+        {hasQuery && resultCount > 0 && (
+          <div className="sr-only" role="status" aria-live="polite">
+            {resultCount} result{resultCount !== 1 ? 's' : ''} for {query}
+          </div>
+        )}
 
         <CommandGroup heading="Actions">
           <CommandItem onSelect={() => handleSelect(() => navigate({ to: '/accounts' }))}>

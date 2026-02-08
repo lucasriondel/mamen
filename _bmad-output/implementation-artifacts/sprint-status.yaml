@@ -62,7 +62,7 @@ development_status:
   3-1-transaction-list-view: review
   3-2-keyboard-navigation-with-jk: review
   3-3-command-palette-foundation: review
-  3-4-transaction-search-via-command-palette: ready-for-dev
+  3-4-transaction-search-via-command-palette: review
   3-5-breadcrumb-navigation: ready-for-dev
   epic-3-retrospective: optional
 

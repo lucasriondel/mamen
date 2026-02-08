@@ -1,19 +1,25 @@
 import { useRef, useState, useCallback, useEffect } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { Link } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { ListIcon } from 'lucide-react'
 import { db, useLiveQuery } from '@/lib/db'
 import { Button } from '@/components/ui/button'
 import { TransactionRow } from '@/components/TransactionRow'
 import { useKeyboardNavigation } from '@/hooks/useKeyboardNavigation'
 
-export function TransactionList(): React.ReactElement {
+type TransactionListProps = {
+  highlightId?: number
+}
+
+export function TransactionList({ highlightId }: TransactionListProps): React.ReactElement {
   const transactions = useLiveQuery(
     () => db.transactions.orderBy('date').reverse().toArray()
   )
 
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const parentRef = useRef<HTMLDivElement>(null)
+  const navigate = useNavigate()
+  const highlightHandledRef = useRef<number | undefined>(undefined)
 
   const { focusedIndex } = useKeyboardNavigation({
     itemCount: transactions?.length ?? 0,
@@ -44,6 +50,32 @@ export function TransactionList(): React.ReactElement {
       })
     }
   }, [focusedIndex, virtualizer])
+
+  // Handle highlight from search navigation
+  useEffect(() => {
+    if (
+      highlightId === undefined ||
+      !transactions ||
+      highlightHandledRef.current === highlightId
+    ) {
+      return
+    }
+
+    highlightHandledRef.current = highlightId
+    const index = transactions.findIndex((tx) => tx.id === highlightId)
+    if (index === -1) return
+
+    setSelectedId(highlightId)
+    virtualizer.scrollToIndex(index, { align: 'center', behavior: 'smooth' })
+
+    // Clear highlight after 3 seconds
+    const timer = setTimeout(() => {
+      setSelectedId((current) => (current === highlightId ? null : current))
+      navigate({ to: '/transactions', search: {}, replace: true })
+    }, 3000)
+
+    return () => clearTimeout(timer)
+  }, [highlightId, transactions, virtualizer, navigate])
 
   const handleRowClick = useCallback((id: number | undefined) => {
     if (id === undefined) return
