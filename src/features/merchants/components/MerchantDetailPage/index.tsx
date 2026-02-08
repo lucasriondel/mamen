@@ -184,6 +184,7 @@ export function MerchantDetailPage({
         <MerchantHeader
           name={merchant.name}
           defaultCategoryId={merchant.defaultCategoryId}
+          createdAt={merchant.createdAt}
           onBack={handleBack}
         />
 

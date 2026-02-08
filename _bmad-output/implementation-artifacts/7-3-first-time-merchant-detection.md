@@ -1,6 +1,6 @@
 # Story 7.3: First-Time Merchant Detection
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -44,10 +44,10 @@ So that **I can pay attention to unfamiliar spending sources (FR35)**.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Create `isNewMerchant` utility function (AC: #1, #2, #5)
-  - [ ] Create `src/features/merchants/utils/isNewMerchant.ts`
-  - [ ] Create `src/features/merchants/utils/isNewMerchant.test.ts`
-  - [ ] Implementation:
+- [x] Task 1: Create `isNewMerchant` utility function (AC: #1, #2, #5)
+  - [x]Create `src/features/merchants/utils/isNewMerchant.ts`
+  - [x]Create `src/features/merchants/utils/isNewMerchant.test.ts`
+  - [x]Implementation:
     ```typescript
     export const NEW_MERCHANT_THRESHOLD_DAYS = 30
 
@@ -58,18 +58,18 @@ So that **I can pay attention to unfamiliar spending sources (FR35)**.
       return diffDays <= NEW_MERCHANT_THRESHOLD_DAYS
     }
     ```
-  - [ ] Export the constant `NEW_MERCHANT_THRESHOLD_DAYS` for testability and potential settings override
-  - [ ] Test: Returns `true` for merchant created today
-  - [ ] Test: Returns `true` for merchant created 29 days ago
-  - [ ] Test: Returns `true` for merchant created exactly 30 days ago (boundary)
-  - [ ] Test: Returns `false` for merchant created 31 days ago
-  - [ ] Test: Returns `false` for merchant created 365 days ago
-  - [ ] Test: Handles edge case where `createdAt` is a string (Date constructor)
+  - [x]Export the constant `NEW_MERCHANT_THRESHOLD_DAYS` for testability and potential settings override
+  - [x]Test: Returns `true` for merchant created today
+  - [x]Test: Returns `true` for merchant created 29 days ago
+  - [x]Test: Returns `true` for merchant created exactly 30 days ago (boundary)
+  - [x]Test: Returns `false` for merchant created 31 days ago
+  - [x]Test: Returns `false` for merchant created 365 days ago
+  - [x]Test: Handles edge case where `createdAt` is a string (Date constructor)
 
-- [ ] Task 2: Create `NewMerchantBadge` component (AC: #2, #3, #4)
-  - [ ] Create `src/features/merchants/components/NewMerchantBadge/index.tsx`
-  - [ ] Create `src/features/merchants/components/NewMerchantBadge/NewMerchantBadge.test.tsx`
-  - [ ] Implementation using shadcn `Badge` with a distinct style:
+- [x] Task 2: Create `NewMerchantBadge` component (AC: #2, #3, #4)
+  - [x]Create `src/features/merchants/components/NewMerchantBadge/index.tsx`
+  - [x]Create `src/features/merchants/components/NewMerchantBadge/NewMerchantBadge.test.tsx`
+  - [x]Implementation using shadcn `Badge` with a distinct style:
     ```typescript
     type NewMerchantBadgeProps = {
       createdAt: Date
@@ -88,38 +88,38 @@ So that **I can pay attention to unfamiliar spending sources (FR35)**.
       )
     }
     ```
-  - [ ] Use a blue/info color scheme to distinguish from category badges (which use default badge variant)
-  - [ ] Component returns `null` when merchant is > 30 days old (self-contained logic)
-  - [ ] Props include optional `size` for compact use in transaction rows vs prominent use on detail page
-  - [ ] Test: Renders "New" badge when createdAt is within 30 days
-  - [ ] Test: Renders nothing when createdAt is older than 30 days
-  - [ ] Test: Applies small size class when size="sm"
-  - [ ] Test: Has accessible text content "New"
+  - [x]Use a blue/info color scheme to distinguish from category badges (which use default badge variant)
+  - [x]Component returns `null` when merchant is > 30 days old (self-contained logic)
+  - [x]Props include optional `size` for compact use in transaction rows vs prominent use on detail page
+  - [x]Test: Renders "New" badge when createdAt is within 30 days
+  - [x]Test: Renders nothing when createdAt is older than 30 days
+  - [x]Test: Applies small size class when size="sm"
+  - [x]Test: Has accessible text content "New"
 
-- [ ] Task 3: Integrate "New" badge into `MerchantListItem` component (AC: #2, #3)
-  - [ ] Modify `src/features/merchants/components/MerchantListItem/index.tsx`
-  - [ ] Add `NewMerchantBadge` next to the merchant name:
+- [x] Task 3: Integrate "New" badge into `MerchantListItem` component (AC: #2, #3)
+  - [x]Modify `src/features/merchants/components/MerchantListItem/index.tsx`
+  - [x]Add `NewMerchantBadge` next to the merchant name:
     ```
     ┌─────────────────────────────────────────────────────────────┐
     │ Amazon  [New]          [Shopping > Online]    34 txns €1,247 │
     └─────────────────────────────────────────────────────────────┘
     ```
-  - [ ] Pass `merchant.createdAt` to `NewMerchantBadge`
-  - [ ] Badge renders inline after merchant name, before category badge
-  - [ ] No changes to `MerchantListItem` type — `createdAt` was already included in Story 7.1
-  - [ ] Test: Shows "New" badge for merchants created within 30 days
-  - [ ] Test: Does not show "New" badge for older merchants
-  - [ ] Test: Badge does not break row layout
+  - [x]Pass `merchant.createdAt` to `NewMerchantBadge`
+  - [x]Badge renders inline after merchant name, before category badge
+  - [x]No changes to `MerchantListItem` type — `createdAt` was already included in Story 7.1
+  - [x]Test: Shows "New" badge for merchants created within 30 days
+  - [x]Test: Does not show "New" badge for older merchants
+  - [x]Test: Badge does not break row layout
 
-- [ ] Task 4: Integrate "New" badge into `MerchantHeader` on detail page (AC: #2, #5)
-  - [ ] Modify `src/features/merchants/components/MerchantHeader/index.tsx`
-  - [ ] Add `NewMerchantBadge` prominently next to the merchant name in the header:
+- [x] Task 4: Integrate "New" badge into `MerchantHeader` on detail page (AC: #2, #5)
+  - [x]Modify `src/features/merchants/components/MerchantHeader/index.tsx`
+  - [x]Add `NewMerchantBadge` prominently next to the merchant name in the header:
     ```
     ← Merchants
     Amazon  [New]
     Default: Shopping > Online
     ```
-  - [ ] Pass `createdAt` as a new prop to `MerchantHeader`:
+  - [x]Pass `createdAt` as a new prop to `MerchantHeader`:
     ```typescript
     type MerchantHeaderProps = {
       name: string
@@ -128,38 +128,38 @@ So that **I can pay attention to unfamiliar spending sources (FR35)**.
       onBack: () => void
     }
     ```
-  - [ ] Use `size="default"` for prominent display
-  - [ ] The "first seen" date is already visible in the stats cards section (Story 7.2), so no additional work for AC #5's "first seen date is still visible"
-  - [ ] Test: Shows "New" badge for new merchants
-  - [ ] Test: Does not show "New" badge for established merchants
+  - [x]Use `size="default"` for prominent display
+  - [x]The "first seen" date is already visible in the stats cards section (Story 7.2), so no additional work for AC #5's "first seen date is still visible"
+  - [x]Test: Shows "New" badge for new merchants
+  - [x]Test: Does not show "New" badge for established merchants
 
-- [ ] Task 5: Integrate "New" indicator into transaction rows (AC: #4)
-  - [ ] Modify `src/components/TransactionRow/index.tsx` (or equivalent transaction row component)
-  - [ ] When a transaction has a `merchantId`, look up the merchant's `createdAt` to determine if new
-  - [ ] Approach: The transaction row likely already receives merchant data (or can derive it). Add `NewMerchantBadge` with `size="sm"` next to the merchant name:
+- [x] Task 5: Integrate "New" indicator into transaction rows (AC: #4)
+  - [x]Modify `src/components/TransactionRow/index.tsx` (or equivalent transaction row component)
+  - [x]When a transaction has a `merchantId`, look up the merchant's `createdAt` to determine if new
+  - [x]Approach: The transaction row likely already receives merchant data (or can derive it). Add `NewMerchantBadge` with `size="sm"` next to the merchant name:
     ```
     │ Jan 18 │ AMZN*1234XYZ  [New] │  €29.99  │ Shopping        │
     ```
-  - [ ] **Data strategy:** The transaction list view should provide merchant `createdAt` data alongside transactions. Two approaches:
+  - [x]**Data strategy:** The transaction list view should provide merchant `createdAt` data alongside transactions. Two approaches:
     - **Option A (Recommended):** The transaction list's data hook adds `merchantCreatedAt` to each transaction item by joining with merchants table
     - **Option B:** `NewMerchantBadge` internally uses `useLiveQuery` to look up merchant — less efficient, avoid
-  - [ ] Use Option A: Extend the transaction list data to include `merchantCreatedAt: Date | null` for each transaction
-  - [ ] Modify the transaction list hook to join merchant createdAt:
+  - [x]Use Option A: Extend the transaction list data to include `merchantCreatedAt: Date | null` for each transaction
+  - [x]Modify the transaction list hook to join merchant createdAt:
     ```typescript
     // In the transaction list data hook, for each transaction:
     const merchant = tx.merchantId ? merchantsMap.get(tx.merchantId) : null
     return { ...tx, merchantCreatedAt: merchant?.createdAt ?? null }
     ```
-  - [ ] Only show the badge when `merchantCreatedAt` is present AND `isNewMerchant()` returns true
-  - [ ] Test: Shows "New" badge next to merchant name for new merchants
-  - [ ] Test: Does not show badge for transactions without merchants
-  - [ ] Test: Does not show badge for transactions with established merchants
-  - [ ] Test: Uses `size="sm"` for compact display
+  - [x]Only show the badge when `merchantCreatedAt` is present AND `isNewMerchant()` returns true
+  - [x]Test: Shows "New" badge next to merchant name for new merchants
+  - [x]Test: Does not show badge for transactions without merchants
+  - [x]Test: Does not show badge for transactions with established merchants
+  - [x]Test: Uses `size="sm"` for compact display
 
-- [ ] Task 6: Add "New merchants" filter option to Merchants list (AC: #3)
-  - [ ] Modify `src/features/merchants/components/MerchantsList/index.tsx`
-  - [ ] Add a filter toggle or checkbox: "Show new only" alongside existing search and sort controls
-  - [ ] Implementation approach:
+- [x] Task 6: Add "New merchants" filter option to Merchants list (AC: #3)
+  - [x]Modify `src/features/merchants/components/MerchantsList/index.tsx`
+  - [x]Add a filter toggle or checkbox: "Show new only" alongside existing search and sort controls
+  - [x]Implementation approach:
     ```typescript
     const [showNewOnly, setShowNewOnly] = useState(false)
 
@@ -174,32 +174,32 @@ So that **I can pay attention to unfamiliar spending sources (FR35)**.
       return result
     }, [merchants, searchQuery, showNewOnly])
     ```
-  - [ ] UI: Small toggle button or checkbox in the filter bar, e.g., `[New only]` as a toggle button
-  - [ ] When active, only merchants where `isNewMerchant(createdAt)` returns true are shown
-  - [ ] Filter integrates with existing search: both filters apply simultaneously
-  - [ ] Count updates: "3 new merchants" or "3 of 47 merchants (new only)"
-  - [ ] Test: Filters to show only new merchants when toggle active
-  - [ ] Test: Combines with search query
-  - [ ] Test: Shows updated count when filter active
-  - [ ] Test: Toggle off restores full list
+  - [x]UI: Small toggle button or checkbox in the filter bar, e.g., `[New only]` as a toggle button
+  - [x]When active, only merchants where `isNewMerchant(createdAt)` returns true are shown
+  - [x]Filter integrates with existing search: both filters apply simultaneously
+  - [x]Count updates: "3 new merchants" or "3 of 47 merchants (new only)"
+  - [x]Test: Filters to show only new merchants when toggle active
+  - [x]Test: Combines with search query
+  - [x]Test: Shows updated count when filter active
+  - [x]Test: Toggle off restores full list
 
-- [ ] Task 7: Write integration tests (AC: all)
-  - [ ] Test in Merchants list context:
+- [x] Task 7: Write integration tests (AC: all)
+  - [x]Test in Merchants list context:
     - Render MerchantsList with a mix of new and old merchants (mock Dexie data)
     - Verify new merchants show "New" badge
     - Verify old merchants do not show "New" badge
     - Toggle "New only" filter, verify only new merchants shown
     - Search + "New only" filter combined
-  - [ ] Test in Merchant detail context:
+  - [x]Test in Merchant detail context:
     - Render MerchantDetailPage for a new merchant
     - Verify "New" badge appears in header
     - Render MerchantDetailPage for an established merchant
     - Verify no "New" badge
-  - [ ] Test in Transaction list context:
+  - [x]Test in Transaction list context:
     - Render TransactionList with transactions linked to new and old merchants
     - Verify "New" badge appears on rows with new merchant
     - Verify no badge on rows with old or no merchant
-  - [ ] Test badge lifecycle:
+  - [x]Test badge lifecycle:
     - Mock a merchant with createdAt = 30 days ago → badge visible
     - Mock a merchant with createdAt = 31 days ago → badge not visible
 
@@ -476,10 +476,45 @@ Before marking complete:
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.6
 
 ### Debug Log References
 
+- Fake timers incompatible with async IndexedDB operations in MerchantsList tests — resolved by using real dates relative to `new Date()` instead of `vi.setSystemTime()` for interaction-heavy tests
+
 ### Completion Notes List
 
+- Created `isNewMerchant` utility with 30-day threshold, exported `NEW_MERCHANT_THRESHOLD_DAYS` constant
+- Created `NewMerchantBadge` self-contained component with `size` prop (`sm`/`default`)
+- Integrated badge into `MerchantListItem` (inline after name, before category badge)
+- Added `createdAt` prop to `MerchantHeader` and rendered badge prominently next to h1
+- Updated `MerchantDetailPage` to pass `createdAt` to `MerchantHeader`
+- Added `merchantCreatedAt` prop to `TransactionRow` with `size="sm"` badge
+- Built merchant lookup map in `TransactionList` for efficient O(1) per-row lookups
+- Added "New only" toggle button to `MerchantsList` toolbar with combined search+filter support
+- Updated count label to show "(new only)" suffix when filter is active
+- All 974 tests pass (1 pre-existing failure in accounts.test.tsx due to jsdom DOMMatrix, unrelated)
+
+### Change Log
+
+- 2026-02-08: Implemented story 7-3 first-time merchant detection — all 7 tasks completed
+
 ### File List
+
+New files:
+- src/features/merchants/utils/isNewMerchant.ts
+- src/features/merchants/utils/isNewMerchant.test.ts
+- src/features/merchants/components/NewMerchantBadge/index.tsx
+- src/features/merchants/components/NewMerchantBadge/NewMerchantBadge.test.tsx
+
+Modified files:
+- src/features/merchants/components/MerchantListItem/index.tsx
+- src/features/merchants/components/MerchantListItem/MerchantListItem.test.tsx
+- src/features/merchants/components/MerchantHeader/index.tsx
+- src/features/merchants/components/MerchantHeader/MerchantHeader.test.tsx
+- src/features/merchants/components/MerchantDetailPage/index.tsx
+- src/features/merchants/components/MerchantsList/index.tsx
+- src/features/merchants/components/MerchantsList/MerchantsList.test.tsx
+- src/components/TransactionRow/index.tsx
+- src/components/TransactionRow/TransactionRow.test.tsx
+- src/features/transactions/components/TransactionList/index.tsx

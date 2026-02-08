@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { TransactionRow } from './index'
@@ -16,6 +16,10 @@ const makeTransaction = (overrides: Partial<Transaction> = {}): Transaction => (
 })
 
 describe('TransactionRow', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('renders date, merchant, and amount', () => {
     render(<TransactionRow transaction={makeTransaction()} />)
 
@@ -247,5 +251,53 @@ describe('TransactionRow', () => {
     // The span wrapper around CategoryBadge gets the animation class
     const badgeWrapper = container.querySelector('.badge-cascade-enter')
     expect(badgeWrapper).toBeTruthy()
+  })
+
+  it('shows "New" badge next to merchant name for new merchants', () => {
+    const now = new Date('2026-02-08T12:00:00Z')
+    vi.setSystemTime(now)
+    render(
+      <TransactionRow
+        transaction={makeTransaction({ merchantId: 5 })}
+        merchantCreatedAt={new Date('2026-02-01T12:00:00Z')}
+      />
+    )
+    expect(screen.getByText('New')).toBeInTheDocument()
+  })
+
+  it('does not show badge for transactions without merchants', () => {
+    const now = new Date('2026-02-08T12:00:00Z')
+    vi.setSystemTime(now)
+    render(
+      <TransactionRow
+        transaction={makeTransaction({ merchantId: undefined })}
+      />
+    )
+    expect(screen.queryByText('New')).not.toBeInTheDocument()
+  })
+
+  it('does not show badge for transactions with established merchants', () => {
+    const now = new Date('2026-02-08T12:00:00Z')
+    vi.setSystemTime(now)
+    render(
+      <TransactionRow
+        transaction={makeTransaction({ merchantId: 5 })}
+        merchantCreatedAt={new Date('2025-06-01T12:00:00Z')}
+      />
+    )
+    expect(screen.queryByText('New')).not.toBeInTheDocument()
+  })
+
+  it('uses size="sm" for compact display of new merchant badge', () => {
+    const now = new Date('2026-02-08T12:00:00Z')
+    vi.setSystemTime(now)
+    render(
+      <TransactionRow
+        transaction={makeTransaction({ merchantId: 5 })}
+        merchantCreatedAt={new Date('2026-02-01T12:00:00Z')}
+      />
+    )
+    const badge = screen.getByText('New')
+    expect(badge.className).toContain('text-[10px]')
   })
 })

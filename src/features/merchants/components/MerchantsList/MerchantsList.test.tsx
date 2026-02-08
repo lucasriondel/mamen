@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto'
-import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest'
+import { describe, it, expect, vi, beforeEach, beforeAll, afterEach } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { db } from '@/lib/db'
@@ -85,6 +85,10 @@ describe('MerchantsList', () => {
     await db.transactions.clear()
     await db.categories.clear()
     navigateMock.mockClear()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('renders list of merchants', async () => {
@@ -180,5 +184,155 @@ describe('MerchantsList', () => {
     await user.type(searchInput, 'zzzzz')
 
     expect(await screen.findByText(/No merchants matching/)).toBeInTheDocument()
+  })
+
+  it('shows "New" badge on new merchants and not on old ones', async () => {
+    const now = new Date('2026-02-08T12:00:00Z')
+    vi.setSystemTime(now)
+
+    // Add a new merchant (within 30 days)
+    const newM = (await db.merchants.add({
+      name: 'NewShop',
+      createdAt: new Date('2026-02-01T12:00:00Z'),
+      firstSeen: new Date('2026-02-01T12:00:00Z'),
+    })) as number
+
+    // Add an old merchant (over 30 days)
+    const oldM = (await db.merchants.add({
+      name: 'OldShop',
+      createdAt: new Date('2025-06-01T12:00:00Z'),
+      firstSeen: new Date('2025-06-01T12:00:00Z'),
+    })) as number
+
+    await db.transactions.bulkAdd([
+      { accountId: 1, date: new Date('2026-02-01'), amount: -50, rawMerchantString: 'NEW', merchantId: newM, importedAt: now, importMonth: '2026-02' },
+      { accountId: 1, date: new Date('2026-01-01'), amount: -50, rawMerchantString: 'OLD', merchantId: oldM, importedAt: now, importMonth: '2026-01' },
+    ])
+
+    render(<MerchantsList />)
+
+    await screen.findByText('NewShop')
+    expect(screen.getByText('New')).toBeInTheDocument()
+  })
+
+  it('filters to show only new merchants when toggle active', async () => {
+    const now = new Date()
+    const recentDate = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000)
+    const oldDate = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000)
+
+    const newM = (await db.merchants.add({
+      name: 'NewShop',
+      createdAt: recentDate,
+      firstSeen: recentDate,
+    })) as number
+
+    const oldM = (await db.merchants.add({
+      name: 'OldShop',
+      createdAt: oldDate,
+      firstSeen: oldDate,
+    })) as number
+
+    await db.transactions.bulkAdd([
+      { accountId: 1, date: new Date('2026-02-01'), amount: -50, rawMerchantString: 'NEW', merchantId: newM, importedAt: now, importMonth: '2026-02' },
+      { accountId: 1, date: new Date('2026-01-01'), amount: -50, rawMerchantString: 'OLD', merchantId: oldM, importedAt: now, importMonth: '2026-01' },
+    ])
+
+    const user = userEvent.setup()
+    render(<MerchantsList />)
+
+    await screen.findByText('NewShop')
+    expect(screen.getByText('OldShop')).toBeInTheDocument()
+
+    // Toggle "New only"
+    const newOnlyBtn = screen.getByRole('button', { name: 'New only' })
+    await user.click(newOnlyBtn)
+
+    expect(screen.getByText('NewShop')).toBeInTheDocument()
+    expect(screen.queryByText('OldShop')).not.toBeInTheDocument()
+    expect(screen.getByText(/1 of 2 merchants \(new only\)/)).toBeInTheDocument()
+  })
+
+  it('combines "New only" filter with search query', async () => {
+    const now = new Date()
+    const recentDate1 = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000)
+    const recentDate2 = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000)
+    const oldDate = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000)
+
+    const m1 = (await db.merchants.add({
+      name: 'NewAlpha',
+      createdAt: recentDate1,
+      firstSeen: recentDate1,
+    })) as number
+
+    const m2 = (await db.merchants.add({
+      name: 'NewBeta',
+      createdAt: recentDate2,
+      firstSeen: recentDate2,
+    })) as number
+
+    const m3 = (await db.merchants.add({
+      name: 'OldAlpha',
+      createdAt: oldDate,
+      firstSeen: oldDate,
+    })) as number
+
+    await db.transactions.bulkAdd([
+      { accountId: 1, date: new Date('2026-02-01'), amount: -10, rawMerchantString: 'NA', merchantId: m1, importedAt: now, importMonth: '2026-02' },
+      { accountId: 1, date: new Date('2026-02-02'), amount: -10, rawMerchantString: 'NB', merchantId: m2, importedAt: now, importMonth: '2026-02' },
+      { accountId: 1, date: new Date('2025-01-01'), amount: -10, rawMerchantString: 'OA', merchantId: m3, importedAt: now, importMonth: '2025-01' },
+    ])
+
+    const user = userEvent.setup()
+    render(<MerchantsList />)
+
+    await screen.findByText('NewAlpha')
+
+    // Toggle "New only"
+    await user.click(screen.getByRole('button', { name: 'New only' }))
+
+    // Search for "Alpha"
+    const searchInput = screen.getByPlaceholderText('Filter merchants...')
+    await user.type(searchInput, 'Alpha')
+
+    // Only NewAlpha should match (new + search)
+    expect(screen.getByText('NewAlpha')).toBeInTheDocument()
+    expect(screen.queryByText('NewBeta')).not.toBeInTheDocument()
+    expect(screen.queryByText('OldAlpha')).not.toBeInTheDocument()
+  })
+
+  it('toggle off restores full list', async () => {
+    const now = new Date()
+    const recentDate = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000)
+    const oldDate = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000)
+
+    const newM = (await db.merchants.add({
+      name: 'NewShop',
+      createdAt: recentDate,
+      firstSeen: recentDate,
+    })) as number
+
+    const oldM = (await db.merchants.add({
+      name: 'OldShop',
+      createdAt: oldDate,
+      firstSeen: oldDate,
+    })) as number
+
+    await db.transactions.bulkAdd([
+      { accountId: 1, date: new Date('2026-02-01'), amount: -50, rawMerchantString: 'NEW', merchantId: newM, importedAt: now, importMonth: '2026-02' },
+      { accountId: 1, date: new Date('2026-01-01'), amount: -50, rawMerchantString: 'OLD', merchantId: oldM, importedAt: now, importMonth: '2026-01' },
+    ])
+
+    const user = userEvent.setup()
+    render(<MerchantsList />)
+
+    await screen.findByText('NewShop')
+
+    const newOnlyBtn = screen.getByRole('button', { name: 'New only' })
+    await user.click(newOnlyBtn) // on
+    expect(screen.queryByText('OldShop')).not.toBeInTheDocument()
+
+    await user.click(newOnlyBtn) // off
+    expect(screen.getByText('OldShop')).toBeInTheDocument()
+    expect(screen.getByText('NewShop')).toBeInTheDocument()
   })
 })

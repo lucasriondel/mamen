@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { Search, X, Store, ArrowUpDown } from 'lucide-react'
 import { Input } from '@/components/ui/input'
@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/select'
 import { useKeyboardNavigation } from '@/hooks/useKeyboardNavigation'
 import { MerchantListItem } from '../MerchantListItem'
+import { isNewMerchant } from '../../utils/isNewMerchant'
 import {
   useMerchantsList,
   type MerchantSortField,
@@ -30,15 +31,21 @@ export function MerchantsList(): React.ReactElement {
   const [searchQuery, setSearchQuery] = useState('')
   const [sortField, setSortField] = useState<MerchantSortField>('totalSpent')
   const [sortOrder, setSortOrder] = useState<MerchantSortOrder>('desc')
+  const [showNewOnly, setShowNewOnly] = useState(false)
 
   const containerRef = useRef<HTMLDivElement>(null)
   const itemRefs = useRef<Map<number, HTMLDivElement>>(new Map())
 
-  const { merchants, totalCount } = useMerchantsList({
+  const { merchants: allMerchants, totalCount } = useMerchantsList({
     sortField,
     sortOrder,
     searchQuery: searchQuery || undefined,
   })
+
+  const merchants = useMemo(() => {
+    if (!showNewOnly) return allMerchants
+    return allMerchants.filter((m) => isNewMerchant(m.createdAt))
+  }, [allMerchants, showNewOnly])
 
   const handleSelect = useCallback(
     (index: number) => {
@@ -82,9 +89,9 @@ export function MerchantsList(): React.ReactElement {
   }
 
   const filteredCount = merchants.length
-  const isFiltered = searchQuery.length > 0
+  const isFiltered = searchQuery.length > 0 || showNewOnly
   const countLabel = isFiltered
-    ? `${filteredCount} of ${totalCount} merchants`
+    ? `${filteredCount} of ${totalCount} merchants${showNewOnly ? ' (new only)' : ''}`
     : `${totalCount} merchant${totalCount !== 1 ? 's' : ''}`
 
   // Empty state: no merchants at all
@@ -158,6 +165,16 @@ export function MerchantsList(): React.ReactElement {
           <ArrowUpDown className="h-4 w-4" />
         </Button>
 
+        <Button
+          variant={showNewOnly ? 'default' : 'outline'}
+          size="sm"
+          className="h-9 text-xs"
+          onClick={() => setShowNewOnly((prev) => !prev)}
+          aria-pressed={showNewOnly}
+        >
+          New only
+        </Button>
+
         <span className="text-xs text-muted-foreground whitespace-nowrap">
           {countLabel}
         </span>
@@ -168,14 +185,19 @@ export function MerchantsList(): React.ReactElement {
         {merchants.length === 0 && isFiltered ? (
           <div className="flex flex-col items-center justify-center h-full gap-3 text-center p-6">
             <p className="text-sm text-muted-foreground">
-              No merchants matching &quot;{searchQuery}&quot;
+              {showNewOnly && !searchQuery
+                ? 'No new merchants'
+                : `No merchants matching "${searchQuery}"${showNewOnly ? ' (new only)' : ''}`}
             </p>
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setSearchQuery('')}
+              onClick={() => {
+                setSearchQuery('')
+                setShowNewOnly(false)
+              }}
             >
-              Clear search
+              Clear filters
             </Button>
           </div>
         ) : (

@@ -52,6 +52,19 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
       : undefined,
   })
 
+  const merchantsMap = useLiveQuery(async () => {
+    const allMerchants = await db.merchants.toArray()
+    return new Map(allMerchants.map((m) => [m.id!, m.createdAt]))
+  }, [])
+
+  const getMerchantCreatedAt = useCallback(
+    (merchantId: number | undefined) => {
+      if (!merchantId || !merchantsMap) return undefined
+      return merchantsMap.get(merchantId) ?? undefined
+    },
+    [merchantsMap],
+  )
+
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [merchantModalOpen, setMerchantModalOpen] = useState(false)
   const [merchantModalTransaction, setMerchantModalTransaction] = useState<Transaction | null>(null)
@@ -412,6 +425,7 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
                   isHighlighted={animatingIdSet.has(String(transaction.id)) && (animationPhase === 'highlight' || animationPhase === 'settle')}
                   badgeAnimating={animatingIdSet.has(String(transaction.id)) && animationPhase === 'badge'}
                   cascadeIndex={animatingIdSet.has(String(transaction.id)) ? animatingIds.indexOf(String(transaction.id)) : undefined}
+                  merchantCreatedAt={getMerchantCreatedAt(transaction.merchantId)}
                   onClick={() => handleRowClick(transaction.id)}
                 />
               </div>

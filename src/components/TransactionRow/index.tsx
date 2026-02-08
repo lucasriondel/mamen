@@ -2,6 +2,7 @@ import { cn } from '@/lib/utils'
 import { CheckIcon } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { CategoryBadge } from '@/components/CategoryBadge'
+import { NewMerchantBadge } from '@/features/merchants/components/NewMerchantBadge'
 import { formatCurrency } from '@/lib/utils/formatCurrency'
 import { formatDate } from '@/lib/utils/formatDate'
 import type { Transaction } from '@/types'
@@ -13,6 +14,7 @@ export type TransactionRowProps = {
   isHighlighted?: boolean
   badgeAnimating?: boolean
   cascadeIndex?: number
+  merchantCreatedAt?: Date | null
   onClick?: () => void
 }
 
@@ -25,6 +27,7 @@ export function TransactionRow({
   isHighlighted = false,
   badgeAnimating = false,
   cascadeIndex,
+  merchantCreatedAt,
   onClick,
 }: TransactionRowProps): React.ReactElement {
   const isUnmatched = !transaction.merchantId && !transaction.manualCategory
@@ -66,8 +69,9 @@ export function TransactionRow({
         {formatDate(transaction.date)}
       </div>
 
-      <div className="flex-1 truncate text-sm">
-        {transaction.rawMerchantString}
+      <div className="flex-1 min-w-0 flex items-center gap-1.5 text-sm">
+        <span className="truncate">{transaction.rawMerchantString}</span>
+        {merchantCreatedAt && <NewMerchantBadge createdAt={merchantCreatedAt} size="sm" />}
       </div>
 
       <div className="w-32 shrink-0 flex items-center gap-1">

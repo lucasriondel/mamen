@@ -1,6 +1,7 @@
 import { forwardRef } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { CategoryBadge } from '@/components/CategoryBadge'
+import { NewMerchantBadge } from '../NewMerchantBadge'
 import { formatCurrency } from '@/lib/utils/formatCurrency'
 import { cn } from '@/lib/utils'
 import type { MerchantListItem as MerchantListItemData } from '../../hooks/useMerchantsList'
@@ -51,6 +52,7 @@ export const MerchantListItem = forwardRef<HTMLDivElement, MerchantListItemProps
           <span className="font-semibold text-sm truncate" title={merchant.name}>
             {merchant.name}
           </span>
+          <NewMerchantBadge createdAt={merchant.createdAt} size="sm" />
           {merchant.defaultCategoryId != null ? (
             <CategoryBadge categoryId={merchant.defaultCategoryId} size="sm" />
           ) : (

@@ -99,7 +99,7 @@ development_status:
   epic-7: in-progress
   7-1-merchants-list-view: review
   7-2-merchant-detail-page: review
-  7-3-first-time-merchant-detection: ready-for-dev
+  7-3-first-time-merchant-detection: review
   epic-7-retrospective: optional
 
   # Epic 8: Refund Handling

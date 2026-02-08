@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MerchantListItem } from './index'
@@ -26,6 +26,10 @@ const baseMerchant: MerchantListItemData = {
 }
 
 describe('MerchantListItem', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('renders merchant name, category, transaction count, total spent', () => {
     render(
       <MerchantListItem
@@ -134,5 +138,31 @@ describe('MerchantListItem', () => {
 
     const row = screen.getByRole('button')
     expect(row).toHaveAttribute('aria-label', 'View Amazon details')
+  })
+
+  it('shows "New" badge for merchants created within 30 days', () => {
+    const now = new Date('2026-02-08T12:00:00Z')
+    vi.setSystemTime(now)
+    render(
+      <MerchantListItem
+        merchant={{ ...baseMerchant, createdAt: new Date('2026-02-01T12:00:00Z') }}
+        isFocused={false}
+        onClick={vi.fn()}
+      />,
+    )
+    expect(screen.getByText('New')).toBeInTheDocument()
+  })
+
+  it('does not show "New" badge for older merchants', () => {
+    const now = new Date('2026-02-08T12:00:00Z')
+    vi.setSystemTime(now)
+    render(
+      <MerchantListItem
+        merchant={baseMerchant}
+        isFocused={false}
+        onClick={vi.fn()}
+      />,
+    )
+    expect(screen.queryByText('New')).not.toBeInTheDocument()
   })
 })

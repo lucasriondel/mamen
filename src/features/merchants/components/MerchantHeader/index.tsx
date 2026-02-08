@@ -1,17 +1,20 @@
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { CategoryBadge } from '@/components/CategoryBadge'
+import { NewMerchantBadge } from '../NewMerchantBadge'
 import { ArrowLeft } from 'lucide-react'
 
 export type MerchantHeaderProps = {
   name: string
   defaultCategoryId: number | undefined
+  createdAt: Date
   onBack: () => void
 }
 
 export function MerchantHeader({
   name,
   defaultCategoryId,
+  createdAt,
   onBack,
 }: MerchantHeaderProps): React.ReactElement {
   return (
@@ -25,7 +28,10 @@ export function MerchantHeader({
         <ArrowLeft className="h-4 w-4" />
         Merchants
       </Button>
-      <h1 className="text-2xl font-bold">{name}</h1>
+      <div className="flex items-center gap-2">
+        <h1 className="text-2xl font-bold">{name}</h1>
+        <NewMerchantBadge createdAt={createdAt} />
+      </div>
       {defaultCategoryId != null ? (
         <CategoryBadge categoryId={defaultCategoryId} size="md" />
       ) : (
