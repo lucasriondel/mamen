@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils'
-import { CheckIcon } from 'lucide-react'
+import { CheckIcon, Link2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { CategoryBadge } from '@/components/CategoryBadge'
 import { NewMerchantBadge } from '@/features/merchants/components/NewMerchantBadge'
@@ -102,11 +102,27 @@ export function TransactionRow({
 
       <div
         className={cn(
-          'w-24 text-right font-mono text-sm shrink-0',
+          'w-24 text-right font-mono text-sm shrink-0 flex items-center justify-end gap-1',
           transaction.amount < 0 ? 'text-foreground' : 'text-green-500'
         )}
       >
-        {formatCurrency(transaction.amount)}
+        {transaction.isRefund && (
+          <Badge
+            variant="outline"
+            className="border-green-500/50 bg-green-500/10 text-green-500 text-[10px] px-1 py-0"
+            data-testid="refund-badge"
+          >
+            Refund
+          </Badge>
+        )}
+        {transaction.linkedRefundId && (
+          <Link2
+            className="h-3 w-3 text-muted-foreground shrink-0"
+            aria-label="Linked transaction"
+            data-testid="link-icon"
+          />
+        )}
+        <span>{formatCurrency(transaction.amount)}</span>
       </div>
     </div>
   )

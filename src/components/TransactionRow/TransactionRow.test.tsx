@@ -85,14 +85,14 @@ describe('TransactionRow', () => {
     render(<TransactionRow transaction={makeTransaction({ amount: 100.50 })} />)
 
     const amountEl = screen.getByText(/100,50/)
-    expect(amountEl.className).toContain('text-green-500')
+    expect(amountEl.closest('[class*="font-mono"]')!.className).toContain('text-green-500')
   })
 
   it('applies monospace font to amount', () => {
     render(<TransactionRow transaction={makeTransaction()} />)
 
     const amountEl = screen.getByText(/45,99/)
-    expect(amountEl.className).toContain('font-mono')
+    expect(amountEl.closest('[class*="font-mono"]')).toBeTruthy()
   })
 
   it('has 48px (h-12) row height', () => {
@@ -299,5 +299,42 @@ describe('TransactionRow', () => {
     )
     const badge = screen.getByText('New')
     expect(badge.className).toContain('text-[10px]')
+  })
+
+  it('shows "Refund" badge when isRefund is true', () => {
+    render(
+      <TransactionRow
+        transaction={makeTransaction({ isRefund: true, amount: 29.99 })}
+      />
+    )
+    expect(screen.getByTestId('refund-badge')).toBeInTheDocument()
+    expect(screen.getByText('Refund')).toBeInTheDocument()
+  })
+
+  it('shows link icon when linkedRefundId is set', () => {
+    render(
+      <TransactionRow
+        transaction={makeTransaction({ isRefund: true, linkedRefundId: 42 })}
+      />
+    )
+    expect(screen.getByTestId('link-icon')).toBeInTheDocument()
+  })
+
+  it('shows badge but no link icon for orphan refunds', () => {
+    render(
+      <TransactionRow
+        transaction={makeTransaction({ isRefund: true })}
+      />
+    )
+    expect(screen.getByTestId('refund-badge')).toBeInTheDocument()
+    expect(screen.queryByTestId('link-icon')).not.toBeInTheDocument()
+  })
+
+  it('no refund indicators when isRefund is false', () => {
+    render(
+      <TransactionRow transaction={makeTransaction()} />
+    )
+    expect(screen.queryByTestId('refund-badge')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('link-icon')).not.toBeInTheDocument()
   })
 })

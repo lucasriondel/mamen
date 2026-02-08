@@ -49,6 +49,14 @@ function TransactionsPage(): React.ReactElement {
           <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px]">R</kbd>
           {' '}Create Rule
         </span>
+        <span>
+          <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px]">C</kbd>
+          {' '}Category
+        </span>
+        <span>
+          <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px]">F</kbd>
+          {' '}Refund
+        </span>
       </div>
     </div>
   )

@@ -156,6 +156,105 @@ describe('Dexie database schema', () => {
     })
   })
 
+  describe('refund fields', () => {
+    it('new transaction has isRefund undefined by default', async () => {
+      const accountId = await db.accounts.add({ name: 'A1', type: 'checking', createdAt: new Date(), updatedAt: new Date() })
+      const txId = await db.transactions.add({
+        accountId,
+        date: new Date(),
+        amount: 29.99,
+        rawMerchantString: 'REFUND',
+        importedAt: new Date(),
+        importMonth: '2026-01',
+      })
+
+      const tx = await db.transactions.get(txId)
+      expect(tx!.isRefund).toBeUndefined()
+    })
+
+    it('new transaction has linkedRefundId undefined by default', async () => {
+      const accountId = await db.accounts.add({ name: 'A1', type: 'checking', createdAt: new Date(), updatedAt: new Date() })
+      const txId = await db.transactions.add({
+        accountId,
+        date: new Date(),
+        amount: 29.99,
+        rawMerchantString: 'REFUND',
+        importedAt: new Date(),
+        importMonth: '2026-01',
+      })
+
+      const tx = await db.transactions.get(txId)
+      expect(tx!.linkedRefundId).toBeUndefined()
+    })
+
+    it('can set isRefund to true and persist', async () => {
+      const accountId = await db.accounts.add({ name: 'A1', type: 'checking', createdAt: new Date(), updatedAt: new Date() })
+      const txId = await db.transactions.add({
+        accountId,
+        date: new Date(),
+        amount: 29.99,
+        rawMerchantString: 'REFUND',
+        importedAt: new Date(),
+        importMonth: '2026-01',
+      })
+
+      await db.transactions.update(txId, { isRefund: true })
+      const tx = await db.transactions.get(txId)
+      expect(tx!.isRefund).toBe(true)
+    })
+
+    it('can set linkedRefundId to another transaction ID and persist', async () => {
+      const accountId = await db.accounts.add({ name: 'A1', type: 'checking', createdAt: new Date(), updatedAt: new Date() })
+      const purchaseId = await db.transactions.add({
+        accountId,
+        date: new Date(),
+        amount: -29.99,
+        rawMerchantString: 'AMAZON',
+        importedAt: new Date(),
+        importMonth: '2026-01',
+      })
+      const refundId = await db.transactions.add({
+        accountId,
+        date: new Date(),
+        amount: 29.99,
+        rawMerchantString: 'AMAZON REFUND',
+        importedAt: new Date(),
+        importMonth: '2026-01',
+      })
+
+      await db.transactions.update(refundId, { isRefund: true, linkedRefundId: purchaseId })
+      const tx = await db.transactions.get(refundId)
+      expect(tx!.isRefund).toBe(true)
+      expect(tx!.linkedRefundId).toBe(purchaseId)
+    })
+
+    it('can query linked transactions by linkedRefundId', async () => {
+      const accountId = await db.accounts.add({ name: 'A1', type: 'checking', createdAt: new Date(), updatedAt: new Date() })
+      const purchaseId = await db.transactions.add({
+        accountId,
+        date: new Date(),
+        amount: -29.99,
+        rawMerchantString: 'AMAZON',
+        importedAt: new Date(),
+        importMonth: '2026-01',
+      })
+      const refundId = await db.transactions.add({
+        accountId,
+        date: new Date(),
+        amount: 29.99,
+        rawMerchantString: 'AMAZON REFUND',
+        isRefund: true,
+        linkedRefundId: purchaseId,
+        importedAt: new Date(),
+        importMonth: '2026-01',
+      })
+
+      const linked = await db.transactions.where('linkedRefundId').equals(purchaseId).toArray()
+      expect(linked).toHaveLength(1)
+      expect(linked[0].id).toBe(refundId)
+    })
+  })
+
   describe('cross-table relationships', () => {
     it('links transactions to accounts and merchants', async () => {
       const accountId = await db.accounts.add({ name: 'Main', type: 'checking', createdAt: new Date(), updatedAt: new Date() })

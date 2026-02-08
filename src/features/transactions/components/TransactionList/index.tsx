@@ -9,7 +9,9 @@ import { SubscriptionsPlaceholder } from '@/features/subscriptions/components/Su
 import { SelectionStatusBar } from '@/components/SelectionStatusBar'
 import { MerchantAssignmentModal } from '@/features/merchants/components/MerchantAssignmentModal'
 import { QuickCategoryPicker } from '../QuickCategoryPicker'
+import { RefundLinkModal } from '../RefundLinkModal'
 import { useKeyboardNavigation } from '@/hooks/useKeyboardNavigation'
+import { useRefundLink } from '../../hooks/useRefundLink'
 import { useMultiSelect } from '@/hooks/useMultiSelect'
 import { useCascadeAnimation } from '@/hooks/useCascadeAnimation'
 import { useFilteredTransactions } from '../../hooks/useFilteredTransactions'
@@ -76,6 +78,7 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
   const [categoryBatchFirstId, setCategoryBatchFirstId] = useState<number | null>(null)
   const { assignCategory } = useQuickCategoryAssign()
   const { batchAssignCategory } = useBatchCategoryAssign()
+  const refundLink = useRefundLink()
   const { triggerCascade, animatingIds, animationPhase } = useCascadeAnimation()
   const animatingIdSet = useMemo(() => new Set(animatingIds), [animatingIds])
   const parentRef = useRef<HTMLDivElement>(null)
@@ -87,7 +90,7 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
   // Track previous focused index for shift-navigate anchor
   const prevFocusedRef = useRef<number | null>(null)
 
-  const anyModalOpen = merchantModalOpen || categoryPickerOpen
+  const anyModalOpen = merchantModalOpen || categoryPickerOpen || refundLink.isOpen
 
   const handleShiftNavigate = useCallback(
     (index: number) => {
@@ -167,6 +170,8 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
             setMerchantModalPowerMode(action.shiftKey)
             setMerchantModalOpen(true)
           }
+        } else if (action.key.toLowerCase() === 'f') {
+          refundLink.openRefundLink(tx)
         } else if (action.key.toLowerCase() === 'c') {
           if (multiSelect.selectionCount > 1) {
             // Batch mode: capture selected IDs and first ID for focus return
@@ -184,7 +189,7 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
           }
         }
       },
-      [transactions, anyModalOpen, multiSelect.selectionCount, multiSelect.selectedIds],
+      [transactions, anyModalOpen, multiSelect.selectionCount, multiSelect.selectedIds, refundLink],
     ),
     onShiftNavigate: handleShiftNavigate,
     onNavigate: handleNavigate,
@@ -480,6 +485,14 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
           setCategoryPickerOpen(false)
           setCategoryPickerTransaction(null)
         }}
+      />
+
+      <RefundLinkModal
+        open={refundLink.isOpen}
+        onOpenChange={(open) => { if (!open) refundLink.closeRefundLink() }}
+        sourceTransaction={refundLink.sourceTransaction}
+        onConfirmLink={refundLink.handleConfirmLink}
+        onConfirmOrphan={refundLink.handleConfirmOrphan}
       />
     </div>
   )

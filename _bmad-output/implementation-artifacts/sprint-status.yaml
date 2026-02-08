@@ -104,7 +104,7 @@ development_status:
 
   # Epic 8: Refund Handling
   epic-8: in-progress
-  8-1-mark-transaction-as-refund-f-key: ready-for-dev
+  8-1-mark-transaction-as-refund-f-key: review
   8-2-link-refund-to-original-purchase: ready-for-dev
   8-3-net-spending-calculation: ready-for-dev
   epic-8-retrospective: optional
