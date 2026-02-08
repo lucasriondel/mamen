@@ -230,4 +230,78 @@ describe('QuickCategoryPicker', () => {
 
     expect(screen.queryByPlaceholderText('Search categories...')).not.toBeInTheDocument()
   })
+
+  it('shows batch header when batchCount > 1', async () => {
+    await seedCategories()
+
+    render(
+      <QuickCategoryPicker
+        open={true}
+        onOpenChange={vi.fn()}
+        onCategorySelect={vi.fn()}
+        batchCount={5}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('Categorize 5 transactions')).toBeInTheDocument()
+    })
+  })
+
+  it('shows single-mode title when batchCount is undefined', async () => {
+    await seedCategories()
+
+    render(
+      <QuickCategoryPicker
+        open={true}
+        onOpenChange={vi.fn()}
+        onCategorySelect={vi.fn()}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('Assign Category')).toBeInTheDocument()
+    })
+  })
+
+  it('shows single-mode title when batchCount is 1', async () => {
+    await seedCategories()
+
+    render(
+      <QuickCategoryPicker
+        open={true}
+        onOpenChange={vi.fn()}
+        onCategorySelect={vi.fn()}
+        batchCount={1}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('Assign Category')).toBeInTheDocument()
+    })
+  })
+
+  it('calls onCategorySelect in batch mode same as single mode', async () => {
+    const { shoppingId } = await seedCategories()
+    const handleSelect = vi.fn()
+    const user = userEvent.setup()
+
+    render(
+      <QuickCategoryPicker
+        open={true}
+        onOpenChange={vi.fn()}
+        onCategorySelect={handleSelect}
+        batchCount={3}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getAllByText('General').length).toBeGreaterThan(0)
+    })
+
+    const generalItems = screen.getAllByText('General')
+    await user.click(generalItems[0].closest('[cmdk-item]')!)
+
+    expect(handleSelect).toHaveBeenCalledWith(shoppingId, undefined)
+  })
 })

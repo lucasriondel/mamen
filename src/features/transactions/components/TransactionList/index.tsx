@@ -13,6 +13,7 @@ import { useMultiSelect } from '@/hooks/useMultiSelect'
 import { useCascadeAnimation } from '@/hooks/useCascadeAnimation'
 import { useFilteredTransactions } from '../../hooks/useFilteredTransactions'
 import { useQuickCategoryAssign } from '../../hooks/useQuickCategoryAssign'
+import { useBatchCategoryAssign } from '../../hooks/useBatchCategoryAssign'
 import { useFocusMode } from '@/context/FocusModeContext'
 import { db } from '@/lib/db'
 import type { Transaction } from '@/types'
@@ -36,7 +37,10 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
   const [merchantModalPowerMode, setMerchantModalPowerMode] = useState(false)
   const [categoryPickerOpen, setCategoryPickerOpen] = useState(false)
   const [categoryPickerTransaction, setCategoryPickerTransaction] = useState<Transaction | null>(null)
+  const [categoryBatchIds, setCategoryBatchIds] = useState<number[]>([])
+  const [categoryBatchFirstId, setCategoryBatchFirstId] = useState<number | null>(null)
   const { assignCategory } = useQuickCategoryAssign()
+  const { batchAssignCategory } = useBatchCategoryAssign()
   const { triggerCascade, animatingIds, animationPhase } = useCascadeAnimation()
   const animatingIdSet = useMemo(() => new Set(animatingIds), [animatingIds])
   const parentRef = useRef<HTMLDivElement>(null)
@@ -87,7 +91,7 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
     [transactions, multiSelect],
   )
 
-  const { focusedIndex } = useKeyboardNavigation({
+  const { focusedIndex, setFocusedIndex } = useKeyboardNavigation({
     itemCount: transactions.length,
     onSelect: (index) => {
       const transaction = transactions[index]
@@ -129,8 +133,20 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
             setMerchantModalOpen(true)
           }
         } else if (action.key.toLowerCase() === 'c') {
-          setCategoryPickerTransaction(tx)
-          setCategoryPickerOpen(true)
+          if (multiSelect.selectionCount > 1) {
+            // Batch mode: capture selected IDs and first ID for focus return
+            const selectedIdArray = Array.from(multiSelect.selectedIds).map(Number)
+            setCategoryBatchIds(selectedIdArray)
+            setCategoryBatchFirstId(selectedIdArray[0] ?? null)
+            setCategoryPickerTransaction(null)
+            setCategoryPickerOpen(true)
+          } else {
+            // Single mode (existing behavior)
+            setCategoryBatchIds([])
+            setCategoryBatchFirstId(null)
+            setCategoryPickerTransaction(tx)
+            setCategoryPickerOpen(true)
+          }
         }
       },
       [transactions, anyModalOpen, multiSelect.selectionCount, multiSelect.selectedIds],
@@ -313,8 +329,25 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
       <QuickCategoryPicker
         open={categoryPickerOpen}
         onOpenChange={setCategoryPickerOpen}
+        batchCount={categoryBatchIds.length > 1 ? categoryBatchIds.length : undefined}
         onCategorySelect={(categoryId, subcategoryId) => {
-          if (categoryPickerTransaction?.id !== undefined) {
+          if (categoryBatchIds.length > 1) {
+            // Batch mode
+            const idsForCascade = categoryBatchIds.map(String)
+            batchAssignCategory(categoryBatchIds, categoryId, subcategoryId)
+            triggerCascade(idsForCascade)
+            multiSelect.clearSelection()
+            // Focus return to first previously-selected transaction
+            if (categoryBatchFirstId !== null) {
+              const idx = transactions.findIndex((t) => t.id === categoryBatchFirstId)
+              if (idx !== -1) {
+                setFocusedIndex(idx)
+              }
+            }
+            setCategoryBatchIds([])
+            setCategoryBatchFirstId(null)
+          } else if (categoryPickerTransaction?.id !== undefined) {
+            // Single mode (existing behavior)
             assignCategory(categoryPickerTransaction.id, categoryId, subcategoryId)
           }
           setCategoryPickerOpen(false)

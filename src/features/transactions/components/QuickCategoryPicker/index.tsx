@@ -13,14 +13,17 @@ export type QuickCategoryPickerProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   onCategorySelect: (categoryId: number, subcategoryId?: number) => void
+  batchCount?: number
 }
 
 export function QuickCategoryPicker({
   open,
   onOpenChange,
   onCategorySelect,
+  batchCount,
 }: QuickCategoryPickerProps): React.ReactElement {
   const { categoriesWithSubs, parentCategories } = useCategories()
+  const isBatchMode = batchCount !== undefined && batchCount > 1
 
   const handleSelect = (categoryId: number, subcategoryId?: number): void => {
     onCategorySelect(categoryId, subcategoryId)
@@ -29,12 +32,19 @@ export function QuickCategoryPicker({
 
   const hasCategories = parentCategories.length > 0
 
+  const title = isBatchMode
+    ? `Categorize ${batchCount} transactions`
+    : 'Assign Category'
+  const description = isBatchMode
+    ? `Select a category for ${batchCount} transactions`
+    : 'Search and select a category for this transaction'
+
   return (
     <CommandDialog
       open={open}
       onOpenChange={onOpenChange}
-      title="Assign Category"
-      description="Search and select a category for this transaction"
+      title={title}
+      description={description}
       showCloseButton={false}
     >
       <CommandInput
