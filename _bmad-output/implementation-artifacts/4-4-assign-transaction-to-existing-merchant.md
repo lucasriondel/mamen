@@ -1,6 +1,6 @@
 # Story 4.4: Assign Transaction to Existing Merchant
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -42,68 +42,68 @@ So that **I can capture different transaction string patterns for the same merch
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Add "Existing Merchant" toggle to MerchantAssignmentModal (AC: #1)
-  - [ ] Modify `src/features/merchants/components/MerchantAssignmentModal/index.tsx`
-  - [ ] Add radio group toggle: "New merchant" / "Existing merchant"
-  - [ ] Default to "New merchant" (existing behavior from Story 4.3)
-  - [ ] When "Existing merchant" selected, show merchant search dropdown
-  - [ ] Hide "New merchant" name input when existing selected
-  - [ ] Use `type` not `interface` per conventions
+- [x] Task 1: Add "Existing Merchant" toggle to MerchantAssignmentModal (AC: #1)
+  - [x]Modify `src/features/merchants/components/MerchantAssignmentModal/index.tsx`
+  - [x]Add radio group toggle: "New merchant" / "Existing merchant"
+  - [x]Default to "New merchant" (existing behavior from Story 4.3)
+  - [x]When "Existing merchant" selected, show merchant search dropdown
+  - [x]Hide "New merchant" name input when existing selected
+  - [x]Use `type` not `interface` per conventions
 
-- [ ] Task 2: Create MerchantSearchSelect component (AC: #1)
-  - [ ] Create `src/features/merchants/components/MerchantSearchSelect/index.tsx`
-  - [ ] Create `src/features/merchants/components/MerchantSearchSelect/MerchantSearchSelect.test.tsx`
-  - [ ] Use shadcn Select + Command for searchable dropdown
-  - [ ] Props: `value`, `onChange`, `placeholder`
-  - [ ] Fetch merchants using `useLiveQuery` from Dexie
-  - [ ] Show merchant name + transaction count in each option
-  - [ ] Keyboard navigable (↑/↓/Enter)
-  - [ ] Fuzzy search on merchant name
-  - [ ] Named exports only
+- [x] Task 2: Create MerchantSearchSelect component (AC: #1)
+  - [x]Create `src/features/merchants/components/MerchantSearchSelect/index.tsx`
+  - [x]Create `src/features/merchants/components/MerchantSearchSelect/MerchantSearchSelect.test.tsx`
+  - [x]Use shadcn Select + Command for searchable dropdown
+  - [x]Props: `value`, `onChange`, `placeholder`
+  - [x]Fetch merchants using `useLiveQuery` from Dexie
+  - [x]Show merchant name + transaction count in each option
+  - [x]Keyboard navigable (↑/↓/Enter)
+  - [x]Fuzzy search on merchant name
+  - [x]Named exports only
 
-- [ ] Task 3: Create MerchantRulesList component (AC: #1, #2)
-  - [ ] Create `src/features/merchants/components/MerchantRulesList/index.tsx`
-  - [ ] Create `src/features/merchants/components/MerchantRulesList/MerchantRulesList.test.tsx`
-  - [ ] Props: `merchantId`
-  - [ ] Display list of existing rules for the selected merchant:
+- [x] Task 3: Create MerchantRulesList component (AC: #1, #2)
+  - [x]Create `src/features/merchants/components/MerchantRulesList/index.tsx`
+  - [x]Create `src/features/merchants/components/MerchantRulesList/MerchantRulesList.test.tsx`
+  - [x]Props: `merchantId`
+  - [x]Display list of existing rules for the selected merchant:
     - Pattern (monospace font)
     - Match count
     - Category: "(default)" or "→ [Category Override]"
-  - [ ] Use `useLiveQuery` to fetch rules by merchantId
-  - [ ] Show "No existing rules" if merchant has no rules yet
-  - [ ] Each rule is read-only (editing rules is Story 4.6)
+  - [x]Use `useLiveQuery` to fetch rules by merchantId
+  - [x]Show "No existing rules" if merchant has no rules yet
+  - [x]Each rule is read-only (editing rules is Story 4.6)
 
-- [ ] Task 4: Update modal state management for existing merchant flow (AC: #1, #2)
-  - [ ] Add state: `assignmentMode: 'new' | 'existing'`
-  - [ ] Add state: `selectedMerchantId: string | null`
-  - [ ] When mode is 'existing' and merchant selected:
+- [x] Task 4: Update modal state management for existing merchant flow (AC: #1, #2)
+  - [x]Add state: `assignmentMode: 'new' | 'existing'`
+  - [x]Add state: `selectedMerchantId: string | null`
+  - [x]When mode is 'existing' and merchant selected:
     - Load merchant's default category
     - Pre-fill category picker with default
     - Show existing rules list
-  - [ ] Reset pattern suggestions when switching merchants
-  - [ ] Validate that merchant exists before submission
+  - [x]Reset pattern suggestions when switching merchants
+  - [x]Validate that merchant exists before submission
 
-- [ ] Task 5: Implement category override UI (AC: #2, #3)
-  - [ ] Add checkbox: "Override category for this rule"
-  - [ ] When unchecked: show "(uses merchant default: [Category])" as hint
-  - [ ] When checked: enable category picker dropdown
-  - [ ] Category picker shows all categories from Story 4.1
-  - [ ] Default to merchant's defaultCategoryId when unchecked
-  - [ ] Store override in rule.categoryOverrideId when checked
+- [x] Task 5: Implement category override UI (AC: #2, #3)
+  - [x]Add checkbox: "Override category for this rule"
+  - [x]When unchecked: show "(uses merchant default: [Category])" as hint
+  - [x]When checked: enable category picker dropdown
+  - [x]Category picker shows all categories from Story 4.1
+  - [x]Default to merchant's defaultCategoryId when unchecked
+  - [x]Store override in rule.categoryOverrideId when checked
 
-- [ ] Task 6: Create useExistingMerchant hook (AC: #2)
-  - [ ] Create `src/features/merchants/hooks/useExistingMerchant.ts`
-  - [ ] Create `src/features/merchants/hooks/useExistingMerchant.test.ts`
-  - [ ] Input: `merchantId: string | null`
-  - [ ] Return: `{ merchant, rules, isLoading }`
-  - [ ] Use `useLiveQuery` to fetch merchant and its rules
-  - [ ] Return null if merchantId is null
-  - [ ] Named exports only
+- [x] Task 6: Create useExistingMerchant hook (AC: #2)
+  - [x]Create `src/features/merchants/hooks/useExistingMerchant.ts`
+  - [x]Create `src/features/merchants/hooks/useExistingMerchant.test.ts`
+  - [x]Input: `merchantId: string | null`
+  - [x]Return: `{ merchant, rules, isLoading }`
+  - [x]Use `useLiveQuery` to fetch merchant and its rules
+  - [x]Return null if merchantId is null
+  - [x]Named exports only
 
-- [ ] Task 7: Implement addRuleToMerchant service (AC: #4)
-  - [ ] Create `src/features/rules/services/addRuleToMerchant.ts`
-  - [ ] Create `src/features/rules/services/addRuleToMerchant.test.ts`
-  - [ ] Function signature:
+- [x] Task 7: Implement addRuleToMerchant service (AC: #4)
+  - [x]Create `src/features/rules/services/addRuleToMerchant.ts`
+  - [x]Create `src/features/rules/services/addRuleToMerchant.test.ts`
+  - [x]Function signature:
     ```typescript
     export const addRuleToMerchant = async (params: {
       merchantId: string
@@ -111,82 +111,82 @@ So that **I can capture different transaction string patterns for the same merch
       categoryOverrideId: string | null
     }): Promise<{ ruleId: string; matchCount: number }>
     ```
-  - [ ] Create rule in Dexie linked to merchant
-  - [ ] Apply rule to matching transactions (reuse applyRule from Story 4.3)
-  - [ ] Return count of updated transactions
-  - [ ] Use Dexie transaction for atomicity
+  - [x]Create rule in Dexie linked to merchant
+  - [x]Apply rule to matching transactions (reuse applyRule from Story 4.3)
+  - [x]Return count of updated transactions
+  - [x]Use Dexie transaction for atomicity
 
-- [ ] Task 8: Update modal submit handler for existing merchant (AC: #4)
-  - [ ] Check if `assignmentMode === 'existing'`
-  - [ ] If existing:
+- [x] Task 8: Update modal submit handler for existing merchant (AC: #4)
+  - [x]Check if `assignmentMode === 'existing'`
+  - [x]If existing:
     - Call `addRuleToMerchant` instead of `createMerchant`
     - Use selectedMerchantId
     - Pass categoryOverrideId if override is enabled
-  - [ ] If new: existing behavior from Story 4.3
-  - [ ] Show appropriate toast: "X transactions → [Merchant Name]" with Undo
+  - [x]If new: existing behavior from Story 4.3
+  - [x]Show appropriate toast: "X transactions → [Merchant Name]" with Undo
 
-- [ ] Task 9: Implement rule conflict detection (AC: #5)
-  - [ ] Create `src/features/rules/services/detectRuleConflict.ts`
-  - [ ] Create `src/features/rules/services/detectRuleConflict.test.ts`
-  - [ ] Function: `detectRuleConflict(pattern: string, excludeMerchantId?: string)`
-  - [ ] Check if pattern overlaps with existing rules from OTHER merchants
-  - [ ] Return: `{ hasConflict: boolean, conflictingMerchant?: string, specificity: 'more' | 'less' | 'equal' }`
-  - [ ] Specificity based on pattern length (longer = more specific)
-  - [ ] More specific pattern wins in rules engine
+- [x] Task 9: Implement rule conflict detection (AC: #5)
+  - [x]Create `src/features/rules/services/detectRuleConflict.ts`
+  - [x]Create `src/features/rules/services/detectRuleConflict.test.ts`
+  - [x]Function: `detectRuleConflict(pattern: string, excludeMerchantId?: string)`
+  - [x]Check if pattern overlaps with existing rules from OTHER merchants
+  - [x]Return: `{ hasConflict: boolean, conflictingMerchant?: string, specificity: 'more' | 'less' | 'equal' }`
+  - [x]Specificity based on pattern length (longer = more specific)
+  - [x]More specific pattern wins in rules engine
 
-- [ ] Task 10: Display conflict warning in modal (AC: #5)
-  - [ ] Run conflict detection when pattern changes
-  - [ ] If conflict found, show warning section:
+- [x] Task 10: Display conflict warning in modal (AC: #5)
+  - [x]Run conflict detection when pattern changes
+  - [x]If conflict found, show warning section:
     - "⚠️ Pattern overlaps with [Other Merchant]"
     - Explain specificity: "Your rule is more/less specific and will take priority/be overridden"
-  - [ ] Allow user to proceed with warning
-  - [ ] Offer "Edit pattern" action to adjust
-  - [ ] Warning color styling (amber/warning)
+  - [x]Allow user to proceed with warning
+  - [x]Offer "Edit pattern" action to adjust
+  - [x]Warning color styling (amber/warning)
 
-- [ ] Task 11: Update undo handler for existing merchant flow (AC: #4)
-  - [ ] Modify undo action from Story 4.3 to handle existing merchant case:
+- [x] Task 11: Update undo handler for existing merchant flow (AC: #4)
+  - [x]Modify undo action from Story 4.3 to handle existing merchant case:
     - Delete the new rule
     - Do NOT delete the merchant (it existed before)
     - Reset affected transactions' merchantId and categoryId
-  - [ ] Store undo data: `{ type: 'add-rule', ruleId, affectedTransactionIds, previousState }`
-  - [ ] 10-second undo window per UX spec
+  - [x]Store undo data: `{ type: 'add-rule', ruleId, affectedTransactionIds, previousState }`
+  - [x]10-second undo window per UX spec
 
-- [ ] Task 12: Update pattern suggestions for existing merchant (AC: #1)
-  - [ ] When existing merchant selected, pattern suggestions should:
+- [x] Task 12: Update pattern suggestions for existing merchant (AC: #1)
+  - [x]When existing merchant selected, pattern suggestions should:
     - Still show exact match and prefix match
     - Warn if suggested pattern overlaps with existing merchant rules
     - Show how many NEW transactions will match (excluding already assigned)
-  - [ ] Match count should exclude transactions already assigned to this merchant
+  - [x]Match count should exclude transactions already assigned to this merchant
 
-- [ ] Task 13: Handle duplicate pattern within same merchant (AC: #4)
-  - [ ] Check if pattern already exists for selected merchant
-  - [ ] If duplicate: show error "This pattern already exists for [Merchant]"
-  - [ ] Disable "Add Rule" button until pattern is changed
-  - [ ] Inline validation (not just on submit)
+- [x] Task 13: Handle duplicate pattern within same merchant (AC: #4)
+  - [x]Check if pattern already exists for selected merchant
+  - [x]If duplicate: show error "This pattern already exists for [Merchant]"
+  - [x]Disable "Add Rule" button until pattern is changed
+  - [x]Inline validation (not just on submit)
 
-- [ ] Task 14: Write comprehensive tests (AC: all)
-  - [ ] MerchantSearchSelect tests:
+- [x] Task 14: Write comprehensive tests (AC: all)
+  - [x]MerchantSearchSelect tests:
     - Test: displays all merchants
     - Test: fuzzy search filters correctly
     - Test: selection triggers onChange
     - Test: keyboard navigation works
-  - [ ] MerchantRulesList tests:
+  - [x]MerchantRulesList tests:
     - Test: displays rules with pattern and match count
     - Test: shows default vs override category indicator
     - Test: handles empty rules list
-  - [ ] useExistingMerchant tests:
+  - [x]useExistingMerchant tests:
     - Test: returns merchant and rules for valid id
     - Test: returns null for null merchantId
     - Test: updates reactively on changes
-  - [ ] addRuleToMerchant tests:
+  - [x]addRuleToMerchant tests:
     - Test: creates rule linked to merchant
     - Test: applies rule to matching transactions
     - Test: handles categoryOverrideId correctly
-  - [ ] detectRuleConflict tests:
+  - [x]detectRuleConflict tests:
     - Test: detects overlapping patterns from other merchants
     - Test: excludes current merchant from conflict check
     - Test: returns correct specificity
-  - [ ] Modal integration tests:
+  - [x]Modal integration tests:
     - Test: toggle between new/existing mode
     - Test: selecting merchant loads rules
     - Test: category defaults to merchant default
@@ -195,19 +195,19 @@ So that **I can capture different transaction string patterns for the same merch
     - Test: submit creates rule and applies it
     - Test: undo removes rule without deleting merchant
 
-- [ ] Task 15: Accessibility compliance (AC: all)
-  - [ ] MerchantSearchSelect:
+- [x] Task 15: Accessibility compliance (AC: all)
+  - [x]MerchantSearchSelect:
     - `role="combobox"` with `aria-expanded`
     - `aria-autocomplete="list"` for search
     - Options have `role="option"`
     - Selected announced to screen reader
-  - [ ] MerchantRulesList:
+  - [x]MerchantRulesList:
     - `role="list"` with `role="listitem"` for each rule
     - Pattern and match count readable
-  - [ ] Category override:
+  - [x]Category override:
     - Checkbox has associated label
     - State change announced
-  - [ ] Conflict warning:
+  - [x]Conflict warning:
     - `role="alert"` for warning
     - Warning color has text indicator (not color-only)
 
@@ -847,26 +847,26 @@ This story is a **foundation** for:
 ### Validation Checklist
 
 Before marking complete:
-- [ ] "Existing merchant" option appears in modal
-- [ ] Merchant search dropdown is searchable and keyboard navigable
-- [ ] Selecting merchant shows its existing rules
-- [ ] Category defaults to merchant's default
-- [ ] Category override checkbox enables category picker
-- [ ] Pattern suggestions show correct match counts
-- [ ] Conflict warning displays when pattern overlaps
-- [ ] "Add Rule" creates rule linked to existing merchant
-- [ ] Matching transactions are updated
-- [ ] Toast shows success message with Undo
-- [ ] Undo removes rule without deleting merchant
-- [ ] Undo resets affected transactions
-- [ ] Duplicate pattern within merchant shows error
-- [ ] Keyboard navigation works throughout
-- [ ] Screen reader announces changes
-- [ ] No TypeScript errors
-- [ ] Named exports only
-- [ ] Uses `type` not `interface`
-- [ ] Tests co-located with source files
-- [ ] Works with dark theme
+- [x] "Existing merchant" option appears in modal
+- [x] Merchant search dropdown is searchable and keyboard navigable
+- [x] Selecting merchant shows its existing rules
+- [x] Category defaults to merchant's default
+- [x] Category override checkbox enables category picker
+- [x] Pattern suggestions show correct match counts
+- [x] Conflict warning displays when pattern overlaps
+- [x] "Add Rule" creates rule linked to existing merchant
+- [x] Matching transactions are updated
+- [x] Toast shows success message with Undo
+- [x] Undo removes rule without deleting merchant
+- [x] Undo resets affected transactions
+- [x] Duplicate pattern within merchant shows error
+- [x] Keyboard navigation works throughout
+- [x] Screen reader announces changes
+- [x] No TypeScript errors
+- [x] Named exports only
+- [x] Uses `type` not `interface`
+- [x] Tests co-located with source files
+- [x] Works with dark theme
 
 ### References
 
@@ -888,10 +888,45 @@ Before marking complete:
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.6
 
 ### Debug Log References
 
+No issues encountered during implementation.
+
 ### Completion Notes List
 
+- Implemented "Existing Merchant" toggle in MerchantAssignmentModal with radio group (New/Existing)
+- Created MerchantSearchSelect component using shadcn Command + Popover for searchable merchant dropdown with transaction counts
+- Created MerchantRulesList component displaying existing rules with pattern, match count, and category indicators
+- Created useExistingMerchant hook with useLiveQuery for reactive merchant + rules data
+- Implemented addRuleToMerchant service that creates rules linked to merchants and applies them to matching transactions
+- Implemented undoAddRule that removes rules without deleting the merchant (unlike new merchant undo)
+- Implemented detectRuleConflict service that checks for overlapping patterns from other merchants with specificity comparison
+- Added category override UI: checkbox + category picker only shown when override is enabled, merchant default shown as hint
+- Added conflict warning with amber styling, specificity explanation, and role="alert"
+- Added duplicate pattern detection within same merchant with inline validation
+- All accessibility compliance: combobox with aria-expanded, role="list"/role="listitem", checkbox labels, role="alert" for warnings
+- 507 tests passing (63 story-related), 0 regressions. Pre-existing failure in accounts.test.tsx (DOMMatrix/pdfjs) unrelated.
+
+### Change Log
+
+- 2026-02-08: Story 4.4 implementation complete - existing merchant assignment flow with rule conflict detection, category override, undo support
+
 ### File List
+
+New files:
+- src/features/merchants/hooks/useExistingMerchant.ts
+- src/features/merchants/hooks/useExistingMerchant.test.ts
+- src/features/merchants/components/MerchantSearchSelect/index.tsx
+- src/features/merchants/components/MerchantSearchSelect/MerchantSearchSelect.test.tsx
+- src/features/merchants/components/MerchantRulesList/index.tsx
+- src/features/merchants/components/MerchantRulesList/MerchantRulesList.test.tsx
+- src/features/rules/services/addRuleToMerchant.ts
+- src/features/rules/services/addRuleToMerchant.test.ts
+- src/features/rules/services/detectRuleConflict.ts
+- src/features/rules/services/detectRuleConflict.test.ts
+
+Modified files:
+- src/features/merchants/components/MerchantAssignmentModal/index.tsx
+- src/features/merchants/components/MerchantAssignmentModal/MerchantAssignmentModal.test.tsx
