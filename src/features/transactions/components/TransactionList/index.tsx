@@ -12,6 +12,7 @@ import { MerchantAssignmentModal } from '@/features/merchants/components/Merchan
 import { QuickCategoryPicker } from '../QuickCategoryPicker'
 import { RefundLinkModal } from '../RefundLinkModal'
 import { useKeyboardNavigation } from '@/hooks/useKeyboardNavigation'
+import { useAnomalyDismiss } from '@/features/anomalies/hooks/useAnomalyDismiss'
 import { useRefundLink } from '../../hooks/useRefundLink'
 import { useMultiSelect } from '@/hooks/useMultiSelect'
 import { useCascadeAnimation } from '@/hooks/useCascadeAnimation'
@@ -34,6 +35,7 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
   const isUnmatchedMode = activeFilters.has('unmatched')
   const isMonthMode = activeFilters.has('month')
   const isSubscriptionsMode = activeFilters.has('subscriptions')
+  const isAnomaliesMode = activeFilters.has('anomalies')
   const { subscriptions: allSubscriptions, count: subscriptionCount } = useSubscriptions()
 
   const subscriptionTxIds = useMemo(() => {
@@ -62,6 +64,7 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
 
   const { transactions, isLoading } = useFilteredTransactions({
     unmatchedOnly: isDrillDown ? false : isUnmatchedMode,
+    anomaliesOnly: isDrillDown ? false : isAnomaliesMode,
     monthRange: isDrillDown ? undefined : (isMonthMode ? currentMonthRange : undefined),
     categoryId: drillDown.categoryId,
     periodRange: drillDown.periodStart && drillDown.periodEnd
@@ -95,6 +98,7 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
   const { assignCategory } = useQuickCategoryAssign()
   const { batchAssignCategory } = useBatchCategoryAssign()
   const refundLink = useRefundLink()
+  const { handleDismiss: handleDismissAnomaly } = useAnomalyDismiss()
   const { navigateToTransaction } = useNavigateToTransaction()
   const { triggerCascade, animatingIds, animationPhase } = useCascadeAnimation()
   const animatingIdSet = useMemo(() => new Set(animatingIds), [animatingIds])
@@ -481,6 +485,7 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
                   merchantCreatedAt={getMerchantCreatedAt(transaction.merchantId)}
                   onClick={() => handleRowClick(transaction.id)}
                   onLinkClick={navigateToTransaction}
+                  onDismissAnomaly={handleDismissAnomaly}
                 />
               </div>
             )

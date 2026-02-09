@@ -1,3 +1,5 @@
+import type { AnomalyFlag } from './anomaly.types'
+
 export type Transaction = {
   id?: number
   accountId: number
@@ -11,6 +13,7 @@ export type Transaction = {
   manualCategory?: boolean
   isRefund?: boolean
   linkedRefundId?: number
+  anomalyFlags?: AnomalyFlag[]
   importedAt: Date
   importMonth: string
   importBatchId?: string

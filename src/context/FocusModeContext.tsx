@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect, useMemo, type ReactNode } from 'react'
 
-type FocusMode = 'all' | 'unmatched' | 'month' | 'subscriptions'
+type FocusMode = 'all' | 'unmatched' | 'month' | 'subscriptions' | 'anomalies'
 
 type MonthRange = { start: Date; end: Date }
 
@@ -70,6 +70,7 @@ export const FocusModeProvider = ({ children }: FocusModeProviderProps): React.R
     if (activeFilters.has('unmatched')) return 'unmatched'
     if (activeFilters.has('month')) return 'month'
     if (activeFilters.has('subscriptions')) return 'subscriptions'
+    if (activeFilters.has('anomalies')) return 'anomalies'
     return 'all'
   }, [activeFilters])
 
@@ -96,6 +97,9 @@ export const FocusModeProvider = ({ children }: FocusModeProviderProps): React.R
       } else if (key === 's') {
         event.preventDefault()
         toggleFocusMode('subscriptions')
+      } else if (key === '!') {
+        event.preventDefault()
+        toggleFocusMode('anomalies')
       } else if (key === 'a') {
         event.preventDefault()
         toggleFocusMode('all')

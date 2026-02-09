@@ -78,3 +78,15 @@ db.version(7).stores({
   subscriptions: '++id, merchantId, status',
 })
 
+// Version 8: Add anomalyFlags support on transactions (stored as array field, no index needed)
+db.version(8).stores({
+  accounts: '++id, name, type, createdAt',
+  transactions: '++id, accountId, date, amount, merchantId, categoryId, subcategoryId, manualCategory, linkedRefundId, importMonth, importBatchId, [accountId+importMonth]',
+  merchants: '++id, name, defaultCategoryId, firstSeen',
+  rules: '++id, merchantId, pattern',
+  settings: '++id, &key',
+  appSettings: '&id',
+  categories: '++id, parentId, slug, sortOrder',
+  subscriptions: '++id, merchantId, status',
+})
+

@@ -329,6 +329,92 @@ describe('Dexie database schema', () => {
     })
   })
 
+  describe('anomalyFlags on transactions', () => {
+    it('new transaction has anomalyFlags undefined by default', async () => {
+      const accountId = await db.accounts.add({ name: 'A1', type: 'checking', createdAt: new Date(), updatedAt: new Date() })
+      const txId = await db.transactions.add({
+        accountId,
+        date: new Date(),
+        amount: -400,
+        rawMerchantString: 'EXPENSIVE STORE',
+        importedAt: new Date(),
+        importMonth: '2026-01',
+      })
+
+      const tx = await db.transactions.get(txId)
+      expect(tx!.anomalyFlags).toBeUndefined()
+    })
+
+    it('can store and retrieve anomalyFlags on a transaction', async () => {
+      const accountId = await db.accounts.add({ name: 'A1', type: 'checking', createdAt: new Date(), updatedAt: new Date() })
+      const txId = await db.transactions.add({
+        accountId,
+        date: new Date(),
+        amount: -400,
+        rawMerchantString: 'EXPENSIVE STORE',
+        anomalyFlags: [
+          {
+            type: 'high-amount',
+            reason: 'EUR400 is 3x your average for Shopping (EUR130)',
+            detectedAt: '2026-02-01T10:00:00.000Z',
+            dismissed: false,
+          },
+        ],
+        importedAt: new Date(),
+        importMonth: '2026-01',
+      })
+
+      const tx = await db.transactions.get(txId)
+      expect(tx!.anomalyFlags).toHaveLength(1)
+      expect(tx!.anomalyFlags![0].type).toBe('high-amount')
+      expect(tx!.anomalyFlags![0].dismissed).toBe(false)
+    })
+
+    it('can update anomalyFlags to add a flag', async () => {
+      const accountId = await db.accounts.add({ name: 'A1', type: 'checking', createdAt: new Date(), updatedAt: new Date() })
+      const txId = await db.transactions.add({
+        accountId,
+        date: new Date(),
+        amount: -400,
+        rawMerchantString: 'EXPENSIVE STORE',
+        importedAt: new Date(),
+        importMonth: '2026-01',
+      })
+
+      await db.transactions.update(txId, {
+        anomalyFlags: [
+          {
+            type: 'high-amount',
+            reason: 'Test reason',
+            detectedAt: '2026-02-01T10:00:00.000Z',
+            dismissed: false,
+          },
+        ],
+      })
+
+      const tx = await db.transactions.get(txId)
+      expect(tx!.anomalyFlags).toHaveLength(1)
+    })
+
+    it('can store anomalySettings in settings table', async () => {
+      await db.settings.add({
+        key: 'anomaly_settings',
+        value: JSON.stringify({
+          multiplierThreshold: 2,
+          absoluteThreshold: null,
+          minTransactionsForDetection: 5,
+        }),
+      })
+
+      const setting = await db.settings.where('key').equals('anomaly_settings').first()
+      expect(setting).toBeDefined()
+      const parsed = JSON.parse(setting!.value)
+      expect(parsed.multiplierThreshold).toBe(2)
+      expect(parsed.absoluteThreshold).toBeNull()
+      expect(parsed.minTransactionsForDetection).toBe(5)
+    })
+  })
+
   describe('cross-table relationships', () => {
     it('links transactions to accounts and merchants', async () => {
       const accountId = await db.accounts.add({ name: 'Main', type: 'checking', createdAt: new Date(), updatedAt: new Date() })

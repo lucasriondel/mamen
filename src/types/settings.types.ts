@@ -21,6 +21,7 @@ export type SettingKey =
   | 'currency_symbol'
   | 'date_format'
   | 'anomaly_threshold'
+  | 'anomaly_settings'
 
 export type Setting = {
   id?: number

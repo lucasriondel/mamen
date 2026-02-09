@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { Transaction } from '@/types'
+import { anomalyFlagSchema } from './anomaly.schema'
 
 export const transactionSchema = z.object({
   id: z.number().optional(),
@@ -12,6 +13,7 @@ export const transactionSchema = z.object({
   categoryOverride: z.string().optional(),
   isRefund: z.boolean().optional(),
   linkedRefundId: z.number().optional(),
+  anomalyFlags: z.array(anomalyFlagSchema).optional(),
   importedAt: z.date(),
   importMonth: z.string(),
 }) satisfies z.ZodType<Transaction>

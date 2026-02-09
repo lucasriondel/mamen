@@ -3,9 +3,10 @@ import { CheckIcon, Link2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { CategoryBadge } from '@/components/CategoryBadge'
 import { NewMerchantBadge } from '@/features/merchants/components/NewMerchantBadge'
+import { AnomalyBadge } from '@/features/anomalies/components/AnomalyBadge'
 import { formatCurrency } from '@/lib/utils/formatCurrency'
 import { formatDate } from '@/lib/utils/formatDate'
-import type { Transaction } from '@/types'
+import type { Transaction, AnomalyType } from '@/types'
 
 export type TransactionRowProps = {
   transaction: Transaction
@@ -17,6 +18,7 @@ export type TransactionRowProps = {
   merchantCreatedAt?: Date | null
   onClick?: () => void
   onLinkClick?: (linkedTransactionId: number) => void
+  onDismissAnomaly?: (transactionId: number, anomalyType: AnomalyType) => void
 }
 
 const STAGGER_MS = 50
@@ -31,6 +33,7 @@ export function TransactionRow({
   merchantCreatedAt,
   onClick,
   onLinkClick,
+  onDismissAnomaly,
 }: TransactionRowProps): React.ReactElement {
   const isUnmatched = !transaction.merchantId && !transaction.manualCategory
 
@@ -101,6 +104,13 @@ export function TransactionRow({
           </Badge>
         )}
       </div>
+
+      {transaction.anomalyFlags && transaction.anomalyFlags.length > 0 && (
+        <AnomalyBadge
+          flags={transaction.anomalyFlags}
+          onDismiss={(type) => onDismissAnomaly?.(transaction.id!, type)}
+        />
+      )}
 
       <div
         className={cn(

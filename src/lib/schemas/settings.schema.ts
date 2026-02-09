@@ -8,6 +8,7 @@ export const settingKeySchema = z.enum([
   'currency_symbol',
   'date_format',
   'anomaly_threshold',
+  'anomaly_settings',
 ])
 
 export const settingSchema = z.object({

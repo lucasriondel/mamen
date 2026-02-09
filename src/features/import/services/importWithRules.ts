@@ -7,6 +7,7 @@ import {
   applyMatchResults,
 } from '@/features/rules/services/rulesEngine'
 import { runDetection } from '@/features/subscriptions/services/subscriptionDetector'
+import { detectHighAmountAnomalies } from '@/features/anomalies/services/anomalyDetector'
 
 export type ImportWithRulesResult = ImportResult & {
   matchedCount: number
@@ -28,6 +29,15 @@ export const importWithRules = async (
   runDetection().then(detectionResult => {
     if (detectionResult.created > 0) {
       toast.success(`${detectionResult.created} subscription(s) detected`, {
+        duration: 10000,
+      })
+    }
+  })
+
+  // Fire-and-forget anomaly detection after import
+  detectHighAmountAnomalies().then(anomalyResult => {
+    if (anomalyResult.flagged > 0) {
+      toast.warning(`${anomalyResult.flagged} unusual transaction(s) flagged`, {
         duration: 10000,
       })
     }
