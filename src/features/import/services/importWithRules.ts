@@ -10,6 +10,7 @@ import { runDetection } from '@/features/subscriptions/services/subscriptionDete
 import {
   detectHighAmountAnomalies,
   detectNewMerchantAnomalies,
+  detectPotentialDuplicates,
   cleanExpiredNewMerchantFlags,
 } from '@/features/anomalies/services/anomalyDetector'
 
@@ -42,24 +43,20 @@ export const importWithRules = async (
   Promise.all([
     detectHighAmountAnomalies(),
     cleanExpiredNewMerchantFlags().then(() => detectNewMerchantAnomalies()),
-  ]).then(([highAmountResult, newMerchantResult]) => {
-    const totalFlagged = highAmountResult.flagged + newMerchantResult.flagged
+    detectPotentialDuplicates(),
+  ]).then(([highAmountResult, newMerchantResult, duplicateResult]) => {
+    const totalFlagged = highAmountResult.flagged + newMerchantResult.flagged + duplicateResult.flagged
     if (totalFlagged === 0) return
 
-    if (highAmountResult.flagged > 0 && newMerchantResult.flagged > 0) {
-      toast.warning(`${totalFlagged} unusual transaction(s) flagged`, {
-        description: `${highAmountResult.flagged} high amounts, ${newMerchantResult.flagged} new merchants`,
-        duration: 10000,
-      })
-    } else if (highAmountResult.flagged > 0) {
-      toast.warning(`${highAmountResult.flagged} unusual transaction(s) flagged`, {
-        duration: 10000,
-      })
-    } else {
-      toast.warning(`${newMerchantResult.flagged} new merchant transaction(s) flagged`, {
-        duration: 10000,
-      })
-    }
+    const parts: string[] = []
+    if (highAmountResult.flagged > 0) parts.push(`${highAmountResult.flagged} high amounts`)
+    if (newMerchantResult.flagged > 0) parts.push(`${newMerchantResult.flagged} new merchants`)
+    if (duplicateResult.pairs > 0) parts.push(`${duplicateResult.pairs} potential duplicate pairs`)
+
+    toast.warning(`${totalFlagged} unusual transaction(s) flagged`, {
+      description: parts.length > 1 ? parts.join(', ') : undefined,
+      duration: 10000,
+    })
   })
 
   return {

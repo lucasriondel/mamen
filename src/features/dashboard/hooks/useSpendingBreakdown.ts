@@ -80,6 +80,9 @@ export const useSpendingBreakdown = (dateRange?: DateRange): SpendingBreakdown =
   let uncategorizedCount = 0
 
   for (const tx of transactions) {
+    // Skip excluded duplicates from spending calculations
+    if (tx.isDuplicateExcluded) continue
+
     if (tx.amount > 0) {
       totalIncome += tx.amount
       continue

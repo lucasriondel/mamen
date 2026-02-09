@@ -90,3 +90,15 @@ db.version(8).stores({
   subscriptions: '++id, merchantId, status',
 })
 
+// Version 9: Add isDuplicateExcluded and duplicateNote fields on transactions (stored as plain fields, no index needed)
+db.version(9).stores({
+  accounts: '++id, name, type, createdAt',
+  transactions: '++id, accountId, date, amount, merchantId, categoryId, subcategoryId, manualCategory, linkedRefundId, importMonth, importBatchId, [accountId+importMonth]',
+  merchants: '++id, name, defaultCategoryId, firstSeen',
+  rules: '++id, merchantId, pattern',
+  settings: '++id, &key',
+  appSettings: '&id',
+  categories: '++id, parentId, slug, sortOrder',
+  subscriptions: '++id, merchantId, status',
+})
+

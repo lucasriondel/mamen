@@ -6,6 +6,7 @@ export type AnomalyFlag = {
   detectedAt: string
   dismissed: boolean
   dismissedAt?: string
+  linkedTransactionId?: number
 }
 
 export type AnomalySettings = {

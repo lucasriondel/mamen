@@ -14,6 +14,8 @@ export type Transaction = {
   isRefund?: boolean
   linkedRefundId?: number
   anomalyFlags?: AnomalyFlag[]
+  isDuplicateExcluded?: boolean
+  duplicateNote?: string
   importedAt: Date
   importMonth: string
   importBatchId?: string

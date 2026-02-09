@@ -1,8 +1,10 @@
 import { db } from '@/lib/db'
 import type { AnomalyFlag, AnomalySettings, Transaction } from '@/types'
 import { formatCurrency } from '@/lib/utils/formatCurrency'
+import { formatDate } from '@/lib/utils/formatDate'
 
 export const NEW_MERCHANT_THRESHOLD_DAYS = 30
+export const DUPLICATE_WINDOW_DAYS = 3
 
 const DEFAULT_SETTINGS: AnomalySettings = {
   multiplierThreshold: 2,
@@ -35,9 +37,9 @@ export const detectHighAmountAnomalies = async (): Promise<{
 
   const categoryMap = new Map(categories.map(c => [c.id!, c.name]))
 
-  // Filter to categorized, non-refund, expense transactions
+  // Filter to categorized, non-refund, non-excluded, expense transactions
   const eligible = allTransactions.filter(
-    tx => tx.categoryId != null && !tx.isRefund && tx.amount < 0,
+    tx => tx.categoryId != null && !tx.isRefund && !tx.isDuplicateExcluded && tx.amount < 0,
   )
 
   // Group by categoryId
@@ -237,4 +239,228 @@ export const detectNewMerchantAnomalies = async (): Promise<{
   })
 
   return { flagged }
+}
+
+const isWithinDays = (dateA: Date, dateB: Date, days: number): boolean => {
+  const diffMs = Math.abs(dateA.getTime() - dateB.getTime())
+  return diffMs <= days * 24 * 60 * 60 * 1000
+}
+
+const hasDuplicateFlagForPair = (
+  tx: Transaction,
+  otherId: number,
+): boolean => {
+  if (!tx.anomalyFlags) return false
+  return tx.anomalyFlags.some(
+    f => f.type === 'potential-duplicate' && f.linkedTransactionId === otherId,
+  )
+}
+
+export const detectPotentialDuplicates = async (): Promise<{
+  flagged: number
+  pairs: number
+}> => {
+  const allTransactions = await db.transactions.toArray()
+
+  // Filter out refunds and excluded duplicates
+  const eligible = allTransactions.filter(
+    tx => !tx.isRefund && !tx.isDuplicateExcluded,
+  )
+
+  // Group by merchantId (matched transactions)
+  const byMerchantId = new Map<number, Transaction[]>()
+  // Group by rawMerchantString (unmatched transactions)
+  const byRawString = new Map<string, Transaction[]>()
+
+  for (const tx of eligible) {
+    if (tx.merchantId) {
+      const group = byMerchantId.get(tx.merchantId) ?? []
+      group.push(tx)
+      byMerchantId.set(tx.merchantId, group)
+    } else {
+      const key = tx.rawMerchantString
+      const group = byRawString.get(key) ?? []
+      group.push(tx)
+      byRawString.set(key, group)
+    }
+  }
+
+  // Combine all groups for processing
+  const allGroups = [...byMerchantId.values(), ...byRawString.values()]
+
+  // Load merchant names for reason strings
+  const merchants = await db.merchants.toArray()
+  const merchantNameMap = new Map(merchants.map(m => [m.id!, m.name]))
+
+  let pairs = 0
+  // Map from txId -> list of new flags to add
+  const newFlagsMap = new Map<number, AnomalyFlag[]>()
+
+  for (const group of allGroups) {
+    if (group.length < 2) continue
+
+    // Sort by date ascending
+    group.sort((a, b) => a.date.getTime() - b.date.getTime())
+
+    // Sliding window comparison within group
+    for (let i = 0; i < group.length; i++) {
+      for (let j = i + 1; j < group.length; j++) {
+        const txA = group[i]
+        const txB = group[j]
+
+        // If txB is more than DUPLICATE_WINDOW_DAYS after txA, skip all further
+        if (!isWithinDays(txA.date, txB.date, DUPLICATE_WINDOW_DAYS)) break
+
+        // Check same amount (exact match)
+        if (txA.amount !== txB.amount) continue
+
+        // Skip if this pair already has flags (active or dismissed)
+        if (hasDuplicateFlagForPair(txA, txB.id!) || hasDuplicateFlagForPair(txB, txA.id!)) continue
+
+        // Determine merchant name
+        const merchantName = txA.merchantId
+          ? (merchantNameMap.get(txA.merchantId) ?? txA.rawMerchantString)
+          : txA.rawMerchantString
+
+        const flagA: AnomalyFlag = {
+          type: 'potential-duplicate',
+          reason: `Same amount (${formatCurrency(Math.abs(txA.amount))}) as transaction on ${formatDate(txB.date)} at ${merchantName}`,
+          detectedAt: new Date().toISOString(),
+          dismissed: false,
+          linkedTransactionId: txB.id!,
+        }
+
+        const flagB: AnomalyFlag = {
+          type: 'potential-duplicate',
+          reason: `Same amount (${formatCurrency(Math.abs(txB.amount))}) as transaction on ${formatDate(txA.date)} at ${merchantName}`,
+          detectedAt: new Date().toISOString(),
+          dismissed: false,
+          linkedTransactionId: txA.id!,
+        }
+
+        const flagsA = newFlagsMap.get(txA.id!) ?? []
+        flagsA.push(flagA)
+        newFlagsMap.set(txA.id!, flagsA)
+
+        const flagsB = newFlagsMap.get(txB.id!) ?? []
+        flagsB.push(flagB)
+        newFlagsMap.set(txB.id!, flagsB)
+
+        pairs++
+      }
+    }
+  }
+
+  // Batch update
+  let flagged = 0
+  await db.transaction('rw', db.transactions, async () => {
+    for (const [txId, newFlags] of newFlagsMap) {
+      const tx = await db.transactions.get(txId)
+      if (!tx) continue
+      const existingFlags = tx.anomalyFlags ?? []
+      await db.transactions.update(txId, {
+        anomalyFlags: [...existingFlags, ...newFlags],
+      })
+      flagged++
+    }
+  })
+
+  return { flagged, pairs }
+}
+
+export const dismissDuplicateAnomaly = async (
+  transactionId: number,
+): Promise<void> => {
+  const tx = await db.transactions.get(transactionId)
+  if (!tx?.anomalyFlags) return
+
+  const dupFlag = tx.anomalyFlags.find(
+    f => f.type === 'potential-duplicate' && !f.dismissed,
+  )
+  if (!dupFlag) return
+
+  // Dismiss on this transaction
+  await dismissAnomaly(transactionId, 'potential-duplicate')
+
+  // Also dismiss on the linked transaction
+  if (dupFlag.linkedTransactionId) {
+    const linkedTx = await db.transactions.get(dupFlag.linkedTransactionId)
+    if (linkedTx?.anomalyFlags) {
+      // Only dismiss the specific flag pointing back to this transaction
+      const updatedFlags = linkedTx.anomalyFlags.map(f =>
+        f.type === 'potential-duplicate' && !f.dismissed && f.linkedTransactionId === transactionId
+          ? { ...f, dismissed: true, dismissedAt: new Date().toISOString() }
+          : f,
+      )
+      await db.transactions.update(dupFlag.linkedTransactionId, { anomalyFlags: updatedFlags })
+    }
+  }
+}
+
+export const undoDismissDuplicateAnomaly = async (
+  transactionId: number,
+  linkedTransactionId: number,
+): Promise<void> => {
+  // Restore on this transaction
+  await undoDismissAnomaly(transactionId, 'potential-duplicate')
+
+  // Restore on linked transaction - only the flag pointing back to this tx
+  const linkedTx = await db.transactions.get(linkedTransactionId)
+  if (linkedTx?.anomalyFlags) {
+    const updatedFlags = linkedTx.anomalyFlags.map(f =>
+      f.type === 'potential-duplicate' && f.dismissed && f.linkedTransactionId === transactionId
+        ? { ...f, dismissed: false, dismissedAt: undefined }
+        : f,
+    )
+    await db.transactions.update(linkedTransactionId, { anomalyFlags: updatedFlags })
+  }
+}
+
+export const confirmDuplicate = async (
+  transactionId: number,
+  action: 'exclude' | 'keep',
+): Promise<void> => {
+  if (action === 'keep') {
+    await dismissDuplicateAnomaly(transactionId)
+    return
+  }
+
+  // action === 'exclude'
+  const tx = await db.transactions.get(transactionId)
+  if (!tx) return
+
+  const dupFlag = tx.anomalyFlags?.find(
+    f => f.type === 'potential-duplicate' && !f.dismissed,
+  )
+
+  const linkedId = dupFlag?.linkedTransactionId
+
+  // Mark transaction as excluded
+  const note = linkedId
+    ? `Excluded as duplicate of transaction on ${formatDate((await db.transactions.get(linkedId))?.date ?? new Date())}`
+    : 'Excluded as duplicate'
+
+  await db.transactions.update(transactionId, {
+    isDuplicateExcluded: true,
+    duplicateNote: note,
+  })
+
+  // Dismiss flags on both sides
+  await dismissDuplicateAnomaly(transactionId)
+}
+
+export const undoConfirmDuplicate = async (
+  transactionId: number,
+  linkedTransactionId?: number,
+): Promise<void> => {
+  // Remove exclusion
+  await db.transactions.update(transactionId, {
+    isDuplicateExcluded: undefined,
+    duplicateNote: undefined,
+  })
+
+  // Restore flags on both sides
+  if (linkedTransactionId) {
+    await undoDismissDuplicateAnomaly(transactionId, linkedTransactionId)
+  }
 }

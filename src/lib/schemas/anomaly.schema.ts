@@ -9,6 +9,7 @@ export const anomalyFlagSchema = z.object({
   detectedAt: z.string(),
   dismissed: z.boolean(),
   dismissedAt: z.string().optional(),
+  linkedTransactionId: z.number().optional(),
 }) satisfies z.ZodType<AnomalyFlag>
 
 export const anomalySettingsSchema = z.object({

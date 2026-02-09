@@ -126,6 +126,13 @@ export const CommandPalette = (_props: CommandPaletteProps): React.ReactElement 
           })}>
             Show high amount transactions
           </CommandItem>
+          <CommandItem onSelect={() => handleSelect(() => {
+            setFocusMode('anomalies')
+            setAnomalyTypeFilter('potential-duplicate')
+            navigate({ to: '/transactions' })
+          })}>
+            Show potential duplicates
+          </CommandItem>
         </CommandGroup>
 
         <CommandSeparator />

@@ -115,7 +115,7 @@ development_status:
   9-2-subscriptions-view-s-key: review
   9-3-anomaly-detection-high-amounts: review
   9-4-anomaly-detection-new-merchants: review
-  9-5-anomaly-detection-potential-duplicates: ready-for-dev
+  9-5-anomaly-detection-potential-duplicates: review
   epic-9-retrospective: optional
 
   # Epic 10: Data Export & Settings

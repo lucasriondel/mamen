@@ -19,6 +19,9 @@ export type TransactionRowProps = {
   onClick?: () => void
   onLinkClick?: (linkedTransactionId: number) => void
   onDismissAnomaly?: (transactionId: number, anomalyType: AnomalyType) => void
+  onDismissDuplicate?: (transactionId: number) => void
+  onExcludeDuplicate?: (transactionId: number) => void
+  onViewLinked?: (linkedTransactionId: number) => void
 }
 
 const STAGGER_MS = 50
@@ -34,8 +37,12 @@ export function TransactionRow({
   onClick,
   onLinkClick,
   onDismissAnomaly,
+  onDismissDuplicate,
+  onExcludeDuplicate,
+  onViewLinked,
 }: TransactionRowProps): React.ReactElement {
   const isUnmatched = !transaction.merchantId && !transaction.manualCategory
+  const isDuplicateExcluded = transaction.isDuplicateExcluded === true
 
   const rowStyle: React.CSSProperties = {
     ...(isHighlighted && cascadeIndex !== undefined
@@ -58,6 +65,7 @@ export function TransactionRow({
         isSelected && 'border-l-2 border-ring',
         !isFocused && !isSelected && isUnmatched && 'border-l-2 border-amber-500/50',
         isHighlighted && 'cascade-highlight',
+        isDuplicateExcluded && 'opacity-50',
       )}
       style={rowStyle}
       onClick={onClick}
@@ -105,10 +113,23 @@ export function TransactionRow({
         )}
       </div>
 
+      {isDuplicateExcluded && (
+        <Badge
+          variant="outline"
+          className="border-muted-foreground/30 bg-muted/50 text-muted-foreground text-[10px] px-1.5 py-0"
+          data-testid="excluded-duplicate-badge"
+        >
+          Excluded duplicate
+        </Badge>
+      )}
+
       {transaction.anomalyFlags && transaction.anomalyFlags.length > 0 && (
         <AnomalyBadge
           flags={transaction.anomalyFlags}
           onDismiss={(type) => onDismissAnomaly?.(transaction.id!, type)}
+          onDismissDuplicate={() => onDismissDuplicate?.(transaction.id!)}
+          onExcludeDuplicate={() => onExcludeDuplicate?.(transaction.id!)}
+          onViewLinked={onViewLinked}
         />
       )}
 

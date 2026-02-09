@@ -13,6 +13,7 @@ import { QuickCategoryPicker } from '../QuickCategoryPicker'
 import { RefundLinkModal } from '../RefundLinkModal'
 import { useKeyboardNavigation } from '@/hooks/useKeyboardNavigation'
 import { useAnomalyDismiss } from '@/features/anomalies/hooks/useAnomalyDismiss'
+import { useDuplicateActions } from '@/features/anomalies/hooks/useDuplicateActions'
 import { useRefundLink } from '../../hooks/useRefundLink'
 import { useMultiSelect } from '@/hooks/useMultiSelect'
 import { useCascadeAnimation } from '@/hooks/useCascadeAnimation'
@@ -100,6 +101,7 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
   const { batchAssignCategory } = useBatchCategoryAssign()
   const refundLink = useRefundLink()
   const { handleDismiss: handleDismissAnomaly } = useAnomalyDismiss()
+  const { handleDismissDuplicate, handleExcludeDuplicate } = useDuplicateActions()
   const { navigateToTransaction } = useNavigateToTransaction()
   const { triggerCascade, animatingIds, animationPhase } = useCascadeAnimation()
   const animatingIdSet = useMemo(() => new Set(animatingIds), [animatingIds])
@@ -487,6 +489,9 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
                   onClick={() => handleRowClick(transaction.id)}
                   onLinkClick={navigateToTransaction}
                   onDismissAnomaly={handleDismissAnomaly}
+                  onDismissDuplicate={handleDismissDuplicate}
+                  onExcludeDuplicate={handleExcludeDuplicate}
+                  onViewLinked={navigateToTransaction}
                 />
               </div>
             )

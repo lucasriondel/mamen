@@ -3,12 +3,18 @@ import { db } from '@/lib/db'
 import {
   detectHighAmountAnomalies,
   detectNewMerchantAnomalies,
+  detectPotentialDuplicates,
   cleanExpiredNewMerchantFlags,
   dismissAnomaly,
   undoDismissAnomaly,
+  dismissDuplicateAnomaly,
+  undoDismissDuplicateAnomaly,
+  confirmDuplicate,
+  undoConfirmDuplicate,
   getAnomalySettings,
   buildReason,
   NEW_MERCHANT_THRESHOLD_DAYS,
+  DUPLICATE_WINDOW_DAYS,
 } from './anomalyDetector'
 import type { Transaction } from '@/types'
 import type { Merchant } from '@/types'
@@ -568,5 +574,567 @@ describe('cleanExpiredNewMerchantFlags', () => {
     const allTx = await db.transactions.toArray()
     expect(allTx[0].anomalyFlags).toHaveLength(1)
     expect(allTx[0].anomalyFlags![0].type).toBe('high-amount')
+  })
+})
+
+describe('DUPLICATE_WINDOW_DAYS', () => {
+  it('exports the constant with value 3', () => {
+    expect(DUPLICATE_WINDOW_DAYS).toBe(3)
+  })
+})
+
+describe('detectPotentialDuplicates', () => {
+  beforeEach(async () => {
+    await db.accounts.add({ id: 1, name: 'Test', type: 'checking', createdAt: new Date(), updatedAt: new Date() })
+  })
+
+  it('flags two transactions same merchant, same amount, 1 day apart', async () => {
+    const merchantId = await db.merchants.add(createMerchant({ name: 'Starbucks' }))
+    await db.transactions.bulkAdd([
+      createTransaction({ merchantId, rawMerchantString: 'STARBUCKS', amount: -4.50, date: new Date('2026-01-15') }),
+      createTransaction({ merchantId, rawMerchantString: 'STARBUCKS', amount: -4.50, date: new Date('2026-01-16') }),
+    ])
+
+    const result = await detectPotentialDuplicates()
+    expect(result.pairs).toBe(1)
+    expect(result.flagged).toBe(2)
+
+    const allTx = await db.transactions.toArray()
+    const flagged = allTx.filter(tx => tx.anomalyFlags?.some(f => f.type === 'potential-duplicate' && !f.dismissed))
+    expect(flagged).toHaveLength(2)
+  })
+
+  it('does NOT flag two transactions same merchant, same amount, 4 days apart', async () => {
+    const merchantId = await db.merchants.add(createMerchant({ name: 'Starbucks' }))
+    await db.transactions.bulkAdd([
+      createTransaction({ merchantId, rawMerchantString: 'STARBUCKS', amount: -4.50, date: new Date('2026-01-15') }),
+      createTransaction({ merchantId, rawMerchantString: 'STARBUCKS', amount: -4.50, date: new Date('2026-01-19') }),
+    ])
+
+    const result = await detectPotentialDuplicates()
+    expect(result.pairs).toBe(0)
+    expect(result.flagged).toBe(0)
+  })
+
+  it('does NOT flag two transactions same merchant, different amounts', async () => {
+    const merchantId = await db.merchants.add(createMerchant({ name: 'Starbucks' }))
+    await db.transactions.bulkAdd([
+      createTransaction({ merchantId, rawMerchantString: 'STARBUCKS', amount: -4.50, date: new Date('2026-01-15') }),
+      createTransaction({ merchantId, rawMerchantString: 'STARBUCKS', amount: -5.00, date: new Date('2026-01-15') }),
+    ])
+
+    const result = await detectPotentialDuplicates()
+    expect(result.pairs).toBe(0)
+  })
+
+  it('does NOT flag two transactions different merchants, same amount, same date', async () => {
+    const merchantA = await db.merchants.add(createMerchant({ name: 'Starbucks' }))
+    const merchantB = await db.merchants.add(createMerchant({ name: 'Costa' }))
+    await db.transactions.bulkAdd([
+      createTransaction({ merchantId: merchantA, rawMerchantString: 'STARBUCKS', amount: -4.50, date: new Date('2026-01-15') }),
+      createTransaction({ merchantId: merchantB, rawMerchantString: 'COSTA', amount: -4.50, date: new Date('2026-01-15') }),
+    ])
+
+    const result = await detectPotentialDuplicates()
+    expect(result.pairs).toBe(0)
+  })
+
+  it('flags unmatched transactions: same raw string, same amount, 2 days apart', async () => {
+    await db.transactions.bulkAdd([
+      createTransaction({ merchantId: undefined, rawMerchantString: 'UNKNOWN SHOP', amount: -29.99, date: new Date('2026-01-15') }),
+      createTransaction({ merchantId: undefined, rawMerchantString: 'UNKNOWN SHOP', amount: -29.99, date: new Date('2026-01-17') }),
+    ])
+
+    const result = await detectPotentialDuplicates()
+    expect(result.pairs).toBe(1)
+    expect(result.flagged).toBe(2)
+  })
+
+  it('does not re-flag already-flagged pair', async () => {
+    const merchantId = await db.merchants.add(createMerchant({ name: 'Starbucks' }))
+    const txAId = await db.transactions.add(
+      createTransaction({ merchantId, rawMerchantString: 'STARBUCKS', amount: -4.50, date: new Date('2026-01-15') }),
+    )
+    const txBId = await db.transactions.add(
+      createTransaction({ merchantId, rawMerchantString: 'STARBUCKS', amount: -4.50, date: new Date('2026-01-16') }),
+    )
+
+    // Manually add flags
+    await db.transactions.update(txAId, {
+      anomalyFlags: [{
+        type: 'potential-duplicate',
+        reason: 'Already flagged',
+        detectedAt: '2026-01-01T00:00:00.000Z',
+        dismissed: false,
+        linkedTransactionId: txBId,
+      }],
+    })
+    await db.transactions.update(txBId, {
+      anomalyFlags: [{
+        type: 'potential-duplicate',
+        reason: 'Already flagged',
+        detectedAt: '2026-01-01T00:00:00.000Z',
+        dismissed: false,
+        linkedTransactionId: txAId,
+      }],
+    })
+
+    const result = await detectPotentialDuplicates()
+    expect(result.pairs).toBe(0)
+
+    const txA = await db.transactions.get(txAId)
+    expect(txA!.anomalyFlags).toHaveLength(1)
+  })
+
+  it('does not re-flag dismissed pair', async () => {
+    const merchantId = await db.merchants.add(createMerchant({ name: 'Starbucks' }))
+    const txAId = await db.transactions.add(
+      createTransaction({ merchantId, rawMerchantString: 'STARBUCKS', amount: -4.50, date: new Date('2026-01-15') }),
+    )
+    const txBId = await db.transactions.add(
+      createTransaction({ merchantId, rawMerchantString: 'STARBUCKS', amount: -4.50, date: new Date('2026-01-16') }),
+    )
+
+    await db.transactions.update(txAId, {
+      anomalyFlags: [{
+        type: 'potential-duplicate',
+        reason: 'Dismissed',
+        detectedAt: '2026-01-01T00:00:00.000Z',
+        dismissed: true,
+        dismissedAt: '2026-01-02T00:00:00.000Z',
+        linkedTransactionId: txBId,
+      }],
+    })
+    await db.transactions.update(txBId, {
+      anomalyFlags: [{
+        type: 'potential-duplicate',
+        reason: 'Dismissed',
+        detectedAt: '2026-01-01T00:00:00.000Z',
+        dismissed: true,
+        dismissedAt: '2026-01-02T00:00:00.000Z',
+        linkedTransactionId: txAId,
+      }],
+    })
+
+    const result = await detectPotentialDuplicates()
+    expect(result.pairs).toBe(0)
+  })
+
+  it('handles chain A-B-C: B gets two flags', async () => {
+    const merchantId = await db.merchants.add(createMerchant({ name: 'Starbucks' }))
+    await db.transactions.bulkAdd([
+      createTransaction({ merchantId, rawMerchantString: 'STARBUCKS', amount: -4.50, date: new Date('2026-01-15') }),
+      createTransaction({ merchantId, rawMerchantString: 'STARBUCKS', amount: -4.50, date: new Date('2026-01-16') }),
+      createTransaction({ merchantId, rawMerchantString: 'STARBUCKS', amount: -4.50, date: new Date('2026-01-17') }),
+    ])
+
+    const result = await detectPotentialDuplicates()
+    expect(result.pairs).toBe(3) // A-B, A-C, B-C (all within 3 days)
+
+    const allTx = await db.transactions.toArray()
+    // B (middle) should have flags from both A and C
+    const txB = allTx.find(tx => tx.date.getTime() === new Date('2026-01-16').getTime())
+    const dupFlags = txB!.anomalyFlags!.filter(f => f.type === 'potential-duplicate')
+    expect(dupFlags.length).toBe(2)
+  })
+
+  it('generates correct reason string format', async () => {
+    const merchantId = await db.merchants.add(createMerchant({ name: 'Starbucks' }))
+    await db.transactions.bulkAdd([
+      createTransaction({ merchantId, rawMerchantString: 'STARBUCKS', amount: -29.99, date: new Date('2026-01-15') }),
+      createTransaction({ merchantId, rawMerchantString: 'STARBUCKS', amount: -29.99, date: new Date('2026-01-16') }),
+    ])
+
+    await detectPotentialDuplicates()
+
+    const allTx = await db.transactions.toArray()
+    const flagged = allTx.find(tx => tx.anomalyFlags?.length)
+    expect(flagged).toBeDefined()
+    const reason = flagged!.anomalyFlags![0].reason
+    expect(reason).toContain('29,99')
+    expect(reason).toContain('Starbucks')
+  })
+
+  it('both transactions in pair have linkedTransactionId pointing to each other', async () => {
+    const merchantId = await db.merchants.add(createMerchant({ name: 'Starbucks' }))
+    await db.transactions.bulkAdd([
+      createTransaction({ merchantId, rawMerchantString: 'STARBUCKS', amount: -4.50, date: new Date('2026-01-15') }),
+      createTransaction({ merchantId, rawMerchantString: 'STARBUCKS', amount: -4.50, date: new Date('2026-01-16') }),
+    ])
+
+    await detectPotentialDuplicates()
+
+    const allTx = await db.transactions.toArray()
+    const [txA, txB] = allTx
+    const flagA = txA.anomalyFlags!.find(f => f.type === 'potential-duplicate')
+    const flagB = txB.anomalyFlags!.find(f => f.type === 'potential-duplicate')
+    expect(flagA!.linkedTransactionId).toBe(txB.id)
+    expect(flagB!.linkedTransactionId).toBe(txA.id)
+  })
+
+  it('excludes refund transactions from detection', async () => {
+    const merchantId = await db.merchants.add(createMerchant({ name: 'Starbucks' }))
+    await db.transactions.bulkAdd([
+      createTransaction({ merchantId, rawMerchantString: 'STARBUCKS', amount: -4.50, date: new Date('2026-01-15') }),
+      createTransaction({ merchantId, rawMerchantString: 'STARBUCKS', amount: -4.50, date: new Date('2026-01-16'), isRefund: true }),
+    ])
+
+    const result = await detectPotentialDuplicates()
+    expect(result.pairs).toBe(0)
+  })
+})
+
+describe('dismissDuplicateAnomaly', () => {
+  beforeEach(async () => {
+    await db.accounts.add({ id: 1, name: 'Test', type: 'checking', createdAt: new Date(), updatedAt: new Date() })
+  })
+
+  it('dismisses flags on both transactions', async () => {
+    const txAId = await db.transactions.add(
+      createTransaction({
+        anomalyFlags: [{
+          type: 'potential-duplicate',
+          reason: 'Test',
+          detectedAt: '2026-01-01T00:00:00.000Z',
+          dismissed: false,
+          linkedTransactionId: 0, // placeholder, updated below
+        }],
+      }),
+    )
+    const txBId = await db.transactions.add(
+      createTransaction({
+        anomalyFlags: [{
+          type: 'potential-duplicate',
+          reason: 'Test',
+          detectedAt: '2026-01-01T00:00:00.000Z',
+          dismissed: false,
+          linkedTransactionId: txAId,
+        }],
+      }),
+    )
+
+    // Fix txA's linkedTransactionId
+    const txA = await db.transactions.get(txAId)
+    await db.transactions.update(txAId, {
+      anomalyFlags: txA!.anomalyFlags!.map(f => ({ ...f, linkedTransactionId: txBId })),
+    })
+
+    await dismissDuplicateAnomaly(txAId)
+
+    const updatedA = await db.transactions.get(txAId)
+    const updatedB = await db.transactions.get(txBId)
+    expect(updatedA!.anomalyFlags![0].dismissed).toBe(true)
+    expect(updatedB!.anomalyFlags![0].dismissed).toBe(true)
+  })
+
+  it('undo restores both sides', async () => {
+    const txAId = await db.transactions.add(
+      createTransaction({
+        anomalyFlags: [{
+          type: 'potential-duplicate',
+          reason: 'Test',
+          detectedAt: '2026-01-01T00:00:00.000Z',
+          dismissed: true,
+          dismissedAt: '2026-01-02T00:00:00.000Z',
+          linkedTransactionId: 0,
+        }],
+      }),
+    )
+    const txBId = await db.transactions.add(
+      createTransaction({
+        anomalyFlags: [{
+          type: 'potential-duplicate',
+          reason: 'Test',
+          detectedAt: '2026-01-01T00:00:00.000Z',
+          dismissed: true,
+          dismissedAt: '2026-01-02T00:00:00.000Z',
+          linkedTransactionId: txAId,
+        }],
+      }),
+    )
+
+    await db.transactions.update(txAId, {
+      anomalyFlags: [{
+        type: 'potential-duplicate' as const,
+        reason: 'Test',
+        detectedAt: '2026-01-01T00:00:00.000Z',
+        dismissed: true,
+        dismissedAt: '2026-01-02T00:00:00.000Z',
+        linkedTransactionId: txBId,
+      }],
+    })
+
+    await undoDismissDuplicateAnomaly(txAId, txBId)
+
+    const updatedA = await db.transactions.get(txAId)
+    const updatedB = await db.transactions.get(txBId)
+    expect(updatedA!.anomalyFlags![0].dismissed).toBe(false)
+    expect(updatedB!.anomalyFlags![0].dismissed).toBe(false)
+  })
+
+  it('does not affect other anomaly types on same transaction', async () => {
+    const txAId = await db.transactions.add(
+      createTransaction({
+        anomalyFlags: [
+          { type: 'potential-duplicate', reason: 'Dup', detectedAt: '2026-01-01', dismissed: false, linkedTransactionId: 0 },
+          { type: 'high-amount', reason: 'High', detectedAt: '2026-01-01', dismissed: false },
+        ],
+      }),
+    )
+    const txBId = await db.transactions.add(
+      createTransaction({
+        anomalyFlags: [
+          { type: 'potential-duplicate', reason: 'Dup', detectedAt: '2026-01-01', dismissed: false, linkedTransactionId: txAId },
+        ],
+      }),
+    )
+
+    await db.transactions.update(txAId, {
+      anomalyFlags: [
+        { type: 'potential-duplicate' as const, reason: 'Dup', detectedAt: '2026-01-01', dismissed: false, linkedTransactionId: txBId },
+        { type: 'high-amount' as const, reason: 'High', detectedAt: '2026-01-01', dismissed: false },
+      ],
+    })
+
+    await dismissDuplicateAnomaly(txAId)
+
+    const updatedA = await db.transactions.get(txAId)
+    const dupFlag = updatedA!.anomalyFlags!.find(f => f.type === 'potential-duplicate')
+    const highFlag = updatedA!.anomalyFlags!.find(f => f.type === 'high-amount')
+    expect(dupFlag!.dismissed).toBe(true)
+    expect(highFlag!.dismissed).toBe(false)
+  })
+
+  it('chain scenario: dismiss B-A flag does not affect B-C flag', async () => {
+    const txAId = await db.transactions.add(createTransaction())
+    const txBId = await db.transactions.add(
+      createTransaction({
+        anomalyFlags: [
+          { type: 'potential-duplicate', reason: 'Pair B-A', detectedAt: '2026-01-01', dismissed: false, linkedTransactionId: txAId },
+          { type: 'potential-duplicate', reason: 'Pair B-C', detectedAt: '2026-01-01', dismissed: false, linkedTransactionId: 0 },
+        ],
+      }),
+    )
+    const txCId = await db.transactions.add(
+      createTransaction({
+        anomalyFlags: [
+          { type: 'potential-duplicate', reason: 'Pair C-B', detectedAt: '2026-01-01', dismissed: false, linkedTransactionId: txBId },
+        ],
+      }),
+    )
+
+    // Fix B-C linkedTransactionId
+    const txB = await db.transactions.get(txBId)
+    const fixedFlags = txB!.anomalyFlags!.map(f =>
+      f.reason === 'Pair B-C' ? { ...f, linkedTransactionId: txCId } : f,
+    )
+    await db.transactions.update(txBId, { anomalyFlags: fixedFlags })
+
+    // Also give A a flag pointing to B
+    await db.transactions.update(txAId, {
+      anomalyFlags: [
+        { type: 'potential-duplicate' as const, reason: 'Pair A-B', detectedAt: '2026-01-01', dismissed: false, linkedTransactionId: txBId },
+      ],
+    })
+
+    // Dismiss B-A (from A's perspective)
+    await dismissDuplicateAnomaly(txAId)
+
+    const updatedA = await db.transactions.get(txAId)
+    const updatedB = await db.transactions.get(txBId)
+    const updatedC = await db.transactions.get(txCId)
+
+    // A's flag should be dismissed
+    expect(updatedA!.anomalyFlags![0].dismissed).toBe(true)
+
+    // B: flag for A should be dismissed, flag for C should NOT be
+    const bFlagA = updatedB!.anomalyFlags!.find(f => f.linkedTransactionId === txAId)
+    const bFlagC = updatedB!.anomalyFlags!.find(f => f.linkedTransactionId === txCId)
+    expect(bFlagA!.dismissed).toBe(true)
+    expect(bFlagC!.dismissed).toBe(false)
+
+    // C: flag for B should NOT be affected
+    expect(updatedC!.anomalyFlags![0].dismissed).toBe(false)
+  })
+})
+
+describe('confirmDuplicate', () => {
+  beforeEach(async () => {
+    await db.accounts.add({ id: 1, name: 'Test', type: 'checking', createdAt: new Date(), updatedAt: new Date() })
+  })
+
+  it('exclude sets isDuplicateExcluded on transaction', async () => {
+    const txAId = await db.transactions.add(
+      createTransaction({
+        date: new Date('2026-01-15'),
+        anomalyFlags: [{
+          type: 'potential-duplicate',
+          reason: 'Test',
+          detectedAt: '2026-01-01T00:00:00.000Z',
+          dismissed: false,
+          linkedTransactionId: 0,
+        }],
+      }),
+    )
+    const txBId = await db.transactions.add(
+      createTransaction({
+        date: new Date('2026-01-16'),
+        anomalyFlags: [{
+          type: 'potential-duplicate',
+          reason: 'Test',
+          detectedAt: '2026-01-01T00:00:00.000Z',
+          dismissed: false,
+          linkedTransactionId: txAId,
+        }],
+      }),
+    )
+
+    await db.transactions.update(txAId, {
+      anomalyFlags: [{
+        type: 'potential-duplicate' as const,
+        reason: 'Test',
+        detectedAt: '2026-01-01T00:00:00.000Z',
+        dismissed: false,
+        linkedTransactionId: txBId,
+      }],
+    })
+
+    await confirmDuplicate(txAId, 'exclude')
+
+    const updatedA = await db.transactions.get(txAId)
+    expect(updatedA!.isDuplicateExcluded).toBe(true)
+    expect(updatedA!.duplicateNote).toContain('Excluded as duplicate')
+  })
+
+  it('exclude dismisses flags on BOTH transactions', async () => {
+    const txAId = await db.transactions.add(
+      createTransaction({
+        anomalyFlags: [{
+          type: 'potential-duplicate',
+          reason: 'Test',
+          detectedAt: '2026-01-01T00:00:00.000Z',
+          dismissed: false,
+          linkedTransactionId: 0,
+        }],
+      }),
+    )
+    const txBId = await db.transactions.add(
+      createTransaction({
+        anomalyFlags: [{
+          type: 'potential-duplicate',
+          reason: 'Test',
+          detectedAt: '2026-01-01T00:00:00.000Z',
+          dismissed: false,
+          linkedTransactionId: txAId,
+        }],
+      }),
+    )
+
+    await db.transactions.update(txAId, {
+      anomalyFlags: [{
+        type: 'potential-duplicate' as const,
+        reason: 'Test',
+        detectedAt: '2026-01-01T00:00:00.000Z',
+        dismissed: false,
+        linkedTransactionId: txBId,
+      }],
+    })
+
+    await confirmDuplicate(txAId, 'exclude')
+
+    const updatedA = await db.transactions.get(txAId)
+    const updatedB = await db.transactions.get(txBId)
+    expect(updatedA!.anomalyFlags![0].dismissed).toBe(true)
+    expect(updatedB!.anomalyFlags![0].dismissed).toBe(true)
+  })
+
+  it('keep dismisses flags but does NOT exclude from spending', async () => {
+    const txAId = await db.transactions.add(
+      createTransaction({
+        anomalyFlags: [{
+          type: 'potential-duplicate',
+          reason: 'Test',
+          detectedAt: '2026-01-01T00:00:00.000Z',
+          dismissed: false,
+          linkedTransactionId: 0,
+        }],
+      }),
+    )
+    const txBId = await db.transactions.add(
+      createTransaction({
+        anomalyFlags: [{
+          type: 'potential-duplicate',
+          reason: 'Test',
+          detectedAt: '2026-01-01T00:00:00.000Z',
+          dismissed: false,
+          linkedTransactionId: txAId,
+        }],
+      }),
+    )
+
+    await db.transactions.update(txAId, {
+      anomalyFlags: [{
+        type: 'potential-duplicate' as const,
+        reason: 'Test',
+        detectedAt: '2026-01-01T00:00:00.000Z',
+        dismissed: false,
+        linkedTransactionId: txBId,
+      }],
+    })
+
+    await confirmDuplicate(txAId, 'keep')
+
+    const updatedA = await db.transactions.get(txAId)
+    expect(updatedA!.isDuplicateExcluded).toBeUndefined()
+    expect(updatedA!.anomalyFlags![0].dismissed).toBe(true)
+  })
+
+  it('undo restores isDuplicateExcluded and flags on both', async () => {
+    const txAId = await db.transactions.add(
+      createTransaction({
+        isDuplicateExcluded: true,
+        duplicateNote: 'Excluded as duplicate',
+        anomalyFlags: [{
+          type: 'potential-duplicate',
+          reason: 'Test',
+          detectedAt: '2026-01-01T00:00:00.000Z',
+          dismissed: true,
+          dismissedAt: '2026-01-02T00:00:00.000Z',
+          linkedTransactionId: 0,
+        }],
+      }),
+    )
+    const txBId = await db.transactions.add(
+      createTransaction({
+        anomalyFlags: [{
+          type: 'potential-duplicate',
+          reason: 'Test',
+          detectedAt: '2026-01-01T00:00:00.000Z',
+          dismissed: true,
+          dismissedAt: '2026-01-02T00:00:00.000Z',
+          linkedTransactionId: txAId,
+        }],
+      }),
+    )
+
+    await db.transactions.update(txAId, {
+      anomalyFlags: [{
+        type: 'potential-duplicate' as const,
+        reason: 'Test',
+        detectedAt: '2026-01-01T00:00:00.000Z',
+        dismissed: true,
+        dismissedAt: '2026-01-02T00:00:00.000Z',
+        linkedTransactionId: txBId,
+      }],
+    })
+
+    await undoConfirmDuplicate(txAId, txBId)
+
+    const updatedA = await db.transactions.get(txAId)
+    const updatedB = await db.transactions.get(txBId)
+    expect(updatedA!.isDuplicateExcluded).toBeUndefined()
+    expect(updatedA!.duplicateNote).toBeUndefined()
+    expect(updatedA!.anomalyFlags![0].dismissed).toBe(false)
+    expect(updatedB!.anomalyFlags![0].dismissed).toBe(false)
   })
 })

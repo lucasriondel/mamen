@@ -7,6 +7,8 @@ export type UseAnomaliesReturn = {
   totalFlagged: number
   highAmountCount: number
   newMerchantCount: number
+  potentialDuplicateCount: number
+  potentialDuplicatePairs: number
   isLoading: boolean
 }
 
@@ -22,6 +24,8 @@ export const useAnomalies = (): UseAnomaliesReturn => {
         totalFlagged: 0,
         highAmountCount: 0,
         newMerchantCount: 0,
+        potentialDuplicateCount: 0,
+        potentialDuplicatePairs: 0,
         isLoading: true,
       }
     }
@@ -38,11 +42,19 @@ export const useAnomalies = (): UseAnomaliesReturn => {
       tx.anomalyFlags!.some(f => f.type === 'new-merchant' && !f.dismissed),
     ).length
 
+    const potentialDuplicateCount = flaggedTransactions.filter(tx =>
+      tx.anomalyFlags!.some(f => f.type === 'potential-duplicate' && !f.dismissed),
+    ).length
+
+    const potentialDuplicatePairs = Math.floor(potentialDuplicateCount / 2)
+
     return {
       flaggedTransactions,
       totalFlagged: flaggedTransactions.length,
       highAmountCount,
       newMerchantCount,
+      potentialDuplicateCount,
+      potentialDuplicatePairs,
       isLoading: false,
     }
   }, [transactions])

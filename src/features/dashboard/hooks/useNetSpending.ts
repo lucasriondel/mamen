@@ -54,6 +54,9 @@ export const useNetSpending = (dateRange: DateRange): SpendingSummary | null => 
   let orphanRefunds = 0
 
   for (const tx of transactions) {
+    // Skip excluded duplicates from spending calculations
+    if (tx.isDuplicateExcluded) continue
+
     // Linked refund: positive amount, isRefund=true, has linkedRefundId
     if (tx.isRefund && tx.linkedRefundId) {
       const catId = tx.categoryId ?? null
