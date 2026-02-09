@@ -5,6 +5,8 @@ export { DisplayPreferencesSection } from './components/DisplayPreferencesSectio
 export { DataManagementSection } from './components/DataManagementSection'
 export { AboutSection } from './components/AboutSection'
 export { exportAllData } from './services/exportService'
+export { parseBackupFile, importDataReplace, importDataMerge } from './services/importService'
+export { compareVersions } from './services/versionCompare'
 export { downloadFile, generateExportFilename } from './services/downloadFile'
 export { getDisplayPreferences, updateDisplayPreferences } from './services/preferencesService'
 export { useDisplayPreferences } from './hooks/useDisplayPreferences'

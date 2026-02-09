@@ -24,6 +24,12 @@ vi.mock('../../services/downloadFile', () => ({
   generateExportFilename: vi.fn(() => 'mamen-backup-2026-02-09.json'),
 }))
 
+vi.mock('../../services/importService', () => ({
+  parseBackupFile: vi.fn(),
+  importDataReplace: vi.fn(),
+  importDataMerge: vi.fn(),
+}))
+
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => vi.fn(),
 }))
@@ -77,12 +83,12 @@ describe('DataManagementSection', () => {
     })
   })
 
-  it('import button is disabled with tooltip', async () => {
+  it('import button is enabled', async () => {
     render(<DataManagementSection />)
     const importButton = await screen.findByRole('button', {
       name: /Import Data/i,
     })
-    expect(importButton).toBeDisabled()
+    expect(importButton).toBeEnabled()
   })
 
   it('clear all data dialog requires DELETE input', async () => {

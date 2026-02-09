@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { Loader2, Download, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -11,17 +11,15 @@ import {
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
 import { db, useLiveQuery } from '@/lib/db'
 import { exportAllData } from '../../services/exportService'
 import { downloadFile, generateExportFilename } from '../../services/downloadFile'
+import { parseBackupFile, importDataReplace, importDataMerge } from '../../services/importService'
 import { ClearDataDialog } from '../ClearDataDialog'
-import type { ExportOptions } from '../../types/export.types'
+import { ImportPreviewDialog } from '../ImportPreviewDialog'
+import { ImportResultDialog } from '../ImportResultDialog'
+import type { ExportOptions, ExportData } from '../../types/export.types'
+import type { ImportMode, ImportPreview, ImportResult } from '../../types/import.types'
 
 const DEFAULT_OPTIONS: ExportOptions = {
   includeAccounts: true,
@@ -49,7 +47,14 @@ const formatCount = (n: number): string => n.toLocaleString()
 
 export function DataManagementSection(): React.ReactElement {
   const [isExporting, setIsExporting] = useState(false)
+  const [isImporting, setIsImporting] = useState(false)
   const [options, setOptions] = useState<ExportOptions>(DEFAULT_OPTIONS)
+  const [importPreview, setImportPreview] = useState<ImportPreview | null>(null)
+  const [importFileData, setImportFileData] = useState<ExportData | null>(null)
+  const [importResult, setImportResult] = useState<ImportResult | null>(null)
+  const [showPreview, setShowPreview] = useState(false)
+  const [showResult, setShowResult] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const counts = useLiveQuery(async () => ({
     accounts: await db.accounts.count(),
@@ -77,6 +82,102 @@ export function DataManagementSection(): React.ReactElement {
       setIsExporting(false)
     }
   }, [options])
+
+  const handleFileSelected = useCallback(async (file: File) => {
+    if (!file.name.endsWith('.json') && file.type !== 'application/json') {
+      toast.error('Please select a .json backup file')
+      return
+    }
+
+    const preview = await parseBackupFile(file)
+
+    if (!preview.isValidFormat) {
+      toast.error(`Invalid backup file: ${preview.validationErrors[0] || 'Unknown error'}`)
+      return
+    }
+
+    // Parse the full data for import
+    const text = await file.text()
+    const parsed = JSON.parse(text) as ExportData
+
+    setImportPreview(preview)
+    setImportFileData(parsed)
+    setShowPreview(true)
+  }, [])
+
+  const handleImportClick = useCallback(() => {
+    fileInputRef.current?.click()
+  }, [])
+
+  const handleFileInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      handleFileSelected(file)
+    }
+    // Reset input so same file can be selected again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }, [handleFileSelected])
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    const files = e.dataTransfer.files
+    if (files.length > 1) {
+      toast.error('Please drop a single file')
+      return
+    }
+    const file = files[0]
+    if (file) {
+      handleFileSelected(file)
+    }
+  }, [handleFileSelected])
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+  }, [])
+
+  const handleImport = useCallback(async (mode: ImportMode) => {
+    if (!importFileData) return
+
+    setShowPreview(false)
+    setIsImporting(true)
+    setShowResult(true)
+
+    try {
+      const result = mode === 'replace'
+        ? await importDataReplace(importFileData)
+        : await importDataMerge(importFileData)
+
+      setImportResult(result)
+
+      if (result.success) {
+        if (mode === 'replace') {
+          toast.success('Data restored from backup')
+        } else {
+          toast.success('Import complete')
+        }
+      } else {
+        toast.error('Import completed with errors')
+      }
+    } catch {
+      toast.error('Import failed. Please try again.')
+    } finally {
+      setIsImporting(false)
+      setImportFileData(null)
+    }
+  }, [importFileData])
+
+  const handlePreviewCancel = useCallback(() => {
+    setShowPreview(false)
+    setImportPreview(null)
+    setImportFileData(null)
+  }, [])
+
+  const handleResultClose = useCallback(() => {
+    setShowResult(false)
+    setImportResult(null)
+  }, [])
 
   return (
     <Card>
@@ -124,7 +225,7 @@ export function DataManagementSection(): React.ReactElement {
         <div className="flex flex-col gap-2">
           <Button
             onClick={handleExport}
-            disabled={isExporting}
+            disabled={isExporting || isImporting}
             className="w-full"
           >
             {isExporting ? (
@@ -140,24 +241,43 @@ export function DataManagementSection(): React.ReactElement {
             )}
           </Button>
 
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="w-full">
-                  <Button variant="outline" disabled className="w-full">
-                    <Upload className="h-4 w-4" />
-                    Import Data
-                  </Button>
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Coming soon</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json,application/json"
+            className="hidden"
+            onChange={handleFileInputChange}
+          />
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={handleImportClick}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            disabled={isExporting || isImporting}
+          >
+            <Upload className="h-4 w-4" />
+            Import Data
+          </Button>
 
           <ClearDataDialog />
         </div>
+
+        {importPreview && (
+          <ImportPreviewDialog
+            open={showPreview}
+            preview={importPreview}
+            onImport={handleImport}
+            onCancel={handlePreviewCancel}
+          />
+        )}
+
+        <ImportResultDialog
+          open={showResult}
+          loading={isImporting}
+          result={importResult}
+          onClose={handleResultClose}
+        />
       </CardContent>
     </Card>
   )

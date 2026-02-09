@@ -1,6 +1,6 @@
 # Story 10.3: Data Import from Backup
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -59,8 +59,8 @@ So that **I can restore my data or move to a new device (FR43 complete)**.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Define import types and validation schemas (AC: #1, #2, #6, #7)
-  - [ ] Create `src/features/settings/types/import.types.ts`:
+- [x] Task 1: Define import types and validation schemas (AC: #1, #2, #6, #7)
+  - [x]Create `src/features/settings/types/import.types.ts`:
     ```typescript
     type ImportMode = 'replace' | 'merge'
 
@@ -94,7 +94,7 @@ So that **I can restore my data or move to a new device (FR43 complete)**.
       errors: string[]
     }
     ```
-  - [ ] Create `src/features/settings/schemas/import.schema.ts`:
+  - [x]Create `src/features/settings/schemas/import.schema.ts`:
     ```typescript
     import { z } from 'zod'
 
@@ -120,17 +120,17 @@ So that **I can restore my data or move to a new device (FR43 complete)**.
       settings: z.array(z.any()),
     })
     ```
-  - [ ] Use `type` not `interface` (project convention)
-  - [ ] Named exports only
-  - [ ] Re-use `ExportMetadata` from `src/features/settings/types/export.types.ts`
-  - [ ] Test: ImportPreview type has all required fields
-  - [ ] Test: ImportResult type tracks added/skipped counts
-  - [ ] Test: Zod schema validates correct backup structure
-  - [ ] Test: Zod schema rejects invalid backup (missing metadata)
-  - [ ] Test: Zod schema rejects backup with missing tables
+  - [x]Use `type` not `interface` (project convention)
+  - [x]Named exports only
+  - [x]Re-use `ExportMetadata` from `src/features/settings/types/export.types.ts`
+  - [x]Test: ImportPreview type has all required fields
+  - [x]Test: ImportResult type tracks added/skipped counts
+  - [x]Test: Zod schema validates correct backup structure
+  - [x]Test: Zod schema rejects invalid backup (missing metadata)
+  - [x]Test: Zod schema rejects backup with missing tables
 
-- [ ] Task 2: Implement import validation service (AC: #1, #2, #6, #7)
-  - [ ] Create `src/features/settings/services/importService.ts`:
+- [x] Task 2: Implement import validation service (AC: #1, #2, #6, #7)
+  - [x]Create `src/features/settings/services/importService.ts`:
     ```typescript
     export const parseBackupFile = async (file: File): Promise<ImportPreview> => {
       // 1. Read file as text
@@ -169,22 +169,22 @@ So that **I can restore my data or move to a new device (FR43 complete)**.
       }
     }
     ```
-  - [ ] Use `File.text()` to read file content (async, no FileReader needed)
-  - [ ] Wrap `JSON.parse` in try/catch for corrupted files
-  - [ ] Validate with Zod `exportDataSchema` from Task 1
-  - [ ] Simple semver comparison for version check (split on '.', compare numerically)
-  - [ ] Return descriptive validation errors (not raw Zod paths)
-  - [ ] Test: Valid backup file returns correct preview with counts
-  - [ ] Test: Non-JSON file returns isValidFormat=false with error message
-  - [ ] Test: JSON without metadata returns validation error
-  - [ ] Test: JSON with wrong structure returns specific Zod errors
-  - [ ] Test: Newer version detected correctly
-  - [ ] Test: Same version returns isNewerVersion=false
-  - [ ] Test: Older version returns isNewerVersion=false
-  - [ ] Test: Empty file returns appropriate error
+  - [x]Use `File.text()` to read file content (async, no FileReader needed)
+  - [x]Wrap `JSON.parse` in try/catch for corrupted files
+  - [x]Validate with Zod `exportDataSchema` from Task 1
+  - [x]Simple semver comparison for version check (split on '.', compare numerically)
+  - [x]Return descriptive validation errors (not raw Zod paths)
+  - [x]Test: Valid backup file returns correct preview with counts
+  - [x]Test: Non-JSON file returns isValidFormat=false with error message
+  - [x]Test: JSON without metadata returns validation error
+  - [x]Test: JSON with wrong structure returns specific Zod errors
+  - [x]Test: Newer version detected correctly
+  - [x]Test: Same version returns isNewerVersion=false
+  - [x]Test: Older version returns isNewerVersion=false
+  - [x]Test: Empty file returns appropriate error
 
-- [ ] Task 3: Implement "Replace" import mode (AC: #4)
-  - [ ] Add to `src/features/settings/services/importService.ts`:
+- [x] Task 3: Implement "Replace" import mode (AC: #4)
+  - [x]Add to `src/features/settings/services/importService.ts`:
     ```typescript
     export const importDataReplace = async (data: ExportData): Promise<ImportResult> => {
       // 1. Clear all tables (same as Clear All Data from Story 10.2)
@@ -214,20 +214,20 @@ So that **I can restore my data or move to a new device (FR43 complete)**.
       }
     }
     ```
-  - [ ] Use `db.delete()` then `db.open()` to clear all tables (reuse pattern from Story 10.2 clearDataService)
-  - [ ] Use `bulkPut` for efficient batch inserts (upserts by primary key)
-  - [ ] Wrap in try/catch for database errors
-  - [ ] If any table fails, report in `errors` array
-  - [ ] Test: Replace mode clears existing data completely
-  - [ ] Test: Replace mode imports all records from backup
-  - [ ] Test: Replace mode returns correct added counts
-  - [ ] Test: Replace mode preserves all transaction fields (anomalyFlags, isRefund, linkedRefundId)
-  - [ ] Test: Replace mode preserves merchant-rule relationships (merchantId on rules)
-  - [ ] Test: Replace mode handles empty backup (imports nothing, clears all)
-  - [ ] Test: Replace mode recovers from partial failure (at least reports error)
+  - [x]Use `db.delete()` then `db.open()` to clear all tables (reuse pattern from Story 10.2 clearDataService)
+  - [x]Use `bulkPut` for efficient batch inserts (upserts by primary key)
+  - [x]Wrap in try/catch for database errors
+  - [x]If any table fails, report in `errors` array
+  - [x]Test: Replace mode clears existing data completely
+  - [x]Test: Replace mode imports all records from backup
+  - [x]Test: Replace mode returns correct added counts
+  - [x]Test: Replace mode preserves all transaction fields (anomalyFlags, isRefund, linkedRefundId)
+  - [x]Test: Replace mode preserves merchant-rule relationships (merchantId on rules)
+  - [x]Test: Replace mode handles empty backup (imports nothing, clears all)
+  - [x]Test: Replace mode recovers from partial failure (at least reports error)
 
-- [ ] Task 4: Implement "Merge" import mode (AC: #5)
-  - [ ] Add to `src/features/settings/services/importService.ts`:
+- [x] Task 4: Implement "Merge" import mode (AC: #5)
+  - [x]Add to `src/features/settings/services/importService.ts`:
     ```typescript
     export const importDataMerge = async (data: ExportData): Promise<ImportResult> => {
       const result: ImportResult = {
@@ -290,24 +290,24 @@ So that **I can restore my data or move to a new device (FR43 complete)**.
       return result
     }
     ```
-  - [ ] Accounts: match by name (case-sensitive), skip if exists
-  - [ ] Merchants: match by name (case-sensitive), skip if exists
-  - [ ] Rules: match by merchantId + pattern combo, skip if exists
-  - [ ] Transactions: dedup by accountId + date + amount + rawMerchantString (same dedup logic as Story 2.6)
-  - [ ] Settings: always overwrite with imported values (user chose to import)
-  - [ ] Track added vs skipped counts for summary
-  - [ ] Test: Merge adds new accounts, skips existing
-  - [ ] Test: Merge adds new merchants, skips existing
-  - [ ] Test: Merge deduplicates transactions by composite key
-  - [ ] Test: Merge tracks correct skipped count
-  - [ ] Test: Merge with completely new data imports everything
-  - [ ] Test: Merge with completely duplicate data skips everything
-  - [ ] Test: Merge with mixed data reports correct added/skipped
-  - [ ] Test: Merge preserves existing data untouched
-  - [ ] Test: Merge handles id conflicts (imported records may have same IDs as existing)
+  - [x]Accounts: match by name (case-sensitive), skip if exists
+  - [x]Merchants: match by name (case-sensitive), skip if exists
+  - [x]Rules: match by merchantId + pattern combo, skip if exists
+  - [x]Transactions: dedup by accountId + date + amount + rawMerchantString (same dedup logic as Story 2.6)
+  - [x]Settings: always overwrite with imported values (user chose to import)
+  - [x]Track added vs skipped counts for summary
+  - [x]Test: Merge adds new accounts, skips existing
+  - [x]Test: Merge adds new merchants, skips existing
+  - [x]Test: Merge deduplicates transactions by composite key
+  - [x]Test: Merge tracks correct skipped count
+  - [x]Test: Merge with completely new data imports everything
+  - [x]Test: Merge with completely duplicate data skips everything
+  - [x]Test: Merge with mixed data reports correct added/skipped
+  - [x]Test: Merge preserves existing data untouched
+  - [x]Test: Merge handles id conflicts (imported records may have same IDs as existing)
 
-- [ ] Task 5: Create Import Preview component (AC: #2, #3, #7)
-  - [ ] Create `src/features/settings/components/ImportPreviewDialog/index.tsx`:
+- [x] Task 5: Create Import Preview component (AC: #2, #3, #7)
+  - [x]Create `src/features/settings/components/ImportPreviewDialog/index.tsx`:
     - Dialog showing backup file summary
     - Display: export date, app version, record counts per table
     - If `isNewerVersion`: yellow warning banner "Backup from newer version (vX.X.X), some data may not import correctly"
@@ -315,34 +315,34 @@ So that **I can restore my data or move to a new device (FR43 complete)**.
     - "Replace" shows red warning: "This will delete all your current data first"
     - "Merge" shows description: "New records will be added, duplicates skipped"
     - Buttons: "Import" (primary) and "Cancel"
-  - [ ] Default mode: "Merge" (safer default)
-  - [ ] Use shadcn Dialog, RadioGroup, Button components
-  - [ ] Keyboard accessible: Tab between options, Enter to confirm
-  - [ ] Test: Preview shows correct record counts from backup
-  - [ ] Test: Preview shows export date and version
-  - [ ] Test: Version warning appears when isNewerVersion=true
-  - [ ] Test: Version warning hidden when isNewerVersion=false
-  - [ ] Test: Radio buttons switch between Replace and Merge
-  - [ ] Test: Replace warning text visible when Replace selected
-  - [ ] Test: Cancel closes dialog without importing
-  - [ ] Test: Import button triggers correct mode function
+  - [x]Default mode: "Merge" (safer default)
+  - [x]Use shadcn Dialog, RadioGroup, Button components
+  - [x]Keyboard accessible: Tab between options, Enter to confirm
+  - [x]Test: Preview shows correct record counts from backup
+  - [x]Test: Preview shows export date and version
+  - [x]Test: Version warning appears when isNewerVersion=true
+  - [x]Test: Version warning hidden when isNewerVersion=false
+  - [x]Test: Radio buttons switch between Replace and Merge
+  - [x]Test: Replace warning text visible when Replace selected
+  - [x]Test: Cancel closes dialog without importing
+  - [x]Test: Import button triggers correct mode function
 
-- [ ] Task 6: Create Import Progress/Result component (AC: #4, #5, #8)
-  - [ ] Create `src/features/settings/components/ImportResultDialog/index.tsx`:
+- [x] Task 6: Create Import Progress/Result component (AC: #4, #5, #8)
+  - [x]Create `src/features/settings/components/ImportResultDialog/index.tsx`:
     - Shows import result summary after completion
     - For Replace: "Data restored from backup -- X accounts, Y transactions, Z merchants imported"
     - For Merge: "Import complete -- Added X accounts, Y transactions. Skipped Z duplicate transactions."
     - If errors: show error list in red
     - "Close" button dismisses dialog
-  - [ ] During import: show loading spinner with "Importing data..." text
-  - [ ] After import: show result summary
-  - [ ] Test: Loading state shows during import
-  - [ ] Test: Replace result shows correct added counts
-  - [ ] Test: Merge result shows added and skipped counts
-  - [ ] Test: Error state shows error messages
+  - [x]During import: show loading spinner with "Importing data..." text
+  - [x]After import: show result summary
+  - [x]Test: Loading state shows during import
+  - [x]Test: Replace result shows correct added counts
+  - [x]Test: Merge result shows added and skipped counts
+  - [x]Test: Error state shows error messages
 
-- [ ] Task 7: Update Data Management section with Import button (AC: #1)
-  - [ ] Modify `src/features/settings/components/DataManagementSection/index.tsx`:
+- [x] Task 7: Update Data Management section with Import button (AC: #1)
+  - [x]Modify `src/features/settings/components/DataManagementSection/index.tsx`:
     - Replace disabled "Import Data" placeholder button with active button
     - "Import Data" button opens file picker for .json files
     - Accept only `.json` files: `accept=".json,application/json"`
@@ -350,22 +350,22 @@ So that **I can restore my data or move to a new device (FR43 complete)**.
     - On file selection: parse and show ImportPreviewDialog
     - On import complete: show ImportResultDialog
     - On error: show error toast
-  - [ ] Hidden file input triggered by button click pattern:
+  - [x]Hidden file input triggered by button click pattern:
     ```typescript
     const fileInputRef = useRef<HTMLInputElement>(null)
     const handleImportClick = () => fileInputRef.current?.click()
     ```
-  - [ ] Drag-and-drop: `onDragOver`, `onDrop` handlers on button area
-  - [ ] Only accept single file
-  - [ ] Test: Import button is now active (not disabled)
-  - [ ] Test: Clicking Import opens file picker
-  - [ ] Test: Selecting .json file triggers preview dialog
-  - [ ] Test: Non-.json file shows error toast
-  - [ ] Test: Drag-and-drop file triggers preview dialog
-  - [ ] Test: Multiple files shows error (only single file accepted)
+  - [x]Drag-and-drop: `onDragOver`, `onDrop` handlers on button area
+  - [x]Only accept single file
+  - [x]Test: Import button is now active (not disabled)
+  - [x]Test: Clicking Import opens file picker
+  - [x]Test: Selecting .json file triggers preview dialog
+  - [x]Test: Non-.json file shows error toast
+  - [x]Test: Drag-and-drop file triggers preview dialog
+  - [x]Test: Multiple files shows error (only single file accepted)
 
-- [ ] Task 8: Implement version comparison utility (AC: #7)
-  - [ ] Create `src/features/settings/services/versionCompare.ts`:
+- [x] Task 8: Implement version comparison utility (AC: #7)
+  - [x]Create `src/features/settings/services/versionCompare.ts`:
     ```typescript
     export const compareVersions = (a: string, b: string): number => {
       const partsA = a.split('.').map(Number)
@@ -379,46 +379,46 @@ So that **I can restore my data or move to a new device (FR43 complete)**.
       return 0
     }
     ```
-  - [ ] Simple semver comparison (major.minor.patch)
-  - [ ] Returns: 1 if a > b, -1 if a < b, 0 if equal
-  - [ ] Handle missing segments (e.g., "1.0" vs "1.0.0")
-  - [ ] Test: "1.0.0" vs "1.0.0" returns 0
-  - [ ] Test: "1.1.0" vs "1.0.0" returns 1
-  - [ ] Test: "1.0.0" vs "2.0.0" returns -1
-  - [ ] Test: "0.1.0" vs "0.1.0" returns 0
-  - [ ] Test: "1.0" vs "1.0.0" returns 0
-  - [ ] Test: Handles non-standard versions gracefully
+  - [x]Simple semver comparison (major.minor.patch)
+  - [x]Returns: 1 if a > b, -1 if a < b, 0 if equal
+  - [x]Handle missing segments (e.g., "1.0" vs "1.0.0")
+  - [x]Test: "1.0.0" vs "1.0.0" returns 0
+  - [x]Test: "1.1.0" vs "1.0.0" returns 1
+  - [x]Test: "1.0.0" vs "2.0.0" returns -1
+  - [x]Test: "0.1.0" vs "0.1.0" returns 0
+  - [x]Test: "1.0" vs "1.0.0" returns 0
+  - [x]Test: Handles non-standard versions gracefully
 
-- [ ] Task 9: Handle ID remapping for merge mode (AC: #5)
-  - [ ] When merging, imported records may have IDs that conflict with existing records
-  - [ ] Strategy: strip `id` fields from imported records and let Dexie auto-increment assign new IDs
-  - [ ] For replace mode: keep original IDs (database is cleared first, no conflicts)
-  - [ ] For merge mode: build ID mapping table during import:
+- [x] Task 9: Handle ID remapping for merge mode (AC: #5)
+  - [x]When merging, imported records may have IDs that conflict with existing records
+  - [x]Strategy: strip `id` fields from imported records and let Dexie auto-increment assign new IDs
+  - [x]For replace mode: keep original IDs (database is cleared first, no conflicts)
+  - [x]For merge mode: build ID mapping table during import:
     1. Import accounts without IDs, map old account ID → new account ID
     2. Import merchants without IDs, map old merchant ID → new merchant ID
     3. Import rules: remap `merchantId` using merchant ID mapping, strip rule ID
     4. Import transactions: remap `accountId`, `merchantId`, `linkedRefundId` using mappings, strip txn ID
     5. Import settings: use `put` to overwrite by key (no ID remapping needed)
-  - [ ] Test: Merged accounts get new IDs
-  - [ ] Test: Merged transactions have remapped accountId
-  - [ ] Test: Merged rules have remapped merchantId
-  - [ ] Test: Merged transactions have remapped linkedRefundId (refund links preserved)
-  - [ ] Test: Replace mode keeps original IDs
+  - [x]Test: Merged accounts get new IDs
+  - [x]Test: Merged transactions have remapped accountId
+  - [x]Test: Merged rules have remapped merchantId
+  - [x]Test: Merged transactions have remapped linkedRefundId (refund links preserved)
+  - [x]Test: Replace mode keeps original IDs
 
-- [ ] Task 10: Write integration tests (AC: all)
-  - [ ] Add `src/features/settings/services/importService.test.ts`:
-  - [ ] Full replace import: create backup JSON -> import replace -> verify all data present in Dexie
-  - [ ] Full merge import: seed existing data -> import backup -> verify merged correctly
-  - [ ] Duplicate detection in merge: seed identical transactions -> import -> verify skipped
-  - [ ] Mixed merge: seed some overlapping data -> import -> verify correct added/skipped counts
-  - [ ] Invalid file: non-JSON string -> parse -> verify error
-  - [ ] Invalid structure: JSON without metadata -> parse -> verify validation error
-  - [ ] Newer version warning: backup with version "99.0.0" -> verify isNewerVersion=true
-  - [ ] Empty backup: backup with zero records -> replace -> verify empty database
-  - [ ] Relationship preservation (replace): backup with linked refunds -> import -> verify links intact
-  - [ ] Relationship preservation (merge): backup with merchant-rule relationships -> merge -> verify remapped correctly
-  - [ ] Large dataset: 10,000 transactions backup -> import completes within 10 seconds
-  - [ ] UI integration: render DataManagementSection -> click Import -> select file -> preview appears -> confirm -> result shows
+- [x] Task 10: Write integration tests (AC: all)
+  - [x]Add `src/features/settings/services/importService.test.ts`:
+  - [x]Full replace import: create backup JSON -> import replace -> verify all data present in Dexie
+  - [x]Full merge import: seed existing data -> import backup -> verify merged correctly
+  - [x]Duplicate detection in merge: seed identical transactions -> import -> verify skipped
+  - [x]Mixed merge: seed some overlapping data -> import -> verify correct added/skipped counts
+  - [x]Invalid file: non-JSON string -> parse -> verify error
+  - [x]Invalid structure: JSON without metadata -> parse -> verify validation error
+  - [x]Newer version warning: backup with version "99.0.0" -> verify isNewerVersion=true
+  - [x]Empty backup: backup with zero records -> replace -> verify empty database
+  - [x]Relationship preservation (replace): backup with linked refunds -> import -> verify links intact
+  - [x]Relationship preservation (merge): backup with merchant-rule relationships -> merge -> verify remapped correctly
+  - [x]Large dataset: 10,000 transactions backup -> import completes within 10 seconds
+  - [x]UI integration: render DataManagementSection -> click Import -> select file -> preview appears -> confirm -> result shows
 
 ## Dev Notes
 
@@ -752,10 +752,48 @@ Before marking complete:
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.6
 
 ### Debug Log References
 
+- Fixed jsdom `File.text()` limitation in tests by providing mock implementation
+- Fixed transaction dedup date comparison (Date objects vs ISO strings) using `normalizeDate` helper
+- Fixed test accountId mismatch due to auto-increment counters not resetting between tests
+
 ### Completion Notes List
 
+- Implemented full data import from backup with two modes: Replace (clear + import) and Merge (dedup + remap IDs)
+- Zod schema validation for backup file structure with descriptive error messages
+- Version comparison utility for forward-compatibility warnings
+- ID remapping in merge mode: accounts, merchants, rules, transactions all get new IDs with foreign key remapping
+- Transaction dedup uses accountId + date + amount + rawMerchantString composite key (matches Story 2.6 criteria)
+- linkedRefundId remapped correctly in merge mode to preserve refund links
+- ImportPreviewDialog: shows backup summary, mode selection (merge default), version warning
+- ImportResultDialog: loading spinner during import, result summary with counts
+- DataManagementSection: enabled Import button with file picker and drag-and-drop
+- All 1431 existing tests pass (no regressions), 80+ new tests added
+- TypeScript compilation passes with zero errors
+
+### Change Log
+
+- 2026-02-09: Implemented Story 10.3 - Data Import from Backup (all 10 tasks complete)
+
 ### File List
+
+**New files:**
+- src/features/settings/types/import.types.ts
+- src/features/settings/schemas/import.schema.ts
+- src/features/settings/schemas/import.schema.test.ts
+- src/features/settings/services/importService.ts
+- src/features/settings/services/importService.test.ts
+- src/features/settings/services/versionCompare.ts
+- src/features/settings/services/versionCompare.test.ts
+- src/features/settings/components/ImportPreviewDialog/index.tsx
+- src/features/settings/components/ImportPreviewDialog/ImportPreviewDialog.test.tsx
+- src/features/settings/components/ImportResultDialog/index.tsx
+- src/features/settings/components/ImportResultDialog/ImportResultDialog.test.tsx
+
+**Modified files:**
+- src/features/settings/components/DataManagementSection/index.tsx (enabled Import button, added file handler/dialogs)
+- src/features/settings/components/DataManagementSection/DataManagementSection.test.tsx (updated import button test)
+- src/features/settings/index.ts (export new import service functions)
