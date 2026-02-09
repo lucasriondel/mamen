@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/badge'
 import {
   Tooltip,
   TooltipContent,
+  TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import {
@@ -38,6 +39,7 @@ export function AnomalyBadge({ flags, onDismiss, onDismissDuplicate, onExcludeDu
   if (activeFlags.length === 0) return null
 
   return (
+    <TooltipProvider>
     <span className="inline-flex gap-1">
       {activeFlags.map((flag, index) => {
         const Icon = BADGE_ICONS[flag.type]
@@ -125,5 +127,6 @@ export function AnomalyBadge({ flags, onDismiss, onDismissDuplicate, onExcludeDu
         )
       })}
     </span>
+    </TooltipProvider>
   )
 }
