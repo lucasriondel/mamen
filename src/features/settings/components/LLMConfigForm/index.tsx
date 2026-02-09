@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Loader2, Eye, EyeOff, Zap, CheckCircle2, XCircle, Circle } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -39,6 +39,18 @@ export function LLMConfigForm(): React.ReactElement {
 
   const llm = settings.llm
 
+  // Local state for text inputs to avoid blocking on every keystroke
+  const [localEndpoint, setLocalEndpoint] = useState(llm.endpoint)
+  const [localApiKey, setLocalApiKey] = useState(llm.apiKey ?? '')
+  const [localModelName, setLocalModelName] = useState(llm.modelName)
+
+  // Sync local state when settings change externally (e.g. provider change)
+  useEffect(() => {
+    setLocalEndpoint(llm.endpoint)
+    setLocalApiKey(llm.apiKey ?? '')
+    setLocalModelName(llm.modelName)
+  }, [llm.endpoint, llm.apiKey, llm.modelName])
+
   const handleChange = useCallback((updates: Partial<LLMSettings>): void => {
     const newSettings: AppSettings = {
       ...settings,
@@ -47,6 +59,21 @@ export function LLMConfigForm(): React.ReactElement {
     saveSettings(newSettings)
     setSaved(true)
   }, [settings, saveSettings])
+
+  // Debounced save for text inputs
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
+  const debouncedChange = useCallback((updates: Partial<LLMSettings>): void => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      handleChange(updates)
+    }, 500)
+  }, [handleChange])
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
+  }, [])
 
   useEffect(() => {
     if (saved) {
@@ -158,8 +185,11 @@ export function LLMConfigForm(): React.ReactElement {
           <Input
             id="endpoint"
             type="url"
-            value={llm.endpoint}
-            onChange={(e) => handleChange({ endpoint: e.target.value })}
+            value={localEndpoint}
+            onChange={(e) => {
+              setLocalEndpoint(e.target.value)
+              debouncedChange({ endpoint: e.target.value })
+            }}
             placeholder={getProviderDefaults(llm.provider).endpoint ?? 'Enter endpoint URL'}
           />
         </div>
@@ -172,8 +202,11 @@ export function LLMConfigForm(): React.ReactElement {
                 <Input
                   id="apiKey"
                   type={showApiKey ? 'text' : 'password'}
-                  value={llm.apiKey ?? ''}
-                  onChange={(e) => handleChange({ apiKey: e.target.value || undefined })}
+                  value={localApiKey}
+                  onChange={(e) => {
+                    setLocalApiKey(e.target.value)
+                    debouncedChange({ apiKey: e.target.value || undefined })
+                  }}
                   placeholder="Enter your API key"
                 />
                 <Button
@@ -204,8 +237,11 @@ export function LLMConfigForm(): React.ReactElement {
           <Label htmlFor="modelName">Model Name</Label>
           <Input
             id="modelName"
-            value={llm.modelName}
-            onChange={(e) => handleChange({ modelName: e.target.value })}
+            value={localModelName}
+            onChange={(e) => {
+              setLocalModelName(e.target.value)
+              debouncedChange({ modelName: e.target.value })
+            }}
             placeholder="Enter model name"
           />
           {modelSuggestions.length > 0 && (

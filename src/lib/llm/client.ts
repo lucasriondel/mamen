@@ -95,9 +95,7 @@ export const testConnection = async (settings: LLMSettings): Promise<TestConnect
       }
     }
 
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    }
+    const headers: Record<string, string> = {}
     if (settings.apiKey) {
       headers['Authorization'] = `Bearer ${settings.apiKey}`
     }
