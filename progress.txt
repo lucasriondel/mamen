@@ -26,5 +26,5 @@
 
 ### Phase 5: Testing & Verification
 
-- [ ] Step 13: Run all tests
+- [x] Step 13: Run all tests — TypeScript: no errors. Vitest: 141/142 test files pass, 1421/1421 tests pass. Only failure is pre-existing `accounts.test.tsx` (DOMMatrix not defined in test env, unrelated to this work). All transaction-related tests pass including re-export alias, keyboard navigation, and delete service tests.
 - [ ] Step 14: Manual verification
