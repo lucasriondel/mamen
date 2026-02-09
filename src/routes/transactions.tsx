@@ -57,6 +57,10 @@ function TransactionsPage(): React.ReactElement {
           <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px]">F</kbd>
           {' '}Refund
         </span>
+        <span>
+          <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px]">D</kbd>
+          {' '}Delete
+        </span>
       </div>
     </div>
   )

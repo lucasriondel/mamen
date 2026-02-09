@@ -17,7 +17,7 @@
 
 - [x] Step 8: Replace `TransactionList/index.tsx` with re-export — replaced entire file with `export { TransactionDataTable as TransactionList } from '../TransactionDataTable'`. Updated 4 existing tests to match new DOM structure (cursor uses `bg-muted/30` instead of `ring-2`, row click toggles cursor not selection). No TS errors, 142/143 tests pass (1436/1436 tests, 1 pre-existing failure in accounts.test.tsx).
 - [x] Step 9: Update `SelectionStatusBar` with D key hint — added `D` key kbd + "Delete" label alongside existing R and C hints in the key hints section. No TS errors, 142/143 tests pass (1 pre-existing failure in accounts.test.tsx).
-- [ ] Step 10: Update `routes/transactions.tsx` footer with D key hint
+- [x] Step 10: Update `routes/transactions.tsx` footer with D key hint — added `D` key kbd + "Delete" label after the existing F/Refund hint in the keyboard footer. No TS errors, 142/143 tests pass (1 pre-existing failure in accounts.test.tsx).
 
 ### Phase 4: Cleanup
 
