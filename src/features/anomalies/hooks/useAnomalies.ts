@@ -6,6 +6,7 @@ export type UseAnomaliesReturn = {
   flaggedTransactions: Transaction[]
   totalFlagged: number
   highAmountCount: number
+  newMerchantCount: number
   isLoading: boolean
 }
 
@@ -20,6 +21,7 @@ export const useAnomalies = (): UseAnomaliesReturn => {
         flaggedTransactions: [],
         totalFlagged: 0,
         highAmountCount: 0,
+        newMerchantCount: 0,
         isLoading: true,
       }
     }
@@ -32,10 +34,15 @@ export const useAnomalies = (): UseAnomaliesReturn => {
       tx.anomalyFlags!.some(f => f.type === 'high-amount' && !f.dismissed),
     ).length
 
+    const newMerchantCount = flaggedTransactions.filter(tx =>
+      tx.anomalyFlags!.some(f => f.type === 'new-merchant' && !f.dismissed),
+    ).length
+
     return {
       flaggedTransactions,
       totalFlagged: flaggedTransactions.length,
       highAmountCount,
+      newMerchantCount,
       isLoading: false,
     }
   }, [transactions])

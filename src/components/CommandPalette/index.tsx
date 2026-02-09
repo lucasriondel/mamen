@@ -11,6 +11,7 @@ import {
   CommandShortcut,
 } from '@/components/ui/command'
 import { useCommandPalette } from '@/context/CommandPaletteContext'
+import { useFocusMode } from '@/context/FocusModeContext'
 import { useTransactionSearch } from '@/features/search'
 import { formatCurrency } from '@/lib/utils/formatCurrency'
 import { isMac } from '@/lib/utils/platform'
@@ -20,6 +21,7 @@ type CommandPaletteProps = Record<string, never>
 export const CommandPalette = (_props: CommandPaletteProps): React.ReactElement => {
   const { isOpen, close } = useCommandPalette()
   const navigate = useNavigate()
+  const { setFocusMode, setAnomalyTypeFilter } = useFocusMode()
   const modifierSymbol = useMemo(() => (isMac() ? '⌘' : 'Ctrl+'), [])
   const [query, setQuery] = useState('')
 
@@ -102,6 +104,27 @@ export const CommandPalette = (_props: CommandPaletteProps): React.ReactElement 
           <CommandItem onSelect={() => handleSelect(() => navigate({ to: '/transactions' }))}>
             View subscriptions
             <CommandShortcut>S</CommandShortcut>
+          </CommandItem>
+          <CommandItem onSelect={() => handleSelect(() => {
+            setFocusMode('anomalies')
+            navigate({ to: '/transactions' })
+          })}>
+            Show anomalies
+            <CommandShortcut>!</CommandShortcut>
+          </CommandItem>
+          <CommandItem onSelect={() => handleSelect(() => {
+            setFocusMode('anomalies')
+            setAnomalyTypeFilter('new-merchant')
+            navigate({ to: '/transactions' })
+          })}>
+            Show new merchant transactions
+          </CommandItem>
+          <CommandItem onSelect={() => handleSelect(() => {
+            setFocusMode('anomalies')
+            setAnomalyTypeFilter('high-amount')
+            navigate({ to: '/transactions' })
+          })}>
+            Show high amount transactions
           </CommandItem>
         </CommandGroup>
 

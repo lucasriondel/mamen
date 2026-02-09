@@ -89,6 +89,78 @@ describe('useAnomalies', () => {
 
     expect(result.current.totalFlagged).toBe(2)
     expect(result.current.highAmountCount).toBe(1)
+    expect(result.current.newMerchantCount).toBe(1)
+  })
+
+  it('returns correct newMerchantCount', async () => {
+    await db.transactions.bulkAdd([
+      createTransaction({
+        anomalyFlags: [
+          { type: 'new-merchant', reason: 'Test 1', detectedAt: '2026-01-01', dismissed: false },
+        ],
+      }),
+      createTransaction({
+        anomalyFlags: [
+          { type: 'new-merchant', reason: 'Test 2', detectedAt: '2026-01-01', dismissed: false },
+        ],
+      }),
+      createTransaction({
+        anomalyFlags: [
+          { type: 'high-amount', reason: 'Test 3', detectedAt: '2026-01-01', dismissed: false },
+        ],
+      }),
+    ])
+
+    const { result } = renderHook(() => useAnomalies())
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false)
+    })
+
+    expect(result.current.newMerchantCount).toBe(2)
+    expect(result.current.highAmountCount).toBe(1)
+    expect(result.current.totalFlagged).toBe(3)
+  })
+
+  it('counts only active (non-dismissed) new-merchant flags', async () => {
+    await db.transactions.bulkAdd([
+      createTransaction({
+        anomalyFlags: [
+          { type: 'new-merchant', reason: 'Active', detectedAt: '2026-01-01', dismissed: false },
+        ],
+      }),
+      createTransaction({
+        anomalyFlags: [
+          { type: 'new-merchant', reason: 'Dismissed', detectedAt: '2026-01-01', dismissed: true, dismissedAt: '2026-01-02' },
+        ],
+      }),
+    ])
+
+    const { result } = renderHook(() => useAnomalies())
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false)
+    })
+
+    expect(result.current.newMerchantCount).toBe(1)
+  })
+
+  it('returns 0 newMerchantCount when no new-merchant flags exist', async () => {
+    await db.transactions.bulkAdd([
+      createTransaction({
+        anomalyFlags: [
+          { type: 'high-amount', reason: 'Test', detectedAt: '2026-01-01', dismissed: false },
+        ],
+      }),
+    ])
+
+    const { result } = renderHook(() => useAnomalies())
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false)
+    })
+
+    expect(result.current.newMerchantCount).toBe(0)
   })
 
   it('isLoading true initially', () => {

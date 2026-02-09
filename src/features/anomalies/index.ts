@@ -1,5 +1,8 @@
 export {
   detectHighAmountAnomalies,
+  detectNewMerchantAnomalies,
+  cleanExpiredNewMerchantFlags,
+  NEW_MERCHANT_THRESHOLD_DAYS,
   dismissAnomaly,
   undoDismissAnomaly,
   removeHighAmountFlags,

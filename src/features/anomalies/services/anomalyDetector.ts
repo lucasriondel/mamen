@@ -2,6 +2,8 @@ import { db } from '@/lib/db'
 import type { AnomalyFlag, AnomalySettings, Transaction } from '@/types'
 import { formatCurrency } from '@/lib/utils/formatCurrency'
 
+export const NEW_MERCHANT_THRESHOLD_DAYS = 30
+
 const DEFAULT_SETTINGS: AnomalySettings = {
   multiplierThreshold: 2,
   absoluteThreshold: null,
@@ -139,4 +141,100 @@ export const removeHighAmountFlags = async (transactionId: number): Promise<void
   await db.transactions.update(transactionId, {
     anomalyFlags: updatedFlags.length > 0 ? updatedFlags : undefined,
   })
+}
+
+export const cleanExpiredNewMerchantFlags = async (): Promise<{
+  cleaned: number
+}> => {
+  const threshold = new Date()
+  threshold.setDate(threshold.getDate() - NEW_MERCHANT_THRESHOLD_DAYS)
+
+  // Get merchants that are no longer "new" (createdAt <= threshold)
+  const allMerchants = await db.merchants.toArray()
+  const expiredMerchantIds = new Set(
+    allMerchants
+      .filter(m => m.createdAt <= threshold)
+      .map(m => m.id!),
+  )
+
+  if (expiredMerchantIds.size === 0) return { cleaned: 0 }
+
+  const allTransactions = await db.transactions.toArray()
+  let cleaned = 0
+  const updates: { id: number; anomalyFlags: AnomalyFlag[] | undefined }[] = []
+
+  for (const tx of allTransactions) {
+    if (!tx.merchantId || !expiredMerchantIds.has(tx.merchantId)) continue
+    if (!tx.anomalyFlags?.some(f => f.type === 'new-merchant' && !f.dismissed)) continue
+
+    const updatedFlags = tx.anomalyFlags.filter(
+      f => !(f.type === 'new-merchant' && !f.dismissed),
+    )
+    updates.push({
+      id: tx.id!,
+      anomalyFlags: updatedFlags.length > 0 ? updatedFlags : undefined,
+    })
+    cleaned++
+  }
+
+  await db.transaction('rw', db.transactions, async () => {
+    for (const update of updates) {
+      await db.transactions.update(update.id, { anomalyFlags: update.anomalyFlags })
+    }
+  })
+
+  return { cleaned }
+}
+
+export const detectNewMerchantAnomalies = async (): Promise<{
+  flagged: number
+}> => {
+  const threshold = new Date()
+  threshold.setDate(threshold.getDate() - NEW_MERCHANT_THRESHOLD_DAYS)
+
+  // Get new merchants (createdAt > threshold, i.e., less than 30 days old)
+  const allMerchants = await db.merchants.toArray()
+  const newMerchants = allMerchants.filter(m => m.createdAt > threshold)
+
+  if (newMerchants.length === 0) return { flagged: 0 }
+
+  const newMerchantMap = new Map(newMerchants.map(m => [m.id!, m]))
+
+  const allTransactions = await db.transactions.toArray()
+  let flagged = 0
+  const updates: { id: number; anomalyFlags: AnomalyFlag[] }[] = []
+
+  for (const tx of allTransactions) {
+    if (!tx.merchantId || !newMerchantMap.has(tx.merchantId)) continue
+    // Skip if already has a new-merchant flag (dismissed or active)
+    if (tx.anomalyFlags?.some(f => f.type === 'new-merchant')) continue
+
+    const merchant = newMerchantMap.get(tx.merchantId)!
+    const ageInDays = Math.floor(
+      (Date.now() - merchant.createdAt.getTime()) / (1000 * 60 * 60 * 24),
+    )
+    const reason = `First seen merchant - ${merchant.name} created ${ageInDays} days ago`
+
+    const newFlag: AnomalyFlag = {
+      type: 'new-merchant',
+      reason,
+      detectedAt: new Date().toISOString(),
+      dismissed: false,
+    }
+
+    const existingFlags = tx.anomalyFlags ?? []
+    updates.push({
+      id: tx.id!,
+      anomalyFlags: [...existingFlags, newFlag],
+    })
+    flagged++
+  }
+
+  await db.transaction('rw', db.transactions, async () => {
+    for (const update of updates) {
+      await db.transactions.update(update.id, { anomalyFlags: update.anomalyFlags })
+    }
+  })
+
+  return { flagged }
 }

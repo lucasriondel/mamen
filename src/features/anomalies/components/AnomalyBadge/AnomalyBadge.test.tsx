@@ -73,4 +73,65 @@ describe('AnomalyBadge', () => {
 
     expect(screen.getByLabelText('Dismiss anomaly: Unusual amount')).toBeInTheDocument()
   })
+
+  it('renders new-merchant badge with correct text', () => {
+    render(
+      <AnomalyBadge
+        flags={[makeFlag({ type: 'new-merchant', reason: 'First seen merchant - Amazon created 5 days ago' })]}
+        onDismiss={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('New merchant')).toBeInTheDocument()
+  })
+
+  it('shows correct tooltip reason for new-merchant', () => {
+    render(
+      <AnomalyBadge
+        flags={[makeFlag({ type: 'new-merchant', reason: 'First seen merchant - Amazon created 5 days ago' })]}
+        onDismiss={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByTestId('tooltip-content')).toHaveTextContent(
+      'First seen merchant - Amazon created 5 days ago',
+    )
+  })
+
+  it('renders both badges when transaction has high-amount and new-merchant flags', () => {
+    render(
+      <AnomalyBadge
+        flags={[
+          makeFlag({ type: 'high-amount', reason: 'High amount reason' }),
+          makeFlag({ type: 'new-merchant', reason: 'First seen merchant - Amazon created 5 days ago' }),
+        ]}
+        onDismiss={vi.fn()}
+      />,
+    )
+
+    const badges = screen.getAllByTestId('anomaly-badge')
+    expect(badges).toHaveLength(2)
+    expect(screen.getByText('Unusual amount')).toBeInTheDocument()
+    expect(screen.getByText('New merchant')).toBeInTheDocument()
+  })
+
+  it('dismisses new-merchant independently of high-amount', async () => {
+    const user = userEvent.setup()
+    const onDismiss = vi.fn()
+
+    render(
+      <AnomalyBadge
+        flags={[
+          makeFlag({ type: 'high-amount', reason: 'High' }),
+          makeFlag({ type: 'new-merchant', reason: 'New' }),
+        ]}
+        onDismiss={onDismiss}
+      />,
+    )
+
+    const badges = screen.getAllByTestId('anomaly-badge')
+    // Click the new-merchant badge (second one)
+    await user.click(badges[1])
+    expect(onDismiss).toHaveBeenCalledWith('new-merchant')
+  })
 })

@@ -2,12 +2,16 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '@/lib/db'
 import {
   detectHighAmountAnomalies,
+  detectNewMerchantAnomalies,
+  cleanExpiredNewMerchantFlags,
   dismissAnomaly,
   undoDismissAnomaly,
   getAnomalySettings,
   buildReason,
+  NEW_MERCHANT_THRESHOLD_DAYS,
 } from './anomalyDetector'
 import type { Transaction } from '@/types'
+import type { Merchant } from '@/types'
 
 const createTransaction = (overrides: Partial<Transaction> = {}): Omit<Transaction, 'id'> => ({
   accountId: 1,
@@ -17,6 +21,19 @@ const createTransaction = (overrides: Partial<Transaction> = {}): Omit<Transacti
   categoryId: 1,
   importedAt: new Date(),
   importMonth: '2026-01',
+  ...overrides,
+})
+
+const daysAgo = (n: number): Date => {
+  const d = new Date()
+  d.setDate(d.getDate() - n)
+  return d
+}
+
+const createMerchant = (overrides: Partial<Merchant> = {}): Omit<Merchant, 'id'> => ({
+  name: 'Test Merchant',
+  createdAt: new Date(),
+  firstSeen: new Date(),
   ...overrides,
 })
 
@@ -355,5 +372,201 @@ describe('undoDismissAnomaly', () => {
     const tx = await db.transactions.get(txId)
     expect(tx!.anomalyFlags![0].dismissed).toBe(false)
     expect(tx!.anomalyFlags![0].dismissedAt).toBeUndefined()
+  })
+})
+
+describe('NEW_MERCHANT_THRESHOLD_DAYS', () => {
+  it('exports the constant with value 30', () => {
+    expect(NEW_MERCHANT_THRESHOLD_DAYS).toBe(30)
+  })
+})
+
+describe('detectNewMerchantAnomalies', () => {
+  beforeEach(async () => {
+    await db.accounts.add({ id: 1, name: 'Test', type: 'checking', createdAt: new Date(), updatedAt: new Date() })
+  })
+
+  it('flags transactions for merchant created 10 days ago', async () => {
+    const merchantId = await db.merchants.add(createMerchant({ name: 'Amazon', createdAt: daysAgo(10), firstSeen: daysAgo(10) }))
+    await db.transactions.add(createTransaction({ merchantId, rawMerchantString: 'AMAZON' }))
+
+    const result = await detectNewMerchantAnomalies()
+    expect(result.flagged).toBe(1)
+
+    const allTx = await db.transactions.toArray()
+    const flagged = allTx.filter(tx => tx.anomalyFlags?.some(f => f.type === 'new-merchant' && !f.dismissed))
+    expect(flagged).toHaveLength(1)
+  })
+
+  it('does NOT flag transactions for merchant created 31 days ago', async () => {
+    const merchantId = await db.merchants.add(createMerchant({ name: 'OldShop', createdAt: daysAgo(31), firstSeen: daysAgo(31) }))
+    await db.transactions.add(createTransaction({ merchantId, rawMerchantString: 'OLD SHOP' }))
+
+    const result = await detectNewMerchantAnomalies()
+    expect(result.flagged).toBe(0)
+  })
+
+  it('does NOT flag transactions for merchant created exactly 30 days ago', async () => {
+    const merchantId = await db.merchants.add(createMerchant({ name: 'Borderline', createdAt: daysAgo(30), firstSeen: daysAgo(30) }))
+    await db.transactions.add(createTransaction({ merchantId, rawMerchantString: 'BORDERLINE' }))
+
+    const result = await detectNewMerchantAnomalies()
+    expect(result.flagged).toBe(0)
+  })
+
+  it('does NOT flag unmatched transaction (no merchantId)', async () => {
+    await db.transactions.add(createTransaction({ merchantId: undefined, rawMerchantString: 'UNKNOWN' }))
+
+    const result = await detectNewMerchantAnomalies()
+    expect(result.flagged).toBe(0)
+  })
+
+  it('does not re-flag already-flagged transaction', async () => {
+    const merchantId = await db.merchants.add(createMerchant({ name: 'NewShop', createdAt: daysAgo(5), firstSeen: daysAgo(5) }))
+    const txId = await db.transactions.add(createTransaction({
+      merchantId,
+      rawMerchantString: 'NEWSHOP',
+      anomalyFlags: [{
+        type: 'new-merchant',
+        reason: 'Already flagged',
+        detectedAt: '2026-01-01T00:00:00.000Z',
+        dismissed: false,
+      }],
+    }))
+
+    const result = await detectNewMerchantAnomalies()
+    expect(result.flagged).toBe(0)
+
+    const tx = await db.transactions.get(txId)
+    expect(tx!.anomalyFlags).toHaveLength(1)
+    expect(tx!.anomalyFlags![0].reason).toBe('Already flagged')
+  })
+
+  it('does not re-flag dismissed new-merchant flag', async () => {
+    const merchantId = await db.merchants.add(createMerchant({ name: 'DismissedShop', createdAt: daysAgo(3), firstSeen: daysAgo(3) }))
+    await db.transactions.add(createTransaction({
+      merchantId,
+      rawMerchantString: 'DISMISSEDSHOP',
+      anomalyFlags: [{
+        type: 'new-merchant',
+        reason: 'Dismissed',
+        detectedAt: '2026-01-01T00:00:00.000Z',
+        dismissed: true,
+        dismissedAt: '2026-01-02T00:00:00.000Z',
+      }],
+    }))
+
+    const result = await detectNewMerchantAnomalies()
+    expect(result.flagged).toBe(0)
+  })
+
+  it('preserves both high-amount and new-merchant flags on same transaction', async () => {
+    const merchantId = await db.merchants.add(createMerchant({ name: 'NewExpensive', createdAt: daysAgo(2), firstSeen: daysAgo(2) }))
+    const txId = await db.transactions.add(createTransaction({
+      merchantId,
+      rawMerchantString: 'NEWEXPENSIVE',
+      anomalyFlags: [{
+        type: 'high-amount',
+        reason: 'High amount test',
+        detectedAt: '2026-01-01T00:00:00.000Z',
+        dismissed: false,
+      }],
+    }))
+
+    const result = await detectNewMerchantAnomalies()
+    expect(result.flagged).toBe(1)
+
+    const tx = await db.transactions.get(txId)
+    expect(tx!.anomalyFlags).toHaveLength(2)
+    expect(tx!.anomalyFlags!.map(f => f.type).sort()).toEqual(['high-amount', 'new-merchant'])
+  })
+
+  it('generates correct reason string format', async () => {
+    const merchantId = await db.merchants.add(createMerchant({ name: 'Amazon', createdAt: daysAgo(5), firstSeen: daysAgo(5) }))
+    await db.transactions.add(createTransaction({ merchantId, rawMerchantString: 'AMAZON' }))
+
+    await detectNewMerchantAnomalies()
+
+    const allTx = await db.transactions.toArray()
+    const flagged = allTx.find(tx => tx.anomalyFlags?.some(f => f.type === 'new-merchant'))
+    expect(flagged).toBeDefined()
+    expect(flagged!.anomalyFlags![0].reason).toBe('First seen merchant - Amazon created 5 days ago')
+  })
+})
+
+describe('cleanExpiredNewMerchantFlags', () => {
+  beforeEach(async () => {
+    await db.accounts.add({ id: 1, name: 'Test', type: 'checking', createdAt: new Date(), updatedAt: new Date() })
+  })
+
+  it('removes active new-merchant flags from aged-out merchant transactions', async () => {
+    const merchantId = await db.merchants.add(createMerchant({ name: 'OldMerchant', createdAt: daysAgo(31), firstSeen: daysAgo(31) }))
+    await db.transactions.add(createTransaction({
+      merchantId,
+      rawMerchantString: 'OLD MERCHANT',
+      anomalyFlags: [{
+        type: 'new-merchant',
+        reason: 'First seen merchant - OldMerchant created 5 days ago',
+        detectedAt: '2026-01-01T00:00:00.000Z',
+        dismissed: false,
+      }],
+    }))
+
+    const result = await cleanExpiredNewMerchantFlags()
+    expect(result.cleaned).toBe(1)
+
+    const allTx = await db.transactions.toArray()
+    expect(allTx[0].anomalyFlags).toBeUndefined()
+  })
+
+  it('does NOT remove dismissed new-merchant flags (audit trail)', async () => {
+    const merchantId = await db.merchants.add(createMerchant({ name: 'OldMerchant', createdAt: daysAgo(31), firstSeen: daysAgo(31) }))
+    await db.transactions.add(createTransaction({
+      merchantId,
+      rawMerchantString: 'OLD MERCHANT',
+      anomalyFlags: [{
+        type: 'new-merchant',
+        reason: 'First seen merchant - OldMerchant created 5 days ago',
+        detectedAt: '2026-01-01T00:00:00.000Z',
+        dismissed: true,
+        dismissedAt: '2026-01-02T00:00:00.000Z',
+      }],
+    }))
+
+    const result = await cleanExpiredNewMerchantFlags()
+    expect(result.cleaned).toBe(0)
+
+    const allTx = await db.transactions.toArray()
+    expect(allTx[0].anomalyFlags).toHaveLength(1)
+    expect(allTx[0].anomalyFlags![0].dismissed).toBe(true)
+  })
+
+  it('does NOT affect other anomaly flags on same transaction', async () => {
+    const merchantId = await db.merchants.add(createMerchant({ name: 'OldMerchant', createdAt: daysAgo(31), firstSeen: daysAgo(31) }))
+    await db.transactions.add(createTransaction({
+      merchantId,
+      rawMerchantString: 'OLD MERCHANT',
+      anomalyFlags: [
+        {
+          type: 'new-merchant',
+          reason: 'First seen merchant',
+          detectedAt: '2026-01-01T00:00:00.000Z',
+          dismissed: false,
+        },
+        {
+          type: 'high-amount',
+          reason: 'High amount',
+          detectedAt: '2026-01-01T00:00:00.000Z',
+          dismissed: false,
+        },
+      ],
+    }))
+
+    const result = await cleanExpiredNewMerchantFlags()
+    expect(result.cleaned).toBe(1)
+
+    const allTx = await db.transactions.toArray()
+    expect(allTx[0].anomalyFlags).toHaveLength(1)
+    expect(allTx[0].anomalyFlags![0].type).toBe('high-amount')
   })
 })

@@ -1,9 +1,10 @@
 import { db, useLiveQuery } from '@/lib/db'
-import type { Transaction } from '@/types'
+import type { Transaction, AnomalyType } from '@/types'
 
 type FilterOptions = {
   unmatchedOnly?: boolean
   anomaliesOnly?: boolean
+  anomalyTypeFilter?: AnomalyType
   monthRange?: { start: Date; end: Date }
   categoryId?: number | null
   periodRange?: { start: Date; end: Date }
@@ -18,7 +19,7 @@ type UseFilteredTransactionsReturn = {
 export const useFilteredTransactions = (
   options: FilterOptions = {},
 ): UseFilteredTransactionsReturn => {
-  const { unmatchedOnly = false, anomaliesOnly = false, monthRange, categoryId, periodRange, subscriptionTransactionIds } = options
+  const { unmatchedOnly = false, anomaliesOnly = false, anomalyTypeFilter, monthRange, categoryId, periodRange, subscriptionTransactionIds } = options
 
   const monthStart = monthRange?.start.getTime()
   const monthEnd = monthRange?.end.getTime()
@@ -32,7 +33,9 @@ export const useFilteredTransactions = (
       if (anomaliesOnly) {
         const all = await db.transactions.orderBy('date').reverse().toArray()
         return all.filter(
-          (t) => (t.anomalyFlags ?? []).some((f) => !f.dismissed),
+          (t) => (t.anomalyFlags ?? []).some((f) =>
+            !f.dismissed && (!anomalyTypeFilter || f.type === anomalyTypeFilter),
+          ),
         )
       }
 
@@ -85,7 +88,7 @@ export const useFilteredTransactions = (
 
       return db.transactions.orderBy('date').reverse().toArray()
     },
-    [unmatchedOnly, anomaliesOnly, monthStart, monthEnd, categoryId, periodStart, periodEnd, subTxIdsKey],
+    [unmatchedOnly, anomaliesOnly, anomalyTypeFilter, monthStart, monthEnd, categoryId, periodStart, periodEnd, subTxIdsKey],
   )
 
   return {

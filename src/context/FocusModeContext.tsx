@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useCallback, useEffect, useMemo, type ReactNode } from 'react'
+import type { AnomalyType } from '@/types'
 
 type FocusMode = 'all' | 'unmatched' | 'month' | 'subscriptions' | 'anomalies'
 
@@ -17,6 +18,8 @@ type FocusModeContextValue = {
   toggleFocusMode: (mode: FocusMode) => void
   activeFilters: Set<FocusMode>
   currentMonthRange: MonthRange
+  anomalyTypeFilter: AnomalyType | undefined
+  setAnomalyTypeFilter: (type: AnomalyType | undefined) => void
 }
 
 const FocusModeContext = createContext<FocusModeContextValue | null>(null)
@@ -28,6 +31,7 @@ type FocusModeProviderProps = {
 export const FocusModeProvider = ({ children }: FocusModeProviderProps): React.ReactElement => {
   const [activeFilters, setActiveFilters] = useState<Set<FocusMode>>(() => new Set())
   const [monthRange, setMonthRange] = useState<MonthRange>(getMonthRange)
+  const [anomalyTypeFilter, setAnomalyTypeFilter] = useState<AnomalyType | undefined>(undefined)
 
   // Recompute month range on visibility change (handles month boundary crossings)
   useEffect(() => {
@@ -43,11 +47,13 @@ export const FocusModeProvider = ({ children }: FocusModeProviderProps): React.R
   const toggleFocusMode = useCallback((mode: FocusMode) => {
     setActiveFilters((current) => {
       if (mode === 'all') {
+        setAnomalyTypeFilter(undefined)
         return new Set()
       }
       const next = new Set(current)
       if (next.has(mode)) {
         next.delete(mode)
+        if (mode === 'anomalies') setAnomalyTypeFilter(undefined)
       } else {
         next.add(mode)
       }
@@ -58,8 +64,10 @@ export const FocusModeProvider = ({ children }: FocusModeProviderProps): React.R
   const setFocusMode = useCallback((mode: FocusMode) => {
     if (mode === 'all') {
       setActiveFilters(new Set())
+      setAnomalyTypeFilter(undefined)
     } else {
       setActiveFilters(new Set([mode]))
+      if (mode !== 'anomalies') setAnomalyTypeFilter(undefined)
     }
   }, [])
 
@@ -111,8 +119,8 @@ export const FocusModeProvider = ({ children }: FocusModeProviderProps): React.R
   }, [toggleFocusMode])
 
   const contextValue = useMemo(
-    () => ({ focusMode, setFocusMode, toggleFocusMode, activeFilters, currentMonthRange: monthRange }),
-    [focusMode, setFocusMode, toggleFocusMode, activeFilters, monthRange],
+    () => ({ focusMode, setFocusMode, toggleFocusMode, activeFilters, currentMonthRange: monthRange, anomalyTypeFilter, setAnomalyTypeFilter }),
+    [focusMode, setFocusMode, toggleFocusMode, activeFilters, monthRange, anomalyTypeFilter],
   )
 
   return (

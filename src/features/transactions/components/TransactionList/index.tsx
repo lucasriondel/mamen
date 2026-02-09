@@ -31,7 +31,7 @@ type TransactionListProps = {
 }
 
 export function TransactionList({ highlightId }: TransactionListProps): React.ReactElement {
-  const { activeFilters, currentMonthRange, toggleFocusMode } = useFocusMode()
+  const { activeFilters, currentMonthRange, toggleFocusMode, anomalyTypeFilter } = useFocusMode()
   const isUnmatchedMode = activeFilters.has('unmatched')
   const isMonthMode = activeFilters.has('month')
   const isSubscriptionsMode = activeFilters.has('subscriptions')
@@ -65,6 +65,7 @@ export function TransactionList({ highlightId }: TransactionListProps): React.Re
   const { transactions, isLoading } = useFilteredTransactions({
     unmatchedOnly: isDrillDown ? false : isUnmatchedMode,
     anomaliesOnly: isDrillDown ? false : isAnomaliesMode,
+    anomalyTypeFilter: isAnomaliesMode ? anomalyTypeFilter : undefined,
     monthRange: isDrillDown ? undefined : (isMonthMode ? currentMonthRange : undefined),
     categoryId: drillDown.categoryId,
     periodRange: drillDown.periodStart && drillDown.periodEnd

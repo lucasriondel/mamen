@@ -7,7 +7,11 @@ import {
   applyMatchResults,
 } from '@/features/rules/services/rulesEngine'
 import { runDetection } from '@/features/subscriptions/services/subscriptionDetector'
-import { detectHighAmountAnomalies } from '@/features/anomalies/services/anomalyDetector'
+import {
+  detectHighAmountAnomalies,
+  detectNewMerchantAnomalies,
+  cleanExpiredNewMerchantFlags,
+} from '@/features/anomalies/services/anomalyDetector'
 
 export type ImportWithRulesResult = ImportResult & {
   matchedCount: number
@@ -35,9 +39,24 @@ export const importWithRules = async (
   })
 
   // Fire-and-forget anomaly detection after import
-  detectHighAmountAnomalies().then(anomalyResult => {
-    if (anomalyResult.flagged > 0) {
-      toast.warning(`${anomalyResult.flagged} unusual transaction(s) flagged`, {
+  Promise.all([
+    detectHighAmountAnomalies(),
+    cleanExpiredNewMerchantFlags().then(() => detectNewMerchantAnomalies()),
+  ]).then(([highAmountResult, newMerchantResult]) => {
+    const totalFlagged = highAmountResult.flagged + newMerchantResult.flagged
+    if (totalFlagged === 0) return
+
+    if (highAmountResult.flagged > 0 && newMerchantResult.flagged > 0) {
+      toast.warning(`${totalFlagged} unusual transaction(s) flagged`, {
+        description: `${highAmountResult.flagged} high amounts, ${newMerchantResult.flagged} new merchants`,
+        duration: 10000,
+      })
+    } else if (highAmountResult.flagged > 0) {
+      toast.warning(`${highAmountResult.flagged} unusual transaction(s) flagged`, {
+        duration: 10000,
+      })
+    } else {
+      toast.warning(`${newMerchantResult.flagged} new merchant transaction(s) flagged`, {
         duration: 10000,
       })
     }

@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryHistory, createRootRoute, createRoute, createRouter, RouterProvider } from '@tanstack/react-router'
 import { CommandPaletteProvider } from '@/context/CommandPaletteContext'
+import { FocusModeProvider } from '@/context/FocusModeContext'
 import { CommandPalette } from './index'
 
 // jsdom doesn't provide ResizeObserver or Element.scrollIntoView which cmdk needs
@@ -28,12 +29,14 @@ vi.mock('@tanstack/react-router', async () => {
 function renderWithProviders(): ReturnType<typeof render> {
   const rootRoute = createRootRoute({
     component: () => (
-      <CommandPaletteProvider>
-        <div>
-          <button data-testid="outside-button">Outside</button>
-          <CommandPalette />
-        </div>
-      </CommandPaletteProvider>
+      <FocusModeProvider>
+        <CommandPaletteProvider>
+          <div>
+            <button data-testid="outside-button">Outside</button>
+            <CommandPalette />
+          </div>
+        </CommandPaletteProvider>
+      </FocusModeProvider>
     ),
   })
 

@@ -47,6 +47,7 @@ import { formatCurrency } from '@/lib/utils/formatCurrency'
 import { formatDate } from '@/lib/utils/formatDate'
 import type { Transaction } from '@/types'
 import { AlertTriangle, ChevronDown } from 'lucide-react'
+import { detectNewMerchantAnomalies, cleanExpiredNewMerchantFlags } from '@/features/anomalies/services/anomalyDetector'
 
 type MerchantAssignmentModalProps = {
   open: boolean
@@ -360,6 +361,9 @@ export function MerchantAssignmentModal({
         },
         duration: 10000,
       })
+
+      // Fire-and-forget new-merchant anomaly detection
+      cleanExpiredNewMerchantFlags().then(() => detectNewMerchantAnomalies())
     } else {
       if (!selectedMerchantId) return
 
@@ -511,6 +515,11 @@ export function MerchantAssignmentModal({
         duration: 10000,
       },
     )
+
+    // Fire-and-forget new-merchant anomaly detection
+    if (isNewMerchant) {
+      cleanExpiredNewMerchantFlags().then(() => detectNewMerchantAnomalies())
+    }
   }
 
   const selectedCategory = categoryId ? getCategoryById(categoryId) : undefined
