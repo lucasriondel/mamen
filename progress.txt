@@ -1,56 +1,114 @@
-## 2026-02-09: CSV Import - Debit/Credit Direction Column Support
+## Category Management - Implementation Progress
 
-### Task
-Add support for separate debit/credit direction columns in CSV import (Story 2.3, Task 7 edge case: "Separate debit/credit columns").
+### Task 1: Types + schema additions ✅
+- Added `CategoryTreeNode` type to `src/types/category.types.ts`
+- Exported `CategoryTreeNode` from `src/types/index.ts`
+- Added `updateCategorySchema` and `UpdateCategoryInput` to `src/lib/schemas/category.schema.ts`
+- Exported new schema from `src/lib/schemas/index.ts`
+- TypeScript type check passes
 
-### Problem
-Real bank CSVs (e.g., Green-Got) have a "Direction" column with values like "DEBIT"/"CREDIT" and always-positive amounts in the "Montant" column. The CSV importer only supported a single amount column with signed values, so all transactions imported as positive.
+### Task 2: Constants file (colors, icons, icon map) ✅
+- Created `src/features/categories/lib/constants.ts`
+- `COLOR_PALETTE`: 16 predefined hex colors (4×4 grid) — all 10 seed colors + 6 extras
+- `ICON_MAP`: Record<string, LucideIcon> mapping 32 curated lucide icon names to components
+- `ICON_LIST`: Ordered list of icon names derived from ICON_MAP keys
+- `DEFAULT_ICON` ('Tag') and `DEFAULT_COLOR` ('#3B82F6') constants
+- `getIconComponent()`: Resolves icon name to component with Tag fallback
+- TypeScript type check passes, all tests pass
 
-### Changes
-- **src/lib/csv/parser.ts**: Added `directionColumn` to `ColumnMapping` type. Added direction header patterns and debit/credit value constants. Updated `autoDetectColumns` to detect direction column by header name or by value analysis of unmapped columns. Added `isDirectionValue` and `isDebitDirection` helpers.
-- **src/features/import/services/csvImporter.ts**: When a direction column is mapped, uses it to determine the sign of the amount (DEBIT = negative, CREDIT = positive).
-- **src/features/import/components/ImportCSVModal/index.tsx**: Added optional "Direction" dropdown in column mapping UI (2x2 grid). Auto-detects and sets direction column. Passes it through to the importer.
-- **src/lib/csv/parser.test.ts**: Added 9 new tests covering direction column auto-detection, value recognition, and debit/credit classification.
+### Task 3: Hooks (useCategoryTree, useCategoryMutations) ✅
+- Created `src/features/categories/hooks/useCategoryTree.ts`
+  - `buildTree()`: O(n) recursive tree builder from flat categories using Map grouping by parentId
+  - `useCategoryTree()`: Returns `{ tree, allCategories, isLoading }` using `useLiveQuery` + `useMemo`
+- Created `src/features/categories/hooks/useCategoryMutations.ts`
+  - `createCategory()`: Auto-generates slug (with parent prefix), auto-computes sortOrder, defaults color/icon
+  - `updateCategory()`: Updates name, color, icon via `db.categories.update()`
+  - `deleteCategory()`: Cascade deletes all descendants in a transaction, with undo via `useRef` + sonner toast (10s)
+  - `reorder()`: Swaps sortOrder with adjacent sibling (move up/down)
+  - Follows existing patterns from accounts page (useRef undo) and useRuleMutations (toast pattern)
+- TypeScript type check passes, all tests pass (1431 passed)
 
-### Verification
-- TypeScript: No type errors
-- Tests: 1440 tests pass (40 in parser.test.ts, 9 new). 1 pre-existing failure in accounts.test.tsx (DOMMatrix/pdfjs unrelated).
+### Task 4: ColorPicker + IconPicker components ✅
+- Created `src/features/categories/components/ColorPicker/index.tsx`
+  - Popover trigger shows current color swatch + "Color" label
+  - Content: 4×4 grid of 16 predefined colors from `COLOR_PALETTE`
+  - Uses `role="radiogroup"` / `role="radio"` for accessibility
+  - Click selects color and closes popover
+  - Active color shown with border + scale highlight
+- Created `src/features/categories/components/IconPicker/index.tsx`
+  - Popover trigger shows current icon (resolved via `getIconComponent`) + "Icon" label
+  - Content: scrollable 8-column grid of 32 curated lucide icons from `ICON_LIST`
+  - Uses `role="radiogroup"` / `role="radio"` for accessibility
+  - Active icon shown with accent background
+  - Click selects icon and closes popover
+- Both components follow project patterns: Popover from shadcn/ui, `cn()` utility, exported types
+- TypeScript type check passes, all tests pass (1431 passed)
 
-## 2026-02-09: CSV Import - French Header Auto-Detection
+### Task 5: CategoryTreeNode + CategoryTree components ✅
+- Created `src/features/categories/components/CategoryTreeNode/index.tsx`
+  - Recursive component rendering each category row
+  - Layout: `[indent] [▶ chevron] [● color] [icon] Name [child count] [⋯ actions]`
+  - Indent: `paddingLeft: depth * 24 + 8` for unlimited nesting depth
+  - Chevron: only visible when node has children, rotates 90° when expanded
+  - Auto-expand depth 0 (root level) by default
+  - Actions dropdown (DropdownMenu): Add Subcategory, Edit, Move Up, Move Down, Delete (destructive)
+  - Hover-triggered action button with `group` / `opacity-0 group-hover:opacity-100` pattern
+  - Recursively renders children when expanded
+- Created `src/features/categories/components/CategoryTree/index.tsx`
+  - Renders root-level tree nodes by mapping over `CategoryTreeNode[]`
+  - Empty state with helpful message when no categories exist
+  - Passes all callbacks (onAddSubcategory, onEdit, onDelete, onReorder) through to nodes
+- TypeScript type check passes, all tests pass (1431 passed)
 
-### Task
-Add French column header patterns to CSV auto-detection so that French bank CSVs (e.g., Green-Got) are auto-detected correctly.
+### Task 6: CategoryFormModal + DeleteCategoryDialog ✅
+- Created `src/features/categories/components/CategoryFormModal/index.tsx`
+  - Shared modal with `mode: 'create' | 'edit'` prop
+  - Fields: Name (Input), Color (ColorPicker), Icon (IconPicker)
+  - Uses react-hook-form + zodResolver with `updateCategorySchema`
+  - `useEffect` populates form when editing (resets for create)
+  - `parentId` passed as prop for subcategory creation
+  - Toast notifications on create/update success
+  - Form reset on close, follows EditAccountModal pattern
+- Created `src/features/categories/components/DeleteCategoryDialog/index.tsx`
+  - AlertDialog confirmation before cascade delete
+  - Shows category name and recursive descendant count via `countDescendants()`
+  - Description mentions undo availability (10s window)
+  - Delegates to `onConfirm` callback which calls `useCategoryMutations.deleteCategory`
+  - Undo via sonner toast already handled in the mutations hook
+  - Uses destructive variant on confirm button
+- TypeScript type check passes, all tests pass (1431 passed)
 
-### Problem
-The CSV auto-detection only recognized English header names (e.g., "Amount", "Description"). French bank CSVs use headers like "Montant" (amount), "Intitulé" (description/merchant), "Libellé" (label), which were not detected, forcing users to manually map columns.
+### Task 7: CategoriesPage + barrel export ✅
+- Created `src/features/categories/components/CategoriesPage/index.tsx`
+  - Main page component with state management for modals and layout
+  - Header with Tag icon, title "Categories", subtitle, and "Add Category" button
+  - Scrollable content area rendering `CategoryTree` with all callbacks wired
+  - Discriminated union state for modal (`create`/`edit`/`closed`) and delete dialog
+  - Integrates `useCategoryTree` for tree data and `useCategoryMutations` for CRUD
+  - `CategoryFormModal` for create/edit and `DeleteCategoryDialog` for delete confirmation
+  - Follows RulesPage layout pattern: flex column, `-m-6`, border-b header, scrollable content
+- Created `src/features/categories/index.ts` (barrel export)
+  - Exports all components: CategoriesPage, CategoryTree, CategoryTreeNode, CategoryFormModal, DeleteCategoryDialog, ColorPicker, IconPicker
+  - Exports hooks: useCategoryTree, useCategoryMutations (with types)
+  - Exports constants: COLOR_PALETTE, ICON_MAP, ICON_LIST, DEFAULT_COLOR, DEFAULT_ICON, getIconComponent
+- TypeScript type check passes, all tests pass (1431 passed)
 
-### Changes
-- **src/lib/csv/parser.ts**: Added French patterns to all detection arrays:
-  - DATE_PATTERNS: "date d'opération", "date de valeur", "date opération"
-  - AMOUNT_PATTERNS: "montant", "somme"
-  - DESCRIPTION_PATTERNS: "intitulé", "libellé", "désignation", "libelle", "intitule" (accent-free variants)
-  - DIRECTION_PATTERNS: "sens", "débit/crédit"
-  - DIRECTION_DEBIT_VALUES: "débit"
-  - DIRECTION_CREDIT_VALUES: "crédit"
-- **src/lib/csv/parser.test.ts**: Added 9 new tests covering French header detection (Montant, Intitulé, Libellé, Green-Got full header set, accent-free variants, date d'opération) and French direction values (débit/crédit).
+### Task 8: Route file (`categories.tsx`) ✅
+- Created `src/routes/categories.tsx`
+  - Thin route file following existing pattern (matches `rules.tsx`)
+  - Uses `createFileRoute('/categories')` with `CategoriesPage` as component
+  - Imports `CategoriesPage` from `@/features/categories` barrel export
+- `routeTree.gen.ts` auto-regenerated by TanStack Router Vite plugin (includes `/categories` route)
+- Vite build succeeds, all tests pass (1431 passed)
 
-### Verification
-- TypeScript: No type errors
-- Tests: 1449 tests pass (49 in parser.test.ts, 9 new). 2 pre-existing failures unrelated (pdfjs DOMMatrix, importWithRules timeout).
+### Task 9: Sidebar + breadcrumbs updates ✅
+- Modified `src/components/Layout/Sidebar.tsx`
+  - Added `Tag` to lucide-react imports
+  - Added `{ to: '/categories', label: 'Categories', icon: <Tag /> }` nav item after Rules
+- Modified `src/hooks/useBreadcrumbs.ts`
+  - Added `'/categories': 'Categories'` to `routeLabelMap`
+- Updated `src/components/Layout/Layout.test.tsx`
+  - Fixed nav link count assertion from 7 to 8 to account for new Categories link (7 navItems + 1 Unmatched link = 8 total)
+- TypeScript type check passes, all 1428 tests pass
 
-## 2026-02-09: CSV Import - ISO 8601 Datetime Format Support
-
-### Task
-Add explicit ISO 8601 datetime format support to CSV date parser so that bank CSVs with full timestamps (e.g., Green-Got's `2026-01-01T18:00:22.000Z`) are properly detected and parsed.
-
-### Problem
-The CSV date format detection only handled simple date formats (YYYY-MM-DD, DD/MM/YYYY, etc.). Real bank CSVs like Green-Got use ISO 8601 timestamps with time components (`2026-01-01T18:00:22.000Z`), which didn't match any explicit pattern and fell through to the fragile `new Date()` fallback. The UI showed "Auto-detect" instead of a specific detected format.
-
-### Changes
-- **src/lib/csv/parser.ts**: Added `'ISO-8601'` to `DateFormatOption` type. Added ISO 8601 detection in `detectDateFormat` (checks for `T` timestamp indicator before other formats). Added `'ISO-8601'` case in `parseDate`. Updated `auto` mode to try ISO 8601 with time component before date-only formats.
-- **src/features/import/components/ImportCSVModal/index.tsx**: Added ISO 8601 option to date format dropdown.
-- **src/lib/csv/parser.test.ts**: Added 7 new tests covering ISO 8601 detection (with timezone Z, without milliseconds, with offset, preference over YYYY-MM-DD), parsing (explicit and auto mode), and invalid value handling.
-
-### Verification
-- TypeScript: No type errors
-- Tests: 1456 tests pass (56 in parser.test.ts, 7 new). 1 pre-existing failure in accounts.test.tsx (DOMMatrix/pdfjs unrelated).
+### All PRD tasks complete ✅

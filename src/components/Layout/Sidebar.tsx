@@ -1,5 +1,5 @@
 import { Link, useNavigate } from '@tanstack/react-router'
-import { LayoutDashboard, Receipt, Store, CreditCard, Settings, Inbox, FileText, CalendarDays, Repeat } from 'lucide-react'
+import { LayoutDashboard, Receipt, Store, CreditCard, Settings, Inbox, FileText, CalendarDays, Repeat, Tag } from 'lucide-react'
 import { db, useLiveQuery } from '@/lib/db'
 import { useFocusMode } from '@/context/FocusModeContext'
 import { useUnmatchedCount } from '@/hooks/useUnmatchedCount'
@@ -19,6 +19,7 @@ const navItems: NavItem[] = [
   { to: '/transactions', label: 'Transactions', icon: <Receipt className="h-4 w-4" /> },
   { to: '/merchants', label: 'Merchants', icon: <Store className="h-4 w-4" /> },
   { to: '/rules', label: 'Rules', icon: <FileText className="h-4 w-4" /> },
+  { to: '/categories', label: 'Categories', icon: <Tag className="h-4 w-4" /> },
   { to: '/accounts', label: 'Accounts', icon: <CreditCard className="h-4 w-4" /> },
   { to: '/settings', label: 'Settings', icon: <Settings className="h-4 w-4" /> },
 ]

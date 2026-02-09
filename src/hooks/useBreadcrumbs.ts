@@ -8,6 +8,7 @@ export const routeLabelMap: Record<string, string> = {
   '/transactions': 'Transactions',
   '/merchants': 'Merchants',
   '/accounts': 'Accounts',
+  '/categories': 'Categories',
   '/settings': 'Settings',
 }
 

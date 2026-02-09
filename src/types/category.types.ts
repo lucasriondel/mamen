@@ -13,6 +13,8 @@ export type CategoryWithSubcategories = Category & {
   subcategories: Category[]
 }
 
+export type CategoryTreeNode = Category & { children: CategoryTreeNode[] }
+
 export type CategorySelection = {
   categoryId: number
   subcategoryId?: number
