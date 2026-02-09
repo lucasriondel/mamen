@@ -15,3 +15,15 @@
 - `DEFAULT_ICON` ('Tag') and `DEFAULT_COLOR` ('#3B82F6') constants
 - `getIconComponent()`: Resolves icon name to component with Tag fallback
 - TypeScript type check passes, all tests pass
+
+### Task 3: Hooks (useCategoryTree, useCategoryMutations) ✅
+- Created `src/features/categories/hooks/useCategoryTree.ts`
+  - `buildTree()`: O(n) recursive tree builder from flat categories using Map grouping by parentId
+  - `useCategoryTree()`: Returns `{ tree, allCategories, isLoading }` using `useLiveQuery` + `useMemo`
+- Created `src/features/categories/hooks/useCategoryMutations.ts`
+  - `createCategory()`: Auto-generates slug (with parent prefix), auto-computes sortOrder, defaults color/icon
+  - `updateCategory()`: Updates name, color, icon via `db.categories.update()`
+  - `deleteCategory()`: Cascade deletes all descendants in a transaction, with undo via `useRef` + sonner toast (10s)
+  - `reorder()`: Swaps sortOrder with adjacent sibling (move up/down)
+  - Follows existing patterns from accounts page (useRef undo) and useRuleMutations (toast pattern)
+- TypeScript type check passes, all tests pass (1431 passed)
