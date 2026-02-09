@@ -25,25 +25,33 @@ export type DateFormatOption =
 const DATE_PATTERNS = [
   'date', 'transaction date', 'posted date', 'trans date',
   'posting date', 'value date', 'effective date', 'trans. date',
+  // French
+  "date d'opération", 'date de valeur', 'date opération',
 ]
 
 const AMOUNT_PATTERNS = [
   'amount', 'debit', 'credit', 'value', 'sum', 'transaction amount',
   'withdrawal', 'deposit', 'money out', 'money in',
+  // French
+  'montant', 'somme',
 ]
 
 const DESCRIPTION_PATTERNS = [
   'description', 'merchant', 'narrative', 'details', 'payee',
   'transaction description', 'name', 'particulars', 'reference',
+  // French
+  'intitulé', 'libellé', 'désignation', 'libelle', 'intitule',
 ]
 
 const DIRECTION_PATTERNS = [
   'direction', 'type', 'debit/credit', 'debit or credit', 'dr/cr', 'dc',
   'transaction type', 'entry type',
+  // French
+  'sens', 'débit/crédit',
 ]
 
-const DIRECTION_DEBIT_VALUES = ['debit', 'dr', 'd', 'deb', 'out', 'withdrawal', 'expense']
-const DIRECTION_CREDIT_VALUES = ['credit', 'cr', 'c', 'cre', 'in', 'deposit', 'income']
+const DIRECTION_DEBIT_VALUES = ['debit', 'dr', 'd', 'deb', 'out', 'withdrawal', 'expense', 'débit']
+const DIRECTION_CREDIT_VALUES = ['credit', 'cr', 'c', 'cre', 'in', 'deposit', 'income', 'crédit']
 
 export const parseCSVPreview = (file: File, maxRows = 10): Promise<CSVPreviewResult> => {
   return new Promise((resolve, reject) => {

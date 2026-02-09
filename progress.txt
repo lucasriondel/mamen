@@ -15,3 +15,25 @@ Real bank CSVs (e.g., Green-Got) have a "Direction" column with values like "DEB
 ### Verification
 - TypeScript: No type errors
 - Tests: 1440 tests pass (40 in parser.test.ts, 9 new). 1 pre-existing failure in accounts.test.tsx (DOMMatrix/pdfjs unrelated).
+
+## 2026-02-09: CSV Import - French Header Auto-Detection
+
+### Task
+Add French column header patterns to CSV auto-detection so that French bank CSVs (e.g., Green-Got) are auto-detected correctly.
+
+### Problem
+The CSV auto-detection only recognized English header names (e.g., "Amount", "Description"). French bank CSVs use headers like "Montant" (amount), "Intitulé" (description/merchant), "Libellé" (label), which were not detected, forcing users to manually map columns.
+
+### Changes
+- **src/lib/csv/parser.ts**: Added French patterns to all detection arrays:
+  - DATE_PATTERNS: "date d'opération", "date de valeur", "date opération"
+  - AMOUNT_PATTERNS: "montant", "somme"
+  - DESCRIPTION_PATTERNS: "intitulé", "libellé", "désignation", "libelle", "intitule" (accent-free variants)
+  - DIRECTION_PATTERNS: "sens", "débit/crédit"
+  - DIRECTION_DEBIT_VALUES: "débit"
+  - DIRECTION_CREDIT_VALUES: "crédit"
+- **src/lib/csv/parser.test.ts**: Added 9 new tests covering French header detection (Montant, Intitulé, Libellé, Green-Got full header set, accent-free variants, date d'opération) and French direction values (débit/crédit).
+
+### Verification
+- TypeScript: No type errors
+- Tests: 1449 tests pass (49 in parser.test.ts, 9 new). 2 pre-existing failures unrelated (pdfjs DOMMatrix, importWithRules timeout).

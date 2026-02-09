@@ -200,6 +200,57 @@ describe('parseAmount', () => {
   })
 })
 
+describe('autoDetectColumns with French headers', () => {
+  it('detects French column headers (Montant, Intitulé)', () => {
+    const headers = ['Date', 'Montant', 'Intitulé', 'Direction']
+    const mapping = autoDetectColumns(headers)
+    expect(mapping.dateColumn).toBe('Date')
+    expect(mapping.amountColumn).toBe('Montant')
+    expect(mapping.descriptionColumn).toBe('Intitulé')
+    expect(mapping.directionColumn).toBe('Direction')
+  })
+
+  it('detects French headers with different casing', () => {
+    const headers = ['DATE', 'MONTANT', 'INTITULÉ', 'DIRECTION']
+    const mapping = autoDetectColumns(headers)
+    expect(mapping.dateColumn).toBe('DATE')
+    expect(mapping.amountColumn).toBe('MONTANT')
+    expect(mapping.descriptionColumn).toBe('INTITULÉ')
+    expect(mapping.directionColumn).toBe('DIRECTION')
+  })
+
+  it('detects Libellé as description column', () => {
+    const headers = ['Date', 'Montant', 'Libellé']
+    const mapping = autoDetectColumns(headers)
+    expect(mapping.descriptionColumn).toBe('Libellé')
+  })
+
+  it('detects French headers without accents (intitule, libelle)', () => {
+    const headers = ['Date', 'Montant', 'Intitule']
+    const mapping = autoDetectColumns(headers)
+    expect(mapping.descriptionColumn).toBe('Intitule')
+  })
+
+  it('detects Green-Got CSV headers', () => {
+    const headers = [
+      'N° transaction', 'Statut', 'Date', 'Montant', 'Arrondi',
+      'Direction', 'Devise', 'IBAN du compte', 'Intitulé',
+      'IBAN du tiers', 'Moyen de paiement', 'Catégorie', 'Référence',
+    ]
+    const mapping = autoDetectColumns(headers)
+    expect(mapping.dateColumn).toBe('Date')
+    expect(mapping.amountColumn).toBe('Montant')
+    expect(mapping.descriptionColumn).toBe('Intitulé')
+    expect(mapping.directionColumn).toBe('Direction')
+  })
+
+  it('detects date d\'opération as date column', () => {
+    const headers = ["Date d'opération", 'Montant', 'Libellé']
+    const mapping = autoDetectColumns(headers)
+    expect(mapping.dateColumn).toBe("Date d'opération")
+  })
+})
+
 describe('autoDetectColumns with direction', () => {
   it('detects Direction header by name', () => {
     const headers = ['Date', 'Amount', 'Description', 'Direction']
@@ -252,6 +303,13 @@ describe('isDirectionValue', () => {
     expect(isDirectionValue('deposit')).toBe(true)
   })
 
+  it('recognizes French direction values', () => {
+    expect(isDirectionValue('DÉBIT')).toBe(true)
+    expect(isDirectionValue('débit')).toBe(true)
+    expect(isDirectionValue('CRÉDIT')).toBe(true)
+    expect(isDirectionValue('crédit')).toBe(true)
+  })
+
   it('rejects non-direction values', () => {
     expect(isDirectionValue('COMPLETE')).toBe(false)
     expect(isDirectionValue('PENDING')).toBe(false)
@@ -266,9 +324,19 @@ describe('isDebitDirection', () => {
     expect(isDebitDirection('out')).toBe(true)
   })
 
+  it('returns true for French débit', () => {
+    expect(isDebitDirection('DÉBIT')).toBe(true)
+    expect(isDebitDirection('débit')).toBe(true)
+  })
+
   it('returns false for credit values', () => {
     expect(isDebitDirection('CREDIT')).toBe(false)
     expect(isDebitDirection('Cr')).toBe(false)
     expect(isDebitDirection('in')).toBe(false)
+  })
+
+  it('returns false for French crédit', () => {
+    expect(isDebitDirection('CRÉDIT')).toBe(false)
+    expect(isDebitDirection('crédit')).toBe(false)
   })
 })
