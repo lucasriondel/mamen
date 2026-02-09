@@ -27,3 +27,19 @@
   - `reorder()`: Swaps sortOrder with adjacent sibling (move up/down)
   - Follows existing patterns from accounts page (useRef undo) and useRuleMutations (toast pattern)
 - TypeScript type check passes, all tests pass (1431 passed)
+
+### Task 4: ColorPicker + IconPicker components ✅
+- Created `src/features/categories/components/ColorPicker/index.tsx`
+  - Popover trigger shows current color swatch + "Color" label
+  - Content: 4×4 grid of 16 predefined colors from `COLOR_PALETTE`
+  - Uses `role="radiogroup"` / `role="radio"` for accessibility
+  - Click selects color and closes popover
+  - Active color shown with border + scale highlight
+- Created `src/features/categories/components/IconPicker/index.tsx`
+  - Popover trigger shows current icon (resolved via `getIconComponent`) + "Icon" label
+  - Content: scrollable 8-column grid of 32 curated lucide icons from `ICON_LIST`
+  - Uses `role="radiogroup"` / `role="radio"` for accessibility
+  - Active icon shown with accent background
+  - Click selects icon and closes popover
+- Both components follow project patterns: Popover from shadcn/ui, `cn()` utility, exported types
+- TypeScript type check passes, all tests pass (1431 passed)
