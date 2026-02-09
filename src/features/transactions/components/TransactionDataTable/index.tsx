@@ -542,6 +542,10 @@ export function TransactionDataTable({ highlightId }: TransactionDataTableProps)
                     key={cell.id}
                     className={cn(
                       cell.column.id === 'select' && 'w-8 shrink-0 flex items-center',
+                      cell.column.id === 'date' && 'w-20 shrink-0',
+                      cell.column.id === 'rawMerchantString' && 'flex-1 min-w-0',
+                      cell.column.id === 'category' && 'w-32 shrink-0',
+                      cell.column.id === 'amount' && 'w-24 shrink-0',
                     )}
                   >
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}

@@ -51,7 +51,7 @@ export const columns: ColumnDef<Transaction>[] = [
     accessorKey: 'date',
     header: 'Date',
     cell: ({ row }) => (
-      <div className="w-20 text-sm text-muted-foreground shrink-0">
+      <div className="text-sm text-muted-foreground">
         {formatDate(row.original.date)}
       </div>
     ),
@@ -64,7 +64,7 @@ export const columns: ColumnDef<Transaction>[] = [
       const meta = table.options.meta as TransactionTableMeta
       const merchantCreatedAt = meta.getMerchantCreatedAt(row.original.merchantId)
       return (
-        <div className="flex-1 min-w-0 flex items-center gap-1.5 text-sm">
+        <div className="flex items-center gap-1.5 text-sm min-w-0">
           <span className="truncate">{row.original.rawMerchantString}</span>
           {merchantCreatedAt && (
             <NewMerchantBadge createdAt={merchantCreatedAt} size="sm" />
@@ -87,7 +87,7 @@ export const columns: ColumnDef<Transaction>[] = [
         meta.animationPhase === 'badge'
 
       return (
-        <div className="w-32 shrink-0 flex items-center gap-1 flex-wrap">
+        <div className="flex items-center gap-1 flex-wrap">
           {isUnmatched ? (
             <Badge variant="outline" className="text-amber-500 border-amber-500/50">
               Unmatched
@@ -145,7 +145,7 @@ export const columns: ColumnDef<Transaction>[] = [
       return (
         <div
           className={cn(
-            'w-24 text-right font-mono text-sm shrink-0 flex items-center justify-end gap-1',
+            'text-right font-mono text-sm flex items-center justify-end gap-1',
             tx.amount < 0 ? 'text-foreground' : 'text-green-500',
           )}
         >
