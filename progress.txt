@@ -21,8 +21,8 @@
 
 ### Phase 4: Cleanup
 
-- [ ] Step 11: Delete `TransactionRow/index.tsx`
-- [ ] Step 12: Check and delete unused hooks
+- [~] Step 11: Delete `TransactionRow/index.tsx` — SKIPPED: `TransactionRow` is still imported by `MerchantTransactionList` (`src/features/merchants/components/MerchantTransactionList/index.tsx`). Cannot delete until that dependency is removed or migrated.
+- [x] Step 12: Check and delete unused hooks — `useKeyboardNavigation` still used by RulesPage, SubscriptionsList, MerchantsList (kept). `useMultiSelect` only referenced by its own test file — deleted `useMultiSelect.ts` and `useMultiSelect.test.ts`. No TS errors, 141/142 tests pass (1421 tests, 1 pre-existing failure in accounts.test.tsx).
 
 ### Phase 5: Testing & Verification
 
