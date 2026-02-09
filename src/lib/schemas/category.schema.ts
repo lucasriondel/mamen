@@ -15,3 +15,11 @@ export const categorySchema = z.object({
 export const createCategorySchema = categorySchema.omit({ id: true, createdAt: true })
 
 export type CreateCategoryInput = z.infer<typeof createCategorySchema>
+
+export const updateCategorySchema = z.object({
+  name: z.string().min(1, 'Category name is required').max(50),
+  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Color must be hex format'),
+  icon: z.string().min(1),
+})
+
+export type UpdateCategoryInput = z.infer<typeof updateCategorySchema>

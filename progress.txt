@@ -1,56 +1,8 @@
-## 2026-02-09: CSV Import - Debit/Credit Direction Column Support
+## Category Management - Implementation Progress
 
-### Task
-Add support for separate debit/credit direction columns in CSV import (Story 2.3, Task 7 edge case: "Separate debit/credit columns").
-
-### Problem
-Real bank CSVs (e.g., Green-Got) have a "Direction" column with values like "DEBIT"/"CREDIT" and always-positive amounts in the "Montant" column. The CSV importer only supported a single amount column with signed values, so all transactions imported as positive.
-
-### Changes
-- **src/lib/csv/parser.ts**: Added `directionColumn` to `ColumnMapping` type. Added direction header patterns and debit/credit value constants. Updated `autoDetectColumns` to detect direction column by header name or by value analysis of unmapped columns. Added `isDirectionValue` and `isDebitDirection` helpers.
-- **src/features/import/services/csvImporter.ts**: When a direction column is mapped, uses it to determine the sign of the amount (DEBIT = negative, CREDIT = positive).
-- **src/features/import/components/ImportCSVModal/index.tsx**: Added optional "Direction" dropdown in column mapping UI (2x2 grid). Auto-detects and sets direction column. Passes it through to the importer.
-- **src/lib/csv/parser.test.ts**: Added 9 new tests covering direction column auto-detection, value recognition, and debit/credit classification.
-
-### Verification
-- TypeScript: No type errors
-- Tests: 1440 tests pass (40 in parser.test.ts, 9 new). 1 pre-existing failure in accounts.test.tsx (DOMMatrix/pdfjs unrelated).
-
-## 2026-02-09: CSV Import - French Header Auto-Detection
-
-### Task
-Add French column header patterns to CSV auto-detection so that French bank CSVs (e.g., Green-Got) are auto-detected correctly.
-
-### Problem
-The CSV auto-detection only recognized English header names (e.g., "Amount", "Description"). French bank CSVs use headers like "Montant" (amount), "Intitulé" (description/merchant), "Libellé" (label), which were not detected, forcing users to manually map columns.
-
-### Changes
-- **src/lib/csv/parser.ts**: Added French patterns to all detection arrays:
-  - DATE_PATTERNS: "date d'opération", "date de valeur", "date opération"
-  - AMOUNT_PATTERNS: "montant", "somme"
-  - DESCRIPTION_PATTERNS: "intitulé", "libellé", "désignation", "libelle", "intitule" (accent-free variants)
-  - DIRECTION_PATTERNS: "sens", "débit/crédit"
-  - DIRECTION_DEBIT_VALUES: "débit"
-  - DIRECTION_CREDIT_VALUES: "crédit"
-- **src/lib/csv/parser.test.ts**: Added 9 new tests covering French header detection (Montant, Intitulé, Libellé, Green-Got full header set, accent-free variants, date d'opération) and French direction values (débit/crédit).
-
-### Verification
-- TypeScript: No type errors
-- Tests: 1449 tests pass (49 in parser.test.ts, 9 new). 2 pre-existing failures unrelated (pdfjs DOMMatrix, importWithRules timeout).
-
-## 2026-02-09: CSV Import - ISO 8601 Datetime Format Support
-
-### Task
-Add explicit ISO 8601 datetime format support to CSV date parser so that bank CSVs with full timestamps (e.g., Green-Got's `2026-01-01T18:00:22.000Z`) are properly detected and parsed.
-
-### Problem
-The CSV date format detection only handled simple date formats (YYYY-MM-DD, DD/MM/YYYY, etc.). Real bank CSVs like Green-Got use ISO 8601 timestamps with time components (`2026-01-01T18:00:22.000Z`), which didn't match any explicit pattern and fell through to the fragile `new Date()` fallback. The UI showed "Auto-detect" instead of a specific detected format.
-
-### Changes
-- **src/lib/csv/parser.ts**: Added `'ISO-8601'` to `DateFormatOption` type. Added ISO 8601 detection in `detectDateFormat` (checks for `T` timestamp indicator before other formats). Added `'ISO-8601'` case in `parseDate`. Updated `auto` mode to try ISO 8601 with time component before date-only formats.
-- **src/features/import/components/ImportCSVModal/index.tsx**: Added ISO 8601 option to date format dropdown.
-- **src/lib/csv/parser.test.ts**: Added 7 new tests covering ISO 8601 detection (with timezone Z, without milliseconds, with offset, preference over YYYY-MM-DD), parsing (explicit and auto mode), and invalid value handling.
-
-### Verification
-- TypeScript: No type errors
-- Tests: 1456 tests pass (56 in parser.test.ts, 7 new). 1 pre-existing failure in accounts.test.tsx (DOMMatrix/pdfjs unrelated).
+### Task 1: Types + schema additions ✅
+- Added `CategoryTreeNode` type to `src/types/category.types.ts`
+- Exported `CategoryTreeNode` from `src/types/index.ts`
+- Added `updateCategorySchema` and `UpdateCategoryInput` to `src/lib/schemas/category.schema.ts`
+- Exported new schema from `src/lib/schemas/index.ts`
+- TypeScript type check passes
