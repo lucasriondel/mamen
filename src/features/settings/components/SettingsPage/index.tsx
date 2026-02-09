@@ -1,6 +1,7 @@
 import { Settings } from 'lucide-react'
 import { LLMConfigForm } from '../LLMConfigForm'
 import { AnomalySettingsForm } from '@/features/anomalies/components/AnomalySettingsForm'
+import { DataExport } from '../DataExport'
 
 export function SettingsPage(): React.ReactElement {
   return (
@@ -13,6 +14,7 @@ export function SettingsPage(): React.ReactElement {
       <div className="space-y-6 max-w-2xl">
         <LLMConfigForm />
         <AnomalySettingsForm />
+        <DataExport />
       </div>
     </div>
   )

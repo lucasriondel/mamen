@@ -1,10 +1,12 @@
 import { describe, it, expect, vi, beforeAll } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryHistory, createRootRoute, createRoute, createRouter, RouterProvider } from '@tanstack/react-router'
 import { CommandPaletteProvider } from '@/context/CommandPaletteContext'
 import { FocusModeProvider } from '@/context/FocusModeContext'
 import { CommandPalette } from './index'
+import * as exportServiceModule from '@/features/settings/services/exportService'
+import * as downloadFileModule from '@/features/settings/services/downloadFile'
 
 // jsdom doesn't provide ResizeObserver or Element.scrollIntoView which cmdk needs
 beforeAll(() => {
@@ -25,6 +27,22 @@ vi.mock('@tanstack/react-router', async () => {
     useNavigate: () => mockNavigate,
   }
 })
+
+vi.mock('sonner', () => ({
+  toast: Object.assign(vi.fn(), {
+    success: vi.fn(),
+    error: vi.fn(),
+  }),
+}))
+
+vi.mock('@/features/settings/services/exportService', () => ({
+  exportAllData: vi.fn().mockResolvedValue(new Blob(['{}'], { type: 'application/json' })),
+}))
+
+vi.mock('@/features/settings/services/downloadFile', () => ({
+  downloadFile: vi.fn(),
+  generateExportFilename: vi.fn(() => 'mamen-backup-2026-02-09.json'),
+}))
 
 function renderWithProviders(): ReturnType<typeof render> {
   const rootRoute = createRootRoute({
@@ -232,5 +250,37 @@ describe('CommandPalette', () => {
 
     const input = screen.getByPlaceholderText('Search transactions, merchants, actions...')
     expect(input).toHaveFocus()
+  })
+
+  it('shows "Export All Data" in command palette', async () => {
+    const user = userEvent.setup()
+    renderWithProviders()
+
+    await openPalette(user)
+
+    expect(screen.getByText('Export All Data')).toBeInTheDocument()
+  })
+
+  it('triggers export when selecting "Export All Data"', async () => {
+    const user = userEvent.setup()
+    renderWithProviders()
+
+    await openPalette(user)
+    await user.click(screen.getByText('Export All Data'))
+
+    await waitFor(() => {
+      expect(exportServiceModule.exportAllData).toHaveBeenCalled()
+    })
+  })
+
+  it('shows "Export All Data" when searching for "export"', async () => {
+    const user = userEvent.setup()
+    renderWithProviders()
+
+    await openPalette(user)
+    const input = screen.getByPlaceholderText('Search transactions, merchants, actions...')
+    await user.type(input, 'export')
+
+    expect(screen.getByText('Export All Data')).toBeInTheDocument()
   })
 })

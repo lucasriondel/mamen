@@ -1,6 +1,6 @@
 # Story 10.1: Export All Data
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -52,8 +52,8 @@ So that **I can safeguard my data and restore it if needed (FR44)**.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Define export data types and metadata schema (AC: #2, #4)
-  - [ ] Create `src/features/settings/types/export.types.ts`:
+- [x] Task 1: Define export data types and metadata schema (AC: #2, #4)
+  - [x] Create `src/features/settings/types/export.types.ts`:
     ```typescript
     type ExportMetadata = {
       exportDate: string          // ISO 8601
@@ -85,14 +85,14 @@ So that **I can safeguard my data and restore it if needed (FR44)**.
       includeSettings: boolean
     }
     ```
-  - [ ] Use `type` not `interface` (project convention)
-  - [ ] Named exports only
-  - [ ] Re-use existing types from `src/types/` for Account, Transaction, Merchant, Rule, Settings
-  - [ ] Test: ExportMetadata type contains required fields
-  - [ ] Test: ExportData type includes all data tables
+  - [x] Use `type` not `interface` (project convention)
+  - [x] Named exports only
+  - [x] Re-use existing types from `src/types/` for Account, Transaction, Merchant, Rule, Settings
+  - [x] Test: ExportMetadata type contains required fields
+  - [x] Test: ExportData type includes all data tables
 
-- [ ] Task 2: Implement export service (AC: #1, #2, #3, #4)
-  - [ ] Create `src/features/settings/services/exportService.ts`:
+- [x] Task 2: Implement export service (AC: #1, #2, #3, #4)
+  - [x] Create `src/features/settings/services/exportService.ts`:
     ```typescript
     export const exportAllData = async (
       options?: Partial<ExportOptions>
@@ -144,21 +144,21 @@ So that **I can safeguard my data and restore it if needed (FR44)**.
       return new Blob([json], { type: 'application/json' })
     }
     ```
-  - [ ] `APP_VERSION` from `src/lib/constants.ts` (add if not exists)
-  - [ ] Pretty-print with `JSON.stringify(data, null, 2)`
-  - [ ] Return `Blob` for download
-  - [ ] Test: Export includes all tables when no options provided
-  - [ ] Test: Export respects partial options (e.g., transactions only)
-  - [ ] Test: Metadata has correct record counts
-  - [ ] Test: Metadata has correct exportDate (ISO format)
-  - [ ] Test: Metadata has correct exportFormat string
-  - [ ] Test: JSON is valid and parseable
-  - [ ] Test: Pretty-printed (contains newlines and indentation)
-  - [ ] Test: Empty database exports valid JSON with zero counts
-  - [ ] Test: 10,000+ transactions export completes (performance)
+  - [x] `APP_VERSION` from `src/lib/constants.ts` (add if not exists)
+  - [x] Pretty-print with `JSON.stringify(data, null, 2)`
+  - [x] Return `Blob` for download
+  - [x] Test: Export includes all tables when no options provided
+  - [x] Test: Export respects partial options (e.g., transactions only)
+  - [x] Test: Metadata has correct record counts
+  - [x] Test: Metadata has correct exportDate (ISO format)
+  - [x] Test: Metadata has correct exportFormat string
+  - [x] Test: JSON is valid and parseable
+  - [x] Test: Pretty-printed (contains newlines and indentation)
+  - [x] Test: Empty database exports valid JSON with zero counts
+  - [x] Test: 10,000+ transactions export completes (performance)
 
-- [ ] Task 3: Implement file download utility (AC: #1, #6)
-  - [ ] Create `src/features/settings/services/downloadFile.ts`:
+- [x] Task 3: Implement file download utility (AC: #1, #6)
+  - [x] Create `src/features/settings/services/downloadFile.ts`:
     ```typescript
     export const downloadFile = (blob: Blob, filename: string): void => {
       const url = URL.createObjectURL(blob)
@@ -176,15 +176,15 @@ So that **I can safeguard my data and restore it if needed (FR44)**.
       return `mamen-backup-${date}.json`
     }
     ```
-  - [ ] Use `URL.createObjectURL` + temporary anchor element pattern
-  - [ ] Clean up object URL after download to avoid memory leaks
-  - [ ] Filename format: `mamen-backup-YYYY-MM-DD.json`
-  - [ ] Test: Generated filename matches expected format
-  - [ ] Test: Download creates and clicks anchor element
-  - [ ] Test: Object URL is revoked after download
+  - [x] Use `URL.createObjectURL` + temporary anchor element pattern
+  - [x] Clean up object URL after download to avoid memory leaks
+  - [x] Filename format: `mamen-backup-YYYY-MM-DD.json`
+  - [x] Test: Generated filename matches expected format
+  - [x] Test: Download creates and clicks anchor element
+  - [x] Test: Object URL is revoked after download
 
-- [ ] Task 4: Create Data Management section in Settings page (AC: #1, #5, #6)
-  - [ ] Modify `src/features/settings/components/SettingsPage/index.tsx`:
+- [x] Task 4: Create Data Management section in Settings page (AC: #1, #5, #6)
+  - [x] Modify `src/features/settings/components/SettingsPage/index.tsx`:
     - Add "Data Management" section (below existing LLM Configuration section if present)
     - Add "Export All Data" button (primary variant)
     - Add selective export checkboxes:
@@ -193,55 +193,55 @@ So that **I can safeguard my data and restore it if needed (FR44)**.
       - Merchants & Rules
       - Settings
     - Default: all checked
-  - [ ] Section layout: Card component with heading "Data Management"
-  - [ ] Export button shows spinner when exporting
-  - [ ] Disable button during export to prevent double-click
-  - [ ] On success: toast "Data exported successfully"
-  - [ ] On error: toast with error message and retry suggestion
-  - [ ] Use shadcn Card, Button, Checkbox components
-  - [ ] Test: "Export All Data" button renders in Settings
-  - [ ] Test: Button shows loading state during export
-  - [ ] Test: Button disabled during export
-  - [ ] Test: Success toast appears after export
-  - [ ] Test: Error toast appears on failure
-  - [ ] Test: Selective checkboxes toggle export options
-  - [ ] Test: Keyboard accessible (Tab, Enter to export)
+  - [x] Section layout: Card component with heading "Data Management"
+  - [x] Export button shows spinner when exporting
+  - [x] Disable button during export to prevent double-click
+  - [x] On success: toast "Data exported successfully"
+  - [x] On error: toast with error message and retry suggestion
+  - [x] Use shadcn Card, Button, Checkbox components
+  - [x] Test: "Export All Data" button renders in Settings
+  - [x] Test: Button shows loading state during export
+  - [x] Test: Button disabled during export
+  - [x] Test: Success toast appears after export
+  - [x] Test: Error toast appears on failure
+  - [x] Test: Selective checkboxes toggle export options
+  - [x] Test: Keyboard accessible (Tab, Enter to export)
 
-- [ ] Task 5: Implement progress indicator for large exports (AC: #3)
-  - [ ] Add loading state to export button: spinner + "Exporting..." text
-  - [ ] If export takes >1 second, show a progress indication
-  - [ ] For large datasets, consider `requestAnimationFrame` to avoid UI freeze
-  - [ ] Test: Loading state shown during export
-  - [ ] Test: UI remains responsive during large export
+- [x] Task 5: Implement progress indicator for large exports (AC: #3)
+  - [x] Add loading state to export button: spinner + "Exporting..." text
+  - [x] If export takes >1 second, show a progress indication
+  - [x] For large datasets, consider `requestAnimationFrame` to avoid UI freeze
+  - [x] Test: Loading state shown during export
+  - [x] Test: UI remains responsive during large export
 
-- [ ] Task 6: Add export action to command palette (AC: #1)
-  - [ ] Add "Export All Data" action to command palette Actions section
-  - [ ] Triggers the same export flow as the Settings button
-  - [ ] Shows in command palette search results when typing "export" or "backup"
-  - [ ] Test: "Export All Data" appears in command palette
-  - [ ] Test: Selecting it triggers export
+- [x] Task 6: Add export action to command palette (AC: #1)
+  - [x] Add "Export All Data" action to command palette Actions section
+  - [x] Triggers the same export flow as the Settings button
+  - [x] Shows in command palette search results when typing "export" or "backup"
+  - [x] Test: "Export All Data" appears in command palette
+  - [x] Test: Selecting it triggers export
 
-- [ ] Task 7: Add APP_VERSION constant (AC: #4)
-  - [ ] Add to `src/lib/constants.ts`:
+- [x] Task 7: Add APP_VERSION constant (AC: #4)
+  - [x] Add to `src/lib/constants.ts`:
     ```typescript
     export const APP_VERSION = '0.1.0'
     ```
-  - [ ] Used in export metadata
-  - [ ] Will be updated during releases
-  - [ ] Test: APP_VERSION is defined and non-empty
+  - [x] Used in export metadata
+  - [x] Will be updated during releases
+  - [x] Test: APP_VERSION is defined and non-empty
 
-- [ ] Task 8: Write integration tests (AC: all)
-  - [ ] Add `src/features/settings/services/exportService.test.ts`:
-  - [ ] Full export: seed database with accounts, transactions, merchants, rules, settings -> export -> parse JSON -> verify all data present
-  - [ ] Selective export: export transactions only -> verify only transactions in output, other arrays empty
-  - [ ] Empty database: export with no data -> valid JSON with zero counts
-  - [ ] Metadata correctness: verify exportDate, appVersion, exportFormat, recordCounts
-  - [ ] Large dataset: seed 10,000 transactions -> export completes within 5 seconds
-  - [ ] Data integrity: exported transactions have all fields (anomalyFlags, isRefund, etc.)
-  - [ ] Refund relationships preserved: linked refunds export with correct references
-  - [ ] Merchant-rule relationships preserved: merchants export with their rules
-  - [ ] Special characters: transactions with unicode/special chars in merchant strings export correctly
-  - [ ] File download: verify Blob creation and anchor element behavior
+- [x] Task 8: Write integration tests (AC: all)
+  - [x] Add `src/features/settings/services/exportService.test.ts`:
+  - [x] Full export: seed database with accounts, transactions, merchants, rules, settings -> export -> parse JSON -> verify all data present
+  - [x] Selective export: export transactions only -> verify only transactions in output, other arrays empty
+  - [x] Empty database: export with no data -> valid JSON with zero counts
+  - [x] Metadata correctness: verify exportDate, appVersion, exportFormat, recordCounts
+  - [x] Large dataset: seed 10,000 transactions -> export completes within 5 seconds
+  - [x] Data integrity: exported transactions have all fields (anomalyFlags, isRefund, etc.)
+  - [x] Refund relationships preserved: linked refunds export with correct references
+  - [x] Merchant-rule relationships preserved: merchants export with their rules
+  - [x] Special characters: transactions with unicode/special chars in merchant strings export correctly
+  - [x] File download: verify Blob creation and anchor element behavior
 
 ## Dev Notes
 
@@ -525,10 +525,49 @@ Before marking complete:
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.6
 
 ### Debug Log References
 
+- jsdom `Blob.text()` not available — used `FileReader.readAsText()` helper in tests
+- Extended export types beyond story spec to include all 8 Dexie tables (categories, subscriptions, appSettings) for complete backup
+- Pre-existing test failure in `src/routes/accounts.test.tsx` (DOMMatrix/pdfjs-dist) — unrelated to this story
+
 ### Completion Notes List
 
+- Implemented complete data export feature with all 8 Dexie tables
+- Export service reads accounts, transactions, merchants, rules, categories, subscriptions, settings, appSettings
+- Metadata envelope with exportDate (ISO 8601), appVersion, exportFormat ("mamen-backup-v1"), recordCounts
+- Pretty-printed JSON (2-space indentation) via `JSON.stringify(data, null, 2)`
+- Browser download via `URL.createObjectURL` + anchor element pattern with cleanup
+- Filename format: `mamen-backup-YYYY-MM-DD.json`
+- DataExport component with Card UI, selective export checkboxes, loading state, toast notifications
+- Command palette "Export All Data" action with search discoverability
+- APP_VERSION constant at `0.1.0`
+- 17 export service tests (unit + integration), 5 download tests, 3 type tests, 8 component tests, 3 command palette tests = 36 new tests total
+- 10K transaction performance test passes in ~725ms (well under 5s threshold)
+- Zero TypeScript errors, all `type` (no `interface`), named exports only, co-located tests
+
 ### File List
+
+New files:
+- src/features/settings/types/export.types.ts
+- src/features/settings/types/export.types.test.ts
+- src/features/settings/services/exportService.ts
+- src/features/settings/services/exportService.test.ts
+- src/features/settings/services/downloadFile.ts
+- src/features/settings/services/downloadFile.test.ts
+- src/features/settings/components/DataExport/index.tsx
+- src/features/settings/components/DataExport/DataExport.test.tsx
+- src/lib/constants.ts
+- src/lib/constants.test.ts
+
+Modified files:
+- src/features/settings/components/SettingsPage/index.tsx (added DataExport import and component)
+- src/features/settings/index.ts (added barrel exports for new modules)
+- src/components/CommandPalette/index.tsx (added Export All Data action + imports)
+- src/components/CommandPalette/CommandPalette.test.tsx (added export action tests)
+
+### Change Log
+
+- 2026-02-09: Implemented Story 10.1 — Export All Data feature. Added exportAllData service, downloadFile utility, DataExport UI component in Settings, command palette export action, APP_VERSION constant. 36 new tests covering unit, integration, performance, and component behavior.

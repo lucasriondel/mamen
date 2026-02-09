@@ -1,2 +1,5 @@
 export { SettingsPage } from './components/SettingsPage'
 export { LLMConfigForm } from './components/LLMConfigForm'
+export { DataExport } from './components/DataExport'
+export { exportAllData } from './services/exportService'
+export { downloadFile, generateExportFilename } from './services/downloadFile'

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
+import { toast } from 'sonner'
 import {
   CommandDialog,
   CommandInput,
@@ -15,6 +16,8 @@ import { useFocusMode } from '@/context/FocusModeContext'
 import { useTransactionSearch } from '@/features/search'
 import { formatCurrency } from '@/lib/utils/formatCurrency'
 import { isMac } from '@/lib/utils/platform'
+import { exportAllData } from '@/features/settings/services/exportService'
+import { downloadFile, generateExportFilename } from '@/features/settings/services/downloadFile'
 
 type CommandPaletteProps = Record<string, never>
 
@@ -132,6 +135,21 @@ export const CommandPalette = (_props: CommandPaletteProps): React.ReactElement 
             navigate({ to: '/transactions' })
           })}>
             Show potential duplicates
+          </CommandItem>
+          <CommandItem
+            value="export-all-data-backup"
+            onSelect={() => handleSelect(() => {
+              exportAllData()
+                .then((blob) => {
+                  downloadFile(blob, generateExportFilename())
+                  toast.success('Data exported successfully')
+                })
+                .catch(() => {
+                  toast.error('Export failed. Please try again.')
+                })
+            })}
+          >
+            Export All Data
           </CommandItem>
         </CommandGroup>
 
