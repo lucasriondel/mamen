@@ -77,3 +77,18 @@
   - Undo via sonner toast already handled in the mutations hook
   - Uses destructive variant on confirm button
 - TypeScript type check passes, all tests pass (1431 passed)
+
+### Task 7: CategoriesPage + barrel export ✅
+- Created `src/features/categories/components/CategoriesPage/index.tsx`
+  - Main page component with state management for modals and layout
+  - Header with Tag icon, title "Categories", subtitle, and "Add Category" button
+  - Scrollable content area rendering `CategoryTree` with all callbacks wired
+  - Discriminated union state for modal (`create`/`edit`/`closed`) and delete dialog
+  - Integrates `useCategoryTree` for tree data and `useCategoryMutations` for CRUD
+  - `CategoryFormModal` for create/edit and `DeleteCategoryDialog` for delete confirmation
+  - Follows RulesPage layout pattern: flex column, `-m-6`, border-b header, scrollable content
+- Created `src/features/categories/index.ts` (barrel export)
+  - Exports all components: CategoriesPage, CategoryTree, CategoryTreeNode, CategoryFormModal, DeleteCategoryDialog, ColorPicker, IconPicker
+  - Exports hooks: useCategoryTree, useCategoryMutations (with types)
+  - Exports constants: COLOR_PALETTE, ICON_MAP, ICON_LIST, DEFAULT_COLOR, DEFAULT_ICON, getIconComponent
+- TypeScript type check passes, all tests pass (1431 passed)
