@@ -523,8 +523,9 @@ export function TransactionDataTable({ highlightId }: TransactionDataTableProps)
                 className={cn(
                   'flex items-center h-12 px-4 gap-4 border-b cursor-pointer transition-colors',
                   'hover:bg-muted/50',
-                  isCursor && 'bg-muted/30',
+                  isCursor && !isSelected && 'bg-muted/30',
                   isSelected && 'bg-ring/8 border-l-2 border-l-ring',
+                  isCursor && isSelected && 'bg-ring/15 ring-1 ring-ring/30 ring-inset',
                   isHighlighted && 'bg-primary/10',
                 )}
                 style={{
