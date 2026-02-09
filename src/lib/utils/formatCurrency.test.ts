@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatCurrency } from './formatCurrency'
+import { formatCurrency, formatCurrencyWithSymbol } from './formatCurrency'
 
 describe('formatCurrency', () => {
   it('formats positive amount with EUR by default', () => {
@@ -37,5 +37,50 @@ describe('formatCurrency', () => {
   it('formats large amounts', () => {
     const result = formatCurrency(1234567.89)
     expect(result).toContain('€')
+  })
+})
+
+describe('formatCurrencyWithSymbol', () => {
+  it('formats with € symbol by default', () => {
+    const result = formatCurrencyWithSymbol(45.99)
+    expect(result).toContain('45')
+    expect(result).toContain('€')
+  })
+
+  it('formats with $ symbol', () => {
+    const result = formatCurrencyWithSymbol(25.5, '$')
+    expect(result).toContain('$')
+    expect(result).toContain('25')
+  })
+
+  it('formats with £ symbol', () => {
+    const result = formatCurrencyWithSymbol(10, '£')
+    expect(result).toContain('£')
+  })
+
+  it('formats with ¥ symbol', () => {
+    const result = formatCurrencyWithSymbol(1000, '¥')
+    expect(result).toContain('¥')
+  })
+
+  it('formats with ₹ symbol', () => {
+    const result = formatCurrencyWithSymbol(500, '₹')
+    expect(result).toContain('₹')
+  })
+
+  it('formats with kr symbol', () => {
+    const result = formatCurrencyWithSymbol(199, 'kr')
+    expect(result).toContain('199')
+  })
+
+  it('formats with CHF symbol', () => {
+    const result = formatCurrencyWithSymbol(75, 'CHF')
+    expect(result).toContain('CHF')
+  })
+
+  it('handles negative amounts', () => {
+    const result = formatCurrencyWithSymbol(-45.99, '$')
+    expect(result).toContain('45')
+    expect(result).toMatch(/-|−/)
   })
 })

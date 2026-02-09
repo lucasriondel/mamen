@@ -22,6 +22,7 @@ export type SettingKey =
   | 'date_format'
   | 'anomaly_threshold'
   | 'anomaly_settings'
+  | 'displayPreferences'
 
 export type Setting = {
   id?: number

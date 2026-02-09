@@ -3,6 +3,9 @@ import react from '@vitejs/plugin-react-swc'
 import path from 'path'
 
 export default defineConfig({
+  define: {
+    __BUILD_DATE__: JSON.stringify('2026-02-09'),
+  },
   plugins: [react()],
   test: {
     globals: true,

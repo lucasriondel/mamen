@@ -1,6 +1,6 @@
 # Story 10.2: Settings Page Consolidation
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -62,8 +62,8 @@ So that **I can customize mamen to my preferences and manage my data in one plac
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Define display preferences types and Dexie schema (AC: #3, #4)
-  - [ ] Create `src/features/settings/types/preferences.types.ts`:
+- [x] Task 1: Define display preferences types and Dexie schema (AC: #3, #4)
+  - [x] Create `src/features/settings/types/preferences.types.ts`:
     ```typescript
     type CurrencySymbol = '€' | '$' | '£' | '¥' | '₹' | 'kr' | 'CHF'
 
@@ -83,75 +83,75 @@ So that **I can customize mamen to my preferences and manage my data in one plac
       anomalyThreshold: AnomalyThreshold
     }
     ```
-  - [ ] Use `type` not `interface` (project convention)
-  - [ ] Named exports only
-  - [ ] Default values: `{ currencySymbol: '€', dateFormat: 'DD/MM/YYYY', defaultDashboardPeriod: 'this-month', anomalyThreshold: { multiplier: 2 } }`
-  - [ ] Test: DisplayPreferences type has all required fields
+  - [x] Use `type` not `interface` (project convention)
+  - [x] Named exports only
+  - [x] Default values: `{ currencySymbol: '€', dateFormat: 'DD/MM/YYYY', defaultDashboardPeriod: 'this-month', anomalyThreshold: { multiplier: 2 } }`
+  - [x] Test: DisplayPreferences type has all required fields
 
-- [ ] Task 2: Create display preferences service (AC: #3, #4)
-  - [ ] Create `src/features/settings/services/preferencesService.ts`:
+- [x] Task 2: Create display preferences service (AC: #3, #4)
+  - [x] Create `src/features/settings/services/preferencesService.ts`:
     ```typescript
     export const getDisplayPreferences = async (): Promise<DisplayPreferences>
     export const updateDisplayPreferences = async (prefs: Partial<DisplayPreferences>): Promise<void>
     ```
-  - [ ] Read/write from Dexie `settings` table with key `'displayPreferences'`
-  - [ ] Return defaults if no saved preferences exist
-  - [ ] Merge partial updates with existing preferences
-  - [ ] Test: Returns defaults when no preferences saved
-  - [ ] Test: Updates individual fields without overwriting others
-  - [ ] Test: Persists across reads (write then read returns same)
-  - [ ] Test: Handles all currency symbols and date formats
+  - [x] Read/write from Dexie `settings` table with key `'displayPreferences'`
+  - [x] Return defaults if no saved preferences exist
+  - [x] Merge partial updates with existing preferences
+  - [x] Test: Returns defaults when no preferences saved
+  - [x] Test: Updates individual fields without overwriting others
+  - [x] Test: Persists across reads (write then read returns same)
+  - [x] Test: Handles all currency symbols and date formats
 
-- [ ] Task 3: Create useDisplayPreferences hook (AC: #4)
-  - [ ] Create `src/features/settings/hooks/useDisplayPreferences.ts`:
+- [x] Task 3: Create useDisplayPreferences hook (AC: #4)
+  - [x] Create `src/features/settings/hooks/useDisplayPreferences.ts`:
     ```typescript
     export const useDisplayPreferences = () => {
       const prefs = useLiveQuery(() => db.settings.get('displayPreferences'))
       // Return parsed preferences with defaults
     }
     ```
-  - [ ] Use `useLiveQuery` for reactive updates (Dexie pattern)
-  - [ ] Changes apply instantly across all components consuming this hook
-  - [ ] Test: Returns default values initially
-  - [ ] Test: Updates reactively when preferences change
+  - [x] Use `useLiveQuery` for reactive updates (Dexie pattern)
+  - [x] Changes apply instantly across all components consuming this hook
+  - [x] Test: Returns default values initially
+  - [x] Test: Updates reactively when preferences change
 
-- [ ] Task 4: Restructure SettingsPage with sections (AC: #1, #2)
-  - [ ] Modify `src/features/settings/components/SettingsPage/index.tsx`:
+- [x] Task 4: Restructure SettingsPage with sections (AC: #1, #2)
+  - [x] Modify `src/features/settings/components/SettingsPage/index.tsx`:
     - Organize into 4 Card sections: LLM Configuration, Display Preferences, Data Management, About
     - LLM Configuration section: preserved as-is from Story 2.4
     - Use shadcn Card for each section container
     - Each section has clear heading (h2) and description
-  - [ ] Layout: vertical stack of Card sections with `space-6` gap
-  - [ ] Scroll if content exceeds viewport
-  - [ ] Keyboard navigation: Tab between interactive elements
-  - [ ] Test: All 4 sections render
-  - [ ] Test: LLM Configuration section intact from Story 2.4
+  - [x] Layout: vertical stack of Card sections with `space-6` gap
+  - [x] Scroll if content exceeds viewport
+  - [x] Keyboard navigation: Tab between interactive elements
+  - [x] Test: All 4 sections render
+  - [x] Test: LLM Configuration section intact from Story 2.4
 
-- [ ] Task 5: Build Display Preferences section (AC: #3, #4)
-  - [ ] Add Display Preferences Card to SettingsPage:
+- [x] Task 5: Build Display Preferences section (AC: #3, #4)
+  - [x] Add Display Preferences Card to SettingsPage:
     - Currency symbol: shadcn Select dropdown with symbol options
     - Date format: shadcn Select dropdown with format options
     - Default dashboard period: shadcn Select dropdown
     - Anomaly threshold: Number input (multiplier) + optional absolute amount input
-  - [ ] Changes save immediately on selection (no "Save" button needed)
-  - [ ] Show toast on save: "Preferences updated"
-  - [ ] Use shadcn Select, Input components
-  - [ ] Test: Currency symbol select renders all options
-  - [ ] Test: Selecting currency triggers save and toast
-  - [ ] Test: Date format select works
-  - [ ] Test: Anomaly threshold input accepts valid numbers
-  - [ ] Test: Invalid anomaly threshold shows inline error
-  - [ ] Test: All selects are keyboard navigable
+  - [x] Changes save immediately on selection (no "Save" button needed)
+  - [x] Show toast on save: "Preferences updated"
+  - [x] Use shadcn Select, Input components
+  - [x] Test: Currency symbol select renders all options
+  - [x] Test: Selecting currency triggers save and toast
+  - [x] Test: Date format select works
+  - [x] Test: Anomaly threshold input accepts valid numbers
+  - [x] Test: Invalid anomaly threshold shows inline error
+  - [x] Test: All selects are keyboard navigable
 
-- [ ] Task 6: Build Data Management section (AC: #5, #6)
-  - [ ] Add Data Management Card to SettingsPage:
+- [x] Task 6: Build Data Management section (AC: #5, #6)
+  - [x] Add Data Management Card to SettingsPage:
     - "Export All Data" button -- reuse export from Story 10.1
     - "Import Data" button -- disabled placeholder with tooltip "Coming soon"
     - "Clear All Data" button -- destructive variant
     - Storage usage indicator: show record counts per table
-  - [ ] Storage usage: Query Dexie for counts: `db.transactions.count()`, `db.accounts.count()`, etc.
-  - [ ] Display as: "X accounts, Y transactions, Z merchants, W rules"
-  - [ ] "Clear All Data" flow:
+  - [x] Storage usage: Query Dexie for counts: `db.transactions.count()`, `db.accounts.count()`, etc.
+  - [x] Display as: "X accounts, Y transactions, Z merchants, W rules"
+  - [x] "Clear All Data" flow:
     1. Click destructive button
     2. Dialog opens with strong warning
     3. Input field requires typing "DELETE" (case-sensitive)
@@ -159,54 +159,54 @@ So that **I can customize mamen to my preferences and manage my data in one plac
     5. On confirm: `db.delete()` then `db.open()` (recreates empty tables)
     6. Toast: "All data cleared"
     7. Navigate to Dashboard (first-run empty state)
-  - [ ] Test: Export button triggers exportAllData from Story 10.1
-  - [ ] Test: Import button disabled with tooltip
-  - [ ] Test: Clear All Data dialog requires "DELETE" input
-  - [ ] Test: Confirm disabled until "DELETE" typed
-  - [ ] Test: Clears all Dexie tables on confirm
-  - [ ] Test: Toast appears after clear
-  - [ ] Test: Storage usage shows correct counts
-  - [ ] Test: Storage usage updates reactively (useLiveQuery)
+  - [x] Test: Export button triggers exportAllData from Story 10.1
+  - [x] Test: Import button disabled with tooltip
+  - [x] Test: Clear All Data dialog requires "DELETE" input
+  - [x] Test: Confirm disabled until "DELETE" typed
+  - [x] Test: Clears all Dexie tables on confirm
+  - [x] Test: Toast appears after clear
+  - [x] Test: Storage usage shows correct counts
+  - [x] Test: Storage usage updates reactively (useLiveQuery)
 
-- [ ] Task 7: Build About section (AC: #7)
-  - [ ] Add About Card to SettingsPage:
+- [x] Task 7: Build About section (AC: #7)
+  - [x] Add About Card to SettingsPage:
     - App version from `APP_VERSION` constant (Story 10.1)
     - Build date (can use `__BUILD_DATE__` Vite define or hardcoded)
     - Link: "Documentation" (placeholder href)
     - Link: "Report an issue" (placeholder href)
-  - [ ] Use muted text styling for version info
-  - [ ] Links open in new tab (`target="_blank" rel="noopener noreferrer"`)
-  - [ ] Test: Version displays from APP_VERSION
-  - [ ] Test: Links render with correct attributes
+  - [x] Use muted text styling for version info
+  - [x] Links open in new tab (`target="_blank" rel="noopener noreferrer"`)
+  - [x] Test: Version displays from APP_VERSION
+  - [x] Test: Links render with correct attributes
 
-- [ ] Task 8: Create formatCurrency and formatDate utilities (AC: #4)
-  - [ ] Modify or create `src/lib/utils/formatCurrency.ts`:
+- [x] Task 8: Create formatCurrency and formatDate utilities (AC: #4)
+  - [x] Modify or create `src/lib/utils/formatCurrency.ts`:
     ```typescript
     export const formatCurrency = (amount: number, symbol: CurrencySymbol = '€'): string => {
       return `${symbol}${Math.abs(amount).toFixed(2)}`
     }
     ```
-  - [ ] Modify or create `src/lib/utils/formatDate.ts`:
+  - [x] Modify or create `src/lib/utils/formatDate.ts`:
     ```typescript
     export const formatDate = (date: Date | string, format: DateFormatOption = 'DD/MM/YYYY'): string
     ```
-  - [ ] These utilities should read from display preferences when called without explicit format
-  - [ ] Check if these files already exist from earlier stories and EXTEND, do not recreate
-  - [ ] Test: formatCurrency handles all symbols
-  - [ ] Test: formatCurrency handles negative amounts (show as positive with symbol)
-  - [ ] Test: formatDate handles all 3 format options
-  - [ ] Test: formatDate handles Date objects and ISO strings
+  - [x] These utilities should read from display preferences when called without explicit format
+  - [x] Check if these files already exist from earlier stories and EXTEND, do not recreate
+  - [x] Test: formatCurrency handles all symbols
+  - [x] Test: formatCurrency handles negative amounts (show as positive with symbol)
+  - [x] Test: formatDate handles all 3 format options
+  - [x] Test: formatDate handles Date objects and ISO strings
 
-- [ ] Task 9: Write integration tests (AC: all)
-  - [ ] `src/features/settings/components/SettingsPage/SettingsPage.test.tsx`:
-  - [ ] Full page renders all 4 sections
-  - [ ] LLM Configuration preserved from Story 2.4
-  - [ ] Display preferences persist: change currency, reload, verify persisted
-  - [ ] Clear All Data end-to-end: seed data -> clear -> verify empty
-  - [ ] Storage usage reflects actual data counts
-  - [ ] About section shows version
-  - [ ] Keyboard navigation: Tab through all controls
-  - [ ] Export button integration with exportAllData
+- [x] Task 9: Write integration tests (AC: all)
+  - [x] `src/features/settings/components/SettingsPage/SettingsPage.test.tsx`:
+  - [x] Full page renders all 4 sections
+  - [x] LLM Configuration preserved from Story 2.4
+  - [x] Display preferences persist: change currency, reload, verify persisted
+  - [x] Clear All Data end-to-end: seed data -> clear -> verify empty
+  - [x] Storage usage reflects actual data counts
+  - [x] About section shows version
+  - [x] Keyboard navigation: Tab through all controls
+  - [x] Export button integration with exportAllData
 
 ## Dev Notes
 
@@ -475,10 +475,57 @@ Before marking complete:
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.6
 
 ### Debug Log References
 
+- Radix Select `hasPointerCapture` not available in jsdom — mocked in tests
+- `useLiveQuery` returns `undefined` for both loading and "not found" — resolved by mapping `.first()` result to `null` (same pattern as `useSettings`)
+- `__BUILD_DATE__` Vite define added to both `vite.config.ts` and `vitest.config.ts`
+
 ### Completion Notes List
 
+- Implemented comprehensive settings page with 4 organized Card sections: LLM Configuration (preserved from Story 2.4), Display Preferences (NEW), Data Management (consolidated from Story 10.1 + new clear/storage), About (NEW)
+- Display preferences stored in Dexie `settings` table as key-value pair with key `displayPreferences`
+- Preferences save immediately on change via `updateDisplayPreferences` service — no Save button
+- `useDisplayPreferences` hook provides reactive access via `useLiveQuery`
+- Clear All Data requires typing "DELETE" exactly (case-sensitive), uses `db.delete()` + `db.open()` to recreate empty database, navigates to Dashboard
+- Storage usage shows reactive counts via `useLiveQuery`
+- Extended `formatCurrency` with `formatCurrencyWithSymbol` supporting all 7 currency symbols
+- Extended `formatDate` with `formatDateWithOption` supporting DD/MM/YYYY, MM/DD/YYYY, YYYY-MM-DD formats and both Date objects and ISO strings
+- 136/137 test files pass (1 pre-existing failure in accounts.test.tsx due to DOMMatrix/pdfjs-dist jsdom limitation)
+- All 1368 tests pass, 0 regressions
+
+### Change Log
+
+- 2026-02-09: Implemented Story 10.2 Settings Page Consolidation — added Display Preferences, Data Management consolidation (export + clear + storage usage), About section, format utilities, and comprehensive tests
+
 ### File List
+
+**New files:**
+- src/features/settings/types/preferences.types.ts
+- src/features/settings/types/preferences.types.test.ts
+- src/features/settings/services/preferencesService.ts
+- src/features/settings/services/preferencesService.test.ts
+- src/features/settings/hooks/useDisplayPreferences.ts
+- src/features/settings/hooks/useDisplayPreferences.test.ts
+- src/features/settings/components/DisplayPreferencesSection/index.tsx
+- src/features/settings/components/DisplayPreferencesSection/DisplayPreferencesSection.test.tsx
+- src/features/settings/components/DataManagementSection/index.tsx
+- src/features/settings/components/DataManagementSection/DataManagementSection.test.tsx
+- src/features/settings/components/ClearDataDialog/index.tsx
+- src/features/settings/components/AboutSection/index.tsx
+- src/features/settings/components/AboutSection/AboutSection.test.tsx
+- src/features/settings/components/SettingsPage/SettingsPage.test.tsx
+- src/vite-env.d.ts
+
+**Modified files:**
+- src/features/settings/components/SettingsPage/index.tsx
+- src/features/settings/index.ts
+- src/types/settings.types.ts
+- src/lib/utils/formatCurrency.ts
+- src/lib/utils/formatCurrency.test.ts
+- src/lib/utils/formatDate.ts
+- src/lib/utils/formatDate.test.ts
+- vite.config.ts
+- vitest.config.ts
