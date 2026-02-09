@@ -10,7 +10,7 @@
 
 - [x] Step 4: Create `columns.tsx` — 5 column definitions (select checkbox, date, description, category, amount) + `TransactionTableMeta` type for passing callbacks/animation state via `table.options.meta`. Replicates all rendering from TransactionRow (badges, anomalies, refund links, cascade animations). No TS errors, 142/143 tests pass (1 pre-existing failure).
 - [x] Step 5: Create `useTransactionTableKeyboard.ts` — keyboard hook for DataTable. Manages cursor movement (J/K/arrows), Shift+Arrow range selection via TanStack Table `row.toggleSelected()`, Space/X toggle on cursor row, Escape (clear selection first, then cursor), R/C/F/D action keys with 3-tier target resolution (selection > cursor > hover). Uses refs for stable callbacks, scroll-to-cursor via virtualizer. Guards for modals (enabled prop) and input elements. No TS errors, 142/143 tests pass (1 pre-existing failure).
-- [ ] Step 6: Create `DeleteConfirmDialog.tsx`
+- [x] Step 6: Create `DeleteConfirmDialog.tsx` — wraps shadcn AlertDialog with props: `open`, `onOpenChange`, `count`, `onConfirm`, `isDeleting`. Shows dynamic title/description based on count, destructive confirm button with loading state. No TS errors, 142/143 tests pass (1 pre-existing failure).
 - [ ] Step 7: Create `TransactionDataTable/index.tsx`
 
 ### Phase 3: Integration
