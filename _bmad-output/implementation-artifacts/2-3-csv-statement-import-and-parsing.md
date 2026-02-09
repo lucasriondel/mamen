@@ -542,6 +542,7 @@ Claude Opus 4.6
 ### Change Log
 
 - 2026-02-07: Implemented Story 2.3 - CSV Statement Import and Parsing. Added PapaParse-based CSV parsing with preview modal, column mapping, date/amount format detection, Dexie batch saving with undo support, file picker fallback, and re-import flow.
+- 2026-02-09: Added direction column (debit/credit) support for CSV import. CSVs with separate direction columns (e.g., "Direction" with "DEBIT"/"CREDIT" values) now auto-detect and correctly apply sign to amounts. Added optional direction column mapping to UI, auto-detection by header name and value analysis, and 9 new unit tests.
 
 ### File List
 

@@ -4,6 +4,8 @@ import {
   detectDateFormat,
   parseDate,
   parseAmount,
+  isDirectionValue,
+  isDebitDirection,
 } from './parser'
 
 describe('autoDetectColumns', () => {
@@ -195,5 +197,78 @@ describe('parseAmount', () => {
 
   it('handles negative European format', () => {
     expect(parseAmount('-1.234,56')).toBe(-1234.56)
+  })
+})
+
+describe('autoDetectColumns with direction', () => {
+  it('detects Direction header by name', () => {
+    const headers = ['Date', 'Amount', 'Description', 'Direction']
+    const mapping = autoDetectColumns(headers)
+    expect(mapping.directionColumn).toBe('Direction')
+  })
+
+  it('detects direction column by value analysis', () => {
+    const headers = ['Date', 'Montant', 'Intitulé', 'Type']
+    const rows = [
+      ['2026-01-01', '50', 'Grocery Store', 'DEBIT'],
+      ['2026-01-02', '100', 'Salary', 'CREDIT'],
+    ]
+    const mapping = autoDetectColumns(headers, rows)
+    expect(mapping.directionColumn).toBe('Type')
+  })
+
+  it('does not detect direction column when values are not debit/credit', () => {
+    const headers = ['Date', 'Amount', 'Description', 'Status']
+    const rows = [
+      ['2026-01-01', '50', 'Store', 'COMPLETE'],
+      ['2026-01-02', '100', 'Salary', 'PENDING'],
+    ]
+    const mapping = autoDetectColumns(headers, rows)
+    expect(mapping.directionColumn).toBeUndefined()
+  })
+
+  it('does not pick already-mapped columns as direction', () => {
+    const headers = ['Date', 'Amount', 'Description']
+    const rows = [
+      ['2026-01-01', '50', 'Store'],
+    ]
+    const mapping = autoDetectColumns(headers, rows)
+    expect(mapping.directionColumn).toBeUndefined()
+  })
+})
+
+describe('isDirectionValue', () => {
+  it('recognizes debit values', () => {
+    expect(isDirectionValue('DEBIT')).toBe(true)
+    expect(isDirectionValue('debit')).toBe(true)
+    expect(isDirectionValue('DR')).toBe(true)
+    expect(isDirectionValue('withdrawal')).toBe(true)
+  })
+
+  it('recognizes credit values', () => {
+    expect(isDirectionValue('CREDIT')).toBe(true)
+    expect(isDirectionValue('credit')).toBe(true)
+    expect(isDirectionValue('CR')).toBe(true)
+    expect(isDirectionValue('deposit')).toBe(true)
+  })
+
+  it('rejects non-direction values', () => {
+    expect(isDirectionValue('COMPLETE')).toBe(false)
+    expect(isDirectionValue('PENDING')).toBe(false)
+    expect(isDirectionValue('hello')).toBe(false)
+  })
+})
+
+describe('isDebitDirection', () => {
+  it('returns true for debit values', () => {
+    expect(isDebitDirection('DEBIT')).toBe(true)
+    expect(isDebitDirection('Dr')).toBe(true)
+    expect(isDebitDirection('out')).toBe(true)
+  })
+
+  it('returns false for credit values', () => {
+    expect(isDebitDirection('CREDIT')).toBe(false)
+    expect(isDebitDirection('Cr')).toBe(false)
+    expect(isDebitDirection('in')).toBe(false)
   })
 })

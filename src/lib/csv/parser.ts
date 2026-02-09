@@ -10,6 +10,7 @@ export type ColumnMapping = {
   dateColumn: string
   amountColumn: string
   descriptionColumn: string
+  directionColumn?: string
 }
 
 export type DateFormatOption =
@@ -35,6 +36,14 @@ const DESCRIPTION_PATTERNS = [
   'description', 'merchant', 'narrative', 'details', 'payee',
   'transaction description', 'name', 'particulars', 'reference',
 ]
+
+const DIRECTION_PATTERNS = [
+  'direction', 'type', 'debit/credit', 'debit or credit', 'dr/cr', 'dc',
+  'transaction type', 'entry type',
+]
+
+const DIRECTION_DEBIT_VALUES = ['debit', 'dr', 'd', 'deb', 'out', 'withdrawal', 'expense']
+const DIRECTION_CREDIT_VALUES = ['credit', 'cr', 'c', 'cre', 'in', 'deposit', 'income']
 
 export const parseCSVPreview = (file: File, maxRows = 10): Promise<CSVPreviewResult> => {
   return new Promise((resolve, reject) => {
@@ -99,7 +108,7 @@ const detectHasHeaders = (firstRow: string[]): boolean => {
   return matchCount >= 2
 }
 
-export const autoDetectColumns = (headers: string[]): Partial<ColumnMapping> => {
+export const autoDetectColumns = (headers: string[], rows?: string[][]): Partial<ColumnMapping> => {
   const mapping: Partial<ColumnMapping> = {}
   const lowered = headers.map((h) => h.toLowerCase().trim())
 
@@ -114,9 +123,33 @@ export const autoDetectColumns = (headers: string[]): Partial<ColumnMapping> => 
     if (!mapping.descriptionColumn && DESCRIPTION_PATTERNS.some((p) => header === p || header.includes(p))) {
       mapping.descriptionColumn = headers[i]
     }
+    if (!mapping.directionColumn && DIRECTION_PATTERNS.some((p) => header === p || header.includes(p))) {
+      mapping.directionColumn = headers[i]
+    }
+  }
+
+  // If no direction column detected by header name, check if any column has debit/credit values
+  if (!mapping.directionColumn && rows && rows.length > 0) {
+    for (let i = 0; i < lowered.length; i++) {
+      if (headers[i] === mapping.dateColumn || headers[i] === mapping.amountColumn || headers[i] === mapping.descriptionColumn) continue
+      const values = rows.map((row) => row[i]?.toLowerCase().trim()).filter(Boolean)
+      if (values.length > 0 && values.every((v) => isDirectionValue(v))) {
+        mapping.directionColumn = headers[i]
+        break
+      }
+    }
   }
 
   return mapping
+}
+
+export const isDirectionValue = (value: string): boolean => {
+  const lower = value.toLowerCase().trim()
+  return DIRECTION_DEBIT_VALUES.includes(lower) || DIRECTION_CREDIT_VALUES.includes(lower)
+}
+
+export const isDebitDirection = (value: string): boolean => {
+  return DIRECTION_DEBIT_VALUES.includes(value.toLowerCase().trim())
 }
 
 export const detectDateFormat = (sampleDates: string[]): DateFormatOption => {
