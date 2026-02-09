@@ -64,6 +64,7 @@ type ImportCSVModalProps = {
 
 const DATE_FORMAT_OPTIONS: { value: DateFormatOption; label: string }[] = [
   { value: 'auto', label: 'Auto-detect' },
+  { value: 'ISO-8601', label: 'ISO 8601 (2026-01-01T12:00:00Z)' },
   { value: 'DD/MM/YYYY', label: 'DD/MM/YYYY' },
   { value: 'MM/DD/YYYY', label: 'MM/DD/YYYY' },
   { value: 'YYYY-MM-DD', label: 'YYYY-MM-DD' },

@@ -37,3 +37,20 @@ The CSV auto-detection only recognized English header names (e.g., "Amount", "De
 ### Verification
 - TypeScript: No type errors
 - Tests: 1449 tests pass (49 in parser.test.ts, 9 new). 2 pre-existing failures unrelated (pdfjs DOMMatrix, importWithRules timeout).
+
+## 2026-02-09: CSV Import - ISO 8601 Datetime Format Support
+
+### Task
+Add explicit ISO 8601 datetime format support to CSV date parser so that bank CSVs with full timestamps (e.g., Green-Got's `2026-01-01T18:00:22.000Z`) are properly detected and parsed.
+
+### Problem
+The CSV date format detection only handled simple date formats (YYYY-MM-DD, DD/MM/YYYY, etc.). Real bank CSVs like Green-Got use ISO 8601 timestamps with time components (`2026-01-01T18:00:22.000Z`), which didn't match any explicit pattern and fell through to the fragile `new Date()` fallback. The UI showed "Auto-detect" instead of a specific detected format.
+
+### Changes
+- **src/lib/csv/parser.ts**: Added `'ISO-8601'` to `DateFormatOption` type. Added ISO 8601 detection in `detectDateFormat` (checks for `T` timestamp indicator before other formats). Added `'ISO-8601'` case in `parseDate`. Updated `auto` mode to try ISO 8601 with time component before date-only formats.
+- **src/features/import/components/ImportCSVModal/index.tsx**: Added ISO 8601 option to date format dropdown.
+- **src/lib/csv/parser.test.ts**: Added 7 new tests covering ISO 8601 detection (with timezone Z, without milliseconds, with offset, preference over YYYY-MM-DD), parsing (explicit and auto mode), and invalid value handling.
+
+### Verification
+- TypeScript: No type errors
+- Tests: 1456 tests pass (56 in parser.test.ts, 7 new). 1 pre-existing failure in accounts.test.tsx (DOMMatrix/pdfjs unrelated).

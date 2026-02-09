@@ -82,6 +82,26 @@ describe('detectDateFormat', () => {
     const dates = ['January 15 2024', 'February 20 2024']
     expect(detectDateFormat(dates)).toBe('auto')
   })
+
+  it('detects ISO 8601 datetime with timezone', () => {
+    const dates = ['2026-01-01T18:00:22.000Z', '2026-01-02T09:28:55.000Z', '2026-01-03T12:57:19.000Z']
+    expect(detectDateFormat(dates)).toBe('ISO-8601')
+  })
+
+  it('detects ISO 8601 datetime without milliseconds', () => {
+    const dates = ['2026-01-01T18:00:22Z', '2026-01-02T09:28:55Z']
+    expect(detectDateFormat(dates)).toBe('ISO-8601')
+  })
+
+  it('detects ISO 8601 datetime with offset', () => {
+    const dates = ['2026-01-01T18:00:22+01:00', '2026-01-02T09:28:55+01:00']
+    expect(detectDateFormat(dates)).toBe('ISO-8601')
+  })
+
+  it('prefers ISO-8601 over YYYY-MM-DD when timestamps present', () => {
+    const dates = ['2026-01-01T00:00:00.000Z', '2026-02-01T00:00:00.000Z']
+    expect(detectDateFormat(dates)).toBe('ISO-8601')
+  })
 })
 
 describe('parseDate', () => {
@@ -137,6 +157,25 @@ describe('parseDate', () => {
     const date = parseDate('2024-01-15', 'auto')
     expect(date).not.toBeNull()
     expect(date!.getFullYear()).toBe(2024)
+  })
+
+  it('parses ISO 8601 datetime with timezone', () => {
+    const date = parseDate('2026-01-01T18:00:22.000Z', 'ISO-8601')
+    expect(date).not.toBeNull()
+    expect(date!.getFullYear()).toBe(2026)
+    expect(date!.getMonth()).toBe(0)
+    expect(date!.getDate()).toBeGreaterThanOrEqual(1) // may be 1 or 2 depending on timezone
+  })
+
+  it('parses ISO 8601 datetime in auto mode', () => {
+    const date = parseDate('2026-01-15T09:30:00.000Z', 'auto')
+    expect(date).not.toBeNull()
+    expect(date!.getFullYear()).toBe(2026)
+    expect(date!.getMonth()).toBe(0)
+  })
+
+  it('returns null for invalid ISO-8601 values', () => {
+    expect(parseDate('not-a-date', 'ISO-8601')).toBeNull()
   })
 
   it('returns null for invalid dates', () => {

@@ -21,6 +21,7 @@ export type DateFormatOption =
   | 'DD-MM-YYYY'
   | 'MM-DD-YYYY'
   | 'DD.MM.YYYY'
+  | 'ISO-8601'
 
 const DATE_PATTERNS = [
   'date', 'transaction date', 'posted date', 'trans date',
@@ -161,6 +162,16 @@ export const isDebitDirection = (value: string): boolean => {
 }
 
 export const detectDateFormat = (sampleDates: string[]): DateFormatOption => {
+  // Check for ISO 8601 datetime with time component first (e.g., 2026-01-01T18:00:22.000Z)
+  const isoPattern = /^\d{4}-\d{2}-\d{2}T/
+  if (sampleDates.every((d) => isoPattern.test(d.trim()))) {
+    const allValid = sampleDates.every((d) => {
+      const date = new Date(d.trim())
+      return !isNaN(date.getTime())
+    })
+    if (allValid) return 'ISO-8601'
+  }
+
   const formats: { pattern: RegExp; format: DateFormatOption; parse: (s: string) => Date | null }[] = [
     {
       pattern: /^\d{4}-\d{2}-\d{2}$/,
@@ -246,8 +257,17 @@ export const parseDate = (value: string, format: DateFormatOption): Date | null 
       const date = new Date(y, m - 1, d)
       return isValidDate(date, y, m, d) ? date : null
     }
+    case 'ISO-8601': {
+      const date = new Date(trimmed)
+      return isNaN(date.getTime()) ? null : date
+    }
     case 'auto': {
-      // Try ISO first
+      // Try ISO 8601 with time component first
+      if (/^\d{4}-\d{2}-\d{2}T/.test(trimmed)) {
+        const isoFull = parseDate(trimmed, 'ISO-8601')
+        if (isoFull) return isoFull
+      }
+      // Try ISO date only
       const isoDate = parseDate(trimmed, 'YYYY-MM-DD')
       if (isoDate) return isoDate
       // Try DD/MM/YYYY
