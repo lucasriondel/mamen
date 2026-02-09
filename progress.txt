@@ -6,3 +6,12 @@
 - Added `updateCategorySchema` and `UpdateCategoryInput` to `src/lib/schemas/category.schema.ts`
 - Exported new schema from `src/lib/schemas/index.ts`
 - TypeScript type check passes
+
+### Task 2: Constants file (colors, icons, icon map) ✅
+- Created `src/features/categories/lib/constants.ts`
+- `COLOR_PALETTE`: 16 predefined hex colors (4×4 grid) — all 10 seed colors + 6 extras
+- `ICON_MAP`: Record<string, LucideIcon> mapping 32 curated lucide icon names to components
+- `ICON_LIST`: Ordered list of icon names derived from ICON_MAP keys
+- `DEFAULT_ICON` ('Tag') and `DEFAULT_COLOR` ('#3B82F6') constants
+- `getIconComponent()`: Resolves icon name to component with Tag fallback
+- TypeScript type check passes, all tests pass
