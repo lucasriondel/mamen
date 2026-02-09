@@ -59,3 +59,21 @@
   - Empty state with helpful message when no categories exist
   - Passes all callbacks (onAddSubcategory, onEdit, onDelete, onReorder) through to nodes
 - TypeScript type check passes, all tests pass (1431 passed)
+
+### Task 6: CategoryFormModal + DeleteCategoryDialog ✅
+- Created `src/features/categories/components/CategoryFormModal/index.tsx`
+  - Shared modal with `mode: 'create' | 'edit'` prop
+  - Fields: Name (Input), Color (ColorPicker), Icon (IconPicker)
+  - Uses react-hook-form + zodResolver with `updateCategorySchema`
+  - `useEffect` populates form when editing (resets for create)
+  - `parentId` passed as prop for subcategory creation
+  - Toast notifications on create/update success
+  - Form reset on close, follows EditAccountModal pattern
+- Created `src/features/categories/components/DeleteCategoryDialog/index.tsx`
+  - AlertDialog confirmation before cascade delete
+  - Shows category name and recursive descendant count via `countDescendants()`
+  - Description mentions undo availability (10s window)
+  - Delegates to `onConfirm` callback which calls `useCategoryMutations.deleteCategory`
+  - Undo via sonner toast already handled in the mutations hook
+  - Uses destructive variant on confirm button
+- TypeScript type check passes, all tests pass (1431 passed)
