@@ -4,7 +4,7 @@
 
 - [x] Step 1: Install `@tanstack/react-table` — installed v8.21.3. Tests pass (141/142, 1 pre-existing failure in accounts.test.tsx). No new TS errors.
 - [x] Step 2: Create `deleteTransactions.ts` service + tests — `deleteTransactions` and `undoDeleteTransactions` following batchCategoryAssign pattern. 5 tests pass (delete, preserve state, empty array, non-existent ids, undo restore). No TS errors.
-- [ ] Step 3: Create `useDeleteTransactions.ts` hook
+- [x] Step 3: Create `useDeleteTransactions.ts` hook — manages confirmation dialog state (`isDeleteDialogOpen`, `pendingDeleteIds`), `requestDelete`/`confirmDelete`/`cancelDelete` API. On confirm: calls service, shows sonner toast with Undo action (10s). Pattern follows `useBatchCategoryAssign`. No TS errors, 142/143 tests pass (1 pre-existing failure).
 
 ### Phase 2: DataTable Core
 
