@@ -86,11 +86,6 @@ export const useTransactionTableKeyboard = ({
           }
         }
         tbl.getRow(newId)?.toggleSelected(true)
-      } else {
-        // Clear selection on plain navigation
-        if (Object.keys(tbl.getState().rowSelection).length > 0) {
-          tbl.resetRowSelection()
-        }
       }
 
       setCursorRowId(newId)
