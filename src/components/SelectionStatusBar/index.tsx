@@ -31,6 +31,8 @@ export function SelectionStatusBar({ count, onClear }: SelectionStatusBarProps):
         <span>Assign merchant</span>
         <kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-xs">C</kbd>
         <span>Category</span>
+        <kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-xs">D</kbd>
+        <span>Delete</span>
       </div>
 
       <div className="ml-auto flex items-center gap-2">
