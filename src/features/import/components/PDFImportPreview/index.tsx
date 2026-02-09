@@ -215,7 +215,7 @@ export function PDFImportPreview({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Import PDF Transactions</DialogTitle>
             <DialogDescription>
@@ -250,7 +250,7 @@ export function PDFImportPreview({
               All transactions have been removed. Cancel or drop a new file.
             </div>
           ) : (
-            <div className="rounded-md border overflow-auto max-h-[50vh]">
+            <div className="rounded-md border overflow-auto max-h-[65vh]">
               <Table>
                 <TableHeader>
                   <TableRow>

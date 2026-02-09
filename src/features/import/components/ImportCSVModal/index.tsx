@@ -242,7 +242,7 @@ export function ImportCSVModal({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Import Statement</DialogTitle>
             <DialogDescription>
@@ -400,7 +400,7 @@ export function ImportCSVModal({
                 </div>
               </div>
 
-              <div className="rounded-md border overflow-auto max-h-[40vh]">
+              <div className="rounded-md border overflow-auto max-h-[55vh]">
                 <Table>
                   <TableHeader>
                     <TableRow>
