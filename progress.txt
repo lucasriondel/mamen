@@ -1,0 +1,30 @@
+## Transaction List Rework Progress
+
+### Phase 1: Foundation
+
+- [x] Step 1: Install `@tanstack/react-table` — installed v8.21.3. Tests pass (141/142, 1 pre-existing failure in accounts.test.tsx). No new TS errors.
+- [ ] Step 2: Create `deleteTransactions.ts` service + tests
+- [ ] Step 3: Create `useDeleteTransactions.ts` hook
+
+### Phase 2: DataTable Core
+
+- [ ] Step 4: Create `columns.tsx`
+- [ ] Step 5: Create `useTransactionTableKeyboard.ts`
+- [ ] Step 6: Create `DeleteConfirmDialog.tsx`
+- [ ] Step 7: Create `TransactionDataTable/index.tsx`
+
+### Phase 3: Integration
+
+- [ ] Step 8: Replace `TransactionList/index.tsx` with re-export
+- [ ] Step 9: Update `SelectionStatusBar` with D key hint
+- [ ] Step 10: Update `routes/transactions.tsx` footer with D key hint
+
+### Phase 4: Cleanup
+
+- [ ] Step 11: Delete `TransactionRow/index.tsx`
+- [ ] Step 12: Check and delete unused hooks
+
+### Phase 5: Testing & Verification
+
+- [ ] Step 13: Run all tests
+- [ ] Step 14: Manual verification
