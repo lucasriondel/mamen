@@ -108,7 +108,7 @@
 - Modified `src/hooks/useBreadcrumbs.ts`
   - Added `'/categories': 'Categories'` to `routeLabelMap`
 - Updated `src/components/Layout/Layout.test.tsx`
-  - Updated nav link count assertion from 6 to 7 to account for new Categories link
-- TypeScript type check passes, all tests pass (1431 passed)
+  - Fixed nav link count assertion from 7 to 8 to account for new Categories link (7 navItems + 1 Unmatched link = 8 total)
+- TypeScript type check passes, all 1428 tests pass
 
 ### All PRD tasks complete ✅
