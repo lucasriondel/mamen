@@ -15,6 +15,7 @@ import { Route as RulesRouteImport } from './routes/rules'
 import { Route as MerchantsRouteImport } from './routes/merchants'
 import { Route as AccountsRouteImport } from './routes/accounts'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as TransactionsUnmatchedRouteImport } from './routes/transactions.unmatched'
 import { Route as MerchantsMerchantIdRouteImport } from './routes/merchants.$merchantId'
 
 const TransactionsRoute = TransactionsRouteImport.update({
@@ -47,6 +48,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TransactionsUnmatchedRoute = TransactionsUnmatchedRouteImport.update({
+  id: '/unmatched',
+  path: '/unmatched',
+  getParentRoute: () => TransactionsRoute,
+} as any)
 const MerchantsMerchantIdRoute = MerchantsMerchantIdRouteImport.update({
   id: '/$merchantId',
   path: '/$merchantId',
@@ -59,8 +65,9 @@ export interface FileRoutesByFullPath {
   '/merchants': typeof MerchantsRouteWithChildren
   '/rules': typeof RulesRoute
   '/settings': typeof SettingsRoute
-  '/transactions': typeof TransactionsRoute
+  '/transactions': typeof TransactionsRouteWithChildren
   '/merchants/$merchantId': typeof MerchantsMerchantIdRoute
+  '/transactions/unmatched': typeof TransactionsUnmatchedRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -68,8 +75,9 @@ export interface FileRoutesByTo {
   '/merchants': typeof MerchantsRouteWithChildren
   '/rules': typeof RulesRoute
   '/settings': typeof SettingsRoute
-  '/transactions': typeof TransactionsRoute
+  '/transactions': typeof TransactionsRouteWithChildren
   '/merchants/$merchantId': typeof MerchantsMerchantIdRoute
+  '/transactions/unmatched': typeof TransactionsUnmatchedRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -78,8 +86,9 @@ export interface FileRoutesById {
   '/merchants': typeof MerchantsRouteWithChildren
   '/rules': typeof RulesRoute
   '/settings': typeof SettingsRoute
-  '/transactions': typeof TransactionsRoute
+  '/transactions': typeof TransactionsRouteWithChildren
   '/merchants/$merchantId': typeof MerchantsMerchantIdRoute
+  '/transactions/unmatched': typeof TransactionsUnmatchedRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -91,6 +100,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/transactions'
     | '/merchants/$merchantId'
+    | '/transactions/unmatched'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -100,6 +110,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/transactions'
     | '/merchants/$merchantId'
+    | '/transactions/unmatched'
   id:
     | '__root__'
     | '/'
@@ -109,6 +120,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/transactions'
     | '/merchants/$merchantId'
+    | '/transactions/unmatched'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -117,7 +129,7 @@ export interface RootRouteChildren {
   MerchantsRoute: typeof MerchantsRouteWithChildren
   RulesRoute: typeof RulesRoute
   SettingsRoute: typeof SettingsRoute
-  TransactionsRoute: typeof TransactionsRoute
+  TransactionsRoute: typeof TransactionsRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -164,6 +176,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/transactions/unmatched': {
+      id: '/transactions/unmatched'
+      path: '/unmatched'
+      fullPath: '/transactions/unmatched'
+      preLoaderRoute: typeof TransactionsUnmatchedRouteImport
+      parentRoute: typeof TransactionsRoute
+    }
     '/merchants/$merchantId': {
       id: '/merchants/$merchantId'
       path: '/$merchantId'
@@ -186,13 +205,25 @@ const MerchantsRouteWithChildren = MerchantsRoute._addFileChildren(
   MerchantsRouteChildren,
 )
 
+interface TransactionsRouteChildren {
+  TransactionsUnmatchedRoute: typeof TransactionsUnmatchedRoute
+}
+
+const TransactionsRouteChildren: TransactionsRouteChildren = {
+  TransactionsUnmatchedRoute: TransactionsUnmatchedRoute,
+}
+
+const TransactionsRouteWithChildren = TransactionsRoute._addFileChildren(
+  TransactionsRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccountsRoute: AccountsRoute,
   MerchantsRoute: MerchantsRouteWithChildren,
   RulesRoute: RulesRoute,
   SettingsRoute: SettingsRoute,
-  TransactionsRoute: TransactionsRoute,
+  TransactionsRoute: TransactionsRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

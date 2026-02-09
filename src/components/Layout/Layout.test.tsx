@@ -30,6 +30,12 @@ function createTestRouter(initialPath = '/') {
     component: () => <div>Transactions Content</div>,
   })
 
+  const unmatchedRoute = createRoute({
+    getParentRoute: () => transactionsRoute,
+    path: '/unmatched',
+    component: () => <div>Unmatched Content</div>,
+  })
+
   const merchantsRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: '/merchants',
@@ -48,7 +54,8 @@ function createTestRouter(initialPath = '/') {
     component: () => <div>Accounts Content</div>,
   })
 
-  const routeTree = rootRoute.addChildren([indexRoute, transactionsRoute, merchantsRoute, rulesRoute, accountsRoute])
+  const transactionsRouteWithChildren = transactionsRoute.addChildren([unmatchedRoute])
+  const routeTree = rootRoute.addChildren([indexRoute, transactionsRouteWithChildren, merchantsRoute, rulesRoute, accountsRoute])
 
   return createRouter({
     routeTree,
@@ -63,7 +70,7 @@ describe('Layout', () => {
 
     expect(await screen.findByText('mamen')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /dashboard/i })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /transactions/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Transactions' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /merchants/i })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /rules/i })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /accounts/i })).toBeInTheDocument()
@@ -118,15 +125,15 @@ describe('Navigation', () => {
     const router = createTestRouter('/transactions')
     render(<RouterProvider router={router} />)
 
-    const transactionsLink = await screen.findByRole('link', { name: /transactions/i })
+    const transactionsLink = await screen.findByRole('link', { name: 'Transactions' })
     expect(transactionsLink).toHaveClass('bg-accent')
   })
 
-  it('renders all 6 navigation links', async () => {
+  it('renders all 7 navigation links', async () => {
     const router = createTestRouter()
     render(<RouterProvider router={router} />)
 
     const links = await screen.findAllByRole('link')
-    expect(links).toHaveLength(6)
+    expect(links).toHaveLength(7)
   })
 })

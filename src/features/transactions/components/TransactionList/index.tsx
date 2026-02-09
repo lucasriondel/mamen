@@ -29,11 +29,12 @@ import type { Transaction } from '@/types'
 
 type TransactionListProps = {
   highlightId?: number
+  unmatchedOnly?: boolean
 }
 
-export function TransactionList({ highlightId }: TransactionListProps): React.ReactElement {
+export function TransactionList({ highlightId, unmatchedOnly = false }: TransactionListProps): React.ReactElement {
   const { activeFilters, currentMonthRange, toggleFocusMode, anomalyTypeFilter } = useFocusMode()
-  const isUnmatchedMode = activeFilters.has('unmatched')
+  const isUnmatchedMode = unmatchedOnly || activeFilters.has('unmatched')
   const isMonthMode = activeFilters.has('month')
   const isSubscriptionsMode = activeFilters.has('subscriptions')
   const isAnomaliesMode = activeFilters.has('anomalies')

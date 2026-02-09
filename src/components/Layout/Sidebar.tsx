@@ -46,11 +46,6 @@ export function Sidebar(): React.ReactElement {
     setFocusMode('all')
   }
 
-  const handleUnmatchedClick = (): void => {
-    toggleFocusMode('unmatched')
-    navigate({ to: '/transactions' })
-  }
-
   const handleMonthClick = (): void => {
     toggleFocusMode('month')
     navigate({ to: '/transactions' })
@@ -73,7 +68,7 @@ export function Sidebar(): React.ReactElement {
             activeProps={{
               className: 'bg-accent text-foreground',
             }}
-            activeOptions={{ exact: item.to === '/' }}
+            activeOptions={{ exact: item.to === '/' || item.to === '/transactions' }}
           >
             {item.icon}
             {item.label}
@@ -83,12 +78,12 @@ export function Sidebar(): React.ReactElement {
           </Link>
         ))}
 
-        <button
-          onClick={handleUnmatchedClick}
-          className={cn(
-            'flex items-center gap-3 px-3 py-2 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors w-full text-left',
-            activeFilters.has('unmatched') && 'bg-accent text-foreground',
-          )}
+        <Link
+          to="/transactions/unmatched"
+          className="flex items-center gap-3 px-3 py-2 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors w-full text-left"
+          activeProps={{
+            className: 'bg-accent text-foreground',
+          }}
           aria-label={`Unmatched transactions: ${unmatchedCount}`}
         >
           <Inbox className="h-4 w-4" />
@@ -96,7 +91,7 @@ export function Sidebar(): React.ReactElement {
           <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-amber-500/20" aria-hidden="true">
             <AnimatedCounter value={unmatchedCount} />
           </span>
-        </button>
+        </Link>
 
         <button
           onClick={handleMonthClick}

@@ -96,10 +96,7 @@ export const FocusModeProvider = ({ children }: FocusModeProviderProps): React.R
       if (event.metaKey || event.ctrlKey || event.altKey) return
 
       const key = event.key.toLowerCase()
-      if (key === 'u') {
-        event.preventDefault()
-        toggleFocusMode('unmatched')
-      } else if (key === 'm') {
+      if (key === 'm') {
         event.preventDefault()
         toggleFocusMode('month')
       } else if (key === 's') {
