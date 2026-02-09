@@ -284,9 +284,8 @@ export function TransactionDataTable({ highlightId }: TransactionDataTableProps)
       if (selectionCount > 0) {
         const row = table.getRow(rowId)
         row?.toggleSelected()
-      } else {
-        setCursorRowId((prev) => (prev === rowId ? null : rowId))
       }
+      setCursorRowId(rowId)
     },
     [selectionCount, table],
   )

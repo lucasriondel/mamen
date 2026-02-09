@@ -67,10 +67,15 @@ export const useTransactionTableKeyboard = ({
 
       const tbl = tableRef.current
       const prevIndex = getCursorIndex()
-      const newIndex =
-        prevIndex === -1
-          ? 0
-          : Math.max(0, Math.min(prevIndex + direction, currentRows.length - 1))
+      let newIndex: number
+      if (prevIndex === -1) {
+        newIndex = 0
+      } else {
+        const raw = prevIndex + direction
+        if (raw < 0) newIndex = currentRows.length - 1
+        else if (raw >= currentRows.length) newIndex = 0
+        else newIndex = raw
+      }
 
       const newRow = currentRows[newIndex]
       if (!newRow?.id) return
