@@ -8,7 +8,7 @@
 
 ### Phase 2: DataTable Core
 
-- [ ] Step 4: Create `columns.tsx`
+- [x] Step 4: Create `columns.tsx` — 5 column definitions (select checkbox, date, description, category, amount) + `TransactionTableMeta` type for passing callbacks/animation state via `table.options.meta`. Replicates all rendering from TransactionRow (badges, anomalies, refund links, cascade animations). No TS errors, 142/143 tests pass (1 pre-existing failure).
 - [ ] Step 5: Create `useTransactionTableKeyboard.ts`
 - [ ] Step 6: Create `DeleteConfirmDialog.tsx`
 - [ ] Step 7: Create `TransactionDataTable/index.tsx`
