@@ -116,12 +116,9 @@ export const useKeyboardNavigation = ({
   )
 
   useEffect(() => {
-    const container = containerRef.current
-    if (!container) return
-
-    container.addEventListener('keydown', handleKeyDown)
-    return () => container.removeEventListener('keydown', handleKeyDown)
-  }, [handleKeyDown, containerRef])
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [handleKeyDown])
 
   const clearFocus = useCallback(() => {
     setFocusedIndex(null)

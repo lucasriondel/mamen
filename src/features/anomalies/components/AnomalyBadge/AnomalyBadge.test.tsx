@@ -5,6 +5,7 @@ import { AnomalyBadge } from './index'
 import type { AnomalyFlag } from '@/types'
 
 vi.mock('@/components/ui/tooltip', () => ({
+  TooltipProvider: ({ children }: { children: React.ReactNode }) => children,
   Tooltip: ({ children }: { children: React.ReactNode }) => children,
   TooltipTrigger: ({ children, asChild, ...props }: { children: React.ReactNode; asChild?: boolean }) => <span {...props}>{children}</span>,
   TooltipContent: ({ children }: { children: React.ReactNode }) => <div data-testid="tooltip-content">{children}</div>,
