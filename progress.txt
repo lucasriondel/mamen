@@ -1,0 +1,30 @@
+## Transaction List Rework Progress
+
+### Phase 1: Foundation
+
+- [x] Step 1: Install `@tanstack/react-table` — installed v8.21.3. Tests pass (141/142, 1 pre-existing failure in accounts.test.tsx). No new TS errors.
+- [x] Step 2: Create `deleteTransactions.ts` service + tests — `deleteTransactions` and `undoDeleteTransactions` following batchCategoryAssign pattern. 5 tests pass (delete, preserve state, empty array, non-existent ids, undo restore). No TS errors.
+- [x] Step 3: Create `useDeleteTransactions.ts` hook — manages confirmation dialog state (`isDeleteDialogOpen`, `pendingDeleteIds`), `requestDelete`/`confirmDelete`/`cancelDelete` API. On confirm: calls service, shows sonner toast with Undo action (10s). Pattern follows `useBatchCategoryAssign`. No TS errors, 142/143 tests pass (1 pre-existing failure).
+
+### Phase 2: DataTable Core
+
+- [x] Step 4: Create `columns.tsx` — 5 column definitions (select checkbox, date, description, category, amount) + `TransactionTableMeta` type for passing callbacks/animation state via `table.options.meta`. Replicates all rendering from TransactionRow (badges, anomalies, refund links, cascade animations). No TS errors, 142/143 tests pass (1 pre-existing failure).
+- [x] Step 5: Create `useTransactionTableKeyboard.ts` — keyboard hook for DataTable. Manages cursor movement (J/K/arrows), Shift+Arrow range selection via TanStack Table `row.toggleSelected()`, Space/X toggle on cursor row, Escape (clear selection first, then cursor), R/C/F/D action keys with 3-tier target resolution (selection > cursor > hover). Uses refs for stable callbacks, scroll-to-cursor via virtualizer. Guards for modals (enabled prop) and input elements. No TS errors, 142/143 tests pass (1 pre-existing failure).
+- [x] Step 6: Create `DeleteConfirmDialog.tsx` — wraps shadcn AlertDialog with props: `open`, `onOpenChange`, `count`, `onConfirm`, `isDeleting`. Shows dynamic title/description based on count, destructive confirm button with loading state. No TS errors, 142/143 tests pass (1 pre-existing failure).
+- [x] Step 7: Create `TransactionDataTable/index.tsx` — main component (~350 lines) combining all Phase 1+2 pieces. Uses `useReactTable` with `getCoreRowModel`, `getSortedRowModel`, row selection, `getRowId`. Div-based virtualized rows with `useVirtualizer` (48px, overscan 5). Cursor state (`cursorRowId`) + hover state (`hoveredRowId`) for 3-tier action dispatch. All existing modal handlers (MerchantAssignment, QuickCategoryPicker, RefundLink) + new delete flow via `useDeleteTransactions`. Cascade animation integration. Empty states, drill-down filter bar, highlight navigation, sortable column headers with ArrowUpDown icons. No TS errors, 142/143 tests pass (1 pre-existing failure).
+
+### Phase 3: Integration
+
+- [x] Step 8: Replace `TransactionList/index.tsx` with re-export — replaced entire file with `export { TransactionDataTable as TransactionList } from '../TransactionDataTable'`. Updated 4 existing tests to match new DOM structure (cursor uses `bg-muted/30` instead of `ring-2`, row click toggles cursor not selection). No TS errors, 142/143 tests pass (1436/1436 tests, 1 pre-existing failure in accounts.test.tsx).
+- [x] Step 9: Update `SelectionStatusBar` with D key hint — added `D` key kbd + "Delete" label alongside existing R and C hints in the key hints section. No TS errors, 142/143 tests pass (1 pre-existing failure in accounts.test.tsx).
+- [x] Step 10: Update `routes/transactions.tsx` footer with D key hint — added `D` key kbd + "Delete" label after the existing F/Refund hint in the keyboard footer. No TS errors, 142/143 tests pass (1 pre-existing failure in accounts.test.tsx).
+
+### Phase 4: Cleanup
+
+- [~] Step 11: Delete `TransactionRow/index.tsx` — SKIPPED: `TransactionRow` is still imported by `MerchantTransactionList` (`src/features/merchants/components/MerchantTransactionList/index.tsx`). Cannot delete until that dependency is removed or migrated.
+- [x] Step 12: Check and delete unused hooks — `useKeyboardNavigation` still used by RulesPage, SubscriptionsList, MerchantsList (kept). `useMultiSelect` only referenced by its own test file — deleted `useMultiSelect.ts` and `useMultiSelect.test.ts`. No TS errors, 141/142 tests pass (1421 tests, 1 pre-existing failure in accounts.test.tsx).
+
+### Phase 5: Testing & Verification
+
+- [x] Step 13: Run all tests — TypeScript: no errors. Vitest: 141/142 test files pass, 1421/1421 tests pass. Only failure is pre-existing `accounts.test.tsx` (DOMMatrix not defined in test env, unrelated to this work). All transaction-related tests pass including re-export alias, keyboard navigation, and delete service tests.
+- [ ] Step 14: Manual verification — ALL automated steps complete. This step requires manual browser testing of: keyboard nav (J/K/arrows), cursor highlighting, checkbox selection, Shift+Arrow range, hover targeting, R/C/F/D actions, delete with undo, column sorting, empty states, drill-down filter, cascade animations. Final automated check: TypeScript no errors, 141/142 tests pass (1421/1421 tests), only pre-existing accounts.test.tsx failure remains.
