@@ -64,6 +64,7 @@ type ImportCSVModalProps = {
 
 const DATE_FORMAT_OPTIONS: { value: DateFormatOption; label: string }[] = [
   { value: 'auto', label: 'Auto-detect' },
+  { value: 'ISO-8601', label: 'ISO 8601 (2026-01-01T12:00:00Z)' },
   { value: 'DD/MM/YYYY', label: 'DD/MM/YYYY' },
   { value: 'MM/DD/YYYY', label: 'MM/DD/YYYY' },
   { value: 'YYYY-MM-DD', label: 'YYYY-MM-DD' },
@@ -91,6 +92,7 @@ export function ImportCSVModal({
   const [dateColumn, setDateColumn] = useState(UNMAPPED)
   const [amountColumn, setAmountColumn] = useState(UNMAPPED)
   const [descriptionColumn, setDescriptionColumn] = useState(UNMAPPED)
+  const [directionColumn, setDirectionColumn] = useState(UNMAPPED)
   const [dateFormat, setDateFormat] = useState<DateFormatOption>('auto')
   const [duplicateResult, setDuplicateResult] = useState<DuplicateCheckResult | null>(null)
   const [parsedTransactions, setParsedTransactions] = useState<ParsedTransaction[] | null>(null)
@@ -104,6 +106,7 @@ export function ImportCSVModal({
     setDateColumn(UNMAPPED)
     setAmountColumn(UNMAPPED)
     setDescriptionColumn(UNMAPPED)
+    setDirectionColumn(UNMAPPED)
     setDateFormat('auto')
     setDuplicateResult(null)
     setParsedTransactions(null)
@@ -112,10 +115,11 @@ export function ImportCSVModal({
       .then((result) => {
         setPreview(result)
 
-        const detected = autoDetectColumns(result.headers)
+        const detected = autoDetectColumns(result.headers, result.rows)
         if (detected.dateColumn) setDateColumn(detected.dateColumn)
         if (detected.amountColumn) setAmountColumn(detected.amountColumn)
         if (detected.descriptionColumn) setDescriptionColumn(detected.descriptionColumn)
+        if (detected.directionColumn) setDirectionColumn(detected.directionColumn)
 
         if (detected.dateColumn) {
           const dateIdx = result.headers.indexOf(detected.dateColumn)
@@ -154,6 +158,7 @@ export function ImportCSVModal({
         dateColumn,
         amountColumn,
         descriptionColumn,
+        ...(directionColumn !== UNMAPPED && { directionColumn }),
       }
 
       const parsed = await parseCSVTransactions(file, preview.hasHeaders, mapping, dateFormat)
@@ -288,7 +293,7 @@ export function ImportCSVModal({
               {/* Column Mapping */}
               <div className="space-y-3">
                 <h4 className="text-sm font-medium">Column Mapping</h4>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label htmlFor="date-column" className="text-xs">Date</Label>
                     <Select value={dateColumn} onValueChange={setDateColumn}>
@@ -326,6 +331,22 @@ export function ImportCSVModal({
                         <SelectValue placeholder="Select column" />
                       </SelectTrigger>
                       <SelectContent>
+                        {preview.headers.map((header) => (
+                          <SelectItem key={header} value={header}>
+                            {header}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="direction-column" className="text-xs">Direction (optional)</Label>
+                    <Select value={directionColumn} onValueChange={setDirectionColumn}>
+                      <SelectTrigger id="direction-column">
+                        <SelectValue placeholder="None" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={UNMAPPED}>None</SelectItem>
                         {preview.headers.map((header) => (
                           <SelectItem key={header} value={header}>
                             {header}

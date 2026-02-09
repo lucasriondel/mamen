@@ -1,6 +1,6 @@
 import Papa from 'papaparse'
 import { db } from '@/lib/db'
-import { parseFullCSV, parseDate, parseAmount } from '@/lib/csv/parser'
+import { parseFullCSV, parseDate, parseAmount, isDebitDirection } from '@/lib/csv/parser'
 import type { ColumnMapping, DateFormatOption } from '@/lib/csv/parser'
 import type { Transaction } from '@/types'
 import type { ParsedTransaction } from '../types/duplicate.types'
@@ -30,6 +30,7 @@ export const parseCSVTransactions = async (
   const dateIdx = headerRow.indexOf(mapping.dateColumn)
   const amountIdx = headerRow.indexOf(mapping.amountColumn)
   const descIdx = headerRow.indexOf(mapping.descriptionColumn)
+  const dirIdx = mapping.directionColumn ? headerRow.indexOf(mapping.directionColumn) : -1
 
   if (dateIdx === -1 || amountIdx === -1 || descIdx === -1) {
     throw new Error('Column mapping is invalid')
@@ -41,6 +42,7 @@ export const parseCSVTransactions = async (
     const dateStr = row[dateIdx]
     const amountStr = row[amountIdx]
     const description = row[descIdx]
+    const direction = dirIdx !== -1 ? row[dirIdx] : undefined
 
     if (!dateStr || !amountStr) continue
 
@@ -50,9 +52,14 @@ export const parseCSVTransactions = async (
     const amount = parseAmount(amountStr)
     if (amount === null) continue
 
+    // Apply direction: if a direction column is mapped, use it to determine sign
+    const signedAmount = direction
+      ? (isDebitDirection(direction) ? -Math.abs(amount) : Math.abs(amount))
+      : amount
+
     transactions.push({
       date,
-      amount,
+      amount: signedAmount,
       rawMerchantString: (description ?? '').trim(),
     })
   }
