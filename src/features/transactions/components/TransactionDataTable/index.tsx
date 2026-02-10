@@ -2,6 +2,7 @@ import { useRef, useState, useCallback, useEffect, useMemo } from 'react'
 import {
   useReactTable,
   getCoreRowModel,
+  getFilteredRowModel,
   getSortedRowModel,
   flexRender,
   type SortingState,
@@ -26,6 +27,7 @@ import { useFilteredTransactions } from '../../hooks/useFilteredTransactions'
 import { useQuickCategoryAssign } from '../../hooks/useQuickCategoryAssign'
 import { useBatchCategoryAssign } from '../../hooks/useBatchCategoryAssign'
 import { useDrillDownFilter } from '../../hooks/useDrillDownFilter'
+import { useTransactionFilters } from '../../hooks/useTransactionFilters'
 import { useNavigateToTransaction } from '../../hooks/useNavigateToTransaction'
 import { useDeleteTransactions } from '../../hooks/useDeleteTransactions'
 import { useFocusMode } from '@/context/FocusModeContext'
@@ -61,6 +63,8 @@ export function TransactionDataTable({ highlightId }: TransactionDataTableProps)
   }, [isSubscriptionsMode, allSubscriptions])
 
   const { filter: drillDown, isActive: isDrillDown, clearDrillDownFilter, clearAllFilters } = useDrillDownFilter()
+  const transactionFilters = useTransactionFilters()
+  const accounts = useLiveQuery(() => db.accounts.toArray(), []) ?? []
 
   const categoryName = useLiveQuery(async () => {
     if (drillDown.categoryId == null) return null
@@ -144,10 +148,11 @@ export function TransactionDataTable({ highlightId }: TransactionDataTableProps)
   const table = useReactTable({
     data: transactions,
     columns,
-    state: { sorting, rowSelection, columnVisibility: { accountId: false } },
+    state: { sorting, rowSelection, columnFilters: transactionFilters.columnFilters, columnVisibility: { accountId: false } },
     onSortingChange: setSorting,
     onRowSelectionChange: setRowSelection,
     getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getRowId: (row) => String(row.id),
     meta: tableMeta,
@@ -243,15 +248,18 @@ export function TransactionDataTable({ highlightId }: TransactionDataTableProps)
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [isDrillDown, clearDrillDownFilter])
 
-  // --- Clear selection/cursor when focus mode changes ---
+  // --- Clear selection/cursor/column-filters when focus mode or drill-down changes ---
   const filtersKey = Array.from(activeFilters).sort().join(',')
-  const prevFiltersKeyRef = useRef(filtersKey)
+  const drillDownKey = isDrillDown ? `${drillDown.categoryId}-${drillDown.periodStart}-${drillDown.periodEnd}` : ''
+  const combinedKey = `${filtersKey}|${drillDownKey}`
+  const prevFiltersKeyRef = useRef(combinedKey)
   useEffect(() => {
-    if (prevFiltersKeyRef.current === filtersKey) return
-    prevFiltersKeyRef.current = filtersKey
+    if (prevFiltersKeyRef.current === combinedKey) return
+    prevFiltersKeyRef.current = combinedKey
     table.resetRowSelection()
     setCursorRowId(null)
-  }, [filtersKey, table])
+    transactionFilters.clearAllFilters()
+  }, [combinedKey, table, transactionFilters.clearAllFilters])
 
   // --- Handle highlight from search navigation ---
   useEffect(() => {

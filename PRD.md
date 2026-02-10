@@ -95,7 +95,7 @@ Mutually exclusive handling within groups (amount range ↔ precise, date exact 
 
 ---
 
-Step 5: Update TanStack Table config
+Step 5: Update TanStack Table config ✅
 
 Modify: src/features/transactions/components/TransactionDataTable/index.tsx
 

@@ -48,3 +48,15 @@
 - `activeFilterCount` and `hasActiveFilters` derived from columnFilters length
 - TypeScript type check passes (`tsc --noEmit`)
 - All relevant tests pass (same 2 pre-existing failures)
+
+### Step 5: Update TanStack Table config ✅
+- Modified `src/features/transactions/components/TransactionDataTable/index.tsx`:
+  - Imported `getFilteredRowModel` from `@tanstack/react-table`
+  - Imported and called `useTransactionFilters()` hook
+  - Fetched accounts via `useLiveQuery(() => db.accounts.toArray(), []) ?? []`
+  - Added `columnFilters: transactionFilters.columnFilters` to `useReactTable` state
+  - Added `getFilteredRowModel: getFilteredRowModel()` to table config (between getCoreRowModel and getSortedRowModel)
+  - Extended existing FocusMode state-reset effect to also track drill-down changes via combined key, calling `transactionFilters.clearAllFilters()` on change
+- TypeScript type check passes (`tsc --noEmit`)
+- Vite build passes successfully
+- All relevant tests pass (same 2 pre-existing failures)
