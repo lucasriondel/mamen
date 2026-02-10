@@ -19,3 +19,16 @@
 - TypeScript type check passes (`tsc --noEmit`)
 - Vite build passes successfully
 - All relevant tests pass (same 2 pre-existing failures)
+
+### Step 3: Register filter functions on columns ✅
+- Modified `src/features/transactions/components/TransactionDataTable/columns.tsx`:
+  - Imported all 5 filter functions from `./filterFns`
+  - Registered `dateFilterFn` on the `date` column
+  - Registered `descriptionFilterFn` on the `rawMerchantString` column
+  - Registered `categoryFilterFn` on the `category` column (added `accessorFn: (row) => row.categoryId`)
+  - Registered `amountFilterFn` on the `amount` column
+  - Added hidden `accountId` column with `accessorFn`, `accountsFilterFn`, `enableHiding: true`, `enableSorting: false`
+- Modified `src/features/transactions/components/TransactionDataTable/index.tsx`:
+  - Added `columnVisibility: { accountId: false }` to table state to hide the accountId column from rendering
+- TypeScript type check passes (`tsc --noEmit`)
+- All relevant tests pass (same 2 pre-existing failures)

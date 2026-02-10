@@ -144,7 +144,7 @@ export function TransactionDataTable({ highlightId }: TransactionDataTableProps)
   const table = useReactTable({
     data: transactions,
     columns,
-    state: { sorting, rowSelection },
+    state: { sorting, rowSelection, columnVisibility: { accountId: false } },
     onSortingChange: setSorting,
     onRowSelectionChange: setRowSelection,
     getCoreRowModel: getCoreRowModel(),

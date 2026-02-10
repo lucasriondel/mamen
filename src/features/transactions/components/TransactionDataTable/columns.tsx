@@ -9,6 +9,13 @@ import { formatCurrency } from '@/lib/utils/formatCurrency'
 import { formatDate } from '@/lib/utils/formatDate'
 import { cn } from '@/lib/utils'
 import type { Transaction, AnomalyType } from '@/types'
+import {
+  amountFilterFn,
+  dateFilterFn,
+  categoryFilterFn,
+  descriptionFilterFn,
+  accountsFilterFn,
+} from './filterFns'
 
 export type TransactionTableMeta = {
   getMerchantCreatedAt: (merchantId: number | undefined) => Date | undefined
@@ -56,6 +63,7 @@ export const columns: ColumnDef<Transaction>[] = [
       </div>
     ),
     enableSorting: true,
+    filterFn: dateFilterFn,
   },
   {
     accessorKey: 'rawMerchantString',
@@ -73,10 +81,13 @@ export const columns: ColumnDef<Transaction>[] = [
       )
     },
     enableSorting: true,
+    filterFn: descriptionFilterFn,
   },
   {
     id: 'category',
+    accessorFn: (row) => row.categoryId,
     header: 'Category',
+    filterFn: categoryFilterFn,
     cell: ({ row, table }) => {
       const tx = row.original
       const meta = table.options.meta as TransactionTableMeta
@@ -139,6 +150,7 @@ export const columns: ColumnDef<Transaction>[] = [
   {
     accessorKey: 'amount',
     header: () => <div className="text-right">Amount</div>,
+    filterFn: amountFilterFn,
     cell: ({ row, table }) => {
       const tx = row.original
       const meta = table.options.meta as TransactionTableMeta
@@ -177,5 +189,12 @@ export const columns: ColumnDef<Transaction>[] = [
       )
     },
     enableSorting: true,
+  },
+  {
+    id: 'accountId',
+    accessorFn: (row) => row.accountId,
+    filterFn: accountsFilterFn,
+    enableHiding: true,
+    enableSorting: false,
   },
 ]

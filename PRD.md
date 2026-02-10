@@ -54,7 +54,7 @@ One function per filter type, signature: (row: Row<Transaction>, columnId: strin
 
 ---
 
-Step 3: Register filter functions on columns
+Step 3: Register filter functions on columns ✅
 
 Modify: src/features/transactions/components/TransactionDataTable/columns.tsx
 
