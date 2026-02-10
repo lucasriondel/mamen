@@ -1,85 +1,14 @@
-## Progress Log
+## Step 0a: Install Turborepo and scaffold structure ✅
 
-### Step 1: Install shadcn Calendar ✅
-- Ran `npx shadcn@latest add calendar --yes`
-- Created `src/components/ui/calendar.tsx` with react-day-picker integration
-- react-day-picker dependency auto-installed
-- Vite build passes successfully
-- All relevant tests pass (2 pre-existing failures unrelated to this change)
-
-### Step 2: Create custom filter functions ✅
-- Created `src/features/transactions/components/TransactionDataTable/filterFns.ts`
-- Implemented 5 filter functions with proper TanStack Row<Transaction> signatures:
-  - `amountFilterFn` — dual-mode: precise (number) or range ({ min?, max? }), operates on Math.abs(amount)
-  - `dateFilterFn` — tri-mode: exact Date, range ({ start?, end? }), or month/year ({ month, year })
-  - `categoryFilterFn` — matches categoryId or subcategoryId
-  - `descriptionFilterFn` — case-insensitive includes on rawMerchantString
-  - `accountsFilterFn` — checks accountId membership in number[]
-- All functions include `autoRemove` for TanStack auto-cleanup
-- TypeScript type check passes (`tsc --noEmit`)
-- Vite build passes successfully
-- All relevant tests pass (same 2 pre-existing failures)
-
-### Step 3: Register filter functions on columns ✅
-- Modified `src/features/transactions/components/TransactionDataTable/columns.tsx`:
-  - Imported all 5 filter functions from `./filterFns`
-  - Registered `dateFilterFn` on the `date` column
-  - Registered `descriptionFilterFn` on the `rawMerchantString` column
-  - Registered `categoryFilterFn` on the `category` column (added `accessorFn: (row) => row.categoryId`)
-  - Registered `amountFilterFn` on the `amount` column
-  - Added hidden `accountId` column with `accessorFn`, `accountsFilterFn`, `enableHiding: true`, `enableSorting: false`
-- Modified `src/features/transactions/components/TransactionDataTable/index.tsx`:
-  - Added `columnVisibility: { accountId: false }` to table state to hide the accountId column from rendering
-- TypeScript type check passes (`tsc --noEmit`)
-- All relevant tests pass (same 2 pre-existing failures)
-
-### Step 4: Create filter state hook ✅
-- Created `src/features/transactions/hooks/useTransactionFilters.ts`
-- Exported `TransactionFilterValues` type with all filter fields per PRD spec
-- Implements `columnFilters` via `useMemo` converting filter state → `ColumnFiltersState`
-- Setter functions with mutual exclusivity:
-  - `setDescription` — text search
-  - `setAmountRange` / `setAmountPrecise` — clears the other mode on set
-  - `setCategory` — categoryId + optional subcategoryId
-  - `setDateExact` / `setDateRange` / `setMonthYear` — clears other date modes on set
-  - `setAccountIds` — multi-select account IDs
-- `clearFilter(group)` — clears all fields in a filter group (description, amount, category, date, account)
-- `clearAllFilters()` — resets all filter state to empty
-- `activeFilterCount` and `hasActiveFilters` derived from columnFilters length
-- TypeScript type check passes (`tsc --noEmit`)
-- All relevant tests pass (same 2 pre-existing failures)
-
-### Step 5: Update TanStack Table config ✅
-- Modified `src/features/transactions/components/TransactionDataTable/index.tsx`:
-  - Imported `getFilteredRowModel` from `@tanstack/react-table`
-  - Imported and called `useTransactionFilters()` hook
-  - Fetched accounts via `useLiveQuery(() => db.accounts.toArray(), []) ?? []`
-  - Added `columnFilters: transactionFilters.columnFilters` to `useReactTable` state
-  - Added `getFilteredRowModel: getFilteredRowModel()` to table config (between getCoreRowModel and getSortedRowModel)
-  - Extended existing FocusMode state-reset effect to also track drill-down changes via combined key, calling `transactionFilters.clearAllFilters()` on change
-- TypeScript type check passes (`tsc --noEmit`)
-- Vite build passes successfully
-- All relevant tests pass (same 2 pre-existing failures)
-
-### Step 6: Build filter toolbar UI ✅
-- Created `src/features/transactions/components/TransactionFilters/` directory with 6 files:
-  - `FilterToolbar.tsx` — Main toolbar component with toggle button, active count badge, description search input, "Showing X of Y" indicator, and "Clear all" button. Renders filter trigger row when expanded or when filters are active.
-  - `AmountFilter.tsx` — Popover with RadioGroup (Range / Precise) mode toggle. Range: two number inputs (min, max). Precise: single number input. Apply/Clear buttons. Syncs local state on open.
-  - `CategoryFilter.tsx` — Popover with Command (cmdk) searchable list. Parent categories as CommandGroup headings with color dot indicators. Subcategories indented. Reuses `useCategories()` hook.
-  - `DateFilter.tsx` — Popover with RadioGroup (Exact / Range / Month+Year) mode toggle. Exact: Calendar mode="single". Range: Calendar mode="range". Month+Year: two Select dropdowns. Apply/Clear buttons.
-  - `AccountFilter.tsx` — Popover with checkbox list of accounts. Multi-select with Apply/Clear buttons. Syncs local state on open.
-  - `index.ts` — Barrel export for FilterToolbar
-- All filter components accept `filterValues` + setter callbacks from `useTransactionFilters` hook
-- Active filters highlight trigger buttons via `variant="default"` vs `variant="outline"`
-- TypeScript type check passes (`tsc --noEmit`)
-- Vite build passes successfully
-
-### Step 7: Integrate toolbar into TransactionDataTable ✅
-- Modified `src/features/transactions/components/TransactionDataTable/index.tsx`:
-  - Imported `FilterToolbar` from `../TransactionFilters`
-  - Rendered `<FilterToolbar>` between drill-down header bars and column headers, inside the existing `flex flex-col h-full` wrapper
-  - Props passed: `filters` (transactionFilters hook), `accounts` (from useLiveQuery), `totalCount` (transactions.length, pre-filter), `filteredCount` (tableRows.length, post-filter from TanStack getFilteredRowModel)
-  - FilterToolbar always available, stacks on top of FocusMode/DrillDown filters
-- TypeScript type check passes (`tsc --noEmit`)
-- Vite build passes successfully
-- All relevant tests pass (same 2 pre-existing failures)
+- Installed turbo@2.8.5 as root devDependency
+- Added `workspaces: ["packages/*"]` and `packageManager: "bun@1.3.4"` to root package.json
+- Added turbo:* scripts to root package.json (turbo:dev, turbo:build, turbo:test, turbo:lint, turbo:typecheck)
+- Created `turbo.json` with build/dev/test/lint/typecheck task pipeline
+- Created `tsconfig.base.json` with shared compiler options
+- Created `packages/shared/` with package.json, tsconfig.json, and src/index.ts placeholder
+- Created `packages/web/` with package.json and tsconfig.json (code moves in Step 0b)
+- Created `packages/server/` with package.json, tsconfig.json, and src/index.ts placeholder
+- Added `.turbo` to .gitignore
+- Verified: turbo --dry-run sees all 3 packages (@mamen/shared, @mamen/web, @mamen/server)
+- Verified: existing tests still pass (140/142 test files, 1443/1444 tests - 2 pre-existing failures)
+- Verified: pre-existing type errors unchanged
