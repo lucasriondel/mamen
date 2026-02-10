@@ -84,3 +84,22 @@
 - Verified: `tsc --noEmit` passes cleanly in server package
 - Verified: server starts, `/api/health` returns 200, unknown API routes return 404, non-API routes serve SPA
 - Verified: web tests still pass (140/142 test files, 1443/1444 tests — same 2 pre-existing failures)
+
+## Step 2: Repository Port Interfaces ✅
+
+- Created `packages/server/src/lib/repository/ports/` directory with 11 port files
+- `base.port.ts` — Generic `BaseRepository<T>` type with CRUD operations: get, getAll, add, bulkAdd, update, bulkPut, delete, bulkDelete, bulkGet, count, clear
+- `account.port.ts` — Extends base with: getByName, getByType
+- `transaction.port.ts` — Richest port, extends base with: getByAccountId, getByAccountIdAndMonth, countByAccountIdAndMonth, deleteByAccountIdAndMonth, getByMerchantId, getByCategoryId, getByDateRange, getByImportBatchId, countByImportBatchId, deleteByImportBatchId, getByLinkedRefundId, getAllOrderedByDate, bulkAddReturningIds, filterByPredicate, filterIdsByPredicate
+- `merchant.port.ts` — Extends base with: getByName, getByNameCaseInsensitive, getAllOrderedByName
+- `rule.port.ts` — Extends base with: getByMerchantId, countByMerchantId, getByMerchantIdAndPattern
+- `setting.port.ts` — Extends base with: getByKey, putByKey
+- `app-settings.port.ts` — Standalone type (singleton): get, put, clear
+- `category.port.ts` — Extends base with: getBySlug, getByParentId, getByParentIdOrderedBySortOrder, getRootCategories, getAllOrderedBySortOrder
+- `subscription.port.ts` — Extends base with: getByMerchantId, getFirstByMerchantId, getByMerchantIdAndFrequency, getByStatus
+- `unit-of-work.port.ts` — Transaction wrapper: run<T>(fn) => Promise<T>
+- `database.port.ts` — Lifecycle: open, close, delete
+- `index.ts` — Barrel re-export of all port types
+- Verified: `tsc --noEmit` passes cleanly in server package
+- Verified: server tests pass (0 tests, --passWithNoTests)
+- Verified: web tests still pass (140/142 test files, 1443/1444 tests — same 2 pre-existing failures)
