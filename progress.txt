@@ -32,3 +32,19 @@
   - Added `columnVisibility: { accountId: false }` to table state to hide the accountId column from rendering
 - TypeScript type check passes (`tsc --noEmit`)
 - All relevant tests pass (same 2 pre-existing failures)
+
+### Step 4: Create filter state hook ✅
+- Created `src/features/transactions/hooks/useTransactionFilters.ts`
+- Exported `TransactionFilterValues` type with all filter fields per PRD spec
+- Implements `columnFilters` via `useMemo` converting filter state → `ColumnFiltersState`
+- Setter functions with mutual exclusivity:
+  - `setDescription` — text search
+  - `setAmountRange` / `setAmountPrecise` — clears the other mode on set
+  - `setCategory` — categoryId + optional subcategoryId
+  - `setDateExact` / `setDateRange` / `setMonthYear` — clears other date modes on set
+  - `setAccountIds` — multi-select account IDs
+- `clearFilter(group)` — clears all fields in a filter group (description, amount, category, date, account)
+- `clearAllFilters()` — resets all filter state to empty
+- `activeFilterCount` and `hasActiveFilters` derived from columnFilters length
+- TypeScript type check passes (`tsc --noEmit`)
+- All relevant tests pass (same 2 pre-existing failures)
