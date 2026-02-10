@@ -40,7 +40,7 @@ Installs react-day-picker + creates src/components/ui/calendar.tsx.
 
 ---
 
-Step 2: Create custom filter functions
+Step 2: Create custom filter functions ✅
 
 New file: src/features/transactions/components/TransactionDataTable/filterFns.ts
 

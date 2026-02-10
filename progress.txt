@@ -6,3 +6,16 @@
 - react-day-picker dependency auto-installed
 - Vite build passes successfully
 - All relevant tests pass (2 pre-existing failures unrelated to this change)
+
+### Step 2: Create custom filter functions ✅
+- Created `src/features/transactions/components/TransactionDataTable/filterFns.ts`
+- Implemented 5 filter functions with proper TanStack Row<Transaction> signatures:
+  - `amountFilterFn` — dual-mode: precise (number) or range ({ min?, max? }), operates on Math.abs(amount)
+  - `dateFilterFn` — tri-mode: exact Date, range ({ start?, end? }), or month/year ({ month, year })
+  - `categoryFilterFn` — matches categoryId or subcategoryId
+  - `descriptionFilterFn` — case-insensitive includes on rawMerchantString
+  - `accountsFilterFn` — checks accountId membership in number[]
+- All functions include `autoRemove` for TanStack auto-cleanup
+- TypeScript type check passes (`tsc --noEmit`)
+- Vite build passes successfully
+- All relevant tests pass (same 2 pre-existing failures)
