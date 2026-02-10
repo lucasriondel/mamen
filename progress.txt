@@ -68,3 +68,19 @@
 - Verified: `bun run test` — @mamen/server passes (0 tests, --passWithNoTests); @mamen/web passes (140/142 test files, 1443/1444 tests — same 2 pre-existing failures)
 - Verified: `bun run dev` — both web (Vite on :5173) and server (Bun on :3000) start in parallel via Turborepo
 - Verified: @mamen/shared types consumed correctly by both web and server packages
+
+## Step 1: Bun Server Scaffold ✅
+
+- Created `packages/server/src/router.ts` — simple route matcher for /api/* endpoints
+  - Supports GET/POST/PUT/DELETE/PATCH methods with pattern matching (including `:param` segments)
+  - Exports `router` object for registering routes and `handleRequest` for dispatching
+  - Returns 404 JSON for unmatched API routes, 500 JSON on handler errors
+- Updated `packages/server/src/index.ts` — full Bun.serve entry point
+  - API routing via `handleRequest()` from router
+  - Static file serving from `packages/web/dist/` for production
+  - SPA fallback (serves index.html for client-side routing paths)
+  - Health check endpoint: GET `/api/health` → `{ status: "ok" }`
+- Vite dev proxy already configured in Step 0e (`/api` → `http://localhost:3000`)
+- Verified: `tsc --noEmit` passes cleanly in server package
+- Verified: server starts, `/api/health` returns 200, unknown API routes return 404, non-API routes serve SPA
+- Verified: web tests still pass (140/142 test files, 1443/1444 tests — same 2 pre-existing failures)
