@@ -1,6 +1,6 @@
 import { db } from '@/lib/db'
 import type { Transaction } from '@/types'
-import type { LLMTransaction } from '@/lib/schemas/llmTransaction.schema'
+import type { LLMTransaction } from '@/lib/schemas'
 
 export type PDFImportResult = {
   count: number

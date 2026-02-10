@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { ruleSchema, createRuleSchema } from './rule.schema'
+import { ruleSchema, createRuleSchema } from '@/lib/schemas'
 
 describe('ruleSchema', () => {
   it('validates a valid rule', () => {

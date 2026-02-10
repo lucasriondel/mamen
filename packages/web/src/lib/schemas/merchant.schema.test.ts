@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { merchantSchema, createMerchantSchema } from './merchant.schema'
+import { merchantSchema, createMerchantSchema } from '@/lib/schemas'
 
 describe('merchantSchema', () => {
   it('validates a valid merchant', () => {

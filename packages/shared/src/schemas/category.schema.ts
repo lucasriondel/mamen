@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { Category } from '@/types'
+import type { Category } from '../types'
 
 export const categorySchema = z.object({
   id: z.number().optional(),

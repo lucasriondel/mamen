@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { Account } from '@/types'
+import type { Account } from '../types'
 
 export const accountTypeSchema = z.enum(['checking', 'savings', 'credit_card', 'other'])
 

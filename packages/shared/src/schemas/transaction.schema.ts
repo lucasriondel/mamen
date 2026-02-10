@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { Transaction } from '@/types'
+import type { Transaction } from '../types'
 import { anomalyFlagSchema } from './anomaly.schema'
 
 export const transactionSchema = z.object({

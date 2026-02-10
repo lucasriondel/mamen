@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { transactionSchema, createTransactionSchema } from './transaction.schema'
+import { transactionSchema, createTransactionSchema } from '@/lib/schemas'
 
 describe('transactionSchema', () => {
   it('validates a valid transaction', () => {

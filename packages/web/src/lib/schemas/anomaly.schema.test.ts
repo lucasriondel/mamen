@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { anomalyTypeSchema, anomalyFlagSchema, anomalySettingsSchema } from './anomaly.schema'
+import { anomalyTypeSchema, anomalyFlagSchema, anomalySettingsSchema } from '@/lib/schemas'
 
 describe('anomalyTypeSchema', () => {
   it('validates high-amount', () => {

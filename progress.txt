@@ -25,3 +25,23 @@
 - Verified: `vitest run` passes (140/142 test files, 1443/1444 tests — same 2 pre-existing failures)
 - Verified: `vite dev` starts successfully
 - Verified: `turbo test` runs from root correctly
+
+## Step 0c: Extract shared types to packages/shared/ ✅
+
+- Moved 8 type files from `packages/web/src/types/` → `packages/shared/src/types/` via `git mv`
+  - account.types.ts, transaction.types.ts, anomaly.types.ts, merchant.types.ts, rule.types.ts, settings.types.ts, category.types.ts, subscription.types.ts
+- Moved 10 schema files from `packages/web/src/lib/schemas/` → `packages/shared/src/schemas/` via `git mv`
+  - account.schema.ts, transaction.schema.ts, anomaly.schema.ts, merchant.schema.ts, rule.schema.ts, settings.schema.ts, category.schema.ts, subscription.schema.ts, llmTransaction.schema.ts, duplicateCheck.schema.ts
+- Moved barrel index files (types/index.ts, schemas/index.ts) to shared package
+- Updated all schema imports from `@/types` → relative `../types` (internal to shared package)
+- Added `zod` as dependency in `packages/shared/package.json`
+- Created `packages/shared/src/index.ts` barrel re-exporting all types and schemas
+- Created re-export shims in web package:
+  - `packages/web/src/types/index.ts` → re-exports all types from `@mamen/shared`
+  - `packages/web/src/lib/schemas/index.ts` → re-exports all schemas from `@mamen/shared`
+- Updated 3 direct `@/types/<file>` subpath imports in useMerchantDetail.ts → barrel `@/types`
+- Updated 6 direct `@/lib/schemas/llmTransaction.schema` imports → barrel `@/lib/schemas`
+- Updated 7 schema test files to import from `@/lib/schemas` barrel instead of relative paths
+- Verified: `@mamen/shared` typechecks successfully
+- Verified: `vite build` succeeds (dist built in 2.29s)
+- Verified: `vitest run` passes (140/142 test files, 1443/1444 tests — same 2 pre-existing failures)

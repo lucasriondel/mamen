@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { Subscription } from '@/types'
+import type { Subscription } from '../types'
 
 export const subscriptionFrequencySchema = z.enum(['weekly', 'monthly', 'yearly'])
 

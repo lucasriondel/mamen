@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { AnomalyFlag, AnomalySettings } from '@/types'
+import type { AnomalyFlag, AnomalySettings } from '../types'
 
 export const anomalyTypeSchema = z.enum(['high-amount', 'new-merchant', 'potential-duplicate'])
 

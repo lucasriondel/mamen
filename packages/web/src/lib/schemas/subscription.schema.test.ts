@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { subscriptionSchema, createSubscriptionSchema } from './subscription.schema'
+import { subscriptionSchema, createSubscriptionSchema } from '@/lib/schemas'
 
 describe('subscriptionSchema', () => {
   const validSubscription = {

@@ -1,7 +1,5 @@
 import { db, useLiveQuery } from '@/lib/db'
-import type { Merchant } from '@/types/merchant.types'
-import type { Transaction } from '@/types/transaction.types'
-import type { Rule } from '@/types/rule.types'
+import type { Merchant, Transaction, Rule } from '@/types'
 
 export type TimePeriod =
   | 'this-month'

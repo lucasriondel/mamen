@@ -1,7 +1,7 @@
 import { createLLMClient } from '@/lib/llm/client'
 import { BANK_STATEMENT_PARSING_PROMPT } from '@/lib/llm/prompts'
-import { llmResponseSchema } from '@/lib/schemas/llmTransaction.schema'
-import type { LLMTransaction } from '@/lib/schemas/llmTransaction.schema'
+import { llmResponseSchema } from '@/lib/schemas'
+import type { LLMTransaction } from '@/lib/schemas'
 import type { LLMSettings } from '@/types'
 
 export type ParseResult = {

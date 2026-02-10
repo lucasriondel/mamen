@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { Rule } from '@/types'
+import type { Rule } from '../types'
 
 export const ruleSchema = z.object({
   id: z.number().optional(),

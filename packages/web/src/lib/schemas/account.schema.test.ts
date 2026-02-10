@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { accountSchema, createAccountSchema, accountTypeSchema } from './account.schema'
+import { accountSchema, createAccountSchema, accountTypeSchema } from '@/lib/schemas'
 
 describe('accountTypeSchema', () => {
   it.each(['checking', 'savings', 'credit_card', 'other'])('accepts "%s"', (type) => {

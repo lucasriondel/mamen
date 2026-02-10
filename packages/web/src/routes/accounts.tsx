@@ -35,7 +35,7 @@ import { parseStatementWithLLM } from '@/features/import/services/llmStatementPa
 import { checkLLMRequirements } from '@/lib/llm/guards'
 import type { Account } from '@/types'
 import type { Transaction } from '@/types'
-import type { LLMTransaction } from '@/lib/schemas/llmTransaction.schema'
+import type { LLMTransaction } from '@/lib/schemas'
 
 type UndoState = {
   account: Account

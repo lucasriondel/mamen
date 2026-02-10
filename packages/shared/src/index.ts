@@ -1,2 +1,21 @@
-// @mamen/shared - Entity types and Zod schemas
-// Types and schemas will be moved here from src/types/ and src/lib/schemas/ in Step 0c
+// Types
+export type { Account, AccountType } from './types/account.types'
+export type { Transaction } from './types/transaction.types'
+export type { AnomalyType, AnomalyFlag, AnomalySettings } from './types/anomaly.types'
+export type { Merchant } from './types/merchant.types'
+export type { Rule } from './types/rule.types'
+export type { Setting, SettingKey, LLMSettings, LLMProvider, AppSettings } from './types/settings.types'
+export type { Category, CategoryTreeNode, CategoryWithSubcategories, CategorySelection } from './types/category.types'
+export type { Subscription, SubscriptionFrequency, SubscriptionStatus } from './types/subscription.types'
+
+// Schemas
+export { accountSchema, accountTypeSchema, createAccountSchema, type CreateAccountInput } from './schemas/account.schema'
+export { transactionSchema, createTransactionSchema, type CreateTransactionInput } from './schemas/transaction.schema'
+export { merchantSchema, createMerchantSchema, type CreateMerchantInput } from './schemas/merchant.schema'
+export { ruleSchema, createRuleSchema, type CreateRuleInput } from './schemas/rule.schema'
+export { settingSchema, settingKeySchema, createSettingSchema, type CreateSettingInput, llmProviderSchema, llmSettingsSchema, appSettingsSchema } from './schemas/settings.schema'
+export { categorySchema, createCategorySchema, type CreateCategoryInput, updateCategorySchema, type UpdateCategoryInput } from './schemas/category.schema'
+export { subscriptionSchema, subscriptionFrequencySchema, subscriptionStatusSchema, createSubscriptionSchema, type CreateSubscriptionInput } from './schemas/subscription.schema'
+export { anomalyTypeSchema, anomalyFlagSchema, anomalySettingsSchema } from './schemas/anomaly.schema'
+export { llmTransactionSchema, llmResponseSchema, type LLMTransaction } from './schemas/llmTransaction.schema'
+export { parsedTransactionSchema, duplicateCheckResultSchema } from './schemas/duplicateCheck.schema'

@@ -39,7 +39,7 @@ import {
 } from '@/components/ui/table'
 import { detectDuplicates } from '../../services/duplicateDetector'
 import type { DuplicateCheckResult, ParsedTransaction } from '../../types/duplicate.types'
-import type { LLMTransaction } from '@/lib/schemas/llmTransaction.schema'
+import type { LLMTransaction } from '@/lib/schemas'
 import { cn } from '@/lib/utils'
 
 type PDFImportPreviewProps = {

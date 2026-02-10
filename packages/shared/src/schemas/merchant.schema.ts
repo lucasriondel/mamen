@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { Merchant } from '@/types'
+import type { Merchant } from '../types'
 
 export const merchantSchema = z.object({
   id: z.number().optional(),

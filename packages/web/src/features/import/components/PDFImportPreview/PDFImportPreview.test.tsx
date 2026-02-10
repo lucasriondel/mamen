@@ -3,7 +3,7 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { db } from '@/lib/db'
 import { PDFImportPreview } from './index'
-import type { LLMTransaction } from '@/lib/schemas/llmTransaction.schema'
+import type { LLMTransaction } from '@/lib/schemas'
 
 const mockTransactions: LLMTransaction[] = [
   { date: '2026-01-15', amount: -42.5, description: 'AMAZON.COM*123ABC' },

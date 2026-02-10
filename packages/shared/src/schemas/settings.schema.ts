@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { Setting, AppSettings } from '@/types'
+import type { Setting, AppSettings } from '../types'
 
 export const settingKeySchema = z.enum([
   'llm_endpoint',

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { settingSchema, settingKeySchema, createSettingSchema } from './settings.schema'
+import { settingSchema, settingKeySchema, createSettingSchema } from '@/lib/schemas'
 
 describe('settingKeySchema', () => {
   it.each([
