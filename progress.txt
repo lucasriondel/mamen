@@ -162,3 +162,33 @@
 - Verified: `tsc --noEmit` passes cleanly in server package
 - Verified: server tests pass (0 tests, --passWithNoTests)
 - Verified: web tests still pass (140/142 test files, 1443/1444 tests — same pre-existing failures)
+
+## Step 5: Frontend API Client ✅
+
+- Created `packages/web/src/lib/api/` directory with 12 files
+- `client.ts` — Base fetch wrapper with error handling, JSON parsing, ISO date string revival
+  - `api.get<T>(path)`, `api.post<T>(path, body?)`, `api.put<T>(path, body?)`, `api.delete<T>(path)` methods
+  - `ApiError` class with status code for error handling
+  - Automatic date string → Date object conversion in responses
+- `invalidation.ts` — Reactive query invalidation bus
+  - `subscribe(keys, listener)` — subscribe to table-level invalidation events
+  - `invalidate(...keys)` — notify all subscribers watching given table names
+  - Deduplicates listener notifications per invalidation cycle
+- `useApiQuery.ts` — React hook replacing useLiveQuery for server-backed data
+  - `useApiQuery<T>(queryFn, keys, defaultValue?)` — fetches data, re-fetches on invalidation
+  - Uses `useSyncExternalStore` for version tracking + `useEffect` for async fetch
+  - Cancellation support to prevent stale state updates
+- `accounts.ts` — accountsApi: getAll, get, getByName, getByType, create, update, delete
+- `transactions.ts` — transactionsApi: getAll (with rich query params), get, count, create, bulkAdd, bulkGet, bulkPut, update, delete, bulkDelete, deleteByAccountMonth, deleteByImportBatch
+- `merchants.ts` — merchantsApi: getAll (with orderBy), get, getByName, getByNameCaseInsensitive, create, update, bulkPut, delete
+- `rules.ts` — rulesApi: getAll (with merchantId filter), get, count, getByMerchantIdAndPattern, create, bulkAdd, update, delete, bulkDelete
+- `settings.ts` — settingsApi: getAll, getByKey, putByKey, delete, clear
+- `app-settings.ts` — appSettingsApi: get, put, clear
+- `categories.ts` — categoriesApi: getAll (with parentId/orderBy), getRoot, get, getBySlug, create, bulkAdd, update, bulkPut, delete, clear
+- `subscriptions.ts` — subscriptionsApi: getAll (with merchantId/status), get, getFirstByMerchant, getByMerchantAndFrequency, create, update, bulkPut, delete, clear
+- `import.ts` — importApi: run (invalidates transactions, merchants, rules, subscriptions)
+- `database.ts` — databaseApi: reset, export, import (invalidates all tables)
+- `index.ts` — Barrel re-export of all API modules, client, invalidation, and useApiQuery
+- All mutation functions auto-invalidate their respective table keys after success
+- Verified: `tsc --noEmit` passes cleanly for all new API files (0 errors in src/lib/api/)
+- Verified: web tests still pass (140/142 test files, 1443/1444 tests — same 2 pre-existing failures)
