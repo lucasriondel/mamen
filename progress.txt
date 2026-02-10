@@ -58,3 +58,13 @@
 - Verified: `curl http://localhost:3000/api/health` returns JSON response
 - Verified: `tsc --noEmit` typechecks cleanly in server package
 - Verified: web tests still pass (140/142 test files, 1443/1444 tests — same 2 pre-existing failures)
+
+## Step 0e: Verify full pipeline ✅
+
+- Added dev proxy to `packages/web/vite.config.ts`: `/api` → `http://localhost:3000`
+- Added `vitest` as explicit devDependency in `packages/server/`
+- Fixed server test script: `vitest run --passWithNoTests` (no test files yet)
+- Verified: `bun run build` — @mamen/shared and @mamen/server build successfully; @mamen/web `vite build` produces dist in 2.26s (pre-existing tsc type errors unchanged)
+- Verified: `bun run test` — @mamen/server passes (0 tests, --passWithNoTests); @mamen/web passes (140/142 test files, 1443/1444 tests — same 2 pre-existing failures)
+- Verified: `bun run dev` — both web (Vite on :5173) and server (Bun on :3000) start in parallel via Turborepo
+- Verified: @mamen/shared types consumed correctly by both web and server packages
