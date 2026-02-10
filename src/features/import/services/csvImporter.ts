@@ -29,10 +29,10 @@ export const parseCSVTransactions = async (
 
   const dateIdx = headerRow.indexOf(mapping.dateColumn)
   const amountIdx = headerRow.indexOf(mapping.amountColumn)
-  const descIdx = headerRow.indexOf(mapping.descriptionColumn)
+  const descIndices = mapping.descriptionColumns.map((col) => headerRow.indexOf(col))
   const dirIdx = mapping.directionColumn ? headerRow.indexOf(mapping.directionColumn) : -1
 
-  if (dateIdx === -1 || amountIdx === -1 || descIdx === -1) {
+  if (dateIdx === -1 || amountIdx === -1 || descIndices.some((i) => i === -1)) {
     throw new Error('Column mapping is invalid')
   }
 
@@ -41,7 +41,7 @@ export const parseCSVTransactions = async (
   for (const row of rows) {
     const dateStr = row[dateIdx]
     const amountStr = row[amountIdx]
-    const description = row[descIdx]
+    const description = descIndices.map((i) => row[i]).filter(Boolean).join(' ')
     const direction = dirIdx !== -1 ? row[dirIdx] : undefined
 
     if (!dateStr || !amountStr) continue

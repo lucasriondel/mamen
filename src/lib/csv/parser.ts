@@ -9,7 +9,7 @@ export type CSVPreviewResult = {
 export type ColumnMapping = {
   dateColumn: string
   amountColumn: string
-  descriptionColumn: string
+  descriptionColumns: string[]
   directionColumn?: string
 }
 
@@ -129,8 +129,8 @@ export const autoDetectColumns = (headers: string[], rows?: string[][]): Partial
     if (!mapping.amountColumn && AMOUNT_PATTERNS.some((p) => header === p || header.includes(p))) {
       mapping.amountColumn = headers[i]
     }
-    if (!mapping.descriptionColumn && DESCRIPTION_PATTERNS.some((p) => header === p || header.includes(p))) {
-      mapping.descriptionColumn = headers[i]
+    if (!mapping.descriptionColumns && DESCRIPTION_PATTERNS.some((p) => header === p || header.includes(p))) {
+      mapping.descriptionColumns = [headers[i]]
     }
     if (!mapping.directionColumn && DIRECTION_PATTERNS.some((p) => header === p || header.includes(p))) {
       mapping.directionColumn = headers[i]
@@ -140,7 +140,7 @@ export const autoDetectColumns = (headers: string[], rows?: string[][]): Partial
   // If no direction column detected by header name, check if any column has debit/credit values
   if (!mapping.directionColumn && rows && rows.length > 0) {
     for (let i = 0; i < lowered.length; i++) {
-      if (headers[i] === mapping.dateColumn || headers[i] === mapping.amountColumn || headers[i] === mapping.descriptionColumn) continue
+      if (headers[i] === mapping.dateColumn || headers[i] === mapping.amountColumn || mapping.descriptionColumns?.includes(headers[i])) continue
       const values = rows.map((row) => row[i]?.toLowerCase().trim()).filter(Boolean)
       if (values.length > 0 && values.every((v) => isDirectionValue(v))) {
         mapping.directionColumn = headers[i]

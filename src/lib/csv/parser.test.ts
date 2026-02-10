@@ -13,7 +13,7 @@ describe('autoDetectColumns', () => {
     const headers = ['Date', 'Description', 'Amount']
     const mapping = autoDetectColumns(headers)
     expect(mapping.dateColumn).toBe('Date')
-    expect(mapping.descriptionColumn).toBe('Description')
+    expect(mapping.descriptionColumns).toEqual(['Description'])
     expect(mapping.amountColumn).toBe('Amount')
   })
 
@@ -21,7 +21,7 @@ describe('autoDetectColumns', () => {
     const headers = ['TRANSACTION DATE', 'MERCHANT', 'DEBIT']
     const mapping = autoDetectColumns(headers)
     expect(mapping.dateColumn).toBe('TRANSACTION DATE')
-    expect(mapping.descriptionColumn).toBe('MERCHANT')
+    expect(mapping.descriptionColumns).toEqual(['MERCHANT'])
     expect(mapping.amountColumn).toBe('DEBIT')
   })
 
@@ -29,7 +29,7 @@ describe('autoDetectColumns', () => {
     const headers = ['Posted Date', 'Payee Name', 'Value']
     const mapping = autoDetectColumns(headers)
     expect(mapping.dateColumn).toBe('Posted Date')
-    expect(mapping.descriptionColumn).toBe('Payee Name')
+    expect(mapping.descriptionColumns).toEqual(['Payee Name'])
     expect(mapping.amountColumn).toBe('Value')
   })
 
@@ -37,7 +37,7 @@ describe('autoDetectColumns', () => {
     const headers = ['Date', 'Foo', 'Bar']
     const mapping = autoDetectColumns(headers)
     expect(mapping.dateColumn).toBe('Date')
-    expect(mapping.descriptionColumn).toBeUndefined()
+    expect(mapping.descriptionColumns).toBeUndefined()
     expect(mapping.amountColumn).toBeUndefined()
   })
 
@@ -45,7 +45,7 @@ describe('autoDetectColumns', () => {
     const headers = ['Col A', 'Col B', 'Col C']
     const mapping = autoDetectColumns(headers)
     expect(mapping.dateColumn).toBeUndefined()
-    expect(mapping.descriptionColumn).toBeUndefined()
+    expect(mapping.descriptionColumns).toBeUndefined()
     expect(mapping.amountColumn).toBeUndefined()
   })
 })
@@ -245,7 +245,7 @@ describe('autoDetectColumns with French headers', () => {
     const mapping = autoDetectColumns(headers)
     expect(mapping.dateColumn).toBe('Date')
     expect(mapping.amountColumn).toBe('Montant')
-    expect(mapping.descriptionColumn).toBe('Intitulé')
+    expect(mapping.descriptionColumns).toEqual(['Intitulé'])
     expect(mapping.directionColumn).toBe('Direction')
   })
 
@@ -254,20 +254,20 @@ describe('autoDetectColumns with French headers', () => {
     const mapping = autoDetectColumns(headers)
     expect(mapping.dateColumn).toBe('DATE')
     expect(mapping.amountColumn).toBe('MONTANT')
-    expect(mapping.descriptionColumn).toBe('INTITULÉ')
+    expect(mapping.descriptionColumns).toEqual(['INTITULÉ'])
     expect(mapping.directionColumn).toBe('DIRECTION')
   })
 
   it('detects Libellé as description column', () => {
     const headers = ['Date', 'Montant', 'Libellé']
     const mapping = autoDetectColumns(headers)
-    expect(mapping.descriptionColumn).toBe('Libellé')
+    expect(mapping.descriptionColumns).toEqual(['Libellé'])
   })
 
   it('detects French headers without accents (intitule, libelle)', () => {
     const headers = ['Date', 'Montant', 'Intitule']
     const mapping = autoDetectColumns(headers)
-    expect(mapping.descriptionColumn).toBe('Intitule')
+    expect(mapping.descriptionColumns).toEqual(['Intitule'])
   })
 
   it('detects Green-Got CSV headers', () => {
@@ -279,7 +279,7 @@ describe('autoDetectColumns with French headers', () => {
     const mapping = autoDetectColumns(headers)
     expect(mapping.dateColumn).toBe('Date')
     expect(mapping.amountColumn).toBe('Montant')
-    expect(mapping.descriptionColumn).toBe('Intitulé')
+    expect(mapping.descriptionColumns).toEqual(['Intitulé'])
     expect(mapping.directionColumn).toBe('Direction')
   })
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, Plus, X } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -91,7 +91,7 @@ export function ImportCSVModal({
   const [importPhase, setImportPhase] = useState<'idle' | 'importing' | 'applying-rules'>('idle')
   const [dateColumn, setDateColumn] = useState(UNMAPPED)
   const [amountColumn, setAmountColumn] = useState(UNMAPPED)
-  const [descriptionColumn, setDescriptionColumn] = useState(UNMAPPED)
+  const [descriptionColumns, setDescriptionColumns] = useState<string[]>([UNMAPPED])
   const [directionColumn, setDirectionColumn] = useState(UNMAPPED)
   const [dateFormat, setDateFormat] = useState<DateFormatOption>('auto')
   const [duplicateResult, setDuplicateResult] = useState<DuplicateCheckResult | null>(null)
@@ -105,7 +105,7 @@ export function ImportCSVModal({
     setPreview(null)
     setDateColumn(UNMAPPED)
     setAmountColumn(UNMAPPED)
-    setDescriptionColumn(UNMAPPED)
+    setDescriptionColumns([UNMAPPED])
     setDirectionColumn(UNMAPPED)
     setDateFormat('auto')
     setDuplicateResult(null)
@@ -118,7 +118,7 @@ export function ImportCSVModal({
         const detected = autoDetectColumns(result.headers, result.rows)
         if (detected.dateColumn) setDateColumn(detected.dateColumn)
         if (detected.amountColumn) setAmountColumn(detected.amountColumn)
-        if (detected.descriptionColumn) setDescriptionColumn(detected.descriptionColumn)
+        if (detected.descriptionColumns) setDescriptionColumns(detected.descriptionColumns)
         if (detected.directionColumn) setDirectionColumn(detected.directionColumn)
 
         if (detected.dateColumn) {
@@ -144,7 +144,8 @@ export function ImportCSVModal({
   const isMappingComplete =
     dateColumn !== UNMAPPED &&
     amountColumn !== UNMAPPED &&
-    descriptionColumn !== UNMAPPED
+    descriptionColumns.length > 0 &&
+    descriptionColumns[0] !== UNMAPPED
 
   const handleImport = async (): Promise<void> => {
     if (!preview || !isMappingComplete) return
@@ -157,7 +158,7 @@ export function ImportCSVModal({
       const mapping: ColumnMapping = {
         dateColumn,
         amountColumn,
-        descriptionColumn,
+        descriptionColumns: descriptionColumns.filter((c) => c !== UNMAPPED),
         ...(directionColumn !== UNMAPPED && { directionColumn }),
       }
 
@@ -325,19 +326,53 @@ export function ImportCSVModal({
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="description-column" className="text-xs">Description</Label>
-                    <Select value={descriptionColumn} onValueChange={setDescriptionColumn}>
-                      <SelectTrigger id="description-column">
-                        <SelectValue placeholder="Select column" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {preview.headers.map((header) => (
-                          <SelectItem key={header} value={header}>
-                            {header}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Label className="text-xs">Description</Label>
+                    <div className="space-y-1.5">
+                      {descriptionColumns.map((col, idx) => (
+                        <div key={idx} className="flex items-center gap-1">
+                          <Select
+                            value={col}
+                            onValueChange={(v) => {
+                              const next = [...descriptionColumns]
+                              next[idx] = v
+                              setDescriptionColumns(next)
+                            }}
+                          >
+                            <SelectTrigger id={idx === 0 ? 'description-column' : undefined}>
+                              <SelectValue placeholder="Select column" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {preview.headers.map((header) => (
+                                <SelectItem key={header} value={header}>
+                                  {header}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {idx === 0 ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 shrink-0"
+                              onClick={() => setDescriptionColumns([...descriptionColumns, UNMAPPED])}
+                            >
+                              <Plus className="h-4 w-4" />
+                            </Button>
+                          ) : (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 shrink-0"
+                              onClick={() => setDescriptionColumns(descriptionColumns.filter((_, i) => i !== idx))}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="direction-column" className="text-xs">Direction (optional)</Label>
