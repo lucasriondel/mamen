@@ -73,3 +73,13 @@
 - Active filters highlight trigger buttons via `variant="default"` vs `variant="outline"`
 - TypeScript type check passes (`tsc --noEmit`)
 - Vite build passes successfully
+
+### Step 7: Integrate toolbar into TransactionDataTable ✅
+- Modified `src/features/transactions/components/TransactionDataTable/index.tsx`:
+  - Imported `FilterToolbar` from `../TransactionFilters`
+  - Rendered `<FilterToolbar>` between drill-down header bars and column headers, inside the existing `flex flex-col h-full` wrapper
+  - Props passed: `filters` (transactionFilters hook), `accounts` (from useLiveQuery), `totalCount` (transactions.length, pre-filter), `filteredCount` (tableRows.length, post-filter from TanStack getFilteredRowModel)
+  - FilterToolbar always available, stacks on top of FocusMode/DrillDown filters
+- TypeScript type check passes (`tsc --noEmit`)
+- Vite build passes successfully
+- All relevant tests pass (same 2 pre-existing failures)

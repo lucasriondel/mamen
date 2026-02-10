@@ -153,7 +153,7 @@ index.ts — barrel export
 
 ---
 
-Step 7: Integrate toolbar into TransactionDataTable
+Step 7: Integrate toolbar into TransactionDataTable ✅
 
 Modify: src/features/transactions/components/TransactionDataTable/index.tsx
 

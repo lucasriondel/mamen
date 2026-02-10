@@ -17,6 +17,7 @@ import { useSubscriptions } from '@/features/subscriptions/hooks/useSubscription
 import { SubscriptionsView } from '@/features/subscriptions/components/SubscriptionsView'
 import { SelectionStatusBar } from '@/components/SelectionStatusBar'
 import { MerchantAssignmentModal } from '@/features/merchants/components/MerchantAssignmentModal'
+import { FilterToolbar } from '../TransactionFilters'
 import { QuickCategoryPicker } from '../QuickCategoryPicker'
 import { RefundLinkModal } from '../RefundLinkModal'
 import { useAnomalyDismiss } from '@/features/anomalies/hooks/useAnomalyDismiss'
@@ -420,6 +421,13 @@ export function TransactionDataTable({ highlightId }: TransactionDataTableProps)
           </span>
         </div>
       )}
+
+      <FilterToolbar
+        filters={transactionFilters}
+        accounts={accounts}
+        totalCount={transactions.length}
+        filteredCount={tableRows.length}
+      />
 
       {/* Column header */}
       <div className="flex items-center h-10 px-4 gap-4 text-xs font-medium text-muted-foreground uppercase tracking-wider border-b">
