@@ -1,114 +1,85 @@
-## Category Management - Implementation Progress
+## Progress Log
 
-### Task 1: Types + schema additions ✅
-- Added `CategoryTreeNode` type to `src/types/category.types.ts`
-- Exported `CategoryTreeNode` from `src/types/index.ts`
-- Added `updateCategorySchema` and `UpdateCategoryInput` to `src/lib/schemas/category.schema.ts`
-- Exported new schema from `src/lib/schemas/index.ts`
-- TypeScript type check passes
+### Step 1: Install shadcn Calendar ✅
+- Ran `npx shadcn@latest add calendar --yes`
+- Created `src/components/ui/calendar.tsx` with react-day-picker integration
+- react-day-picker dependency auto-installed
+- Vite build passes successfully
+- All relevant tests pass (2 pre-existing failures unrelated to this change)
 
-### Task 2: Constants file (colors, icons, icon map) ✅
-- Created `src/features/categories/lib/constants.ts`
-- `COLOR_PALETTE`: 16 predefined hex colors (4×4 grid) — all 10 seed colors + 6 extras
-- `ICON_MAP`: Record<string, LucideIcon> mapping 32 curated lucide icon names to components
-- `ICON_LIST`: Ordered list of icon names derived from ICON_MAP keys
-- `DEFAULT_ICON` ('Tag') and `DEFAULT_COLOR` ('#3B82F6') constants
-- `getIconComponent()`: Resolves icon name to component with Tag fallback
-- TypeScript type check passes, all tests pass
+### Step 2: Create custom filter functions ✅
+- Created `src/features/transactions/components/TransactionDataTable/filterFns.ts`
+- Implemented 5 filter functions with proper TanStack Row<Transaction> signatures:
+  - `amountFilterFn` — dual-mode: precise (number) or range ({ min?, max? }), operates on Math.abs(amount)
+  - `dateFilterFn` — tri-mode: exact Date, range ({ start?, end? }), or month/year ({ month, year })
+  - `categoryFilterFn` — matches categoryId or subcategoryId
+  - `descriptionFilterFn` — case-insensitive includes on rawMerchantString
+  - `accountsFilterFn` — checks accountId membership in number[]
+- All functions include `autoRemove` for TanStack auto-cleanup
+- TypeScript type check passes (`tsc --noEmit`)
+- Vite build passes successfully
+- All relevant tests pass (same 2 pre-existing failures)
 
-### Task 3: Hooks (useCategoryTree, useCategoryMutations) ✅
-- Created `src/features/categories/hooks/useCategoryTree.ts`
-  - `buildTree()`: O(n) recursive tree builder from flat categories using Map grouping by parentId
-  - `useCategoryTree()`: Returns `{ tree, allCategories, isLoading }` using `useLiveQuery` + `useMemo`
-- Created `src/features/categories/hooks/useCategoryMutations.ts`
-  - `createCategory()`: Auto-generates slug (with parent prefix), auto-computes sortOrder, defaults color/icon
-  - `updateCategory()`: Updates name, color, icon via `db.categories.update()`
-  - `deleteCategory()`: Cascade deletes all descendants in a transaction, with undo via `useRef` + sonner toast (10s)
-  - `reorder()`: Swaps sortOrder with adjacent sibling (move up/down)
-  - Follows existing patterns from accounts page (useRef undo) and useRuleMutations (toast pattern)
-- TypeScript type check passes, all tests pass (1431 passed)
+### Step 3: Register filter functions on columns ✅
+- Modified `src/features/transactions/components/TransactionDataTable/columns.tsx`:
+  - Imported all 5 filter functions from `./filterFns`
+  - Registered `dateFilterFn` on the `date` column
+  - Registered `descriptionFilterFn` on the `rawMerchantString` column
+  - Registered `categoryFilterFn` on the `category` column (added `accessorFn: (row) => row.categoryId`)
+  - Registered `amountFilterFn` on the `amount` column
+  - Added hidden `accountId` column with `accessorFn`, `accountsFilterFn`, `enableHiding: true`, `enableSorting: false`
+- Modified `src/features/transactions/components/TransactionDataTable/index.tsx`:
+  - Added `columnVisibility: { accountId: false }` to table state to hide the accountId column from rendering
+- TypeScript type check passes (`tsc --noEmit`)
+- All relevant tests pass (same 2 pre-existing failures)
 
-### Task 4: ColorPicker + IconPicker components ✅
-- Created `src/features/categories/components/ColorPicker/index.tsx`
-  - Popover trigger shows current color swatch + "Color" label
-  - Content: 4×4 grid of 16 predefined colors from `COLOR_PALETTE`
-  - Uses `role="radiogroup"` / `role="radio"` for accessibility
-  - Click selects color and closes popover
-  - Active color shown with border + scale highlight
-- Created `src/features/categories/components/IconPicker/index.tsx`
-  - Popover trigger shows current icon (resolved via `getIconComponent`) + "Icon" label
-  - Content: scrollable 8-column grid of 32 curated lucide icons from `ICON_LIST`
-  - Uses `role="radiogroup"` / `role="radio"` for accessibility
-  - Active icon shown with accent background
-  - Click selects icon and closes popover
-- Both components follow project patterns: Popover from shadcn/ui, `cn()` utility, exported types
-- TypeScript type check passes, all tests pass (1431 passed)
+### Step 4: Create filter state hook ✅
+- Created `src/features/transactions/hooks/useTransactionFilters.ts`
+- Exported `TransactionFilterValues` type with all filter fields per PRD spec
+- Implements `columnFilters` via `useMemo` converting filter state → `ColumnFiltersState`
+- Setter functions with mutual exclusivity:
+  - `setDescription` — text search
+  - `setAmountRange` / `setAmountPrecise` — clears the other mode on set
+  - `setCategory` — categoryId + optional subcategoryId
+  - `setDateExact` / `setDateRange` / `setMonthYear` — clears other date modes on set
+  - `setAccountIds` — multi-select account IDs
+- `clearFilter(group)` — clears all fields in a filter group (description, amount, category, date, account)
+- `clearAllFilters()` — resets all filter state to empty
+- `activeFilterCount` and `hasActiveFilters` derived from columnFilters length
+- TypeScript type check passes (`tsc --noEmit`)
+- All relevant tests pass (same 2 pre-existing failures)
 
-### Task 5: CategoryTreeNode + CategoryTree components ✅
-- Created `src/features/categories/components/CategoryTreeNode/index.tsx`
-  - Recursive component rendering each category row
-  - Layout: `[indent] [▶ chevron] [● color] [icon] Name [child count] [⋯ actions]`
-  - Indent: `paddingLeft: depth * 24 + 8` for unlimited nesting depth
-  - Chevron: only visible when node has children, rotates 90° when expanded
-  - Auto-expand depth 0 (root level) by default
-  - Actions dropdown (DropdownMenu): Add Subcategory, Edit, Move Up, Move Down, Delete (destructive)
-  - Hover-triggered action button with `group` / `opacity-0 group-hover:opacity-100` pattern
-  - Recursively renders children when expanded
-- Created `src/features/categories/components/CategoryTree/index.tsx`
-  - Renders root-level tree nodes by mapping over `CategoryTreeNode[]`
-  - Empty state with helpful message when no categories exist
-  - Passes all callbacks (onAddSubcategory, onEdit, onDelete, onReorder) through to nodes
-- TypeScript type check passes, all tests pass (1431 passed)
+### Step 5: Update TanStack Table config ✅
+- Modified `src/features/transactions/components/TransactionDataTable/index.tsx`:
+  - Imported `getFilteredRowModel` from `@tanstack/react-table`
+  - Imported and called `useTransactionFilters()` hook
+  - Fetched accounts via `useLiveQuery(() => db.accounts.toArray(), []) ?? []`
+  - Added `columnFilters: transactionFilters.columnFilters` to `useReactTable` state
+  - Added `getFilteredRowModel: getFilteredRowModel()` to table config (between getCoreRowModel and getSortedRowModel)
+  - Extended existing FocusMode state-reset effect to also track drill-down changes via combined key, calling `transactionFilters.clearAllFilters()` on change
+- TypeScript type check passes (`tsc --noEmit`)
+- Vite build passes successfully
+- All relevant tests pass (same 2 pre-existing failures)
 
-### Task 6: CategoryFormModal + DeleteCategoryDialog ✅
-- Created `src/features/categories/components/CategoryFormModal/index.tsx`
-  - Shared modal with `mode: 'create' | 'edit'` prop
-  - Fields: Name (Input), Color (ColorPicker), Icon (IconPicker)
-  - Uses react-hook-form + zodResolver with `updateCategorySchema`
-  - `useEffect` populates form when editing (resets for create)
-  - `parentId` passed as prop for subcategory creation
-  - Toast notifications on create/update success
-  - Form reset on close, follows EditAccountModal pattern
-- Created `src/features/categories/components/DeleteCategoryDialog/index.tsx`
-  - AlertDialog confirmation before cascade delete
-  - Shows category name and recursive descendant count via `countDescendants()`
-  - Description mentions undo availability (10s window)
-  - Delegates to `onConfirm` callback which calls `useCategoryMutations.deleteCategory`
-  - Undo via sonner toast already handled in the mutations hook
-  - Uses destructive variant on confirm button
-- TypeScript type check passes, all tests pass (1431 passed)
+### Step 6: Build filter toolbar UI ✅
+- Created `src/features/transactions/components/TransactionFilters/` directory with 6 files:
+  - `FilterToolbar.tsx` — Main toolbar component with toggle button, active count badge, description search input, "Showing X of Y" indicator, and "Clear all" button. Renders filter trigger row when expanded or when filters are active.
+  - `AmountFilter.tsx` — Popover with RadioGroup (Range / Precise) mode toggle. Range: two number inputs (min, max). Precise: single number input. Apply/Clear buttons. Syncs local state on open.
+  - `CategoryFilter.tsx` — Popover with Command (cmdk) searchable list. Parent categories as CommandGroup headings with color dot indicators. Subcategories indented. Reuses `useCategories()` hook.
+  - `DateFilter.tsx` — Popover with RadioGroup (Exact / Range / Month+Year) mode toggle. Exact: Calendar mode="single". Range: Calendar mode="range". Month+Year: two Select dropdowns. Apply/Clear buttons.
+  - `AccountFilter.tsx` — Popover with checkbox list of accounts. Multi-select with Apply/Clear buttons. Syncs local state on open.
+  - `index.ts` — Barrel export for FilterToolbar
+- All filter components accept `filterValues` + setter callbacks from `useTransactionFilters` hook
+- Active filters highlight trigger buttons via `variant="default"` vs `variant="outline"`
+- TypeScript type check passes (`tsc --noEmit`)
+- Vite build passes successfully
 
-### Task 7: CategoriesPage + barrel export ✅
-- Created `src/features/categories/components/CategoriesPage/index.tsx`
-  - Main page component with state management for modals and layout
-  - Header with Tag icon, title "Categories", subtitle, and "Add Category" button
-  - Scrollable content area rendering `CategoryTree` with all callbacks wired
-  - Discriminated union state for modal (`create`/`edit`/`closed`) and delete dialog
-  - Integrates `useCategoryTree` for tree data and `useCategoryMutations` for CRUD
-  - `CategoryFormModal` for create/edit and `DeleteCategoryDialog` for delete confirmation
-  - Follows RulesPage layout pattern: flex column, `-m-6`, border-b header, scrollable content
-- Created `src/features/categories/index.ts` (barrel export)
-  - Exports all components: CategoriesPage, CategoryTree, CategoryTreeNode, CategoryFormModal, DeleteCategoryDialog, ColorPicker, IconPicker
-  - Exports hooks: useCategoryTree, useCategoryMutations (with types)
-  - Exports constants: COLOR_PALETTE, ICON_MAP, ICON_LIST, DEFAULT_COLOR, DEFAULT_ICON, getIconComponent
-- TypeScript type check passes, all tests pass (1431 passed)
-
-### Task 8: Route file (`categories.tsx`) ✅
-- Created `src/routes/categories.tsx`
-  - Thin route file following existing pattern (matches `rules.tsx`)
-  - Uses `createFileRoute('/categories')` with `CategoriesPage` as component
-  - Imports `CategoriesPage` from `@/features/categories` barrel export
-- `routeTree.gen.ts` auto-regenerated by TanStack Router Vite plugin (includes `/categories` route)
-- Vite build succeeds, all tests pass (1431 passed)
-
-### Task 9: Sidebar + breadcrumbs updates ✅
-- Modified `src/components/Layout/Sidebar.tsx`
-  - Added `Tag` to lucide-react imports
-  - Added `{ to: '/categories', label: 'Categories', icon: <Tag /> }` nav item after Rules
-- Modified `src/hooks/useBreadcrumbs.ts`
-  - Added `'/categories': 'Categories'` to `routeLabelMap`
-- Updated `src/components/Layout/Layout.test.tsx`
-  - Fixed nav link count assertion from 7 to 8 to account for new Categories link (7 navItems + 1 Unmatched link = 8 total)
-- TypeScript type check passes, all 1428 tests pass
-
-### All PRD tasks complete ✅
+### Step 7: Integrate toolbar into TransactionDataTable ✅
+- Modified `src/features/transactions/components/TransactionDataTable/index.tsx`:
+  - Imported `FilterToolbar` from `../TransactionFilters`
+  - Rendered `<FilterToolbar>` between drill-down header bars and column headers, inside the existing `flex flex-col h-full` wrapper
+  - Props passed: `filters` (transactionFilters hook), `accounts` (from useLiveQuery), `totalCount` (transactions.length, pre-filter), `filteredCount` (tableRows.length, post-filter from TanStack getFilteredRowModel)
+  - FilterToolbar always available, stacks on top of FocusMode/DrillDown filters
+- TypeScript type check passes (`tsc --noEmit`)
+- Vite build passes successfully
+- All relevant tests pass (same 2 pre-existing failures)
