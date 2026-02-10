@@ -60,3 +60,16 @@
 - TypeScript type check passes (`tsc --noEmit`)
 - Vite build passes successfully
 - All relevant tests pass (same 2 pre-existing failures)
+
+### Step 6: Build filter toolbar UI ✅
+- Created `src/features/transactions/components/TransactionFilters/` directory with 6 files:
+  - `FilterToolbar.tsx` — Main toolbar component with toggle button, active count badge, description search input, "Showing X of Y" indicator, and "Clear all" button. Renders filter trigger row when expanded or when filters are active.
+  - `AmountFilter.tsx` — Popover with RadioGroup (Range / Precise) mode toggle. Range: two number inputs (min, max). Precise: single number input. Apply/Clear buttons. Syncs local state on open.
+  - `CategoryFilter.tsx` — Popover with Command (cmdk) searchable list. Parent categories as CommandGroup headings with color dot indicators. Subcategories indented. Reuses `useCategories()` hook.
+  - `DateFilter.tsx` — Popover with RadioGroup (Exact / Range / Month+Year) mode toggle. Exact: Calendar mode="single". Range: Calendar mode="range". Month+Year: two Select dropdowns. Apply/Clear buttons.
+  - `AccountFilter.tsx` — Popover with checkbox list of accounts. Multi-select with Apply/Clear buttons. Syncs local state on open.
+  - `index.ts` — Barrel export for FilterToolbar
+- All filter components accept `filterValues` + setter callbacks from `useTransactionFilters` hook
+- Active filters highlight trigger buttons via `variant="default"` vs `variant="outline"`
+- TypeScript type check passes (`tsc --noEmit`)
+- Vite build passes successfully
