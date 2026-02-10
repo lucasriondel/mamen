@@ -208,7 +208,7 @@ This is **Step 0** — done before any backend work begins.
   `packages/server/` directories with their `package.json`
   and `tsconfig.json`
 
-**0b. Move frontend code to packages/web/**
+**0b. Move frontend code to packages/web/** ✅
 - Move `src/`, `public/`, `index.html`, `vite.config.ts`,
   `postcss.config.js`, `tailwind.config.ts`,
   `components.json` into `packages/web/`

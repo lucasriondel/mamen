@@ -12,3 +12,16 @@
 - Verified: turbo --dry-run sees all 3 packages (@mamen/shared, @mamen/web, @mamen/server)
 - Verified: existing tests still pass (140/142 test files, 1443/1444 tests - 2 pre-existing failures)
 - Verified: pre-existing type errors unchanged
+
+## Step 0b: Move frontend code to packages/web/ ✅
+
+- Moved `src/`, `public/`, `index.html` into `packages/web/` via `git mv`
+- Moved config files: `vite.config.ts`, `vitest.config.ts`, `tsconfig.app.json`, `tsconfig.node.json`, `components.json`, `eslint.config.js`, `.env.example` into `packages/web/`
+- Moved all frontend dependencies and devDependencies from root `package.json` to `packages/web/package.json`
+- Root `package.json` now only has turbo + typescript as devDeps; scripts point to turbo
+- Root `tsconfig.json` simplified to project references only (shared, web, server)
+- No source code import changes needed — `@/` alias still resolves to `./src` within packages/web
+- Verified: `vite build` succeeds (dist built in 2.24s)
+- Verified: `vitest run` passes (140/142 test files, 1443/1444 tests — same 2 pre-existing failures)
+- Verified: `vite dev` starts successfully
+- Verified: `turbo test` runs from root correctly
