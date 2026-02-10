@@ -1,5 +1,5 @@
 import { useMemo, useRef } from 'react'
-import { db, useLiveQuery } from '@/lib/db'
+import { useApiQuery, transactionsApi } from '@/lib/api'
 import {
   buildSearchIndex,
   searchTransactions,
@@ -15,8 +15,9 @@ type UseTransactionSearchResult = {
 export const useTransactionSearch = (query: string): UseTransactionSearchResult => {
   const lastBuiltRef = useRef<Transaction[] | null>(null)
 
-  const transactions = useLiveQuery(() =>
-    db.transactions.toArray()
+  const transactions = useApiQuery(
+    () => transactionsApi.getAll(),
+    ['transactions'],
   )
 
   const results = useMemo(() => {

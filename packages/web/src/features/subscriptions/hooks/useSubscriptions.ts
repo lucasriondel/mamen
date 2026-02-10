@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { db, useLiveQuery } from '@/lib/db'
+import { useApiQuery, subscriptionsApi } from '@/lib/api'
 import type { Subscription } from '@/types'
 
 export type UseSubscriptionsReturn = {
@@ -13,7 +13,10 @@ export type UseSubscriptionsReturn = {
 }
 
 export const useSubscriptions = (): UseSubscriptionsReturn => {
-  const subscriptions = useLiveQuery(() => db.subscriptions.toArray())
+  const subscriptions = useApiQuery(
+    () => subscriptionsApi.getAll(),
+    ['subscriptions'],
+  )
 
   return useMemo(() => {
     if (subscriptions === undefined) {

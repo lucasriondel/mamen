@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { db, useLiveQuery } from '@/lib/db'
+import { useApiQuery, transactionsApi } from '@/lib/api'
 import type { Transaction } from '@/types'
 
 export type UseAnomaliesReturn = {
@@ -13,8 +13,9 @@ export type UseAnomaliesReturn = {
 }
 
 export const useAnomalies = (): UseAnomaliesReturn => {
-  const transactions = useLiveQuery(
-    () => db.transactions.toArray(),
+  const transactions = useApiQuery(
+    () => transactionsApi.getAll(),
+    ['transactions'],
   )
 
   return useMemo(() => {

@@ -192,3 +192,33 @@
 - All mutation functions auto-invalidate their respective table keys after success
 - Verified: `tsc --noEmit` passes cleanly for all new API files (0 errors in src/lib/api/)
 - Verified: web tests still pass (140/142 test files, 1443/1444 tests — same 2 pre-existing failures)
+
+## Step 7: Migrate All Hooks (21 hooks) ✅
+
+- Migrated all 21 hooks from `useLiveQuery` + direct `db.*` calls to `useApiQuery` + API client calls
+- Hook signatures and return types remain identical — only the data source changed
+- Shared hooks (`packages/web/src/hooks/`):
+  - `useCategories.ts` — `categoriesApi.getAll({ orderBy: 'sortOrder' })`, subscribes to `['categories']`
+  - `useMerchants.ts` — `merchantsApi.getAll({ orderBy: 'name' })`, subscribes to `['merchants']`; `createMerchant` → `merchantsApi.create()`, `getMerchantByName` → `merchantsApi.getByNameCaseInsensitive()`
+  - `useUnmatchedCount.ts` — `transactionsApi.getAll()` then filters client-side for `merchantId === undefined`
+  - `useCurrentMonthCount.ts` — `transactionsApi.getAll({ startDate, endDate })` then `.length`
+  - `useBreadcrumbs.ts` — `categoriesApi.get(id)` and `merchantsApi.get(id)` with try/catch for 404s
+- Feature hooks:
+  - `useFilteredTransactions.ts` — All filter paths migrated: anomalies, subscriptions (bulkGet), category drill-down, month range, unmatched, and default all-transactions
+  - `useSubscriptions.ts` — `subscriptionsApi.getAll()`, subscribes to `['subscriptions']`
+  - `useMerchantsList.ts` — `Promise.all([merchantsApi, transactionsApi, categoriesApi].getAll())`, subscribes to `['merchants', 'transactions', 'categories']`
+  - `useMerchantDetail.ts` — `merchantsApi.get(id)`, `transactionsApi.getAll({ merchantId })`, `rulesApi.getAll({ merchantId })`, `categoriesApi.getAll()`
+  - `useExistingMerchant.ts` — `merchantsApi.get(id)` + `rulesApi.getAll({ merchantId })`
+  - `useNetSpending.ts` — `transactionsApi.getAll({ startDate, endDate })` + `categoriesApi.getAll()`
+  - `useSpendingBreakdown.ts` — Same pattern as useNetSpending with optional dateRange
+  - `useSpendingComparison.ts` — `transactionsApi.getAll({ startDate, endDate })` for previous period
+  - `useCategoryTooltipData.ts` — `transactionsApi.getAll({ categoryId })` + `merchantsApi.get(id)` for top merchants
+  - `useAnomalies.ts` — `transactionsApi.getAll()`, client-side anomaly filtering unchanged
+  - `useTransactionSearch.ts` — `transactionsApi.getAll()`, client-side search index unchanged
+  - `useRuleMatchPreview.ts` — `transactionsApi.getAll()`, client-side regex matching unchanged
+  - `useSettings.ts` — `appSettingsApi.get()` for read, `appSettingsApi.put()` for save (debounced)
+  - `useDisplayPreferences.ts` — `settingsApi.getByKey('displayPreferences')` with try/catch
+  - `useAccountMonthData.ts` — `transactionsApi.getAll({ accountId })`, client-side month counting unchanged
+  - `useCategoryTree.ts` — `categoriesApi.getAll({ orderBy: 'sortOrder' })`, client-side tree building unchanged
+- Verified: `tsc --noEmit` passes cleanly (0 type errors)
+- Verified: 108/142 test files pass, 1252/1444 tests pass — 34 test files (192 tests) now fail because they use fake-indexeddb directly; these will be updated in Step 10 (Update Tests) to mock API calls instead

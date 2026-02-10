@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { db, useLiveQuery } from '@/lib/db'
+import { useApiQuery, transactionsApi } from '@/lib/api'
 import type { Transaction } from '@/types'
 import { validateRulePattern } from '../utils/validateRulePattern'
 
@@ -20,19 +20,18 @@ export const useRuleMatchPreview = (pattern: string): UseRuleMatchPreviewReturn 
 
   const { isValid, error } = validateRulePattern(debouncedPattern)
 
-  const matchingTransactions = useLiveQuery(
+  const matchingTransactions = useApiQuery(
     async () => {
       if (!isValid) return []
       try {
         const regex = new RegExp(debouncedPattern, 'i')
-        return await db.transactions
-          .filter((tx) => regex.test(tx.rawMerchantString))
-          .toArray()
+        const all = await transactionsApi.getAll()
+        return all.filter((tx) => regex.test(tx.rawMerchantString))
       } catch {
         return []
       }
     },
-    [debouncedPattern, isValid],
+    ['transactions'],
     [] as Transaction[],
   )
 

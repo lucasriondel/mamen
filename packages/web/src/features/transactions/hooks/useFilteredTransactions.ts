@@ -1,4 +1,4 @@
-import { db, useLiveQuery } from '@/lib/db'
+import { useApiQuery, transactionsApi } from '@/lib/api'
 import type { Transaction, AnomalyType } from '@/types'
 
 type FilterOptions = {
@@ -27,11 +27,11 @@ export const useFilteredTransactions = (
   const periodEnd = periodRange?.end.getTime()
   const subTxIdsKey = subscriptionTransactionIds ? subscriptionTransactionIds.size : -1
 
-  const transactions = useLiveQuery(
+  const transactions = useApiQuery(
     async () => {
       // Anomalies filter: show only transactions with active (non-dismissed) anomaly flags
       if (anomaliesOnly) {
-        const all = await db.transactions.orderBy('date').reverse().toArray()
+        const all = await transactionsApi.getAll({ orderBy: 'date', direction: 'desc' })
         return all.filter(
           (t) => (t.anomalyFlags ?? []).some((f) =>
             !f.dismissed && (!anomalyTypeFilter || f.type === anomalyTypeFilter),
@@ -42,7 +42,7 @@ export const useFilteredTransactions = (
       // Subscription filter: show only transactions belonging to detected subscriptions
       if (subscriptionTransactionIds && subscriptionTransactionIds.size > 0) {
         const ids = Array.from(subscriptionTransactionIds)
-        const results = await db.transactions.bulkGet(ids)
+        const results = await transactionsApi.bulkGet(ids)
         return results
           .filter((t): t is NonNullable<typeof t> => t != null)
           .sort((a, b) => b.date.getTime() - a.date.getTime())
@@ -50,10 +50,7 @@ export const useFilteredTransactions = (
 
       // Drill-down filter: category + optional period
       if (categoryId != null) {
-        let results = await db.transactions
-          .where('categoryId')
-          .equals(categoryId)
-          .toArray()
+        let results = await transactionsApi.getAll({ categoryId })
 
         if (periodRange) {
           results = results.filter(
@@ -65,30 +62,28 @@ export const useFilteredTransactions = (
       }
 
       if (monthRange) {
-        const query = db.transactions
-          .where('date')
-          .between(monthRange.start, monthRange.end, true, true)
+        let results = await transactionsApi.getAll({
+          startDate: monthRange.start.toISOString(),
+          endDate: monthRange.end.toISOString(),
+          orderBy: 'date',
+          direction: 'desc',
+        })
 
         if (unmatchedOnly) {
-          return query
-            .and((t) => !t.merchantId && !t.manualCategory)
-            .reverse()
-            .sortBy('date')
+          results = results.filter((t) => !t.merchantId && !t.manualCategory)
         }
 
-        return query.reverse().sortBy('date')
+        return results
       }
 
       if (unmatchedOnly) {
-        return db.transactions
-          .filter((t) => !t.merchantId && !t.manualCategory)
-          .reverse()
-          .sortBy('date')
+        const all = await transactionsApi.getAll({ orderBy: 'date', direction: 'desc' })
+        return all.filter((t) => !t.merchantId && !t.manualCategory)
       }
 
-      return db.transactions.orderBy('date').reverse().toArray()
+      return transactionsApi.getAll({ orderBy: 'date', direction: 'desc' })
     },
-    [unmatchedOnly, anomaliesOnly, anomalyTypeFilter, monthStart, monthEnd, categoryId, periodStart, periodEnd, subTxIdsKey],
+    ['transactions'],
   )
 
   return {

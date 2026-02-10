@@ -1,4 +1,4 @@
-import { db, useLiveQuery } from '@/lib/db'
+import { useApiQuery, transactionsApi, merchantsApi } from '@/lib/api'
 
 type TopMerchant = {
   name: string
@@ -16,17 +16,11 @@ export const useCategoryTooltipData = (
   endDate: Date | undefined,
   isOpen: boolean,
 ): CategoryTooltipData => {
-  const startTime = startDate?.getTime()
-  const endTime = endDate?.getTime()
-
-  return useLiveQuery(
+  return useApiQuery(
     async () => {
       if (!isOpen || categoryId == null) return null
 
-      let txs = await db.transactions
-        .where('categoryId')
-        .equals(categoryId)
-        .toArray()
+      let txs = await transactionsApi.getAll({ categoryId })
 
       if (startDate && endDate) {
         txs = txs.filter((t) => t.date >= startDate && t.date <= endDate)
@@ -45,8 +39,14 @@ export const useCategoryTooltipData = (
 
       const topMerchants = await Promise.all(
         sorted.map(async ([id, count]) => {
-          const merchant = await db.merchants.get(id)
-          return { name: merchant?.name ?? 'Unknown', count }
+          let name = 'Unknown'
+          try {
+            const merchant = await merchantsApi.get(id)
+            name = merchant?.name ?? 'Unknown'
+          } catch {
+            // merchant not found
+          }
+          return { name, count }
         }),
       )
 
@@ -55,7 +55,7 @@ export const useCategoryTooltipData = (
         topMerchants,
       }
     },
-    [categoryId, startTime, endTime, isOpen],
+    ['transactions', 'merchants'],
   ) ?? null
 }
 

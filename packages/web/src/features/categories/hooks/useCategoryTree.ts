@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { db, useLiveQuery } from '@/lib/db'
+import { useApiQuery, categoriesApi } from '@/lib/api'
 import type { Category, CategoryTreeNode } from '@/types'
 
 export type UseCategoryTreeReturn = {
@@ -33,11 +33,11 @@ function buildTree(categories: Category[]): CategoryTreeNode[] {
 }
 
 export const useCategoryTree = (): UseCategoryTreeReturn => {
-  const allCategories = useLiveQuery(
-    () => db.categories.orderBy('sortOrder').toArray(),
-    [],
+  const allCategories = useApiQuery(
+    () => categoriesApi.getAll({ orderBy: 'sortOrder' }),
+    ['categories'],
     [] as Category[],
-  )
+  ) ?? [] as Category[]
 
   const isLoading = allCategories.length === 0
 

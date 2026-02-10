@@ -1,6 +1,5 @@
 import { useMemo, useCallback } from 'react'
-import { useLiveQuery } from 'dexie-react-hooks'
-import { db } from '@/lib/db'
+import { useApiQuery, categoriesApi } from '@/lib/api'
 import type { Category, CategoryWithSubcategories } from '@/types'
 
 export type UseCategoriesReturn = {
@@ -13,11 +12,11 @@ export type UseCategoriesReturn = {
 }
 
 export const useCategories = (): UseCategoriesReturn => {
-  const categories = useLiveQuery(
-    () => db.categories.orderBy('sortOrder').toArray(),
-    [],
+  const categories = useApiQuery(
+    () => categoriesApi.getAll({ orderBy: 'sortOrder' }),
+    ['categories'],
     [] as Category[],
-  )
+  ) ?? [] as Category[]
 
   const isLoading = categories.length === 0
 

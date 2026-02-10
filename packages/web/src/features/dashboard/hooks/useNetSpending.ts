@@ -1,4 +1,4 @@
-import { db, useLiveQuery } from '@/lib/db'
+import { useApiQuery, transactionsApi, categoriesApi } from '@/lib/api'
 
 type CategorySpending = {
   categoryId: number | null
@@ -23,16 +23,19 @@ type DateRange = {
 }
 
 export const useNetSpending = (dateRange: DateRange): SpendingSummary | null => {
-  const transactions = useLiveQuery(
+  const transactions = useApiQuery(
     () =>
-      db.transactions
-        .where('date')
-        .between(dateRange.startDate, dateRange.endDate, true, true)
-        .toArray(),
-    [dateRange.startDate, dateRange.endDate],
+      transactionsApi.getAll({
+        startDate: dateRange.startDate.toISOString(),
+        endDate: dateRange.endDate.toISOString(),
+      }),
+    ['transactions'],
   )
 
-  const categories = useLiveQuery(() => db.categories.toArray())
+  const categories = useApiQuery(
+    () => categoriesApi.getAll(),
+    ['categories'],
+  )
 
   if (!transactions || !categories) {
     return null

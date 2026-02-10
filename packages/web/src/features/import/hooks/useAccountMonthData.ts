@@ -1,13 +1,13 @@
 import { useMemo } from 'react'
-import { db, useLiveQuery } from '@/lib/db'
+import { useApiQuery, transactionsApi } from '@/lib/api'
 
 export function useAccountMonthData(accountId: number | undefined): Map<string, number> {
-  const transactions = useLiveQuery(
+  const transactions = useApiQuery(
     () => {
-      if (accountId === undefined) return []
-      return db.transactions.where('accountId').equals(accountId).toArray()
+      if (accountId === undefined) return Promise.resolve([])
+      return transactionsApi.getAll({ accountId })
     },
-    [accountId]
+    ['transactions'],
   )
 
   return useMemo(() => {

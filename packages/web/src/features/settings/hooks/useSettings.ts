@@ -1,5 +1,5 @@
 import { useCallback, useRef } from 'react'
-import { db, useLiveQuery } from '@/lib/db'
+import { useApiQuery, appSettingsApi } from '@/lib/api'
 import type { AppSettings, LLMSettings } from '@/types'
 
 const DEFAULT_LLM_SETTINGS: LLMSettings = {
@@ -19,8 +19,15 @@ export function useSettings(): {
   isLoading: boolean
   saveSettings: (settings: AppSettings) => Promise<void>
 } {
-  const result = useLiveQuery(
-    () => db.appSettings.get('app').then((s) => s ?? null)
+  const result = useApiQuery(
+    async () => {
+      try {
+        return await appSettingsApi.get()
+      } catch {
+        return null
+      }
+    },
+    ['appSettings'],
   )
   const isLoading = result === undefined
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -33,7 +40,7 @@ export function useSettings(): {
     }
 
     debounceRef.current = setTimeout(async () => {
-      await db.appSettings.put(newSettings)
+      await appSettingsApi.put(newSettings)
       debounceRef.current = null
     }, 500)
   }, [])

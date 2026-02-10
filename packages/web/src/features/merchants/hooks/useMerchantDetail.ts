@@ -1,4 +1,4 @@
-import { db, useLiveQuery } from '@/lib/db'
+import { useApiQuery, merchantsApi, transactionsApi, rulesApi, categoriesApi } from '@/lib/api'
 import type { Merchant, Transaction, Rule } from '@/types'
 
 export type TimePeriod =
@@ -203,22 +203,23 @@ export const useMerchantDetail = (
   merchantId: number,
   timePeriod: TimePeriod = 'all-time',
 ): MerchantDetailData => {
-  const data = useLiveQuery(
+  const data = useApiQuery(
     async () => {
-      const merchant = await db.merchants.get(merchantId)
+      let merchant: Merchant | undefined
+      try {
+        merchant = await merchantsApi.get(merchantId)
+      } catch {
+        merchant = undefined
+      }
       if (!merchant) {
         return { merchant: undefined }
       }
 
-      const allTransactions = await db.transactions
-        .where('merchantId')
-        .equals(merchantId)
-        .toArray()
-      const rules = await db.rules
-        .where('merchantId')
-        .equals(merchantId)
-        .toArray()
-      const allCategories = await db.categories.toArray()
+      const [allTransactions, rules, allCategories] = await Promise.all([
+        transactionsApi.getAll({ merchantId }),
+        rulesApi.getAll({ merchantId }),
+        categoriesApi.getAll(),
+      ])
 
       const categoryMap = new Map<number, string>()
       const catById = new Map(allCategories.map((c) => [c.id!, c]))
@@ -253,7 +254,7 @@ export const useMerchantDetail = (
         categoryDistribution,
       }
     },
-    [merchantId],
+    ['merchants', 'transactions', 'rules', 'categories'],
   )
 
   if (!data) {

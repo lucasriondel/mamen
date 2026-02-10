@@ -1,4 +1,4 @@
-import { db, useLiveQuery } from '@/lib/db'
+import { useApiQuery, merchantsApi } from '@/lib/api'
 import type { Merchant } from '@/types'
 
 export type UseMerchantsReturn = {
@@ -12,9 +12,9 @@ export type UseMerchantsReturn = {
 }
 
 export const useMerchants = (): UseMerchantsReturn => {
-  const merchants = useLiveQuery(
-    () => db.merchants.orderBy('name').toArray(),
-    [],
+  const merchants = useApiQuery(
+    () => merchantsApi.getAll({ orderBy: 'name' }),
+    ['merchants'],
     [] as Merchant[],
   )
 
@@ -25,21 +25,22 @@ export const useMerchants = (): UseMerchantsReturn => {
     defaultCategoryId?: number,
   ): Promise<number> => {
     const now = new Date()
-    const id = await db.merchants.add({
+    return merchantsApi.create({
       name,
       defaultCategoryId,
       createdAt: now,
       firstSeen: now,
     })
-    return id as number
   }
 
   const getMerchantByName = async (
     name: string,
   ): Promise<Merchant | undefined> => {
-    return db.merchants
-      .filter((m) => m.name.toLowerCase() === name.toLowerCase())
-      .first()
+    try {
+      return await merchantsApi.getByNameCaseInsensitive(name)
+    } catch {
+      return undefined
+    }
   }
 
   return {

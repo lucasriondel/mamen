@@ -1,4 +1,4 @@
-import { db, useLiveQuery } from '@/lib/db'
+import { useApiQuery, transactionsApi } from '@/lib/api'
 
 type UseUnmatchedCountReturn = {
   count: number
@@ -6,10 +6,14 @@ type UseUnmatchedCountReturn = {
 }
 
 export const useUnmatchedCount = (): UseUnmatchedCountReturn => {
-  const count = useLiveQuery(
-    () => db.transactions.filter((t) => t.merchantId === undefined).count(),
-    [],
+  const allTransactions = useApiQuery(
+    () => transactionsApi.getAll(),
+    ['transactions'],
   )
+
+  const count = allTransactions
+    ? allTransactions.filter((t) => t.merchantId === undefined).length
+    : undefined
 
   return {
     count: count ?? 0,

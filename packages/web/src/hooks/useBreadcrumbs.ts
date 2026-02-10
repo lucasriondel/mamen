@@ -1,7 +1,7 @@
 import { useLocation } from '@tanstack/react-router'
 import type { BreadcrumbSegment } from '@/components/Breadcrumb'
 import { useFocusMode } from '@/context/FocusModeContext'
-import { db, useLiveQuery } from '@/lib/db'
+import { useApiQuery, categoriesApi, merchantsApi } from '@/lib/api'
 
 export const routeLabelMap: Record<string, string> = {
   '/': 'Dashboard',
@@ -32,27 +32,42 @@ export function useBreadcrumbs(): BreadcrumbSegment[] {
   const fromParam = params.get('from')
   const categoryId = categoryIdParam ? Number(categoryIdParam) : null
 
-  const categoryName = useLiveQuery(async () => {
-    if (categoryId == null || isNaN(categoryId)) return null
-    const cat = await db.categories.get(categoryId)
-    if (!cat) return null
-    if (cat.parentId !== null) {
-      const parent = await db.categories.get(cat.parentId)
-      return parent ? `${parent.name} > ${cat.name}` : cat.name
-    }
-    return cat.name
-  }, [categoryId])
+  const categoryName = useApiQuery(
+    async () => {
+      if (categoryId == null || isNaN(categoryId)) return null
+      try {
+        const cat = await categoriesApi.get(categoryId)
+        if (!cat) return null
+        if (cat.parentId !== null) {
+          try {
+            const parent = await categoriesApi.get(cat.parentId)
+            return parent ? `${parent.name} > ${cat.name}` : cat.name
+          } catch {
+            return cat.name
+          }
+        }
+        return cat.name
+      } catch {
+        return null
+      }
+    },
+    ['categories'],
+  ) ?? null
 
   const merchantIdMatch = pathname.match(/^\/merchants\/(\d+)$/)
   const merchantIdNum = merchantIdMatch ? Number(merchantIdMatch[1]) : null
-  const merchantName = useLiveQuery(
+  const merchantName = useApiQuery(
     async () => {
       if (merchantIdNum == null) return null
-      const m = await db.merchants.get(merchantIdNum)
-      return m?.name ?? null
+      try {
+        const m = await merchantsApi.get(merchantIdNum)
+        return m?.name ?? null
+      } catch {
+        return null
+      }
     },
-    [merchantIdNum],
-  )
+    ['merchants'],
+  ) ?? null
 
   if (pathname === '/') {
     return [{ label: routeLabelMap['/'], href: '/' }]

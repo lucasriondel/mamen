@@ -1,4 +1,4 @@
-import { db, useLiveQuery } from '@/lib/db'
+import { useApiQuery, transactionsApi, categoriesApi } from '@/lib/api'
 
 type SubcategoryBreakdown = {
   name: string
@@ -38,14 +38,20 @@ const EMPTY_BREAKDOWN: SpendingBreakdown = {
 }
 
 export const useSpendingBreakdown = (dateRange?: DateRange): SpendingBreakdown => {
-  const transactions = useLiveQuery(
+  const transactions = useApiQuery(
     () =>
       dateRange
-        ? db.transactions.where('date').between(dateRange.startDate, dateRange.endDate, true, true).toArray()
-        : db.transactions.toArray(),
-    [dateRange?.startDate, dateRange?.endDate],
+        ? transactionsApi.getAll({
+            startDate: dateRange.startDate.toISOString(),
+            endDate: dateRange.endDate.toISOString(),
+          })
+        : transactionsApi.getAll(),
+    ['transactions'],
   )
-  const categories = useLiveQuery(() => db.categories.toArray())
+  const categories = useApiQuery(
+    () => categoriesApi.getAll(),
+    ['categories'],
+  )
 
   if (!transactions || !categories) {
     return EMPTY_BREAKDOWN

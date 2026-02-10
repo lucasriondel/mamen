@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { db, useLiveQuery } from '@/lib/db'
+import { useApiQuery, merchantsApi, transactionsApi, categoriesApi } from '@/lib/api'
 
 export type MerchantListItem = {
   id: number
@@ -37,11 +37,13 @@ export const useMerchantsList = ({
   sortOrder = 'desc',
   searchQuery,
 }: UseMerchantsListOptions): UseMerchantsListReturn => {
-  const data = useLiveQuery(
+  const data = useApiQuery(
     async () => {
-      const allMerchants = await db.merchants.toArray()
-      const allTransactions = await db.transactions.toArray()
-      const allCategories = await db.categories.toArray()
+      const [allMerchants, allTransactions, allCategories] = await Promise.all([
+        merchantsApi.getAll(),
+        transactionsApi.getAll(),
+        categoriesApi.getAll(),
+      ])
 
       const categoryMap = new Map(
         allCategories.map((c) => [c.id, c]),
@@ -89,7 +91,7 @@ export const useMerchantsList = ({
         }
       })
     },
-    [],
+    ['merchants', 'transactions', 'categories'],
     [] as MerchantListItem[],
   )
 

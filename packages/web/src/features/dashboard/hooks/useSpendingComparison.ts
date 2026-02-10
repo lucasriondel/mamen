@@ -1,5 +1,5 @@
 import { useMemo, useRef } from 'react'
-import { db, useLiveQuery } from '@/lib/db'
+import { useApiQuery, transactionsApi } from '@/lib/api'
 import type { TimePeriod } from '../types'
 import {
   getPreviousPeriodRange,
@@ -30,13 +30,13 @@ export const useSpendingComparison = (
     [selectedPeriod, now],
   )
 
-  const prevTransactions = useLiveQuery(
+  const prevTransactions = useApiQuery(
     () =>
-      db.transactions
-        .where('date')
-        .between(prevRange.startDate, prevRange.endDate, true, true)
-        .toArray(),
-    [prevRange.startDate, prevRange.endDate],
+      transactionsApi.getAll({
+        startDate: prevRange.startDate.toISOString(),
+        endDate: prevRange.endDate.toISOString(),
+      }),
+    ['transactions'],
   )
 
   return useMemo(() => {
