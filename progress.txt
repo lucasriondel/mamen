@@ -135,4 +135,30 @@
 - `packages/server/src/lib/repository/index.ts` — `getDatabase()` singleton + `resetDatabase()` for testing
 - Verified: `tsc --noEmit` passes cleanly in server package
 - Verified: server tests pass (0 tests, --passWithNoTests)
-- Verified: web tests still pass (140/142 test files, 1443/1444 tests — same 2 pre-existing failures)
+- Verified: web tests still pass (140/142 test files, 1443/1444 tests — same pre-existing failures)
+
+## Step 4: REST API Routes ✅
+
+- Updated `packages/server/src/router.ts` — Router now extracts path parameters from `:param` segments into `params.params` record
+- Created `packages/server/src/api/helpers.ts` — Shared utilities for route handlers
+  - `parseBody<T>(req)` — JSON body parser with ISO date string revival (auto-converts date strings to Date objects)
+  - `parseId(raw)` — Safe numeric ID parsing from path params
+  - `jsonResponse(data, status)` / `errorResponse(message, status)` — Response helpers
+- Created `packages/server/src/api/accounts.ts` — CRUD: GET/POST/PUT/DELETE /api/accounts, plus getByName, getByType
+- Created `packages/server/src/api/transactions.ts` — CRUD + rich filtered queries via query params
+  - Supports filtering by: accountId, importMonth, merchantId, categoryId, importBatchId, linkedRefundId, dateRange, orderBy
+  - Count endpoint with accountId+importMonth and importBatchId filters
+  - Bulk operations: bulk-add, bulk-put, bulk-get, bulk-delete
+  - Delete by account+month, delete by import batch
+- Created `packages/server/src/api/merchants.ts` — CRUD + getByName, getByNameCaseInsensitive, ordered by name, bulk-put
+- Created `packages/server/src/api/rules.ts` — CRUD + getByMerchantId, count by merchantId, getByMerchantIdAndPattern, bulk-add, bulk-delete
+- Created `packages/server/src/api/settings.ts` — GET all, GET/PUT by key, DELETE by id, clear
+- Created `packages/server/src/api/app-settings.ts` — GET/PUT singleton, clear
+- Created `packages/server/src/api/categories.ts` — CRUD + getBySlug, getByParentId (with sortOrder option), getRootCategories, getAllOrderedBySortOrder, bulk-add, bulk-put, clear
+- Created `packages/server/src/api/subscriptions.ts` — CRUD + getByMerchantId, getByStatus, getFirstByMerchantId, getByMerchantIdAndFrequency, bulk-put, clear
+- Created `packages/server/src/api/database.ts` — POST /api/database/reset (clears all tables), POST /api/database/export (dumps all tables), POST /api/database/import (clears + reimports all tables)
+- Created `packages/server/src/api/index.ts` — Barrel import that registers all route modules
+- Updated `packages/server/src/index.ts` — Added `import "./api"` to register all API routes at startup
+- Verified: `tsc --noEmit` passes cleanly in server package
+- Verified: server tests pass (0 tests, --passWithNoTests)
+- Verified: web tests still pass (140/142 test files, 1443/1444 tests — same pre-existing failures)

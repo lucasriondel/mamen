@@ -1,0 +1,10 @@
+// Import all route modules to register them with the router
+import './accounts'
+import './transactions'
+import './merchants'
+import './rules'
+import './settings'
+import './app-settings'
+import './categories'
+import './subscriptions'
+import './database'

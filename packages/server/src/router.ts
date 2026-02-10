@@ -1,9 +1,10 @@
-type RouteHandler = (req: Request, params: RouteParams) => Response | Promise<Response>
-
 type RouteParams = {
   pathname: string
   searchParams: URLSearchParams
+  params: Record<string, string>
 }
+
+type RouteHandler = (req: Request, params: RouteParams) => Response | Promise<Response>
 
 type Route = {
   method: string
@@ -37,8 +38,12 @@ const matchRoute = (method: string, pathname: string): { handler: RouteHandler; 
     if (routeParts.length !== pathParts.length) continue
 
     let matches = true
+    const extracted: Record<string, string> = {}
     for (let i = 0; i < routeParts.length; i++) {
-      if (routeParts[i].startsWith(":")) continue
+      if (routeParts[i].startsWith(":")) {
+        extracted[routeParts[i].slice(1)] = pathParts[i]
+        continue
+      }
       if (routeParts[i] !== pathParts[i]) {
         matches = false
         break
@@ -51,6 +56,7 @@ const matchRoute = (method: string, pathname: string): { handler: RouteHandler; 
         params: {
           pathname: url.pathname,
           searchParams: url.searchParams,
+          params: extracted,
         },
       }
     }

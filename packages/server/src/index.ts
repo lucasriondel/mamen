@@ -1,5 +1,6 @@
 import { join } from "path"
 import { handleRequest, router } from "./router"
+import "./api"
 
 const PORT = Number(process.env.PORT) || 3000
 const STATIC_DIR = join(import.meta.dir, "../../web/dist")
