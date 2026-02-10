@@ -103,3 +103,36 @@
 - Verified: `tsc --noEmit` passes cleanly in server package
 - Verified: server tests pass (0 tests, --passWithNoTests)
 - Verified: web tests still pass (140/142 test files, 1443/1444 tests — same 2 pre-existing failures)
+
+## Step 3: SQLite Adapter (bun:sqlite) ✅
+
+- Created `packages/server/src/lib/repository/adapters/sqlite/` directory with 12 files
+- `connection.ts` — DB connection management with WAL mode, foreign keys, and migration runner
+  - `getConnection(dbPath)` — opens/creates SQLite DB file, runs migrations, returns singleton
+  - `closeConnection()` — closes the DB connection
+  - `deleteDatabase(dbPath)` — closes connection and removes DB file + WAL/SHM files
+  - `getInMemoryConnection()` — creates in-memory DB for testing
+- `migrations/001-initial-schema.ts` — All CREATE TABLE + CREATE INDEX statements
+  - 8 tables: accounts, transactions, merchants, rules, settings, appSettings, categories, subscriptions
+  - Compound index: `idx_tx_account_month` on transactions(accountId, importMonth)
+  - Unique index on settings(key)
+  - All indexes match the existing Dexie schema
+- `account.adapter.ts` — Full AccountRepository implementation with row mapping (Date ↔ ISO string)
+- `transaction.adapter.ts` — Full TransactionRepository implementation (richest adapter)
+  - Dates stored as ISO strings, converted to Date on read
+  - Booleans stored as INTEGER (0/1), converted to boolean/undefined on read
+  - anomalyFlags stored as JSON TEXT, serialized/deserialized in row mappers
+  - filterByPredicate/filterIdsByPredicate load all rows and filter in JS
+- `merchant.adapter.ts` — Full MerchantRepository with case-insensitive name search via COLLATE NOCASE
+- `rule.adapter.ts` — Full RuleRepository with compound merchantId+pattern lookup
+- `setting.adapter.ts` — Full SettingRepository with unique key-based upsert via INSERT OR REPLACE
+- `app-settings.adapter.ts` — AppSettingsRepository for singleton settings (LLM config stored as JSON)
+- `category.adapter.ts` — Full CategoryRepository with hierarchical queries (parentId, root, sortOrder)
+- `subscription.adapter.ts` — Full SubscriptionRepository with transactionIds stored as JSON array
+- `unit-of-work.adapter.ts` — UnitOfWork using manual BEGIN/COMMIT/ROLLBACK for async transaction support
+- `database.adapter.ts` — DatabasePort wrapping connection lifecycle (open, close, delete)
+- `index.ts` (sqlite/) — Factory function `createDatabase(db)` that creates all repo adapters from a single DB connection
+- `packages/server/src/lib/repository/index.ts` — `getDatabase()` singleton + `resetDatabase()` for testing
+- Verified: `tsc --noEmit` passes cleanly in server package
+- Verified: server tests pass (0 tests, --passWithNoTests)
+- Verified: web tests still pass (140/142 test files, 1443/1444 tests — same 2 pre-existing failures)
