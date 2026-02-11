@@ -5,7 +5,7 @@ import { CommandPaletteProvider } from '@/context/CommandPaletteContext'
 import { FocusModeProvider } from '@/context/FocusModeContext'
 import { CommandPalette } from '@/components/CommandPalette'
 import { Toaster } from '@/components/ui/sonner'
-import { seedCategories } from '@/lib/db/seeds/categories'
+import { seedCategories } from '@/lib/seeds/categories'
 
 export const Route = createRootRoute({
   component: RootComponent,

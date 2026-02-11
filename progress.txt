@@ -257,3 +257,20 @@
 - Only test files (73 *.test.ts/tsx files) still reference `@/lib/db` — to be updated in Step 10
 - Verified: `tsc --noEmit` passes cleanly (0 type errors)
 - Verified: 68/142 test files pass, 917/1444 tests pass — 74 test files (527 tests) now fail because tests still use fake-indexeddb + direct db calls while source code now uses API client; these will be updated in Step 10 (Update Tests)
+
+## Step 9: Cleanup ✅
+
+- Removed `dexie` (^4.3.0) and `dexie-react-hooks` (^4.2.0) from `packages/web/package.json` dependencies
+- Removed `fake-indexeddb` (^6.2.5) from `packages/web/package.json` devDependencies
+- Deleted `packages/web/src/lib/db/schema.ts` — Dexie database definition (versions 1-9)
+- Deleted `packages/web/src/lib/db/db.integration.test.ts` — Dexie integration tests
+- Replaced `packages/web/src/lib/db/index.ts` barrel with a stub comment (test files still import from here — to be updated in Step 10)
+- Removed `import 'fake-indexeddb/auto'` from `packages/web/src/test/setup.ts`
+- Relocated seed files out of db directory:
+  - `packages/web/src/lib/db/seeds/categories.ts` → `packages/web/src/lib/seeds/categories.ts`
+  - `packages/web/src/lib/db/seeds/categories.test.ts` → `packages/web/src/lib/seeds/categories.test.ts`
+- Updated `packages/web/src/routes/__root.tsx` import path: `@/lib/db/seeds/categories` → `@/lib/seeds/categories`
+- Note: Old service files in `packages/web/src/features/*/services/` are NOT removed — they're still the active business logic, now calling API endpoints instead of Dexie directly. Server-side service duplicates (PRD Step 4) were never created.
+- Verified: `tsc --noEmit` passes cleanly on both web and server packages (0 type errors)
+- Verified: No non-test source files import from `dexie`, `@/lib/db`, or `fake-indexeddb`
+- Verified: 64/141 test files pass, 712/1397 tests pass — 77 test files (685 tests) fail because test files still import `db` from the now-empty `@/lib/db` barrel; will be fixed in Step 10 (Update Tests)
