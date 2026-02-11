@@ -5,7 +5,7 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import type * as React from "react";
 import { afterEach, vi } from "vitest";
-import { queryClient } from "@/lib/api/queryClient";
+import { queryClient } from "@/lib/api";
 
 // Clear query cache between tests
 afterEach(() => {

@@ -1,14 +1,40 @@
-export { accountsApi } from "./accounts";
-export { appSettingsApi } from "./app-settings";
-export { categoriesApi } from "./categories";
-export { ApiError, api } from "./client";
-export { databaseApi } from "./database";
-export { importApi } from "./import";
-export { merchantsApi } from "./merchants";
-export { invalidateAll, invalidateEntity } from "./mutations";
-export { queryClient } from "./queryClient";
-export { queryKeys } from "./queryKeys";
-export { rulesApi } from "./rules";
-export { settingsApi } from "./settings";
-export { subscriptionsApi } from "./subscriptions";
-export { transactionsApi } from "./transactions";
+// Re-export everything from @mamen/api for backward compatibility
+export {
+	api,
+	ApiError,
+	accountsApi,
+	appSettingsApi,
+	categoriesApi,
+	databaseApi,
+	importApi,
+	merchantsApi,
+	rulesApi,
+	settingsApi,
+	subscriptionsApi,
+	transactionsApi,
+	queryKeys,
+	queryClient,
+	invalidateEntity,
+	invalidateAll,
+	// Query helpers
+	defineQueries,
+	defineMutations,
+	accountQueries,
+	accountMutations,
+	appSettingQueries,
+	appSettingMutations,
+	categoryQueries,
+	categoryMutations,
+	databaseMutations,
+	importMutations,
+	merchantQueries,
+	merchantMutations,
+	ruleQueries,
+	ruleMutations,
+	settingQueries,
+	settingMutations,
+	subscriptionQueries,
+	subscriptionMutations,
+	transactionQueries,
+	transactionMutations,
+} from "@mamen/api";

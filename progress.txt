@@ -1,85 +1,28 @@
-## Merchant Pictures - Progress
+## Extract API SDK into @mamen/api package — COMPLETE
 
-### Phase 1: Shared Types & Schema ✅
-- Added `imageUrl?: string` to `Merchant` type in `packages/shared/src/types/merchant.types.ts`
-- Added `imageUrl: z.string().optional()` to `merchantSchema` in `packages/shared/src/schemas/merchant.schema.ts`
-- Added `imageUrl` to `createMerchantSchema.omit()` fields
-- Typecheck passes across all packages
+All three phases implemented in a single pass:
 
-### Phase 2: Database & Adapter ✅
-- Added `ALTER TABLE merchants ADD COLUMN imageUrl TEXT` migration with try/catch in `001-initial-schema.ts`
-- Added `imageUrl: string | null` to `MerchantRow` type in `merchant.adapter.ts`
-- Added `imageUrl: row.imageUrl ?? undefined` to `toEntity()` mapping
-- Added `imageUrl` to INSERT in `add()`, `bulkAdd()`, `bulkPut()`
-- Added `imageUrl` change handler in `update()`
-- Typecheck passes across all packages
-- All 15 merchant route tests pass
+### Phase 1: Created packages/api/ package
+- Scaffolded package.json, tsconfig.json
+- Moved all 13 entity/infrastructure files from packages/web/src/lib/api/ to packages/api/src/
+- Created barrel index.ts with all exports
 
-### Phase 3: Backend Upload Infrastructure ✅
-- Installed `@fastify/multipart` dependency in `packages/server/`
-- Created `packages/server/src/lib/uploads.ts` with `UPLOADS_DIR`, `ensureUploadsDir()`, and `deleteUpload()`
-- Updated `packages/server/src/app.ts`:
-  - Registered `@fastify/multipart` with 2MB file size limit
-  - Registered `@fastify/static` for `/uploads/` prefix
-  - Added `uploadsDir` to Fastify instance for route access
-  - Added `uploadsDir` option to `BuildAppOptions` for testability
-- Updated `packages/server/src/routes/merchants.ts`:
-  - Added `POST /merchants/:id/image` route (multipart upload, MIME validation, file write, DB update)
-  - Added `DELETE /merchants/:id/image` route (file cleanup, DB update)
-  - Modified `DELETE /merchants/:id` to clean up image file before deleting merchant
-- Updated `packages/server/src/__tests__/helpers/test-app.ts` to use temp dir for uploads
-- Added `uploads/` to `.gitignore`
-- Added `/uploads` proxy to `packages/web/vite.config.ts`
-- Typecheck passes across all packages
-- All 116 server tests pass
+### Phase 2: Runtime query helper factory
+- Created defineQueries/defineMutations factory in packages/api/src/query/factory.ts
+- Created query/mutation configs for all 10 entities:
+  accounts, merchants, transactions, categories, rules,
+  subscriptions, settings, app-settings, database, import
+- Created query barrel index.ts
 
-### Phase 4: Frontend API Client ✅
-- Added `uploadImage(id, file)` to `merchantsApi` in `packages/web/src/lib/api/merchants.ts`
-  - Uses raw `fetch()` with `FormData` (not the JSON-only `api` helper)
-  - Includes error handling with `ApiError`
-- Added `deleteImage(id)` to `merchantsApi` using `api.delete()`
-- Typecheck passes across all packages
-- All 1432 web tests pass (141 test files)
+### Phase 3: Updated web package
+- Added @mamen/api workspace dependency to web
+- Replaced packages/web/src/lib/api/index.ts with re-exports from @mamen/api
+- Deleted all moved files from web
+- Updated 3 files with direct submodule imports to use barrel instead
+- Rewrote test mock setup (api-mock-setup.ts) to mock @mamen/api directly
+- Added packages/api to root tsconfig.json references
 
-### Phase 5: MerchantAvatar Component ✅
-- Created `packages/web/src/components/MerchantAvatar/index.tsx`
-  - Props: `name`, `imageUrl?`, `size?: "sm" | "md" | "lg"`, `className?`
-  - Sizes: `sm` = 24px (size-6), `md` = 32px (size-8), `lg` = 48px (size-12)
-  - With image: `<img>` with `rounded-full object-cover`
-  - Without image: colored circle with first letter, color from 16-color palette via name hash
-  - Follows project patterns: named export, `type` for props, `cn()` for className merging
-- Typecheck passes across all packages
-- All 1432 web tests pass (141 test files)
-
-### Phase 6: Frontend Integration ✅
-- Updated `TransactionDataTable/columns.tsx`:
-  - Replaced `getMerchantCreatedAt` with `getMerchantInfo` returning `{ name?, imageUrl?, createdAt? }`
-  - Renders `<MerchantAvatar size="sm">` before `rawMerchantString` in the Description column
-- Updated `TransactionDataTable/index.tsx`:
-  - Changed merchant map from `Map<number, Date>` to `Map<number, { name, imageUrl?, createdAt }>`
-  - Renamed `getMerchantCreatedAt` → `getMerchantInfo`
-- Updated `useMerchantsList.ts`:
-  - Added `imageUrl?: string` to `MerchantListItem` type
-  - Pass `imageUrl: merchant.imageUrl` in mapping
-- Updated `MerchantListItem/index.tsx`:
-  - Added `<MerchantAvatar>` before merchant name
-- Updated `MerchantHeader/index.tsx`:
-  - Added `imageUrl` prop, renders `<MerchantAvatar size="lg">` next to name
-- Updated `MerchantDetailPage/index.tsx`:
-  - Passes `imageUrl` to `<MerchantHeader>` and `currentImageUrl` to `<EditMerchantModal>`
-- Updated `EditMerchantModal/index.tsx`:
-  - Added `currentImageUrl` prop
-  - Added image picker UI: clickable avatar with camera overlay, file input, remove button
-  - On save: calls `uploadImage()` / `deleteImage()` before metadata update
-- Typecheck passes across all packages
-- All 1432 web tests pass (141 test files)
-
-### Phase 7: Housekeeping ✅
-- `.gitignore` already contains `uploads/` (added during Phase 3)
-- `packages/web/vite.config.ts` already contains `/uploads` proxy (added during Phase 3)
-- Typecheck passes across all packages
-- All 1432 web tests pass (141 test files), all 116 server tests pass
-
-### ALL PHASES COMPLETE
-- All 7 phases of the Merchant Pictures implementation are done
-- Verification: typecheck green, all tests pass
+### Verification
+- bun install: workspace resolved successfully
+- bun run typecheck: all 5 packages pass (shared, api, web, server)
+- bun run test: 141 test files, 1432 tests pass

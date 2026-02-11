@@ -3,7 +3,7 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { createRouter, RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { queryClient } from "./lib/api/queryClient";
+import { queryClient } from "./lib/api";
 import { routeTree } from "./routeTree.gen";
 import "./index.css";
 

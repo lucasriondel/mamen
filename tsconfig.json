@@ -2,6 +2,7 @@
 	"files": [],
 	"references": [
 		{ "path": "packages/shared" },
+		{ "path": "packages/api" },
 		{ "path": "packages/web" },
 		{ "path": "packages/server" }
 	]
