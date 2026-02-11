@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { db } from '@/lib/db'
-import { seedCategories } from '@/lib/db/seeds/categories'
+import { seedCategories } from '@/lib/seeds/categories'
 import { CategoryPicker } from './index'
 
 beforeAll(() => {

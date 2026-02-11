@@ -41,12 +41,12 @@ export function RuleEditModal({
 
   const rule = useApiQuery(
     () => (ruleId ? rulesApi.get(ruleId) : Promise.resolve(undefined)),
-    ['rules'],
+    ['rules', String(ruleId ?? '')],
   )
 
   const merchant = useApiQuery(
     () => (rule?.merchantId ? merchantsApi.get(rule.merchantId) : Promise.resolve(undefined)),
-    ['merchants'],
+    ['merchants', String(rule?.merchantId ?? '')],
   )
 
   useEffect(() => {

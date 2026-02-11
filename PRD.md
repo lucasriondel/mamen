@@ -561,7 +561,7 @@ Update in packages/web/:
 
 ---
 
-Step 10: Update Tests
+Step 10: Update Tests ✅
 
 Server-side tests (new):
 

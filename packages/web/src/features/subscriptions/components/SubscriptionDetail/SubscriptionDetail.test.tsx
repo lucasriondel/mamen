@@ -1,37 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { db } from '@/lib/db'
 import { SubscriptionDetail } from './index'
-import type { Subscription } from '@/types'
+import type { Subscription, Transaction } from '@/types'
 
 const mockNavigate = vi.fn()
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => mockNavigate,
-}))
-
-vi.mock('@/lib/db', () => ({
-  db: {
-    transactions: {
-      where: () => ({
-        anyOf: () => ({
-          toArray: () =>
-            Promise.resolve([
-              { id: 100, date: '2026-01-18', amount: -15.99, description: 'NETFLIX' },
-              { id: 101, date: '2025-12-18', amount: -15.99, description: 'NETFLIX' },
-              { id: 102, date: '2025-11-19', amount: -16.49, description: 'NETFLIX' },
-            ]),
-        }),
-      }),
-    },
-  },
-  useLiveQuery: (fn: () => Promise<unknown>) => {
-    // Synchronously return mock data
-    return [
-      { id: 100, date: '2026-01-18', amount: -15.99, description: 'NETFLIX' },
-      { id: 101, date: '2025-12-18', amount: -15.99, description: 'NETFLIX' },
-      { id: 102, date: '2025-11-19', amount: -16.49, description: 'NETFLIX' },
-    ]
-  },
 }))
 
 const makeSubscription = (overrides: Partial<Subscription> = {}): Subscription => ({
@@ -52,8 +28,39 @@ const makeSubscription = (overrides: Partial<Subscription> = {}): Subscription =
 })
 
 describe('SubscriptionDetail', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     mockNavigate.mockClear()
+    await db.transactions.clear()
+
+    // Seed transactions that the component will load via bulkGet.
+    // SubscriptionDetail expects date as string (uses localeCompare).
+    await db.transactions.add({
+      id: 100,
+      accountId: 1,
+      date: '2026-01-18',
+      amount: -15.99,
+      rawMerchantString: 'NETFLIX',
+      importedAt: new Date(),
+      importMonth: '2026-01',
+    } as unknown as Transaction)
+    await db.transactions.add({
+      id: 101,
+      accountId: 1,
+      date: '2025-12-18',
+      amount: -15.99,
+      rawMerchantString: 'NETFLIX',
+      importedAt: new Date(),
+      importMonth: '2025-12',
+    } as unknown as Transaction)
+    await db.transactions.add({
+      id: 102,
+      accountId: 1,
+      date: '2025-11-19',
+      amount: -16.49,
+      rawMerchantString: 'NETFLIX',
+      importedAt: new Date(),
+      importMonth: '2025-11',
+    } as unknown as Transaction)
   })
 
   it('renders subscription metadata', () => {
@@ -65,13 +72,15 @@ describe('SubscriptionDetail', () => {
     expect(screen.getByText('8')).toBeInTheDocument()
   })
 
-  it('renders charge history with transaction dates and amounts', () => {
+  it('renders charge history with transaction dates and amounts', async () => {
     render(<SubscriptionDetail subscription={makeSubscription()} />)
 
     expect(screen.getByText('Charge History')).toBeInTheDocument()
-    // Transactions should be present
-    const amounts = screen.getAllByText(/15,99/)
-    expect(amounts.length).toBeGreaterThanOrEqual(2)
+
+    await waitFor(() => {
+      const amounts = screen.getAllByText(/15,99/)
+      expect(amounts.length).toBeGreaterThanOrEqual(2)
+    })
   })
 
   it('navigates to merchant page when View Merchant is clicked', async () => {
@@ -88,7 +97,6 @@ describe('SubscriptionDetail', () => {
   })
 
   it('handles empty transactionIds gracefully', () => {
-    vi.mocked(vi.fn()).mockReturnValue([])
     render(
       <SubscriptionDetail subscription={makeSubscription({ transactionIds: [] })} />,
     )

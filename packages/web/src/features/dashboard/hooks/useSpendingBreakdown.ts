@@ -46,7 +46,7 @@ export const useSpendingBreakdown = (dateRange?: DateRange): SpendingBreakdown =
             endDate: dateRange.endDate.toISOString(),
           })
         : transactionsApi.getAll(),
-    ['transactions'],
+    ['transactions', dateRange?.startDate.toISOString() ?? '', dateRange?.endDate.toISOString() ?? ''],
   )
   const categories = useApiQuery(
     () => categoriesApi.getAll(),

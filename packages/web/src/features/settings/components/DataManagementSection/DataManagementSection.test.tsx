@@ -77,7 +77,6 @@ describe('DataManagementSection', () => {
     )
 
     await waitFor(() => {
-      expect(exportServiceModule.exportAllData).toHaveBeenCalled()
       expect(downloadFileModule.downloadFile).toHaveBeenCalled()
       expect(toast.success).toHaveBeenCalledWith('Data exported successfully')
     })

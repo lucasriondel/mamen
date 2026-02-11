@@ -269,7 +269,7 @@ describe('CommandPalette', () => {
     await user.click(screen.getByText('Export All Data'))
 
     await waitFor(() => {
-      expect(exportServiceModule.exportAllData).toHaveBeenCalled()
+      expect(downloadFileModule.downloadFile).toHaveBeenCalled()
     })
   })
 

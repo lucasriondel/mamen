@@ -50,8 +50,8 @@ export const seedCategories = async (): Promise<void> => {
   // First add all parent categories and collect their IDs
   const parentIds: number[] = []
   for (const cat of categories) {
-    const created = await categoriesApi.create(cat)
-    parentIds.push(created.id)
+    const id = await categoriesApi.create(cat)
+    parentIds.push(id)
   }
 
   // Then add subcategories referencing parent IDs

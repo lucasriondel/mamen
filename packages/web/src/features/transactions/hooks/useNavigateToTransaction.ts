@@ -6,15 +6,15 @@ export const useNavigateToTransaction = () => {
   const navigate = useNavigate()
 
   const navigateToTransaction = async (transactionId: number): Promise<void> => {
-    try {
-      await transactionsApi.get(transactionId)
-      navigate({
-        to: '/transactions',
-        search: { highlight: transactionId },
-      })
-    } catch {
+    const tx = await transactionsApi.get(transactionId)
+    if (!tx) {
       toast.error('Linked transaction not found')
+      return
     }
+    navigate({
+      to: '/transactions',
+      search: { highlight: transactionId },
+    })
   }
 
   return { navigateToTransaction }

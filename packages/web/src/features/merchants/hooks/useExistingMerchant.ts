@@ -26,7 +26,7 @@ export const useExistingMerchant = (
 
       return { merchant, rules }
     },
-    ['merchants', 'rules'],
+    ['merchants', 'rules', String(merchantId ?? '')],
     { merchant: null, rules: [] } as { merchant: Merchant | null; rules: Rule[] },
   )
 

@@ -29,7 +29,7 @@ export const useNetSpending = (dateRange: DateRange): SpendingSummary | null => 
         startDate: dateRange.startDate.toISOString(),
         endDate: dateRange.endDate.toISOString(),
       }),
-    ['transactions'],
+    ['transactions', dateRange.startDate.toISOString(), dateRange.endDate.toISOString()],
   )
 
   const categories = useApiQuery(

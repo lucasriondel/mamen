@@ -1,7 +1,7 @@
-import 'fake-indexeddb/auto'
 import { describe, it, expect, beforeEach } from 'vitest'
 import { renderHook, waitFor } from '@testing-library/react'
 import { db } from '@/lib/db'
+import { settingsApi } from '@/lib/api'
 import { useDisplayPreferences } from './useDisplayPreferences'
 import { DEFAULT_DISPLAY_PREFERENCES } from '../types/preferences.types'
 
@@ -37,15 +37,20 @@ describe('useDisplayPreferences', () => {
   })
 
   it('updates reactively when preferences change', async () => {
-    const { result } = renderHook(() => useDisplayPreferences())
-
-    await waitFor(() => {
-      expect(result.current.isLoading).toBe(false)
+    // Seed initial data, then re-render with updated data
+    await db.settings.add({
+      key: 'displayPreferences',
+      value: JSON.stringify({ currencySymbol: '€' }),
     })
 
-    expect(result.current.preferences.currencySymbol).toBe('€')
+    const { result, rerender } = renderHook(() => useDisplayPreferences())
 
-    await db.settings.add({
+    await waitFor(() => {
+      expect(result.current.preferences.currencySymbol).toBe('€')
+    })
+
+    // Update via API to trigger invalidation
+    await settingsApi.putByKey({
       key: 'displayPreferences',
       value: JSON.stringify({ currencySymbol: '£' }),
     })

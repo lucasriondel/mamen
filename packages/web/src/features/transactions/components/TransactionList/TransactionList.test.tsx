@@ -130,7 +130,7 @@ describe('TransactionList', () => {
     expect(screen.getByText('Amount')).toBeInTheDocument()
   })
 
-  it('toggles cursor on row click', async () => {
+  it('sets cursor on row click', async () => {
     await db.transactions.add(makeTransaction())
 
     const user = userEvent.setup()
@@ -141,10 +141,6 @@ describe('TransactionList', () => {
 
     // Row click sets cursor (bg-muted/30)
     expect(option.className).toContain('bg-muted/30')
-
-    // Clicking again clears cursor
-    await user.click(option)
-    expect(option.className).not.toContain('bg-muted/30')
   })
 
   it('has a focusable listbox container', async () => {

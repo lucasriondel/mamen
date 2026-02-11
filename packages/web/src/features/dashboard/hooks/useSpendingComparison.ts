@@ -36,7 +36,7 @@ export const useSpendingComparison = (
         startDate: prevRange.startDate.toISOString(),
         endDate: prevRange.endDate.toISOString(),
       }),
-    ['transactions'],
+    ['transactions', prevRange.startDate.toISOString(), prevRange.endDate.toISOString()],
   )
 
   return useMemo(() => {

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import { db } from '@/lib/db'
-import { seedCategories } from '@/lib/db/seeds/categories'
+import { seedCategories } from '@/lib/seeds/categories'
 import { CategoryBadge } from './index'
 
 beforeEach(async () => {

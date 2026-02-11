@@ -19,11 +19,20 @@ vi.mock('@/context/FocusModeContext', () => ({
 }))
 
 let mockCategoryName: string | null = null
+let mockMerchantName: string | null = null
 
-vi.mock('@/lib/db', () => ({
-  db: { categories: { get: vi.fn() } },
-  useLiveQuery: vi.fn(() => mockCategoryName),
-}))
+// Override the global useApiQuery mock — return sync values for direct hook calls
+vi.mock('@/lib/api/useApiQuery', () => {
+  let callIndex = 0
+  return {
+    useApiQuery: () => {
+      // useBreadcrumbs calls useApiQuery twice: first for category, then for merchant
+      const idx = callIndex++
+      if (idx % 2 === 0) return mockCategoryName
+      return mockMerchantName
+    },
+  }
+})
 
 import { useLocation } from '@tanstack/react-router'
 import { useFocusMode } from '@/context/FocusModeContext'
@@ -45,6 +54,7 @@ describe('useBreadcrumbs', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockCategoryName = null
+    mockMerchantName = null
     mockUseFocusMode.mockReturnValue({
       focusMode: 'all',
       activeFilters: new Set(),

@@ -10,7 +10,7 @@ export function MerchantRulesList({
 }: MerchantRulesListProps): React.ReactElement {
   const rules = useApiQuery(
     () => rulesApi.getAll({ merchantId }),
-    ['rules'],
+    ['rules', String(merchantId)],
     [],
   )
 

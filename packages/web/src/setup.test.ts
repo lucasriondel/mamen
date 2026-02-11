@@ -84,16 +84,6 @@ describe('Project Setup Verification', () => {
       expect(pkg.dependencies.zustand).toMatch(/\^?5/)
     })
 
-    it('has dexie ^4.2+', () => {
-      const pkg = readJson('package.json') as { dependencies: Record<string, string> }
-      expect(pkg.dependencies.dexie).toMatch(/\^?4/)
-    })
-
-    it('has dexie-react-hooks', () => {
-      const pkg = readJson('package.json') as { dependencies: Record<string, string> }
-      expect(pkg.dependencies['dexie-react-hooks']).toBeDefined()
-    })
-
     it('has @tanstack/react-router ^1.153+', () => {
       const pkg = readJson('package.json') as { dependencies: Record<string, string> }
       expect(pkg.dependencies['@tanstack/react-router']).toBeDefined()

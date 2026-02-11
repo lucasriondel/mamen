@@ -274,3 +274,32 @@
 - Verified: `tsc --noEmit` passes cleanly on both web and server packages (0 type errors)
 - Verified: No non-test source files import from `dexie`, `@/lib/db`, or `fake-indexeddb`
 - Verified: 64/141 test files pass, 712/1397 tests pass — 77 test files (685 tests) fail because test files still import `db` from the now-empty `@/lib/db` barrel; will be fixed in Step 10 (Update Tests)
+
+## Step 10: Update Tests ✅
+
+- Replaced empty `packages/web/src/lib/db/index.ts` barrel with an in-memory mock database
+  - `Table<T>` class provides Dexie-like API: add, bulkAdd, get, bulkGet, toArray, update, put, bulkPut, delete, bulkDelete, clear, count, where, filter
+  - Exports `db` object with tables for all 8 entities (accounts, transactions, merchants, rules, settings, appSettings, categories, subscriptions)
+  - Tests can continue using `db.TABLE.method()` for seeding and assertions
+- Created `packages/web/src/test/api-mock-setup.ts` — global vitest setup that auto-mocks all API modules
+  - Mocks all 11 API barrel exports (accountsApi, transactionsApi, merchantsApi, rulesApi, settingsApi, appSettingsApi, categoriesApi, subscriptionsApi, importApi, databaseApi, api) to use in-memory mock db
+  - Implements real invalidation bus inline (subscribe/invalidate) — not mocked as no-op
+  - `useApiQuery` mock uses React state + effects to subscribe to invalidation events and re-run queries on key changes
+  - All API mutation mocks (create, update, delete, bulkAdd, etc.) call `invalidate('tableName')` after mutations to trigger reactive re-renders
+- Fixed reactivity in tests that mutate data mid-test:
+  - `useUnmatchedCount.test.ts` — uses `transactionsApi.create()` instead of `db.transactions.add()` to trigger invalidation
+  - `useDisplayPreferences.test.ts` — uses `settingsApi.putByKey()` instead of `db.settings.update()` to trigger invalidation
+- Fixed migration bugs in source code — `useApiQuery` keys missing dynamic parameters:
+  - `useSpendingComparison.ts` — added date range to query keys
+  - `useNetSpending.ts` — added date range to query keys
+  - `useSpendingBreakdown.ts` — added date range to query keys
+  - `RuleEditModal/index.tsx` — added ruleId and merchantId to query keys
+  - `useExistingMerchant.ts` — added merchantId to query key
+  - `MerchantRulesList/index.tsx` — added merchantId to query key
+- Fixed test-specific issues:
+  - `SubscriptionDetail.test.tsx` — rewrote to seed in-memory db instead of mocking useLiveQuery; uses string dates (component uses localeCompare)
+  - `DataManagementSection.test.tsx` — removed assertion on `exportAllData` (component now uses `databaseApi.export()`)
+  - `CommandPalette.test.tsx` — updated export assertion to check `downloadFile` instead of `exportAllData`
+  - `TransactionList.test.tsx` — fixed test that expected toggle behavior that doesn't exist in component
+- Verified: `tsc --noEmit` passes cleanly (0 type errors)
+- Verified: All 141 test files pass, 1432 tests pass, 0 failures

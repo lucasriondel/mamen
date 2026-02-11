@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { renderHook, waitFor } from '@testing-library/react'
 import { db } from '@/lib/db'
+import { transactionsApi } from '@/lib/api'
 import { useUnmatchedCount } from './useUnmatchedCount'
 import type { Transaction } from '@/types'
 
@@ -61,7 +62,8 @@ describe('useUnmatchedCount', () => {
       expect(result.current.count).toBe(0)
     })
 
-    await db.transactions.add(makeTransaction())
+    // Use API (not direct db) to trigger invalidation
+    await transactionsApi.create(makeTransaction() as Record<string, unknown>)
 
     await waitFor(() => {
       expect(result.current.count).toBe(1)
