@@ -5,7 +5,8 @@
 	"main": "./src/index.ts",
 	"types": "./src/index.ts",
 	"scripts": {
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsc --noEmit",
+		"test": "vitest run"
 	},
 	"exports": {
 		".": "./src/index.ts",
@@ -13,6 +14,9 @@
 	},
 	"dependencies": {
 		"@mamen/shared": "workspace:*"
+	},
+	"devDependencies": {
+		"vitest": "^4.0.18"
 	},
 	"peerDependencies": {
 		"@tanstack/react-query": "^5.0.0"

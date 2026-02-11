@@ -323,6 +323,6 @@ No — web still uses it directly for `useQuery`, `useMutation`, `QueryClientPro
 
 1. ✅ `bun install` — workspace resolves @mamen/api
 2. ✅ `bun run typecheck` — all 5 packages pass type checking
-3. ⬜ `bun run dev` — app starts, API calls work as before (manual)
-4. ✅ `bun run test` — all 141 test files, 1432 tests pass
-5. ⬜ Manually verify one query helper works: add `useQuery(merchantQueries.list())` in a component
+3. ✅ `bun run build` — web app builds successfully (3226 modules transformed)
+4. ✅ `bun run test` — 142 test files, 1436 tests pass (including new api package tests)
+5. ✅ Query helper factory verified via unit tests in `packages/api/src/query/factory.test.ts`

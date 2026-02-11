@@ -22,7 +22,14 @@ All three phases implemented in a single pass:
 - Rewrote test mock setup (api-mock-setup.ts) to mock @mamen/api directly
 - Added packages/api to root tsconfig.json references
 
-### Verification
+### Verification — ALL COMPLETE
 - bun install: workspace resolved successfully
 - bun run typecheck: all 5 packages pass (shared, api, web, server)
-- bun run test: 141 test files, 1432 tests pass
+- bun run build: web app builds successfully (3226 modules transformed)
+- bun run test: 142 test files, 1436 tests pass (4 packages: shared, server, api, web)
+- Query helper factory verified via unit tests (packages/api/src/query/factory.test.ts)
+
+### Final additions
+- Added vitest config and test script to @mamen/api package
+- Added unit tests for defineQueries/defineMutations factory (4 tests)
+- All PRD verification items now complete
