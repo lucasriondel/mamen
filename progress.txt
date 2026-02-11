@@ -41,3 +41,12 @@
 - Verified no remaining imports reference these files
 - Verified: server typecheck passes
 - Next: Step 6 — Create test infrastructure
+
+### Step 6: Create test infrastructure ✅
+- Created `vitest.config.ts` — node environment, globals enabled
+- Created `src/__tests__/helpers/test-app.ts` — `createTestApp()` factory
+  - Uses `getInMemoryConnection()` for isolated in-memory SQLite DB
+  - Creates `DatabaseInstance` via `createDatabase(connection)`
+  - Builds Fastify app via `buildApp({ db })` and awaits `app.ready()`
+- Verified: typecheck passes, `vitest run --passWithNoTests` succeeds
+- Next: Step 7 — Write API tests

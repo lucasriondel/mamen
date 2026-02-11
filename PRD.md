@@ -108,7 +108,7 @@ app.listen({ port: PORT, host: '0.0.0.0' }, (err, address) => {
 - `src/router.ts`
 - `src/api/` (entire directory)
 
-### Step 6: Create test infrastructure
+### Step 6: Create test infrastructure ✅
 - `vitest.config.ts` — default node environment
 - `src/__tests__/helpers/test-app.ts`:
   ```typescript
