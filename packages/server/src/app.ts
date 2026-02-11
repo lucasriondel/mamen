@@ -1,7 +1,10 @@
+import fastifyMultipart from "@fastify/multipart";
+import fastifyStatic from "@fastify/static";
 import type { FastifyInstance } from "fastify";
 import Fastify from "fastify";
 import { getDatabase } from "./lib/repository";
 import type { DatabaseInstance } from "./lib/repository/adapters/sqlite";
+import { UPLOADS_DIR, ensureUploadsDir } from "./lib/uploads";
 import dateParserPlugin from "./plugins/date-parser";
 import staticFilesPlugin from "./plugins/static-files";
 import accountRoutes from "./routes/accounts";
@@ -18,12 +21,14 @@ import transactionRoutes from "./routes/transactions";
 declare module "fastify" {
 	interface FastifyInstance {
 		db: DatabaseInstance;
+		uploadsDir: string;
 	}
 }
 
 export type BuildAppOptions = {
 	db?: DatabaseInstance;
 	staticDir?: string;
+	uploadsDir?: string;
 };
 
 export const buildApp = (opts: BuildAppOptions = {}): FastifyInstance => {
@@ -33,6 +38,18 @@ export const buildApp = (opts: BuildAppOptions = {}): FastifyInstance => {
 	app.decorate("db", db);
 
 	app.register(dateParserPlugin);
+	app.register(fastifyMultipart, {
+		limits: { fileSize: 2_097_152, files: 1 },
+	});
+
+	const uploadsDir = opts.uploadsDir ?? UPLOADS_DIR;
+	app.decorate("uploadsDir", uploadsDir);
+	ensureUploadsDir(uploadsDir);
+	app.register(fastifyStatic, {
+		root: uploadsDir,
+		prefix: "/uploads/",
+		decorateReply: false,
+	});
 
 	app.register(healthRoutes, { prefix: "/api" });
 	app.register(accountRoutes, { prefix: "/api" });

@@ -14,3 +14,21 @@
 - Added `imageUrl` change handler in `update()`
 - Typecheck passes across all packages
 - All 15 merchant route tests pass
+
+### Phase 3: Backend Upload Infrastructure ✅
+- Installed `@fastify/multipart` dependency in `packages/server/`
+- Created `packages/server/src/lib/uploads.ts` with `UPLOADS_DIR`, `ensureUploadsDir()`, and `deleteUpload()`
+- Updated `packages/server/src/app.ts`:
+  - Registered `@fastify/multipart` with 2MB file size limit
+  - Registered `@fastify/static` for `/uploads/` prefix
+  - Added `uploadsDir` to Fastify instance for route access
+  - Added `uploadsDir` option to `BuildAppOptions` for testability
+- Updated `packages/server/src/routes/merchants.ts`:
+  - Added `POST /merchants/:id/image` route (multipart upload, MIME validation, file write, DB update)
+  - Added `DELETE /merchants/:id/image` route (file cleanup, DB update)
+  - Modified `DELETE /merchants/:id` to clean up image file before deleting merchant
+- Updated `packages/server/src/__tests__/helpers/test-app.ts` to use temp dir for uploads
+- Added `uploads/` to `.gitignore`
+- Added `/uploads` proxy to `packages/web/vite.config.ts`
+- Typecheck passes across all packages
+- All 116 server tests pass

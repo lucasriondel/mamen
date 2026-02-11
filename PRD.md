@@ -20,24 +20,24 @@ Merchants currently have no visual representation. Adding pictures to merchants 
 - Add `imageUrl` to INSERT in `add()`, `bulkAdd()`, `bulkPut()` ✅
 - Add `imageUrl` change handler in `update()` ✅
 
-## Phase 3: Backend Upload Infrastructure
+## Phase 3: Backend Upload Infrastructure ✅
 
-**Install dependency**: `bun add @fastify/multipart` in `packages/server/`
+**Install dependency**: `bun add @fastify/multipart` in `packages/server/` ✅
 
-**Create `packages/server/src/lib/uploads.ts`** (new file):
-- `UPLOADS_DIR` = `path.join(import.meta.dir, "../../uploads")`
-- `ensureUploadsDir()` — creates `uploads/merchants/` if missing
-- `deleteUpload(filepath)` — safely removes a file
+**Create `packages/server/src/lib/uploads.ts`** (new file): ✅
+- `UPLOADS_DIR` = `path.join(import.meta.dir, "../../uploads")` ✅
+- `ensureUploadsDir()` — creates `uploads/merchants/` if missing ✅
+- `deleteUpload(filepath)` — safely removes a file ✅
 
-**`packages/server/src/app.ts`**:
-- Register `@fastify/multipart` with `{ limits: { fileSize: 2_097_152, files: 1 } }`
-- Call `ensureUploadsDir()` during app build
-- Register second `@fastify/static` for uploads: `{ root: UPLOADS_DIR, prefix: "/uploads/", decorateReply: false }`
+**`packages/server/src/app.ts`**: ✅
+- Register `@fastify/multipart` with `{ limits: { fileSize: 2_097_152, files: 1 } }` ✅
+- Call `ensureUploadsDir()` during app build ✅
+- Register second `@fastify/static` for uploads: `{ root: UPLOADS_DIR, prefix: "/uploads/", decorateReply: false }` ✅
 
-**`packages/server/src/routes/merchants.ts`** — Add two new routes:
-- `POST /merchants/:id/image` — Accepts multipart file, validates MIME type (jpeg/png/webp/gif), generates filename `merchant-{id}-{timestamp}.{ext}`, writes to `uploads/merchants/`, deletes old image if exists, updates DB `imageUrl`, returns `{ imageUrl }`
-- `DELETE /merchants/:id/image` — Deletes file from disk, sets `imageUrl` to null in DB
-- Modify existing `DELETE /merchants/:id` — Clean up image file before deleting merchant
+**`packages/server/src/routes/merchants.ts`** — Add two new routes: ✅
+- `POST /merchants/:id/image` — Accepts multipart file, validates MIME type (jpeg/png/webp/gif), generates filename `merchant-{id}-{timestamp}.{ext}`, writes to `uploads/merchants/`, deletes old image if exists, updates DB `imageUrl`, returns `{ imageUrl }` ✅
+- `DELETE /merchants/:id/image` — Deletes file from disk, sets `imageUrl` to null in DB ✅
+- Modify existing `DELETE /merchants/:id` — Clean up image file before deleting merchant ✅
 
 ## Phase 4: Frontend API Client
 
