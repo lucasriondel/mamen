@@ -57,7 +57,7 @@ No new keyframes needed — the active indicator will use Tailwind's built-in `a
 
 ---
 
-## 2. Sidebar Redesign (`Sidebar.tsx`)
+## 2. Sidebar Redesign (`Sidebar.tsx`) ✅
 
 ### Active state indicator
 Each nav `Link` and active button gets a `before:` pseudo-element — a 3px-wide, 16px-tall rounded pill on the left edge, colored with `bg-sidebar-indicator`:

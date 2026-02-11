@@ -52,6 +52,15 @@ const navItems: NavItem[] = [
 	},
 ];
 
+const baseLinkClass =
+	"group relative flex items-center gap-3 px-3 py-2 rounded-md text-sidebar-foreground hover:bg-sidebar-accent/60 hover:translate-x-0.5 transition-all duration-200";
+
+const activeIndicatorClass = [
+	"is-active text-sidebar-primary-foreground bg-sidebar-accent",
+	"before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2",
+	"before:h-4 before:w-[3px] before:rounded-full before:bg-sidebar-indicator",
+].join(" ");
+
 export function Sidebar(): React.ReactElement {
 	const { count: unmatchedCount } = useUnmatchedCount();
 	const monthCount = useCurrentMonthCount();
@@ -89,7 +98,7 @@ export function Sidebar(): React.ReactElement {
 	};
 
 	return (
-		<aside className="flex flex-col w-[220px] border-r bg-card p-4">
+		<aside className="flex flex-col w-[220px] border-r border-sidebar-border bg-sidebar p-4">
 			<nav className="flex flex-col gap-1">
 				{navItems.map((item) => (
 					<Link
@@ -98,15 +107,17 @@ export function Sidebar(): React.ReactElement {
 						onClick={
 							item.to === "/transactions" ? handleTransactionsClick : undefined
 						}
-						className="flex items-center gap-3 px-3 py-2 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+						className={baseLinkClass}
 						activeProps={{
-							className: "bg-accent text-foreground",
+							className: activeIndicatorClass,
 						}}
 						activeOptions={{
 							exact: item.to === "/" || item.to === "/transactions",
 						}}
 					>
-						{item.icon}
+						<span className="shrink-0 transition-[filter] duration-200 group-[.is-active]:drop-shadow-[0_0_3px_oklch(0.65_0.15_250_/_40%)]">
+							{item.icon}
+						</span>
 						{item.label}
 						{item.to === "/rules" && ruleCount > 0 && (
 							<span className="ml-auto text-xs text-muted-foreground">
@@ -116,15 +127,19 @@ export function Sidebar(): React.ReactElement {
 					</Link>
 				))}
 
+				<div className="my-3 border-t border-sidebar-border mx-3" />
+
 				<Link
 					to="/transactions/unmatched"
-					className="flex items-center gap-3 px-3 py-2 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors w-full text-left"
+					className={cn(baseLinkClass, "w-full text-left")}
 					activeProps={{
-						className: "bg-accent text-foreground",
+						className: activeIndicatorClass,
 					}}
 					aria-label={`Unmatched transactions: ${unmatchedCount}`}
 				>
-					<Inbox className="h-4 w-4" />
+					<span className="shrink-0 transition-[filter] duration-200 group-[.is-active]:drop-shadow-[0_0_3px_oklch(0.65_0.15_250_/_40%)]">
+						<Inbox className="h-4 w-4" />
+					</span>
 					<span>Unmatched</span>
 					<span
 						className="ml-auto text-xs px-2 py-0.5 rounded-full bg-amber-500/20"
@@ -138,12 +153,15 @@ export function Sidebar(): React.ReactElement {
 					type="button"
 					onClick={handleMonthClick}
 					className={cn(
-						"flex items-center gap-3 px-3 py-2 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors w-full text-left",
-						activeFilters.has("month") && "bg-accent text-foreground",
+						baseLinkClass,
+						"w-full text-left",
+						activeFilters.has("month") && activeIndicatorClass,
 					)}
 					aria-label={`This month transactions: ${monthCount}`}
 				>
-					<CalendarDays className="h-4 w-4" />
+					<span className="shrink-0 transition-[filter] duration-200 group-[.is-active]:drop-shadow-[0_0_3px_oklch(0.65_0.15_250_/_40%)]">
+						<CalendarDays className="h-4 w-4" />
+					</span>
 					<span>This Month</span>
 					<span
 						className="ml-auto text-xs px-2 py-0.5 rounded-full bg-blue-500/20"
@@ -157,12 +175,15 @@ export function Sidebar(): React.ReactElement {
 					type="button"
 					onClick={handleSubscriptionsClick}
 					className={cn(
-						"flex items-center gap-3 px-3 py-2 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors w-full text-left",
-						activeFilters.has("subscriptions") && "bg-accent text-foreground",
+						baseLinkClass,
+						"w-full text-left",
+						activeFilters.has("subscriptions") && activeIndicatorClass,
 					)}
 					aria-label={`Subscriptions: ${subscriptionCount}`}
 				>
-					<Repeat className="h-4 w-4" />
+					<span className="shrink-0 transition-[filter] duration-200 group-[.is-active]:drop-shadow-[0_0_3px_oklch(0.65_0.15_250_/_40%)]">
+						<Repeat className="h-4 w-4" />
+					</span>
 					<span>Subscriptions</span>
 					{subscriptionCount > 0 && (
 						<span
@@ -175,7 +196,7 @@ export function Sidebar(): React.ReactElement {
 				</button>
 			</nav>
 
-			<div className="mt-auto pt-4 border-t">
+			<div className="mt-auto pt-4 border-t border-sidebar-border">
 				<p className="text-xs text-muted-foreground px-3 mb-2 font-medium uppercase tracking-wider">
 					Stats
 				</p>

@@ -141,7 +141,7 @@ describe("Navigation", () => {
 		const dashboardLink = await screen.findByRole("link", {
 			name: /dashboard/i,
 		});
-		expect(dashboardLink).toHaveClass("bg-accent");
+		expect(dashboardLink).toHaveClass("bg-sidebar-accent");
 	});
 
 	it("highlights active nav item for transactions", async () => {
@@ -151,7 +151,7 @@ describe("Navigation", () => {
 		const transactionsLink = await screen.findByRole("link", {
 			name: "Transactions",
 		});
-		expect(transactionsLink).toHaveClass("bg-accent");
+		expect(transactionsLink).toHaveClass("bg-sidebar-accent");
 	});
 
 	it("renders all 8 navigation links", async () => {

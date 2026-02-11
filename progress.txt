@@ -7,3 +7,18 @@
 - Added `.sidebar-nav-icon-active { filter: none; }` to reduced-motion media query
 - TypeScript: clean (0 errors)
 - Tests: 141 files, 1432 tests all passing
+
+### Task 2: Sidebar Redesign (PRD Section 2) ✅
+- Added active state indicator: 3px rounded pill on left edge using `before:` pseudo-element with `bg-sidebar-indicator`
+- Added `is-active` class marker for group-based icon glow targeting
+- Implemented icon glow on active: subtle drop-shadow using `group-[.is-active]:drop-shadow-[...]` on icon wrapper spans
+- Updated hover effects: `hover:bg-sidebar-accent/60 hover:translate-x-0.5 transition-all duration-200`
+- Changed sidebar bg from `bg-card` to `bg-sidebar` and border to `border-sidebar-border`
+- Changed text color from `text-muted-foreground` to `text-sidebar-foreground` for nav items
+- Added inset separator (`border-t border-sidebar-border mx-3`) between main nav and filter items
+- Updated stats section border to use `border-sidebar-border`
+- Extracted `baseLinkClass` and `activeIndicatorClass` constants for DRY nav item styling
+- Updated Layout tests to match new `bg-sidebar-accent` active class (was `bg-accent`)
+- Note: Collapse-related features (label transitions, tooltips, stats collapse) deferred — no collapse mechanism exists yet
+- TypeScript: clean (0 errors)
+- Tests: 141 files, 1432 tests all passing
