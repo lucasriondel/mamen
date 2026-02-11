@@ -34,3 +34,10 @@
 - Removed imports of old `router`, `handleRequest`, and side-effect `./api`
 - Verified: server typecheck passes
 - Next: Step 5 — Delete old files (`src/router.ts`, `src/api/`)
+
+### Step 5: Delete old files ✅
+- Deleted `src/router.ts` (old hand-rolled router)
+- Deleted `src/api/` directory (11 files: index.ts, helpers.ts, and 9 domain modules)
+- Verified no remaining imports reference these files
+- Verified: server typecheck passes
+- Next: Step 6 — Create test infrastructure

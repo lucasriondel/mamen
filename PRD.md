@@ -104,7 +104,7 @@ app.listen({ port: PORT, host: '0.0.0.0' }, (err, address) => {
 })
 ```
 
-### Step 5: Delete old files
+### Step 5: Delete old files ✅
 - `src/router.ts`
 - `src/api/` (entire directory)
 
