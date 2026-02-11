@@ -1,4 +1,4 @@
-import { db } from '@/lib/db'
+import { transactionsApi } from '@/lib/api'
 import { escapeRegex, extractPrefix } from '@/lib/utils/patternUtils'
 
 export type PatternSuggestion = {
@@ -11,7 +11,8 @@ export type PatternSuggestion = {
 export const countMatches = async (pattern: string): Promise<number> => {
   try {
     const regex = new RegExp(pattern, 'i')
-    return db.transactions.filter((tx) => regex.test(tx.rawMerchantString)).count()
+    const allTransactions = await transactionsApi.getAll()
+    return allTransactions.filter((tx) => regex.test(tx.rawMerchantString)).length
   } catch {
     return 0
   }
@@ -20,7 +21,8 @@ export const countMatches = async (pattern: string): Promise<number> => {
 export const getMatchingTransactions = async (pattern: string) => {
   try {
     const regex = new RegExp(pattern, 'i')
-    return db.transactions.filter((tx) => regex.test(tx.rawMerchantString)).toArray()
+    const allTransactions = await transactionsApi.getAll()
+    return allTransactions.filter((tx) => regex.test(tx.rawMerchantString))
   } catch {
     return []
   }

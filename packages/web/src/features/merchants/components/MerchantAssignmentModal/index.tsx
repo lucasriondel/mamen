@@ -42,7 +42,7 @@ import { cleanMerchantString, validateRegexPattern } from '@/lib/utils/patternUt
 import { useMerchants } from '@/hooks/useMerchants'
 import { useCategories } from '@/hooks/useCategories'
 import { useExistingMerchant } from '../../hooks/useExistingMerchant'
-import { db } from '@/lib/db'
+import { rulesApi, transactionsApi } from '@/lib/api'
 import { formatCurrency } from '@/lib/utils/formatCurrency'
 import { formatDate } from '@/lib/utils/formatDate'
 import type { Transaction } from '@/types'
@@ -327,12 +327,12 @@ export function MerchantAssignmentModal({
         setAsDefault ? categoryId : undefined,
       )
 
-      const ruleId = (await db.rules.add({
+      const ruleId = await rulesApi.create({
         merchantId,
         pattern: activePattern,
         matchCount: 0,
         createdAt: new Date(),
-      })) as number
+      })
 
       const rule = {
         id: ruleId,
@@ -476,7 +476,7 @@ export function MerchantAssignmentModal({
         allAffectedPreviousState.push(previousState.find((p) => p.id === affId)!)
       } else {
         // Fetch previous state for transactions outside selection
-        const tx = await db.transactions.get(affId)
+        const tx = await transactionsApi.get(affId)
         if (tx) {
           allAffectedPreviousState.push({
             id: affId,

@@ -1,7 +1,7 @@
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
-import { db } from '@/lib/db'
+import { accountsApi } from '@/lib/api'
 import { createAccountSchema, type CreateAccountInput } from '@/lib/schemas'
 import {
   Dialog,
@@ -45,7 +45,7 @@ export function CreateAccountModal({ open, onOpenChange }: CreateAccountModalPro
 
   const handleSubmit = async (data: CreateAccountInput): Promise<void> => {
     const now = new Date()
-    await db.accounts.add({
+    await accountsApi.create({
       name: data.name,
       type: data.type,
       createdAt: now,

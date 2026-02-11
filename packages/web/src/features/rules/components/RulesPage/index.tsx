@@ -2,7 +2,7 @@ import { useState, useRef, useMemo, useCallback } from 'react'
 import { Search, X } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { db, useLiveQuery } from '@/lib/db'
+import { useApiQuery, rulesApi, transactionsApi } from '@/lib/api'
 import { useKeyboardNavigation } from '@/hooks/useKeyboardNavigation'
 import { RulesListByMerchant } from '../RulesListByMerchant'
 import { RuleEditModal } from '../RuleEditModal'
@@ -19,9 +19,9 @@ export function RulesPage(): React.ReactElement {
 
   const { updateRule, deleteRule: performDelete } = useRuleMutations()
 
-  const allRules = useLiveQuery(
-    () => db.rules.toArray(),
-    [],
+  const allRules = useApiQuery(
+    () => rulesApi.getAll(),
+    ['rules'],
     [] as Rule[],
   )
 
@@ -57,13 +57,12 @@ export function RulesPage(): React.ReactElement {
   }, [])
 
   const handleDeleteClick = useCallback(async (ruleId: number): Promise<void> => {
-    const rule = await db.rules.get(ruleId)
+    const rule = await rulesApi.get(ruleId)
     if (!rule) return
 
     const regex = new RegExp(rule.pattern, 'i')
-    const count = await db.transactions
-      .filter((tx) => regex.test(tx.rawMerchantString) && tx.merchantId === rule.merchantId)
-      .count()
+    const transactions = await transactionsApi.getAll({ merchantId: rule.merchantId })
+    const count = transactions.filter((tx) => regex.test(tx.rawMerchantString)).length
 
     setDeleteRule(rule)
     setDeleteAffectedCount(count)

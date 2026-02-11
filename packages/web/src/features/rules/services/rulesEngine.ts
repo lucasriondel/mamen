@@ -1,4 +1,4 @@
-import { db } from '@/lib/db'
+import { rulesApi, merchantsApi, transactionsApi } from '@/lib/api'
 import type { Rule } from '@/types'
 import type { Merchant } from '@/types'
 
@@ -54,8 +54,8 @@ export const applyRulesToTransactions = async (
     return { matched: [], unmatched: [], skippedRules: [], processingTimeMs: 0 }
   }
 
-  const rules = await db.rules.toArray()
-  const merchants = await db.merchants.toArray()
+  const rules = await rulesApi.getAll()
+  const merchants = await merchantsApi.getAll()
   const merchantMap = new Map(merchants.map((m) => [m.id!, m]))
 
   const compiledRules: CompiledRule[] = []
@@ -75,7 +75,7 @@ export const applyRulesToTransactions = async (
     }
   }
 
-  const transactions = await db.transactions.bulkGet(transactionIds)
+  const transactions = await transactionsApi.bulkGet(transactionIds)
 
   const matched: RuleMatchResult[] = []
   const unmatched: number[] = []
@@ -128,26 +128,24 @@ export const applyMatchResults = async (
 
   const ruleMatchCounts = new Map<number, number>()
 
-  await db.transaction('rw', [db.transactions, db.rules], async () => {
-    for (const r of results) {
-      await db.transactions.update(r.transactionId, {
-        merchantId: r.merchantId,
-        categoryId: r.categoryId,
+  for (const r of results) {
+    await transactionsApi.update(r.transactionId, {
+      merchantId: r.merchantId,
+      categoryId: r.categoryId,
+    })
+  }
+
+  for (const result of results) {
+    const count = ruleMatchCounts.get(result.matchedRuleId) ?? 0
+    ruleMatchCounts.set(result.matchedRuleId, count + 1)
+  }
+
+  for (const [ruleId, count] of ruleMatchCounts) {
+    const rule = await rulesApi.get(ruleId)
+    if (rule) {
+      await rulesApi.update(ruleId, {
+        matchCount: rule.matchCount + count,
       })
     }
-
-    for (const result of results) {
-      const count = ruleMatchCounts.get(result.matchedRuleId) ?? 0
-      ruleMatchCounts.set(result.matchedRuleId, count + 1)
-    }
-
-    for (const [ruleId, count] of ruleMatchCounts) {
-      const rule = await db.rules.get(ruleId)
-      if (rule) {
-        await db.rules.update(ruleId, {
-          matchCount: rule.matchCount + count,
-        })
-      }
-    }
-  })
+  }
 }

@@ -1,4 +1,4 @@
-import { db } from '@/lib/db'
+import { merchantsApi, rulesApi, transactionsApi } from '@/lib/api'
 
 export type BatchAssignParams = {
   mode: 'new' | 'existing'
@@ -46,102 +46,97 @@ export const batchAssignMerchant = async (
     assignWithoutRule,
   } = params
 
-  return db.transaction('rw', [db.merchants, db.rules, db.transactions], async () => {
-    // 1. Create or get merchant
-    let merchantId: number
+  // 1. Create or get merchant
+  let merchantId: number
 
-    if (mode === 'new') {
-      const now = new Date()
-      merchantId = (await db.merchants.add({
-        name: merchantName!,
-        defaultCategoryId: categoryId,
-        createdAt: now,
-        firstSeen: now,
-      })) as number
-    } else {
-      merchantId = existingMerchantId!
-      const merchant = await db.merchants.get(merchantId)
-      if (!merchant) throw new Error(`Merchant not found: ${merchantId}`)
+  if (mode === 'new') {
+    const now = new Date()
+    merchantId = await merchantsApi.create({
+      name: merchantName!,
+      defaultCategoryId: categoryId,
+      createdAt: now,
+      firstSeen: now,
+    })
+  } else {
+    merchantId = existingMerchantId!
+    const merchant = await merchantsApi.get(merchantId)
+    if (!merchant) throw new Error(`Merchant not found: ${merchantId}`)
+  }
+
+  const effectiveCategoryId = categoryOverrideId ?? categoryId
+  const ruleIds: number[] = []
+  const affectedIdSet = new Set<number>()
+
+  if (assignWithoutRule) {
+    // Assign without rule: only update selected transactions
+    for (const txId of transactionIds) {
+      await transactionsApi.update(txId, {
+        merchantId,
+        categoryId: effectiveCategoryId,
+      })
+      affectedIdSet.add(txId)
     }
+  } else {
+    // Create rule(s) and apply globally
+    const allPatterns = [pattern, ...(additionalPatterns ?? [])].filter(Boolean)
 
-    const effectiveCategoryId = categoryOverrideId ?? categoryId
-    const ruleIds: number[] = []
-    const affectedIdSet = new Set<number>()
+    for (const p of allPatterns) {
+      const ruleId = await rulesApi.create({
+        merchantId,
+        pattern: p,
+        categoryOverride: categoryOverrideId ?? undefined,
+        matchCount: 0,
+        createdAt: new Date(),
+      })
+      ruleIds.push(ruleId)
 
-    if (assignWithoutRule) {
-      // Assign without rule: only update selected transactions
-      for (const txId of transactionIds) {
-        await db.transactions.update(txId, {
-          merchantId,
-          categoryId: effectiveCategoryId,
-        })
-        affectedIdSet.add(txId)
-      }
-    } else {
-      // Create rule(s) and apply globally
-      const allPatterns = [pattern, ...(additionalPatterns ?? [])].filter(Boolean)
+      // Apply rule to ALL matching transactions
+      const regex = new RegExp(p, 'i')
+      const allTransactions = await transactionsApi.getAll()
+      const matching = allTransactions.filter((tx) => regex.test(tx.rawMerchantString))
 
-      for (const p of allPatterns) {
-        const ruleId = (await db.rules.add({
-          merchantId,
-          pattern: p,
-          categoryOverride: categoryOverrideId ?? undefined,
-          matchCount: 0,
-          createdAt: new Date(),
-        })) as number
-        ruleIds.push(ruleId)
-
-        // Apply rule to ALL matching transactions
-        const regex = new RegExp(p, 'i')
-        const matching = await db.transactions
-          .filter((tx) => regex.test(tx.rawMerchantString))
-          .toArray()
-
-        for (const tx of matching) {
-          if (tx.id !== undefined) {
-            await db.transactions.update(tx.id, {
-              merchantId,
-              categoryId: effectiveCategoryId,
-            })
-            affectedIdSet.add(tx.id)
-          }
+      for (const tx of matching) {
+        if (tx.id !== undefined) {
+          await transactionsApi.update(tx.id, {
+            merchantId,
+            categoryId: effectiveCategoryId,
+          })
+          affectedIdSet.add(tx.id)
         }
-
-        await db.rules.update(ruleId, { matchCount: matching.length })
       }
-    }
 
-    const affectedTransactionIds = Array.from(affectedIdSet)
-
-    return {
-      merchantId,
-      ruleIds,
-      affectedTransactionIds,
-      matchCount: affectedTransactionIds.length,
+      await rulesApi.update(ruleId, { matchCount: matching.length })
     }
-  })
+  }
+
+  const affectedTransactionIds = Array.from(affectedIdSet)
+
+  return {
+    merchantId,
+    ruleIds,
+    affectedTransactionIds,
+    matchCount: affectedTransactionIds.length,
+  }
 }
 
 export const undoBatchAssign = async (params: BatchUndoParams): Promise<void> => {
   const { merchantId, ruleIds, previousState, deleteNewMerchant } = params
 
-  await db.transaction('rw', [db.merchants, db.rules, db.transactions], async () => {
-    // 1. Delete rules
-    for (const ruleId of ruleIds) {
-      await db.rules.delete(ruleId)
-    }
+  // 1. Delete rules
+  for (const ruleId of ruleIds) {
+    await rulesApi.delete(ruleId)
+  }
 
-    // 2. Delete merchant if it was newly created
-    if (deleteNewMerchant) {
-      await db.merchants.delete(merchantId)
-    }
+  // 2. Delete merchant if it was newly created
+  if (deleteNewMerchant) {
+    await merchantsApi.delete(merchantId)
+  }
 
-    // 3. Restore transactions to previous state
-    for (const prev of previousState) {
-      await db.transactions.update(prev.id, {
-        merchantId: prev.merchantId ?? undefined,
-        categoryId: prev.categoryId ?? undefined,
-      })
-    }
-  })
+  // 3. Restore transactions to previous state
+  for (const prev of previousState) {
+    await transactionsApi.update(prev.id, {
+      merchantId: prev.merchantId ?? undefined,
+      categoryId: prev.categoryId ?? undefined,
+    })
+  }
 }

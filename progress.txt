@@ -222,3 +222,38 @@
   - `useCategoryTree.ts` — `categoriesApi.getAll({ orderBy: 'sortOrder' })`, client-side tree building unchanged
 - Verified: `tsc --noEmit` passes cleanly (0 type errors)
 - Verified: 108/142 test files pass, 1252/1444 tests pass — 34 test files (192 tests) now fail because they use fake-indexeddb directly; these will be updated in Step 10 (Update Tests) to mock API calls instead
+
+## Step 8: Migrate All Service Call Sites ✅
+
+- Migrated ALL non-test source files from direct `db.*` (Dexie/IndexedDB) calls to REST API client calls
+- Components migrated (20 files):
+  - accounts: CreateAccountModal, EditAccountModal, AccountCard
+  - merchants: EditMerchantModal, MerchantSearchSelect, MerchantRulesList, MerchantAssignmentModal, MerchantDetailPage
+  - rules: RulesPage, RuleEditModal, RulesListByMerchant
+  - settings: ClearDataDialog, DataManagementSection, AnomalySettingsForm
+  - subscriptions: SubscriptionDetail
+  - dashboard: DashboardPage
+  - transactions: TransactionDataTable, RefundLinkModal
+  - shared: Layout/Sidebar, MatchPreviewList, CommandPalette
+- Routes migrated (2 files): accounts.tsx, __root.tsx
+- Services migrated (18 files):
+  - settings: exportService, importService, preferencesService
+  - import: csvImporter, pdfImporter, duplicateDetector, importWithRules
+  - anomalies: anomalyDetector
+  - rules: applyRule, addRuleToMerchant, detectRuleConflict, rulesEngine, batchPatternAnalyzer, ruleOperations, ruleEngine
+  - merchants: batchAssignMerchant
+  - transactions: deleteTransactions, batchCategoryAssign, assignManualCategory, refundService
+  - subscriptions: subscriptionDetector
+- Hooks migrated (3 additional files): useCategoryMutations, useDuplicateActions, useNavigateToTransaction
+- Other files migrated: lib/llm/guards.ts, lib/db/seeds/categories.ts, features/dev/DbTestPanel/index.tsx
+- Migration patterns used:
+  - `db.TABLE.toArray()` → `xxxApi.getAll()`
+  - `db.TABLE.get(id)` → `xxxApi.get(id)`
+  - `db.TABLE.add(record)` → `xxxApi.create(record)`
+  - `db.TABLE.update(id, changes)` → `xxxApi.update(id, changes)`
+  - `db.TABLE.where(field).equals(val)` → API-specific methods or `getAll()` + client-side filter
+  - `db.transaction('rw', ...)` wrappers → removed (sequential API calls)
+  - `useLiveQuery(fn, deps)` → `useApiQuery(fn, tableKeys, defaultValue)`
+- Only test files (73 *.test.ts/tsx files) still reference `@/lib/db` — to be updated in Step 10
+- Verified: `tsc --noEmit` passes cleanly (0 type errors)
+- Verified: 68/142 test files pass, 917/1444 tests pass — 74 test files (527 tests) now fail because tests still use fake-indexeddb + direct db calls while source code now uses API client; these will be updated in Step 10 (Update Tests)

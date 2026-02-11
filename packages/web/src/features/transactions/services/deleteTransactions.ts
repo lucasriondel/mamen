@@ -1,4 +1,4 @@
-import { db } from '@/lib/db'
+import { transactionsApi } from '@/lib/api'
 import type { Transaction } from '@/types'
 
 export type DeleteTransactionsResult = {
@@ -13,29 +13,25 @@ export const deleteTransactions = async (
     return { deletedCount: 0, previousStates: [] }
   }
 
-  return db.transaction('rw', db.transactions, async () => {
-    const transactions = await db.transactions.bulkGet(ids)
+  const transactions = await transactionsApi.bulkGet(ids)
 
-    const previousStates: Transaction[] = []
-    for (const tx of transactions) {
-      if (tx && tx.id !== undefined) {
-        previousStates.push({ ...tx })
-      }
+  const previousStates: Transaction[] = []
+  for (const tx of transactions) {
+    if (tx && tx.id !== undefined) {
+      previousStates.push({ ...tx })
     }
+  }
 
-    await db.transactions.bulkDelete(ids)
+  await transactionsApi.bulkDelete(ids)
 
-    return {
-      deletedCount: previousStates.length,
-      previousStates,
-    }
-  })
+  return {
+    deletedCount: previousStates.length,
+    previousStates,
+  }
 }
 
 export const undoDeleteTransactions = async (
   previousStates: Transaction[],
 ): Promise<void> => {
-  await db.transaction('rw', db.transactions, async () => {
-    await db.transactions.bulkPut(previousStates)
-  })
+  await transactionsApi.bulkPut(previousStates)
 }

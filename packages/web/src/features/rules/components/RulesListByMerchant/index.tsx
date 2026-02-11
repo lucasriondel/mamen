@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
-import { db, useLiveQuery } from '@/lib/db'
+import { useApiQuery, rulesApi, merchantsApi } from '@/lib/api'
 import { Badge } from '@/components/ui/badge'
 import { useCategories } from '@/hooks/useCategories'
 import { RuleRow } from '../RuleRow'
@@ -29,9 +29,11 @@ export function RulesListByMerchant({
   const [collapsedMerchants, setCollapsedMerchants] = useState<Set<number>>(new Set())
   const { getCategoryById } = useCategories()
 
-  const rulesWithMerchants = useLiveQuery(async () => {
-    const rules = await db.rules.toArray()
-    const merchants = await db.merchants.toArray()
+  const rulesWithMerchants = useApiQuery(async () => {
+    const [rules, merchants] = await Promise.all([
+      rulesApi.getAll(),
+      merchantsApi.getAll(),
+    ])
     const merchantMap = new Map(merchants.map((m) => [m.id!, m]))
 
     const grouped = new Map<number, MerchantWithRules>()
@@ -52,7 +54,7 @@ export function RulesListByMerchant({
       }
       return a.merchant.name.localeCompare(b.merchant.name)
     })
-  }, [], [] as MerchantWithRules[])
+  }, ['rules', 'merchants'], [] as MerchantWithRules[])
 
   const filteredGroups = useMemo(() => {
     if (!searchQuery.trim()) return rulesWithMerchants

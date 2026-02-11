@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { AlertTriangle } from 'lucide-react'
-import { db, useLiveQuery } from '@/lib/db'
+import { useApiQuery, transactionsApi } from '@/lib/api'
 import { formatCurrency } from '@/lib/utils/formatCurrency'
 import { formatDate } from '@/lib/utils/formatDate'
 import type { Transaction } from '@/types'
@@ -51,45 +51,40 @@ export function RefundLinkModal({
   const isExpense = sourceTransaction ? sourceTransaction.amount < 0 : false
 
   // Fetch the currently linked transaction (for linked-state view)
-  const linkedTransaction = useLiveQuery(
+  const linkedTransaction = useApiQuery(
     async () => {
       if (!sourceTransaction?.linkedRefundId || !open) return undefined
-      return db.transactions.get(sourceTransaction.linkedRefundId)
+      return transactionsApi.get(sourceTransaction.linkedRefundId)
     },
-    [sourceTransaction?.linkedRefundId, open],
+    ['transactions'],
   )
 
   // Pre-filter candidates by similar amount (+/-10%), opposite sign
-  const candidates = useLiveQuery(
+  const candidates = useApiQuery(
     async () => {
       if (!sourceTransaction || !open || modalView === 'linked') return []
 
       const tolerance = sourceAmount * 0.1
-      const minAmount = -(sourceAmount + tolerance)
-      const maxAmount = -(sourceAmount - tolerance)
+      const allTx = await transactionsApi.getAll()
 
       let results: Transaction[]
       if (sourceAmount === 0) {
-        results = await db.transactions.toArray()
+        results = allTx
       } else if (sourceTransaction.amount > 0) {
-        results = await db.transactions
-          .where('amount')
-          .between(minAmount, maxAmount)
-          .toArray()
+        const minAmount = -(sourceAmount + tolerance)
+        const maxAmount = -(sourceAmount - tolerance)
+        results = allTx.filter(tx => tx.amount >= minAmount && tx.amount <= maxAmount)
       } else {
         const posMin = sourceAmount - tolerance
         const posMax = sourceAmount + tolerance
-        results = await db.transactions
-          .where('amount')
-          .between(posMin, posMax)
-          .toArray()
+        results = allTx.filter(tx => tx.amount >= posMin && tx.amount <= posMax)
       }
 
       return results
         .filter((tx) => tx.id !== sourceTransaction.id && !tx.linkedRefundId)
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     },
-    [sourceTransaction, open, sourceAmount, modalView],
+    ['transactions'],
     [],
   )
 
@@ -131,9 +126,9 @@ export function RefundLinkModal({
   )
 
   const handleSelectCandidate = async (txId: number): Promise<void> => {
-    const tx = await db.transactions.get(txId)
+    const tx = await transactionsApi.get(txId)
     if (tx?.linkedRefundId) {
-      const existingRefund = await db.transactions.get(tx.linkedRefundId)
+      const existingRefund = await transactionsApi.get(tx.linkedRefundId)
       setConflictingRefund(existingRefund ?? null)
       setSelectedId(txId)
       setShowReplaceWarning(true)

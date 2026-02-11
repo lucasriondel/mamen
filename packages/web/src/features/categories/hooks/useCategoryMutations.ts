@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react'
 import { toast } from 'sonner'
-import { db } from '@/lib/db'
+import { categoriesApi } from '@/lib/api'
 import { DEFAULT_COLOR, DEFAULT_ICON } from '../lib/constants'
 import type { Category } from '@/types'
 import type { UpdateCategoryInput } from '@/lib/schemas'
@@ -71,30 +71,22 @@ export const useCategoryMutations = (): UseCategoryMutationsReturn => {
       // Build slug: prefix with parent slug if nested
       let slug = toSlug(name)
       if (parentId !== null) {
-        const parent = await db.categories.get(parentId)
+        const parent = await categoriesApi.get(parentId)
         if (parent) {
           slug = `${parent.slug}-${slug}`
         }
       }
 
       // Compute sortOrder as max(siblings) + 1
-      const siblings = await db.categories
-        .where('parentId')
-        .equals(parentId as number ?? 0)
-        .toArray()
-
-      // For root categories (parentId === null), filter manually
-      const actualSiblings =
-        parentId === null
-          ? (await db.categories.toArray()).filter((c) => c.parentId === null)
-          : siblings
+      const allCategories = await categoriesApi.getAll()
+      const actualSiblings = allCategories.filter((c) => c.parentId === parentId)
 
       const maxSort =
         actualSiblings.length > 0
           ? Math.max(...actualSiblings.map((c) => c.sortOrder))
           : -1
 
-      const id = await db.categories.add({
+      const id = await categoriesApi.create({
         name,
         slug,
         color: color ?? DEFAULT_COLOR,
@@ -102,16 +94,16 @@ export const useCategoryMutations = (): UseCategoryMutationsReturn => {
         parentId,
         sortOrder: maxSort + 1,
         createdAt: new Date(),
-      } as Category)
+      })
 
-      return id as number
+      return id
     },
     [],
   )
 
   const updateCategory = useCallback(
     async (id: number, updates: UpdateCategoryInput): Promise<void> => {
-      await db.categories.update(id, updates)
+      await categoriesApi.update(id, updates)
     },
     [],
   )
@@ -122,7 +114,7 @@ export const useCategoryMutations = (): UseCategoryMutationsReturn => {
       clearTimeout(undoRef.current.timeoutId)
     }
 
-    const allCategories = await db.categories.toArray()
+    const allCategories = await categoriesApi.getAll()
     const target = allCategories.find((c) => c.id === id)
     if (!target) return
 
@@ -132,16 +124,17 @@ export const useCategoryMutations = (): UseCategoryMutationsReturn => {
     // Snapshot all categories to be deleted
     const snapshot = allCategories.filter((c) => idsToDelete.includes(c.id!))
 
-    await db.transaction('rw', db.categories, async () => {
-      await db.categories.bulkDelete(idsToDelete)
-    })
+    // Delete all categories (API handles the transaction)
+    for (const idToDelete of idsToDelete) {
+      await categoriesApi.delete(idToDelete)
+    }
 
     const descendantCount = descendantIds.length
 
     const handleUndo = async (): Promise<void> => {
       if (!undoRef.current) return
       clearTimeout(undoRef.current.timeoutId)
-      await db.categories.bulkAdd(undoRef.current.deletedCategories)
+      await categoriesApi.bulkAdd(undoRef.current.deletedCategories)
       undoRef.current = null
       toast.success('Category restored')
     }
@@ -172,21 +165,14 @@ export const useCategoryMutations = (): UseCategoryMutationsReturn => {
 
   const reorder = useCallback(
     async (id: number, direction: 'up' | 'down'): Promise<void> => {
-      const category = await db.categories.get(id)
+      const category = await categoriesApi.get(id)
       if (!category) return
 
       // Get siblings sorted by sortOrder
-      let siblings: Category[]
-      if (category.parentId === null) {
-        siblings = (await db.categories.toArray())
-          .filter((c) => c.parentId === null)
-          .sort((a, b) => a.sortOrder - b.sortOrder)
-      } else {
-        siblings = await db.categories
-          .where('parentId')
-          .equals(category.parentId)
-          .sortBy('sortOrder')
-      }
+      const allCategories = await categoriesApi.getAll()
+      const siblings = allCategories
+        .filter((c) => c.parentId === category.parentId)
+        .sort((a, b) => a.sortOrder - b.sortOrder)
 
       const currentIndex = siblings.findIndex((c) => c.id === id)
       const swapIndex =
@@ -197,11 +183,9 @@ export const useCategoryMutations = (): UseCategoryMutationsReturn => {
       const sibling = siblings[swapIndex]
 
       // Swap sortOrder values
-      await db.transaction('rw', db.categories, async () => {
-        await db.categories.update(id, { sortOrder: sibling.sortOrder })
-        await db.categories.update(sibling.id!, {
-          sortOrder: category.sortOrder,
-        })
+      await categoriesApi.update(id, { sortOrder: sibling.sortOrder })
+      await categoriesApi.update(sibling.id!, {
+        sortOrder: category.sortOrder,
       })
     },
     [],

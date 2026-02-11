@@ -6,12 +6,12 @@ import {
   confirmDuplicate,
   undoConfirmDuplicate,
 } from '../services/anomalyDetector'
-import { db } from '@/lib/db'
+import { transactionsApi } from '@/lib/api'
 
 export const useDuplicateActions = () => {
   const handleDismissDuplicate = useCallback(
     (transactionId: number) => {
-      db.transactions.get(transactionId).then(tx => {
+      transactionsApi.get(transactionId).then(tx => {
         const dupFlag = tx?.anomalyFlags?.find(
           f => f.type === 'potential-duplicate' && !f.dismissed,
         )
@@ -37,7 +37,7 @@ export const useDuplicateActions = () => {
 
   const handleExcludeDuplicate = useCallback(
     (transactionId: number) => {
-      db.transactions.get(transactionId).then(tx => {
+      transactionsApi.get(transactionId).then(tx => {
         const dupFlag = tx?.anomalyFlags?.find(
           f => f.type === 'potential-duplicate' && !f.dismissed,
         )

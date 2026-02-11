@@ -1,4 +1,4 @@
-import { db } from '@/lib/db'
+import { transactionsApi } from '@/lib/api'
 
 type AssignManualCategoryResult = {
   previousCategoryId: number | undefined
@@ -12,7 +12,7 @@ export const assignManualCategory = async (
   categoryId: number,
   subcategoryId?: number,
 ): Promise<AssignManualCategoryResult> => {
-  const transaction = await db.transactions.get(transactionId)
+  const transaction = await transactionsApi.get(transactionId)
   if (!transaction) {
     throw new Error(`Transaction not found: ${transactionId}`)
   }
@@ -24,7 +24,7 @@ export const assignManualCategory = async (
     previousManualCategory: transaction.manualCategory,
   }
 
-  await db.transactions.update(transactionId, {
+  await transactionsApi.update(transactionId, {
     categoryId,
     subcategoryId: subcategoryId ?? undefined,
     manualCategory: true,
@@ -38,7 +38,7 @@ export const undoManualCategoryAssignment = async (
   transactionId: number,
   previousState: AssignManualCategoryResult,
 ): Promise<void> => {
-  await db.transactions.update(transactionId, {
+  await transactionsApi.update(transactionId, {
     categoryId: previousState.previousCategoryId,
     subcategoryId: previousState.previousSubcategoryId,
     merchantId: previousState.previousMerchantId,

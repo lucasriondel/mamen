@@ -1,4 +1,4 @@
-import { db } from '@/lib/db'
+import { transactionsApi, rulesApi, merchantsApi } from '@/lib/api'
 import type { Rule } from '@/types'
 
 export const applyRuleToTransactions = async (
@@ -7,26 +7,23 @@ export const applyRuleToTransactions = async (
 ): Promise<{ count: number; affectedIds: number[] }> => {
   const regex = new RegExp(rule.pattern, 'i')
 
-  const transactions = await db.transactions
-    .filter((tx) => regex.test(tx.rawMerchantString))
-    .toArray()
+  const allTransactions = await transactionsApi.getAll()
+  const transactions = allTransactions.filter((tx) => regex.test(tx.rawMerchantString))
 
   const affectedIds: number[] = []
 
-  await db.transaction('rw', db.transactions, async () => {
-    for (const tx of transactions) {
-      if (tx.id !== undefined) {
-        await db.transactions.update(tx.id, {
-          merchantId: rule.merchantId,
-          categoryId,
-        })
-        affectedIds.push(tx.id)
-      }
+  for (const tx of transactions) {
+    if (tx.id !== undefined) {
+      await transactionsApi.update(tx.id, {
+        merchantId: rule.merchantId,
+        categoryId,
+      })
+      affectedIds.push(tx.id)
     }
-  })
+  }
 
   if (rule.id !== undefined) {
-    await db.rules.update(rule.id, { matchCount: transactions.length })
+    await rulesApi.update(rule.id, { matchCount: transactions.length })
   }
 
   return { count: transactions.length, affectedIds }
@@ -37,19 +34,17 @@ export const undoRuleApplication = async (
   ruleId: number,
   affectedTransactionIds: number[],
 ): Promise<void> => {
-  await db.transaction('rw', [db.merchants, db.rules, db.transactions], async () => {
-    await db.rules.delete(ruleId)
+  await rulesApi.delete(ruleId)
 
-    const remainingRules = await db.rules.where('merchantId').equals(merchantId).count()
-    if (remainingRules === 0) {
-      await db.merchants.delete(merchantId)
-    }
+  const remainingRules = await rulesApi.count({ merchantId })
+  if (remainingRules === 0) {
+    await merchantsApi.delete(merchantId)
+  }
 
-    for (const txId of affectedTransactionIds) {
-      await db.transactions.update(txId, {
-        merchantId: undefined,
-        categoryId: undefined,
-      })
-    }
-  })
+  for (const txId of affectedTransactionIds) {
+    await transactionsApi.update(txId, {
+      merchantId: undefined,
+      categoryId: undefined,
+    })
+  }
 }

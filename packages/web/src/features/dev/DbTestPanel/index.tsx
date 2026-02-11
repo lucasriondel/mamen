@@ -1,12 +1,12 @@
-import { db, useLiveQuery } from '@/lib/db'
+import { accountsApi, transactionsApi, useApiQuery } from '@/lib/api'
 import type { Account } from '@/types'
 
 export function DbTestPanel(): React.ReactElement {
-  const accounts = useLiveQuery(() => db.accounts.toArray())
-  const transactions = useLiveQuery(() => db.transactions.toArray())
+  const { data: accounts } = useApiQuery('accounts', () => accountsApi.getAll())
+  const { data: transactions } = useApiQuery('transactions', () => transactionsApi.getAll())
 
   const handleAddTestAccount = async (): Promise<void> => {
-    await db.accounts.add({
+    await accountsApi.create({
       name: `Test Account ${Date.now()}`,
       type: 'checking',
       createdAt: new Date(),
@@ -15,10 +15,11 @@ export function DbTestPanel(): React.ReactElement {
   }
 
   const handleAddTestTransaction = async (): Promise<void> => {
-    const firstAccount = await db.accounts.toCollection().first()
+    const allAccounts = await accountsApi.getAll()
+    const firstAccount = allAccounts[0]
     if (!firstAccount?.id) return
 
-    await db.transactions.add({
+    await transactionsApi.create({
       accountId: firstAccount.id,
       date: new Date(),
       amount: -(Math.random() * 100).toFixed(2) as unknown as number,
@@ -29,8 +30,12 @@ export function DbTestPanel(): React.ReactElement {
   }
 
   const handleClearAll = async (): Promise<void> => {
-    await db.accounts.clear()
-    await db.transactions.clear()
+    const allAccounts = await accountsApi.getAll()
+    for (const account of allAccounts) {
+      await accountsApi.delete(account.id!)
+    }
+    const allTransactions = await transactionsApi.getAll()
+    await transactionsApi.bulkDelete(allTransactions.map(t => t.id!))
   }
 
   return (

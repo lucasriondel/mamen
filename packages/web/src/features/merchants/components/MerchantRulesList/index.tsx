@@ -1,5 +1,4 @@
-import { useLiveQuery } from 'dexie-react-hooks'
-import { db } from '@/lib/db'
+import { useApiQuery, rulesApi } from '@/lib/api'
 import { useCategories } from '@/hooks/useCategories'
 
 type MerchantRulesListProps = {
@@ -9,9 +8,9 @@ type MerchantRulesListProps = {
 export function MerchantRulesList({
   merchantId,
 }: MerchantRulesListProps): React.ReactElement {
-  const rules = useLiveQuery(
-    () => db.rules.where('merchantId').equals(merchantId).toArray(),
-    [merchantId],
+  const rules = useApiQuery(
+    () => rulesApi.getAll({ merchantId }),
+    ['rules'],
     [],
   )
 

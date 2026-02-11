@@ -1,5 +1,5 @@
 import Papa from 'papaparse'
-import { db } from '@/lib/db'
+import { transactionsApi } from '@/lib/api'
 import { parseFullCSV, parseDate, parseAmount, isDebitDirection } from '@/lib/csv/parser'
 import type { ColumnMapping, DateFormatOption } from '@/lib/csv/parser'
 import type { Transaction } from '@/types'
@@ -93,11 +93,7 @@ export const importTransactions = async (
     importBatchId,
   }))
 
-  let transactionIds: number[] = []
-  await db.transaction('rw', db.transactions, async () => {
-    const ids = await db.transactions.bulkAdd(transactions, { allKeys: true })
-    transactionIds = ids as number[]
-  })
+  const transactionIds = await transactionsApi.bulkAdd(transactions)
 
   return { count: transactions.length, importBatchId, transactionIds }
 }
@@ -115,8 +111,8 @@ export const importCSV = async (
 }
 
 export const undoImport = async (importBatchId: string): Promise<number> => {
-  const count = await db.transactions.where('importBatchId').equals(importBatchId).count()
-  await db.transactions.where('importBatchId').equals(importBatchId).delete()
+  const count = await transactionsApi.count({ importBatchId })
+  await transactionsApi.deleteByImportBatch(importBatchId)
   return count
 }
 
@@ -124,14 +120,8 @@ export const deleteTransactionsForMonth = async (
   accountId: number,
   importMonth: string,
 ): Promise<number> => {
-  const count = await db.transactions
-    .where('[accountId+importMonth]')
-    .equals([accountId, importMonth])
-    .count()
-  await db.transactions
-    .where('[accountId+importMonth]')
-    .equals([accountId, importMonth])
-    .delete()
+  const count = await transactionsApi.count({ accountId, importMonth })
+  await transactionsApi.deleteByAccountMonth(accountId, importMonth)
   return count
 }
 

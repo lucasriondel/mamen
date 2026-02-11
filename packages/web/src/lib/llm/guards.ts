@@ -1,4 +1,4 @@
-import { db } from '@/lib/db'
+import { appSettingsApi } from '@/lib/api'
 import { isLLMConfigured, getLLMError } from './client'
 import type { LLMSettings } from '@/types'
 
@@ -10,7 +10,7 @@ export type LLMRequirementResult = {
 }
 
 export const checkLLMRequirements = async (): Promise<LLMRequirementResult> => {
-  const appSettings = await db.appSettings.get('app')
+  const appSettings = await appSettingsApi.get()
   const llmSettings = appSettings?.llm
 
   if (!isLLMConfigured(llmSettings)) {

@@ -1,4 +1,4 @@
-import { db } from '@/lib/db'
+import { accountsApi, transactionsApi, merchantsApi, rulesApi, categoriesApi, subscriptionsApi, settingsApi, appSettingsApi } from '@/lib/api'
 import { APP_VERSION } from '@/lib/constants'
 import type { ExportData, ExportMetadata, ExportOptions } from '../types/export.types'
 
@@ -16,14 +16,14 @@ export const exportAllData = async (
     ...options,
   }
 
-  const accounts = opts.includeAccounts ? await db.accounts.toArray() : []
-  const transactions = opts.includeTransactions ? await db.transactions.toArray() : []
-  const merchants = opts.includeMerchants ? await db.merchants.toArray() : []
-  const rules = opts.includeRules ? await db.rules.toArray() : []
-  const categories = opts.includeCategories ? await db.categories.toArray() : []
-  const subscriptions = opts.includeSubscriptions ? await db.subscriptions.toArray() : []
-  const settings = opts.includeSettings ? await db.settings.toArray() : []
-  const appSettings = opts.includeSettings ? await db.appSettings.toArray() : []
+  const accounts = opts.includeAccounts ? await accountsApi.getAll() : []
+  const transactions = opts.includeTransactions ? await transactionsApi.getAll() : []
+  const merchants = opts.includeMerchants ? await merchantsApi.getAll() : []
+  const rules = opts.includeRules ? await rulesApi.getAll() : []
+  const categories = opts.includeCategories ? await categoriesApi.getAll() : []
+  const subscriptions = opts.includeSubscriptions ? await subscriptionsApi.getAll() : []
+  const settings = opts.includeSettings ? await settingsApi.getAll() : []
+  const appSettings = opts.includeSettings ? await appSettingsApi.get().then(s => s ? [s] : []).catch(() => []) : []
 
   const metadata: ExportMetadata = {
     exportDate: new Date().toISOString(),

@@ -16,7 +16,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { db } from '@/lib/db'
+import { databaseApi } from '@/lib/api'
 
 export function ClearDataDialog(): React.ReactElement {
   const [confirmText, setConfirmText] = useState('')
@@ -26,8 +26,7 @@ export function ClearDataDialog(): React.ReactElement {
   const isConfirmed = confirmText === 'DELETE'
 
   const handleClear = async (): Promise<void> => {
-    await db.delete()
-    await db.open()
+    await databaseApi.reset()
     toast.success('All data cleared')
     setConfirmText('')
     setOpen(false)

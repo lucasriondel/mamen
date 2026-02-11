@@ -1,4 +1,4 @@
-import { db } from '@/lib/db'
+import { rulesApi, transactionsApi } from '@/lib/api'
 import type { Rule } from '@/types'
 import { applyRulesToTransactions, applyMatchResults } from './rulesEngine'
 
@@ -10,37 +10,39 @@ export const updateRuleWithReeval = async (
   previousTransactionCount: number
   previousRule: Rule
 }> => {
-  const rule = await db.rules.get(ruleId)
+  const rule = await rulesApi.get(ruleId)
   if (!rule) throw new Error('Rule not found')
 
   const previousRule = { ...rule }
 
   const oldRegex = new RegExp(rule.pattern, 'i')
-  const oldMatches = await db.transactions
+  const allTransactions = await transactionsApi.getAll()
+  const oldMatches = allTransactions
     .filter((tx) => oldRegex.test(tx.rawMerchantString) && tx.merchantId === rule.merchantId)
-    .primaryKeys()
+    .map((tx) => tx.id!)
 
-  await db.transaction('rw', [db.transactions, db.rules], async () => {
-    for (const txId of oldMatches) {
-      await db.transactions.update(txId, {
-        merchantId: undefined,
-        categoryId: undefined,
-      })
-    }
-
-    await db.rules.update(ruleId, {
-      ...updates,
-      matchCount: 0,
+  // Clear old matches
+  for (const txId of oldMatches) {
+    await transactionsApi.update(txId, {
+      merchantId: undefined,
+      categoryId: undefined,
     })
+  }
+
+  // Update the rule
+  await rulesApi.update(ruleId, {
+    ...updates,
+    matchCount: 0,
   })
 
-  const updatedRule = await db.rules.get(ruleId)
+  const updatedRule = await rulesApi.get(ruleId)
   if (!updatedRule) throw new Error('Rule disappeared after update')
 
   const newRegex = new RegExp(updatedRule.pattern, 'i')
-  const allUnmatched = await db.transactions
+  const currentTransactions = await transactionsApi.getAll()
+  const allUnmatched = currentTransactions
     .filter((tx) => !tx.merchantId && newRegex.test(tx.rawMerchantString))
-    .primaryKeys()
+    .map((tx) => tx.id!)
 
   const toReeval = [...new Set([...oldMatches, ...allUnmatched])]
 
@@ -49,7 +51,7 @@ export const updateRuleWithReeval = async (
     await applyMatchResults(result.matched)
   }
 
-  const finalRule = await db.rules.get(ruleId)
+  const finalRule = await rulesApi.get(ruleId)
   const updatedTransactionCount = finalRule?.matchCount ?? 0
 
   return {
@@ -65,26 +67,25 @@ export const deleteRuleWithCleanup = async (
   affectedTransactionCount: number
   deletedRule: Rule
 }> => {
-  const rule = await db.rules.get(ruleId)
+  const rule = await rulesApi.get(ruleId)
   if (!rule) throw new Error('Rule not found')
 
   const deletedRule = { ...rule }
 
   const regex = new RegExp(rule.pattern, 'i')
-  const matchedTxIds = await db.transactions
+  const allTransactions = await transactionsApi.getAll()
+  const matchedTxIds = allTransactions
     .filter((tx) => regex.test(tx.rawMerchantString) && tx.merchantId === rule.merchantId)
-    .primaryKeys()
+    .map((tx) => tx.id!)
 
-  await db.transaction('rw', [db.transactions, db.rules], async () => {
-    for (const txId of matchedTxIds) {
-      await db.transactions.update(txId, {
-        merchantId: undefined,
-        categoryId: undefined,
-      })
-    }
+  for (const txId of matchedTxIds) {
+    await transactionsApi.update(txId, {
+      merchantId: undefined,
+      categoryId: undefined,
+    })
+  }
 
-    await db.rules.delete(ruleId)
-  })
+  await rulesApi.delete(ruleId)
 
   return {
     affectedTransactionCount: matchedTxIds.length,
@@ -95,7 +96,7 @@ export const deleteRuleWithCleanup = async (
 export const restoreDeletedRule = async (
   deletedRule: Rule,
 ): Promise<void> => {
-  const newRuleId = await db.rules.add({
+  const newRuleId = await rulesApi.create({
     merchantId: deletedRule.merchantId,
     pattern: deletedRule.pattern,
     categoryOverride: deletedRule.categoryOverride,
@@ -104,9 +105,10 @@ export const restoreDeletedRule = async (
   })
 
   const regex = new RegExp(deletedRule.pattern, 'i')
-  const unmatched = await db.transactions
+  const allTransactions = await transactionsApi.getAll()
+  const unmatched = allTransactions
     .filter((tx) => !tx.merchantId && regex.test(tx.rawMerchantString))
-    .primaryKeys()
+    .map((tx) => tx.id!)
 
   if (unmatched.length > 0) {
     const result = await applyRulesToTransactions(unmatched)
@@ -114,11 +116,12 @@ export const restoreDeletedRule = async (
   }
 
   // Update match count after re-application
-  const finalMatches = await db.transactions
+  const finalTransactions = await transactionsApi.getAll()
+  const finalMatches = finalTransactions
     .filter((tx) => regex.test(tx.rawMerchantString) && tx.merchantId === deletedRule.merchantId)
-    .count()
+    .length
 
-  await db.rules.update(newRuleId, { matchCount: finalMatches })
+  await rulesApi.update(newRuleId, { matchCount: finalMatches })
 }
 
 export const undoRuleUpdate = async (

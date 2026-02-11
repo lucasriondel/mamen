@@ -1,7 +1,7 @@
 import { useNavigate } from '@tanstack/react-router'
 import { ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { db, useLiveQuery } from '@/lib/db'
+import { useApiQuery, transactionsApi } from '@/lib/api'
 import { formatCurrency } from '@/lib/utils/formatCurrency'
 import type { Subscription } from '@/types'
 
@@ -17,12 +17,12 @@ const formatDate = (dateStr: string): string => {
 export function SubscriptionDetail({ subscription }: SubscriptionDetailProps): React.ReactElement {
   const navigate = useNavigate()
 
-  const transactions = useLiveQuery(
+  const transactions = useApiQuery(
     () =>
       subscription.transactionIds.length > 0
-        ? db.transactions.where('id').anyOf(subscription.transactionIds).toArray()
+        ? transactionsApi.bulkGet(subscription.transactionIds)
         : Promise.resolve([]),
-    [subscription.transactionIds],
+    ['transactions']
   )
 
   const sortedTransactions = transactions

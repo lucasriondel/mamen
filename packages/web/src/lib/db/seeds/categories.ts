@@ -1,4 +1,4 @@
-import { db } from '@/lib/db'
+import { categoriesApi } from '@/lib/api'
 import type { Category } from '@/types'
 
 type CategorySeed = {
@@ -25,9 +25,9 @@ const toSlug = (name: string): string =>
   name.toLowerCase().replace(/\s+/g, '-')
 
 export const seedCategories = async (): Promise<void> => {
-  const existingCount = await db.categories.count()
+  const existingCategories = await categoriesApi.getAll()
 
-  if (existingCount > 0) {
+  if (existingCategories.length > 0) {
     return
   }
 
@@ -47,30 +47,28 @@ export const seedCategories = async (): Promise<void> => {
     categories.push(parentCategory)
   }
 
-  await db.transaction('rw', db.categories, async () => {
-    // First add all parent categories and collect their IDs
-    const parentIds: number[] = []
-    for (const cat of categories) {
-      const id = await db.categories.add(cat as Category)
-      parentIds.push(id as number)
-    }
+  // First add all parent categories and collect their IDs
+  const parentIds: number[] = []
+  for (const cat of categories) {
+    const created = await categoriesApi.create(cat)
+    parentIds.push(created.id)
+  }
 
-    // Then add subcategories referencing parent IDs
-    for (const [parentIndex, parent] of DEFAULT_CATEGORIES.entries()) {
-      const parentId = parentIds[parentIndex]
-      for (const [subIndex, subName] of parent.subcategories.entries()) {
-        await db.categories.add({
-          name: subName,
-          slug: `${toSlug(parent.name)}-${toSlug(subName)}`,
-          color: parent.color,
-          icon: parent.icon,
-          parentId,
-          sortOrder: subIndex,
-          createdAt: now,
-        } as Category)
-      }
+  // Then add subcategories referencing parent IDs
+  for (const [parentIndex, parent] of DEFAULT_CATEGORIES.entries()) {
+    const parentId = parentIds[parentIndex]
+    for (const [subIndex, subName] of parent.subcategories.entries()) {
+      await categoriesApi.create({
+        name: subName,
+        slug: `${toSlug(parent.name)}-${toSlug(subName)}`,
+        color: parent.color,
+        icon: parent.icon,
+        parentId,
+        sortOrder: subIndex,
+        createdAt: now,
+      })
     }
-  })
+  }
 
   console.log('Categories seeded successfully')
 }

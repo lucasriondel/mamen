@@ -1,21 +1,20 @@
 import { useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
-import { db } from '@/lib/db'
+import { transactionsApi } from '@/lib/api'
 
 export const useNavigateToTransaction = () => {
   const navigate = useNavigate()
 
   const navigateToTransaction = async (transactionId: number): Promise<void> => {
-    const transaction = await db.transactions.get(transactionId)
-    if (!transaction) {
+    try {
+      await transactionsApi.get(transactionId)
+      navigate({
+        to: '/transactions',
+        search: { highlight: transactionId },
+      })
+    } catch {
       toast.error('Linked transaction not found')
-      return
     }
-
-    navigate({
-      to: '/transactions',
-      search: { highlight: transactionId },
-    })
   }
 
   return { navigateToTransaction }

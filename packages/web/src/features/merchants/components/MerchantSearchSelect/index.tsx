@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Check, ChevronsUpDown } from 'lucide-react'
-import { db, useLiveQuery } from '@/lib/db'
+import { useApiQuery, merchantsApi, transactionsApi } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -30,21 +30,18 @@ export function MerchantSearchSelect({
 }: MerchantSearchSelectProps): React.ReactElement {
   const [open, setOpen] = useState(false)
 
-  const merchants = useLiveQuery(
+  const merchants = useApiQuery(
     async () => {
-      const allMerchants = await db.merchants.toArray()
+      const allMerchants = await merchantsApi.getAll()
       const withCounts = await Promise.all(
         allMerchants.map(async (m) => ({
           ...m,
-          transactionCount: await db.transactions
-            .where('merchantId')
-            .equals(m.id!)
-            .count(),
+          transactionCount: await transactionsApi.count({ merchantId: m.id! }),
         })),
       )
       return withCounts.sort((a, b) => b.transactionCount - a.transactionCount)
     },
-    [],
+    ['merchants', 'transactions'],
     [],
   )
 

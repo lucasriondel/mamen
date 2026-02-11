@@ -11,8 +11,16 @@ import {
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
-import { db, useLiveQuery } from '@/lib/db'
-import { exportAllData } from '../../services/exportService'
+import {
+  useApiQuery,
+  accountsApi,
+  transactionsApi,
+  merchantsApi,
+  rulesApi,
+  categoriesApi,
+  subscriptionsApi,
+  databaseApi,
+} from '@/lib/api'
 import { downloadFile, generateExportFilename } from '../../services/downloadFile'
 import { parseBackupFile, importDataReplace, importDataMerge } from '../../services/importService'
 import { ClearDataDialog } from '../ClearDataDialog'
@@ -56,14 +64,20 @@ export function DataManagementSection(): React.ReactElement {
   const [showResult, setShowResult] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const counts = useLiveQuery(async () => ({
-    accounts: await db.accounts.count(),
-    transactions: await db.transactions.count(),
-    merchants: await db.merchants.count(),
-    rules: await db.rules.count(),
-    categories: await db.categories.count(),
-    subscriptions: await db.subscriptions.count(),
-  }))
+  const counts = useApiQuery(
+    async () => {
+      const [accounts, transactions, merchants, rules, categories, subscriptions] = await Promise.all([
+        accountsApi.getAll().then(arr => arr.length),
+        transactionsApi.count(),
+        merchantsApi.getAll().then(arr => arr.length),
+        rulesApi.getAll().then(arr => arr.length),
+        categoriesApi.getAll().then(arr => arr.length),
+        subscriptionsApi.getAll().then(arr => arr.length),
+      ])
+      return { accounts, transactions, merchants, rules, categories, subscriptions }
+    },
+    ['accounts', 'transactions', 'merchants', 'rules', 'categories', 'subscriptions'],
+  )
 
   const handleToggle = useCallback((key: OptionKey) => {
     setOptions((prev) => ({ ...prev, [key]: !prev[key] }))
@@ -72,7 +86,8 @@ export function DataManagementSection(): React.ReactElement {
   const handleExport = useCallback(async () => {
     setIsExporting(true)
     try {
-      const blob = await exportAllData(options)
+      const data = await databaseApi.export()
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
       const filename = generateExportFilename()
       downloadFile(blob, filename)
       toast.success('Data exported successfully')
@@ -81,7 +96,7 @@ export function DataManagementSection(): React.ReactElement {
     } finally {
       setIsExporting(false)
     }
-  }, [options])
+  }, [])
 
   const handleFileSelected = useCallback(async (file: File) => {
     if (!file.name.endsWith('.json') && file.type !== 'application/json') {

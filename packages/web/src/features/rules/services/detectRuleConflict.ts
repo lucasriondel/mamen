@@ -1,4 +1,4 @@
-import { db } from '@/lib/db'
+import { rulesApi, merchantsApi } from '@/lib/api'
 
 type ConflictResult = {
   hasConflict: boolean
@@ -11,7 +11,7 @@ export const detectRuleConflict = async (
   pattern: string,
   excludeMerchantId?: number,
 ): Promise<ConflictResult> => {
-  const allRules = await db.rules.toArray()
+  const allRules = await rulesApi.getAll()
   const otherRules = excludeMerchantId
     ? allRules.filter((r) => r.merchantId !== excludeMerchantId)
     : allRules
@@ -26,7 +26,7 @@ export const detectRuleConflict = async (
     const overlap = checkPatternOverlap(pattern, rule.pattern)
 
     if (overlap) {
-      const merchant = await db.merchants.get(rule.merchantId)
+      const merchant = await merchantsApi.get(rule.merchantId)
       const specificity = compareSpecificity(pattern, rule.pattern)
 
       return {

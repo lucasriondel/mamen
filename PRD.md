@@ -518,7 +518,7 @@ internals):
 
 ---
 
-Step 8: Migrate All Service Call Sites
+Step 8: Migrate All Service Call Sites ✅
 
 Components and pages that call service functions (which
 currently hit db directly) need to call the API client

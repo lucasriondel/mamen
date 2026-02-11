@@ -1,6 +1,6 @@
 import { Link, useNavigate } from '@tanstack/react-router'
 import { LayoutDashboard, Receipt, Store, CreditCard, Settings, Inbox, FileText, CalendarDays, Repeat, Tag } from 'lucide-react'
-import { db, useLiveQuery } from '@/lib/db'
+import { useApiQuery, merchantsApi, accountsApi, rulesApi } from '@/lib/api'
 import { useFocusMode } from '@/context/FocusModeContext'
 import { useUnmatchedCount } from '@/hooks/useUnmatchedCount'
 import { useCurrentMonthCount } from '@/hooks/useCurrentMonthCount'
@@ -31,16 +31,22 @@ export function Sidebar(): React.ReactElement {
   const { activeFilters, toggleFocusMode, setFocusMode } = useFocusMode()
   const navigate = useNavigate()
 
-  const merchantCount = useLiveQuery(
-    () => db.merchants.count()
+  const merchantCount = useApiQuery(
+    () => merchantsApi.getAll().then(m => m.length),
+    ['merchants'],
+    0
   ) ?? 0
 
-  const accountCount = useLiveQuery(
-    () => db.accounts.count()
+  const accountCount = useApiQuery(
+    () => accountsApi.getAll().then(a => a.length),
+    ['accounts'],
+    0
   ) ?? 0
 
-  const ruleCount = useLiveQuery(
-    () => db.rules.count()
+  const ruleCount = useApiQuery(
+    () => rulesApi.getAll().then(r => r.length),
+    ['rules'],
+    0
   ) ?? 0
 
   const handleTransactionsClick = (): void => {

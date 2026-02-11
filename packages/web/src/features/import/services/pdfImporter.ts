@@ -1,4 +1,4 @@
-import { db } from '@/lib/db'
+import { transactionsApi } from '@/lib/api'
 import type { Transaction } from '@/types'
 import type { LLMTransaction } from '@/lib/schemas'
 
@@ -30,11 +30,7 @@ export const importPDFTransactions = async (
     importBatchId,
   }))
 
-  let transactionIds: number[] = []
-  await db.transaction('rw', db.transactions, async () => {
-    const ids = await db.transactions.bulkAdd(records, { allKeys: true })
-    transactionIds = ids as number[]
-  })
+  const transactionIds = await transactionsApi.bulkAdd(records)
 
   return { count: records.length, importBatchId, transactionIds }
 }

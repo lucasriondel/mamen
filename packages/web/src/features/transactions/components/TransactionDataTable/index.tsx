@@ -33,7 +33,7 @@ import { useNavigateToTransaction } from '../../hooks/useNavigateToTransaction'
 import { useDeleteTransactions } from '../../hooks/useDeleteTransactions'
 import { useFocusMode } from '@/context/FocusModeContext'
 import { formatCurrency } from '@/lib/utils/formatCurrency'
-import { db, useLiveQuery } from '@/lib/db'
+import { useApiQuery, accountsApi, categoriesApi, merchantsApi, transactionsApi } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { columns, type TransactionTableMeta } from './columns'
 import { useTransactionTableKeyboard, type ActionKey } from './useTransactionTableKeyboard'
@@ -65,18 +65,18 @@ export function TransactionDataTable({ highlightId }: TransactionDataTableProps)
 
   const { filter: drillDown, isActive: isDrillDown, clearDrillDownFilter, clearAllFilters } = useDrillDownFilter()
   const transactionFilters = useTransactionFilters()
-  const accounts = useLiveQuery(() => db.accounts.toArray(), []) ?? []
+  const accounts = useApiQuery(() => accountsApi.getAll(), ['accounts'], []) ?? []
 
-  const categoryName = useLiveQuery(async () => {
+  const categoryName = useApiQuery(async () => {
     if (drillDown.categoryId == null) return null
-    const cat = await db.categories.get(drillDown.categoryId)
+    const cat = await categoriesApi.get(drillDown.categoryId)
     if (!cat) return null
     if (cat.parentId !== null) {
-      const parent = await db.categories.get(cat.parentId)
+      const parent = await categoriesApi.get(cat.parentId)
       return parent ? `${parent.name} > ${cat.name}` : cat.name
     }
     return cat.name
-  }, [drillDown.categoryId])
+  }, ['categories'])
 
   const { transactions, isLoading } = useFilteredTransactions({
     unmatchedOnly: isDrillDown ? false : isUnmatchedMode,
@@ -90,10 +90,10 @@ export function TransactionDataTable({ highlightId }: TransactionDataTableProps)
     subscriptionTransactionIds: subscriptionTxIds,
   })
 
-  const merchantsMap = useLiveQuery(async () => {
-    const allMerchants = await db.merchants.toArray()
+  const merchantsMap = useApiQuery(async () => {
+    const allMerchants = await merchantsApi.getAll()
     return new Map(allMerchants.map((m) => [m.id!, m.createdAt]))
-  }, [])
+  }, ['merchants'])
 
   const getMerchantCreatedAt = useCallback(
     (merchantId: number | undefined) => {
@@ -180,7 +180,7 @@ export function TransactionDataTable({ highlightId }: TransactionDataTableProps)
     (key: ActionKey, target: { mode: 'batch'; ids: number[] } | { mode: 'single'; transaction: Transaction }) => {
       if (key === 'r') {
         if (target.mode === 'batch') {
-          db.transactions.bulkGet(target.ids).then((txs) => {
+          transactionsApi.bulkGet(target.ids).then((txs) => {
             const validTxs = txs.filter(Boolean) as Transaction[]
             if (validTxs.length > 1) {
               setMerchantModalTransactions(validTxs)

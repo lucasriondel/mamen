@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/popover'
 import { CategoryPicker } from '@/components/CategoryPicker'
 import { useCategories } from '@/hooks/useCategories'
-import { db } from '@/lib/db'
+import { merchantsApi } from '@/lib/api'
 import { toast } from 'sonner'
 import { ChevronDown } from 'lucide-react'
 
@@ -58,7 +58,7 @@ export function EditMerchantModal({
     const prevName = currentName
     const prevCategoryId = currentCategoryId
     try {
-      await db.merchants.update(merchantId, {
+      await merchantsApi.update(merchantId, {
         name: name.trim(),
         defaultCategoryId: categoryId,
       })
@@ -66,7 +66,7 @@ export function EditMerchantModal({
         action: {
           label: 'Undo',
           onClick: () => {
-            db.merchants
+            merchantsApi
               .update(merchantId, {
                 name: prevName,
                 defaultCategoryId: prevCategoryId,

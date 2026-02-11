@@ -1,4 +1,4 @@
-import { db } from '@/lib/db'
+import { transactionsApi, merchantsApi, categoriesApi, settingsApi } from '@/lib/api'
 import type { AnomalyFlag, AnomalySettings, Transaction } from '@/types'
 import { formatCurrency } from '@/lib/utils/formatCurrency'
 import { formatDate } from '@/lib/utils/formatDate'
@@ -13,10 +13,14 @@ const DEFAULT_SETTINGS: AnomalySettings = {
 }
 
 export const getAnomalySettings = async (): Promise<AnomalySettings> => {
-  const stored = await db.settings.where('key').equals('anomaly_settings').first()
-  if (!stored) return DEFAULT_SETTINGS
   try {
-    return JSON.parse(stored.value) as AnomalySettings
+    const stored = await settingsApi.getByKey('anomaly_settings')
+    if (!stored) return DEFAULT_SETTINGS
+    try {
+      return JSON.parse(stored.value) as AnomalySettings
+    } catch {
+      return DEFAULT_SETTINGS
+    }
   } catch {
     return DEFAULT_SETTINGS
   }
@@ -32,8 +36,8 @@ export const detectHighAmountAnomalies = async (): Promise<{
   skippedCategories: number
 }> => {
   const settings = await getAnomalySettings()
-  const allTransactions = await db.transactions.toArray()
-  const categories = await db.categories.toArray()
+  const allTransactions = await transactionsApi.getAll()
+  const categories = await categoriesApi.getAll()
 
   const categoryMap = new Map(categories.map(c => [c.id!, c.name]))
 
@@ -94,11 +98,9 @@ export const detectHighAmountAnomalies = async (): Promise<{
   }
 
   // Batch update
-  await db.transaction('rw', db.transactions, async () => {
-    for (const update of updatedTransactions) {
-      await db.transactions.update(update.id, { anomalyFlags: update.anomalyFlags })
-    }
-  })
+  for (const update of updatedTransactions) {
+    await transactionsApi.update(update.id, { anomalyFlags: update.anomalyFlags })
+  }
 
   return { flagged, skippedCategories }
 }
@@ -107,7 +109,7 @@ export const dismissAnomaly = async (
   transactionId: number,
   anomalyType: string,
 ): Promise<void> => {
-  const tx = await db.transactions.get(transactionId)
+  const tx = await transactionsApi.get(transactionId)
   if (!tx?.anomalyFlags) return
 
   const updatedFlags = tx.anomalyFlags.map(flag =>
@@ -116,14 +118,14 @@ export const dismissAnomaly = async (
       : flag,
   )
 
-  await db.transactions.update(transactionId, { anomalyFlags: updatedFlags })
+  await transactionsApi.update(transactionId, { anomalyFlags: updatedFlags })
 }
 
 export const undoDismissAnomaly = async (
   transactionId: number,
   anomalyType: string,
 ): Promise<void> => {
-  const tx = await db.transactions.get(transactionId)
+  const tx = await transactionsApi.get(transactionId)
   if (!tx?.anomalyFlags) return
 
   const updatedFlags = tx.anomalyFlags.map(flag =>
@@ -132,15 +134,15 @@ export const undoDismissAnomaly = async (
       : flag,
   )
 
-  await db.transactions.update(transactionId, { anomalyFlags: updatedFlags })
+  await transactionsApi.update(transactionId, { anomalyFlags: updatedFlags })
 }
 
 export const removeHighAmountFlags = async (transactionId: number): Promise<void> => {
-  const tx = await db.transactions.get(transactionId)
+  const tx = await transactionsApi.get(transactionId)
   if (!tx?.anomalyFlags) return
 
   const updatedFlags = tx.anomalyFlags.filter(f => f.type !== 'high-amount')
-  await db.transactions.update(transactionId, {
+  await transactionsApi.update(transactionId, {
     anomalyFlags: updatedFlags.length > 0 ? updatedFlags : undefined,
   })
 }
@@ -152,7 +154,7 @@ export const cleanExpiredNewMerchantFlags = async (): Promise<{
   threshold.setDate(threshold.getDate() - NEW_MERCHANT_THRESHOLD_DAYS)
 
   // Get merchants that are no longer "new" (createdAt <= threshold)
-  const allMerchants = await db.merchants.toArray()
+  const allMerchants = await merchantsApi.getAll()
   const expiredMerchantIds = new Set(
     allMerchants
       .filter(m => m.createdAt <= threshold)
@@ -161,7 +163,7 @@ export const cleanExpiredNewMerchantFlags = async (): Promise<{
 
   if (expiredMerchantIds.size === 0) return { cleaned: 0 }
 
-  const allTransactions = await db.transactions.toArray()
+  const allTransactions = await transactionsApi.getAll()
   let cleaned = 0
   const updates: { id: number; anomalyFlags: AnomalyFlag[] | undefined }[] = []
 
@@ -179,11 +181,9 @@ export const cleanExpiredNewMerchantFlags = async (): Promise<{
     cleaned++
   }
 
-  await db.transaction('rw', db.transactions, async () => {
-    for (const update of updates) {
-      await db.transactions.update(update.id, { anomalyFlags: update.anomalyFlags })
-    }
-  })
+  for (const update of updates) {
+    await transactionsApi.update(update.id, { anomalyFlags: update.anomalyFlags })
+  }
 
   return { cleaned }
 }
@@ -195,14 +195,14 @@ export const detectNewMerchantAnomalies = async (): Promise<{
   threshold.setDate(threshold.getDate() - NEW_MERCHANT_THRESHOLD_DAYS)
 
   // Get new merchants (createdAt > threshold, i.e., less than 30 days old)
-  const allMerchants = await db.merchants.toArray()
+  const allMerchants = await merchantsApi.getAll()
   const newMerchants = allMerchants.filter(m => m.createdAt > threshold)
 
   if (newMerchants.length === 0) return { flagged: 0 }
 
   const newMerchantMap = new Map(newMerchants.map(m => [m.id!, m]))
 
-  const allTransactions = await db.transactions.toArray()
+  const allTransactions = await transactionsApi.getAll()
   let flagged = 0
   const updates: { id: number; anomalyFlags: AnomalyFlag[] }[] = []
 
@@ -232,11 +232,9 @@ export const detectNewMerchantAnomalies = async (): Promise<{
     flagged++
   }
 
-  await db.transaction('rw', db.transactions, async () => {
-    for (const update of updates) {
-      await db.transactions.update(update.id, { anomalyFlags: update.anomalyFlags })
-    }
-  })
+  for (const update of updates) {
+    await transactionsApi.update(update.id, { anomalyFlags: update.anomalyFlags })
+  }
 
   return { flagged }
 }
@@ -260,7 +258,7 @@ export const detectPotentialDuplicates = async (): Promise<{
   flagged: number
   pairs: number
 }> => {
-  const allTransactions = await db.transactions.toArray()
+  const allTransactions = await transactionsApi.getAll()
 
   // Filter out refunds and excluded duplicates
   const eligible = allTransactions.filter(
@@ -289,7 +287,7 @@ export const detectPotentialDuplicates = async (): Promise<{
   const allGroups = [...byMerchantId.values(), ...byRawString.values()]
 
   // Load merchant names for reason strings
-  const merchants = await db.merchants.toArray()
+  const merchants = await merchantsApi.getAll()
   const merchantNameMap = new Map(merchants.map(m => [m.id!, m.name]))
 
   let pairs = 0
@@ -353,17 +351,15 @@ export const detectPotentialDuplicates = async (): Promise<{
 
   // Batch update
   let flagged = 0
-  await db.transaction('rw', db.transactions, async () => {
-    for (const [txId, newFlags] of newFlagsMap) {
-      const tx = await db.transactions.get(txId)
-      if (!tx) continue
-      const existingFlags = tx.anomalyFlags ?? []
-      await db.transactions.update(txId, {
-        anomalyFlags: [...existingFlags, ...newFlags],
-      })
-      flagged++
-    }
-  })
+  for (const [txId, newFlags] of newFlagsMap) {
+    const tx = await transactionsApi.get(txId)
+    if (!tx) continue
+    const existingFlags = tx.anomalyFlags ?? []
+    await transactionsApi.update(txId, {
+      anomalyFlags: [...existingFlags, ...newFlags],
+    })
+    flagged++
+  }
 
   return { flagged, pairs }
 }
@@ -371,7 +367,7 @@ export const detectPotentialDuplicates = async (): Promise<{
 export const dismissDuplicateAnomaly = async (
   transactionId: number,
 ): Promise<void> => {
-  const tx = await db.transactions.get(transactionId)
+  const tx = await transactionsApi.get(transactionId)
   if (!tx?.anomalyFlags) return
 
   const dupFlag = tx.anomalyFlags.find(
@@ -384,7 +380,7 @@ export const dismissDuplicateAnomaly = async (
 
   // Also dismiss on the linked transaction
   if (dupFlag.linkedTransactionId) {
-    const linkedTx = await db.transactions.get(dupFlag.linkedTransactionId)
+    const linkedTx = await transactionsApi.get(dupFlag.linkedTransactionId)
     if (linkedTx?.anomalyFlags) {
       // Only dismiss the specific flag pointing back to this transaction
       const updatedFlags = linkedTx.anomalyFlags.map(f =>
@@ -392,7 +388,7 @@ export const dismissDuplicateAnomaly = async (
           ? { ...f, dismissed: true, dismissedAt: new Date().toISOString() }
           : f,
       )
-      await db.transactions.update(dupFlag.linkedTransactionId, { anomalyFlags: updatedFlags })
+      await transactionsApi.update(dupFlag.linkedTransactionId, { anomalyFlags: updatedFlags })
     }
   }
 }
@@ -405,14 +401,14 @@ export const undoDismissDuplicateAnomaly = async (
   await undoDismissAnomaly(transactionId, 'potential-duplicate')
 
   // Restore on linked transaction - only the flag pointing back to this tx
-  const linkedTx = await db.transactions.get(linkedTransactionId)
+  const linkedTx = await transactionsApi.get(linkedTransactionId)
   if (linkedTx?.anomalyFlags) {
     const updatedFlags = linkedTx.anomalyFlags.map(f =>
       f.type === 'potential-duplicate' && f.dismissed && f.linkedTransactionId === transactionId
         ? { ...f, dismissed: false, dismissedAt: undefined }
         : f,
     )
-    await db.transactions.update(linkedTransactionId, { anomalyFlags: updatedFlags })
+    await transactionsApi.update(linkedTransactionId, { anomalyFlags: updatedFlags })
   }
 }
 
@@ -426,7 +422,7 @@ export const confirmDuplicate = async (
   }
 
   // action === 'exclude'
-  const tx = await db.transactions.get(transactionId)
+  const tx = await transactionsApi.get(transactionId)
   if (!tx) return
 
   const dupFlag = tx.anomalyFlags?.find(
@@ -436,11 +432,13 @@ export const confirmDuplicate = async (
   const linkedId = dupFlag?.linkedTransactionId
 
   // Mark transaction as excluded
-  const note = linkedId
-    ? `Excluded as duplicate of transaction on ${formatDate((await db.transactions.get(linkedId))?.date ?? new Date())}`
-    : 'Excluded as duplicate'
+  let note = 'Excluded as duplicate'
+  if (linkedId) {
+    const linkedTx = await transactionsApi.get(linkedId)
+    note = `Excluded as duplicate of transaction on ${formatDate(linkedTx?.date ?? new Date())}`
+  }
 
-  await db.transactions.update(transactionId, {
+  await transactionsApi.update(transactionId, {
     isDuplicateExcluded: true,
     duplicateNote: note,
   })
@@ -454,7 +452,7 @@ export const undoConfirmDuplicate = async (
   linkedTransactionId?: number,
 ): Promise<void> => {
   // Remove exclusion
-  await db.transactions.update(transactionId, {
+  await transactionsApi.update(transactionId, {
     isDuplicateExcluded: undefined,
     duplicateNote: undefined,
   })

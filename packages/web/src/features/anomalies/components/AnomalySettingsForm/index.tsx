@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { db, useLiveQuery } from '@/lib/db'
+import { useApiQuery, settingsApi } from '@/lib/api'
 import { detectHighAmountAnomalies, getAnomalySettings } from '../../services/anomalyDetector'
 import type { AnomalySettings } from '@/types'
 
@@ -15,9 +15,10 @@ const DEFAULT_SETTINGS: AnomalySettings = {
 }
 
 export function AnomalySettingsForm(): React.ReactElement {
-  // Use toArray to distinguish loading (undefined) from no result (empty array)
-  const settingsResult = useLiveQuery(
-    () => db.settings.where('key').equals('anomaly_settings').toArray(),
+  // Use array wrapper to distinguish loading (undefined) from no result (empty array)
+  const settingsResult = useApiQuery(
+    () => settingsApi.getByKey('anomaly_settings' as any).then(s => [s]).catch(() => []),
+    ['settings'],
   )
   const isLoading = settingsResult === undefined
   const storedSetting = settingsResult?.[0]
@@ -64,11 +65,11 @@ export function AnomalySettingsForm(): React.ReactElement {
       minTransactionsForDetection: minTxVal,
     }
 
-    const existing = await db.settings.where('key').equals('anomaly_settings').first()
+    const existing = await settingsApi.getByKey('anomaly_settings' as any).catch(() => undefined)
     if (existing) {
-      await db.settings.update(existing.id!, { value: JSON.stringify(newSettings) })
+      await settingsApi.putByKey({ ...existing, value: JSON.stringify(newSettings) })
     } else {
-      await db.settings.add({ key: 'anomaly_settings', value: JSON.stringify(newSettings) })
+      await settingsApi.putByKey({ key: 'anomaly_settings' as any, value: JSON.stringify(newSettings) })
     }
 
     toast.success('Anomaly settings saved')

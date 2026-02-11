@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { CreditCard, Loader2, Plus, Settings } from 'lucide-react'
 import { toast } from 'sonner'
-import { db, useLiveQuery } from '@/lib/db'
+import { useApiQuery, accountsApi, transactionsApi } from '@/lib/api'
 import { EmptyState } from '@/components/EmptyState'
 import { Button } from '@/components/ui/button'
 import {
@@ -99,7 +99,7 @@ export function AccountsPage(): React.ReactElement {
   const undoRef = useRef<UndoState | null>(null)
   const navigate = useNavigate()
 
-  const accounts = useLiveQuery(() => db.accounts.toArray()) ?? []
+  const accounts = useApiQuery(() => accountsApi.getAll(), ['accounts'], []) ?? []
 
   const handleOpenCreate = (): void => {
     setCreateOpen(true)
@@ -200,7 +200,7 @@ export function AccountsPage(): React.ReactElement {
 
   const handleDeleteRequest = async (account: Account): Promise<void> => {
     if (account.id === undefined) return
-    const count = await db.transactions.where('accountId').equals(account.id).count()
+    const count = await transactionsApi.count({ accountId: account.id })
     setDeleteTransactionCount(count)
     setDeletingAccount(account)
   }
@@ -210,10 +210,7 @@ export function AccountsPage(): React.ReactElement {
 
     const accountId = deletingAccount.id
     const accountBackup = { ...deletingAccount }
-    const transactionsBackup = await db.transactions
-      .where('accountId')
-      .equals(accountId)
-      .toArray()
+    const transactionsBackup = await transactionsApi.getAll({ accountId })
 
     // Clear any previous undo timeout
     if (undoRef.current) {
@@ -221,17 +218,15 @@ export function AccountsPage(): React.ReactElement {
     }
 
     // Delete account and transactions atomically
-    await db.transaction('rw', [db.accounts, db.transactions], async () => {
-      await db.transactions.where('accountId').equals(accountId).delete()
-      await db.accounts.delete(accountId)
-    })
+    await transactionsApi.bulkDelete(transactionsBackup.map(t => t.id!))
+    await accountsApi.delete(accountId)
 
     const handleUndo = async (): Promise<void> => {
       if (!undoRef.current) return
       clearTimeout(undoRef.current.timeoutId)
-      await db.accounts.add(undoRef.current.account)
+      await accountsApi.create({ ...undoRef.current.account })
       if (undoRef.current.transactions.length > 0) {
-        await db.transactions.bulkAdd(undoRef.current.transactions)
+        await transactionsApi.bulkAdd(undoRef.current.transactions)
       }
       undoRef.current = null
       toast.success('Account restored')

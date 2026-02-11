@@ -1,4 +1,4 @@
-import { db } from '@/lib/db'
+import { transactionsApi } from '@/lib/api'
 
 type LinkRefundResult = {
   refundPrevious: { isRefund?: boolean; linkedRefundId?: number }
@@ -14,8 +14,8 @@ export const linkRefund = async (
   }
 
   const [refundTx, purchaseTx] = await Promise.all([
-    db.transactions.get(refundTransactionId),
-    db.transactions.get(purchaseTransactionId),
+    transactionsApi.get(refundTransactionId),
+    transactionsApi.get(purchaseTransactionId),
   ])
 
   if (!refundTx) throw new Error(`Transaction not found: ${refundTransactionId}`)
@@ -35,17 +35,15 @@ export const linkRefund = async (
     },
   }
 
-  await db.transaction('rw', db.transactions, async () => {
-    await db.transactions.update(refundTransactionId, {
-      isRefund: true,
-      linkedRefundId: purchaseTransactionId,
-      ...(purchaseTx.categoryId && !refundTx.categoryId
-        ? { categoryId: purchaseTx.categoryId }
-        : {}),
-    })
-    await db.transactions.update(purchaseTransactionId, {
-      linkedRefundId: refundTransactionId,
-    })
+  await transactionsApi.update(refundTransactionId, {
+    isRefund: true,
+    linkedRefundId: purchaseTransactionId,
+    ...(purchaseTx.categoryId && !refundTx.categoryId
+      ? { categoryId: purchaseTx.categoryId }
+      : {}),
+  })
+  await transactionsApi.update(purchaseTransactionId, {
+    linkedRefundId: refundTransactionId,
   })
 
   return result
@@ -55,26 +53,24 @@ export const undoLinkRefund = async (
   refundTransactionId: number,
   purchaseTransactionId: number,
 ): Promise<void> => {
-  await db.transaction('rw', db.transactions, async () => {
-    await db.transactions.update(refundTransactionId, {
-      isRefund: false,
-      linkedRefundId: undefined,
-    })
-    await db.transactions.update(purchaseTransactionId, {
-      linkedRefundId: undefined,
-    })
+  await transactionsApi.update(refundTransactionId, {
+    isRefund: false,
+    linkedRefundId: undefined,
+  })
+  await transactionsApi.update(purchaseTransactionId, {
+    linkedRefundId: undefined,
   })
 }
 
 export const markAsOrphanRefund = async (
   transactionId: number,
 ): Promise<{ previousIsRefund?: boolean }> => {
-  const tx = await db.transactions.get(transactionId)
+  const tx = await transactionsApi.get(transactionId)
   if (!tx) throw new Error(`Transaction not found: ${transactionId}`)
 
   const previous = { previousIsRefund: tx.isRefund }
 
-  await db.transactions.update(transactionId, {
+  await transactionsApi.update(transactionId, {
     isRefund: true,
   })
 
@@ -84,7 +80,7 @@ export const markAsOrphanRefund = async (
 export const undoOrphanRefund = async (
   transactionId: number,
 ): Promise<void> => {
-  await db.transactions.update(transactionId, {
+  await transactionsApi.update(transactionId, {
     isRefund: false,
   })
 }
@@ -93,14 +89,12 @@ export const unlinkRefund = async (
   refundTransactionId: number,
   purchaseTransactionId: number,
 ): Promise<void> => {
-  await db.transaction('rw', db.transactions, async () => {
-    await db.transactions.update(refundTransactionId, {
-      isRefund: false,
-      linkedRefundId: undefined,
-    })
-    await db.transactions.update(purchaseTransactionId, {
-      linkedRefundId: undefined,
-    })
+  await transactionsApi.update(refundTransactionId, {
+    isRefund: false,
+    linkedRefundId: undefined,
+  })
+  await transactionsApi.update(purchaseTransactionId, {
+    linkedRefundId: undefined,
   })
 }
 
@@ -108,14 +102,12 @@ export const undoUnlinkRefund = async (
   refundTransactionId: number,
   purchaseTransactionId: number,
 ): Promise<void> => {
-  await db.transaction('rw', db.transactions, async () => {
-    await db.transactions.update(refundTransactionId, {
-      isRefund: true,
-      linkedRefundId: purchaseTransactionId,
-    })
-    await db.transactions.update(purchaseTransactionId, {
-      linkedRefundId: refundTransactionId,
-    })
+  await transactionsApi.update(refundTransactionId, {
+    isRefund: true,
+    linkedRefundId: purchaseTransactionId,
+  })
+  await transactionsApi.update(purchaseTransactionId, {
+    linkedRefundId: refundTransactionId,
   })
 }
 
@@ -125,24 +117,22 @@ export const replaceLinkRefund = async (
   newPurchaseTransactionId: number,
 ): Promise<void> => {
   const [refundTx, newPurchaseTx] = await Promise.all([
-    db.transactions.get(refundTransactionId),
-    db.transactions.get(newPurchaseTransactionId),
+    transactionsApi.get(refundTransactionId),
+    transactionsApi.get(newPurchaseTransactionId),
   ])
 
-  await db.transaction('rw', db.transactions, async () => {
-    await db.transactions.update(oldPurchaseTransactionId, {
-      linkedRefundId: undefined,
-    })
-    await db.transactions.update(refundTransactionId, {
-      isRefund: true,
-      linkedRefundId: newPurchaseTransactionId,
-      ...(newPurchaseTx?.categoryId && !refundTx?.categoryId
-        ? { categoryId: newPurchaseTx.categoryId }
-        : {}),
-    })
-    await db.transactions.update(newPurchaseTransactionId, {
-      linkedRefundId: refundTransactionId,
-    })
+  await transactionsApi.update(oldPurchaseTransactionId, {
+    linkedRefundId: undefined,
+  })
+  await transactionsApi.update(refundTransactionId, {
+    isRefund: true,
+    linkedRefundId: newPurchaseTransactionId,
+    ...(newPurchaseTx?.categoryId && !refundTx?.categoryId
+      ? { categoryId: newPurchaseTx.categoryId }
+      : {}),
+  })
+  await transactionsApi.update(newPurchaseTransactionId, {
+    linkedRefundId: refundTransactionId,
   })
 }
 
@@ -151,15 +141,13 @@ export const undoReplaceLinkRefund = async (
   oldPurchaseTransactionId: number,
   newPurchaseTransactionId: number,
 ): Promise<void> => {
-  await db.transaction('rw', db.transactions, async () => {
-    await db.transactions.update(newPurchaseTransactionId, {
-      linkedRefundId: undefined,
-    })
-    await db.transactions.update(refundTransactionId, {
-      linkedRefundId: oldPurchaseTransactionId,
-    })
-    await db.transactions.update(oldPurchaseTransactionId, {
-      linkedRefundId: refundTransactionId,
-    })
+  await transactionsApi.update(newPurchaseTransactionId, {
+    linkedRefundId: undefined,
+  })
+  await transactionsApi.update(refundTransactionId, {
+    linkedRefundId: oldPurchaseTransactionId,
+  })
+  await transactionsApi.update(oldPurchaseTransactionId, {
+    linkedRefundId: refundTransactionId,
   })
 }

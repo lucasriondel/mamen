@@ -1,4 +1,4 @@
-import { db } from '@/lib/db'
+import { transactionsApi } from '@/lib/api'
 import { escapeRegex, extractPrefix } from '@/lib/utils/patternUtils'
 import { countMatches } from './ruleEngine'
 
@@ -118,10 +118,10 @@ export const getMatchingTransactionsOutsideSelection = async (
   try {
     const regex = new RegExp(pattern, 'i')
     const selectedSet = new Set(selectedRawStrings)
-    const matches = await db.transactions
+    const allTransactions = await transactionsApi.getAll()
+    const matches = allTransactions
       .filter((tx) => regex.test(tx.rawMerchantString) && !selectedSet.has(tx.rawMerchantString))
-      .limit(10)
-      .toArray()
+      .slice(0, 10)
     return matches.map((tx) => ({
       rawMerchantString: tx.rawMerchantString,
       date: tx.date,

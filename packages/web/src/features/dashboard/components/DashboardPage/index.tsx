@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { FileSpreadsheet } from 'lucide-react'
 import { useNavigate } from '@tanstack/react-router'
 import { EmptyState } from '@/components/EmptyState'
-import { db, useLiveQuery } from '@/lib/db'
+import { useApiQuery, transactionsApi } from '@/lib/api'
 import { useSpendingBreakdown } from '../../hooks/useSpendingBreakdown'
 import { useTimePeriod } from '../../hooks/useTimePeriod'
 import { useSpendingComparison } from '../../hooks/useSpendingComparison'
@@ -13,7 +13,7 @@ import { TimePeriodSelector } from '../TimePeriodSelector'
 
 export function DashboardPage(): React.ReactElement {
   const navigate = useNavigate()
-  const transactionCount = useLiveQuery(() => db.transactions.count()) ?? 0
+  const transactionCount = useApiQuery(() => transactionsApi.count(), ['transactions'], 0) ?? 0
   const { selectedPeriod, setSelectedPeriod, resolvedRange, periodLabel } = useTimePeriod()
   const breakdown = useSpendingBreakdown(resolvedRange)
   const comparison = useSpendingComparison(selectedPeriod, breakdown)

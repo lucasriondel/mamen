@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { db, useLiveQuery } from '@/lib/db'
+import { useApiQuery, transactionsApi } from '@/lib/api'
 import { formatCurrency } from '@/lib/utils/formatCurrency'
 import { formatDate } from '@/lib/utils/formatDate'
 import { Button } from '@/components/ui/button'
@@ -15,36 +15,35 @@ export function MatchPreviewList({
 }: MatchPreviewListProps): React.ReactElement {
   const [expanded, setExpanded] = useState(false)
 
-  const matches = useLiveQuery(
-    () => {
+  const matches = useApiQuery(
+    async () => {
       if (!pattern) return []
       try {
         const regex = new RegExp(pattern, 'i')
-        return db.transactions
+        const allTx = await transactionsApi.getAll()
+        return allTx
           .filter((tx) => regex.test(tx.rawMerchantString))
-          .limit(expanded ? 50 : maxVisible + 1)
-          .toArray()
+          .slice(0, expanded ? 50 : maxVisible + 1)
       } catch {
         return []
       }
     },
-    [pattern, expanded, maxVisible],
+    ['transactions'],
     [],
   )
 
-  const totalCount = useLiveQuery(
-    () => {
+  const totalCount = useApiQuery(
+    async () => {
       if (!pattern) return 0
       try {
         const regex = new RegExp(pattern, 'i')
-        return db.transactions
-          .filter((tx) => regex.test(tx.rawMerchantString))
-          .count()
+        const allTx = await transactionsApi.getAll()
+        return allTx.filter((tx) => regex.test(tx.rawMerchantString)).length
       } catch {
         return 0
       }
     },
-    [pattern],
+    ['transactions'],
     0,
   )
 

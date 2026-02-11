@@ -1,4 +1,4 @@
-import { db } from '@/lib/db'
+import { merchantsApi, transactionsApi, subscriptionsApi } from '@/lib/api'
 import type { Subscription, SubscriptionFrequency } from '@/types'
 import type { Transaction } from '@/types'
 
@@ -95,14 +95,11 @@ const computeMedian = (values: number[]): number => {
 type DetectedSubscription = Omit<Subscription, 'id' | 'detectedAt' | 'updatedAt' | 'status'>
 
 export const detectSubscriptions = async (): Promise<DetectedSubscription[]> => {
-  const merchants = await db.merchants.toArray()
+  const merchants = await merchantsApi.getAll()
   const results: DetectedSubscription[] = []
 
   for (const merchant of merchants) {
-    const transactions = await db.transactions
-      .where('merchantId')
-      .equals(merchant.id!)
-      .toArray()
+    const transactions = await transactionsApi.getAll({ merchantId: merchant.id! })
 
     // Exclude refunds and positive amounts (income)
     const expenses = transactions.filter(
@@ -161,14 +158,15 @@ export const runDetection = async (): Promise<{
 
   for (const sub of detected) {
     // Find existing subscription by merchantId + frequency
-    const existing = await db.subscriptions
-      .where('merchantId')
-      .equals(sub.merchantId)
-      .filter(s => s.frequency === sub.frequency)
-      .first()
+    let existing: Subscription | null = null
+    try {
+      existing = await subscriptionsApi.getByMerchantAndFrequency(sub.merchantId, sub.frequency)
+    } catch {
+      // Not found, will create
+    }
 
     if (existing) {
-      await db.subscriptions.update(existing.id!, {
+      await subscriptionsApi.update(existing.id!, {
         lastChargeDate: sub.lastChargeDate,
         typicalAmount: sub.typicalAmount,
         chargeCount: sub.chargeCount,
@@ -178,7 +176,7 @@ export const runDetection = async (): Promise<{
       })
       updated++
     } else {
-      await db.subscriptions.add({
+      await subscriptionsApi.create({
         ...sub,
         status: 'active',
         detectedAt: now,
@@ -190,14 +188,14 @@ export const runDetection = async (): Promise<{
 
   // Check for possibly-cancelled subscriptions
   // Only check subs that were NOT just detected/updated (those already set to active)
-  const allSubs = await db.subscriptions.toArray()
+  const allSubs = await subscriptionsApi.getAll()
 
   for (const sub of allSubs) {
     const daysSinceLast = daysBetween(sub.lastChargeDate, now)
     const shouldCancel = daysSinceLast > sub.intervalDays * 2
 
     if (shouldCancel && sub.status === 'active') {
-      await db.subscriptions.update(sub.id!, {
+      await subscriptionsApi.update(sub.id!, {
         status: 'possibly-cancelled',
         updatedAt: now,
       })

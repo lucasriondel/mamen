@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
-import { db } from '@/lib/db'
+import { accountsApi } from '@/lib/api'
 import { createAccountSchema, type CreateAccountInput } from '@/lib/schemas'
 import {
   Dialog,
@@ -58,7 +58,7 @@ export function EditAccountModal({ account, open, onOpenChange }: EditAccountMod
   const handleSubmit = async (data: CreateAccountInput): Promise<void> => {
     if (!account?.id) return
 
-    await db.accounts.update(account.id, {
+    await accountsApi.update(account.id, {
       name: data.name,
       type: data.type,
       updatedAt: new Date(),

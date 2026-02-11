@@ -1,4 +1,4 @@
-import { db } from '@/lib/db'
+import { transactionsApi } from '@/lib/api'
 import type { Transaction } from '@/types'
 import type { ParsedTransaction, DuplicateCheckResult } from '../types/duplicate.types'
 
@@ -29,10 +29,7 @@ export const detectDuplicates = async (
     }
   }
 
-  const existing = await db.transactions
-    .where('accountId')
-    .equals(accountId)
-    .toArray()
+  const existing = await transactionsApi.getAll({ accountId })
 
   const existingKeys = new Map<string, Transaction>()
   for (const tx of existing) {

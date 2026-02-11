@@ -1,4 +1,4 @@
-import { db } from '@/lib/db'
+import { merchantsApi, rulesApi, transactionsApi } from '@/lib/api'
 import { applyRuleToTransactions } from './applyRule'
 
 type AddRuleToMerchantParams = {
@@ -18,7 +18,7 @@ export const addRuleToMerchant = async (
 ): Promise<AddRuleToMerchantResult> => {
   const { merchantId, pattern, categoryOverrideId } = params
 
-  const merchant = await db.merchants.get(merchantId)
+  const merchant = await merchantsApi.get(merchantId)
   if (!merchant) {
     throw new Error(`Merchant not found: ${merchantId}`)
   }
@@ -28,13 +28,13 @@ export const addRuleToMerchant = async (
     throw new Error('No category specified and merchant has no default category')
   }
 
-  const ruleId = (await db.rules.add({
+  const ruleId = await rulesApi.create({
     merchantId,
     pattern,
     categoryOverride: categoryOverrideId ?? undefined,
     matchCount: 0,
     createdAt: new Date(),
-  })) as number
+  })
 
   const rule = {
     id: ruleId,
@@ -58,14 +58,12 @@ export const undoAddRule = async (
   ruleId: number,
   affectedTransactionIds: number[],
 ): Promise<void> => {
-  await db.transaction('rw', [db.rules, db.transactions], async () => {
-    await db.rules.delete(ruleId)
+  await rulesApi.delete(ruleId)
 
-    for (const txId of affectedTransactionIds) {
-      await db.transactions.update(txId, {
-        merchantId: undefined,
-        categoryId: undefined,
-      })
-    }
-  })
+  for (const txId of affectedTransactionIds) {
+    await transactionsApi.update(txId, {
+      merchantId: undefined,
+      categoryId: undefined,
+    })
+  }
 }

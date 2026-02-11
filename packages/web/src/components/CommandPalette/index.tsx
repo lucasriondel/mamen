@@ -16,7 +16,7 @@ import { useFocusMode } from '@/context/FocusModeContext'
 import { useTransactionSearch } from '@/features/search'
 import { formatCurrency } from '@/lib/utils/formatCurrency'
 import { isMac } from '@/lib/utils/platform'
-import { exportAllData } from '@/features/settings/services/exportService'
+import { databaseApi } from '@/lib/api'
 import { downloadFile, generateExportFilename } from '@/features/settings/services/downloadFile'
 
 type CommandPaletteProps = Record<string, never>
@@ -139,8 +139,9 @@ export const CommandPalette = (_props: CommandPaletteProps): React.ReactElement 
           <CommandItem
             value="export-all-data-backup"
             onSelect={() => handleSelect(() => {
-              exportAllData()
-                .then((blob) => {
+              databaseApi.export()
+                .then((data) => {
+                  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
                   downloadFile(blob, generateExportFilename())
                   toast.success('Data exported successfully')
                 })

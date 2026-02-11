@@ -1,4 +1,4 @@
-import { db } from '@/lib/db'
+import { accountsApi, transactionsApi, merchantsApi, rulesApi, categoriesApi, subscriptionsApi, settingsApi, appSettingsApi, databaseApi, ApiError } from '@/lib/api'
 import { APP_VERSION } from '@/lib/constants'
 import { exportDataSchema } from '../schemas/import.schema'
 import { compareVersions } from './versionCompare'
@@ -98,31 +98,26 @@ export const importDataReplace = async (data: ExportData): Promise<ImportResult>
   }
 
   try {
-    await db.delete()
-    await db.open()
+    await databaseApi.reset()
 
-    await db.accounts.bulkPut(data.accounts)
+    await databaseApi.import({
+      accounts: data.accounts,
+      transactions: data.transactions,
+      merchants: data.merchants,
+      rules: data.rules,
+      categories: data.categories,
+      subscriptions: data.subscriptions,
+      settings: data.settings,
+      appSettings: data.appSettings.length > 0 ? data.appSettings[0] : undefined,
+    })
+
     result.added.accounts = data.accounts.length
-
-    await db.transactions.bulkPut(data.transactions)
     result.added.transactions = data.transactions.length
-
-    await db.merchants.bulkPut(data.merchants)
     result.added.merchants = data.merchants.length
-
-    await db.rules.bulkPut(data.rules)
     result.added.rules = data.rules.length
-
-    await db.categories.bulkPut(data.categories)
     result.added.categories = data.categories.length
-
-    await db.subscriptions.bulkPut(data.subscriptions)
     result.added.subscriptions = data.subscriptions.length
-
-    await db.settings.bulkPut(data.settings)
     result.added.settings = data.settings.length
-
-    await db.appSettings.bulkPut(data.appSettings)
     result.added.appSettings = data.appSettings.length
   } catch (error) {
     result.success = false
@@ -149,12 +144,17 @@ export const importDataMerge = async (data: ExportData): Promise<ImportResult> =
 
     // 1. Merge accounts (match by name)
     for (const account of data.accounts) {
-      const existing = await db.accounts.where('name').equals(account.name).first()
+      let existing: { id?: number } | null = null
+      try {
+        existing = await accountsApi.getByName(account.name)
+      } catch (e) {
+        if (!(e instanceof ApiError && e.status === 404)) throw e
+      }
       if (existing) {
         accountIdMap.set(account.id, existing.id!)
       } else {
         const { id: oldId, ...accountWithoutId } = account
-        const newId = await db.accounts.add(accountWithoutId)
+        const newId = await accountsApi.create(accountWithoutId)
         accountIdMap.set(oldId, newId)
         result.added.accounts++
       }
@@ -162,12 +162,17 @@ export const importDataMerge = async (data: ExportData): Promise<ImportResult> =
 
     // 2. Merge merchants (match by name)
     for (const merchant of data.merchants) {
-      const existing = await db.merchants.where('name').equals(merchant.name).first()
+      let existing: { id?: number } | null = null
+      try {
+        existing = await merchantsApi.getByName(merchant.name)
+      } catch (e) {
+        if (!(e instanceof ApiError && e.status === 404)) throw e
+      }
       if (existing) {
         merchantIdMap.set(merchant.id, existing.id!)
       } else {
         const { id: oldId, ...merchantWithoutId } = merchant
-        const newId = await db.merchants.add(merchantWithoutId)
+        const newId = await merchantsApi.create(merchantWithoutId)
         merchantIdMap.set(oldId, newId)
         result.added.merchants++
       }
@@ -175,10 +180,15 @@ export const importDataMerge = async (data: ExportData): Promise<ImportResult> =
 
     // 3. Merge categories (match by slug)
     for (const category of data.categories) {
-      const existing = await db.categories.where('slug').equals(category.slug).first()
+      let existing: { id?: number } | null = null
+      try {
+        existing = await categoriesApi.getBySlug(category.slug)
+      } catch (e) {
+        if (!(e instanceof ApiError && e.status === 404)) throw e
+      }
       if (!existing) {
         const { id: _oldId, ...categoryWithoutId } = category
-        await db.categories.add(categoryWithoutId)
+        await categoriesApi.create(categoryWithoutId)
         result.added.categories++
       }
     }
@@ -186,12 +196,15 @@ export const importDataMerge = async (data: ExportData): Promise<ImportResult> =
     // 4. Merge rules (match by merchantId + pattern, remap merchantId)
     for (const rule of data.rules) {
       const remappedMerchantId = merchantIdMap.get(rule.merchantId) ?? rule.merchantId
-      const existing = await db.rules
-        .where({ merchantId: remappedMerchantId, pattern: rule.pattern })
-        .first()
+      let existing: { id?: number } | null = null
+      try {
+        existing = await rulesApi.getByMerchantIdAndPattern(remappedMerchantId, rule.pattern)
+      } catch (e) {
+        if (!(e instanceof ApiError && e.status === 404)) throw e
+      }
       if (!existing) {
         const { id: _oldId, ...ruleWithoutId } = rule
-        await db.rules.add({
+        await rulesApi.create({
           ...ruleWithoutId,
           merchantId: remappedMerchantId,
         })
@@ -209,16 +222,15 @@ export const importDataMerge = async (data: ExportData): Promise<ImportResult> =
         d instanceof Date ? d.toISOString() : String(d)
       const txnDateStr = normalizeDate(txn.date)
 
-      const existing = await db.transactions
-        .where('accountId').equals(remappedAccountId)
-        .filter((t) => {
-          return normalizeDate(t.date) === txnDateStr && t.amount === txn.amount && t.rawMerchantString === txn.rawMerchantString
-        })
-        .first()
+      // Check for existing transaction with same key fields
+      const existingTxns = await transactionsApi.getAll({ accountId: remappedAccountId })
+      const existing = existingTxns.find((t) => {
+        return normalizeDate(t.date) === txnDateStr && t.amount === txn.amount && t.rawMerchantString === txn.rawMerchantString
+      })
 
       if (!existing) {
         const { id: oldId, ...txnWithoutId } = txn
-        const newId = await db.transactions.add({
+        const newId = await transactionsApi.create({
           ...txnWithoutId,
           accountId: remappedAccountId,
           merchantId: remappedMerchantId,
@@ -237,7 +249,7 @@ export const importDataMerge = async (data: ExportData): Promise<ImportResult> =
         const newTxnId = transactionIdMap.get(txn.id)
         const newLinkedId = transactionIdMap.get(txn.linkedRefundId)
         if (newTxnId && newLinkedId) {
-          await db.transactions.update(newTxnId, { linkedRefundId: newLinkedId })
+          await transactionsApi.update(newTxnId, { linkedRefundId: newLinkedId })
         }
       }
     }
@@ -245,10 +257,15 @@ export const importDataMerge = async (data: ExportData): Promise<ImportResult> =
     // 7. Merge subscriptions (match by merchantId)
     for (const sub of data.subscriptions) {
       const remappedMerchantId = merchantIdMap.get(sub.merchantId) ?? sub.merchantId
-      const existing = await db.subscriptions.where('merchantId').equals(remappedMerchantId).first()
+      let existing: { id?: number } | null = null
+      try {
+        existing = await subscriptionsApi.getFirstByMerchant(remappedMerchantId)
+      } catch (e) {
+        if (!(e instanceof ApiError && e.status === 404)) throw e
+      }
       if (!existing) {
         const { id: _oldId, ...subWithoutId } = sub
-        await db.subscriptions.add({
+        await subscriptionsApi.create({
           ...subWithoutId,
           merchantId: remappedMerchantId,
         })
@@ -258,13 +275,13 @@ export const importDataMerge = async (data: ExportData): Promise<ImportResult> =
 
     // 8. Merge settings (overwrite with imported)
     for (const setting of data.settings) {
-      await db.settings.put(setting)
+      await settingsApi.putByKey(setting)
       result.added.settings++
     }
 
     // 9. Merge appSettings (overwrite with imported)
     for (const appSetting of data.appSettings) {
-      await db.appSettings.put(appSetting)
+      await appSettingsApi.put(appSetting)
       result.added.appSettings++
     }
   } catch (error) {
