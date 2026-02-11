@@ -2,7 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 import {
 	categoriesApi,
 	merchantsApi,
-	queryKeys,
 	rulesApi,
 	transactionsApi,
 } from "@/lib/api";

@@ -37,6 +37,7 @@ export const MerchantListItem = forwardRef<
 	};
 
 	return (
+		// biome-ignore lint/a11y/useSemanticElements: div with role="button" used for flex layout consistency with list items; ref typed as HTMLDivElement
 		<div
 			ref={ref}
 			role="button"

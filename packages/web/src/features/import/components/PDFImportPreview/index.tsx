@@ -111,7 +111,7 @@ export function PDFImportPreview({
 				if (t.id !== id) return t;
 				if (field === "amount") {
 					const num = Number(value);
-					return { ...t, amount: isNaN(num) ? t.amount : num };
+					return { ...t, amount: Number.isNaN(num) ? t.amount : num };
 				}
 				return { ...t, [field]: value };
 			}),
@@ -135,7 +135,7 @@ export function PDFImportPreview({
 			if (!DATE_REGEX.test(t.date)) {
 				newErrors[`${t.id}-date`] = "Invalid date format (YYYY-MM-DD)";
 			}
-			if (isNaN(t.amount)) {
+			if (Number.isNaN(t.amount)) {
 				newErrors[`${t.id}-amount`] = "Invalid number";
 			}
 			if (!t.description.trim()) {

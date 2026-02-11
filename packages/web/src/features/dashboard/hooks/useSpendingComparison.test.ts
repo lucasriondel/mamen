@@ -4,7 +4,6 @@ import { db } from "@/lib/db";
 import type { Category, Transaction } from "@/types";
 import type { TimePeriod } from "../types";
 import { resolveTimePeriod } from "../utils/resolveTimePeriod";
-import type { SpendingBreakdown } from "./useSpendingBreakdown";
 import { useSpendingBreakdown } from "./useSpendingBreakdown";
 import { useSpendingComparison } from "./useSpendingComparison";
 
@@ -71,11 +70,11 @@ describe("useSpendingComparison", () => {
 
 		await waitFor(() => {
 			expect(result.current.comparison).toBeDefined();
-			expect(result.current.comparison!.totalComparison.direction).toBe("up");
+			expect(result.current.comparison?.totalComparison.direction).toBe("up");
 			expect(
-				result.current.comparison!.totalComparison.absoluteChange,
+				result.current.comparison?.totalComparison.absoluteChange,
 			).toBeCloseTo(50);
-			expect(result.current.comparison!.previousPeriodTotal).toBeCloseTo(-150);
+			expect(result.current.comparison?.previousPeriodTotal).toBeCloseTo(-150);
 		});
 	});
 
@@ -130,10 +129,10 @@ describe("useSpendingComparison", () => {
 		await waitFor(() => {
 			expect(result.current.comparison).toBeDefined();
 			const catComparison =
-				result.current.comparison!.categoryComparisons.get(catId);
+				result.current.comparison?.categoryComparisons.get(catId);
 			expect(catComparison).toBeDefined();
-			expect(catComparison!.direction).toBe("up");
-			expect(catComparison!.absoluteChange).toBeCloseTo(100); // 300 - 200
+			expect(catComparison?.direction).toBe("up");
+			expect(catComparison?.absoluteChange).toBeCloseTo(100); // 300 - 200
 		});
 	});
 
@@ -179,15 +178,15 @@ describe("useSpendingComparison", () => {
 			expect(result.current.comparison).toBeDefined();
 			// Shopping: new category (wasn't in previous)
 			const shopping =
-				result.current.comparison!.categoryComparisons.get(catId1);
+				result.current.comparison?.categoryComparisons.get(catId1);
 			expect(shopping).toBeDefined();
-			expect(shopping!.hasPreviousData).toBe(false);
+			expect(shopping?.hasPreviousData).toBe(false);
 
 			// Dining: was in previous, gone now
-			const dining = result.current.comparison!.categoryComparisons.get(catId2);
+			const dining = result.current.comparison?.categoryComparisons.get(catId2);
 			expect(dining).toBeDefined();
-			expect(dining!.direction).toBe("down");
-			expect(dining!.percentageChange).toBe(-100);
+			expect(dining?.direction).toBe("down");
+			expect(dining?.percentageChange).toBe(-100);
 		});
 	});
 
@@ -235,7 +234,7 @@ describe("useSpendingComparison", () => {
 		await waitFor(() => {
 			expect(result.current.comparison).toBeDefined();
 			// Both periods net to 200, so direction should be flat
-			expect(result.current.comparison!.totalComparison.direction).toBe("flat");
+			expect(result.current.comparison?.totalComparison.direction).toBe("flat");
 		});
 	});
 
@@ -283,13 +282,13 @@ describe("useSpendingComparison", () => {
 		await waitFor(() => {
 			expect(result.current.comparison).toBeDefined();
 			// Current: 100, Previous net: 150 => down
-			expect(result.current.comparison!.totalComparison.direction).toBe("down");
+			expect(result.current.comparison?.totalComparison.direction).toBe("down");
 			const catComparison =
-				result.current.comparison!.categoryComparisons.get(catId);
+				result.current.comparison?.categoryComparisons.get(catId);
 			expect(catComparison).toBeDefined();
-			expect(catComparison!.direction).toBe("down");
+			expect(catComparison?.direction).toBe("down");
 			// 100 - 150 = -50
-			expect(catComparison!.absoluteChange).toBeCloseTo(-50);
+			expect(catComparison?.absoluteChange).toBeCloseTo(-50);
 		});
 	});
 
@@ -328,7 +327,7 @@ describe("useSpendingComparison", () => {
 		// This-month compares Feb vs Jan
 		await waitFor(() => {
 			expect(result.current.comparison).toBeDefined();
-			expect(result.current.comparison!.totalComparison.direction).toBe("up"); // 200 > 100
+			expect(result.current.comparison?.totalComparison.direction).toBe("up"); // 200 > 100
 		});
 
 		// Switch to last-month: compares Jan vs Dec
@@ -336,7 +335,7 @@ describe("useSpendingComparison", () => {
 
 		await waitFor(() => {
 			expect(result.current.comparison).toBeDefined();
-			expect(result.current.comparison!.totalComparison.direction).toBe("down"); // 100 < 300
+			expect(result.current.comparison?.totalComparison.direction).toBe("down"); // 100 < 300
 		});
 	});
 });

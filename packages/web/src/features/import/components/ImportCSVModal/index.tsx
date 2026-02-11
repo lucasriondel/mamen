@@ -309,9 +309,9 @@ export function ImportCSVModal({
 								<Table>
 									<TableHeader>
 										<TableRow>
-											{preview.headers.map((header, i) => (
+											{preview.headers.map((header) => (
 												<TableHead
-													key={i}
+													key={header}
 													className="text-xs whitespace-nowrap"
 												>
 													{header}
@@ -321,9 +321,11 @@ export function ImportCSVModal({
 									</TableHeader>
 									<TableBody>
 										{preview.rows.map((row, rowIdx) => (
+											// biome-ignore lint/suspicious/noArrayIndexKey: CSV rows have no stable unique id
 											<TableRow key={rowIdx}>
 												{row.map((cell, cellIdx) => (
 													<TableCell
+														// biome-ignore lint/suspicious/noArrayIndexKey: CSV cells have no stable unique id
 														key={cellIdx}
 														className="text-xs whitespace-nowrap"
 													>
@@ -381,6 +383,7 @@ export function ImportCSVModal({
 										<Label className="text-xs">Description</Label>
 										<div className="space-y-1.5">
 											{descriptionColumns.map((col, idx) => (
+												// biome-ignore lint/suspicious/noArrayIndexKey: columns may have duplicate values
 												<div key={idx} className="flex items-center gap-1">
 													<Select
 														value={col}
@@ -528,6 +531,7 @@ export function ImportCSVModal({
 												const dup = isDuplicate(tx);
 												return (
 													<TableRow
+														// biome-ignore lint/suspicious/noArrayIndexKey: parsed transactions have no stable unique id
 														key={idx}
 														className={cn(dup && "bg-amber-500/5 opacity-70")}
 													>

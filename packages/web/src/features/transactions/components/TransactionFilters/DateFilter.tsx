@@ -80,8 +80,8 @@ export function DateFilter({
 			onDateRange(rangeValue.from, rangeValue.to);
 		} else if (mode === "month" && selectedMonth && selectedYear) {
 			onMonthYear({
-				month: parseInt(selectedMonth),
-				year: parseInt(selectedYear),
+				month: parseInt(selectedMonth, 10),
+				year: parseInt(selectedYear, 10),
 			});
 		}
 		setOpen(false);
@@ -175,7 +175,7 @@ export function DateFilter({
 							</SelectTrigger>
 							<SelectContent>
 								{MONTHS.map((m, i) => (
-									<SelectItem key={i} value={String(i)}>
+									<SelectItem key={m} value={String(i)}>
 										{m}
 									</SelectItem>
 								))}

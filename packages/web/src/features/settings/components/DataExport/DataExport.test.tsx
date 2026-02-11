@@ -55,7 +55,7 @@ describe("DataExport", () => {
 
 		expect(screen.getByText("Exporting...")).toBeInTheDocument();
 
-		resolveExport!(new Blob(["{}"], { type: "application/json" }));
+		resolveExport?.(new Blob(["{}"], { type: "application/json" }));
 		await waitFor(() => {
 			expect(screen.getByText("Export All Data")).toBeInTheDocument();
 		});
@@ -75,7 +75,7 @@ describe("DataExport", () => {
 
 		expect(screen.getByRole("button", { name: /Exporting/i })).toBeDisabled();
 
-		resolveExport!(new Blob(["{}"], { type: "application/json" }));
+		resolveExport?.(new Blob(["{}"], { type: "application/json" }));
 		await waitFor(() => {
 			expect(
 				screen.getByRole("button", { name: /Export All Data/i }),

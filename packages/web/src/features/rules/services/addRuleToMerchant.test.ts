@@ -29,8 +29,8 @@ describe("addRuleToMerchant", () => {
 
 		const rule = await db.rules.get(result.ruleId);
 		expect(rule).toBeDefined();
-		expect(rule!.merchantId).toBe(merchantId);
-		expect(rule!.pattern).toBe("^AMZN.*");
+		expect(rule?.merchantId).toBe(merchantId);
+		expect(rule?.pattern).toBe("^AMZN.*");
 	});
 
 	it("applies rule to matching transactions", async () => {
@@ -102,11 +102,11 @@ describe("addRuleToMerchant", () => {
 		});
 
 		const rule = await db.rules.get(result.ruleId);
-		expect(rule!.categoryOverride).toBe(42);
+		expect(rule?.categoryOverride).toBe(42);
 
 		// Transaction should have the override category
 		const tx = await db.transactions.get(result.affectedTransactionIds[0]);
-		expect(tx!.categoryId).toBe(42);
+		expect(tx?.categoryId).toBe(42);
 	});
 
 	it("throws if merchant not found", async () => {
@@ -179,7 +179,7 @@ describe("undoAddRule", () => {
 
 		// Transaction should be reset
 		const tx = await db.transactions.get(txId);
-		expect(tx!.merchantId).toBeUndefined();
-		expect(tx!.categoryId).toBeUndefined();
+		expect(tx?.merchantId).toBeUndefined();
+		expect(tx?.categoryId).toBeUndefined();
 	});
 });

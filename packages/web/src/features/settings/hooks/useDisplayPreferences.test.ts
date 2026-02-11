@@ -45,7 +45,7 @@ describe("useDisplayPreferences", () => {
 			value: JSON.stringify({ currencySymbol: "€" }),
 		});
 
-		const { result, rerender } = renderHook(() => useDisplayPreferences());
+		const { result } = renderHook(() => useDisplayPreferences());
 
 		await waitFor(() => {
 			expect(result.current.preferences.currencySymbol).toBe("€");

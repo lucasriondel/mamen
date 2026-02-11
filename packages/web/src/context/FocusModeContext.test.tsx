@@ -21,12 +21,18 @@ const TestConsumer = (): React.ReactElement => {
 				{currentMonthRange.start.toISOString()}
 			</span>
 			<span data-testid="month-end">{currentMonthRange.end.toISOString()}</span>
-			<button onClick={() => toggleFocusMode("unmatched")}>
+			<button type="button" onClick={() => toggleFocusMode("unmatched")}>
 				Toggle Unmatched
 			</button>
-			<button onClick={() => toggleFocusMode("month")}>Toggle Month</button>
-			<button onClick={() => toggleFocusMode("all")}>Toggle All</button>
-			<button onClick={() => setFocusMode("all")}>Set All</button>
+			<button type="button" onClick={() => toggleFocusMode("month")}>
+				Toggle Month
+			</button>
+			<button type="button" onClick={() => toggleFocusMode("all")}>
+				Toggle All
+			</button>
+			<button type="button" onClick={() => setFocusMode("all")}>
+				Set All
+			</button>
 			<input data-testid="text-input" />
 		</div>
 	);

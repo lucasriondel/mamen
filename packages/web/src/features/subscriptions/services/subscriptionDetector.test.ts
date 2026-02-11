@@ -187,7 +187,7 @@ describe("detectSubscriptions", () => {
 		const yearly = subs.find((s) => s.frequency === "yearly");
 		expect(monthly).toBeDefined();
 		expect(yearly).toBeDefined();
-		expect(monthly!.typicalAmount).toBe(-2.99);
+		expect(monthly?.typicalAmount).toBe(-2.99);
 	});
 
 	it("excludes refund transactions from detection", async () => {

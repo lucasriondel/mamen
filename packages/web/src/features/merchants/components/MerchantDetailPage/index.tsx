@@ -162,6 +162,7 @@ export function MerchantDetailPage({
 			<div className="-m-6 flex flex-col items-center justify-center h-full gap-4">
 				<p className="text-lg text-muted-foreground">Merchant not found</p>
 				<button
+					type="button"
 					onClick={handleBack}
 					className="text-sm text-primary underline hover:no-underline"
 				>

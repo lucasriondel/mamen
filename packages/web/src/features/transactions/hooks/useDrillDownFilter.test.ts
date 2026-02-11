@@ -7,7 +7,7 @@ import {
 } from "@tanstack/react-router";
 import { render, screen, waitFor } from "@testing-library/react";
 import { createElement } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { FocusModeProvider } from "@/context/FocusModeContext";
 import { useDrillDownFilter } from "./useDrillDownFilter";
@@ -71,11 +71,11 @@ describe("useDrillDownFilter", () => {
 			expect(screen.getByTestId("test-component")).toBeInTheDocument();
 		});
 
-		expect(captured!.filter.categoryId).toBeNull();
-		expect(captured!.filter.periodStart).toBeNull();
-		expect(captured!.filter.periodEnd).toBeNull();
-		expect(captured!.filter.fromDashboard).toBe(false);
-		expect(captured!.isActive).toBe(false);
+		expect(captured?.filter.categoryId).toBeNull();
+		expect(captured?.filter.periodStart).toBeNull();
+		expect(captured?.filter.periodEnd).toBeNull();
+		expect(captured?.filter.fromDashboard).toBe(false);
+		expect(captured?.isActive).toBe(false);
 	});
 
 	it("parses categoryId from search params", async () => {
@@ -88,8 +88,8 @@ describe("useDrillDownFilter", () => {
 			expect(screen.getByTestId("test-component")).toBeInTheDocument();
 		});
 
-		expect(captured!.filter.categoryId).toBe(5);
-		expect(captured!.isActive).toBe(true);
+		expect(captured?.filter.categoryId).toBe(5);
+		expect(captured?.isActive).toBe(true);
 	});
 
 	it("parses period dates from search params", async () => {
@@ -107,8 +107,8 @@ describe("useDrillDownFilter", () => {
 			expect(screen.getByTestId("test-component")).toBeInTheDocument();
 		});
 
-		expect(captured!.filter.periodStart).toEqual(new Date(start));
-		expect(captured!.filter.periodEnd).toEqual(new Date(end));
+		expect(captured?.filter.periodStart).toEqual(new Date(start));
+		expect(captured?.filter.periodEnd).toEqual(new Date(end));
 	});
 
 	it("sets fromDashboard true when from=dashboard", async () => {
@@ -121,7 +121,7 @@ describe("useDrillDownFilter", () => {
 			expect(screen.getByTestId("test-component")).toBeInTheDocument();
 		});
 
-		expect(captured!.filter.fromDashboard).toBe(true);
+		expect(captured?.filter.fromDashboard).toBe(true);
 	});
 
 	it("handles invalid date params gracefully", async () => {
@@ -137,8 +137,8 @@ describe("useDrillDownFilter", () => {
 			expect(screen.getByTestId("test-component")).toBeInTheDocument();
 		});
 
-		expect(captured!.filter.periodStart).toBeNull();
-		expect(captured!.filter.periodEnd).toBeNull();
-		expect(captured!.filter.categoryId).toBe(1);
+		expect(captured?.filter.periodStart).toBeNull();
+		expect(captured?.filter.periodEnd).toBeNull();
+		expect(captured?.filter.categoryId).toBe(1);
 	});
 });

@@ -39,7 +39,7 @@ export function AmountFilter({
 	const handleApply = () => {
 		if (mode === "precise") {
 			const val = parseFloat(precise);
-			if (!isNaN(val)) {
+			if (!Number.isNaN(val)) {
 				onAmountPrecise(val);
 			}
 		} else {
@@ -47,8 +47,8 @@ export function AmountFilter({
 			const maxVal = max ? parseFloat(max) : undefined;
 			if (minVal != null || maxVal != null) {
 				onAmountRange(
-					minVal != null && !isNaN(minVal) ? minVal : undefined,
-					maxVal != null && !isNaN(maxVal) ? maxVal : undefined,
+					minVal != null && !Number.isNaN(minVal) ? minVal : undefined,
+					maxVal != null && !Number.isNaN(maxVal) ? maxVal : undefined,
 				);
 			}
 		}

@@ -57,6 +57,8 @@ export function TransactionRow({
 	};
 
 	return (
+		// biome-ignore lint/a11y/useKeyWithClickEvents: keyboard navigation handled by parent table component
+		// biome-ignore lint/a11y/useSemanticElements: virtual table row using flex layout, <tr> would break styling
 		<div
 			className={cn(
 				"flex items-center h-12 px-4 gap-4 cursor-pointer",

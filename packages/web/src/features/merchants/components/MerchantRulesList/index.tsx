@@ -23,18 +23,14 @@ export function MerchantRulesList({
 	}
 
 	return (
-		<ul role="list" className="space-y-1">
+		<ul className="space-y-1">
 			{rules.map((rule) => {
 				const overrideCategory = rule.categoryOverride
 					? getCategoryById(rule.categoryOverride)
 					: null;
 
 				return (
-					<li
-						key={rule.id}
-						role="listitem"
-						className="flex items-center gap-2 text-sm py-1"
-					>
+					<li key={rule.id} className="flex items-center gap-2 text-sm py-1">
 						<code className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
 							{rule.pattern}
 						</code>

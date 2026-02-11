@@ -45,7 +45,7 @@ export const createRuleAdapter = (db: Database): RuleRepository => ({
 				(record as Rule).matchCount ?? 0,
 				(record as Rule).createdAt?.toISOString() ?? now,
 			);
-		return result!.id;
+		return result?.id;
 	},
 
 	bulkAdd: async (records) => {
@@ -63,7 +63,7 @@ export const createRuleAdapter = (db: Database): RuleRepository => ({
 				record.categoryOverride ?? null,
 				(record as Rule).matchCount ?? 0,
 				(record as Rule).createdAt?.toISOString() ?? now,
-			)!.id;
+			)?.id;
 		});
 	},
 
@@ -139,7 +139,7 @@ export const createRuleAdapter = (db: Database): RuleRepository => ({
 	count: async () => {
 		return db
 			.query<{ cnt: number }, []>("SELECT COUNT(*) as cnt FROM rules")
-			.get()!.cnt;
+			.get()?.cnt;
 	},
 
 	clear: async () => {
@@ -158,7 +158,7 @@ export const createRuleAdapter = (db: Database): RuleRepository => ({
 			.query<{ cnt: number }, [number]>(
 				"SELECT COUNT(*) as cnt FROM rules WHERE merchantId = ?",
 			)
-			.get(merchantId)!.cnt;
+			.get(merchantId)?.cnt;
 	},
 
 	getByMerchantIdAndPattern: async (merchantId, pattern) => {

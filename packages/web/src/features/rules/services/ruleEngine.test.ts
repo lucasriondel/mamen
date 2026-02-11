@@ -71,8 +71,8 @@ describe("ruleEngine", () => {
 			const exact = suggestions.find((s) => s.type === "exact");
 
 			expect(exact).toBeDefined();
-			expect(exact!.matchCount).toBe(1);
-			expect(exact!.pattern).toBe("^AMZN\\*1234XYZ$");
+			expect(exact?.matchCount).toBe(1);
+			expect(exact?.pattern).toBe("^AMZN\\*1234XYZ$");
 		});
 
 		it("generates prefix match suggestion when multiple matches", async () => {
@@ -83,7 +83,7 @@ describe("ruleEngine", () => {
 			const prefix = suggestions.find((s) => s.type === "prefix");
 
 			expect(prefix).toBeDefined();
-			expect(prefix!.matchCount).toBe(2);
+			expect(prefix?.matchCount).toBe(2);
 		});
 
 		it("skips prefix suggestion when only 1 match", async () => {

@@ -243,10 +243,10 @@ describe("importDataReplace", () => {
 		await importDataReplace(data);
 		const tx = await db.transactions.get(1);
 
-		expect(tx!.isRefund).toBe(true);
-		expect(tx!.linkedRefundId).toBe(42);
-		expect(tx!.anomalyFlags).toHaveLength(1);
-		expect(tx!.isDuplicateExcluded).toBe(true);
+		expect(tx?.isRefund).toBe(true);
+		expect(tx?.linkedRefundId).toBe(42);
+		expect(tx?.anomalyFlags).toHaveLength(1);
+		expect(tx?.isDuplicateExcluded).toBe(true);
 	});
 
 	it("preserves merchant-rule relationships (merchantId on rules)", async () => {
@@ -273,7 +273,7 @@ describe("importDataReplace", () => {
 		await importDataReplace(data);
 		const rule = await db.rules.get(1);
 
-		expect(rule!.merchantId).toBe(5);
+		expect(rule?.merchantId).toBe(5);
 	});
 
 	it("handles empty backup (imports nothing, clears all)", async () => {
@@ -327,7 +327,7 @@ describe("importDataReplace", () => {
 		const account = await db.accounts.get(42);
 
 		expect(account).toBeDefined();
-		expect(account!.name).toBe("Special");
+		expect(account?.name).toBe("Special");
 	});
 });
 
@@ -615,7 +615,7 @@ describe("importDataMerge", () => {
 			.equals("NewAccount")
 			.first();
 		expect(account).toBeDefined();
-		expect(account!.id).not.toBe(999);
+		expect(account?.id).not.toBe(999);
 	});
 
 	it("merged transactions have remapped accountId", async () => {
@@ -648,7 +648,7 @@ describe("importDataMerge", () => {
 		const account = await db.accounts.where("name").equals("Imported").first();
 		const txns = await db.transactions.toArray();
 		expect(txns).toHaveLength(1);
-		expect(txns[0].accountId).toBe(account!.id);
+		expect(txns[0].accountId).toBe(account?.id);
 	});
 
 	it("merged rules have remapped merchantId", async () => {
@@ -679,7 +679,7 @@ describe("importDataMerge", () => {
 		const merchant = await db.merchants.where("name").equals("Netflix").first();
 		const rules = await db.rules.toArray();
 		expect(rules).toHaveLength(1);
-		expect(rules[0].merchantId).toBe(merchant!.id);
+		expect(rules[0].merchantId).toBe(merchant?.id);
 	});
 
 	it("merged transactions have remapped linkedRefundId (refund links preserved)", async () => {
@@ -726,7 +726,7 @@ describe("importDataMerge", () => {
 		const refund = txns.find((t) => t.isRefund);
 		const original = txns.find((t) => !t.isRefund);
 		expect(refund).toBeDefined();
-		expect(refund!.linkedRefundId).toBe(original!.id);
+		expect(refund?.linkedRefundId).toBe(original?.id);
 	});
 
 	it("settings merge overwrites existing", async () => {
@@ -743,7 +743,7 @@ describe("importDataMerge", () => {
 
 		const settings = await db.settings.toArray();
 		const theme = settings.find((s) => s.key === "theme");
-		expect(theme!.value).toBe("dark");
+		expect(theme?.value).toBe("dark");
 	});
 });
 
@@ -894,8 +894,8 @@ describe("importDataReplace - integration", () => {
 		await importDataReplace(data);
 
 		const refund = await db.transactions.get(2);
-		expect(refund!.linkedRefundId).toBe(1);
-		expect(refund!.isRefund).toBe(true);
+		expect(refund?.linkedRefundId).toBe(1);
+		expect(refund?.isRefund).toBe(true);
 	});
 
 	it("empty backup: replace clears database", async () => {
@@ -1053,6 +1053,6 @@ describe("importDataMerge - integration", () => {
 			.equals("TestMerchant")
 			.first();
 		const rules = await db.rules.toArray();
-		expect(rules[0].merchantId).toBe(merchant!.id);
+		expect(rules[0].merchantId).toBe(merchant?.id);
 	});
 });

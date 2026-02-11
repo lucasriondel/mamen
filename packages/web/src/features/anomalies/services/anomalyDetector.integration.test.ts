@@ -11,7 +11,6 @@ import {
 	dismissDuplicateAnomaly,
 	undoConfirmDuplicate,
 	undoDismissAnomaly,
-	undoDismissDuplicateAnomaly,
 } from "./anomalyDetector";
 
 const daysAgo = (n: number): Date => {
@@ -87,9 +86,9 @@ describe("Anomaly Detection Integration", () => {
 			tx.anomalyFlags?.some((f) => !f.dismissed),
 		);
 		expect(flagged).toBeDefined();
-		expect(flagged!.amount).toBe(-300);
-		expect(flagged!.anomalyFlags![0].reason).toContain("Shopping");
-		expect(flagged!.anomalyFlags![0].type).toBe("high-amount");
+		expect(flagged?.amount).toBe(-300);
+		expect(flagged?.anomalyFlags?.[0].reason).toContain("Shopping");
+		expect(flagged?.anomalyFlags?.[0].type).toBe("high-amount");
 	});
 
 	it("threshold respect: 3x threshold -> EUR300 not flagged when avg is ~100", async () => {
@@ -173,7 +172,7 @@ describe("Anomaly Detection Integration", () => {
 
 		// Verify dismissed
 		const dismissed = await db.transactions.get(flagged.id!);
-		expect(dismissed!.anomalyFlags![0].dismissed).toBe(true);
+		expect(dismissed?.anomalyFlags?.[0].dismissed).toBe(true);
 
 		// Re-run — should not re-flag
 		result = await detectHighAmountAnomalies();
@@ -268,13 +267,13 @@ describe("Anomaly Detection Integration", () => {
 		// Dismiss
 		await dismissAnomaly(flagged.id!, "high-amount");
 		let tx = await db.transactions.get(flagged.id!);
-		expect(tx!.anomalyFlags![0].dismissed).toBe(true);
+		expect(tx?.anomalyFlags?.[0].dismissed).toBe(true);
 
 		// Undo
 		await undoDismissAnomaly(flagged.id!, "high-amount");
 		tx = await db.transactions.get(flagged.id!);
-		expect(tx!.anomalyFlags![0].dismissed).toBe(false);
-		expect(tx!.anomalyFlags![0].dismissedAt).toBeUndefined();
+		expect(tx?.anomalyFlags?.[0].dismissed).toBe(false);
+		expect(tx?.anomalyFlags?.[0].dismissedAt).toBeUndefined();
 	});
 
 	it("no categories at all: detection returns empty, no errors", async () => {
@@ -349,8 +348,8 @@ describe("New Merchant Anomaly Detection Integration", () => {
 			tx.anomalyFlags?.some((f) => f.type === "new-merchant" && !f.dismissed),
 		);
 		expect(flagged).toHaveLength(3);
-		expect(flagged[0].anomalyFlags![0].reason).toContain("NewStore");
-		expect(flagged[0].anomalyFlags![0].reason).toContain("created 0 days ago");
+		expect(flagged[0].anomalyFlags?.[0].reason).toContain("NewStore");
+		expect(flagged[0].anomalyFlags?.[0].reason).toContain("created 0 days ago");
 	});
 
 	it("age-out scenario: Merchant created 31 days ago -> no new flags, existing active flags cleaned", async () => {
@@ -421,7 +420,7 @@ describe("New Merchant Anomaly Detection Integration", () => {
 				tx.anomalyFlags?.some((f) => f.type === "new-merchant"),
 		);
 		expect(withBoth).toBeDefined();
-		expect(withBoth!.amount).toBe(-300);
+		expect(withBoth?.amount).toBe(-300);
 	});
 
 	it("unmatched exclusion: 5 unmatched transactions -> none flagged as new-merchant", async () => {
@@ -511,14 +510,14 @@ describe("New Merchant Anomaly Detection Integration", () => {
 		await dismissAnomaly(txId, "new-merchant");
 
 		const tx = await db.transactions.get(txId);
-		const highAmountFlag = tx!.anomalyFlags!.find(
+		const highAmountFlag = tx?.anomalyFlags?.find(
 			(f) => f.type === "high-amount",
 		);
-		const newMerchantFlag = tx!.anomalyFlags!.find(
+		const newMerchantFlag = tx?.anomalyFlags?.find(
 			(f) => f.type === "new-merchant",
 		);
-		expect(highAmountFlag!.dismissed).toBe(false);
-		expect(newMerchantFlag!.dismissed).toBe(true);
+		expect(highAmountFlag?.dismissed).toBe(false);
+		expect(newMerchantFlag?.dismissed).toBe(true);
 	});
 
 	it("filter by type: 3 new-merchant flags, 2 high-amount flags -> filter new-merchant shows 3", async () => {
@@ -652,9 +651,9 @@ describe("New Merchant Anomaly Detection Integration", () => {
 		const tx1 = allTx.find((tx) => tx.rawMerchantString === "AGING 1");
 		const tx2 = allTx.find((tx) => tx.rawMerchantString === "AGING 2");
 
-		expect(tx1!.anomalyFlags).toBeUndefined(); // Active flag was cleaned
-		expect(tx2!.anomalyFlags).toHaveLength(1); // Dismissed flag preserved
-		expect(tx2!.anomalyFlags![0].dismissed).toBe(true);
+		expect(tx1?.anomalyFlags).toBeUndefined(); // Active flag was cleaned
+		expect(tx2?.anomalyFlags).toHaveLength(1); // Dismissed flag preserved
+		expect(tx2?.anomalyFlags?.[0].dismissed).toBe(true);
 	});
 
 	it("undo dismiss: dismiss new-merchant flag -> undo -> flag restored", async () => {
@@ -677,13 +676,13 @@ describe("New Merchant Anomaly Detection Integration", () => {
 		// Dismiss
 		await dismissAnomaly(flagged.id!, "new-merchant");
 		let tx = await db.transactions.get(flagged.id!);
-		expect(tx!.anomalyFlags![0].dismissed).toBe(true);
+		expect(tx?.anomalyFlags?.[0].dismissed).toBe(true);
 
 		// Undo
 		await undoDismissAnomaly(flagged.id!, "new-merchant");
 		tx = await db.transactions.get(flagged.id!);
-		expect(tx!.anomalyFlags![0].dismissed).toBe(false);
-		expect(tx!.anomalyFlags![0].dismissedAt).toBeUndefined();
+		expect(tx?.anomalyFlags?.[0].dismissed).toBe(false);
+		expect(tx?.anomalyFlags?.[0].dismissedAt).toBeUndefined();
 	});
 });
 
@@ -934,8 +933,8 @@ describe("Potential Duplicate Detection Integration", () => {
 
 		// Check excluded
 		const excluded = await db.transactions.get(txToExclude.id!);
-		expect(excluded!.isDuplicateExcluded).toBe(true);
-		expect(excluded!.duplicateNote).toBeDefined();
+		expect(excluded?.isDuplicateExcluded).toBe(true);
+		expect(excluded?.duplicateNote).toBeDefined();
 
 		// Both flags should be dismissed
 		const afterExclude = await db.transactions.toArray();
@@ -980,15 +979,15 @@ describe("Potential Duplicate Detection Integration", () => {
 
 		// Verify excluded
 		let excluded = await db.transactions.get(txToExclude.id!);
-		expect(excluded!.isDuplicateExcluded).toBe(true);
+		expect(excluded?.isDuplicateExcluded).toBe(true);
 
 		// Undo
 		await undoConfirmDuplicate(txToExclude.id!, linkedFlag.linkedTransactionId);
 
 		// Check restored
 		excluded = await db.transactions.get(txToExclude.id!);
-		expect(excluded!.isDuplicateExcluded).toBeUndefined();
-		expect(excluded!.duplicateNote).toBeUndefined();
+		expect(excluded?.isDuplicateExcluded).toBeUndefined();
+		expect(excluded?.duplicateNote).toBeUndefined();
 
 		// Flags restored on both
 		const afterUndo = await db.transactions.toArray();
@@ -1141,7 +1140,7 @@ describe("Potential Duplicate Detection Integration", () => {
 			(a, b) => a.date.getTime() - b.date.getTime(),
 		);
 		const txB = sortedByDate[1];
-		const dupFlags = txB.anomalyFlags!.filter(
+		const dupFlags = txB.anomalyFlags?.filter(
 			(f) => f.type === "potential-duplicate",
 		);
 		expect(dupFlags.length).toBeGreaterThanOrEqual(2);

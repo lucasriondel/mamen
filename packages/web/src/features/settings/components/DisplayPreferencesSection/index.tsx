@@ -73,7 +73,7 @@ export function DisplayPreferencesSection(): React.ReactElement {
 		e: React.ChangeEvent<HTMLInputElement>,
 	): Promise<void> => {
 		const val = parseFloat(e.target.value);
-		if (isNaN(val) || val <= 0) return;
+		if (Number.isNaN(val) || val <= 0) return;
 		await updateDisplayPreferences({
 			anomalyThreshold: { ...preferences.anomalyThreshold, multiplier: val },
 		});
@@ -95,7 +95,7 @@ export function DisplayPreferencesSection(): React.ReactElement {
 			return;
 		}
 		const val = parseFloat(raw);
-		if (isNaN(val) || val <= 0) return;
+		if (Number.isNaN(val) || val <= 0) return;
 		await updateDisplayPreferences({
 			anomalyThreshold: {
 				...preferences.anomalyThreshold,

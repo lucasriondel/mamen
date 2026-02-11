@@ -61,8 +61,8 @@ export function TimePeriodSelector({
 			return;
 		}
 
-		const start = new Date(customStart + "T00:00:00");
-		const end = new Date(customEnd + "T23:59:59.999");
+		const start = new Date(`${customStart}T00:00:00`);
+		const end = new Date(`${customEnd}T23:59:59.999`);
 
 		if (start >= end) {
 			setCustomError("Start date must be before end date");

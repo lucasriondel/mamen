@@ -81,7 +81,7 @@ describe("AnomalySettingsForm", () => {
 			.equals("anomaly_settings")
 			.first();
 		expect(saved).toBeDefined();
-		const parsed = JSON.parse(saved!.value);
+		const parsed = JSON.parse(saved?.value);
 		expect(parsed.multiplierThreshold).toBe(2);
 		expect(parsed.absoluteThreshold).toBeNull();
 		expect(parsed.minTransactionsForDetection).toBe(5);

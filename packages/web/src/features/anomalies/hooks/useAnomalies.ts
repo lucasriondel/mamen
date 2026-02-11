@@ -37,15 +37,15 @@ export const useAnomalies = (): UseAnomaliesReturn => {
 		);
 
 		const highAmountCount = flaggedTransactions.filter((tx) =>
-			tx.anomalyFlags!.some((f) => f.type === "high-amount" && !f.dismissed),
+			tx.anomalyFlags?.some((f) => f.type === "high-amount" && !f.dismissed),
 		).length;
 
 		const newMerchantCount = flaggedTransactions.filter((tx) =>
-			tx.anomalyFlags!.some((f) => f.type === "new-merchant" && !f.dismissed),
+			tx.anomalyFlags?.some((f) => f.type === "new-merchant" && !f.dismissed),
 		).length;
 
 		const potentialDuplicateCount = flaggedTransactions.filter((tx) =>
-			tx.anomalyFlags!.some(
+			tx.anomalyFlags?.some(
 				(f) => f.type === "potential-duplicate" && !f.dismissed,
 			),
 		).length;
@@ -61,5 +61,5 @@ export const useAnomalies = (): UseAnomaliesReturn => {
 			potentialDuplicatePairs,
 			isLoading: false,
 		};
-	}, [transactions]);
+	}, [transactions, queryLoading]);
 };

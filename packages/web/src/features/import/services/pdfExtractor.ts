@@ -16,7 +16,7 @@ export const extractTextFromPDF = async (file: File): Promise<string> => {
 		const pageText = textContent.items
 			.map((item) => ("str" in item ? item.str : ""))
 			.join(" ");
-		fullText += pageText + "\n";
+		fullText += `${pageText}\n`;
 	}
 
 	return fullText;

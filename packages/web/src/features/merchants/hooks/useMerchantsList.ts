@@ -1,11 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
-import {
-	categoriesApi,
-	merchantsApi,
-	queryKeys,
-	transactionsApi,
-} from "@/lib/api";
+import { categoriesApi, merchantsApi, transactionsApi } from "@/lib/api";
 
 export type MerchantListItem = {
 	id: number;

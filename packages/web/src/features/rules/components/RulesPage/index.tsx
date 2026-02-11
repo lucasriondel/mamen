@@ -34,30 +34,6 @@ export function RulesPage(): React.ReactElement {
 
 	const isModalOpen = editRuleId !== null || deleteRule !== null;
 
-	const { focusedIndex } = useKeyboardNavigation({
-		itemCount: flatRules.length,
-		onSelect: useCallback(
-			(index: number) => {
-				const rule = flatRules[index];
-				if (rule?.id !== undefined) {
-					setEditRuleId(rule.id);
-				}
-			},
-			[flatRules],
-		),
-		onAction: useCallback(
-			(action: { key: string; index: number }) => {
-				if (action.key === "Delete" || action.key === "Backspace") {
-					const rule = flatRules[action.index];
-					if (rule) handleDeleteClick(rule.id!);
-				}
-			},
-			[flatRules],
-		),
-		containerRef,
-		enabled: !isModalOpen,
-	});
-
 	const handleEditRule = useCallback((ruleId: number): void => {
 		setEditRuleId(ruleId);
 	}, []);
@@ -80,6 +56,30 @@ export function RulesPage(): React.ReactElement {
 		},
 		[],
 	);
+
+	const { focusedIndex } = useKeyboardNavigation({
+		itemCount: flatRules.length,
+		onSelect: useCallback(
+			(index: number) => {
+				const rule = flatRules[index];
+				if (rule?.id !== undefined) {
+					setEditRuleId(rule.id);
+				}
+			},
+			[flatRules],
+		),
+		onAction: useCallback(
+			(action: { key: string; index: number }) => {
+				if (action.key === "Delete" || action.key === "Backspace") {
+					const rule = flatRules[action.index];
+					if (rule?.id != null) handleDeleteClick(rule.id);
+				}
+			},
+			[flatRules, handleDeleteClick],
+		),
+		containerRef,
+		enabled: !isModalOpen,
+	});
 
 	const handleConfirmDelete = useCallback(async (): Promise<void> => {
 		if (!deleteRule?.id) return;

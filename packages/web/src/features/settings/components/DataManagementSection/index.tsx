@@ -18,7 +18,6 @@ import {
 	databaseApi,
 	invalidateAll,
 	merchantsApi,
-	queryKeys,
 	rulesApi,
 	subscriptionsApi,
 	transactionsApi,

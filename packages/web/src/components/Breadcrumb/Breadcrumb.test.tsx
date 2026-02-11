@@ -127,7 +127,7 @@ describe("Breadcrumb", () => {
 		});
 		const list = nav.querySelector("ol");
 		expect(list).toBeInTheDocument();
-		const items = list!.querySelectorAll("li");
+		const items = list?.querySelectorAll("li");
 		expect(items).toHaveLength(2);
 	});
 

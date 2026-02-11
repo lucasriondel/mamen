@@ -30,8 +30,11 @@ export const useDrillDownFilter = (): UseDrillDownFilterReturn => {
 		return {
 			categoryId: search.categoryId ?? null,
 			periodStart:
-				periodStart && !isNaN(periodStart.getTime()) ? periodStart : null,
-			periodEnd: periodEnd && !isNaN(periodEnd.getTime()) ? periodEnd : null,
+				periodStart && !Number.isNaN(periodStart.getTime())
+					? periodStart
+					: null,
+			periodEnd:
+				periodEnd && !Number.isNaN(periodEnd.getTime()) ? periodEnd : null,
 			fromDashboard: search.from === "dashboard",
 		};
 	}, [search.categoryId, search.periodStart, search.periodEnd, search.from]);

@@ -208,7 +208,7 @@ describe("detectHighAmountAnomalies", () => {
 
 		const allTx = await db.transactions.toArray();
 		const flaggedTx = allTx.find((tx) => tx.anomalyFlags?.length);
-		expect(flaggedTx!.amount).toBe(-600);
+		expect(flaggedTx?.amount).toBe(-600);
 	});
 
 	it("does not re-flag already-flagged transaction", async () => {
@@ -239,8 +239,8 @@ describe("detectHighAmountAnomalies", () => {
 		expect(result.flagged).toBe(0);
 
 		const tx = await db.transactions.get(txId);
-		expect(tx!.anomalyFlags).toHaveLength(1);
-		expect(tx!.anomalyFlags![0].reason).toBe("Already flagged");
+		expect(tx?.anomalyFlags).toHaveLength(1);
+		expect(tx?.anomalyFlags?.[0].reason).toBe("Already flagged");
 	});
 
 	it("does not re-flag dismissed transaction", async () => {
@@ -340,8 +340,8 @@ describe("detectHighAmountAnomalies", () => {
 		const allTx = await db.transactions.toArray();
 		const flagged = allTx.find((tx) => tx.anomalyFlags?.length);
 		expect(flagged).toBeDefined();
-		expect(flagged!.anomalyFlags![0].reason).toContain("Shopping");
-		expect(flagged!.anomalyFlags![0].reason).toContain("4x");
+		expect(flagged?.anomalyFlags?.[0].reason).toContain("Shopping");
+		expect(flagged?.anomalyFlags?.[0].reason).toContain("4x");
 	});
 });
 
@@ -373,8 +373,8 @@ describe("dismissAnomaly", () => {
 		await dismissAnomaly(txId, "high-amount");
 
 		const tx = await db.transactions.get(txId);
-		expect(tx!.anomalyFlags![0].dismissed).toBe(true);
-		expect(tx!.anomalyFlags![0].dismissedAt).toBeDefined();
+		expect(tx?.anomalyFlags?.[0].dismissed).toBe(true);
+		expect(tx?.anomalyFlags?.[0].dismissedAt).toBeDefined();
 	});
 
 	it("does not affect other flag types", async () => {
@@ -400,8 +400,8 @@ describe("dismissAnomaly", () => {
 		await dismissAnomaly(txId, "high-amount");
 
 		const tx = await db.transactions.get(txId);
-		expect(tx!.anomalyFlags![0].dismissed).toBe(true);
-		expect(tx!.anomalyFlags![1].dismissed).toBe(false);
+		expect(tx?.anomalyFlags?.[0].dismissed).toBe(true);
+		expect(tx?.anomalyFlags?.[1].dismissed).toBe(false);
 	});
 });
 
@@ -434,8 +434,8 @@ describe("undoDismissAnomaly", () => {
 		await undoDismissAnomaly(txId, "high-amount");
 
 		const tx = await db.transactions.get(txId);
-		expect(tx!.anomalyFlags![0].dismissed).toBe(false);
-		expect(tx!.anomalyFlags![0].dismissedAt).toBeUndefined();
+		expect(tx?.anomalyFlags?.[0].dismissed).toBe(false);
+		expect(tx?.anomalyFlags?.[0].dismissedAt).toBeUndefined();
 	});
 });
 
@@ -549,8 +549,8 @@ describe("detectNewMerchantAnomalies", () => {
 		expect(result.flagged).toBe(0);
 
 		const tx = await db.transactions.get(txId);
-		expect(tx!.anomalyFlags).toHaveLength(1);
-		expect(tx!.anomalyFlags![0].reason).toBe("Already flagged");
+		expect(tx?.anomalyFlags).toHaveLength(1);
+		expect(tx?.anomalyFlags?.[0].reason).toBe("Already flagged");
 	});
 
 	it("does not re-flag dismissed new-merchant flag", async () => {
@@ -608,8 +608,8 @@ describe("detectNewMerchantAnomalies", () => {
 		expect(result.flagged).toBe(1);
 
 		const tx = await db.transactions.get(txId);
-		expect(tx!.anomalyFlags).toHaveLength(2);
-		expect(tx!.anomalyFlags!.map((f) => f.type).sort()).toEqual([
+		expect(tx?.anomalyFlags).toHaveLength(2);
+		expect(tx?.anomalyFlags?.map((f) => f.type).sort()).toEqual([
 			"high-amount",
 			"new-merchant",
 		]);
@@ -634,7 +634,7 @@ describe("detectNewMerchantAnomalies", () => {
 			tx.anomalyFlags?.some((f) => f.type === "new-merchant"),
 		);
 		expect(flagged).toBeDefined();
-		expect(flagged!.anomalyFlags![0].reason).toBe(
+		expect(flagged?.anomalyFlags?.[0].reason).toBe(
 			"First seen merchant - Amazon created 5 days ago",
 		);
 	});
@@ -710,7 +710,7 @@ describe("cleanExpiredNewMerchantFlags", () => {
 
 		const allTx = await db.transactions.toArray();
 		expect(allTx[0].anomalyFlags).toHaveLength(1);
-		expect(allTx[0].anomalyFlags![0].dismissed).toBe(true);
+		expect(allTx[0].anomalyFlags?.[0].dismissed).toBe(true);
 	});
 
 	it("does NOT affect other anomaly flags on same transaction", async () => {
@@ -747,7 +747,7 @@ describe("cleanExpiredNewMerchantFlags", () => {
 
 		const allTx = await db.transactions.toArray();
 		expect(allTx[0].anomalyFlags).toHaveLength(1);
-		expect(allTx[0].anomalyFlags![0].type).toBe("high-amount");
+		expect(allTx[0].anomalyFlags?.[0].type).toBe("high-amount");
 	});
 });
 
@@ -941,7 +941,7 @@ describe("detectPotentialDuplicates", () => {
 		expect(result.pairs).toBe(0);
 
 		const txA = await db.transactions.get(txAId);
-		expect(txA!.anomalyFlags).toHaveLength(1);
+		expect(txA?.anomalyFlags).toHaveLength(1);
 	});
 
 	it("does not re-flag dismissed pair", async () => {
@@ -1027,7 +1027,7 @@ describe("detectPotentialDuplicates", () => {
 		const txB = allTx.find(
 			(tx) => tx.date.getTime() === new Date("2026-01-16").getTime(),
 		);
-		const dupFlags = txB!.anomalyFlags!.filter(
+		const dupFlags = txB?.anomalyFlags?.filter(
 			(f) => f.type === "potential-duplicate",
 		);
 		expect(dupFlags.length).toBe(2);
@@ -1057,7 +1057,7 @@ describe("detectPotentialDuplicates", () => {
 		const allTx = await db.transactions.toArray();
 		const flagged = allTx.find((tx) => tx.anomalyFlags?.length);
 		expect(flagged).toBeDefined();
-		const reason = flagged!.anomalyFlags![0].reason;
+		const reason = flagged?.anomalyFlags?.[0].reason;
 		expect(reason).toContain("29,99");
 		expect(reason).toContain("Starbucks");
 	});
@@ -1085,14 +1085,14 @@ describe("detectPotentialDuplicates", () => {
 
 		const allTx = await db.transactions.toArray();
 		const [txA, txB] = allTx;
-		const flagA = txA.anomalyFlags!.find(
+		const flagA = txA.anomalyFlags?.find(
 			(f) => f.type === "potential-duplicate",
 		);
-		const flagB = txB.anomalyFlags!.find(
+		const flagB = txB.anomalyFlags?.find(
 			(f) => f.type === "potential-duplicate",
 		);
-		expect(flagA!.linkedTransactionId).toBe(txB.id);
-		expect(flagB!.linkedTransactionId).toBe(txA.id);
+		expect(flagA?.linkedTransactionId).toBe(txB.id);
+		expect(flagB?.linkedTransactionId).toBe(txA.id);
 	});
 
 	it("excludes refund transactions from detection", async () => {
@@ -1162,7 +1162,7 @@ describe("dismissDuplicateAnomaly", () => {
 		// Fix txA's linkedTransactionId
 		const txA = await db.transactions.get(txAId);
 		await db.transactions.update(txAId, {
-			anomalyFlags: txA!.anomalyFlags!.map((f) => ({
+			anomalyFlags: txA?.anomalyFlags?.map((f) => ({
 				...f,
 				linkedTransactionId: txBId,
 			})),
@@ -1172,8 +1172,8 @@ describe("dismissDuplicateAnomaly", () => {
 
 		const updatedA = await db.transactions.get(txAId);
 		const updatedB = await db.transactions.get(txBId);
-		expect(updatedA!.anomalyFlags![0].dismissed).toBe(true);
-		expect(updatedB!.anomalyFlags![0].dismissed).toBe(true);
+		expect(updatedA?.anomalyFlags?.[0].dismissed).toBe(true);
+		expect(updatedB?.anomalyFlags?.[0].dismissed).toBe(true);
 	});
 
 	it("undo restores both sides", async () => {
@@ -1223,8 +1223,8 @@ describe("dismissDuplicateAnomaly", () => {
 
 		const updatedA = await db.transactions.get(txAId);
 		const updatedB = await db.transactions.get(txBId);
-		expect(updatedA!.anomalyFlags![0].dismissed).toBe(false);
-		expect(updatedB!.anomalyFlags![0].dismissed).toBe(false);
+		expect(updatedA?.anomalyFlags?.[0].dismissed).toBe(false);
+		expect(updatedB?.anomalyFlags?.[0].dismissed).toBe(false);
 	});
 
 	it("does not affect other anomaly types on same transaction", async () => {
@@ -1282,14 +1282,14 @@ describe("dismissDuplicateAnomaly", () => {
 		await dismissDuplicateAnomaly(txAId);
 
 		const updatedA = await db.transactions.get(txAId);
-		const dupFlag = updatedA!.anomalyFlags!.find(
+		const dupFlag = updatedA?.anomalyFlags?.find(
 			(f) => f.type === "potential-duplicate",
 		);
-		const highFlag = updatedA!.anomalyFlags!.find(
+		const highFlag = updatedA?.anomalyFlags?.find(
 			(f) => f.type === "high-amount",
 		);
-		expect(dupFlag!.dismissed).toBe(true);
-		expect(highFlag!.dismissed).toBe(false);
+		expect(dupFlag?.dismissed).toBe(true);
+		expect(highFlag?.dismissed).toBe(false);
 	});
 
 	it("chain scenario: dismiss B-A flag does not affect B-C flag", async () => {
@@ -1330,7 +1330,7 @@ describe("dismissDuplicateAnomaly", () => {
 
 		// Fix B-C linkedTransactionId
 		const txB = await db.transactions.get(txBId);
-		const fixedFlags = txB!.anomalyFlags!.map((f) =>
+		const fixedFlags = txB?.anomalyFlags?.map((f) =>
 			f.reason === "Pair B-C" ? { ...f, linkedTransactionId: txCId } : f,
 		);
 		await db.transactions.update(txBId, { anomalyFlags: fixedFlags });
@@ -1356,20 +1356,20 @@ describe("dismissDuplicateAnomaly", () => {
 		const updatedC = await db.transactions.get(txCId);
 
 		// A's flag should be dismissed
-		expect(updatedA!.anomalyFlags![0].dismissed).toBe(true);
+		expect(updatedA?.anomalyFlags?.[0].dismissed).toBe(true);
 
 		// B: flag for A should be dismissed, flag for C should NOT be
-		const bFlagA = updatedB!.anomalyFlags!.find(
+		const bFlagA = updatedB?.anomalyFlags?.find(
 			(f) => f.linkedTransactionId === txAId,
 		);
-		const bFlagC = updatedB!.anomalyFlags!.find(
+		const bFlagC = updatedB?.anomalyFlags?.find(
 			(f) => f.linkedTransactionId === txCId,
 		);
-		expect(bFlagA!.dismissed).toBe(true);
-		expect(bFlagC!.dismissed).toBe(false);
+		expect(bFlagA?.dismissed).toBe(true);
+		expect(bFlagC?.dismissed).toBe(false);
 
 		// C: flag for B should NOT be affected
-		expect(updatedC!.anomalyFlags![0].dismissed).toBe(false);
+		expect(updatedC?.anomalyFlags?.[0].dismissed).toBe(false);
 	});
 });
 
@@ -1429,8 +1429,8 @@ describe("confirmDuplicate", () => {
 		await confirmDuplicate(txAId, "exclude");
 
 		const updatedA = await db.transactions.get(txAId);
-		expect(updatedA!.isDuplicateExcluded).toBe(true);
-		expect(updatedA!.duplicateNote).toContain("Excluded as duplicate");
+		expect(updatedA?.isDuplicateExcluded).toBe(true);
+		expect(updatedA?.duplicateNote).toContain("Excluded as duplicate");
 	});
 
 	it("exclude dismisses flags on BOTH transactions", async () => {
@@ -1477,8 +1477,8 @@ describe("confirmDuplicate", () => {
 
 		const updatedA = await db.transactions.get(txAId);
 		const updatedB = await db.transactions.get(txBId);
-		expect(updatedA!.anomalyFlags![0].dismissed).toBe(true);
-		expect(updatedB!.anomalyFlags![0].dismissed).toBe(true);
+		expect(updatedA?.anomalyFlags?.[0].dismissed).toBe(true);
+		expect(updatedB?.anomalyFlags?.[0].dismissed).toBe(true);
 	});
 
 	it("keep dismisses flags but does NOT exclude from spending", async () => {
@@ -1524,8 +1524,8 @@ describe("confirmDuplicate", () => {
 		await confirmDuplicate(txAId, "keep");
 
 		const updatedA = await db.transactions.get(txAId);
-		expect(updatedA!.isDuplicateExcluded).toBeUndefined();
-		expect(updatedA!.anomalyFlags![0].dismissed).toBe(true);
+		expect(updatedA?.isDuplicateExcluded).toBeUndefined();
+		expect(updatedA?.anomalyFlags?.[0].dismissed).toBe(true);
 	});
 
 	it("undo restores isDuplicateExcluded and flags on both", async () => {
@@ -1577,9 +1577,9 @@ describe("confirmDuplicate", () => {
 
 		const updatedA = await db.transactions.get(txAId);
 		const updatedB = await db.transactions.get(txBId);
-		expect(updatedA!.isDuplicateExcluded).toBeUndefined();
-		expect(updatedA!.duplicateNote).toBeUndefined();
-		expect(updatedA!.anomalyFlags![0].dismissed).toBe(false);
-		expect(updatedB!.anomalyFlags![0].dismissed).toBe(false);
+		expect(updatedA?.isDuplicateExcluded).toBeUndefined();
+		expect(updatedA?.duplicateNote).toBeUndefined();
+		expect(updatedA?.anomalyFlags?.[0].dismissed).toBe(false);
+		expect(updatedB?.anomalyFlags?.[0].dismissed).toBe(false);
 	});
 });

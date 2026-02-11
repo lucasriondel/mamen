@@ -45,6 +45,7 @@ export function ColorPicker({
 					aria-label="Select color"
 				>
 					{COLOR_PALETTE.map((color) => (
+						// biome-ignore lint/a11y/useSemanticElements: button with role="radio" in a radiogroup is intentional for custom styled color swatches
 						<button
 							key={color}
 							type="button"

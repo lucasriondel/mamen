@@ -97,9 +97,9 @@ export const CommandPalette = (
 				)}
 
 				{hasQuery && resultCount > 0 && (
-					<div className="sr-only" role="status" aria-live="polite">
+					<output className="sr-only" aria-live="polite">
 						{resultCount} result{resultCount !== 1 ? "s" : ""} for {query}
-					</div>
+					</output>
 				)}
 
 				<CommandGroup heading="Actions">

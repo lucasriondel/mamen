@@ -209,7 +209,7 @@ describe("exportAllData", () => {
 		expect(tx.isRefund).toBe(true);
 		expect(tx.linkedRefundId).toBe(42);
 		expect(tx.anomalyFlags).toHaveLength(1);
-		expect(tx.anomalyFlags![0].type).toBe("high-amount");
+		expect(tx.anomalyFlags?.[0].type).toBe("high-amount");
 		expect(tx.isDuplicateExcluded).toBe(true);
 		expect(tx.duplicateNote).toBe("Duplicate");
 	});
@@ -334,7 +334,7 @@ describe("exportAllData", () => {
 		const refund = data.transactions.find((t) => t.isRefund);
 
 		expect(refund).toBeDefined();
-		expect(refund!.linkedRefundId).toBe(originalId);
+		expect(refund?.linkedRefundId).toBe(originalId);
 	});
 
 	it("handles unicode and special characters in merchant strings", async () => {

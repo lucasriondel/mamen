@@ -13,10 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { invalidateEntity, queryKeys, settingsApi } from "@/lib/api";
 import type { AnomalySettings } from "@/types";
-import {
-	detectHighAmountAnomalies,
-	getAnomalySettings,
-} from "../../services/anomalyDetector";
+import { detectHighAmountAnomalies } from "../../services/anomalyDetector";
 
 const DEFAULT_SETTINGS: AnomalySettings = {
 	multiplierThreshold: 2,
@@ -69,15 +66,18 @@ export function AnomalySettingsForm(): React.ReactElement {
 		const absoluteVal = absolute.trim() === "" ? null : parseFloat(absolute);
 		const minTxVal = parseInt(minTx, 10);
 
-		if (isNaN(multiplierVal) || multiplierVal < 1) {
+		if (Number.isNaN(multiplierVal) || multiplierVal < 1) {
 			toast.error("Multiplier threshold must be at least 1");
 			return;
 		}
-		if (absoluteVal !== null && (isNaN(absoluteVal) || absoluteVal <= 0)) {
+		if (
+			absoluteVal !== null &&
+			(Number.isNaN(absoluteVal) || absoluteVal <= 0)
+		) {
 			toast.error("Absolute threshold must be a positive number");
 			return;
 		}
-		if (isNaN(minTxVal) || minTxVal < 3 || minTxVal > 20) {
+		if (Number.isNaN(minTxVal) || minTxVal < 3 || minTxVal > 20) {
 			toast.error("Min transactions must be between 3 and 20");
 			return;
 		}

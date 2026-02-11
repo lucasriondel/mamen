@@ -103,8 +103,8 @@ describe("useRefundLink", () => {
 		);
 
 		const refund = await db.transactions.get(refundId);
-		expect(refund!.isRefund).toBe(true);
-		expect(refund!.linkedRefundId).toBe(purchaseId);
+		expect(refund?.isRefund).toBe(true);
+		expect(refund?.linkedRefundId).toBe(purchaseId);
 	});
 
 	it("marks as orphan refund and shows toast", async () => {
@@ -137,7 +137,7 @@ describe("useRefundLink", () => {
 		);
 
 		const tx = await db.transactions.get(txId);
-		expect(tx!.isRefund).toBe(true);
+		expect(tx?.isRefund).toBe(true);
 	});
 
 	it("shows error toast on link failure", async () => {
@@ -221,8 +221,8 @@ describe("useRefundLink", () => {
 		);
 
 		const refund = await db.transactions.get(refundId);
-		expect(refund!.isRefund).toBe(false);
-		expect(refund!.linkedRefundId).toBeUndefined();
+		expect(refund?.isRefund).toBe(false);
+		expect(refund?.linkedRefundId).toBeUndefined();
 	});
 
 	it("handleChangeLink switches view to search", () => {
@@ -294,6 +294,6 @@ describe("useRefundLink", () => {
 		);
 
 		const refund = await db.transactions.get(refundId);
-		expect(refund!.linkedRefundId).toBe(newPurchaseId);
+		expect(refund?.linkedRefundId).toBe(newPurchaseId);
 	});
 });

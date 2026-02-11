@@ -97,7 +97,7 @@ describe("TransactionRow", () => {
 		render(<TransactionRow transaction={makeTransaction({ amount: 100.5 })} />);
 
 		const amountEl = screen.getByText(/100,50/);
-		expect(amountEl.closest('[class*="font-mono"]')!.className).toContain(
+		expect(amountEl.closest('[class*="font-mono"]')?.className).toContain(
 			"text-green-500",
 		);
 	});

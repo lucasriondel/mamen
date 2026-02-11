@@ -47,7 +47,7 @@ export const createAccountAdapter = (db: Database): AccountRepository => ({
 				"INSERT INTO accounts (name, type, createdAt, updatedAt) VALUES (?, ?, ?, ?) RETURNING id",
 			)
 			.get(r.name, r.type, r.createdAt, r.updatedAt);
-		return result!.id;
+		return result?.id;
 	},
 
 	bulkAdd: async (records) => {
@@ -56,7 +56,7 @@ export const createAccountAdapter = (db: Database): AccountRepository => ({
 		);
 		return records.map((record) => {
 			const r = toRow(record as Account);
-			return stmt.get(r.name, r.type, r.createdAt, r.updatedAt)!.id;
+			return stmt.get(r.name, r.type, r.createdAt, r.updatedAt)?.id;
 		});
 	},
 
@@ -127,7 +127,7 @@ export const createAccountAdapter = (db: Database): AccountRepository => ({
 	count: async () => {
 		return db
 			.query<{ cnt: number }, []>("SELECT COUNT(*) as cnt FROM accounts")
-			.get()!.cnt;
+			.get()?.cnt;
 	},
 
 	clear: async () => {

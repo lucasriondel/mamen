@@ -82,6 +82,7 @@ export function ImportResultDialog({
 								</p>
 								<ul className="text-sm text-destructive space-y-1">
 									{result.errors.map((error, i) => (
+										// biome-ignore lint/suspicious/noArrayIndexKey: error strings have no stable unique id
 										<li key={i}>{error}</li>
 									))}
 								</ul>

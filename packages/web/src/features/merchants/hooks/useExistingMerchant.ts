@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { merchantsApi, queryKeys, rulesApi } from "@/lib/api";
+import { merchantsApi, rulesApi } from "@/lib/api";
 import type { Merchant, Rule } from "@/types";
 
 type UseExistingMerchantReturn = {

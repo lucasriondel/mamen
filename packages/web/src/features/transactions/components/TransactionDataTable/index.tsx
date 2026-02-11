@@ -336,7 +336,12 @@ export function TransactionDataTable({
 		table.resetRowSelection();
 		setCursorRowId(null);
 		transactionFilters.clearAllFilters();
-	}, [combinedKey, table, transactionFilters.clearAllFilters]);
+	}, [
+		combinedKey,
+		table,
+		transactionFilters.clearAllFilters,
+		transactionFilters,
+	]);
 
 	// --- Handle highlight from search navigation ---
 	useEffect(() => {
@@ -481,6 +486,7 @@ export function TransactionDataTable({
 					<span className="text-xs text-muted-foreground">Filtered:</span>
 					{categoryName && (
 						<button
+							type="button"
 							onClick={clearDrillDownFilter}
 							className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
 							data-testid="category-filter-chip"
@@ -490,6 +496,7 @@ export function TransactionDataTable({
 						</button>
 					)}
 					<button
+						type="button"
 						onClick={clearAllFilters}
 						className="ml-auto text-xs text-muted-foreground hover:text-foreground transition-colors"
 					>
@@ -541,6 +548,7 @@ export function TransactionDataTable({
 								<div key={header.id} className="w-20 shrink-0">
 									{header.column.getCanSort() ? (
 										<button
+											type="button"
 											className="flex items-center gap-1 hover:text-foreground transition-colors"
 											onClick={header.column.getToggleSortingHandler()}
 										>
@@ -564,6 +572,7 @@ export function TransactionDataTable({
 								<div key={header.id} className="flex-1">
 									{header.column.getCanSort() ? (
 										<button
+											type="button"
 											className="flex items-center gap-1 hover:text-foreground transition-colors"
 											onClick={header.column.getToggleSortingHandler()}
 										>
@@ -597,6 +606,7 @@ export function TransactionDataTable({
 								<div key={header.id} className="w-24 shrink-0 text-right">
 									{header.column.getCanSort() ? (
 										<button
+											type="button"
 											className="flex items-center gap-1 ml-auto hover:text-foreground transition-colors"
 											onClick={header.column.getToggleSortingHandler()}
 										>
@@ -647,6 +657,8 @@ export function TransactionDataTable({
 							(animationPhase === "highlight" || animationPhase === "settle");
 
 						return (
+							// biome-ignore lint/a11y/useFocusableInteractive: focus managed by parent listbox via aria-activedescendant
+							// biome-ignore lint/a11y/useKeyWithClickEvents: keyboard navigation handled by parent listbox component
 							<div
 								key={rowId}
 								id={`tx-${rowId}`}

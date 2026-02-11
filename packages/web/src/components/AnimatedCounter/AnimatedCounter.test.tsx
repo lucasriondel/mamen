@@ -37,7 +37,9 @@ describe("AnimatedCounter", () => {
 		const now = time ?? performance.now() + 400;
 		const cbs = [...rafCallbacks];
 		rafCallbacks = [];
-		cbs.forEach((cb) => cb(now));
+		cbs.forEach((cb) => {
+			cb(now);
+		});
 	};
 
 	it("should display the current value", () => {

@@ -6,7 +6,18 @@
 		"useIgnoreFile": true
 	},
 	"files": {
-		"includes": ["**", "!!**/dist", "!!*.config.ts", "!!*.config.js"]
+		"includes": [
+			"**",
+			"!**/dist",
+			"!*.config.ts",
+			"!*.config.js",
+			"!_bmad-output"
+		]
+	},
+	"css": {
+		"parser": {
+			"tailwindDirectives": true
+		}
 	},
 	"formatter": {
 		"enabled": true,
@@ -16,9 +27,20 @@
 	"linter": {
 		"enabled": true,
 		"rules": {
-			"recommended": true
+			"recommended": true,
+			"style": {
+				"noNonNullAssertion": "off"
+			},
+			"suspicious": {
+				"noExplicitAny": "off"
+			}
 		}
 	},
+	"overrides": [
+		{
+			"includes": ["*.gen.ts", "*.gen.tsx"]
+		}
+	],
 	"assist": {
 		"enabled": true,
 		"actions": {

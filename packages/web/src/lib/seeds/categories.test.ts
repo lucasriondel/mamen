@@ -27,7 +27,7 @@ describe("seedCategories", () => {
 	it("creates all 10 parent categories", async () => {
 		await seedCategories();
 
-		const parents = await db.categories.where("parentId").equals(0).toArray();
+		const _parents = await db.categories.where("parentId").equals(0).toArray();
 		// parentId is null for parents, but Dexie indexes don't index null
 		// So query differently
 		const allCategories = await db.categories.toArray();

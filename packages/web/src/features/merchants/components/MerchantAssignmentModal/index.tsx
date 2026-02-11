@@ -642,7 +642,7 @@ export function MerchantAssignmentModal({
 				<DialogHeader>
 					<DialogTitle id="merchant-modal-title">
 						{isBatchMode
-							? `Assign ${transactions!.length} Transactions to Merchant`
+							? `Assign ${transactions?.length} Transactions to Merchant`
 							: "Assign to Merchant"}
 					</DialogTitle>
 					<DialogDescription>
@@ -652,7 +652,7 @@ export function MerchantAssignmentModal({
 									Selected transactions:
 								</span>
 								<span className="block max-h-24 overflow-y-auto space-y-0.5">
-									{transactions!.slice(0, 5).map((tx, i) => (
+									{transactions?.slice(0, 5).map((tx, i) => (
 										<code
 											key={tx.id ?? i}
 											className="bg-muted px-1.5 py-0.5 rounded text-xs font-mono block truncate"
@@ -660,9 +660,9 @@ export function MerchantAssignmentModal({
 											{tx.rawMerchantString}
 										</code>
 									))}
-									{transactions!.length > 5 && (
+									{transactions?.length > 5 && (
 										<span className="text-xs text-muted-foreground block">
-											+{transactions!.length - 5} more
+											+{transactions?.length - 5} more
 										</span>
 									)}
 								</span>
@@ -886,10 +886,10 @@ export function MerchantAssignmentModal({
 								<span>
 									Pattern also matches{" "}
 									<span className="font-medium text-destructive">
-										{selectedBatchSuggestion!.matchesOutsideSelection}
+										{selectedBatchSuggestion?.matchesOutsideSelection}
 									</span>{" "}
 									other transaction
-									{selectedBatchSuggestion!.matchesOutsideSelection !== 1
+									{selectedBatchSuggestion?.matchesOutsideSelection !== 1
 										? "s"
 										: ""}
 								</span>
@@ -898,6 +898,7 @@ export function MerchantAssignmentModal({
 								<div className="ml-5 space-y-0.5 border-l-2 border-amber-500/30 pl-2">
 									{outsideMatches.slice(0, 5).map((tx, i) => (
 										<div
+											// biome-ignore lint/suspicious/noArrayIndexKey: items have no stable unique id
 											key={i}
 											className="flex items-center gap-2 text-xs text-muted-foreground"
 										>
@@ -910,9 +911,9 @@ export function MerchantAssignmentModal({
 											</span>
 										</div>
 									))}
-									{selectedBatchSuggestion!.matchesOutsideSelection > 5 && (
+									{selectedBatchSuggestion?.matchesOutsideSelection > 5 && (
 										<p className="text-xs text-muted-foreground">
-											and {selectedBatchSuggestion!.matchesOutsideSelection - 5}{" "}
+											and {selectedBatchSuggestion?.matchesOutsideSelection - 5}{" "}
 											more
 										</p>
 									)}

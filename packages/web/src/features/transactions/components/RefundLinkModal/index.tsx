@@ -61,7 +61,7 @@ export function RefundLinkModal({
 			"linked",
 			sourceTransaction?.linkedRefundId,
 		],
-		queryFn: () => transactionsApi.get(sourceTransaction!.linkedRefundId!),
+		queryFn: () => transactionsApi.get(sourceTransaction?.linkedRefundId),
 		enabled: open && !!sourceTransaction?.linkedRefundId,
 	});
 
@@ -356,6 +356,7 @@ export function RefundLinkModal({
 								aria-label="Candidate transactions"
 							>
 								{sortedCandidates.map((tx) => (
+									// biome-ignore lint/a11y/useSemanticElements: button with role="radio" in a radiogroup is intentional for transaction candidate selection
 									<button
 										key={tx.id}
 										type="button"

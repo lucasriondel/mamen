@@ -65,7 +65,7 @@ describe("useCategoryTooltipData", () => {
 
 		await waitFor(() => {
 			expect(result.current).not.toBeNull();
-			expect(result.current!.transactionCount).toBe(3);
+			expect(result.current?.transactionCount).toBe(3);
 		});
 	});
 
@@ -105,12 +105,12 @@ describe("useCategoryTooltipData", () => {
 
 		await waitFor(() => {
 			expect(result.current).not.toBeNull();
-			expect(result.current!.topMerchants).toHaveLength(3);
-			expect(result.current!.topMerchants[0]).toEqual({
+			expect(result.current?.topMerchants).toHaveLength(3);
+			expect(result.current?.topMerchants[0]).toEqual({
 				name: "Amazon",
 				count: 3,
 			});
-			expect(result.current!.topMerchants[1]).toEqual({
+			expect(result.current?.topMerchants[1]).toEqual({
 				name: "eBay",
 				count: 2,
 			});
@@ -131,8 +131,8 @@ describe("useCategoryTooltipData", () => {
 
 		await waitFor(() => {
 			expect(result.current).not.toBeNull();
-			expect(result.current!.transactionCount).toBe(2);
-			expect(result.current!.topMerchants).toHaveLength(0);
+			expect(result.current?.transactionCount).toBe(2);
+			expect(result.current?.topMerchants).toHaveLength(0);
 		});
 	});
 });

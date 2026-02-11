@@ -44,6 +44,7 @@ export function IconPicker({
 					{ICON_LIST.map((iconName) => {
 						const Icon = getIconComponent(iconName);
 						return (
+							// biome-ignore lint/a11y/useSemanticElements: button with role="radio" in a radiogroup is intentional for custom styled icon swatches
 							<button
 								key={iconName}
 								type="button"

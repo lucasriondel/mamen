@@ -11,7 +11,6 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import { CommandPaletteProvider } from "@/context/CommandPaletteContext";
 import { FocusModeProvider } from "@/context/FocusModeContext";
 import * as downloadFileModule from "@/features/settings/services/downloadFile";
-import * as exportServiceModule from "@/features/settings/services/exportService";
 import { CommandPalette } from "./index";
 
 // jsdom doesn't provide ResizeObserver or Element.scrollIntoView which cmdk needs
@@ -58,7 +57,9 @@ function renderWithProviders(): ReturnType<typeof render> {
 			<FocusModeProvider>
 				<CommandPaletteProvider>
 					<div>
-						<button data-testid="outside-button">Outside</button>
+						<button type="button" data-testid="outside-button">
+							Outside
+						</button>
 						<CommandPalette />
 					</div>
 				</CommandPaletteProvider>

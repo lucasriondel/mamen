@@ -54,6 +54,8 @@ function CategoryRow({
 	);
 
 	const row = (
+		// biome-ignore lint/a11y/noStaticElementInteractions: conditionally interactive element - has role="button" when clickable
+		// biome-ignore lint/a11y/useAriaPropsSupportedByRole: tabIndex needed for keyboard navigation regardless of role
 		<div
 			data-testid="category-row"
 			data-uncategorized={item.categoryId === null ? "true" : undefined}
@@ -68,7 +70,7 @@ function CategoryRow({
 				isClickable ? `View ${item.categoryName} transactions` : undefined
 			}
 			onClick={
-				isClickable ? () => onCategoryClick!(item.categoryId!) : undefined
+				isClickable ? () => onCategoryClick?.(item.categoryId!) : undefined
 			}
 			onKeyDown={(e) => onKeyDown(e, item.categoryId)}
 		>

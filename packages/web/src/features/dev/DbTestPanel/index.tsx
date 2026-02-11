@@ -53,9 +53,15 @@ export function DbTestPanel(): React.ReactElement {
 			</p>
 
 			<div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
-				<button onClick={handleAddTestAccount}>Add Test Account</button>
-				<button onClick={handleAddTestTransaction}>Add Test Transaction</button>
-				<button onClick={handleClearAll}>Clear All</button>
+				<button type="button" onClick={handleAddTestAccount}>
+					Add Test Account
+				</button>
+				<button type="button" onClick={handleAddTestTransaction}>
+					Add Test Transaction
+				</button>
+				<button type="button" onClick={handleClearAll}>
+					Clear All
+				</button>
 			</div>
 
 			<h3>Accounts ({accounts?.length ?? "..."})</h3>

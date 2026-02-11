@@ -1,4 +1,4 @@
-import { join } from "path";
+import { join } from "node:path";
 import { buildApp } from "./app";
 
 const PORT = Number(process.env.PORT) || 3000;

@@ -212,7 +212,7 @@ describe("MerchantAssignmentModal", () => {
 			createdAt: new Date(),
 		})) as number;
 
-		const merchantId = (await db.merchants.add({
+		const _merchantId = (await db.merchants.add({
 			name: "Amazon",
 			defaultCategoryId: catId,
 			createdAt: new Date(),

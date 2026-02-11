@@ -27,6 +27,8 @@ export const SubscriptionRow = forwardRef<HTMLDivElement, SubscriptionRowProps>(
 		const isCancelled = subscription.status === "possibly-cancelled";
 
 		return (
+			// biome-ignore lint/a11y/useKeyWithClickEvents: keyboard navigation handled by parent list component
+			// biome-ignore lint/a11y/useSemanticElements: div with role="button" used for flex layout; ref typed as HTMLDivElement
 			<div
 				ref={ref}
 				role="button"

@@ -64,14 +64,14 @@ describe("useNetSpending", () => {
 
 		await waitFor(() => {
 			expect(result.current).not.toBeNull();
-			const cat = result.current!.categories.find(
+			const cat = result.current?.categories.find(
 				(c) => c.categoryId === catId,
 			);
 			expect(cat).toBeDefined();
-			expect(cat!.grossSpending).toBe(100);
-			expect(cat!.linkedRefunds).toBe(100);
-			expect(cat!.netSpending).toBe(0);
-			expect(result.current!.totalNet).toBe(0);
+			expect(cat?.grossSpending).toBe(100);
+			expect(cat?.linkedRefunds).toBe(100);
+			expect(cat?.netSpending).toBe(0);
+			expect(result.current?.totalNet).toBe(0);
 		});
 	});
 
@@ -103,13 +103,13 @@ describe("useNetSpending", () => {
 
 		await waitFor(() => {
 			expect(result.current).not.toBeNull();
-			const cat = result.current!.categories.find(
+			const cat = result.current?.categories.find(
 				(c) => c.categoryId === catId,
 			);
-			expect(cat!.grossSpending).toBe(100);
-			expect(cat!.linkedRefunds).toBe(30);
-			expect(cat!.netSpending).toBe(70);
-			expect(result.current!.totalNet).toBe(70);
+			expect(cat?.grossSpending).toBe(100);
+			expect(cat?.linkedRefunds).toBe(30);
+			expect(cat?.netSpending).toBe(70);
+			expect(result.current?.totalNet).toBe(70);
 		});
 	});
 
@@ -133,12 +133,12 @@ describe("useNetSpending", () => {
 
 		await waitFor(() => {
 			expect(result.current).not.toBeNull();
-			expect(result.current!.orphanRefunds).toBe(50);
-			const cat = result.current!.categories.find(
+			expect(result.current?.orphanRefunds).toBe(50);
+			const cat = result.current?.categories.find(
 				(c) => c.categoryId === catId,
 			);
-			expect(cat!.netSpending).toBe(100); // not reduced by orphan refund
-			expect(result.current!.totalNet).toBe(100);
+			expect(cat?.netSpending).toBe(100); // not reduced by orphan refund
+			expect(result.current?.totalNet).toBe(100);
 		});
 	});
 
@@ -182,17 +182,17 @@ describe("useNetSpending", () => {
 
 		await waitFor(() => {
 			expect(result.current).not.toBeNull();
-			const shopping = result.current!.categories.find(
+			const shopping = result.current?.categories.find(
 				(c) => c.categoryId === catA,
 			);
-			const dining = result.current!.categories.find(
+			const dining = result.current?.categories.find(
 				(c) => c.categoryId === catB,
 			);
-			expect(shopping!.netSpending).toBe(150);
-			expect(dining!.netSpending).toBe(80);
-			expect(result.current!.totalGross).toBe(280);
-			expect(result.current!.totalLinkedRefunds).toBe(50);
-			expect(result.current!.totalNet).toBe(230);
+			expect(shopping?.netSpending).toBe(150);
+			expect(dining?.netSpending).toBe(80);
+			expect(result.current?.totalGross).toBe(280);
+			expect(result.current?.totalLinkedRefunds).toBe(50);
+			expect(result.current?.totalNet).toBe(230);
 		});
 	});
 
@@ -214,8 +214,8 @@ describe("useNetSpending", () => {
 
 		await waitFor(() => {
 			expect(result.current).not.toBeNull();
-			expect(result.current!.totalGross).toBe(150);
-			expect(result.current!.totalNet).toBe(150); // no refunds
+			expect(result.current?.totalGross).toBe(150);
+			expect(result.current?.totalNet).toBe(150); // no refunds
 		});
 	});
 
@@ -240,11 +240,11 @@ describe("useNetSpending", () => {
 
 		await waitFor(() => {
 			expect(result.current).not.toBeNull();
-			expect(result.current!.totalGross).toBe(0);
-			expect(result.current!.totalNet).toBe(0);
-			expect(result.current!.totalLinkedRefunds).toBe(0);
-			expect(result.current!.orphanRefunds).toBe(0);
-			expect(result.current!.categories).toHaveLength(0);
+			expect(result.current?.totalGross).toBe(0);
+			expect(result.current?.totalNet).toBe(0);
+			expect(result.current?.totalLinkedRefunds).toBe(0);
+			expect(result.current?.orphanRefunds).toBe(0);
+			expect(result.current?.categories).toHaveLength(0);
 		});
 	});
 
@@ -274,7 +274,7 @@ describe("useNetSpending", () => {
 
 		await waitFor(() => {
 			expect(result.current).not.toBeNull();
-			expect(result.current!.totalGross).toBe(100); // only Jan transaction
+			expect(result.current?.totalGross).toBe(100); // only Jan transaction
 		});
 	});
 
@@ -315,14 +315,14 @@ describe("useNetSpending", () => {
 			expect(result.current).not.toBeNull();
 			// No purchase in this period, but linked refund is here
 			// The refund should still count against the category
-			const cat = result.current!.categories.find(
+			const cat = result.current?.categories.find(
 				(c) => c.categoryId === catId,
 			);
 			expect(cat).toBeDefined();
-			expect(cat!.grossSpending).toBe(0); // no expenses in this period
-			expect(cat!.linkedRefunds).toBe(100);
-			expect(cat!.netSpending).toBe(-100); // net goes negative (credit)
-			expect(result.current!.totalLinkedRefunds).toBe(100);
+			expect(cat?.grossSpending).toBe(0); // no expenses in this period
+			expect(cat?.linkedRefunds).toBe(100);
+			expect(cat?.netSpending).toBe(-100); // net goes negative (credit)
+			expect(result.current?.totalLinkedRefunds).toBe(100);
 		});
 	});
 
@@ -344,8 +344,8 @@ describe("useNetSpending", () => {
 
 		await waitFor(() => {
 			expect(result.current).not.toBeNull();
-			expect(result.current!.totalGross).toBe(100); // only the expense
-			expect(result.current!.orphanRefunds).toBe(0);
+			expect(result.current?.totalGross).toBe(100); // only the expense
+			expect(result.current?.orphanRefunds).toBe(0);
 		});
 	});
 

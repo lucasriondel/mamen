@@ -101,8 +101,8 @@ describe("Subscription Detection Integration Tests", () => {
 		const yearly = subs.find((s) => s.frequency === "yearly");
 		expect(monthly).toBeDefined();
 		expect(yearly).toBeDefined();
-		expect(monthly!.merchantName).toBe("Apple");
-		expect(yearly!.merchantName).toBe("Apple");
+		expect(monthly?.merchantName).toBe("Apple");
+		expect(yearly?.merchantName).toBe("Apple");
 	});
 
 	it("cancellation: monthly sub, no charge for 65 days -> marked possibly-cancelled", async () => {

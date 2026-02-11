@@ -44,7 +44,8 @@ export function CategoryPicker({
 	};
 
 	const handleSubcategorySelect = (subcategory: Category): void => {
-		onSelect(selectedParent!.id!, subcategory.id!);
+		if (!selectedParent?.id) return;
+		onSelect(selectedParent.id, subcategory.id!);
 		setSelectedParent(null);
 		setSearch("");
 	};

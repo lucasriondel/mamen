@@ -135,6 +135,7 @@ export function Sidebar(): React.ReactElement {
 				</Link>
 
 				<button
+					type="button"
 					onClick={handleMonthClick}
 					className={cn(
 						"flex items-center gap-3 px-3 py-2 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors w-full text-left",
@@ -153,6 +154,7 @@ export function Sidebar(): React.ReactElement {
 				</button>
 
 				<button
+					type="button"
 					onClick={handleSubscriptionsClick}
 					className={cn(
 						"flex items-center gap-3 px-3 py-2 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors w-full text-left",

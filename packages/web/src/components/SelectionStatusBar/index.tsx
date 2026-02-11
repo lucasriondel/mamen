@@ -16,8 +16,7 @@ export function SelectionStatusBar({
 	if (count === 0) return null;
 
 	return (
-		<div
-			role="status"
+		<output
 			aria-live="polite"
 			aria-label={`${count} transactions selected. Press Escape to clear selection.`}
 			className={cn(
@@ -47,6 +46,7 @@ export function SelectionStatusBar({
 
 			<div className="ml-auto flex items-center gap-2">
 				<button
+					type="button"
 					onClick={onClear}
 					aria-label="Clear selection"
 					className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
@@ -58,6 +58,6 @@ export function SelectionStatusBar({
 					<XIcon className="w-3 h-3" />
 				</button>
 			</div>
-		</div>
+		</output>
 	);
 }

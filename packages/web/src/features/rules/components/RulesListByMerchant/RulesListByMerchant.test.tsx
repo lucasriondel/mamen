@@ -31,21 +31,21 @@ const seedData = async () => {
 		firstSeen: new Date(),
 	});
 
-	const rule1Id = await db.rules.add({
+	const _rule1Id = await db.rules.add({
 		merchantId: amazonId,
 		pattern: "AMZN.*",
 		matchCount: 42,
 		createdAt: new Date(),
 	});
 
-	const rule2Id = await db.rules.add({
+	const _rule2Id = await db.rules.add({
 		merchantId: amazonId,
 		pattern: "AMAZON\\.COM.*",
 		matchCount: 12,
 		createdAt: new Date(),
 	});
 
-	const rule3Id = await db.rules.add({
+	const _rule3Id = await db.rules.add({
 		merchantId: netflixId,
 		pattern: "NETFLIX.*",
 		matchCount: 8,

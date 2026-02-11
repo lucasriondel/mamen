@@ -49,6 +49,8 @@ export const useSubscriptions = (): UseSubscriptionsReturn => {
 					return sum + Math.abs(s.typicalAmount);
 				case "weekly":
 					return sum + Math.abs(s.typicalAmount) * 52;
+				default:
+					return sum;
 			}
 		}, 0);
 
@@ -61,5 +63,5 @@ export const useSubscriptions = (): UseSubscriptionsReturn => {
 			count: active.length,
 			isLoading: false,
 		};
-	}, [subscriptions]);
+	}, [subscriptions, queryLoading]);
 };

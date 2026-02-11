@@ -255,7 +255,7 @@ export const detectDateFormat = (sampleDates: string[]): DateFormatOption => {
 	if (sampleDates.every((d) => isoPattern.test(d.trim()))) {
 		const allValid = sampleDates.every((d) => {
 			const date = new Date(d.trim());
-			return !isNaN(date.getTime());
+			return !Number.isNaN(date.getTime());
 		});
 		if (allValid) return "ISO-8601";
 	}
@@ -354,7 +354,7 @@ export const parseDate = (
 		}
 		case "ISO-8601": {
 			const date = new Date(trimmed);
-			return isNaN(date.getTime()) ? null : date;
+			return Number.isNaN(date.getTime()) ? null : date;
 		}
 		case "auto": {
 			// Try ISO 8601 with time component first
@@ -376,7 +376,7 @@ export const parseDate = (
 			if (ddMMDot) return ddMMDot;
 			// Fallback: JS Date constructor
 			const fallback = new Date(trimmed);
-			return isNaN(fallback.getTime()) ? null : fallback;
+			return Number.isNaN(fallback.getTime()) ? null : fallback;
 		}
 	}
 };
@@ -388,7 +388,7 @@ export const parseAmount = (value: string): number | null => {
 
 	// Handle parentheses for negative: (50.00) -> -50.00
 	if (cleaned.startsWith("(") && cleaned.endsWith(")")) {
-		cleaned = "-" + cleaned.slice(1, -1);
+		cleaned = `-${cleaned.slice(1, -1)}`;
 	}
 
 	// Detect European format: 1.234,56 (dot as thousands, comma as decimal)
@@ -407,7 +407,7 @@ export const parseAmount = (value: string): number | null => {
 	}
 
 	const amount = parseFloat(cleaned);
-	return isNaN(amount) ? null : amount;
+	return Number.isNaN(amount) ? null : amount;
 };
 
 const isValidDate = (

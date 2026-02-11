@@ -76,8 +76,8 @@ describe("useRulesEngine", () => {
 			rulesResult = await result.current.applyRulesToNewTransactions([txId]);
 		});
 
-		expect(rulesResult!.matchedCount).toBe(1);
-		expect(rulesResult!.unmatchedCount).toBe(0);
+		expect(rulesResult?.matchedCount).toBe(1);
+		expect(rulesResult?.unmatchedCount).toBe(0);
 		expect(result.current.isProcessing).toBe(false);
 		expect(result.current.error).toBeNull();
 
@@ -99,7 +99,7 @@ describe("useRulesEngine", () => {
 			rulesResult = await result.current.applyRulesToNewTransactions([]);
 		});
 
-		expect(rulesResult!.matchedCount).toBe(0);
+		expect(rulesResult?.matchedCount).toBe(0);
 		expect(result.current.isProcessing).toBe(false);
 	});
 });

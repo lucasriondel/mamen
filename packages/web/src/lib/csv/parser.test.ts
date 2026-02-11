@@ -112,70 +112,70 @@ describe("parseDate", () => {
 	it("parses YYYY-MM-DD", () => {
 		const date = parseDate("2024-01-15", "YYYY-MM-DD");
 		expect(date).not.toBeNull();
-		expect(date!.getFullYear()).toBe(2024);
-		expect(date!.getMonth()).toBe(0);
-		expect(date!.getDate()).toBe(15);
+		expect(date?.getFullYear()).toBe(2024);
+		expect(date?.getMonth()).toBe(0);
+		expect(date?.getDate()).toBe(15);
 	});
 
 	it("parses DD/MM/YYYY", () => {
 		const date = parseDate("15/01/2024", "DD/MM/YYYY");
 		expect(date).not.toBeNull();
-		expect(date!.getFullYear()).toBe(2024);
-		expect(date!.getMonth()).toBe(0);
-		expect(date!.getDate()).toBe(15);
+		expect(date?.getFullYear()).toBe(2024);
+		expect(date?.getMonth()).toBe(0);
+		expect(date?.getDate()).toBe(15);
 	});
 
 	it("parses MM/DD/YYYY", () => {
 		const date = parseDate("01/15/2024", "MM/DD/YYYY");
 		expect(date).not.toBeNull();
-		expect(date!.getFullYear()).toBe(2024);
-		expect(date!.getMonth()).toBe(0);
-		expect(date!.getDate()).toBe(15);
+		expect(date?.getFullYear()).toBe(2024);
+		expect(date?.getMonth()).toBe(0);
+		expect(date?.getDate()).toBe(15);
 	});
 
 	it("parses DD-MM-YYYY", () => {
 		const date = parseDate("15-01-2024", "DD-MM-YYYY");
 		expect(date).not.toBeNull();
-		expect(date!.getFullYear()).toBe(2024);
-		expect(date!.getMonth()).toBe(0);
-		expect(date!.getDate()).toBe(15);
+		expect(date?.getFullYear()).toBe(2024);
+		expect(date?.getMonth()).toBe(0);
+		expect(date?.getDate()).toBe(15);
 	});
 
 	it("parses MM-DD-YYYY", () => {
 		const date = parseDate("01-15-2024", "MM-DD-YYYY");
 		expect(date).not.toBeNull();
-		expect(date!.getFullYear()).toBe(2024);
-		expect(date!.getMonth()).toBe(0);
-		expect(date!.getDate()).toBe(15);
+		expect(date?.getFullYear()).toBe(2024);
+		expect(date?.getMonth()).toBe(0);
+		expect(date?.getDate()).toBe(15);
 	});
 
 	it("parses DD.MM.YYYY", () => {
 		const date = parseDate("15.01.2024", "DD.MM.YYYY");
 		expect(date).not.toBeNull();
-		expect(date!.getFullYear()).toBe(2024);
-		expect(date!.getMonth()).toBe(0);
-		expect(date!.getDate()).toBe(15);
+		expect(date?.getFullYear()).toBe(2024);
+		expect(date?.getMonth()).toBe(0);
+		expect(date?.getDate()).toBe(15);
 	});
 
 	it("auto-detects ISO format", () => {
 		const date = parseDate("2024-01-15", "auto");
 		expect(date).not.toBeNull();
-		expect(date!.getFullYear()).toBe(2024);
+		expect(date?.getFullYear()).toBe(2024);
 	});
 
 	it("parses ISO 8601 datetime with timezone", () => {
 		const date = parseDate("2026-01-01T18:00:22.000Z", "ISO-8601");
 		expect(date).not.toBeNull();
-		expect(date!.getFullYear()).toBe(2026);
-		expect(date!.getMonth()).toBe(0);
-		expect(date!.getDate()).toBeGreaterThanOrEqual(1); // may be 1 or 2 depending on timezone
+		expect(date?.getFullYear()).toBe(2026);
+		expect(date?.getMonth()).toBe(0);
+		expect(date?.getDate()).toBeGreaterThanOrEqual(1); // may be 1 or 2 depending on timezone
 	});
 
 	it("parses ISO 8601 datetime in auto mode", () => {
 		const date = parseDate("2026-01-15T09:30:00.000Z", "auto");
 		expect(date).not.toBeNull();
-		expect(date!.getFullYear()).toBe(2026);
-		expect(date!.getMonth()).toBe(0);
+		expect(date?.getFullYear()).toBe(2026);
+		expect(date?.getMonth()).toBe(0);
 	});
 
 	it("returns null for invalid ISO-8601 values", () => {
@@ -190,7 +190,7 @@ describe("parseDate", () => {
 	it("trims whitespace from values", () => {
 		const date = parseDate("  2024-01-15  ", "YYYY-MM-DD");
 		expect(date).not.toBeNull();
-		expect(date!.getFullYear()).toBe(2024);
+		expect(date?.getFullYear()).toBe(2024);
 	});
 });
 

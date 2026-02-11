@@ -57,12 +57,16 @@ describe("useReducedMotion", () => {
 		expect(result.current).toBe(false);
 
 		act(() => {
-			listeners.forEach((l) => l({ matches: true } as MediaQueryListEvent));
+			listeners.forEach((l) => {
+				l({ matches: true } as MediaQueryListEvent);
+			});
 		});
 		expect(result.current).toBe(true);
 
 		act(() => {
-			listeners.forEach((l) => l({ matches: false } as MediaQueryListEvent));
+			listeners.forEach((l) => {
+				l({ matches: false } as MediaQueryListEvent);
+			});
 		});
 		expect(result.current).toBe(false);
 	});

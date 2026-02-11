@@ -115,7 +115,7 @@ export const testConnection = async (
 
 		const headers: Record<string, string> = {};
 		if (settings.apiKey) {
-			headers["Authorization"] = `Bearer ${settings.apiKey}`;
+			headers.Authorization = `Bearer ${settings.apiKey}`;
 		}
 
 		const response = await fetch(`${settings.endpoint}/models`, {
@@ -163,7 +163,7 @@ export const createLLMClient = (settings: LLMSettings) => {
 		"Content-Type": "application/json",
 	};
 	if (settings.apiKey) {
-		headers["Authorization"] = `Bearer ${settings.apiKey}`;
+		headers.Authorization = `Bearer ${settings.apiKey}`;
 	}
 
 	return {

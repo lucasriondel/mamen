@@ -37,7 +37,7 @@ export function useBreadcrumbs(): BreadcrumbSegment[] {
 	const { data: categoryName = null } = useQuery({
 		queryKey: [...queryKeys.categories.all, "breadcrumb", categoryId],
 		queryFn: async () => {
-			if (categoryId == null || isNaN(categoryId)) return null;
+			if (categoryId == null || Number.isNaN(categoryId)) return null;
 			try {
 				const cat = await categoriesApi.get(categoryId);
 				if (!cat) return null;
@@ -54,7 +54,7 @@ export function useBreadcrumbs(): BreadcrumbSegment[] {
 				return null;
 			}
 		},
-		enabled: categoryId != null && !isNaN(categoryId),
+		enabled: categoryId != null && !Number.isNaN(categoryId),
 	});
 
 	const merchantIdMatch = pathname.match(/^\/merchants\/(\d+)$/);
@@ -92,7 +92,7 @@ export function useBreadcrumbs(): BreadcrumbSegment[] {
 
 	if (pathname === "/transactions") {
 		// Drill-down breadcrumb: "Dashboard > [Category Name]"
-		if (categoryId != null && !isNaN(categoryId)) {
+		if (categoryId != null && !Number.isNaN(categoryId)) {
 			if (fromParam === "dashboard") {
 				// Replace "Transactions" with "Dashboard" link, then category name
 				segments.length = 0;

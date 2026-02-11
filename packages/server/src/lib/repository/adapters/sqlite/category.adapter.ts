@@ -57,7 +57,7 @@ export const createCategoryAdapter = (db: Database): CategoryRepository => ({
 				record.sortOrder,
 				(record as Category).createdAt?.toISOString() ?? now,
 			);
-		return result!.id;
+		return result?.id;
 	},
 
 	bulkAdd: async (records) => {
@@ -77,7 +77,7 @@ export const createCategoryAdapter = (db: Database): CategoryRepository => ({
 				record.parentId ?? null,
 				record.sortOrder,
 				(record as Category).createdAt?.toISOString() ?? now,
-			)!.id;
+			)?.id;
 		});
 	},
 
@@ -163,7 +163,7 @@ export const createCategoryAdapter = (db: Database): CategoryRepository => ({
 	count: async () => {
 		return db
 			.query<{ cnt: number }, []>("SELECT COUNT(*) as cnt FROM categories")
-			.get()!.cnt;
+			.get()?.cnt;
 	},
 
 	clear: async () => {

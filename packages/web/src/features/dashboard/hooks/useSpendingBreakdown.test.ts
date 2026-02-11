@@ -153,7 +153,7 @@ describe("useSpendingBreakdown", () => {
 				(i) => i.categoryName === "Uncategorized",
 			);
 			expect(uncategorized).toBeDefined();
-			expect(uncategorized!.totalAmount).toBe(-80);
+			expect(uncategorized?.totalAmount).toBe(-80);
 			expect(result.current.uncategorizedAmount).toBe(-80);
 			expect(result.current.uncategorizedCount).toBe(2);
 		});
@@ -225,7 +225,7 @@ describe("useSpendingBreakdown", () => {
 				(i) => i.categoryName === "Uncategorized",
 			);
 			expect(uncategorized).toBeDefined();
-			expect(uncategorized!.color).toBe("hsl(215 20% 65%)");
+			expect(uncategorized?.color).toBe("hsl(215 20% 65%)");
 		});
 	});
 

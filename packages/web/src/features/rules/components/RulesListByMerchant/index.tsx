@@ -3,7 +3,7 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { useCategories } from "@/hooks/useCategories";
-import { merchantsApi, queryKeys, rulesApi } from "@/lib/api";
+import { merchantsApi, rulesApi } from "@/lib/api";
 import type { Merchant, Rule } from "@/types";
 import { RuleRow } from "../RuleRow";
 
@@ -50,7 +50,7 @@ export function RulesListByMerchant({
 				if (!grouped.has(merchant.id)) {
 					grouped.set(merchant.id, { merchant, rules: [] });
 				}
-				grouped.get(merchant.id)!.rules.push(rule);
+				grouped.get(merchant.id)?.rules.push(rule);
 			}
 
 			return Array.from(grouped.values()).sort((a, b) => {
@@ -134,6 +134,7 @@ export function RulesListByMerchant({
 				return (
 					<div key={group.merchant.id} data-testid="merchant-group">
 						<button
+							type="button"
 							className="flex items-center gap-2 w-full px-3 py-2.5 hover:bg-accent/50 transition-colors text-left"
 							onClick={() => toggleCollapse(group.merchant.id!)}
 							aria-expanded={!isCollapsed}
@@ -164,7 +165,7 @@ export function RulesListByMerchant({
 						{!isCollapsed && (
 							<div>
 								{group.rules.map((rule, ruleIndex) => {
-									const flatIndex = startIndex + ruleIndex;
+									const _flatIndex = startIndex + ruleIndex;
 									const ruleCategory =
 										rule.categoryOverride !== undefined
 											? getCategoryById(rule.categoryOverride)

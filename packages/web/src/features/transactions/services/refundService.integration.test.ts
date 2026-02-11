@@ -43,18 +43,18 @@ describe("Refund integration flows", () => {
 
 		let refund = await db.transactions.get(refundId);
 		let purchase = await db.transactions.get(purchaseId);
-		expect(refund!.isRefund).toBe(true);
-		expect(refund!.linkedRefundId).toBe(purchaseId);
-		expect(purchase!.linkedRefundId).toBe(refundId);
+		expect(refund?.isRefund).toBe(true);
+		expect(refund?.linkedRefundId).toBe(purchaseId);
+		expect(purchase?.linkedRefundId).toBe(refundId);
 
 		// Undo
 		await undoLinkRefund(refundId, purchaseId);
 
 		refund = await db.transactions.get(refundId);
 		purchase = await db.transactions.get(purchaseId);
-		expect(refund!.isRefund).toBe(false);
-		expect(refund!.linkedRefundId).toBeUndefined();
-		expect(purchase!.linkedRefundId).toBeUndefined();
+		expect(refund?.isRefund).toBe(false);
+		expect(refund?.linkedRefundId).toBeUndefined();
+		expect(purchase?.linkedRefundId).toBeUndefined();
 	});
 
 	it("orphan flow: mark as refund without linking → undo → verify restored", async () => {
@@ -64,14 +64,14 @@ describe("Refund integration flows", () => {
 		await markAsOrphanRefund(txId);
 
 		let tx = await db.transactions.get(txId);
-		expect(tx!.isRefund).toBe(true);
-		expect(tx!.linkedRefundId).toBeUndefined();
+		expect(tx?.isRefund).toBe(true);
+		expect(tx?.linkedRefundId).toBeUndefined();
 
 		// Undo
 		await undoOrphanRefund(txId);
 
 		tx = await db.transactions.get(txId);
-		expect(tx!.isRefund).toBe(false);
+		expect(tx?.isRefund).toBe(false);
 	});
 
 	it("data integrity: linked transactions reference each other bidirectionally", async () => {
@@ -82,20 +82,20 @@ describe("Refund integration flows", () => {
 
 		// Verify from refund side
 		const refund = await db.transactions.get(refundId);
-		expect(refund!.linkedRefundId).toBe(purchaseId);
+		expect(refund?.linkedRefundId).toBe(purchaseId);
 
 		// Verify from purchase side
 		const purchase = await db.transactions.get(purchaseId);
-		expect(purchase!.linkedRefundId).toBe(refundId);
+		expect(purchase?.linkedRefundId).toBe(refundId);
 
 		// Verify can navigate both directions
 		const linkedFromRefund = await db.transactions.get(refund!.linkedRefundId!);
-		expect(linkedFromRefund!.id).toBe(purchaseId);
+		expect(linkedFromRefund?.id).toBe(purchaseId);
 
 		const linkedFromPurchase = await db.transactions.get(
 			purchase!.linkedRefundId!,
 		);
-		expect(linkedFromPurchase!.id).toBe(refundId);
+		expect(linkedFromPurchase?.id).toBe(refundId);
 	});
 
 	it("prevents self-linking", async () => {

@@ -56,8 +56,8 @@ export function RuleEditModal({
 	});
 
 	const { data: merchant } = useQuery({
-		queryKey: queryKeys.merchants.detail(rule?.merchantId!),
-		queryFn: () => merchantsApi.get(rule!.merchantId),
+		queryKey: queryKeys.merchants.detail(rule?.merchantId ?? 0),
+		queryFn: () => merchantsApi.get(rule?.merchantId),
 		enabled: rule?.merchantId != null,
 	});
 

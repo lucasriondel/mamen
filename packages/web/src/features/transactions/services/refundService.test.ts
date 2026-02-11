@@ -47,8 +47,8 @@ describe("linkRefund", () => {
 		await linkRefund(refundId, purchaseId);
 
 		const refund = await db.transactions.get(refundId);
-		expect(refund!.isRefund).toBe(true);
-		expect(refund!.linkedRefundId).toBe(purchaseId);
+		expect(refund?.isRefund).toBe(true);
+		expect(refund?.linkedRefundId).toBe(purchaseId);
 	});
 
 	it("sets linkedRefundId on purchase transaction (back-reference)", async () => {
@@ -62,7 +62,7 @@ describe("linkRefund", () => {
 		await linkRefund(refundId, purchaseId);
 
 		const purchase = await db.transactions.get(purchaseId);
-		expect(purchase!.linkedRefundId).toBe(refundId);
+		expect(purchase?.linkedRefundId).toBe(refundId);
 	});
 
 	it("cannot link a transaction to itself", async () => {
@@ -107,8 +107,8 @@ describe("linkRefund", () => {
 		const purchase = await db.transactions.get(purchaseId);
 
 		// Both should be updated
-		expect(refund!.linkedRefundId).toBe(purchaseId);
-		expect(purchase!.linkedRefundId).toBe(refundId);
+		expect(refund?.linkedRefundId).toBe(purchaseId);
+		expect(purchase?.linkedRefundId).toBe(refundId);
 	});
 
 	it("returns previous state for undo", async () => {
@@ -142,9 +142,9 @@ describe("undoLinkRefund", () => {
 		const refund = await db.transactions.get(refundId);
 		const purchase = await db.transactions.get(purchaseId);
 
-		expect(refund!.isRefund).toBe(false);
-		expect(refund!.linkedRefundId).toBeUndefined();
-		expect(purchase!.linkedRefundId).toBeUndefined();
+		expect(refund?.isRefund).toBe(false);
+		expect(refund?.linkedRefundId).toBeUndefined();
+		expect(purchase?.linkedRefundId).toBeUndefined();
 	});
 });
 
@@ -157,8 +157,8 @@ describe("markAsOrphanRefund", () => {
 		await markAsOrphanRefund(txId);
 
 		const tx = await db.transactions.get(txId);
-		expect(tx!.isRefund).toBe(true);
-		expect(tx!.linkedRefundId).toBeUndefined();
+		expect(tx?.isRefund).toBe(true);
+		expect(tx?.linkedRefundId).toBeUndefined();
 	});
 
 	it("returns previous state", async () => {
@@ -181,7 +181,7 @@ describe("undoOrphanRefund", () => {
 		await undoOrphanRefund(txId);
 
 		const tx = await db.transactions.get(txId);
-		expect(tx!.isRefund).toBe(false);
+		expect(tx?.isRefund).toBe(false);
 	});
 });
 
@@ -198,8 +198,8 @@ describe("unlinkRefund", () => {
 		await unlinkRefund(refundId, purchaseId);
 
 		const refund = await db.transactions.get(refundId);
-		expect(refund!.isRefund).toBe(false);
-		expect(refund!.linkedRefundId).toBeUndefined();
+		expect(refund?.isRefund).toBe(false);
+		expect(refund?.linkedRefundId).toBeUndefined();
 	});
 
 	it("clears linkedRefundId on purchase", async () => {
@@ -214,7 +214,7 @@ describe("unlinkRefund", () => {
 		await unlinkRefund(refundId, purchaseId);
 
 		const purchase = await db.transactions.get(purchaseId);
-		expect(purchase!.linkedRefundId).toBeUndefined();
+		expect(purchase?.linkedRefundId).toBeUndefined();
 	});
 
 	it("is atomic — both updates succeed or both fail", async () => {
@@ -230,8 +230,8 @@ describe("unlinkRefund", () => {
 
 		const refund = await db.transactions.get(refundId);
 		const purchase = await db.transactions.get(purchaseId);
-		expect(refund!.linkedRefundId).toBeUndefined();
-		expect(purchase!.linkedRefundId).toBeUndefined();
+		expect(refund?.linkedRefundId).toBeUndefined();
+		expect(purchase?.linkedRefundId).toBeUndefined();
 	});
 });
 
@@ -250,9 +250,9 @@ describe("undoUnlinkRefund", () => {
 
 		const refund = await db.transactions.get(refundId);
 		const purchase = await db.transactions.get(purchaseId);
-		expect(refund!.isRefund).toBe(true);
-		expect(refund!.linkedRefundId).toBe(purchaseId);
-		expect(purchase!.linkedRefundId).toBe(refundId);
+		expect(refund?.isRefund).toBe(true);
+		expect(refund?.linkedRefundId).toBe(purchaseId);
+		expect(purchase?.linkedRefundId).toBe(refundId);
 	});
 });
 
@@ -272,7 +272,7 @@ describe("replaceLinkRefund", () => {
 		await replaceLinkRefund(refundId, oldPurchaseId, newPurchaseId);
 
 		const oldPurchase = await db.transactions.get(oldPurchaseId);
-		expect(oldPurchase!.linkedRefundId).toBeUndefined();
+		expect(oldPurchase?.linkedRefundId).toBeUndefined();
 	});
 
 	it("creates new bidirectional link", async () => {
@@ -291,9 +291,9 @@ describe("replaceLinkRefund", () => {
 
 		const refund = await db.transactions.get(refundId);
 		const newPurchase = await db.transactions.get(newPurchaseId);
-		expect(refund!.isRefund).toBe(true);
-		expect(refund!.linkedRefundId).toBe(newPurchaseId);
-		expect(newPurchase!.linkedRefundId).toBe(refundId);
+		expect(refund?.isRefund).toBe(true);
+		expect(refund?.linkedRefundId).toBe(newPurchaseId);
+		expect(newPurchase?.linkedRefundId).toBe(refundId);
 	});
 
 	it("is atomic — all three updates succeed or all fail", async () => {
@@ -314,9 +314,9 @@ describe("replaceLinkRefund", () => {
 		const newPurchase = await db.transactions.get(newPurchaseId);
 		const refund = await db.transactions.get(refundId);
 
-		expect(oldPurchase!.linkedRefundId).toBeUndefined();
-		expect(newPurchase!.linkedRefundId).toBe(refundId);
-		expect(refund!.linkedRefundId).toBe(newPurchaseId);
+		expect(oldPurchase?.linkedRefundId).toBeUndefined();
+		expect(newPurchase?.linkedRefundId).toBe(refundId);
+		expect(refund?.linkedRefundId).toBe(newPurchaseId);
 	});
 });
 
@@ -340,9 +340,9 @@ describe("undoReplaceLinkRefund", () => {
 		const oldPurchase = await db.transactions.get(oldPurchaseId);
 		const newPurchase = await db.transactions.get(newPurchaseId);
 
-		expect(refund!.linkedRefundId).toBe(oldPurchaseId);
-		expect(oldPurchase!.linkedRefundId).toBe(refundId);
-		expect(newPurchase!.linkedRefundId).toBeUndefined();
+		expect(refund?.linkedRefundId).toBe(oldPurchaseId);
+		expect(oldPurchase?.linkedRefundId).toBe(refundId);
+		expect(newPurchase?.linkedRefundId).toBeUndefined();
 	});
 });
 
@@ -358,7 +358,7 @@ describe("category inheritance", () => {
 		await linkRefund(refundId, purchaseId);
 
 		const refund = await db.transactions.get(refundId);
-		expect(refund!.categoryId).toBe(5);
+		expect(refund?.categoryId).toBe(5);
 	});
 
 	it("linkRefund does NOT override refund categoryId when refund already has a category", async () => {
@@ -372,7 +372,7 @@ describe("category inheritance", () => {
 		await linkRefund(refundId, purchaseId);
 
 		const refund = await db.transactions.get(refundId);
-		expect(refund!.categoryId).toBe(10);
+		expect(refund?.categoryId).toBe(10);
 	});
 
 	it("linkRefund does not change refund category when purchase has no category", async () => {
@@ -386,7 +386,7 @@ describe("category inheritance", () => {
 		await linkRefund(refundId, purchaseId);
 
 		const refund = await db.transactions.get(refundId);
-		expect(refund!.categoryId).toBeUndefined();
+		expect(refund?.categoryId).toBeUndefined();
 	});
 
 	it("replaceLinkRefund inherits category from new purchase when refund has no manual category", async () => {
@@ -404,6 +404,6 @@ describe("category inheritance", () => {
 		await replaceLinkRefund(refundId, oldPurchaseId, newPurchaseId);
 
 		const refund = await db.transactions.get(refundId);
-		expect(refund!.categoryId).toBe(7);
+		expect(refund?.categoryId).toBe(7);
 	});
 });

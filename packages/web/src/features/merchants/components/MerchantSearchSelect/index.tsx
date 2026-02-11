@@ -15,7 +15,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "@/components/ui/popover";
-import { merchantsApi, queryKeys, transactionsApi } from "@/lib/api";
+import { merchantsApi, transactionsApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 type MerchantSearchSelectProps = {

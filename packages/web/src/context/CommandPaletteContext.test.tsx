@@ -11,9 +11,15 @@ const TestConsumer = (): React.ReactElement => {
 	return (
 		<div>
 			<span data-testid="status">{isOpen ? "open" : "closed"}</span>
-			<button onClick={open}>Open</button>
-			<button onClick={close}>Close</button>
-			<button onClick={toggle}>Toggle</button>
+			<button type="button" onClick={open}>
+				Open
+			</button>
+			<button type="button" onClick={close}>
+				Close
+			</button>
+			<button type="button" onClick={toggle}>
+				Toggle
+			</button>
 		</div>
 	);
 };
@@ -103,7 +109,9 @@ describe("CommandPaletteContext", () => {
 		render(
 			<CommandPaletteProvider>
 				<TestConsumer />
-				<button data-testid="focus-target">Focus Me</button>
+				<button type="button" data-testid="focus-target">
+					Focus Me
+				</button>
 			</CommandPaletteProvider>,
 		);
 

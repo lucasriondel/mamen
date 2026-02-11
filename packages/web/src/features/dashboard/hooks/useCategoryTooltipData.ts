@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { merchantsApi, queryKeys, transactionsApi } from "@/lib/api";
+import { merchantsApi, transactionsApi } from "@/lib/api";
 
 type TopMerchant = {
 	name: string;

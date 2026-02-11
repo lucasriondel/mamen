@@ -36,7 +36,7 @@ describe("useExistingMerchant", () => {
 
 		await waitFor(() => {
 			expect(result.current.merchant).not.toBeNull();
-			expect(result.current.merchant!.name).toBe("Amazon");
+			expect(result.current.merchant?.name).toBe("Amazon");
 			expect(result.current.rules).toHaveLength(1);
 			expect(result.current.rules[0].pattern).toBe("^AMZN.*");
 		});
