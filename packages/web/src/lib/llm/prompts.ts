@@ -24,4 +24,4 @@ Bank Statement Text:
 {statement_text}
 ---
 
-Return ONLY the JSON array, no explanations.`
+Return ONLY the JSON array, no explanations.`;

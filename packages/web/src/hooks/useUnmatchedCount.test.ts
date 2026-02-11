@@ -1,72 +1,74 @@
-import { describe, it, expect, beforeEach } from 'vitest'
-import { renderHook, waitFor } from '@testing-library/react'
-import { db } from '@/lib/db'
-import { transactionsApi } from '@/lib/api'
-import { useUnmatchedCount } from './useUnmatchedCount'
-import type { Transaction } from '@/types'
+import { renderHook, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it } from "vitest";
+import { transactionsApi } from "@/lib/api";
+import { db } from "@/lib/db";
+import type { Transaction } from "@/types";
+import { useUnmatchedCount } from "./useUnmatchedCount";
 
-const makeTransaction = (overrides: Partial<Transaction> = {}): Omit<Transaction, 'id'> => ({
-  accountId: 1,
-  date: new Date(2026, 0, 18),
-  amount: -45.99,
-  rawMerchantString: 'STORE A',
-  importedAt: new Date(),
-  importMonth: '2026-01',
-  ...overrides,
-})
+const makeTransaction = (
+	overrides: Partial<Transaction> = {},
+): Omit<Transaction, "id"> => ({
+	accountId: 1,
+	date: new Date(2026, 0, 18),
+	amount: -45.99,
+	rawMerchantString: "STORE A",
+	importedAt: new Date(),
+	importMonth: "2026-01",
+	...overrides,
+});
 
 beforeEach(async () => {
-  await db.transactions.clear()
-})
+	await db.transactions.clear();
+});
 
-describe('useUnmatchedCount', () => {
-  it('returns 0 when no transactions exist', async () => {
-    const { result } = renderHook(() => useUnmatchedCount())
+describe("useUnmatchedCount", () => {
+	it("returns 0 when no transactions exist", async () => {
+		const { result } = renderHook(() => useUnmatchedCount());
 
-    await waitFor(() => {
-      expect(result.current.count).toBe(0)
-    })
-  })
+		await waitFor(() => {
+			expect(result.current.count).toBe(0);
+		});
+	});
 
-  it('returns correct count for unmatched transactions', async () => {
-    await db.transactions.bulkAdd([
-      makeTransaction({ rawMerchantString: 'STORE A' }),
-      makeTransaction({ rawMerchantString: 'STORE B' }),
-      makeTransaction({ rawMerchantString: 'STORE C', merchantId: 1 }),
-    ])
+	it("returns correct count for unmatched transactions", async () => {
+		await db.transactions.bulkAdd([
+			makeTransaction({ rawMerchantString: "STORE A" }),
+			makeTransaction({ rawMerchantString: "STORE B" }),
+			makeTransaction({ rawMerchantString: "STORE C", merchantId: 1 }),
+		]);
 
-    const { result } = renderHook(() => useUnmatchedCount())
+		const { result } = renderHook(() => useUnmatchedCount());
 
-    await waitFor(() => {
-      expect(result.current.count).toBe(2)
-    })
-  })
+		await waitFor(() => {
+			expect(result.current.count).toBe(2);
+		});
+	});
 
-  it('returns 0 when all transactions are matched', async () => {
-    await db.transactions.bulkAdd([
-      makeTransaction({ merchantId: 1 }),
-      makeTransaction({ merchantId: 2 }),
-    ])
+	it("returns 0 when all transactions are matched", async () => {
+		await db.transactions.bulkAdd([
+			makeTransaction({ merchantId: 1 }),
+			makeTransaction({ merchantId: 2 }),
+		]);
 
-    const { result } = renderHook(() => useUnmatchedCount())
+		const { result } = renderHook(() => useUnmatchedCount());
 
-    await waitFor(() => {
-      expect(result.current.count).toBe(0)
-    })
-  })
+		await waitFor(() => {
+			expect(result.current.count).toBe(0);
+		});
+	});
 
-  it('updates reactively when transactions change', async () => {
-    const { result } = renderHook(() => useUnmatchedCount())
+	it("updates reactively when transactions change", async () => {
+		const { result } = renderHook(() => useUnmatchedCount());
 
-    await waitFor(() => {
-      expect(result.current.count).toBe(0)
-    })
+		await waitFor(() => {
+			expect(result.current.count).toBe(0);
+		});
 
-    // Use API (not direct db) to trigger invalidation
-    await transactionsApi.create(makeTransaction() as Record<string, unknown>)
+		// Use API (not direct db) to trigger invalidation
+		await transactionsApi.create(makeTransaction() as Record<string, unknown>);
 
-    await waitFor(() => {
-      expect(result.current.count).toBe(1)
-    })
-  })
-})
+		await waitFor(() => {
+			expect(result.current.count).toBe(1);
+		});
+	});
+});

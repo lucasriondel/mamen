@@ -1,21 +1,21 @@
 export type Category = {
-  id?: number
-  name: string
-  slug: string
-  color: string
-  icon: string
-  parentId: number | null
-  sortOrder: number
-  createdAt: Date
-}
+	id?: number;
+	name: string;
+	slug: string;
+	color: string;
+	icon: string;
+	parentId: number | null;
+	sortOrder: number;
+	createdAt: Date;
+};
 
 export type CategoryWithSubcategories = Category & {
-  subcategories: Category[]
-}
+	subcategories: Category[];
+};
 
-export type CategoryTreeNode = Category & { children: CategoryTreeNode[] }
+export type CategoryTreeNode = Category & { children: CategoryTreeNode[] };
 
 export type CategorySelection = {
-  categoryId: number
-  subcategoryId?: number
-}
+	categoryId: number;
+	subcategoryId?: number;
+};

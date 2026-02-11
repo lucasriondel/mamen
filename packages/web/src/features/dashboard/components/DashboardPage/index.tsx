@@ -1,114 +1,123 @@
-import { useCallback, useMemo, useState } from 'react'
-import { FileSpreadsheet } from 'lucide-react'
-import { useNavigate } from '@tanstack/react-router'
-import { EmptyState } from '@/components/EmptyState'
-import { useQuery } from '@tanstack/react-query'
-import { transactionsApi, queryKeys } from '@/lib/api'
-import { useSpendingBreakdown } from '../../hooks/useSpendingBreakdown'
-import { useTimePeriod } from '../../hooks/useTimePeriod'
-import { useSpendingComparison } from '../../hooks/useSpendingComparison'
-import { useNetSpending } from '../../hooks/useNetSpending'
-import { SpendingSummary } from '../SpendingSummary'
-import { CategoryBreakdown, type SpendingView } from '../CategoryBreakdown'
-import { TimePeriodSelector } from '../TimePeriodSelector'
+import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
+import { FileSpreadsheet } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
+import { EmptyState } from "@/components/EmptyState";
+import { queryKeys, transactionsApi } from "@/lib/api";
+import { useNetSpending } from "../../hooks/useNetSpending";
+import { useSpendingBreakdown } from "../../hooks/useSpendingBreakdown";
+import { useSpendingComparison } from "../../hooks/useSpendingComparison";
+import { useTimePeriod } from "../../hooks/useTimePeriod";
+import { CategoryBreakdown, type SpendingView } from "../CategoryBreakdown";
+import { SpendingSummary } from "../SpendingSummary";
+import { TimePeriodSelector } from "../TimePeriodSelector";
 
 export function DashboardPage(): React.ReactElement {
-  const navigate = useNavigate()
-  const { data: transactionCount = 0 } = useQuery({
-    queryKey: queryKeys.transactions.count(),
-    queryFn: () => transactionsApi.count(),
-  })
-  const { selectedPeriod, setSelectedPeriod, resolvedRange, periodLabel } = useTimePeriod()
-  const breakdown = useSpendingBreakdown(resolvedRange)
-  const comparison = useSpendingComparison(selectedPeriod, breakdown)
-  const netSpending = useNetSpending(resolvedRange)
-  const [spendingView, setSpendingView] = useState<SpendingView>('net')
+	const navigate = useNavigate();
+	const { data: transactionCount = 0 } = useQuery({
+		queryKey: queryKeys.transactions.count(),
+		queryFn: () => transactionsApi.count(),
+	});
+	const { selectedPeriod, setSelectedPeriod, resolvedRange, periodLabel } =
+		useTimePeriod();
+	const breakdown = useSpendingBreakdown(resolvedRange);
+	const comparison = useSpendingComparison(selectedPeriod, breakdown);
+	const netSpending = useNetSpending(resolvedRange);
+	const [spendingView, setSpendingView] = useState<SpendingView>("net");
 
-  const handleCategoryClick = useCallback(
-    (categoryId: number) => {
-      navigate({
-        to: '/transactions',
-        search: {
-          categoryId,
-          periodStart: resolvedRange.startDate.toISOString(),
-          periodEnd: resolvedRange.endDate.toISOString(),
-          from: 'dashboard',
-        },
-      })
-    },
-    [navigate, resolvedRange],
-  )
+	const handleCategoryClick = useCallback(
+		(categoryId: number) => {
+			navigate({
+				to: "/transactions",
+				search: {
+					categoryId,
+					periodStart: resolvedRange.startDate.toISOString(),
+					periodEnd: resolvedRange.endDate.toISOString(),
+					from: "dashboard",
+				},
+			});
+		},
+		[navigate, resolvedRange],
+	);
 
-  // Adjust breakdown items based on spending view (net vs gross)
-  const adjustedItems = useMemo(() => {
-    if (spendingView === 'gross' || !netSpending) return breakdown.items
+	// Adjust breakdown items based on spending view (net vs gross)
+	const adjustedItems = useMemo(() => {
+		if (spendingView === "gross" || !netSpending) return breakdown.items;
 
-    // Build net amounts by categoryId from useNetSpending
-    const netByCategory = new Map<number | null, number>()
-    for (const cat of netSpending.categories) {
-      netByCategory.set(cat.categoryId, cat.netSpending)
-    }
+		// Build net amounts by categoryId from useNetSpending
+		const netByCategory = new Map<number | null, number>();
+		for (const cat of netSpending.categories) {
+			netByCategory.set(cat.categoryId, cat.netSpending);
+		}
 
-    // Compute total net for percentage calculations
-    const totalNet = netSpending.totalNet
+		// Compute total net for percentage calculations
+		const totalNet = netSpending.totalNet;
 
-    return breakdown.items.map(item => {
-      const net = netByCategory.get(item.categoryId) ?? Math.abs(item.totalAmount)
-      return {
-        ...item,
-        totalAmount: -net, // keep negative convention
-        percentage: totalNet > 0 ? Math.round((net / totalNet) * 100) : 0,
-      }
-    }).sort((a, b) => Math.abs(b.totalAmount) - Math.abs(a.totalAmount))
-  }, [spendingView, netSpending, breakdown.items])
+		return breakdown.items
+			.map((item) => {
+				const net =
+					netByCategory.get(item.categoryId) ?? Math.abs(item.totalAmount);
+				return {
+					...item,
+					totalAmount: -net, // keep negative convention
+					percentage: totalNet > 0 ? Math.round((net / totalNet) * 100) : 0,
+				};
+			})
+			.sort((a, b) => Math.abs(b.totalAmount) - Math.abs(a.totalAmount));
+	}, [spendingView, netSpending, breakdown.items]);
 
-  const adjustedTotal = useMemo(() => {
-    if (spendingView === 'gross' || !netSpending) return breakdown.totalExpenses
-    return -netSpending.totalNet
-  }, [spendingView, netSpending, breakdown.totalExpenses])
+	const adjustedTotal = useMemo(() => {
+		if (spendingView === "gross" || !netSpending)
+			return breakdown.totalExpenses;
+		return -netSpending.totalNet;
+	}, [spendingView, netSpending, breakdown.totalExpenses]);
 
-  if (transactionCount === 0) {
-    return (
-      <EmptyState
-        icon={FileSpreadsheet}
-        title="No transactions yet"
-        description="Import bank statements to see your spending breakdown."
-        actionLabel="Import Statement"
-        onAction={() => navigate({ to: '/accounts' })}
-      />
-    )
-  }
+	if (transactionCount === 0) {
+		return (
+			<EmptyState
+				icon={FileSpreadsheet}
+				title="No transactions yet"
+				description="Import bank statements to see your spending breakdown."
+				actionLabel="Import Statement"
+				onAction={() => navigate({ to: "/accounts" })}
+			/>
+		);
+	}
 
-  const categoryCount = breakdown.items.filter(i => i.categoryId !== null).length
-  const hasRefunds = netSpending !== null && (netSpending.totalLinkedRefunds > 0 || netSpending.orphanRefunds > 0)
+	const categoryCount = breakdown.items.filter(
+		(i) => i.categoryId !== null,
+	).length;
+	const hasRefunds =
+		netSpending !== null &&
+		(netSpending.totalLinkedRefunds > 0 || netSpending.orphanRefunds > 0);
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <SpendingSummary
-          totalExpenses={adjustedTotal}
-          totalIncome={breakdown.totalIncome}
-          categoryCount={categoryCount}
-          uncategorizedCount={breakdown.uncategorizedCount}
-          comparison={comparison}
-        />
-        <TimePeriodSelector
-          selectedPeriod={selectedPeriod}
-          periodLabel={periodLabel}
-          onSelect={setSelectedPeriod}
-        />
-      </div>
-      <CategoryBreakdown
-        items={adjustedItems}
-        totalExpenses={adjustedTotal}
-        categoryComparisons={comparison?.categoryComparisons}
-        comparisonLabel={comparison?.comparisonLabel}
-        onCategoryClick={handleCategoryClick}
-        dateRange={resolvedRange}
-        spendingView={hasRefunds ? spendingView : undefined}
-        onViewChange={hasRefunds ? setSpendingView : undefined}
-        orphanRefunds={netSpending?.orphanRefunds}
-      />
-    </div>
-  )
+	return (
+		<div className="space-y-6">
+			<div className="flex items-center justify-between">
+				<SpendingSummary
+					totalExpenses={adjustedTotal}
+					totalIncome={breakdown.totalIncome}
+					categoryCount={categoryCount}
+					uncategorizedCount={breakdown.uncategorizedCount}
+					comparison={comparison}
+				/>
+				<TimePeriodSelector
+					selectedPeriod={selectedPeriod}
+					periodLabel={periodLabel}
+					onSelect={setSelectedPeriod}
+				/>
+			</div>
+			<CategoryBreakdown
+				items={adjustedItems}
+				totalExpenses={adjustedTotal}
+				categoryComparisons={comparison?.categoryComparisons}
+				comparisonLabel={comparison?.comparisonLabel}
+				onCategoryClick={handleCategoryClick}
+				dateRange={resolvedRange}
+				spendingView={hasRefunds ? spendingView : undefined}
+				onViewChange={hasRefunds ? setSpendingView : undefined}
+				orphanRefunds={netSpending?.orphanRefunds}
+			/>
+		</div>
+	);
 }

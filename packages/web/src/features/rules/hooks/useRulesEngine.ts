@@ -1,50 +1,50 @@
-import { useState, useCallback } from 'react'
+import { useCallback, useState } from "react";
 import {
-  applyRulesToTransactions,
-  applyMatchResults,
-} from '../services/rulesEngine'
+	applyMatchResults,
+	applyRulesToTransactions,
+} from "../services/rulesEngine";
 
 export type RulesEngineResult = {
-  matchedCount: number
-  unmatchedCount: number
-  skippedRulesCount: number
-  processingTimeMs: number
-}
+	matchedCount: number;
+	unmatchedCount: number;
+	skippedRulesCount: number;
+	processingTimeMs: number;
+};
 
 export const useRulesEngine = () => {
-  const [isProcessing, setIsProcessing] = useState(false)
-  const [error, setError] = useState<Error | null>(null)
+	const [isProcessing, setIsProcessing] = useState(false);
+	const [error, setError] = useState<Error | null>(null);
 
-  const applyRulesToNewTransactions = useCallback(
-    async (transactionIds: number[]): Promise<RulesEngineResult> => {
-      setIsProcessing(true)
-      setError(null)
+	const applyRulesToNewTransactions = useCallback(
+		async (transactionIds: number[]): Promise<RulesEngineResult> => {
+			setIsProcessing(true);
+			setError(null);
 
-      try {
-        const results = await applyRulesToTransactions(transactionIds)
-        await applyMatchResults(results.matched)
+			try {
+				const results = await applyRulesToTransactions(transactionIds);
+				await applyMatchResults(results.matched);
 
-        return {
-          matchedCount: results.matched.length,
-          unmatchedCount: results.unmatched.length,
-          skippedRulesCount: results.skippedRules.length,
-          processingTimeMs: results.processingTimeMs,
-        }
-      } catch (err) {
-        const error =
-          err instanceof Error ? err : new Error('Rules engine failed')
-        setError(error)
-        throw error
-      } finally {
-        setIsProcessing(false)
-      }
-    },
-    [],
-  )
+				return {
+					matchedCount: results.matched.length,
+					unmatchedCount: results.unmatched.length,
+					skippedRulesCount: results.skippedRules.length,
+					processingTimeMs: results.processingTimeMs,
+				};
+			} catch (err) {
+				const error =
+					err instanceof Error ? err : new Error("Rules engine failed");
+				setError(error);
+				throw error;
+			} finally {
+				setIsProcessing(false);
+			}
+		},
+		[],
+	);
 
-  return {
-    applyRulesToNewTransactions,
-    isProcessing,
-    error,
-  }
-}
+	return {
+		applyRulesToNewTransactions,
+		isProcessing,
+		error,
+	};
+};

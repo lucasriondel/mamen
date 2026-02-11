@@ -1,7 +1,7 @@
-import type { Database } from 'bun:sqlite'
+import type { Database } from "bun:sqlite";
 
 export const runMigrations = (db: Database): void => {
-  db.exec(`
+	db.exec(`
     CREATE TABLE IF NOT EXISTS accounts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -110,5 +110,5 @@ export const runMigrations = (db: Database): void => {
     );
     CREATE INDEX IF NOT EXISTS idx_subscriptions_merchantId ON subscriptions(merchantId);
     CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions(status);
-  `)
-}
+  `);
+};

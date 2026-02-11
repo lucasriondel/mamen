@@ -1,2 +1,1 @@
-export { TransactionDataTable as TransactionList } from '../TransactionDataTable';
-
+export { TransactionDataTable as TransactionList } from "../TransactionDataTable";

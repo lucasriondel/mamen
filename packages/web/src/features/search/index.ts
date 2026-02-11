@@ -1,9 +1,9 @@
-export { useTransactionSearch } from './hooks/useTransactionSearch'
+export { useTransactionSearch } from "./hooks/useTransactionSearch";
 export {
-  buildSearchIndex,
-  searchTransactions,
-  clearSearchIndex,
-  isIndexReady,
-  type SearchableTransaction,
-  type TransactionSearchResult,
-} from './services/searchIndex'
+	buildSearchIndex,
+	clearSearchIndex,
+	isIndexReady,
+	type SearchableTransaction,
+	searchTransactions,
+	type TransactionSearchResult,
+} from "./services/searchIndex";

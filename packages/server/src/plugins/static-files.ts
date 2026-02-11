@@ -1,20 +1,23 @@
-import fp from 'fastify-plugin'
-import fastifyStatic from '@fastify/static'
-import type { FastifyInstance } from 'fastify'
+import fastifyStatic from "@fastify/static";
+import type { FastifyInstance } from "fastify";
+import fp from "fastify-plugin";
 
 export type StaticFilesOptions = {
-  staticDir: string
-}
+	staticDir: string;
+};
 
-const staticFilesPlugin = async (fastify: FastifyInstance, opts: StaticFilesOptions) => {
-  await fastify.register(fastifyStatic, {
-    root: opts.staticDir,
-    wildcard: false,
-  })
+const staticFilesPlugin = async (
+	fastify: FastifyInstance,
+	opts: StaticFilesOptions,
+) => {
+	await fastify.register(fastifyStatic, {
+		root: opts.staticDir,
+		wildcard: false,
+	});
 
-  fastify.setNotFoundHandler(async (_request, reply) => {
-    return reply.sendFile('index.html')
-  })
-}
+	fastify.setNotFoundHandler(async (_request, reply) => {
+		return reply.sendFile("index.html");
+	});
+};
 
-export default fp(staticFilesPlugin, { name: 'static-files' })
+export default fp(staticFilesPlugin, { name: "static-files" });

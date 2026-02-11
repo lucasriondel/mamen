@@ -1,38 +1,38 @@
-import type { CurrencySymbol } from '@/features/settings/types/preferences.types'
+import type { CurrencySymbol } from "@/features/settings/types/preferences.types";
 
 type FormatCurrencyOptions = {
-  currency?: string
-  locale?: string
-}
+	currency?: string;
+	locale?: string;
+};
 
 const SYMBOL_TO_CURRENCY: Record<CurrencySymbol, string> = {
-  '€': 'EUR',
-  '$': 'USD',
-  '£': 'GBP',
-  '¥': 'JPY',
-  '₹': 'INR',
-  'kr': 'SEK',
-  'CHF': 'CHF',
-}
+	"€": "EUR",
+	$: "USD",
+	"£": "GBP",
+	"¥": "JPY",
+	"₹": "INR",
+	kr: "SEK",
+	CHF: "CHF",
+};
 
 export const formatCurrency = (
-  amount: number,
-  options: FormatCurrencyOptions = {},
+	amount: number,
+	options: FormatCurrencyOptions = {},
 ): string => {
-  const { currency = 'EUR', locale = 'de-DE' } = options
+	const { currency = "EUR", locale = "de-DE" } = options;
 
-  return new Intl.NumberFormat(locale, {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount)
-}
+	return new Intl.NumberFormat(locale, {
+		style: "currency",
+		currency,
+		minimumFractionDigits: 2,
+		maximumFractionDigits: 2,
+	}).format(amount);
+};
 
 export const formatCurrencyWithSymbol = (
-  amount: number,
-  symbol: CurrencySymbol = '€',
+	amount: number,
+	symbol: CurrencySymbol = "€",
 ): string => {
-  const currency = SYMBOL_TO_CURRENCY[symbol]
-  return formatCurrency(amount, { currency })
-}
+	const currency = SYMBOL_TO_CURRENCY[symbol];
+	return formatCurrency(amount, { currency });
+};
