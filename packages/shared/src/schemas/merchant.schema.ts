@@ -4,6 +4,7 @@ import type { Merchant } from "../types";
 export const merchantSchema = z.object({
 	id: z.number().optional(),
 	name: z.string().min(1, "Merchant name is required"),
+	imageUrl: z.string().optional(),
 	defaultCategoryId: z.number().optional(),
 	createdAt: z.date(),
 	firstSeen: z.date(),
@@ -11,6 +12,7 @@ export const merchantSchema = z.object({
 
 export const createMerchantSchema = merchantSchema.omit({
 	id: true,
+	imageUrl: true,
 	createdAt: true,
 	firstSeen: true,
 });
