@@ -1,5 +1,6 @@
 import { forwardRef } from "react";
 import { CategoryBadge } from "@/components/CategoryBadge";
+import { MerchantAvatar } from "@/components/MerchantAvatar";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/utils/formatCurrency";
@@ -52,6 +53,11 @@ export const MerchantListItem = forwardRef<
 			)}
 		>
 			<div className="flex-1 min-w-0 flex items-center gap-3">
+				<MerchantAvatar
+					name={merchant.name}
+					imageUrl={merchant.imageUrl}
+					size="sm"
+				/>
 				<span className="font-semibold text-sm truncate" title={merchant.name}>
 					{merchant.name}
 				</span>

@@ -1,6 +1,7 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import { Link2 } from "lucide-react";
 import { CategoryBadge } from "@/components/CategoryBadge";
+import { MerchantAvatar } from "@/components/MerchantAvatar";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AnomalyBadge } from "@/features/anomalies/components/AnomalyBadge";
@@ -18,7 +19,9 @@ import {
 } from "./filterFns";
 
 export type TransactionTableMeta = {
-	getMerchantCreatedAt: (merchantId: number | undefined) => Date | undefined;
+	getMerchantInfo: (
+		merchantId: number | undefined,
+	) => { name?: string; imageUrl?: string; createdAt?: Date } | undefined;
 	onDismissAnomaly: (transactionId: number, anomalyType: AnomalyType) => void;
 	onDismissDuplicate: (transactionId: number) => void;
 	onExcludeDuplicate: (transactionId: number) => void;
@@ -70,14 +73,19 @@ export const columns: ColumnDef<Transaction>[] = [
 		header: "Description",
 		cell: ({ row, table }) => {
 			const meta = table.options.meta as TransactionTableMeta;
-			const merchantCreatedAt = meta.getMerchantCreatedAt(
-				row.original.merchantId,
-			);
+			const merchantInfo = meta.getMerchantInfo(row.original.merchantId);
 			return (
 				<div className="flex items-center gap-1.5 text-sm min-w-0">
+					{merchantInfo?.name && (
+						<MerchantAvatar
+							name={merchantInfo.name}
+							imageUrl={merchantInfo.imageUrl}
+							size="sm"
+						/>
+					)}
 					<span className="truncate">{row.original.rawMerchantString}</span>
-					{merchantCreatedAt && (
-						<NewMerchantBadge createdAt={merchantCreatedAt} size="sm" />
+					{merchantInfo?.createdAt && (
+						<NewMerchantBadge createdAt={merchantInfo.createdAt} size="sm" />
 					)}
 				</div>
 			);

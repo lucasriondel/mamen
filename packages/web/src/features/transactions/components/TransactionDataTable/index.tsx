@@ -125,14 +125,23 @@ export function TransactionDataTable({
 	});
 
 	const { data: merchantsMap } = useQuery({
-		queryKey: [...queryKeys.merchants.all, "createdAtMap"],
+		queryKey: [...queryKeys.merchants.all, "infoMap"],
 		queryFn: async () => {
 			const allMerchants = await merchantsApi.getAll();
-			return new Map(allMerchants.map((m) => [m.id!, m.createdAt]));
+			return new Map(
+				allMerchants.map((m) => [
+					m.id!,
+					{
+						name: m.name,
+						imageUrl: m.imageUrl,
+						createdAt: m.createdAt,
+					},
+				]),
+			);
 		},
 	});
 
-	const getMerchantCreatedAt = useCallback(
+	const getMerchantInfo = useCallback(
 		(merchantId: number | undefined) => {
 			if (!merchantId || !merchantsMap) return undefined;
 			return merchantsMap.get(merchantId) ?? undefined;
@@ -179,7 +188,7 @@ export function TransactionDataTable({
 
 	const tableMeta: TransactionTableMeta = useMemo(
 		() => ({
-			getMerchantCreatedAt,
+			getMerchantInfo,
 			onDismissAnomaly: handleDismissAnomaly,
 			onDismissDuplicate: handleDismissDuplicate,
 			onExcludeDuplicate: handleExcludeDuplicate,
@@ -189,7 +198,7 @@ export function TransactionDataTable({
 			animationPhase,
 		}),
 		[
-			getMerchantCreatedAt,
+			getMerchantInfo,
 			handleDismissAnomaly,
 			handleDismissDuplicate,
 			handleExcludeDuplicate,

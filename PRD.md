@@ -53,36 +53,36 @@ Merchants currently have no visual representation. Adding pictures to merchants 
 - With image: `<img>` with `rounded-full object-cover` ✅
 - Without image: colored circle with first letter, color derived from hash of full name (16-color palette) ✅
 
-## Phase 6: Frontend Integration
+## Phase 6: Frontend Integration ✅
 
-**`packages/web/src/features/transactions/components/TransactionDataTable/columns.tsx`**:
-- Replace `getMerchantCreatedAt` with `getMerchantInfo` returning `{ name?: string; imageUrl?: string; createdAt?: Date }`
-- Render `<MerchantAvatar size="sm">` before `rawMerchantString` in the Description column
+**`packages/web/src/features/transactions/components/TransactionDataTable/columns.tsx`**: ✅
+- Replace `getMerchantCreatedAt` with `getMerchantInfo` returning `{ name?: string; imageUrl?: string; createdAt?: Date }` ✅
+- Render `<MerchantAvatar size="sm">` before `rawMerchantString` in the Description column ✅
 
-**`packages/web/src/features/transactions/components/TransactionDataTable/index.tsx`**:
-- Change merchant map from `Map<number, Date>` to `Map<number, { name: string; imageUrl?: string; createdAt: Date }>`
-- Rename `getMerchantCreatedAt` → `getMerchantInfo`
+**`packages/web/src/features/transactions/components/TransactionDataTable/index.tsx`**: ✅
+- Change merchant map from `Map<number, Date>` to `Map<number, { name: string; imageUrl?: string; createdAt: Date }>` ✅
+- Rename `getMerchantCreatedAt` → `getMerchantInfo` ✅
 
-**`packages/web/src/features/merchants/hooks/useMerchantsList.ts`**:
-- Add `imageUrl?: string` to `MerchantListItem` type
-- Pass `imageUrl: merchant.imageUrl` in the mapping
+**`packages/web/src/features/merchants/hooks/useMerchantsList.ts`**: ✅
+- Add `imageUrl?: string` to `MerchantListItem` type ✅
+- Pass `imageUrl: merchant.imageUrl` in the mapping ✅
 
-**`packages/web/src/features/merchants/components/MerchantListItem/index.tsx`**:
-- Add `<MerchantAvatar name={merchant.name} imageUrl={merchant.imageUrl} size="sm" />` before the name span
+**`packages/web/src/features/merchants/components/MerchantListItem/index.tsx`**: ✅
+- Add `<MerchantAvatar name={merchant.name} imageUrl={merchant.imageUrl} size="sm" />` before the name span ✅
 
-**`packages/web/src/features/merchants/components/MerchantHeader/index.tsx`**:
-- Add `imageUrl` to props
-- Render `<MerchantAvatar size="lg">` next to the merchant name
+**`packages/web/src/features/merchants/components/MerchantHeader/index.tsx`**: ✅
+- Add `imageUrl` to props ✅
+- Render `<MerchantAvatar size="lg">` next to the merchant name ✅
 
-**`packages/web/src/features/merchants/components/MerchantDetailPage/index.tsx`**:
-- Pass `imageUrl={merchant.imageUrl}` to `<MerchantHeader>`
-- Pass `currentImageUrl={merchant.imageUrl}` to `<EditMerchantModal>`
+**`packages/web/src/features/merchants/components/MerchantDetailPage/index.tsx`**: ✅
+- Pass `imageUrl={merchant.imageUrl}` to `<MerchantHeader>` ✅
+- Pass `currentImageUrl={merchant.imageUrl}` to `<EditMerchantModal>` ✅
 
-**`packages/web/src/features/merchants/components/EditMerchantModal/index.tsx`**:
-- Add `currentImageUrl` prop
-- Add state: `imageFile`, `imagePreview`, `removeImage`
-- Add image picker UI: clickable avatar preview with camera overlay, hidden file input, remove button
-- On save: call `uploadImage()` / `deleteImage()` before the metadata update
+**`packages/web/src/features/merchants/components/EditMerchantModal/index.tsx`**: ✅
+- Add `currentImageUrl` prop ✅
+- Add state: `imageFile`, `imagePreview`, `removeImage` ✅
+- Add image picker UI: clickable avatar preview with camera overlay, hidden file input, remove button ✅
+- On save: call `uploadImage()` / `deleteImage()` before the metadata update ✅
 
 ## Phase 7: Housekeeping
 

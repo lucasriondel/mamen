@@ -1,7 +1,8 @@
-import { ChevronDown } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Camera, ChevronDown, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CategoryPicker } from "@/components/CategoryPicker";
+import { MerchantAvatar } from "@/components/MerchantAvatar";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -27,6 +28,7 @@ export type EditMerchantModalProps = {
 	merchantId: number;
 	currentName: string;
 	currentCategoryId: number | undefined;
+	currentImageUrl?: string;
 };
 
 export function EditMerchantModal({
@@ -35,53 +37,75 @@ export function EditMerchantModal({
 	merchantId,
 	currentName,
 	currentCategoryId,
+	currentImageUrl,
 }: EditMerchantModalProps): React.ReactElement {
 	const [name, setName] = useState("");
 	const [categoryId, setCategoryId] = useState<number | undefined>(undefined);
 	const [isSaving, setIsSaving] = useState(false);
 	const [categoryPickerOpen, setCategoryPickerOpen] = useState(false);
+	const [imageFile, setImageFile] = useState<File | null>(null);
+	const [imagePreview, setImagePreview] = useState<string | null>(null);
+	const [removeImage, setRemoveImage] = useState(false);
+	const fileInputRef = useRef<HTMLInputElement>(null);
 	const { getCategoryById } = useCategories();
 
 	useEffect(() => {
 		if (isOpen) {
 			setName(currentName);
 			setCategoryId(currentCategoryId);
+			setImageFile(null);
+			setImagePreview(null);
+			setRemoveImage(false);
 		}
 	}, [isOpen, currentName, currentCategoryId]);
 
-	const hasChanges = name !== currentName || categoryId !== currentCategoryId;
+	const handleImageSelect = useCallback(
+		(e: React.ChangeEvent<HTMLInputElement>) => {
+			const file = e.target.files?.[0];
+			if (!file) return;
+			setImageFile(file);
+			setRemoveImage(false);
+			const url = URL.createObjectURL(file);
+			setImagePreview(url);
+		},
+		[],
+	);
+
+	useEffect(() => {
+		return () => {
+			if (imagePreview) URL.revokeObjectURL(imagePreview);
+		};
+	}, [imagePreview]);
+
+	const hasImageChange =
+		imageFile !== null || (removeImage && currentImageUrl != null);
+	const hasChanges =
+		name !== currentName ||
+		categoryId !== currentCategoryId ||
+		hasImageChange;
 	const canSave = name.trim().length > 0 && hasChanges && !isSaving;
 
 	const handleSave = async (): Promise<void> => {
 		if (!canSave) return;
 		setIsSaving(true);
-		const prevName = currentName;
-		const prevCategoryId = currentCategoryId;
 		try {
-			await merchantsApi.update(merchantId, {
-				name: name.trim(),
-				defaultCategoryId: categoryId,
-			});
+			if (imageFile) {
+				await merchantsApi.uploadImage(merchantId, imageFile);
+			} else if (removeImage) {
+				await merchantsApi.deleteImage(merchantId);
+			}
+
+			const hasMetadataChanges =
+				name !== currentName || categoryId !== currentCategoryId;
+			if (hasMetadataChanges) {
+				await merchantsApi.update(merchantId, {
+					name: name.trim(),
+					defaultCategoryId: categoryId,
+				});
+			}
+
 			invalidateEntity("merchants");
-			toast("Merchant updated", {
-				action: {
-					label: "Undo",
-					onClick: () => {
-						merchantsApi
-							.update(merchantId, {
-								name: prevName,
-								defaultCategoryId: prevCategoryId,
-							})
-							.then(() => {
-								invalidateEntity("merchants");
-							})
-							.catch(() => {
-								toast.error("Failed to undo merchant update");
-							});
-					},
-				},
-				duration: 10000,
-			});
+			toast("Merchant updated");
 			onClose();
 		} catch {
 			toast.error("Failed to update merchant");
@@ -111,15 +135,67 @@ export function EditMerchantModal({
 				</DialogHeader>
 
 				<div className="space-y-4 py-2">
-					<div className="space-y-2">
-						<Label htmlFor="merchant-name">Name</Label>
-						<Input
-							id="merchant-name"
-							value={name}
-							onChange={(e) => setName(e.target.value)}
-							placeholder="Merchant name"
-							autoFocus
+					<div className="flex items-center gap-4">
+						<div className="relative group">
+							<button
+								type="button"
+								onClick={() => fileInputRef.current?.click()}
+								className="relative rounded-full overflow-hidden cursor-pointer"
+							>
+								{imagePreview ? (
+									<img
+										src={imagePreview}
+										alt="Preview"
+										className="size-12 rounded-full object-cover"
+									/>
+								) : !removeImage && currentImageUrl ? (
+									<img
+										src={currentImageUrl}
+										alt={currentName}
+										className="size-12 rounded-full object-cover"
+									/>
+								) : (
+									<MerchantAvatar
+										name={name || currentName}
+										size="lg"
+									/>
+								)}
+								<div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-full">
+									<Camera className="h-4 w-4 text-white" />
+								</div>
+							</button>
+							{(imagePreview || (!removeImage && currentImageUrl)) && (
+								<button
+									type="button"
+									onClick={() => {
+										setImageFile(null);
+										setImagePreview(null);
+										setRemoveImage(true);
+									}}
+									className="absolute -top-1 -right-1 size-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+									aria-label="Remove image"
+								>
+									<X className="h-3 w-3" />
+								</button>
+							)}
+						</div>
+						<input
+							ref={fileInputRef}
+							type="file"
+							accept="image/jpeg,image/png,image/webp,image/gif"
+							onChange={handleImageSelect}
+							className="hidden"
 						/>
+						<div className="flex-1 space-y-2">
+							<Label htmlFor="merchant-name">Name</Label>
+							<Input
+								id="merchant-name"
+								value={name}
+								onChange={(e) => setName(e.target.value)}
+								placeholder="Merchant name"
+								autoFocus
+							/>
+						</div>
 					</div>
 
 					<div className="space-y-2">

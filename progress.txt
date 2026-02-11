@@ -50,3 +50,26 @@
   - Follows project patterns: named export, `type` for props, `cn()` for className merging
 - Typecheck passes across all packages
 - All 1432 web tests pass (141 test files)
+
+### Phase 6: Frontend Integration ✅
+- Updated `TransactionDataTable/columns.tsx`:
+  - Replaced `getMerchantCreatedAt` with `getMerchantInfo` returning `{ name?, imageUrl?, createdAt? }`
+  - Renders `<MerchantAvatar size="sm">` before `rawMerchantString` in the Description column
+- Updated `TransactionDataTable/index.tsx`:
+  - Changed merchant map from `Map<number, Date>` to `Map<number, { name, imageUrl?, createdAt }>`
+  - Renamed `getMerchantCreatedAt` → `getMerchantInfo`
+- Updated `useMerchantsList.ts`:
+  - Added `imageUrl?: string` to `MerchantListItem` type
+  - Pass `imageUrl: merchant.imageUrl` in mapping
+- Updated `MerchantListItem/index.tsx`:
+  - Added `<MerchantAvatar>` before merchant name
+- Updated `MerchantHeader/index.tsx`:
+  - Added `imageUrl` prop, renders `<MerchantAvatar size="lg">` next to name
+- Updated `MerchantDetailPage/index.tsx`:
+  - Passes `imageUrl` to `<MerchantHeader>` and `currentImageUrl` to `<EditMerchantModal>`
+- Updated `EditMerchantModal/index.tsx`:
+  - Added `currentImageUrl` prop
+  - Added image picker UI: clickable avatar with camera overlay, file input, remove button
+  - On save: calls `uploadImage()` / `deleteImage()` before metadata update
+- Typecheck passes across all packages
+- All 1432 web tests pass (141 test files)

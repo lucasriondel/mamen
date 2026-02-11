@@ -5,6 +5,7 @@ import { categoriesApi, merchantsApi, transactionsApi } from "@/lib/api";
 export type MerchantListItem = {
 	id: number;
 	name: string;
+	imageUrl?: string;
 	defaultCategoryId: number | undefined;
 	categoryLabel: string;
 	transactionCount: number;
@@ -75,6 +76,7 @@ export const useMerchantsList = ({
 				return {
 					id: merchant.id!,
 					name: merchant.name,
+					imageUrl: merchant.imageUrl,
 					defaultCategoryId: merchant.defaultCategoryId,
 					categoryLabel,
 					transactionCount: merchantTxns.length,

@@ -182,6 +182,7 @@ export function MerchantDetailPage({
 			<div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-8">
 				<MerchantHeader
 					name={merchant.name}
+					imageUrl={merchant.imageUrl}
 					defaultCategoryId={merchant.defaultCategoryId}
 					createdAt={merchant.createdAt}
 					onBack={handleBack}
@@ -240,6 +241,7 @@ export function MerchantDetailPage({
 				merchantId={merchantId}
 				currentName={merchant.name}
 				currentCategoryId={merchant.defaultCategoryId}
+				currentImageUrl={merchant.imageUrl}
 			/>
 		</div>
 	);
