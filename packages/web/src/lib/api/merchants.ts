@@ -1,5 +1,5 @@
 import type { Merchant } from "@mamen/shared";
-import { api } from "./client";
+import { ApiError, api } from "./client";
 
 export const merchantsApi = {
 	getAll: (params: { orderBy?: "name" } = {}) =>
@@ -28,5 +28,36 @@ export const merchantsApi = {
 
 	delete: async (id: number) => {
 		await api.delete(`/merchants/${id}`);
+	},
+
+	uploadImage: async (
+		id: number,
+		file: File,
+	): Promise<{ imageUrl: string }> => {
+		const formData = new FormData();
+		formData.append("image", file);
+
+		const response = await fetch(`/api/merchants/${id}/image`, {
+			method: "POST",
+			body: formData,
+		});
+
+		if (!response.ok) {
+			const body = await response.text().catch(() => "");
+			let message = `HTTP ${response.status}`;
+			try {
+				const parsed = JSON.parse(body);
+				if (parsed.error) message = parsed.error;
+			} catch {
+				if (body) message = body;
+			}
+			throw new ApiError(response.status, message);
+		}
+
+		return response.json();
+	},
+
+	deleteImage: async (id: number): Promise<void> => {
+		await api.delete(`/merchants/${id}/image`);
 	},
 };

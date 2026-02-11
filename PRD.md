@@ -39,11 +39,11 @@ Merchants currently have no visual representation. Adding pictures to merchants 
 - `DELETE /merchants/:id/image` — Deletes file from disk, sets `imageUrl` to null in DB ✅
 - Modify existing `DELETE /merchants/:id` — Clean up image file before deleting merchant ✅
 
-## Phase 4: Frontend API Client
+## Phase 4: Frontend API Client ✅
 
-**`packages/web/src/lib/api/merchants.ts`**:
-- Add `uploadImage(id: number, file: File): Promise<{ imageUrl: string }>` — uses raw `fetch()` with `FormData` (not the JSON-only `api` helper)
-- Add `deleteImage(id: number): Promise<void>` — uses `api.delete()`
+**`packages/web/src/lib/api/merchants.ts`**: ✅
+- Add `uploadImage(id: number, file: File): Promise<{ imageUrl: string }>` — uses raw `fetch()` with `FormData` (not the JSON-only `api` helper) ✅
+- Add `deleteImage(id: number): Promise<void>` — uses `api.delete()` ✅
 
 ## Phase 5: MerchantAvatar Component
 
