@@ -1,6 +1,5 @@
 import type { Category } from '@mamen/shared'
 import { api } from './client'
-import { invalidate } from './invalidation'
 
 export const categoriesApi = {
   getAll: (params: { parentId?: number; orderBy?: 'sortOrder' } = {}) => {
@@ -20,33 +19,27 @@ export const categoriesApi = {
 
   create: async (data: Omit<Category, 'id'>) => {
     const result = await api.post<{ id: number }>('/categories', data)
-    invalidate('categories')
     return result.id
   },
 
   bulkAdd: async (records: Omit<Category, 'id'>[]) => {
     const result = await api.post<{ ids: number[] }>('/categories/bulk-add', { records })
-    invalidate('categories')
     return result.ids
   },
 
   update: async (id: number, changes: Partial<Category>) => {
     await api.put(`/categories/${id}`, changes)
-    invalidate('categories')
   },
 
   bulkPut: async (records: Category[]) => {
     await api.put('/categories/bulk-put', { records })
-    invalidate('categories')
   },
 
   delete: async (id: number) => {
     await api.delete(`/categories/${id}`)
-    invalidate('categories')
   },
 
   clear: async () => {
     await api.post('/categories/clear')
-    invalidate('categories')
   },
 }

@@ -1,6 +1,5 @@
 import type { Account, AccountType } from '@mamen/shared'
 import { api } from './client'
-import { invalidate } from './invalidation'
 
 export const accountsApi = {
   getAll: () => api.get<Account[]>('/accounts'),
@@ -15,17 +14,14 @@ export const accountsApi = {
 
   create: async (data: Omit<Account, 'id'>) => {
     const result = await api.post<{ id: number }>('/accounts', data)
-    invalidate('accounts')
     return result.id
   },
 
   update: async (id: number, changes: Partial<Account>) => {
     await api.put(`/accounts/${id}`, changes)
-    invalidate('accounts')
   },
 
   delete: async (id: number) => {
     await api.delete(`/accounts/${id}`)
-    invalidate('accounts')
   },
 }

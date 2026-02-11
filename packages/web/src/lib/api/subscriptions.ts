@@ -1,6 +1,5 @@
 import type { Subscription, SubscriptionFrequency, SubscriptionStatus } from '@mamen/shared'
 import { api } from './client'
-import { invalidate } from './invalidation'
 
 export const subscriptionsApi = {
   getAll: (params: { merchantId?: number; status?: SubscriptionStatus } = {}) => {
@@ -21,27 +20,22 @@ export const subscriptionsApi = {
 
   create: async (data: Omit<Subscription, 'id'>) => {
     const result = await api.post<{ id: number }>('/subscriptions', data)
-    invalidate('subscriptions')
     return result.id
   },
 
   update: async (id: number, changes: Partial<Subscription>) => {
     await api.put(`/subscriptions/${id}`, changes)
-    invalidate('subscriptions')
   },
 
   bulkPut: async (records: Subscription[]) => {
     await api.put('/subscriptions/bulk-put', { records })
-    invalidate('subscriptions')
   },
 
   delete: async (id: number) => {
     await api.delete(`/subscriptions/${id}`)
-    invalidate('subscriptions')
   },
 
   clear: async () => {
     await api.post('/subscriptions/clear')
-    invalidate('subscriptions')
   },
 }

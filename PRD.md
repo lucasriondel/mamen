@@ -93,7 +93,7 @@ all: ['appSettings'] as const,
 This hierarchical structure allows queryClient.invalidateQueries({ queryKey: queryKeys.transactions.all }) to invalidate ALL
 transaction queries (lists, details, counts).
 
-Step 4: Remove invalidate() from API modules
+Step 4: Remove invalidate() from API modules ✅
 
 Modify each entity API file (accounts.ts, transactions.ts, etc.):
 

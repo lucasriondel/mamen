@@ -1,6 +1,5 @@
 import type { Transaction } from '@mamen/shared'
 import { api } from './client'
-import { invalidate } from './invalidation'
 
 type TransactionQueryParams = {
   accountId?: number
@@ -35,13 +34,11 @@ export const transactionsApi = {
 
   create: async (data: Omit<Transaction, 'id'>) => {
     const result = await api.post<{ id: number }>('/transactions', data)
-    invalidate('transactions')
     return result.id
   },
 
   bulkAdd: async (records: Omit<Transaction, 'id'>[]) => {
     const result = await api.post<{ ids: number[] }>('/transactions/bulk', { records })
-    invalidate('transactions')
     return result.ids
   },
 
@@ -50,31 +47,25 @@ export const transactionsApi = {
 
   bulkPut: async (records: Transaction[]) => {
     await api.put('/transactions/bulk-put', { records })
-    invalidate('transactions')
   },
 
   update: async (id: number, changes: Partial<Transaction>) => {
     await api.put(`/transactions/${id}`, changes)
-    invalidate('transactions')
   },
 
   delete: async (id: number) => {
     await api.delete(`/transactions/${id}`)
-    invalidate('transactions')
   },
 
   bulkDelete: async (ids: number[]) => {
     await api.post('/transactions/bulk-delete', { ids })
-    invalidate('transactions')
   },
 
   deleteByAccountMonth: async (accountId: number, importMonth: string) => {
     await api.delete(`/transactions/by-account-month?accountId=${accountId}&importMonth=${encodeURIComponent(importMonth)}`)
-    invalidate('transactions')
   },
 
   deleteByImportBatch: async (batchId: string) => {
     await api.delete(`/transactions/by-import-batch/${encodeURIComponent(batchId)}`)
-    invalidate('transactions')
   },
 }

@@ -1,6 +1,5 @@
 import type { Merchant } from '@mamen/shared'
 import { api } from './client'
-import { invalidate } from './invalidation'
 
 export const merchantsApi = {
   getAll: (params: { orderBy?: 'name' } = {}) =>
@@ -16,22 +15,18 @@ export const merchantsApi = {
 
   create: async (data: Omit<Merchant, 'id'>) => {
     const result = await api.post<{ id: number }>('/merchants', data)
-    invalidate('merchants')
     return result.id
   },
 
   update: async (id: number, changes: Partial<Merchant>) => {
     await api.put(`/merchants/${id}`, changes)
-    invalidate('merchants')
   },
 
   bulkPut: async (records: Merchant[]) => {
     await api.put('/merchants/bulk-put', { records })
-    invalidate('merchants')
   },
 
   delete: async (id: number) => {
     await api.delete(`/merchants/${id}`)
-    invalidate('merchants')
   },
 }

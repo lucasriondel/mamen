@@ -6,3 +6,13 @@
 - Wrapped app with QueryClientProvider + ReactQueryDevtools in main.tsx
 - Added queryClient and queryKeys exports to lib/api/index.ts barrel
 - Typecheck passes for all new/modified files (pre-existing errors in other files unrelated to this work)
+
+## Step 4: Remove invalidate() from API modules (DONE)
+
+- Removed `import { invalidate } from './invalidation'` from all 10 API modules
+- Removed all 36 `invalidate()` calls from mutation methods across:
+  accounts.ts, transactions.ts, merchants.ts, rules.ts, categories.ts,
+  subscriptions.ts, settings.ts, app-settings.ts, import.ts, database.ts
+- Removed `ALL_TABLES` constant from database.ts (only used for invalidation)
+- API modules are now pure fetch wrappers — invalidation will move to TanStack Query mutations
+- Typecheck passes cleanly
