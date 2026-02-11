@@ -1,6 +1,7 @@
 import { Link, useNavigate } from '@tanstack/react-router'
 import { LayoutDashboard, Receipt, Store, CreditCard, Settings, Inbox, FileText, CalendarDays, Repeat, Tag } from 'lucide-react'
-import { useApiQuery, merchantsApi, accountsApi, rulesApi } from '@/lib/api'
+import { useQuery } from '@tanstack/react-query'
+import { merchantsApi, accountsApi, rulesApi, queryKeys } from '@/lib/api'
 import { useFocusMode } from '@/context/FocusModeContext'
 import { useUnmatchedCount } from '@/hooks/useUnmatchedCount'
 import { useCurrentMonthCount } from '@/hooks/useCurrentMonthCount'
@@ -31,23 +32,20 @@ export function Sidebar(): React.ReactElement {
   const { activeFilters, toggleFocusMode, setFocusMode } = useFocusMode()
   const navigate = useNavigate()
 
-  const merchantCount = useApiQuery(
-    () => merchantsApi.getAll().then(m => m.length),
-    ['merchants'],
-    0
-  ) ?? 0
+  const { data: merchantCount = 0 } = useQuery({
+    queryKey: [...queryKeys.merchants.all, 'count'],
+    queryFn: () => merchantsApi.getAll().then(m => m.length),
+  })
 
-  const accountCount = useApiQuery(
-    () => accountsApi.getAll().then(a => a.length),
-    ['accounts'],
-    0
-  ) ?? 0
+  const { data: accountCount = 0 } = useQuery({
+    queryKey: [...queryKeys.accounts.all, 'count'],
+    queryFn: () => accountsApi.getAll().then(a => a.length),
+  })
 
-  const ruleCount = useApiQuery(
-    () => rulesApi.getAll().then(r => r.length),
-    ['rules'],
-    0
-  ) ?? 0
+  const { data: ruleCount = 0 } = useQuery({
+    queryKey: [...queryKeys.rules.all, 'count'],
+    queryFn: () => rulesApi.getAll().then(r => r.length),
+  })
 
   const handleTransactionsClick = (): void => {
     setFocusMode('all')

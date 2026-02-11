@@ -1,4 +1,5 @@
-import { useApiQuery, transactionsApi } from '@/lib/api'
+import { useQuery } from '@tanstack/react-query'
+import { transactionsApi, queryKeys } from '@/lib/api'
 
 type UseUnmatchedCountReturn = {
   count: number
@@ -6,17 +7,17 @@ type UseUnmatchedCountReturn = {
 }
 
 export const useUnmatchedCount = (): UseUnmatchedCountReturn => {
-  const allTransactions = useApiQuery(
-    () => transactionsApi.getAll(),
-    ['transactions'],
-  )
+  const { data: allTransactions, isLoading } = useQuery({
+    queryKey: queryKeys.transactions.list({}),
+    queryFn: () => transactionsApi.getAll(),
+  })
 
   const count = allTransactions
     ? allTransactions.filter((t) => t.merchantId === undefined).length
-    : undefined
+    : 0
 
   return {
-    count: count ?? 0,
-    isLoading: count === undefined,
+    count,
+    isLoading,
   }
 }

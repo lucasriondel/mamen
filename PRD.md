@@ -114,7 +114,7 @@ Files to modify:
 - packages/web/src/lib/api/import.ts
 - packages/web/src/lib/api/database.ts
 
-Step 5: Delete old invalidation + useApiQuery
+Step 5: Delete old invalidation + useApiQuery ✅
 
 Delete:
 
@@ -127,7 +127,7 @@ Modify: packages/web/src/lib/api/index.ts
 - Add export { queryKeys } from './queryKeys'
 - Add export { queryClient } from './queryClient'
 
-Step 6: Migrate all useApiQuery consumers to useQuery
+Step 6: Migrate all useApiQuery consumers to useQuery ✅
 
 Replace every useApiQuery(queryFn, keys, defaultValue) call with TanStack Query's useQuery. There are ~35 consumer files
 split into these patterns:
@@ -314,7 +314,7 @@ old?.map(tx => tx.id === id ? { ...tx, categoryId } : tx)
 // On error, restore
 queryClient.setQueryData(queryKeys.transactions.list(...), previousTxs)
 
-Step 9: Update test infrastructure
+Step 9: Update test infrastructure ✅
 
 Modify: packages/web/src/test/api-mock-setup.ts
 

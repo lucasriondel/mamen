@@ -1,5 +1,6 @@
 import { useCallback, useRef } from 'react'
-import { useApiQuery, appSettingsApi } from '@/lib/api'
+import { useQuery } from '@tanstack/react-query'
+import { appSettingsApi, queryKeys } from '@/lib/api'
 import type { AppSettings, LLMSettings } from '@/types'
 
 const DEFAULT_LLM_SETTINGS: LLMSettings = {
@@ -19,17 +20,16 @@ export function useSettings(): {
   isLoading: boolean
   saveSettings: (settings: AppSettings) => Promise<void>
 } {
-  const result = useApiQuery(
-    async () => {
+  const { data: result, isLoading } = useQuery({
+    queryKey: queryKeys.appSettings.all,
+    queryFn: async () => {
       try {
         return await appSettingsApi.get()
       } catch {
         return null
       }
     },
-    ['appSettings'],
-  )
-  const isLoading = result === undefined
+  })
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const settings = result ?? DEFAULT_APP_SETTINGS

@@ -33,7 +33,8 @@ import { useNavigateToTransaction } from '../../hooks/useNavigateToTransaction'
 import { useDeleteTransactions } from '../../hooks/useDeleteTransactions'
 import { useFocusMode } from '@/context/FocusModeContext'
 import { formatCurrency } from '@/lib/utils/formatCurrency'
-import { useApiQuery, accountsApi, categoriesApi, merchantsApi, transactionsApi } from '@/lib/api'
+import { useQuery } from '@tanstack/react-query'
+import { accountsApi, categoriesApi, merchantsApi, transactionsApi, queryKeys } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { columns, type TransactionTableMeta } from './columns'
 import { useTransactionTableKeyboard, type ActionKey } from './useTransactionTableKeyboard'
@@ -65,18 +66,25 @@ export function TransactionDataTable({ highlightId }: TransactionDataTableProps)
 
   const { filter: drillDown, isActive: isDrillDown, clearDrillDownFilter, clearAllFilters } = useDrillDownFilter()
   const transactionFilters = useTransactionFilters()
-  const accounts = useApiQuery(() => accountsApi.getAll(), ['accounts'], []) ?? []
+  const { data: accounts = [] } = useQuery({
+    queryKey: queryKeys.accounts.all,
+    queryFn: () => accountsApi.getAll(),
+  })
 
-  const categoryName = useApiQuery(async () => {
-    if (drillDown.categoryId == null) return null
-    const cat = await categoriesApi.get(drillDown.categoryId)
-    if (!cat) return null
-    if (cat.parentId !== null) {
-      const parent = await categoriesApi.get(cat.parentId)
-      return parent ? `${parent.name} > ${cat.name}` : cat.name
-    }
-    return cat.name
-  }, ['categories'])
+  const { data: categoryName } = useQuery({
+    queryKey: [...queryKeys.categories.all, 'drillDown', drillDown.categoryId],
+    queryFn: async () => {
+      if (drillDown.categoryId == null) return null
+      const cat = await categoriesApi.get(drillDown.categoryId)
+      if (!cat) return null
+      if (cat.parentId !== null) {
+        const parent = await categoriesApi.get(cat.parentId)
+        return parent ? `${parent.name} > ${cat.name}` : cat.name
+      }
+      return cat.name
+    },
+    enabled: drillDown.categoryId != null,
+  })
 
   const { transactions, isLoading } = useFilteredTransactions({
     unmatchedOnly: isDrillDown ? false : isUnmatchedMode,
@@ -90,10 +98,13 @@ export function TransactionDataTable({ highlightId }: TransactionDataTableProps)
     subscriptionTransactionIds: subscriptionTxIds,
   })
 
-  const merchantsMap = useApiQuery(async () => {
-    const allMerchants = await merchantsApi.getAll()
-    return new Map(allMerchants.map((m) => [m.id!, m.createdAt]))
-  }, ['merchants'])
+  const { data: merchantsMap } = useQuery({
+    queryKey: [...queryKeys.merchants.all, 'createdAtMap'],
+    queryFn: async () => {
+      const allMerchants = await merchantsApi.getAll()
+      return new Map(allMerchants.map((m) => [m.id!, m.createdAt]))
+    },
+  })
 
   const getMerchantCreatedAt = useCallback(
     (merchantId: number | undefined) => {

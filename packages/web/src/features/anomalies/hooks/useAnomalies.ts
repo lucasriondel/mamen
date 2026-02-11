@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
-import { useApiQuery, transactionsApi } from '@/lib/api'
+import { useQuery } from '@tanstack/react-query'
+import { transactionsApi, queryKeys } from '@/lib/api'
 import type { Transaction } from '@/types'
 
 export type UseAnomaliesReturn = {
@@ -13,13 +14,13 @@ export type UseAnomaliesReturn = {
 }
 
 export const useAnomalies = (): UseAnomaliesReturn => {
-  const transactions = useApiQuery(
-    () => transactionsApi.getAll(),
-    ['transactions'],
-  )
+  const { data: transactions, isLoading: queryLoading } = useQuery({
+    queryKey: queryKeys.transactions.list({}),
+    queryFn: () => transactionsApi.getAll(),
+  })
 
   return useMemo(() => {
-    if (transactions === undefined) {
+    if (!transactions) {
       return {
         flaggedTransactions: [],
         totalFlagged: 0,
@@ -27,7 +28,7 @@ export const useAnomalies = (): UseAnomaliesReturn => {
         newMerchantCount: 0,
         potentialDuplicateCount: 0,
         potentialDuplicatePairs: 0,
-        isLoading: true,
+        isLoading: queryLoading,
       }
     }
 

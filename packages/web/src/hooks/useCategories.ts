@@ -1,5 +1,6 @@
 import { useMemo, useCallback } from 'react'
-import { useApiQuery, categoriesApi } from '@/lib/api'
+import { useQuery } from '@tanstack/react-query'
+import { categoriesApi, queryKeys } from '@/lib/api'
 import type { Category, CategoryWithSubcategories } from '@/types'
 
 export type UseCategoriesReturn = {
@@ -12,13 +13,10 @@ export type UseCategoriesReturn = {
 }
 
 export const useCategories = (): UseCategoriesReturn => {
-  const categories = useApiQuery(
-    () => categoriesApi.getAll({ orderBy: 'sortOrder' }),
-    ['categories'],
-    [] as Category[],
-  ) ?? [] as Category[]
-
-  const isLoading = categories.length === 0
+  const { data: categories = [], isLoading } = useQuery({
+    queryKey: queryKeys.categories.list({ orderBy: 'sortOrder' }),
+    queryFn: () => categoriesApi.getAll({ orderBy: 'sortOrder' }),
+  })
 
   const parentCategories = useMemo(
     () => categories.filter((c) => c.parentId === null),

@@ -1,7 +1,8 @@
 import { useLocation } from '@tanstack/react-router'
 import type { BreadcrumbSegment } from '@/components/Breadcrumb'
 import { useFocusMode } from '@/context/FocusModeContext'
-import { useApiQuery, categoriesApi, merchantsApi } from '@/lib/api'
+import { useQuery } from '@tanstack/react-query'
+import { categoriesApi, merchantsApi, queryKeys } from '@/lib/api'
 
 export const routeLabelMap: Record<string, string> = {
   '/': 'Dashboard',
@@ -32,8 +33,9 @@ export function useBreadcrumbs(): BreadcrumbSegment[] {
   const fromParam = params.get('from')
   const categoryId = categoryIdParam ? Number(categoryIdParam) : null
 
-  const categoryName = useApiQuery(
-    async () => {
+  const { data: categoryName = null } = useQuery({
+    queryKey: [...queryKeys.categories.all, 'breadcrumb', categoryId],
+    queryFn: async () => {
       if (categoryId == null || isNaN(categoryId)) return null
       try {
         const cat = await categoriesApi.get(categoryId)
@@ -51,13 +53,14 @@ export function useBreadcrumbs(): BreadcrumbSegment[] {
         return null
       }
     },
-    ['categories'],
-  ) ?? null
+    enabled: categoryId != null && !isNaN(categoryId),
+  })
 
   const merchantIdMatch = pathname.match(/^\/merchants\/(\d+)$/)
   const merchantIdNum = merchantIdMatch ? Number(merchantIdMatch[1]) : null
-  const merchantName = useApiQuery(
-    async () => {
+  const { data: merchantName = null } = useQuery({
+    queryKey: [...queryKeys.merchants.all, 'breadcrumb', merchantIdNum],
+    queryFn: async () => {
       if (merchantIdNum == null) return null
       try {
         const m = await merchantsApi.get(merchantIdNum)
@@ -66,8 +69,8 @@ export function useBreadcrumbs(): BreadcrumbSegment[] {
         return null
       }
     },
-    ['merchants'],
-  ) ?? null
+    enabled: merchantIdNum != null,
+  })
 
   if (pathname === '/') {
     return [{ label: routeLabelMap['/'], href: '/' }]

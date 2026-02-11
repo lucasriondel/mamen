@@ -4,7 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { useApiQuery, settingsApi } from '@/lib/api'
+import { useQuery } from '@tanstack/react-query'
+import { settingsApi, queryKeys } from '@/lib/api'
 import { detectHighAmountAnomalies, getAnomalySettings } from '../../services/anomalyDetector'
 import type { AnomalySettings } from '@/types'
 
@@ -16,11 +17,10 @@ const DEFAULT_SETTINGS: AnomalySettings = {
 
 export function AnomalySettingsForm(): React.ReactElement {
   // Use array wrapper to distinguish loading (undefined) from no result (empty array)
-  const settingsResult = useApiQuery(
-    () => settingsApi.getByKey('anomaly_settings' as any).then(s => [s]).catch(() => []),
-    ['settings'],
-  )
-  const isLoading = settingsResult === undefined
+  const { data: settingsResult, isLoading } = useQuery({
+    queryKey: [...queryKeys.settings.all, 'anomaly_settings'],
+    queryFn: () => settingsApi.getByKey('anomaly_settings' as any).then(s => [s]).catch(() => []),
+  })
   const storedSetting = settingsResult?.[0]
 
   const currentSettings: AnomalySettings = storedSetting?.value

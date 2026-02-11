@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { useApiQuery, transactionsApi } from '@/lib/api'
+import { useQuery } from '@tanstack/react-query'
+import { transactionsApi, queryKeys } from '@/lib/api'
 import { formatCurrency } from '@/lib/utils/formatCurrency'
 import { formatDate } from '@/lib/utils/formatDate'
 import { Button } from '@/components/ui/button'
@@ -15,8 +16,9 @@ export function MatchPreviewList({
 }: MatchPreviewListProps): React.ReactElement {
   const [expanded, setExpanded] = useState(false)
 
-  const matches = useApiQuery(
-    async () => {
+  const { data: matches = [] } = useQuery({
+    queryKey: [...queryKeys.transactions.all, 'matchPreview', pattern, expanded, maxVisible],
+    queryFn: async () => {
       if (!pattern) return []
       try {
         const regex = new RegExp(pattern, 'i')
@@ -28,12 +30,12 @@ export function MatchPreviewList({
         return []
       }
     },
-    ['transactions'],
-    [],
-  )
+    enabled: !!pattern,
+  })
 
-  const totalCount = useApiQuery(
-    async () => {
+  const { data: totalCount = 0 } = useQuery({
+    queryKey: [...queryKeys.transactions.all, 'matchCount', pattern],
+    queryFn: async () => {
       if (!pattern) return 0
       try {
         const regex = new RegExp(pattern, 'i')
@@ -43,9 +45,8 @@ export function MatchPreviewList({
         return 0
       }
     },
-    ['transactions'],
-    0,
-  )
+    enabled: !!pattern,
+  })
 
   if (!pattern || totalCount === 0) {
     return (

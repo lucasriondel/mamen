@@ -10,7 +10,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
-    setupFiles: ['./src/test/setup.ts', './src/test/api-mock-setup.ts'],
+    setupFiles: ['./src/test/setup.ts', './src/test/api-mock-setup.ts', './src/test/query-client-setup.tsx'],
     css: true,
   },
   resolve: {

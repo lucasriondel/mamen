@@ -11,8 +11,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
+import { useQuery } from '@tanstack/react-query'
 import {
-  useApiQuery,
   accountsApi,
   transactionsApi,
   merchantsApi,
@@ -20,6 +20,7 @@ import {
   categoriesApi,
   subscriptionsApi,
   databaseApi,
+  queryKeys,
 } from '@/lib/api'
 import { downloadFile, generateExportFilename } from '../../services/downloadFile'
 import { parseBackupFile, importDataReplace, importDataMerge } from '../../services/importService'
@@ -64,8 +65,9 @@ export function DataManagementSection(): React.ReactElement {
   const [showResult, setShowResult] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const counts = useApiQuery(
-    async () => {
+  const { data: counts } = useQuery({
+    queryKey: ['dataManagementCounts'],
+    queryFn: async () => {
       const [accounts, transactions, merchants, rules, categories, subscriptions] = await Promise.all([
         accountsApi.getAll().then(arr => arr.length),
         transactionsApi.count(),
@@ -76,8 +78,7 @@ export function DataManagementSection(): React.ReactElement {
       ])
       return { accounts, transactions, merchants, rules, categories, subscriptions }
     },
-    ['accounts', 'transactions', 'merchants', 'rules', 'categories', 'subscriptions'],
-  )
+  })
 
   const handleToggle = useCallback((key: OptionKey) => {
     setOptions((prev) => ({ ...prev, [key]: !prev[key] }))

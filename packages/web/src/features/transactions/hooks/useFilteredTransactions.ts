@@ -1,4 +1,5 @@
-import { useApiQuery, transactionsApi } from '@/lib/api'
+import { useQuery } from '@tanstack/react-query'
+import { transactionsApi, queryKeys } from '@/lib/api'
 import type { Transaction, AnomalyType } from '@/types'
 
 type FilterOptions = {
@@ -27,8 +28,9 @@ export const useFilteredTransactions = (
   const periodEnd = periodRange?.end.getTime()
   const subTxIdsKey = subscriptionTransactionIds ? subscriptionTransactionIds.size : -1
 
-  const transactions = useApiQuery(
-    async () => {
+  const { data: transactions, isLoading } = useQuery({
+    queryKey: [...queryKeys.transactions.all, 'filtered', { unmatchedOnly, anomaliesOnly, anomalyTypeFilter, monthStart, monthEnd, categoryId, periodStart, periodEnd, subTxIdsKey }],
+    queryFn: async () => {
       // Anomalies filter: show only transactions with active (non-dismissed) anomaly flags
       if (anomaliesOnly) {
         const all = await transactionsApi.getAll({ orderBy: 'date', direction: 'desc' })
@@ -83,11 +85,10 @@ export const useFilteredTransactions = (
 
       return transactionsApi.getAll({ orderBy: 'date', direction: 'desc' })
     },
-    ['transactions'],
-  )
+  })
 
   return {
     transactions: transactions ?? [],
-    isLoading: transactions === undefined,
+    isLoading,
   }
 }

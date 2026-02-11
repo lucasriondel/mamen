@@ -11,7 +11,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { AlertTriangle } from 'lucide-react'
-import { useApiQuery, transactionsApi } from '@/lib/api'
+import { useQuery } from '@tanstack/react-query'
+import { transactionsApi, queryKeys } from '@/lib/api'
 import { formatCurrency } from '@/lib/utils/formatCurrency'
 import { formatDate } from '@/lib/utils/formatDate'
 import type { Transaction } from '@/types'
@@ -51,18 +52,17 @@ export function RefundLinkModal({
   const isExpense = sourceTransaction ? sourceTransaction.amount < 0 : false
 
   // Fetch the currently linked transaction (for linked-state view)
-  const linkedTransaction = useApiQuery(
-    async () => {
-      if (!sourceTransaction?.linkedRefundId || !open) return undefined
-      return transactionsApi.get(sourceTransaction.linkedRefundId)
-    },
-    ['transactions'],
-  )
+  const { data: linkedTransaction } = useQuery({
+    queryKey: [...queryKeys.transactions.all, 'linked', sourceTransaction?.linkedRefundId],
+    queryFn: () => transactionsApi.get(sourceTransaction!.linkedRefundId!),
+    enabled: open && !!sourceTransaction?.linkedRefundId,
+  })
 
   // Pre-filter candidates by similar amount (+/-10%), opposite sign
-  const candidates = useApiQuery(
-    async () => {
-      if (!sourceTransaction || !open || modalView === 'linked') return []
+  const { data: candidates = [] } = useQuery({
+    queryKey: [...queryKeys.transactions.all, 'refundCandidates', sourceTransaction?.id, sourceAmount],
+    queryFn: async () => {
+      if (!sourceTransaction) return []
 
       const tolerance = sourceAmount * 0.1
       const allTx = await transactionsApi.getAll()
@@ -84,9 +84,8 @@ export function RefundLinkModal({
         .filter((tx) => tx.id !== sourceTransaction.id && !tx.linkedRefundId)
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     },
-    ['transactions'],
-    [],
-  )
+    enabled: open && !!sourceTransaction && modalView !== 'linked',
+  })
 
   const filteredCandidates = useMemo(() => {
     if (!searchQuery.trim()) return candidates

@@ -21,18 +21,20 @@ vi.mock('@/context/FocusModeContext', () => ({
 let mockCategoryName: string | null = null
 let mockMerchantName: string | null = null
 
-// Override the global useApiQuery mock — return sync values for direct hook calls
-vi.mock('@/lib/api/useApiQuery', () => {
-  let callIndex = 0
-  return {
-    useApiQuery: () => {
-      // useBreadcrumbs calls useApiQuery twice: first for category, then for merchant
-      const idx = callIndex++
-      if (idx % 2 === 0) return mockCategoryName
-      return mockMerchantName
-    },
-  }
-})
+// Mock useQuery to return sync data for the two queries in useBreadcrumbs
+// queryKeys: ['categories', 'breadcrumb', categoryId] and ['merchants', 'breadcrumb', merchantIdNum]
+vi.mock('@tanstack/react-query', () => ({
+  useQuery: vi.fn((opts: { queryKey: unknown[] }) => {
+    const key = opts.queryKey
+    if (key[0] === 'categories' && key[1] === 'breadcrumb') {
+      return { data: mockCategoryName ?? undefined, isLoading: false }
+    }
+    if (key[0] === 'merchants' && key[1] === 'breadcrumb') {
+      return { data: mockMerchantName ?? undefined, isLoading: false }
+    }
+    return { data: undefined, isLoading: false }
+  }),
+}))
 
 import { useLocation } from '@tanstack/react-router'
 import { useFocusMode } from '@/context/FocusModeContext'

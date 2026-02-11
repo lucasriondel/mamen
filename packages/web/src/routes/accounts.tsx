@@ -2,7 +2,8 @@ import { useRef, useState } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { CreditCard, Loader2, Plus, Settings } from 'lucide-react'
 import { toast } from 'sonner'
-import { useApiQuery, accountsApi, transactionsApi } from '@/lib/api'
+import { useQuery } from '@tanstack/react-query'
+import { accountsApi, transactionsApi, queryKeys } from '@/lib/api'
 import { EmptyState } from '@/components/EmptyState'
 import { Button } from '@/components/ui/button'
 import {
@@ -99,7 +100,10 @@ export function AccountsPage(): React.ReactElement {
   const undoRef = useRef<UndoState | null>(null)
   const navigate = useNavigate()
 
-  const accounts = useApiQuery(() => accountsApi.getAll(), ['accounts'], []) ?? []
+  const { data: accounts = [] } = useQuery({
+    queryKey: queryKeys.accounts.all,
+    queryFn: () => accountsApi.getAll(),
+  })
 
   const handleOpenCreate = (): void => {
     setCreateOpen(true)

@@ -1,5 +1,6 @@
 import { useMemo, useRef } from 'react'
-import { useApiQuery, transactionsApi } from '@/lib/api'
+import { useQuery } from '@tanstack/react-query'
+import { transactionsApi, queryKeys } from '@/lib/api'
 import {
   buildSearchIndex,
   searchTransactions,
@@ -15,10 +16,10 @@ type UseTransactionSearchResult = {
 export const useTransactionSearch = (query: string): UseTransactionSearchResult => {
   const lastBuiltRef = useRef<Transaction[] | null>(null)
 
-  const transactions = useApiQuery(
-    () => transactionsApi.getAll(),
-    ['transactions'],
-  )
+  const { data: transactions } = useQuery({
+    queryKey: queryKeys.transactions.list({}),
+    queryFn: () => transactionsApi.getAll(),
+  })
 
   const results = useMemo(() => {
     if (!transactions) return []

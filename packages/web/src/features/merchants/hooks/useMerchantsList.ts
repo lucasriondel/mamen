@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
-import { useApiQuery, merchantsApi, transactionsApi, categoriesApi } from '@/lib/api'
+import { useQuery } from '@tanstack/react-query'
+import { merchantsApi, transactionsApi, categoriesApi, queryKeys } from '@/lib/api'
 
 export type MerchantListItem = {
   id: number
@@ -37,8 +38,9 @@ export const useMerchantsList = ({
   sortOrder = 'desc',
   searchQuery,
 }: UseMerchantsListOptions): UseMerchantsListReturn => {
-  const data = useApiQuery(
-    async () => {
+  const { data = [] } = useQuery({
+    queryKey: ['merchantsList'],
+    queryFn: async () => {
       const [allMerchants, allTransactions, allCategories] = await Promise.all([
         merchantsApi.getAll(),
         transactionsApi.getAll(),
@@ -91,9 +93,7 @@ export const useMerchantsList = ({
         }
       })
     },
-    ['merchants', 'transactions', 'categories'],
-    [] as MerchantListItem[],
-  )
+  })
 
   const totalCount = data.length
 
@@ -133,6 +133,6 @@ export const useMerchantsList = ({
   return {
     merchants: result,
     totalCount,
-    isLoading: data === undefined,
+    isLoading: data.length === 0,
   }
 }

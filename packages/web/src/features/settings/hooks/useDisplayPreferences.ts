@@ -1,4 +1,5 @@
-import { useApiQuery, settingsApi } from '@/lib/api'
+import { useQuery } from '@tanstack/react-query'
+import { settingsApi, queryKeys } from '@/lib/api'
 import { DEFAULT_DISPLAY_PREFERENCES } from '../types/preferences.types'
 import type { DisplayPreferences } from '../types/preferences.types'
 
@@ -6,18 +7,16 @@ export const useDisplayPreferences = (): {
   preferences: DisplayPreferences
   isLoading: boolean
 } => {
-  const result = useApiQuery(
-    async () => {
+  const { data: result, isLoading } = useQuery({
+    queryKey: [...queryKeys.settings.all, 'displayPreferences'],
+    queryFn: async () => {
       try {
         return await settingsApi.getByKey('displayPreferences')
       } catch {
         return null
       }
     },
-    ['settings'],
-  )
-
-  const isLoading = result === undefined
+  })
 
   if (isLoading || !result) {
     return { preferences: DEFAULT_DISPLAY_PREFERENCES, isLoading }

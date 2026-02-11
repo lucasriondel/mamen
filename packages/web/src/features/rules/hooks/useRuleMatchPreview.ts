@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { useApiQuery, transactionsApi } from '@/lib/api'
+import { useQuery } from '@tanstack/react-query'
+import { transactionsApi, queryKeys } from '@/lib/api'
 import type { Transaction } from '@/types'
 import { validateRulePattern } from '../utils/validateRulePattern'
 
@@ -20,8 +21,9 @@ export const useRuleMatchPreview = (pattern: string): UseRuleMatchPreviewReturn 
 
   const { isValid, error } = validateRulePattern(debouncedPattern)
 
-  const matchingTransactions = useApiQuery(
-    async () => {
+  const { data: matchingTransactions = [] } = useQuery({
+    queryKey: [...queryKeys.transactions.all, 'ruleMatchPreview', debouncedPattern],
+    queryFn: async () => {
       if (!isValid) return []
       try {
         const regex = new RegExp(debouncedPattern, 'i')
@@ -31,9 +33,8 @@ export const useRuleMatchPreview = (pattern: string): UseRuleMatchPreviewReturn 
         return []
       }
     },
-    ['transactions'],
-    [] as Transaction[],
-  )
+    enabled: isValid && debouncedPattern.length > 0,
+  })
 
   return {
     matchCount: matchingTransactions.length,

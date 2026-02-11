@@ -1,4 +1,5 @@
-import { useApiQuery, merchantsApi, transactionsApi, rulesApi, categoriesApi } from '@/lib/api'
+import { useQuery } from '@tanstack/react-query'
+import { merchantsApi, transactionsApi, rulesApi, categoriesApi, queryKeys } from '@/lib/api'
 import type { Merchant, Transaction, Rule } from '@/types'
 
 export type TimePeriod =
@@ -203,8 +204,9 @@ export const useMerchantDetail = (
   merchantId: number,
   timePeriod: TimePeriod = 'all-time',
 ): MerchantDetailData => {
-  const data = useApiQuery(
-    async () => {
+  const { data } = useQuery({
+    queryKey: ['merchantDetail', merchantId],
+    queryFn: async () => {
       let merchant: Merchant | undefined
       try {
         merchant = await merchantsApi.get(merchantId)
@@ -254,8 +256,7 @@ export const useMerchantDetail = (
         categoryDistribution,
       }
     },
-    ['merchants', 'transactions', 'rules', 'categories'],
-  )
+  })
 
   if (!data) {
     return {

@@ -1,7 +1,8 @@
 import { useNavigate } from '@tanstack/react-router'
 import { ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useApiQuery, transactionsApi } from '@/lib/api'
+import { useQuery } from '@tanstack/react-query'
+import { transactionsApi, queryKeys } from '@/lib/api'
 import { formatCurrency } from '@/lib/utils/formatCurrency'
 import type { Subscription } from '@/types'
 
@@ -17,13 +18,13 @@ const formatDate = (dateStr: string): string => {
 export function SubscriptionDetail({ subscription }: SubscriptionDetailProps): React.ReactElement {
   const navigate = useNavigate()
 
-  const transactions = useApiQuery(
-    () =>
+  const { data: transactions } = useQuery({
+    queryKey: [...queryKeys.transactions.all, 'subscriptionDetail', subscription.merchantId],
+    queryFn: () =>
       subscription.transactionIds.length > 0
         ? transactionsApi.bulkGet(subscription.transactionIds)
         : Promise.resolve([]),
-    ['transactions']
-  )
+  })
 
   const sortedTransactions = transactions
     ? [...transactions].sort((a, b) => b.date.localeCompare(a.date))

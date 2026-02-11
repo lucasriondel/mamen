@@ -1,4 +1,5 @@
-import { useApiQuery, transactionsApi, merchantsApi } from '@/lib/api'
+import { useQuery } from '@tanstack/react-query'
+import { transactionsApi, merchantsApi, queryKeys } from '@/lib/api'
 
 type TopMerchant = {
   name: string
@@ -16,9 +17,10 @@ export const useCategoryTooltipData = (
   endDate: Date | undefined,
   isOpen: boolean,
 ): CategoryTooltipData => {
-  return useApiQuery(
-    async () => {
-      if (!isOpen || categoryId == null) return null
+  const { data = null } = useQuery({
+    queryKey: ['categoryTooltip', categoryId, startDate?.toISOString(), endDate?.toISOString()],
+    queryFn: async () => {
+      if (categoryId == null) return null
 
       let txs = await transactionsApi.getAll({ categoryId })
 
@@ -55,8 +57,10 @@ export const useCategoryTooltipData = (
         topMerchants,
       }
     },
-    ['transactions', 'merchants'],
-  ) ?? null
+    enabled: isOpen && categoryId != null,
+  })
+
+  return data
 }
 
 export type { CategoryTooltipData, TopMerchant }

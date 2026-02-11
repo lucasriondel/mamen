@@ -1,5 +1,6 @@
 import { Pencil, Trash2 } from 'lucide-react'
-import { useApiQuery, transactionsApi } from '@/lib/api'
+import { useQuery } from '@tanstack/react-query'
+import { transactionsApi, queryKeys } from '@/lib/api'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -19,13 +20,11 @@ const accountTypeLabels: Record<string, string> = {
 }
 
 export function AccountCard({ account, onEdit, onDelete }: AccountCardProps): React.ReactElement {
-  const transactionCount = useApiQuery(
-    () => account.id !== undefined
-      ? transactionsApi.count({ accountId: account.id })
-      : Promise.resolve(0),
-    ['transactions'],
-    0,
-  ) ?? 0
+  const { data: transactionCount = 0 } = useQuery({
+    queryKey: queryKeys.transactions.count({ accountId: account.id }),
+    queryFn: () => transactionsApi.count({ accountId: account.id! }),
+    enabled: account.id !== undefined,
+  })
 
   const handleEdit = (): void => {
     onEdit(account)

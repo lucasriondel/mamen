@@ -1,4 +1,5 @@
-import { useApiQuery, rulesApi } from '@/lib/api'
+import { useQuery } from '@tanstack/react-query'
+import { rulesApi, queryKeys } from '@/lib/api'
 import { useCategories } from '@/hooks/useCategories'
 
 type MerchantRulesListProps = {
@@ -8,11 +9,10 @@ type MerchantRulesListProps = {
 export function MerchantRulesList({
   merchantId,
 }: MerchantRulesListProps): React.ReactElement {
-  const rules = useApiQuery(
-    () => rulesApi.getAll({ merchantId }),
-    ['rules', String(merchantId)],
-    [],
-  )
+  const { data: rules = [] } = useQuery({
+    queryKey: [...queryKeys.rules.all, 'byMerchant', merchantId],
+    queryFn: () => rulesApi.getAll({ merchantId }),
+  })
 
   const { getCategoryById } = useCategories()
 

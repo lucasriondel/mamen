@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
-import { useApiQuery, rulesApi, merchantsApi } from '@/lib/api'
+import { useQuery } from '@tanstack/react-query'
+import { rulesApi, merchantsApi, queryKeys } from '@/lib/api'
 import { Badge } from '@/components/ui/badge'
 import { useCategories } from '@/hooks/useCategories'
 import { RuleRow } from '../RuleRow'
@@ -29,32 +30,35 @@ export function RulesListByMerchant({
   const [collapsedMerchants, setCollapsedMerchants] = useState<Set<number>>(new Set())
   const { getCategoryById } = useCategories()
 
-  const rulesWithMerchants = useApiQuery(async () => {
-    const [rules, merchants] = await Promise.all([
-      rulesApi.getAll(),
-      merchantsApi.getAll(),
-    ])
-    const merchantMap = new Map(merchants.map((m) => [m.id!, m]))
+  const { data: rulesWithMerchants = [] } = useQuery({
+    queryKey: ['rulesListByMerchant'],
+    queryFn: async () => {
+      const [rules, merchants] = await Promise.all([
+        rulesApi.getAll(),
+        merchantsApi.getAll(),
+      ])
+      const merchantMap = new Map(merchants.map((m) => [m.id!, m]))
 
-    const grouped = new Map<number, MerchantWithRules>()
+      const grouped = new Map<number, MerchantWithRules>()
 
-    for (const rule of rules) {
-      const merchant = merchantMap.get(rule.merchantId)
-      if (!merchant || merchant.id === undefined) continue
+      for (const rule of rules) {
+        const merchant = merchantMap.get(rule.merchantId)
+        if (!merchant || merchant.id === undefined) continue
 
-      if (!grouped.has(merchant.id)) {
-        grouped.set(merchant.id, { merchant, rules: [] })
+        if (!grouped.has(merchant.id)) {
+          grouped.set(merchant.id, { merchant, rules: [] })
+        }
+        grouped.get(merchant.id)!.rules.push(rule)
       }
-      grouped.get(merchant.id)!.rules.push(rule)
-    }
 
-    return Array.from(grouped.values()).sort((a, b) => {
-      if (a.rules.length !== b.rules.length) {
-        return b.rules.length - a.rules.length
-      }
-      return a.merchant.name.localeCompare(b.merchant.name)
-    })
-  }, ['rules', 'merchants'], [] as MerchantWithRules[])
+      return Array.from(grouped.values()).sort((a, b) => {
+        if (a.rules.length !== b.rules.length) {
+          return b.rules.length - a.rules.length
+        }
+        return a.merchant.name.localeCompare(b.merchant.name)
+      })
+    },
+  })
 
   const filteredGroups = useMemo(() => {
     if (!searchQuery.trim()) return rulesWithMerchants

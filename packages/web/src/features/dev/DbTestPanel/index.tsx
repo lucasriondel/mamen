@@ -1,9 +1,16 @@
-import { accountsApi, transactionsApi, useApiQuery } from '@/lib/api'
+import { useQuery } from '@tanstack/react-query'
+import { accountsApi, transactionsApi, queryKeys } from '@/lib/api'
 import type { Account } from '@/types'
 
 export function DbTestPanel(): React.ReactElement {
-  const { data: accounts } = useApiQuery('accounts', () => accountsApi.getAll())
-  const { data: transactions } = useApiQuery('transactions', () => transactionsApi.getAll())
+  const { data: accounts } = useQuery({
+    queryKey: queryKeys.accounts.all,
+    queryFn: () => accountsApi.getAll(),
+  })
+  const { data: transactions } = useQuery({
+    queryKey: queryKeys.transactions.list({}),
+    queryFn: () => transactionsApi.getAll(),
+  })
 
   const handleAddTestAccount = async (): Promise<void> => {
     await accountsApi.create({

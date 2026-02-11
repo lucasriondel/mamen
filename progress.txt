@@ -16,3 +16,25 @@
 - Removed `ALL_TABLES` constant from database.ts (only used for invalidation)
 - API modules are now pure fetch wrappers — invalidation will move to TanStack Query mutations
 - Typecheck passes cleanly
+
+## Steps 5-6 + 9: Migrate consumers, delete old files, update test infra (DONE)
+
+- Migrated all ~35 useApiQuery consumer files to TanStack Query's useQuery:
+  - Hooks: useCategories, useCategoryTree, useMerchants, useUnmatchedCount, useCurrentMonthCount, useBreadcrumbs
+  - Feature hooks: useFilteredTransactions, useRuleMatchPreview, useMerchantDetail, useMerchantsList,
+    useExistingMerchant, useSubscriptions, useAnomalies, useNetSpending, useSpendingComparison,
+    useSpendingBreakdown, useCategoryTooltipData, useSettings, useDisplayPreferences,
+    useTransactionSearch, useAccountMonthData
+  - Components: accounts route, Sidebar, MatchPreviewList, DbTestPanel, AnomalySettingsForm,
+    RulesListByMerchant, RulesPage, RuleEditModal, RefundLinkModal, TransactionDataTable,
+    DashboardPage, DataManagementSection, AccountCard, MerchantSearchSelect,
+    MerchantRulesList, SubscriptionDetail
+- Deleted lib/api/invalidation.ts and lib/api/useApiQuery.ts
+- Updated lib/api/index.ts barrel: removed invalidate/subscribe/useApiQuery exports
+- Updated test/api-mock-setup.ts: replaced useApiQuery/invalidation mocks with test QueryClient,
+  kept entity API mocks using in-memory db, invalidation redirected to testQueryClient.invalidateQueries()
+- Created test/query-client-setup.tsx: global QueryClientProvider wrapper for render/renderHook
+  via vi.mock('@testing-library/react'), so all tests automatically get QueryClient context
+- Fixed useBreadcrumbs.test.ts: replaced useApiQuery mock with useQuery mock matching new query keys
+- Added vitest.config.ts setupFile for query-client-setup.tsx
+- All 141 test files pass (1432 tests), typecheck passes cleanly

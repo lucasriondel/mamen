@@ -1,4 +1,5 @@
-import { useApiQuery, transactionsApi, categoriesApi } from '@/lib/api'
+import { useQuery } from '@tanstack/react-query'
+import { transactionsApi, categoriesApi, queryKeys } from '@/lib/api'
 
 type SubcategoryBreakdown = {
   name: string
@@ -38,20 +39,20 @@ const EMPTY_BREAKDOWN: SpendingBreakdown = {
 }
 
 export const useSpendingBreakdown = (dateRange?: DateRange): SpendingBreakdown => {
-  const transactions = useApiQuery(
-    () =>
+  const { data: transactions } = useQuery({
+    queryKey: queryKeys.transactions.list({ startDate: dateRange?.startDate.toISOString() ?? '', endDate: dateRange?.endDate.toISOString() ?? '' }),
+    queryFn: () =>
       dateRange
         ? transactionsApi.getAll({
             startDate: dateRange.startDate.toISOString(),
             endDate: dateRange.endDate.toISOString(),
           })
         : transactionsApi.getAll(),
-    ['transactions', dateRange?.startDate.toISOString() ?? '', dateRange?.endDate.toISOString() ?? ''],
-  )
-  const categories = useApiQuery(
-    () => categoriesApi.getAll(),
-    ['categories'],
-  )
+  })
+  const { data: categories } = useQuery({
+    queryKey: queryKeys.categories.all,
+    queryFn: () => categoriesApi.getAll(),
+  })
 
   if (!transactions || !categories) {
     return EMPTY_BREAKDOWN

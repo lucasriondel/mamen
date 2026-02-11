@@ -1,5 +1,6 @@
 import { useMemo, useRef } from 'react'
-import { useApiQuery, transactionsApi } from '@/lib/api'
+import { useQuery } from '@tanstack/react-query'
+import { transactionsApi, queryKeys } from '@/lib/api'
 import type { TimePeriod } from '../types'
 import {
   getPreviousPeriodRange,
@@ -30,14 +31,14 @@ export const useSpendingComparison = (
     [selectedPeriod, now],
   )
 
-  const prevTransactions = useApiQuery(
-    () =>
+  const { data: prevTransactions } = useQuery({
+    queryKey: queryKeys.transactions.list({ startDate: prevRange.startDate.toISOString(), endDate: prevRange.endDate.toISOString() }),
+    queryFn: () =>
       transactionsApi.getAll({
         startDate: prevRange.startDate.toISOString(),
         endDate: prevRange.endDate.toISOString(),
       }),
-    ['transactions', prevRange.startDate.toISOString(), prevRange.endDate.toISOString()],
-  )
+  })
 
   return useMemo(() => {
     if (!prevTransactions || prevTransactions.length === 0) return undefined

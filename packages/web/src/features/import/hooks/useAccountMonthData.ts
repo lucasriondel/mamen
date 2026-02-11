@@ -1,14 +1,15 @@
 import { useMemo } from 'react'
-import { useApiQuery, transactionsApi } from '@/lib/api'
+import { useQuery } from '@tanstack/react-query'
+import { transactionsApi, queryKeys } from '@/lib/api'
 
 export function useAccountMonthData(accountId: number | undefined): Map<string, number> {
-  const transactions = useApiQuery(
-    () => {
+  const { data: transactions } = useQuery({
+    queryKey: [...queryKeys.transactions.all, 'accountMonth', accountId],
+    queryFn: () => {
       if (accountId === undefined) return Promise.resolve([])
       return transactionsApi.getAll({ accountId })
     },
-    ['transactions'],
-  )
+  })
 
   return useMemo(() => {
     const counts = new Map<string, number>()

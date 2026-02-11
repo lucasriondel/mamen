@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
-import { useApiQuery, subscriptionsApi } from '@/lib/api'
+import { useQuery } from '@tanstack/react-query'
+import { subscriptionsApi, queryKeys } from '@/lib/api'
 import type { Subscription } from '@/types'
 
 export type UseSubscriptionsReturn = {
@@ -13,13 +14,13 @@ export type UseSubscriptionsReturn = {
 }
 
 export const useSubscriptions = (): UseSubscriptionsReturn => {
-  const subscriptions = useApiQuery(
-    () => subscriptionsApi.getAll(),
-    ['subscriptions'],
-  )
+  const { data: subscriptions, isLoading: queryLoading } = useQuery({
+    queryKey: queryKeys.subscriptions.all,
+    queryFn: () => subscriptionsApi.getAll(),
+  })
 
   return useMemo(() => {
-    if (subscriptions === undefined) {
+    if (!subscriptions) {
       return {
         subscriptions: [],
         active: [],
@@ -27,7 +28,7 @@ export const useSubscriptions = (): UseSubscriptionsReturn => {
         monthlyTotal: 0,
         yearlyTotal: 0,
         count: 0,
-        isLoading: true,
+        isLoading: queryLoading,
       }
     }
 

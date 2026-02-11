@@ -3,81 +3,36 @@
 
 import { vi } from 'vitest'
 import { db } from '@/lib/db'
+import { QueryClient } from '@tanstack/react-query'
+import { queryKeys } from '@/lib/api/queryKeys'
 import type { AppSettings, Setting, SettingKey } from '@mamen/shared'
 
-// ─── invalidation (real implementation, not mocked) ─────────────
-// We use the actual invalidation module so that useApiQuery can
-// subscribe to changes and re-fetch when data is mutated.
-type Listener = () => void
-const listeners = new Map<string, Set<Listener>>()
-
-const subscribe = (keys: string[], listener: Listener): (() => void) => {
-  for (const key of keys) {
-    if (!listeners.has(key)) listeners.set(key, new Set())
-    listeners.get(key)!.add(listener)
-  }
-  return () => {
-    for (const key of keys) {
-      listeners.get(key)?.delete(listener)
-    }
-  }
-}
-
-const invalidate = (...keys: string[]) => {
-  const notified = new Set<Listener>()
-  for (const key of keys) {
-    const set = listeners.get(key)
-    if (!set) continue
-    for (const listener of set) {
-      if (!notified.has(listener)) {
-        notified.add(listener)
-        listener()
-      }
-    }
-  }
-}
-
-vi.mock('@/lib/api/invalidation', () => ({
-  invalidate,
-  subscribe,
-}))
-
-// ─── useApiQuery mock ───────────────────────────────────────────
-// Faithful mock that re-runs query on invalidation or key changes.
-vi.mock('@/lib/api/useApiQuery', () => ({
-  useApiQuery: <T>(queryFn: () => Promise<T>, keys: string[], defaultValue?: T) => {
-    const { useState, useEffect, useRef, useCallback, useMemo } = require('react')
-
-    const sortedKey = useMemo(() => [...keys].sort().join(','), [keys.join(',')])
-    const [data, setData] = useState<T | undefined>(defaultValue)
-    const [version, setVersion] = useState(0)
-    const queryFnRef = useRef(queryFn)
-    queryFnRef.current = queryFn
-
-    // Subscribe to invalidation events
-    useEffect(() => {
-      return subscribe(keys, () => {
-        setVersion((v: number) => v + 1)
-      })
-    }, [sortedKey])
-
-    // Fetch data when version or sortedKey changes
-    useEffect(() => {
-      let cancelled = false
-      queryFnRef.current()
-        .then((result: T) => {
-          if (!cancelled) setData(result)
-        })
-        .catch(() => {
-          // ignore errors in test mock
-        })
-      return () => {
-        cancelled = true
-      }
-    }, [version, sortedKey])
-
-    return data
+// ─── Test QueryClient ───────────────────────────────────────────
+// Shared test QueryClient — tests can import this via the barrel mock.
+const testQueryClient = new QueryClient({
+  defaultOptions: {
+    queries: { retry: false, gcTime: 0, staleTime: 0 },
+    mutations: { retry: false },
   },
+})
+
+// Helper: invalidate TanStack Query cache when test mocks mutate data
+const invalidate = (...entities: string[]) => {
+  for (const entity of entities) {
+    const keys = queryKeys[entity as keyof typeof queryKeys]
+    if (keys?.all) {
+      testQueryClient.invalidateQueries({ queryKey: keys.all })
+    }
+  }
+  // Also invalidate composed queries
+  for (const prefix of ['merchantDetail', 'merchantsList', 'merchantSearchSelect', 'existingMerchant', 'rulesListByMerchant', 'dataManagementCounts', 'categoryTooltip']) {
+    testQueryClient.invalidateQueries({ queryKey: [prefix] })
+  }
+}
+
+// Mock queryClient module to use our test instance
+vi.mock('@/lib/api/queryClient', () => ({
+  queryClient: testQueryClient,
 }))
 
 // ─── client mock (not used but imported by API modules) ─────────
@@ -516,13 +471,13 @@ vi.mock('@/lib/api', async () => {
   const importMod = await import('@/lib/api/import')
   const databaseMod = await import('@/lib/api/database')
   const clientMod = await import('@/lib/api/client')
-  const invalidationMod = await import('@/lib/api/invalidation')
-  const useApiQueryMod = await import('@/lib/api/useApiQuery')
+  const queryKeysMod = await import('@/lib/api/queryKeys')
+  const queryClientMod = await import('@/lib/api/queryClient')
 
   return {
     ...clientMod,
-    ...invalidationMod,
-    ...useApiQueryMod,
+    ...queryKeysMod,
+    ...queryClientMod,
     accountsApi: accountsMod.accountsApi,
     transactionsApi: transactionsMod.transactionsApi,
     merchantsApi: merchantsMod.merchantsApi,

@@ -1,4 +1,5 @@
-import { useApiQuery, merchantsApi } from '@/lib/api'
+import { useQuery } from '@tanstack/react-query'
+import { merchantsApi, queryKeys } from '@/lib/api'
 import type { Merchant } from '@/types'
 
 export type UseMerchantsReturn = {
@@ -12,13 +13,10 @@ export type UseMerchantsReturn = {
 }
 
 export const useMerchants = (): UseMerchantsReturn => {
-  const merchants = useApiQuery(
-    () => merchantsApi.getAll({ orderBy: 'name' }),
-    ['merchants'],
-    [] as Merchant[],
-  )
-
-  const isLoading = merchants === undefined
+  const { data: merchants, isLoading } = useQuery({
+    queryKey: queryKeys.merchants.list({ orderBy: 'name' }),
+    queryFn: () => merchantsApi.getAll({ orderBy: 'name' }),
+  })
 
   const createMerchant = async (
     name: string,

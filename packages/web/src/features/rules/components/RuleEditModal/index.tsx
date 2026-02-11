@@ -14,7 +14,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { CategoryPicker } from '@/components/CategoryPicker'
 import { MatchPreviewList } from '@/components/MatchPreviewList'
 import { useCategories } from '@/hooks/useCategories'
-import { useApiQuery, rulesApi, merchantsApi } from '@/lib/api'
+import { useQuery } from '@tanstack/react-query'
+import { rulesApi, merchantsApi, queryKeys } from '@/lib/api'
 import { validateRulePattern } from '../../utils/validateRulePattern'
 import { Check, AlertCircle, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -39,15 +40,17 @@ export function RuleEditModal({
   const [categoryPickerOpen, setCategoryPickerOpen] = useState(false)
   const { getCategoryById } = useCategories()
 
-  const rule = useApiQuery(
-    () => (ruleId ? rulesApi.get(ruleId) : Promise.resolve(undefined)),
-    ['rules', String(ruleId ?? '')],
-  )
+  const { data: rule } = useQuery({
+    queryKey: queryKeys.rules.detail(ruleId!),
+    queryFn: () => rulesApi.get(ruleId!),
+    enabled: ruleId != null,
+  })
 
-  const merchant = useApiQuery(
-    () => (rule?.merchantId ? merchantsApi.get(rule.merchantId) : Promise.resolve(undefined)),
-    ['merchants', String(rule?.merchantId ?? '')],
-  )
+  const { data: merchant } = useQuery({
+    queryKey: queryKeys.merchants.detail(rule?.merchantId!),
+    queryFn: () => merchantsApi.get(rule!.merchantId),
+    enabled: rule?.merchantId != null,
+  })
 
   useEffect(() => {
     if (rule && open) {

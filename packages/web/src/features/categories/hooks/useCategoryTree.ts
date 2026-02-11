@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
-import { useApiQuery, categoriesApi } from '@/lib/api'
+import { useQuery } from '@tanstack/react-query'
+import { categoriesApi, queryKeys } from '@/lib/api'
 import type { Category, CategoryTreeNode } from '@/types'
 
 export type UseCategoryTreeReturn = {
@@ -33,13 +34,10 @@ function buildTree(categories: Category[]): CategoryTreeNode[] {
 }
 
 export const useCategoryTree = (): UseCategoryTreeReturn => {
-  const allCategories = useApiQuery(
-    () => categoriesApi.getAll({ orderBy: 'sortOrder' }),
-    ['categories'],
-    [] as Category[],
-  ) ?? [] as Category[]
-
-  const isLoading = allCategories.length === 0
+  const { data: allCategories = [], isLoading } = useQuery({
+    queryKey: queryKeys.categories.list({ orderBy: 'sortOrder' }),
+    queryFn: () => categoriesApi.getAll({ orderBy: 'sortOrder' }),
+  })
 
   const tree = useMemo(() => buildTree(allCategories), [allCategories])
 

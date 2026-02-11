@@ -2,7 +2,8 @@ import { useState, useRef, useMemo, useCallback } from 'react'
 import { Search, X } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { useApiQuery, rulesApi, transactionsApi } from '@/lib/api'
+import { useQuery } from '@tanstack/react-query'
+import { rulesApi, transactionsApi, queryKeys } from '@/lib/api'
 import { useKeyboardNavigation } from '@/hooks/useKeyboardNavigation'
 import { RulesListByMerchant } from '../RulesListByMerchant'
 import { RuleEditModal } from '../RuleEditModal'
@@ -19,11 +20,10 @@ export function RulesPage(): React.ReactElement {
 
   const { updateRule, deleteRule: performDelete } = useRuleMutations()
 
-  const allRules = useApiQuery(
-    () => rulesApi.getAll(),
-    ['rules'],
-    [] as Rule[],
-  )
+  const { data: allRules = [] as Rule[] } = useQuery({
+    queryKey: queryKeys.rules.all,
+    queryFn: () => rulesApi.getAll(),
+  })
 
   const flatRules = useMemo(() => {
     return [...allRules].sort((a, b) => {
