@@ -73,3 +73,13 @@
   - On save: calls `uploadImage()` / `deleteImage()` before metadata update
 - Typecheck passes across all packages
 - All 1432 web tests pass (141 test files)
+
+### Phase 7: Housekeeping ✅
+- `.gitignore` already contains `uploads/` (added during Phase 3)
+- `packages/web/vite.config.ts` already contains `/uploads` proxy (added during Phase 3)
+- Typecheck passes across all packages
+- All 1432 web tests pass (141 test files), all 116 server tests pass
+
+### ALL PHASES COMPLETE
+- All 7 phases of the Merchant Pictures implementation are done
+- Verification: typecheck green, all tests pass

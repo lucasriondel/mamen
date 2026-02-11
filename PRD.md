@@ -84,11 +84,11 @@ Merchants currently have no visual representation. Adding pictures to merchants 
 - Add image picker UI: clickable avatar preview with camera overlay, hidden file input, remove button ✅
 - On save: call `uploadImage()` / `deleteImage()` before the metadata update ✅
 
-## Phase 7: Housekeeping
+## Phase 7: Housekeeping ✅
 
-**`.gitignore`** — Add `uploads/` line.
+**`.gitignore`** — Add `uploads/` line. ✅
 
-**`packages/web/vite.config.ts`** — Add `"/uploads": "http://localhost:3000"` to the proxy config (dev mode needs to forward upload requests to the backend).
+**`packages/web/vite.config.ts`** — Add `"/uploads": "http://localhost:3000"` to the proxy config (dev mode needs to forward upload requests to the backend). ✅
 
 ## Verification
 
