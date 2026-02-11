@@ -1,68 +1,8 @@
-## Fastify Migration Progress
+## Steps 1-3: Install TanStack Query + Foundation (DONE)
 
-### Step 1+2: Add dependencies & Create core infrastructure ✅
-- Added fastify@5.7.4, fastify-plugin@5.1.0, @fastify/static@9.0.0
-- Created `src/app.ts` with `buildApp()` factory pattern
-  - TypeScript module augmentation for `fastify.db`
-  - DB injection via `app.decorate('db', db)` — tests can pass in-memory DB
-  - Global error handler
-- Created `src/plugins/date-parser.ts` — JSON content-type parser with dateReviver
-- Created `src/plugins/static-files.ts` — @fastify/static + SPA fallback
-- Verified: typecheck passes, buildApp() works with in-memory DB
-- Next: Step 3 — Convert route modules to Fastify plugins
-
-### Step 3: Convert route modules to Fastify plugins ✅
-- Created `src/routes/` directory with 10 Fastify route plugins:
-  - `health.ts` — GET /api/health
-  - `accounts.ts` — 7 endpoints (CRUD + by-name + by-type)
-  - `settings.ts` — 5 endpoints (getAll, by-key, put-by-key, delete, clear)
-  - `app-settings.ts` — 3 endpoints (get, put, clear)
-  - `merchants.ts` — 8 endpoints (CRUD + by-name + by-name-ci + ordered + bulk-put)
-  - `rules.ts` — 9 endpoints (CRUD + count + bulk-add + bulk-delete + by-merchant-pattern)
-  - `categories.ts` — 10 endpoints (CRUD + root + by-slug + by-parent + bulk-add + bulk-put + clear)
-  - `subscriptions.ts` — 9 endpoints (CRUD + first-by-merchant + by-merchant-frequency + bulk-put + clear)
-  - `transactions.ts` — 12 endpoints (CRUD + bulk + filters + count + by-account-month + by-import-batch)
-  - `database.ts` — 3 endpoints (reset, export, import)
-- All routes registered in `app.ts` with `/api` prefix
-- Conversion pattern: `getDatabase()` → `fastify.db`, `jsonResponse()` → `return data`, `parseBody()` → `request.body`
-- Verified: server typecheck passes
-- Next: Step 4 — Rewrite `src/index.ts` to use buildApp()
-
-### Step 4: Rewrite `src/index.ts` ✅
-- Replaced old `Bun.serve` entry point with slim Fastify-based entry
-- Calls `buildApp({ staticDir })` then `app.listen()` on port 3000
-- Removed imports of old `router`, `handleRequest`, and side-effect `./api`
-- Verified: server typecheck passes
-- Next: Step 5 — Delete old files (`src/router.ts`, `src/api/`)
-
-### Step 5: Delete old files ✅
-- Deleted `src/router.ts` (old hand-rolled router)
-- Deleted `src/api/` directory (11 files: index.ts, helpers.ts, and 9 domain modules)
-- Verified no remaining imports reference these files
-- Verified: server typecheck passes
-- Next: Step 6 — Create test infrastructure
-
-### Step 6: Create test infrastructure ✅
-- Created `vitest.config.ts` — node environment, globals enabled
-- Created `src/__tests__/helpers/test-app.ts` — `createTestApp()` factory
-  - Uses `getInMemoryConnection()` for isolated in-memory SQLite DB
-  - Creates `DatabaseInstance` via `createDatabase(connection)`
-  - Builds Fastify app via `buildApp({ db })` and awaits `app.ready()`
-- Verified: typecheck passes, `vitest run --passWithNoTests` succeeds
-- Next: Step 7 — Write API tests
-
-### Step 7: Write API tests ✅
-- Created 10 test files in `src/__tests__/routes/`:
-  - `health.test.ts` — 1 test
-  - `accounts.test.ts` — 12 tests (empty list, create 201, get/update/delete by id, invalid id 400, not found 404, by-name, by-type)
-  - `settings.test.ts` — 7 tests (CRUD, by-key, put-by-key, clear)
-  - `app-settings.test.ts` — 3 tests (get 404, put, clear)
-  - `merchants.test.ts` — 15 tests (CRUD, ordered, by-name, by-name-ci, bulk-put, invalid id, not found)
-  - `rules.test.ts` — 17 tests (CRUD, count, bulk-add, bulk-delete, by-merchant-pattern, invalid id, not found)
-  - `categories.test.ts` — 16 tests (CRUD, root, by-slug, by-parent, bulk-add, bulk-put, clear, invalid id, not found)
-  - `subscriptions.test.ts` — 19 tests (CRUD, by-merchantId, by-status, first-by-merchant, by-merchant-frequency, bulk-put, clear)
-  - `transactions.test.ts` — 23 tests (CRUD, bulk create/get/put/delete, filters by accountId/importMonth/importBatchId/dateRange, count, delete by account-month, delete by import-batch)
-  - `database.test.ts` — 3 tests (reset, export, import round-trip)
-- Updated `package.json` test script to `bunx --bun vitest run` (bun:sqlite requires Bun runtime)
-- All 116 tests pass, typecheck passes
-- Migration complete!
+- Installed @tanstack/react-query@5.90.21 and @tanstack/react-query-devtools@5.91.3
+- Created packages/web/src/lib/api/queryClient.ts with QueryClient (staleTime: 30s, gcTime: 5min, no window refocus, retry: 1)
+- Created packages/web/src/lib/api/queryKeys.ts with hierarchical query key factory for all entities
+- Wrapped app with QueryClientProvider + ReactQueryDevtools in main.tsx
+- Added queryClient and queryKeys exports to lib/api/index.ts barrel
+- Typecheck passes for all new/modified files (pre-existing errors in other files unrelated to this work)
