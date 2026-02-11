@@ -11,7 +11,13 @@ import {
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ArrowUpDown, ListIcon, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { InboxZeroEmpty } from "@/components/InboxZeroEmpty";
 import { SelectionStatusBar } from "@/components/SelectionStatusBar";
 import { Button } from "@/components/ui/button";
@@ -177,6 +183,23 @@ export function TransactionDataTable({
 	const deleteTransactions = useDeleteTransactions();
 	const navigate = useNavigate();
 	const highlightHandledRef = useRef<number | undefined>(undefined);
+
+	// --- Entrance animation ---
+	const prefersReducedMotion = useMemo(
+		() =>
+			typeof window.matchMedia === "function" &&
+			window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+		[],
+	);
+	const hasAnimatedEntranceRef = useRef(false);
+	const [isEntering, setIsEntering] = useState(!prefersReducedMotion);
+
+	useEffect(() => {
+		if (hasAnimatedEntranceRef.current || prefersReducedMotion) return;
+		hasAnimatedEntranceRef.current = true;
+		const timer = setTimeout(() => setIsEntering(false), 1200);
+		return () => clearTimeout(timer);
+	}, [prefersReducedMotion]);
 
 	// --- Cursor + hover state ---
 	const [cursorRowId, setCursorRowId] = useState<string | null>(null);
@@ -664,30 +687,12 @@ export function TransactionDataTable({
 						const isHighlighted =
 							animatingIdSet.has(rowId) &&
 							(animationPhase === "highlight" || animationPhase === "settle");
+						const shouldAnimate =
+							isEntering && virtualRow.index < 25;
 
 						return (
-							// biome-ignore lint/a11y/useFocusableInteractive: focus managed by parent listbox via aria-activedescendant
-							// biome-ignore lint/a11y/useKeyWithClickEvents: keyboard navigation handled by parent listbox component
 							<div
 								key={rowId}
-								id={`tx-${rowId}`}
-								role="option"
-								aria-selected={isSelected}
-								onClick={() => handleRowClick(rowId)}
-								onMouseEnter={() => setHoveredRowId(rowId)}
-								onMouseLeave={() =>
-									setHoveredRowId((prev) => (prev === rowId ? null : prev))
-								}
-								className={cn(
-									"flex items-center h-12 px-4 gap-4 border-b cursor-pointer transition-colors",
-									"hover:bg-muted/50",
-									isCursor && !isSelected && "bg-muted/30",
-									isSelected && "bg-ring/8 border-l-2 border-l-ring",
-									isCursor &&
-										isSelected &&
-										"bg-ring/15 ring-1 ring-ring/30 ring-inset",
-									isHighlighted && "bg-primary/10",
-								)}
 								style={{
 									position: "absolute",
 									top: 0,
@@ -697,22 +702,63 @@ export function TransactionDataTable({
 									transform: `translateY(${virtualRow.start}px)`,
 								}}
 							>
-								{row.getVisibleCells().map((cell) => (
-									<div
-										key={cell.id}
-										className={cn(
-											cell.column.id === "select" &&
-												"w-8 shrink-0 flex items-center",
-											cell.column.id === "date" && "w-20 shrink-0",
-											cell.column.id === "rawMerchantString" &&
-												"flex-1 min-w-0",
-											cell.column.id === "category" && "w-32 shrink-0",
-											cell.column.id === "amount" && "w-24 shrink-0",
-										)}
-									>
-										{flexRender(cell.column.columnDef.cell, cell.getContext())}
-									</div>
-								))}
+								{/* biome-ignore lint/a11y/useFocusableInteractive: focus managed by parent listbox via aria-activedescendant */}
+								{/* biome-ignore lint/a11y/useKeyWithClickEvents: keyboard navigation handled by parent listbox component */}
+								<div
+									id={`tx-${rowId}`}
+									role="option"
+									aria-selected={isSelected}
+									onClick={() => handleRowClick(rowId)}
+									onMouseEnter={() => setHoveredRowId(rowId)}
+									onMouseLeave={() =>
+										setHoveredRowId((prev) =>
+											prev === rowId ? null : prev,
+										)
+									}
+									className={cn(
+										"flex items-center h-full px-4 gap-4 border-b cursor-pointer transition-colors",
+										"hover:bg-muted/50",
+										isCursor && !isSelected && "bg-muted/30",
+										isSelected &&
+											"bg-ring/8 border-l-2 border-l-ring",
+										isCursor &&
+											isSelected &&
+											"bg-ring/15 ring-1 ring-ring/30 ring-inset",
+										isHighlighted && "bg-primary/10",
+										shouldAnimate && "tx-row-enter",
+									)}
+									style={
+										shouldAnimate
+											? ({
+													"--row-delay": `${virtualRow.index * 30}ms`,
+												} as React.CSSProperties)
+											: undefined
+									}
+								>
+									{row.getVisibleCells().map((cell) => (
+										<div
+											key={cell.id}
+											className={cn(
+												cell.column.id === "select" &&
+													"w-8 shrink-0 flex items-center",
+												cell.column.id === "date" &&
+													"w-20 shrink-0",
+												cell.column.id ===
+													"rawMerchantString" &&
+													"flex-1 min-w-0",
+												cell.column.id === "category" &&
+													"w-32 shrink-0",
+												cell.column.id === "amount" &&
+													"w-24 shrink-0",
+											)}
+										>
+											{flexRender(
+												cell.column.columnDef.cell,
+												cell.getContext(),
+											)}
+										</div>
+									))}
+								</div>
 							</div>
 						);
 					})}

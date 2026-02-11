@@ -30,3 +30,14 @@
 - Softened header bottom border from `border-b` to `border-b border-border/30`
 - TypeScript: clean (0 errors)
 - Tests: 141 files, 1432 tests all passing
+
+### Task 4: Transaction List Entrance Animation (PRD Section 5) ✅
+- Added `@keyframes tx-row-enter` CSS animation (opacity 0→1, translateY 6px→0, 350ms ease-out)
+- Added `.tx-row-enter` class with `animation-delay: var(--row-delay)` for staggered timing
+- Added `.tx-row-enter` to reduced-motion media query (animation: none, opacity: 1)
+- Split virtual rows into outer (positioning) + inner (content + animation) divs to avoid transform conflict
+- Added entrance animation state: `isEntering` flag with 1.2s auto-disable, `hasAnimatedEntranceRef` for one-shot
+- Stagger: 30ms per row × 25 rows max = 750ms total stagger, 350ms per-row animation
+- Safe `matchMedia` check for jsdom compatibility in tests
+- TypeScript: clean (0 errors)
+- Tests: 141 files, 1432 tests all passing

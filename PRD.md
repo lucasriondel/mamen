@@ -157,7 +157,7 @@ border-b border-border/30
 
 ---
 
-## 5. Transaction List Entrance Animation (`TransactionDataTable/index.tsx`)
+## 5. Transaction List Entrance Animation (`TransactionDataTable/index.tsx`) ✅
 
 ### Problem
 Rows are absolutely positioned with inline `transform: translateY(...)` for virtualization. The existing `.tx-row-enter` CSS animation also uses `transform`, which would **override** the positioning transform.

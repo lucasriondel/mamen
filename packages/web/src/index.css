@@ -198,13 +198,32 @@
 	opacity: 0;
 }
 
+/* Transaction row entrance animation */
+@keyframes tx-row-enter {
+	0% {
+		opacity: 0;
+		transform: translateY(6px);
+	}
+	100% {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+.tx-row-enter {
+	animation: tx-row-enter 350ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+	animation-delay: var(--row-delay, 0ms);
+	opacity: 0;
+}
+
 /* Respect prefers-reduced-motion */
 @media (prefers-reduced-motion: reduce) {
 	.cascade-highlight,
 	.badge-cascade-enter,
 	.counter-updating,
 	.animate-scale-in,
-	.animate-fade-in {
+	.animate-fade-in,
+	.tx-row-enter {
 		animation: none;
 		transition: none;
 		opacity: 1;
