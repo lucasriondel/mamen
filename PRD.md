@@ -70,7 +70,7 @@ Update `packages/server/package.json`.
   - Use `fastify-plugin` to break scope encapsulation
 - `src/plugins/static-files.ts` — `@fastify/static` + SPA fallback via `setNotFoundHandler`
 
-### Step 3: Convert route modules (one at a time)
+### Step 3: Convert route modules (one at a time) ✅
 
 Each old route file (`src/api/*.ts`) → new Fastify plugin (`src/routes/*.ts`).
 

@@ -4,6 +4,16 @@ import type { DatabaseInstance } from './lib/repository/adapters/sqlite'
 import { getDatabase } from './lib/repository'
 import dateParserPlugin from './plugins/date-parser'
 import staticFilesPlugin from './plugins/static-files'
+import healthRoutes from './routes/health'
+import accountRoutes from './routes/accounts'
+import settingRoutes from './routes/settings'
+import appSettingsRoutes from './routes/app-settings'
+import merchantRoutes from './routes/merchants'
+import ruleRoutes from './routes/rules'
+import categoryRoutes from './routes/categories'
+import subscriptionRoutes from './routes/subscriptions'
+import transactionRoutes from './routes/transactions'
+import databaseRoutes from './routes/database'
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -24,7 +34,16 @@ export const buildApp = (opts: BuildAppOptions = {}): FastifyInstance => {
 
   app.register(dateParserPlugin)
 
-  // Route plugins will be registered here as they are converted (Step 3)
+  app.register(healthRoutes, { prefix: '/api' })
+  app.register(accountRoutes, { prefix: '/api' })
+  app.register(settingRoutes, { prefix: '/api' })
+  app.register(appSettingsRoutes, { prefix: '/api' })
+  app.register(merchantRoutes, { prefix: '/api' })
+  app.register(ruleRoutes, { prefix: '/api' })
+  app.register(categoryRoutes, { prefix: '/api' })
+  app.register(subscriptionRoutes, { prefix: '/api' })
+  app.register(transactionRoutes, { prefix: '/api' })
+  app.register(databaseRoutes, { prefix: '/api' })
 
   if (opts.staticDir) {
     app.register(staticFilesPlugin, { staticDir: opts.staticDir })

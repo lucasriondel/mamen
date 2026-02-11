@@ -10,3 +10,20 @@
 - Created `src/plugins/static-files.ts` — @fastify/static + SPA fallback
 - Verified: typecheck passes, buildApp() works with in-memory DB
 - Next: Step 3 — Convert route modules to Fastify plugins
+
+### Step 3: Convert route modules to Fastify plugins ✅
+- Created `src/routes/` directory with 10 Fastify route plugins:
+  - `health.ts` — GET /api/health
+  - `accounts.ts` — 7 endpoints (CRUD + by-name + by-type)
+  - `settings.ts` — 5 endpoints (getAll, by-key, put-by-key, delete, clear)
+  - `app-settings.ts` — 3 endpoints (get, put, clear)
+  - `merchants.ts` — 8 endpoints (CRUD + by-name + by-name-ci + ordered + bulk-put)
+  - `rules.ts` — 9 endpoints (CRUD + count + bulk-add + bulk-delete + by-merchant-pattern)
+  - `categories.ts` — 10 endpoints (CRUD + root + by-slug + by-parent + bulk-add + bulk-put + clear)
+  - `subscriptions.ts` — 9 endpoints (CRUD + first-by-merchant + by-merchant-frequency + bulk-put + clear)
+  - `transactions.ts` — 12 endpoints (CRUD + bulk + filters + count + by-account-month + by-import-batch)
+  - `database.ts` — 3 endpoints (reset, export, import)
+- All routes registered in `app.ts` with `/api` prefix
+- Conversion pattern: `getDatabase()` → `fastify.db`, `jsonResponse()` → `return data`, `parseBody()` → `request.body`
+- Verified: server typecheck passes
+- Next: Step 4 — Rewrite `src/index.ts` to use buildApp()
