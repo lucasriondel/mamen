@@ -10,7 +10,7 @@ type SubscriptionDetailProps = {
 	subscription: Subscription;
 };
 
-const formatDate = (dateStr: string): string => {
+const formatDate = (dateStr: string | Date): string => {
 	const date = new Date(dateStr);
 	return date.toLocaleDateString("en-US", {
 		month: "short",
@@ -37,7 +37,9 @@ export function SubscriptionDetail({
 	});
 
 	const sortedTransactions = transactions
-		? [...transactions].sort((a, b) => b.date.localeCompare(a.date))
+		? [...transactions].sort(
+				(a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+			)
 		: undefined;
 
 	const handleViewMerchant = (): void => {

@@ -4,7 +4,6 @@ export { ComparisonIndicator } from "./components/ComparisonIndicator";
 export { DashboardPage } from "./components/DashboardPage";
 export { SpendingSummary } from "./components/SpendingSummary";
 export { TimePeriodSelector } from "./components/TimePeriodSelector";
-export type { CategorySpending, SpendingSummary } from "./hooks/useNetSpending";
 export { useNetSpending } from "./hooks/useNetSpending";
 export { useSpendingBreakdown } from "./hooks/useSpendingBreakdown";
 export type { SpendingComparison } from "./hooks/useSpendingComparison";

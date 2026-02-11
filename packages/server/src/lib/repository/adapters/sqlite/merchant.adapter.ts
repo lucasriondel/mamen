@@ -45,7 +45,7 @@ export const createMerchantAdapter = (db: Database): MerchantRepository => ({
 				(record as Merchant).createdAt?.toISOString() ?? now,
 				(record as Merchant).firstSeen?.toISOString() ?? now,
 			);
-		return result?.id;
+		return result!.id;
 	},
 
 	bulkAdd: async (records) => {
@@ -62,7 +62,7 @@ export const createMerchantAdapter = (db: Database): MerchantRepository => ({
 				record.defaultCategoryId ?? null,
 				(record as Merchant).createdAt?.toISOString() ?? now,
 				(record as Merchant).firstSeen?.toISOString() ?? now,
-			)?.id;
+			)!.id;
 		});
 	},
 
@@ -133,7 +133,7 @@ export const createMerchantAdapter = (db: Database): MerchantRepository => ({
 	count: async () => {
 		return db
 			.query<{ cnt: number }, []>("SELECT COUNT(*) as cnt FROM merchants")
-			.get()?.cnt;
+			.get()!.cnt;
 	},
 
 	clear: async () => {

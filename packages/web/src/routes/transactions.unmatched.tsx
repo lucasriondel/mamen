@@ -12,7 +12,7 @@ function UnmatchedPage(): React.ReactElement {
 				<h2 className="text-2xl font-bold">Unmatched Transactions</h2>
 			</div>
 			<div className="flex-1 min-h-0">
-				<TransactionList unmatchedOnly />
+				<TransactionList />
 			</div>
 			<div className="flex justify-center gap-6 text-xs text-muted-foreground bg-background/80 backdrop-blur px-4 py-2 border-t">
 				<span>

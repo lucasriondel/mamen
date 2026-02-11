@@ -28,7 +28,7 @@ const ZERO_COUNTS = {
 };
 
 const formatZodErrors = (error: {
-	issues: Array<{ path: Array<string | number>; message: string }>;
+	issues: Array<{ path: PropertyKey[]; message: string }>;
 }): string[] => {
 	return error.issues.map((issue) => {
 		const path = issue.path.join(".");
@@ -174,11 +174,11 @@ export const importDataMerge = async (
 				if (!(e instanceof ApiError && e.status === 404)) throw e;
 			}
 			if (existing) {
-				accountIdMap.set(account.id, existing.id!);
+				accountIdMap.set(account.id!, existing.id!);
 			} else {
 				const { id: oldId, ...accountWithoutId } = account;
 				const newId = await accountsApi.create(accountWithoutId);
-				accountIdMap.set(oldId, newId);
+				accountIdMap.set(oldId!, newId);
 				result.added.accounts++;
 			}
 		}
@@ -192,11 +192,11 @@ export const importDataMerge = async (
 				if (!(e instanceof ApiError && e.status === 404)) throw e;
 			}
 			if (existing) {
-				merchantIdMap.set(merchant.id, existing.id!);
+				merchantIdMap.set(merchant.id!, existing.id!);
 			} else {
 				const { id: oldId, ...merchantWithoutId } = merchant;
 				const newId = await merchantsApi.create(merchantWithoutId);
-				merchantIdMap.set(oldId, newId);
+				merchantIdMap.set(oldId!, newId);
 				result.added.merchants++;
 			}
 		}
@@ -271,10 +271,10 @@ export const importDataMerge = async (
 					accountId: remappedAccountId,
 					merchantId: remappedMerchantId,
 				});
-				transactionIdMap.set(oldId, newId);
+				transactionIdMap.set(oldId!, newId);
 				result.added.transactions++;
 			} else {
-				transactionIdMap.set(txn.id, existing.id!);
+				transactionIdMap.set(txn.id!, existing.id!);
 				result.skipped.transactions++;
 			}
 		}
@@ -282,7 +282,7 @@ export const importDataMerge = async (
 		// 6. Remap linkedRefundId for transactions that have refund links
 		for (const txn of data.transactions) {
 			if (txn.linkedRefundId != null) {
-				const newTxnId = transactionIdMap.get(txn.id);
+				const newTxnId = transactionIdMap.get(txn.id!);
 				const newLinkedId = transactionIdMap.get(txn.linkedRefundId);
 				if (newTxnId && newLinkedId) {
 					await transactionsApi.update(newTxnId, {

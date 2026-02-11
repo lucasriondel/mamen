@@ -116,7 +116,7 @@ export const createTransactionAdapter = (
 		const result = db
 			.query<{ id: number }, (string | number | null)[]>(INSERT_RETURNING_SQL)
 			.get(...toParams(record as Transaction));
-		return result?.id;
+		return result!.id;
 	},
 
 	bulkAdd: async (records) => {
@@ -125,7 +125,7 @@ export const createTransactionAdapter = (
 		);
 		const tx = db.transaction(() => {
 			return records.map(
-				(record) => stmt.get(...toParams(record as Transaction))?.id,
+				(record) => stmt.get(...toParams(record as Transaction))!.id,
 			);
 		});
 		return tx();
@@ -251,7 +251,7 @@ export const createTransactionAdapter = (
 	count: async () => {
 		return db
 			.query<{ cnt: number }, []>("SELECT COUNT(*) as cnt FROM transactions")
-			.get()?.cnt;
+			.get()!.cnt;
 	},
 
 	clear: async () => {
@@ -281,7 +281,7 @@ export const createTransactionAdapter = (
 			.query<{ cnt: number }, [number, string]>(
 				"SELECT COUNT(*) as cnt FROM transactions WHERE accountId = ? AND importMonth = ?",
 			)
-			.get(accountId, importMonth)?.cnt;
+			.get(accountId, importMonth)!.cnt;
 	},
 
 	deleteByAccountIdAndMonth: async (accountId, importMonth) => {
@@ -332,7 +332,7 @@ export const createTransactionAdapter = (
 			.query<{ cnt: number }, [string]>(
 				"SELECT COUNT(*) as cnt FROM transactions WHERE importBatchId = ?",
 			)
-			.get(importBatchId)?.cnt;
+			.get(importBatchId)!.cnt;
 	},
 
 	deleteByImportBatchId: async (importBatchId) => {
@@ -362,7 +362,7 @@ export const createTransactionAdapter = (
 		);
 		const tx = db.transaction(() => {
 			return records.map(
-				(record) => stmt.get(...toParams(record as Transaction))?.id,
+				(record) => stmt.get(...toParams(record as Transaction))!.id,
 			);
 		});
 		return tx();

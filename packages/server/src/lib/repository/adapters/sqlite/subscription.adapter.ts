@@ -95,7 +95,7 @@ export const createSubscriptionAdapter = (
 		const result = db
 			.query<{ id: number }, (string | number | null)[]>(INSERT_RETURNING_SQL)
 			.get(...toParams(record as Subscription));
-		return result?.id;
+		return result!.id;
 	},
 
 	bulkAdd: async (records) => {
@@ -103,7 +103,7 @@ export const createSubscriptionAdapter = (
 			INSERT_RETURNING_SQL,
 		);
 		return records.map(
-			(record) => stmt.get(...toParams(record as Subscription))?.id,
+			(record) => stmt.get(...toParams(record as Subscription))!.id,
 		);
 	},
 
@@ -207,7 +207,7 @@ export const createSubscriptionAdapter = (
 	count: async () => {
 		return db
 			.query<{ cnt: number }, []>("SELECT COUNT(*) as cnt FROM subscriptions")
-			.get()?.cnt;
+			.get()!.cnt;
 	},
 
 	clear: async () => {

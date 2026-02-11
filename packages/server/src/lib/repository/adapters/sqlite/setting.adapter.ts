@@ -35,14 +35,14 @@ export const createSettingAdapter = (db: Database): SettingRepository => ({
 				"INSERT INTO settings (key, value) VALUES (?, ?) RETURNING id",
 			)
 			.get(record.key, record.value);
-		return result?.id;
+		return result!.id;
 	},
 
 	bulkAdd: async (records) => {
 		const stmt = db.query<{ id: number }, [string, string]>(
 			"INSERT INTO settings (key, value) VALUES (?, ?) RETURNING id",
 		);
-		return records.map((record) => stmt.get(record.key, record.value)?.id);
+		return records.map((record) => stmt.get(record.key, record.value)!.id);
 	},
 
 	update: async (id, changes) => {
@@ -98,7 +98,7 @@ export const createSettingAdapter = (db: Database): SettingRepository => ({
 	count: async () => {
 		return db
 			.query<{ cnt: number }, []>("SELECT COUNT(*) as cnt FROM settings")
-			.get()?.cnt;
+			.get()!.cnt;
 	},
 
 	clear: async () => {

@@ -436,7 +436,7 @@ export function AccountsPage(): React.ReactElement {
 			)}
 
 			<Dialog open={pdfParsingState !== null} onOpenChange={() => {}}>
-				<DialogContent className="sm:max-w-md" hideCloseButton>
+				<DialogContent className="sm:max-w-md" showCloseButton={false}>
 					<DialogHeader>
 						<DialogTitle>Parsing Statement</DialogTitle>
 						<DialogDescription>

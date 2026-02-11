@@ -164,8 +164,7 @@ export function RulesListByMerchant({
 
 						{!isCollapsed && (
 							<div>
-								{group.rules.map((rule, ruleIndex) => {
-									const _flatIndex = startIndex + ruleIndex;
+								{group.rules.map((rule) => {
 									const ruleCategory =
 										rule.categoryOverride !== undefined
 											? getCategoryById(rule.categoryOverride)

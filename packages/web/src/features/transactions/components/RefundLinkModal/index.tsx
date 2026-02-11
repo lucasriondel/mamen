@@ -61,7 +61,7 @@ export function RefundLinkModal({
 			"linked",
 			sourceTransaction?.linkedRefundId,
 		],
-		queryFn: () => transactionsApi.get(sourceTransaction?.linkedRefundId),
+		queryFn: () => transactionsApi.get(sourceTransaction!.linkedRefundId!),
 		enabled: open && !!sourceTransaction?.linkedRefundId,
 	});
 

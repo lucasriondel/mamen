@@ -12,7 +12,7 @@ type WhereClause<T> = {
 	};
 };
 
-class Table<T extends { id?: number }> {
+class Table<T extends { id?: number | string }> {
 	private records: Map<number, T> = new Map();
 	private nextId = 1;
 
@@ -56,15 +56,16 @@ class Table<T extends { id?: number }> {
 		}
 	}
 
-	async put(record: T & { id?: number }): Promise<number> {
-		if (record.id !== undefined) {
-			const existing = this.records.get(record.id);
+	async put(record: T): Promise<number> {
+		const id = (record as { id?: number }).id;
+		if (id !== undefined) {
+			const existing = this.records.get(id);
 			if (existing) {
-				this.records.set(record.id, { ...record });
-				return record.id;
+				this.records.set(id, { ...record });
+				return id;
 			}
 		}
-		return this.add(record);
+		return this.add(record as Omit<T, "id"> & { id?: number });
 	}
 
 	async bulkPut(records: T[]): Promise<void> {

@@ -8,6 +8,8 @@ const transactionSearchSchema = z.object({
 	periodStart: z.string().optional(),
 	periodEnd: z.string().optional(),
 	from: z.string().optional(),
+	accountId: z.coerce.number().optional(),
+	month: z.string().optional(),
 });
 
 export const Route = createFileRoute("/transactions")({

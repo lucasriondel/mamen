@@ -38,7 +38,9 @@ export function MerchantSearchSelect({
 			const withCounts = await Promise.all(
 				allMerchants.map(async (m) => ({
 					...m,
-					transactionCount: await transactionsApi.count({ merchantId: m.id! }),
+					transactionCount: (
+						await transactionsApi.getAll({ merchantId: m.id! })
+					).length,
 				})),
 			);
 			return withCounts.sort((a, b) => b.transactionCount - a.transactionCount);
