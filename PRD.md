@@ -119,7 +119,7 @@ app.listen({ port: PORT, host: '0.0.0.0' }, (err, address) => {
   return app
   ```
 
-### Step 7: Write API tests
+### Step 7: Write API tests ✅
 
 One test file per route module, using `app.inject()`. Each test file gets a fresh in-memory DB via `createTestApp()` in `beforeEach`.
 
