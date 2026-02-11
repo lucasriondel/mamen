@@ -22,3 +22,11 @@
 - Note: Collapse-related features (label transitions, tooltips, stats collapse) deferred — no collapse mechanism exists yet
 - TypeScript: clean (0 errors)
 - Tests: 141 files, 1432 tests all passing
+
+### Task 3: Layout Content Panel & Header (PRD Sections 3-4) ✅
+- Added `bg-sidebar` to outer `flex h-screen` container so sidebar background extends behind content panel
+- Added `rounded-l-2xl bg-background` to content panel for rounded left edge over sidebar bg
+- Added layered two-shadow elevation: `shadow-[-2px_0_16px_rgba(0,0,0,0.2),-8px_0_40px_rgba(0,0,0,0.15)]`
+- Softened header bottom border from `border-b` to `border-b border-border/30`
+- TypeScript: clean (0 errors)
+- Tests: 141 files, 1432 tests all passing

@@ -135,7 +135,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 
 ---
 
-## 3. Layout Content Panel (`Layout/index.tsx`)
+## 3. Layout Content Panel (`Layout/index.tsx`) ✅
 
 ### Layered shadow
 Replace the single shadow with a two-layer shadow for a more realistic elevation:
@@ -148,7 +148,7 @@ No other structural changes needed — `rounded-l-2xl` is already correct, and t
 
 ---
 
-## 4. Header (`Header.tsx`)
+## 4. Header (`Header.tsx`) ✅
 
 Soften the bottom border:
 ```

@@ -13,9 +13,9 @@ export function Layout({ children }: LayoutProps): React.ReactElement {
 	useBreadcrumbNavigation();
 
 	return (
-		<div className="flex h-screen">
+		<div className="flex h-screen bg-sidebar">
 			<Sidebar />
-			<div className="flex flex-1 flex-col">
+			<div className="flex flex-1 flex-col rounded-l-2xl bg-background shadow-[-2px_0_16px_rgba(0,0,0,0.2),-8px_0_40px_rgba(0,0,0,0.15)]">
 				<Header />
 				<main className="flex-1 overflow-auto p-6">
 					<Breadcrumb segments={segments} className="mb-4" />
