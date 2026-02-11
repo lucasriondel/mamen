@@ -89,7 +89,7 @@ Each old route file (`src/api/*.ts`) → new Fastify plugin (`src/routes/*.ts`).
 
 **Order**: health → accounts → settings → app-settings → merchants → rules → categories → subscriptions → transactions → database
 
-### Step 4: Rewrite `src/index.ts`
+### Step 4: Rewrite `src/index.ts` ✅
 ```typescript
 import { join } from 'path'
 import { buildApp } from './app'

@@ -27,3 +27,10 @@
 - Conversion pattern: `getDatabase()` → `fastify.db`, `jsonResponse()` → `return data`, `parseBody()` → `request.body`
 - Verified: server typecheck passes
 - Next: Step 4 — Rewrite `src/index.ts` to use buildApp()
+
+### Step 4: Rewrite `src/index.ts` ✅
+- Replaced old `Bun.serve` entry point with slim Fastify-based entry
+- Calls `buildApp({ staticDir })` then `app.listen()` on port 3000
+- Removed imports of old `router`, `handleRequest`, and side-effect `./api`
+- Verified: server typecheck passes
+- Next: Step 5 — Delete old files (`src/router.ts`, `src/api/`)
