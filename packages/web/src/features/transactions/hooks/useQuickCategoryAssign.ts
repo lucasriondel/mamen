@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
 import { toast } from 'sonner'
+import { invalidateEntity } from '@/lib/api'
 import { useCategories } from '@/hooks/useCategories'
 import {
   assignManualCategory,
@@ -36,6 +37,7 @@ export const useQuickCategoryAssign = (): UseQuickCategoryAssignReturn => {
           categoryId,
           subcategoryId,
         )
+        invalidateEntity('transactions')
 
         const category = getCategoryById(categoryId)
         const subcategory = subcategoryId
@@ -50,7 +52,9 @@ export const useQuickCategoryAssign = (): UseQuickCategoryAssignReturn => {
           action: {
             label: 'Undo',
             onClick: () => {
-              undoManualCategoryAssignment(transactionId, previousState)
+              undoManualCategoryAssignment(transactionId, previousState).then(() => {
+                invalidateEntity('transactions')
+              })
               toast('Category assignment undone')
             },
           },

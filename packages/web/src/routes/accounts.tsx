@@ -3,7 +3,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { CreditCard, Loader2, Plus, Settings } from 'lucide-react'
 import { toast } from 'sonner'
 import { useQuery } from '@tanstack/react-query'
-import { accountsApi, transactionsApi, queryKeys } from '@/lib/api'
+import { accountsApi, transactionsApi, queryKeys, invalidateEntity } from '@/lib/api'
 import { EmptyState } from '@/components/EmptyState'
 import { Button } from '@/components/ui/button'
 import {
@@ -190,6 +190,7 @@ export function AccountsPage(): React.ReactElement {
     if (!reimportState) return
     const { file, monthKey, accountId } = reimportState
     await deleteTransactionsForMonth(accountId, monthKey)
+    invalidateEntity('transactions')
     setReimportState(null)
     handleImportFile(file, monthKey, accountId)
   }
@@ -224,6 +225,7 @@ export function AccountsPage(): React.ReactElement {
     // Delete account and transactions atomically
     await transactionsApi.bulkDelete(transactionsBackup.map(t => t.id!))
     await accountsApi.delete(accountId)
+    invalidateEntity('accounts', 'transactions')
 
     const handleUndo = async (): Promise<void> => {
       if (!undoRef.current) return
@@ -232,6 +234,7 @@ export function AccountsPage(): React.ReactElement {
       if (undoRef.current.transactions.length > 0) {
         await transactionsApi.bulkAdd(undoRef.current.transactions)
       }
+      invalidateEntity('accounts', 'transactions')
       undoRef.current = null
       toast.success('Account restored')
     }

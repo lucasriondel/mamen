@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/popover'
 import { CategoryPicker } from '@/components/CategoryPicker'
 import { useCategories } from '@/hooks/useCategories'
-import { merchantsApi } from '@/lib/api'
+import { merchantsApi, invalidateEntity } from '@/lib/api'
 import { toast } from 'sonner'
 import { ChevronDown } from 'lucide-react'
 
@@ -62,6 +62,7 @@ export function EditMerchantModal({
         name: name.trim(),
         defaultCategoryId: categoryId,
       })
+      invalidateEntity('merchants')
       toast('Merchant updated', {
         action: {
           label: 'Undo',
@@ -70,6 +71,9 @@ export function EditMerchantModal({
               .update(merchantId, {
                 name: prevName,
                 defaultCategoryId: prevCategoryId,
+              })
+              .then(() => {
+                invalidateEntity('merchants')
               })
               .catch(() => {
                 toast.error('Failed to undo merchant update')

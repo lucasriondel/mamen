@@ -17,6 +17,7 @@ import {
   addRuleToMerchant,
   undoAddRule,
 } from '@/features/rules/services/addRuleToMerchant'
+import { invalidateEntity } from '@/lib/api'
 
 export type MerchantDetailPageProps = {
   merchantId: number
@@ -87,6 +88,7 @@ export function MerchantDetailPage({
         pattern: data.pattern,
         categoryOverrideId: data.categoryOverride ?? null,
       })
+      invalidateEntity('rules', 'transactions')
       toast(
         `Rule added: ${result.matchCount} transaction${result.matchCount !== 1 ? 's' : ''} matched`,
         {
@@ -96,7 +98,9 @@ export function MerchantDetailPage({
               undoAddRule(
                 result.ruleId,
                 result.affectedTransactionIds,
-              ).catch(() => {
+              ).then(() => {
+                invalidateEntity('rules', 'transactions')
+              }).catch(() => {
                 toast.error('Failed to undo rule addition')
               })
             },

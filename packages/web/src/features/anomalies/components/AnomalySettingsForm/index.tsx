@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { useQuery } from '@tanstack/react-query'
-import { settingsApi, queryKeys } from '@/lib/api'
+import { settingsApi, queryKeys, invalidateEntity } from '@/lib/api'
 import { detectHighAmountAnomalies, getAnomalySettings } from '../../services/anomalyDetector'
 import type { AnomalySettings } from '@/types'
 
@@ -72,10 +72,12 @@ export function AnomalySettingsForm(): React.ReactElement {
       await settingsApi.putByKey({ key: 'anomaly_settings' as any, value: JSON.stringify(newSettings) })
     }
 
+    invalidateEntity('settings')
     toast.success('Anomaly settings saved')
 
     // Re-run detection with new thresholds
     detectHighAmountAnomalies().then(result => {
+      invalidateEntity('transactions')
       if (result.flagged > 0) {
         toast.info(`${result.flagged} transaction(s) flagged with new thresholds`)
       }

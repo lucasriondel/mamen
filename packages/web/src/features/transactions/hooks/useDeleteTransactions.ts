@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
 import { toast } from 'sonner'
+import { invalidateEntity } from '@/lib/api'
 import {
   deleteTransactions,
   undoDeleteTransactions,
@@ -37,6 +38,7 @@ export const useDeleteTransactions = (): UseDeleteTransactionsReturn => {
 
     try {
       const result = await deleteTransactions(pendingDeleteIds)
+      invalidateEntity('transactions', 'accounts')
 
       setIsDeleteDialogOpen(false)
       setPendingDeleteIds([])
@@ -47,7 +49,9 @@ export const useDeleteTransactions = (): UseDeleteTransactionsReturn => {
           action: {
             label: 'Undo',
             onClick: () => {
-              undoDeleteTransactions(result.previousStates)
+              undoDeleteTransactions(result.previousStates).then(() => {
+                invalidateEntity('transactions', 'accounts')
+              })
               toast('Delete undone')
             },
           },

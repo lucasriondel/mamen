@@ -239,7 +239,7 @@ Components with inline useApiQuery:
 - features/merchants/components/MerchantSearchSelect/index.tsx (Pattern C)
 - features/merchants/components/MerchantRulesList/index.tsx (Pattern B)
 
-Step 7: Add invalidation helpers for mutations
+Step 7: Add invalidation helpers for mutations ✅
 
 New file: packages/web/src/lib/api/mutations.ts
 

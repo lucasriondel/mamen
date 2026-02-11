@@ -1,4 +1,5 @@
 import { toast } from 'sonner'
+import { invalidateEntity } from '@/lib/api'
 import { importTransactions, undoImport } from './csvImporter'
 import type { ImportResult } from './csvImporter'
 import type { ParsedTransaction } from '../types/duplicate.types'
@@ -29,9 +30,11 @@ export const importWithRules = async (
 
   const rulesResult = await applyRulesToTransactions(result.transactionIds)
   await applyMatchResults(rulesResult.matched)
+  invalidateEntity('transactions', 'rules', 'subscriptions')
 
   // Fire-and-forget subscription detection after import
   runDetection().then(detectionResult => {
+    invalidateEntity('subscriptions')
     if (detectionResult.created > 0) {
       toast.success(`${detectionResult.created} subscription(s) detected`, {
         duration: 10000,
@@ -45,6 +48,7 @@ export const importWithRules = async (
     cleanExpiredNewMerchantFlags().then(() => detectNewMerchantAnomalies()),
     detectPotentialDuplicates(),
   ]).then(([highAmountResult, newMerchantResult, duplicateResult]) => {
+    invalidateEntity('transactions')
     const totalFlagged = highAmountResult.flagged + newMerchantResult.flagged + duplicateResult.flagged
     if (totalFlagged === 0) return
 
@@ -92,6 +96,7 @@ export const showImportToast = (
       label: 'Undo',
       onClick: () => {
         undoImport(importBatchId).then((c) => {
+          invalidateEntity('transactions', 'rules')
           toast.info(`${c} transactions removed`)
         })
       },

@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
 import { toast } from 'sonner'
+import { invalidateEntity } from '@/lib/api'
 import {
   linkRefund,
   undoLinkRefund,
@@ -57,6 +58,7 @@ export const useRefundLink = (): UseRefundLinkReturn => {
       try {
         const refundId = sourceTransaction.id
         await linkRefund(refundId, targetTransactionId)
+        invalidateEntity('transactions')
 
         closeRefundLink()
 
@@ -64,7 +66,9 @@ export const useRefundLink = (): UseRefundLinkReturn => {
           action: {
             label: 'Undo',
             onClick: () => {
-              undoLinkRefund(refundId, targetTransactionId)
+              undoLinkRefund(refundId, targetTransactionId).then(() => {
+                invalidateEntity('transactions')
+              })
               toast('Refund link undone')
             },
           },
@@ -87,6 +91,7 @@ export const useRefundLink = (): UseRefundLinkReturn => {
     try {
       const txId = sourceTransaction.id
       await markAsOrphanRefund(txId)
+      invalidateEntity('transactions')
 
       closeRefundLink()
 
@@ -94,7 +99,9 @@ export const useRefundLink = (): UseRefundLinkReturn => {
         action: {
           label: 'Undo',
           onClick: () => {
-            undoOrphanRefund(txId)
+            undoOrphanRefund(txId).then(() => {
+              invalidateEntity('transactions')
+            })
             toast('Refund marking undone')
           },
         },
@@ -116,6 +123,7 @@ export const useRefundLink = (): UseRefundLinkReturn => {
       const refundId = sourceTransaction.id
       const purchaseId = sourceTransaction.linkedRefundId
       await unlinkRefund(refundId, purchaseId)
+      invalidateEntity('transactions')
 
       closeRefundLink()
 
@@ -123,7 +131,9 @@ export const useRefundLink = (): UseRefundLinkReturn => {
         action: {
           label: 'Undo',
           onClick: () => {
-            undoUnlinkRefund(refundId, purchaseId)
+            undoUnlinkRefund(refundId, purchaseId).then(() => {
+              invalidateEntity('transactions')
+            })
             toast('Unlink undone')
           },
         },
@@ -149,6 +159,7 @@ export const useRefundLink = (): UseRefundLinkReturn => {
       try {
         const refundId = sourceTransaction.id
         await replaceLinkRefund(refundId, oldPurchaseTransactionId, newPurchaseTransactionId)
+        invalidateEntity('transactions')
 
         closeRefundLink()
 
@@ -156,7 +167,9 @@ export const useRefundLink = (): UseRefundLinkReturn => {
           action: {
             label: 'Undo',
             onClick: () => {
-              undoReplaceLinkRefund(refundId, oldPurchaseTransactionId, newPurchaseTransactionId)
+              undoReplaceLinkRefund(refundId, oldPurchaseTransactionId, newPurchaseTransactionId).then(() => {
+                invalidateEntity('transactions')
+              })
               toast('Replace link undone')
             },
           },

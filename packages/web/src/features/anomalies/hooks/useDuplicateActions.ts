@@ -1,12 +1,12 @@
 import { useCallback } from 'react'
 import { toast } from 'sonner'
+import { invalidateEntity, transactionsApi } from '@/lib/api'
 import {
   dismissDuplicateAnomaly,
   undoDismissDuplicateAnomaly,
   confirmDuplicate,
   undoConfirmDuplicate,
 } from '../services/anomalyDetector'
-import { transactionsApi } from '@/lib/api'
 
 export const useDuplicateActions = () => {
   const handleDismissDuplicate = useCallback(
@@ -18,12 +18,15 @@ export const useDuplicateActions = () => {
         const linkedId = dupFlag?.linkedTransactionId
 
         dismissDuplicateAnomaly(transactionId).then(() => {
+          invalidateEntity('transactions')
           toast.info('Duplicate flag dismissed for both transactions', {
             action: {
               label: 'Undo',
               onClick: () => {
                 if (linkedId) {
-                  undoDismissDuplicateAnomaly(transactionId, linkedId)
+                  undoDismissDuplicateAnomaly(transactionId, linkedId).then(() => {
+                    invalidateEntity('transactions')
+                  })
                 }
               },
             },
@@ -44,11 +47,14 @@ export const useDuplicateActions = () => {
         const linkedId = dupFlag?.linkedTransactionId
 
         confirmDuplicate(transactionId, 'exclude').then(() => {
+          invalidateEntity('transactions')
           toast.info('Transaction excluded as duplicate', {
             action: {
               label: 'Undo',
               onClick: () => {
-                undoConfirmDuplicate(transactionId, linkedId)
+                undoConfirmDuplicate(transactionId, linkedId).then(() => {
+                  invalidateEntity('transactions')
+                })
               },
             },
             duration: 5000,

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { merchantsApi, queryKeys } from '@/lib/api'
+import { merchantsApi, queryKeys, invalidateEntity } from '@/lib/api'
 import type { Merchant } from '@/types'
 
 export type UseMerchantsReturn = {
@@ -23,12 +23,14 @@ export const useMerchants = (): UseMerchantsReturn => {
     defaultCategoryId?: number,
   ): Promise<number> => {
     const now = new Date()
-    return merchantsApi.create({
+    const id = await merchantsApi.create({
       name,
       defaultCategoryId,
       createdAt: now,
       firstSeen: now,
     })
+    invalidateEntity('merchants')
+    return id
   }
 
   const getMerchantByName = async (

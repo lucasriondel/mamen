@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { appSettingsApi, queryKeys } from '@/lib/api'
+import { appSettingsApi, queryKeys, invalidateEntity } from '@/lib/api'
 import type { AppSettings, LLMSettings } from '@/types'
 
 const DEFAULT_LLM_SETTINGS: LLMSettings = {
@@ -41,6 +41,7 @@ export function useSettings(): {
 
     debounceRef.current = setTimeout(async () => {
       await appSettingsApi.put(newSettings)
+      invalidateEntity('appSettings')
       debounceRef.current = null
     }, 500)
   }, [])

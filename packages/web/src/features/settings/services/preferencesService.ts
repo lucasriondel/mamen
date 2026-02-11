@@ -1,4 +1,4 @@
-import { settingsApi } from '@/lib/api'
+import { settingsApi, invalidateEntity } from '@/lib/api'
 import { DEFAULT_DISPLAY_PREFERENCES } from '../types/preferences.types'
 import type { DisplayPreferences } from '../types/preferences.types'
 
@@ -20,4 +20,5 @@ export const updateDisplayPreferences = async (
     key: 'displayPreferences',
     value: JSON.stringify(merged),
   })
+  invalidateEntity('settings')
 }

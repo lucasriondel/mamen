@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react'
 import { toast } from 'sonner'
-import { categoriesApi } from '@/lib/api'
+import { categoriesApi, invalidateEntity } from '@/lib/api'
 import { DEFAULT_COLOR, DEFAULT_ICON } from '../lib/constants'
 import type { Category } from '@/types'
 import type { UpdateCategoryInput } from '@/lib/schemas'
@@ -95,6 +95,7 @@ export const useCategoryMutations = (): UseCategoryMutationsReturn => {
         sortOrder: maxSort + 1,
         createdAt: new Date(),
       })
+      invalidateEntity('categories')
 
       return id
     },
@@ -104,6 +105,7 @@ export const useCategoryMutations = (): UseCategoryMutationsReturn => {
   const updateCategory = useCallback(
     async (id: number, updates: UpdateCategoryInput): Promise<void> => {
       await categoriesApi.update(id, updates)
+      invalidateEntity('categories')
     },
     [],
   )
@@ -128,6 +130,7 @@ export const useCategoryMutations = (): UseCategoryMutationsReturn => {
     for (const idToDelete of idsToDelete) {
       await categoriesApi.delete(idToDelete)
     }
+    invalidateEntity('categories')
 
     const descendantCount = descendantIds.length
 
@@ -135,6 +138,7 @@ export const useCategoryMutations = (): UseCategoryMutationsReturn => {
       if (!undoRef.current) return
       clearTimeout(undoRef.current.timeoutId)
       await categoriesApi.bulkAdd(undoRef.current.deletedCategories)
+      invalidateEntity('categories')
       undoRef.current = null
       toast.success('Category restored')
     }
@@ -187,6 +191,7 @@ export const useCategoryMutations = (): UseCategoryMutationsReturn => {
       await categoriesApi.update(sibling.id!, {
         sortOrder: category.sortOrder,
       })
+      invalidateEntity('categories')
     },
     [],
   )

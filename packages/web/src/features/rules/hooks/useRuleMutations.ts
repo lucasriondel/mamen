@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
 import { toast } from 'sonner'
+import { invalidateEntity } from '@/lib/api'
 import type { Rule } from '@/types'
 import {
   updateRuleWithReeval,
@@ -30,12 +31,15 @@ export const useRuleMutations = (): UseRuleMutationsReturn => {
 
       try {
         const result = await updateRuleWithReeval(ruleId, updates)
+        invalidateEntity('rules', 'transactions', 'merchants')
 
         toast(`Rule updated. ${result.updatedTransactionCount} transactions matched`, {
           action: {
             label: 'Undo',
             onClick: () => {
-              undoRuleUpdate(ruleId, result.previousRule).catch(() => {
+              undoRuleUpdate(ruleId, result.previousRule).then(() => {
+                invalidateEntity('rules', 'transactions', 'merchants')
+              }).catch(() => {
                 toast.error('Failed to undo rule update')
               })
             },
@@ -60,12 +64,15 @@ export const useRuleMutations = (): UseRuleMutationsReturn => {
 
     try {
       const result = await deleteRuleWithCleanup(ruleId)
+      invalidateEntity('rules', 'transactions', 'merchants')
 
       toast(`Rule deleted. ${result.affectedTransactionCount} transactions unmatched`, {
         action: {
           label: 'Undo',
           onClick: () => {
-            restoreDeletedRule(result.deletedRule).catch(() => {
+            restoreDeletedRule(result.deletedRule).then(() => {
+              invalidateEntity('rules', 'transactions', 'merchants')
+            }).catch(() => {
               toast.error('Failed to restore rule')
             })
           },

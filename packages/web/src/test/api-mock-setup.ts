@@ -473,11 +473,13 @@ vi.mock('@/lib/api', async () => {
   const clientMod = await import('@/lib/api/client')
   const queryKeysMod = await import('@/lib/api/queryKeys')
   const queryClientMod = await import('@/lib/api/queryClient')
+  const mutationsMod = await import('@/lib/api/mutations')
 
   return {
     ...clientMod,
     ...queryKeysMod,
     ...queryClientMod,
+    ...mutationsMod,
     accountsApi: accountsMod.accountsApi,
     transactionsApi: transactionsMod.transactionsApi,
     merchantsApi: merchantsMod.merchantsApi,

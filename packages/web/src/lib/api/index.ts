@@ -1,6 +1,7 @@
 export { api, ApiError } from './client'
 export { queryClient } from './queryClient'
 export { queryKeys } from './queryKeys'
+export { invalidateEntity, invalidateAll } from './mutations'
 export { accountsApi } from './accounts'
 export { transactionsApi } from './transactions'
 export { merchantsApi } from './merchants'

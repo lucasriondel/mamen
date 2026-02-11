@@ -42,7 +42,7 @@ import { cleanMerchantString, validateRegexPattern } from '@/lib/utils/patternUt
 import { useMerchants } from '@/hooks/useMerchants'
 import { useCategories } from '@/hooks/useCategories'
 import { useExistingMerchant } from '../../hooks/useExistingMerchant'
-import { rulesApi, transactionsApi } from '@/lib/api'
+import { rulesApi, transactionsApi, invalidateEntity } from '@/lib/api'
 import { formatCurrency } from '@/lib/utils/formatCurrency'
 import { formatDate } from '@/lib/utils/formatDate'
 import type { Transaction } from '@/types'
@@ -346,6 +346,7 @@ export function MerchantAssignmentModal({
         rule,
         categoryId!,
       )
+      invalidateEntity('merchants', 'rules', 'transactions')
 
       onOpenChange(false)
       onComplete?.()
@@ -355,7 +356,9 @@ export function MerchantAssignmentModal({
         action: {
           label: 'Undo',
           onClick: () => {
-            undoRuleApplication(merchantId, ruleId, affectedIds)
+            undoRuleApplication(merchantId, ruleId, affectedIds).then(() => {
+              invalidateEntity('merchants', 'rules', 'transactions')
+            })
             toast('Merchant creation undone')
           },
         },
@@ -373,6 +376,7 @@ export function MerchantAssignmentModal({
         pattern: activePattern,
         categoryOverrideId: overrideId,
       })
+      invalidateEntity('rules', 'transactions')
 
       onOpenChange(false)
       onComplete?.()
@@ -385,7 +389,9 @@ export function MerchantAssignmentModal({
           action: {
             label: 'Undo',
             onClick: () => {
-              undoAddRule(result.ruleId, result.affectedTransactionIds)
+              undoAddRule(result.ruleId, result.affectedTransactionIds).then(() => {
+                invalidateEntity('rules', 'transactions')
+              })
               toast('Rule addition undone')
             },
           },
@@ -492,6 +498,8 @@ export function MerchantAssignmentModal({
       ? merchantName.trim()
       : (existingMerchant?.name ?? 'merchant')
 
+    invalidateEntity('merchants', 'rules', 'transactions')
+
     onOpenChange(false)
     onComplete?.()
     onCascade?.(result.affectedTransactionIds.map(String))
@@ -508,6 +516,8 @@ export function MerchantAssignmentModal({
               affectedTransactionIds: result.affectedTransactionIds,
               previousState: allAffectedPreviousState,
               deleteNewMerchant: isNewMerchant,
+            }).then(() => {
+              invalidateEntity('merchants', 'rules', 'transactions')
             })
             toast('Batch assignment undone')
           },

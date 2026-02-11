@@ -21,6 +21,7 @@ import {
   subscriptionsApi,
   databaseApi,
   queryKeys,
+  invalidateAll,
 } from '@/lib/api'
 import { downloadFile, generateExportFilename } from '../../services/downloadFile'
 import { parseBackupFile, importDataReplace, importDataMerge } from '../../services/importService'
@@ -164,6 +165,7 @@ export function DataManagementSection(): React.ReactElement {
       const result = mode === 'replace'
         ? await importDataReplace(importFileData)
         : await importDataMerge(importFileData)
+      invalidateAll()
 
       setImportResult(result)
 

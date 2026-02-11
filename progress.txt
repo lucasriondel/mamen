@@ -38,3 +38,25 @@
 - Fixed useBreadcrumbs.test.ts: replaced useApiQuery mock with useQuery mock matching new query keys
 - Added vitest.config.ts setupFile for query-client-setup.tsx
 - All 141 test files pass (1432 tests), typecheck passes cleanly
+
+## Step 7: Add invalidation helpers for mutations (DONE)
+
+- Created packages/web/src/lib/api/mutations.ts with:
+  - `invalidateEntity(...entities)` — invalidates TanStack Query caches for specified entities + composed queries
+  - `invalidateAll()` — nuclear invalidation for full data import/reset
+  - Composed query prefixes: merchantDetail, merchantsList, merchantSearchSelect, existingMerchant,
+    rulesListByMerchant, dataManagementCounts, categoryTooltip
+- Added exports to lib/api/index.ts barrel
+- Wired invalidateEntity into all mutation call-sites (~25 files):
+  - Hooks: useRuleMutations, useQuickCategoryAssign, useCategoryMutations, useDeleteTransactions,
+    useBatchCategoryAssign, useRefundLink, useAnomalyDismiss, useDuplicateActions, useSettings, useMerchants
+  - Components: MerchantAssignmentModal (single+batch+undo), MerchantDetailPage (addRule+undo),
+    EditMerchantModal (update+undo), CreateAccountModal, EditAccountModal, ClearDataDialog,
+    DataManagementSection (import replace/merge), AnomalySettingsForm
+  - Services: importWithRules (import+undo+fire-and-forget detection), preferencesService
+  - Routes: accounts.tsx (account delete+undo, reimport deleteTransactionsForMonth)
+- Also found and wired invalidation for files missing from PRD:
+  refundService (via useRefundLink), anomalyDetector (via useAnomalyDismiss/useDuplicateActions),
+  csvImporter (via importWithRules), CreateAccountModal, EditAccountModal, EditMerchantModal
+- Updated test/api-mock-setup.ts barrel mock to include mutations module
+- All 141 test files pass (1432 tests), typecheck passes cleanly

@@ -1,7 +1,7 @@
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
-import { accountsApi } from '@/lib/api'
+import { accountsApi, invalidateEntity } from '@/lib/api'
 import { createAccountSchema, type CreateAccountInput } from '@/lib/schemas'
 import {
   Dialog,
@@ -51,6 +51,7 @@ export function CreateAccountModal({ open, onOpenChange }: CreateAccountModalPro
       createdAt: now,
       updatedAt: now,
     })
+    invalidateEntity('accounts')
     toast.success('Account created', {
       description: `${data.name} has been added.`,
     })

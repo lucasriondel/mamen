@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
 import { toast } from 'sonner'
+import { invalidateEntity } from '@/lib/api'
 import { useCategories } from '@/hooks/useCategories'
 import {
   batchCategoryAssign,
@@ -33,6 +34,7 @@ export const useBatchCategoryAssign = (): UseBatchCategoryAssignReturn => {
           categoryId,
           subcategoryId,
         })
+        invalidateEntity('transactions')
 
         const category = getCategoryById(categoryId)
         const subcategory = subcategoryId
@@ -47,7 +49,9 @@ export const useBatchCategoryAssign = (): UseBatchCategoryAssignReturn => {
           action: {
             label: 'Undo',
             onClick: () => {
-              undoBatchCategoryAssign(result.previousStates)
+              undoBatchCategoryAssign(result.previousStates).then(() => {
+                invalidateEntity('transactions')
+              })
               toast('Batch category assignment undone')
             },
           },
