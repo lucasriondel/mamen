@@ -40,3 +40,13 @@
 - Added `deleteImage(id)` to `merchantsApi` using `api.delete()`
 - Typecheck passes across all packages
 - All 1432 web tests pass (141 test files)
+
+### Phase 5: MerchantAvatar Component ✅
+- Created `packages/web/src/components/MerchantAvatar/index.tsx`
+  - Props: `name`, `imageUrl?`, `size?: "sm" | "md" | "lg"`, `className?`
+  - Sizes: `sm` = 24px (size-6), `md` = 32px (size-8), `lg` = 48px (size-12)
+  - With image: `<img>` with `rounded-full object-cover`
+  - Without image: colored circle with first letter, color from 16-color palette via name hash
+  - Follows project patterns: named export, `type` for props, `cn()` for className merging
+- Typecheck passes across all packages
+- All 1432 web tests pass (141 test files)

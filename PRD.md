@@ -45,13 +45,13 @@ Merchants currently have no visual representation. Adding pictures to merchants 
 - Add `uploadImage(id: number, file: File): Promise<{ imageUrl: string }>` — uses raw `fetch()` with `FormData` (not the JSON-only `api` helper) ✅
 - Add `deleteImage(id: number): Promise<void>` — uses `api.delete()` ✅
 
-## Phase 5: MerchantAvatar Component
+## Phase 5: MerchantAvatar Component ✅
 
-**Create `packages/web/src/components/MerchantAvatar/index.tsx`** (new file):
-- Props: `name`, `imageUrl?`, `size?: "sm" | "md" | "lg"`, `className?`
-- Sizes: `sm` = 24px, `md` = 32px, `lg` = 48px
-- With image: `<img>` with `rounded-full object-cover`
-- Without image: colored circle with first letter, color derived from hash of full name (16-color palette)
+**Create `packages/web/src/components/MerchantAvatar/index.tsx`** (new file): ✅
+- Props: `name`, `imageUrl?`, `size?: "sm" | "md" | "lg"`, `className?` ✅
+- Sizes: `sm` = 24px, `md` = 32px, `lg` = 48px ✅
+- With image: `<img>` with `rounded-full object-cover` ✅
+- Without image: colored circle with first letter, color derived from hash of full name (16-color palette) ✅
 
 ## Phase 6: Frontend Integration
 
