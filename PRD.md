@@ -1,328 +1,235 @@
-# PRD: Extract API SDK into `@mamen/api` package
+# UI Design Improvements Plan
 
 ## Context
 
-The web frontend has a hand-written API layer in `packages/web/src/lib/api/` with ~10 entity modules (merchants, transactions, accounts, etc.), a fetch client, query keys, query client config, and cache invalidation helpers. This is tightly coupled to the web package. We want to:
+The app's current sidebar is visually flat and generic (monochrome gray in dark mode, basic hover states). The content area has no visual separation from the sidebar. The transaction list appears instantly with no visual flourish. This plan addresses three areas: sidebar redesign, content panel elevation effect, and transaction list entrance animations.
 
-1. Extract it into a standalone `@mamen/api` package usable by any consumer
-2. Include TanStack Query helpers (queryOptions/mutationOptions) via a runtime factory
-3. Keep backward compatibility — re-export from web so existing imports still work
+## Files to Modify
 
-## Phase 1: Create `packages/api/` package ✅
+| File | Scope |
+|------|-------|
+| `packages/web/src/index.css` | Theme colors, new keyframes, new CSS variables |
+| `packages/web/src/components/Layout/Sidebar.tsx` | Sidebar redesign (typography, colors, icons, active indicator, hover effects, collapse animations, tooltips) |
+| `packages/web/src/components/Layout/index.tsx` | Refine content panel shadow |
+| `packages/web/src/components/Layout/Header.tsx` | Soften border |
+| `packages/web/src/features/transactions/components/TransactionDataTable/index.tsx` | Staggered entrance animation for rows |
 
-### 1.1 Package scaffolding
+---
 
-Create `packages/api/` with:
-```
-packages/api/
-├── package.json          # @mamen/api, deps: @mamen/shared, @tanstack/react-query (peer)
-├── tsconfig.json
-└── src/
-    ├── index.ts          # Barrel exports
-    ├── client.ts         # Moved from web (fetch wrapper, ApiError, dateReviver)
-    ├── accounts.ts       # Moved entity modules (updated import paths)
-    ├── merchants.ts
-    ├── transactions.ts
-    ├── categories.ts
-    ├── rules.ts
-    ├── subscriptions.ts
-    ├── settings.ts
-    ├── app-settings.ts
-    ├── database.ts
-    ├── import.ts
-    ├── queryKeys.ts      # Moved from web
-    ├── queryClient.ts    # Moved from web
-    ├── mutations.ts      # Moved from web (invalidateEntity, invalidateAll)
-    └── query/
-        ├── factory.ts    # Runtime factory: createQueryHelpers()
-        ├── accounts.ts   # Entity query/mutation options configs
-        ├── merchants.ts
-        ├── transactions.ts
-        ├── categories.ts
-        ├── rules.ts
-        ├── subscriptions.ts
-        ├── settings.ts
-        ├── app-settings.ts
-        ├── database.ts
-        ├── import.ts
-        └── index.ts      # Barrel for query helpers
+## 1. Theme & CSS Changes (`index.css`) ✅
+
+### Dark theme sidebar variables — add subtle cool tint and a colored accent indicator
+
+```css
+/* .dark block — replace sidebar vars */
+--sidebar: oklch(0.13 0.005 270);            /* very subtle cool-blue tint instead of pure gray */
+--sidebar-foreground: oklch(0.55 0 0);        /* dimmer for inactive items */
+--sidebar-accent: oklch(1 0 0 / 7%);         /* slightly softer hover bg */
+--sidebar-border: oklch(1 0 0 / 6%);         /* more subtle separator */
+--sidebar-indicator: oklch(0.65 0.15 250);   /* muted blue-purple active accent */
 ```
 
-**`package.json`:**
-```json
-{
-  "name": "@mamen/api",
-  "private": true,
-  "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
-  "exports": {
-    ".": "./src/index.ts",
-    "./*": "./src/*"
-  },
-  "dependencies": {
-    "@mamen/shared": "workspace:*"
-  },
-  "peerDependencies": {
-    "@tanstack/react-query": "^5.0.0"
-  }
+### Light theme — add indicator and tweak sidebar
+
+```css
+/* :root block */
+--sidebar: oklch(0.975 0.003 270);           /* faint cool white */
+--sidebar-indicator: oklch(0.5 0.18 250);    /* blue-purple accent */
+```
+
+### Register the new indicator variable
+
+```css
+/* @theme inline block */
+--color-sidebar-indicator: var(--sidebar-indicator);
+```
+
+### Add reduced-motion entry for the icon glow class
+
+```css
+@media (prefers-reduced-motion: reduce) {
+  /* ... existing entries + add: */
+  .sidebar-nav-icon-active { filter: none; }
 }
 ```
 
-`@tanstack/react-query` is a **peer dep** since the consumer (web) already has it.
+No new keyframes needed — the active indicator will use Tailwind's built-in `animate-in` or a simple `transition` rather than a custom keyframe.
 
-### 1.2 Move files from web → api
+---
 
-- `packages/web/src/lib/api/client.ts` → `packages/api/src/client.ts` (unchanged)
-- `packages/web/src/lib/api/accounts.ts` → `packages/api/src/accounts.ts` (update `./client` import)
-- Same for all other entity files: merchants, transactions, categories, rules, subscriptions, settings, app-settings, database, import
-- `packages/web/src/lib/api/queryKeys.ts` → `packages/api/src/queryKeys.ts`
-- `packages/web/src/lib/api/queryClient.ts` → `packages/api/src/queryClient.ts`
-- `packages/web/src/lib/api/mutations.ts` → `packages/api/src/mutations.ts`
+## 2. Sidebar Redesign (`Sidebar.tsx`)
 
-### 1.3 `packages/api/src/index.ts` barrel
+### Active state indicator
+Each nav `Link` and active button gets a `before:` pseudo-element — a 3px-wide, 16px-tall rounded pill on the left edge, colored with `bg-sidebar-indicator`:
 
-```typescript
-// Client
-export { api, ApiError } from "./client";
-
-// Entity APIs
-export { accountsApi } from "./accounts";
-export { appSettingsApi } from "./app-settings";
-export { categoriesApi } from "./categories";
-export { databaseApi } from "./database";
-export { importApi } from "./import";
-export { merchantsApi } from "./merchants";
-export { rulesApi } from "./rules";
-export { settingsApi } from "./settings";
-export { subscriptionsApi } from "./subscriptions";
-export { transactionsApi } from "./transactions";
-
-// React Query
-export { queryKeys } from "./queryKeys";
-export { queryClient } from "./queryClient";
-export { invalidateEntity, invalidateAll } from "./mutations";
-
-// Query helpers
-export * from "./query";
+```tsx
+// activeProps example for Link:
+activeProps={{
+  className: cn(
+    "is-active text-sidebar-primary-foreground bg-sidebar-accent",
+    "before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2",
+    "before:h-4 before:w-[3px] before:rounded-full before:bg-sidebar-indicator",
+  ),
+}}
 ```
 
-## Phase 2: Runtime query helper factory ✅
+Same pattern for the `button` elements when `activeFilters.has("month")` etc.
 
-### 2.1 `packages/api/src/query/factory.ts`
+### Icon glow on active
+Icons inside nav items get a subtle drop-shadow when their parent link is active, using Tailwind's `group` variant:
 
-A `queryOptions()` / `mutationOptions()` factory that takes an entity API + key config and returns typed options objects.
-
-```typescript
-import type { QueryKey } from "@tanstack/react-query";
-import type { queryKeys } from "../queryKeys";
-import { invalidateEntity } from "../mutations";
-
-type EntityName = keyof typeof queryKeys;
-
-type QueryDef<TArgs extends unknown[], TData> = {
-  queryKey: (...args: TArgs) => QueryKey;
-  queryFn: (...args: TArgs) => Promise<TData>;
-};
-
-type MutationDef<TVariables, TData> = {
-  mutationFn: (variables: TVariables) => Promise<TData>;
-  invalidates?: EntityName[];
-};
-
-export const defineQueries = <T extends Record<string, QueryDef<any[], any>>>(queries: T) => {
-  const result = {} as {
-    [K in keyof T]: T[K] extends QueryDef<infer TArgs, infer TData>
-      ? (...args: TArgs) => { queryKey: QueryKey; queryFn: () => Promise<TData> }
-      : never;
-  };
-  for (const [name, def] of Object.entries(queries)) {
-    (result as any)[name] = (...args: any[]) => ({
-      queryKey: def.queryKey(...args),
-      queryFn: () => def.queryFn(...args),
-    });
-  }
-  return result;
-};
-
-export const defineMutations = <T extends Record<string, MutationDef<any, any>>>(mutations: T) => {
-  const result = {} as {
-    [K in keyof T]: T[K] extends MutationDef<infer TVars, infer TData>
-      ? () => { mutationFn: (variables: TVars) => Promise<TData>; onSuccess: () => void }
-      : never;
-  };
-  for (const [name, def] of Object.entries(mutations)) {
-    (result as any)[name] = () => ({
-      mutationFn: def.mutationFn,
-      onSuccess: () => {
-        if (def.invalidates) {
-          invalidateEntity(...def.invalidates);
-        }
-      },
-    });
-  }
-  return result;
-};
+```tsx
+// Each Link gets `group relative` in its base className
+// Each icon span gets:
+<span className="shrink-0 transition-[filter] duration-200 group-[.is-active]:drop-shadow-[0_0_3px_oklch(0.65_0.15_250_/_40%)]">
+  {item.icon}
+</span>
 ```
 
-### 2.2 Example entity config: `packages/api/src/query/merchants.ts`
+### Hover effects
+- Base: `hover:bg-sidebar-accent/60 hover:translate-x-0.5 transition-all duration-200`
+- This gives a slight rightward nudge + semi-transparent bg on hover (lighter than active state)
 
-```typescript
-import type { Merchant } from "@mamen/shared";
-import { merchantsApi } from "../merchants";
-import { queryKeys } from "../queryKeys";
-import { defineQueries, defineMutations } from "./factory";
+### Collapse label transition
+Replace `{!collapsed && <span>label</span>}` with an always-rendered span that transitions opacity and max-width:
 
-export const merchantQueries = defineQueries({
-  list: {
-    queryKey: (params?: { orderBy?: "name" }) => queryKeys.merchants.list(params),
-    queryFn: (params?: { orderBy?: "name" }) => merchantsApi.getAll(params),
-  },
-  detail: {
-    queryKey: (id: number) => queryKeys.merchants.detail(id),
-    queryFn: (id: number) => merchantsApi.get(id),
-  },
-  byName: {
-    queryKey: (name: string) => ["merchants", "by-name", name] as const,
-    queryFn: (name: string) => merchantsApi.getByName(name),
-  },
-  byNameCaseInsensitive: {
-    queryKey: (name: string) => ["merchants", "by-name-ci", name] as const,
-    queryFn: (name: string) => merchantsApi.getByNameCaseInsensitive(name),
-  },
-});
-
-export const merchantMutations = defineMutations({
-  create: {
-    mutationFn: (data: Omit<Merchant, "id">) => merchantsApi.create(data),
-    invalidates: ["merchants"],
-  },
-  update: {
-    mutationFn: (vars: { id: number; changes: Partial<Merchant> }) =>
-      merchantsApi.update(vars.id, vars.changes),
-    invalidates: ["merchants"],
-  },
-  remove: {
-    mutationFn: (id: number) => merchantsApi.delete(id),
-    invalidates: ["merchants"],
-  },
-  bulkPut: {
-    mutationFn: (records: Merchant[]) => merchantsApi.bulkPut(records),
-    invalidates: ["merchants"],
-  },
-  uploadImage: {
-    mutationFn: (vars: { id: number; file: File }) =>
-      merchantsApi.uploadImage(vars.id, vars.file),
-    invalidates: ["merchants"],
-  },
-  deleteImage: {
-    mutationFn: (id: number) => merchantsApi.deleteImage(id),
-    invalidates: ["merchants"],
-  },
-});
+```tsx
+<span className={cn(
+  "overflow-hidden whitespace-nowrap transition-[opacity,max-width] duration-300",
+  collapsed ? "max-w-0 opacity-0" : "max-w-[150px] opacity-100"
+)}>
+  {item.label}
+</span>
 ```
 
-Same pattern for all other entities.
+Same pattern for badge/count elements beside labels.
 
-### 2.3 Usage after migration (example)
+### Stats section collapse
+Keep the `{!collapsed && ...}` conditional for the Stats block (it's complex enough that max-width animation doesn't work well), but wrap in a transition:
 
-```typescript
-// Before
-const { data } = useQuery({
-  queryKey: queryKeys.merchants.list(),
-  queryFn: () => merchantsApi.getAll(),
-});
-
-// After
-const { data } = useQuery(merchantQueries.list());
-
-// Before (mutation)
-const handleSave = async () => {
-  await merchantsApi.update(id, changes);
-  invalidateEntity("merchants");
-};
-
-// After
-const update = useMutation(merchantMutations.update());
-const handleSave = () => update.mutate({ id, changes });
+```tsx
+<div className={cn(
+  "mt-auto pt-4 border-t border-sidebar-border transition-opacity duration-200",
+  collapsed && "opacity-0 pointer-events-none h-0 overflow-hidden"
+)}>
 ```
 
-## Phase 3: Update web package ✅
+### Collapsed tooltips
+When `collapsed`, wrap each nav item with the existing `Tooltip` component (from `@/components/ui/tooltip`) to show the label on hover:
 
-### 3.1 Add dependency
+```tsx
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
-`packages/web/package.json`: add `"@mamen/api": "workspace:*"`
-
-### 3.2 Replace `packages/web/src/lib/api/` contents
-
-Delete all moved files. Replace `index.ts` with a re-export:
-
-```typescript
-// Re-export everything from @mamen/api for backward compatibility
-export {
-  api,
-  ApiError,
-  accountsApi,
-  appSettingsApi,
-  categoriesApi,
-  databaseApi,
-  importApi,
-  merchantsApi,
-  rulesApi,
-  settingsApi,
-  subscriptionsApi,
-  transactionsApi,
-  queryKeys,
-  queryClient,
-  invalidateEntity,
-  invalidateAll,
-  // Query helpers
-  merchantQueries,
-  merchantMutations,
-  accountQueries,
-  accountMutations,
-  // ... all other entity queries/mutations
-} from "@mamen/api";
+// Wrap the nav in <TooltipProvider delayDuration={200}>
+// Each nav item when collapsed:
+<Tooltip>
+  <TooltipTrigger asChild>{linkElement}</TooltipTrigger>
+  <TooltipContent side="right" sideOffset={8}>{item.label}</TooltipContent>
+</Tooltip>
 ```
 
-This means **zero changes** to any existing `import { ... } from "@/lib/api"` across the frontend.
+### Inset separator
+```tsx
+<div className={cn("my-3 border-t border-sidebar-border", collapsed ? "mx-2" : "mx-3")} />
+```
 
-### 3.3 Remove `@tanstack/react-query` from web's deps?
+---
 
-No — web still uses it directly for `useQuery`, `useMutation`, `QueryClientProvider` etc. The package just becomes a peer dep of `@mamen/api` too.
+## 3. Layout Content Panel (`Layout/index.tsx`)
 
-## Files to create/modify
+### Layered shadow
+Replace the single shadow with a two-layer shadow for a more realistic elevation:
 
-| Action | File |
-|--------|------|
-| Create | `packages/api/package.json` |
-| Create | `packages/api/tsconfig.json` |
-| Create | `packages/api/src/index.ts` |
-| Move   | `client.ts` → `packages/api/src/client.ts` |
-| Move   | `accounts.ts` → `packages/api/src/accounts.ts` |
-| Move   | `merchants.ts` → `packages/api/src/merchants.ts` |
-| Move   | `transactions.ts` → `packages/api/src/transactions.ts` |
-| Move   | `categories.ts` → `packages/api/src/categories.ts` |
-| Move   | `rules.ts` → `packages/api/src/rules.ts` |
-| Move   | `subscriptions.ts` → `packages/api/src/subscriptions.ts` |
-| Move   | `settings.ts` → `packages/api/src/settings.ts` |
-| Move   | `app-settings.ts` → `packages/api/src/app-settings.ts` |
-| Move   | `database.ts` → `packages/api/src/database.ts` |
-| Move   | `import.ts` → `packages/api/src/import.ts` |
-| Move   | `queryKeys.ts` → `packages/api/src/queryKeys.ts` |
-| Move   | `queryClient.ts` → `packages/api/src/queryClient.ts` |
-| Move   | `mutations.ts` → `packages/api/src/mutations.ts` |
-| Create | `packages/api/src/query/factory.ts` |
-| Create | `packages/api/src/query/merchants.ts` (+ all other entities) |
-| Create | `packages/api/src/query/index.ts` |
-| Edit   | `packages/web/package.json` (add @mamen/api dep) |
-| Edit   | `packages/web/src/lib/api/index.ts` (re-export from @mamen/api) |
-| Delete | All moved files from `packages/web/src/lib/api/` |
+```
+shadow-[-2px_0_16px_rgba(0,0,0,0.2),-8px_0_40px_rgba(0,0,0,0.15)]
+```
 
-## Verification ✅
+No other structural changes needed — `rounded-l-2xl` is already correct, and the `bg-sidebar` on the outer container already matches the sidebar background.
 
-1. ✅ `bun install` — workspace resolves @mamen/api
-2. ✅ `bun run typecheck` — all 5 packages pass type checking
-3. ✅ `bun run build` — web app builds successfully (3226 modules transformed)
-4. ✅ `bun run test` — 142 test files, 1436 tests pass (including new api package tests)
-5. ✅ Query helper factory verified via unit tests in `packages/api/src/query/factory.test.ts`
+---
+
+## 4. Header (`Header.tsx`)
+
+Soften the bottom border:
+```
+border-b border-border/30
+```
+
+---
+
+## 5. Transaction List Entrance Animation (`TransactionDataTable/index.tsx`)
+
+### Problem
+Rows are absolutely positioned with inline `transform: translateY(...)` for virtualization. The existing `.tx-row-enter` CSS animation also uses `transform`, which would **override** the positioning transform.
+
+### Solution — nested div approach
+Split each virtual row into:
+- **Outer div**: positioning only (`position: absolute`, `transform: translateY(...)`, `width`, `height`)
+- **Inner div**: visual content + animation (`role`, `aria-*`, click handlers, `className`, `.tx-row-enter`)
+
+This cleanly separates virtual positioning from animation transforms.
+
+### State management
+
+```tsx
+const prefersReducedMotion = useReducedMotion();
+const hasAnimatedRef = useRef(false);
+const [isEntering, setIsEntering] = useState(!prefersReducedMotion);
+
+useEffect(() => {
+  if (hasAnimatedRef.current || prefersReducedMotion) return;
+  hasAnimatedRef.current = true;
+  const timer = setTimeout(() => setIsEntering(false), 1200);
+  return () => clearTimeout(timer);
+}, [prefersReducedMotion]);
+```
+
+### Row rendering
+
+```tsx
+{virtualizer.getVirtualItems().map((virtualRow) => {
+  const shouldAnimate = isEntering && virtualRow.index < 25; // cap stagger to ~25 rows
+
+  return (
+    <div
+      key={rowId}
+      style={{ position: "absolute", top: 0, left: 0, width: "100%",
+               height: `${virtualRow.size}px`, transform: `translateY(${virtualRow.start}px)` }}
+    >
+      <div
+        id={`tx-${rowId}`}
+        role="option"
+        className={cn(
+          "flex items-center h-full px-4 gap-4 border-b cursor-pointer transition-colors",
+          /* ... existing state classes ... */
+          shouldAnimate && "tx-row-enter",
+        )}
+        style={shouldAnimate ? { "--row-delay": `${virtualRow.index * 30}ms` } as React.CSSProperties : undefined}
+        /* ... existing handlers ... */
+      >
+        {/* cells unchanged */}
+      </div>
+    </div>
+  );
+})}
+```
+
+### Timing
+- 30ms stagger per row × 25 rows = 750ms total stagger
+- Each row animation: 350ms
+- Total visual duration: ~1.1s
+- `isEntering` flips to `false` after 1.2s, removing all animation classes
+
+---
+
+## Verification
+
+1. **Visual check**: Run `pnpm dev` and verify:
+   - Sidebar has subtle cool tint, colored active indicator pill, hover effects with nudge
+   - Collapsed sidebar shows tooltips, labels fade smoothly
+   - Content panel appears elevated with layered shadow and rounded left edge
+   - Transaction list rows stagger in on first load
+2. **Reduced motion**: In browser DevTools, enable "prefers-reduced-motion: reduce" → verify all animations are disabled, rows appear instantly
+3. **Light mode**: Toggle to light mode → verify sidebar indicator and colors work
+4. **Keyboard nav**: Verify J/K navigation still works in transaction list (inner div now has role="option")
+5. **Run tests**: `pnpm --filter web test` to catch any regressions

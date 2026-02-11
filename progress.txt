@@ -1,35 +1,9 @@
-## Extract API SDK into @mamen/api package — COMPLETE
+## Progress Log
 
-All three phases implemented in a single pass:
-
-### Phase 1: Created packages/api/ package
-- Scaffolded package.json, tsconfig.json
-- Moved all 13 entity/infrastructure files from packages/web/src/lib/api/ to packages/api/src/
-- Created barrel index.ts with all exports
-
-### Phase 2: Runtime query helper factory
-- Created defineQueries/defineMutations factory in packages/api/src/query/factory.ts
-- Created query/mutation configs for all 10 entities:
-  accounts, merchants, transactions, categories, rules,
-  subscriptions, settings, app-settings, database, import
-- Created query barrel index.ts
-
-### Phase 3: Updated web package
-- Added @mamen/api workspace dependency to web
-- Replaced packages/web/src/lib/api/index.ts with re-exports from @mamen/api
-- Deleted all moved files from web
-- Updated 3 files with direct submodule imports to use barrel instead
-- Rewrote test mock setup (api-mock-setup.ts) to mock @mamen/api directly
-- Added packages/api to root tsconfig.json references
-
-### Verification — ALL COMPLETE
-- bun install: workspace resolved successfully
-- bun run typecheck: all 5 packages pass (shared, api, web, server)
-- bun run build: web app builds successfully (3226 modules transformed)
-- bun run test: 142 test files, 1436 tests pass (4 packages: shared, server, api, web)
-- Query helper factory verified via unit tests (packages/api/src/query/factory.test.ts)
-
-### Final additions
-- Added vitest config and test script to @mamen/api package
-- Added unit tests for defineQueries/defineMutations factory (4 tests)
-- All PRD verification items now complete
+### Task 1: Theme & CSS Changes (PRD Section 1) ✅
+- Updated dark theme sidebar variables with cool-blue tint and muted blue-purple accent indicator
+- Updated light theme sidebar with faint cool white and blue-purple accent indicator
+- Registered `--color-sidebar-indicator` in @theme inline block
+- Added `.sidebar-nav-icon-active { filter: none; }` to reduced-motion media query
+- TypeScript: clean (0 errors)
+- Tests: 141 files, 1432 tests all passing
