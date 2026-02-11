@@ -10,15 +10,15 @@ Merchants currently have no visual representation. Adding pictures to merchants 
 
 **`packages/shared/src/schemas/merchant.schema.ts`** — Add `imageUrl: z.string().optional()` to `merchantSchema`. Add `imageUrl` to the `createMerchantSchema.omit()` fields. ✅
 
-## Phase 2: Database & Adapter
+## Phase 2: Database & Adapter ✅
 
-**`packages/server/src/lib/repository/adapters/sqlite/migrations/001-initial-schema.ts`** — After the existing `db.exec(...)`, add a safe `ALTER TABLE merchants ADD COLUMN imageUrl TEXT` wrapped in try/catch (SQLite errors if column already exists).
+**`packages/server/src/lib/repository/adapters/sqlite/migrations/001-initial-schema.ts`** — After the existing `db.exec(...)`, add a safe `ALTER TABLE merchants ADD COLUMN imageUrl TEXT` wrapped in try/catch (SQLite errors if column already exists). ✅
 
-**`packages/server/src/lib/repository/adapters/sqlite/merchant.adapter.ts`**:
-- Add `imageUrl: string | null` to `MerchantRow`
-- Add `imageUrl: row.imageUrl ?? undefined` to `toEntity()`
-- Add `imageUrl` to INSERT in `add()`, `bulkAdd()`, `bulkPut()`
-- Add `imageUrl` change handler in `update()`
+**`packages/server/src/lib/repository/adapters/sqlite/merchant.adapter.ts`**: ✅
+- Add `imageUrl: string | null` to `MerchantRow` ✅
+- Add `imageUrl: row.imageUrl ?? undefined` to `toEntity()` ✅
+- Add `imageUrl` to INSERT in `add()`, `bulkAdd()`, `bulkPut()` ✅
+- Add `imageUrl` change handler in `update()` ✅
 
 ## Phase 3: Backend Upload Infrastructure
 

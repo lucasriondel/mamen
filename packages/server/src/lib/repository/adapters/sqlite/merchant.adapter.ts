@@ -5,6 +5,7 @@ import type { MerchantRepository } from "../../ports";
 type MerchantRow = {
 	id: number;
 	name: string;
+	imageUrl: string | null;
 	defaultCategoryId: number | null;
 	createdAt: string;
 	firstSeen: string;
@@ -13,6 +14,7 @@ type MerchantRow = {
 const toEntity = (row: MerchantRow): Merchant => ({
 	id: row.id,
 	name: row.name,
+	imageUrl: row.imageUrl ?? undefined,
 	defaultCategoryId: row.defaultCategoryId ?? undefined,
 	createdAt: new Date(row.createdAt),
 	firstSeen: new Date(row.firstSeen),
@@ -36,11 +38,15 @@ export const createMerchantAdapter = (db: Database): MerchantRepository => ({
 	add: async (record) => {
 		const now = new Date().toISOString();
 		const result = db
-			.query<{ id: number }, [string, number | null, string, string]>(
-				"INSERT INTO merchants (name, defaultCategoryId, createdAt, firstSeen) VALUES (?, ?, ?, ?) RETURNING id",
+			.query<
+				{ id: number },
+				[string, string | null, number | null, string, string]
+			>(
+				"INSERT INTO merchants (name, imageUrl, defaultCategoryId, createdAt, firstSeen) VALUES (?, ?, ?, ?, ?) RETURNING id",
 			)
 			.get(
 				record.name,
+				(record as Merchant).imageUrl ?? null,
 				record.defaultCategoryId ?? null,
 				(record as Merchant).createdAt?.toISOString() ?? now,
 				(record as Merchant).firstSeen?.toISOString() ?? now,
@@ -51,14 +57,15 @@ export const createMerchantAdapter = (db: Database): MerchantRepository => ({
 	bulkAdd: async (records) => {
 		const stmt = db.query<
 			{ id: number },
-			[string, number | null, string, string]
+			[string, string | null, number | null, string, string]
 		>(
-			"INSERT INTO merchants (name, defaultCategoryId, createdAt, firstSeen) VALUES (?, ?, ?, ?) RETURNING id",
+			"INSERT INTO merchants (name, imageUrl, defaultCategoryId, createdAt, firstSeen) VALUES (?, ?, ?, ?, ?) RETURNING id",
 		);
 		const now = new Date().toISOString();
 		return records.map((record) => {
 			return stmt.get(
 				record.name,
+				(record as Merchant).imageUrl ?? null,
 				record.defaultCategoryId ?? null,
 				(record as Merchant).createdAt?.toISOString() ?? now,
 				(record as Merchant).firstSeen?.toISOString() ?? now,
@@ -72,6 +79,10 @@ export const createMerchantAdapter = (db: Database): MerchantRepository => ({
 		if (changes.name !== undefined) {
 			fields.push("name = ?");
 			values.push(changes.name);
+		}
+		if (changes.imageUrl !== undefined) {
+			fields.push("imageUrl = ?");
+			values.push(changes.imageUrl ?? null);
 		}
 		if (changes.defaultCategoryId !== undefined) {
 			fields.push("defaultCategoryId = ?");
@@ -92,13 +103,14 @@ export const createMerchantAdapter = (db: Database): MerchantRepository => ({
 
 	bulkPut: async (records) => {
 		const stmt = db.prepare(
-			"INSERT OR REPLACE INTO merchants (id, name, defaultCategoryId, createdAt, firstSeen) VALUES (?, ?, ?, ?, ?)",
+			"INSERT OR REPLACE INTO merchants (id, name, imageUrl, defaultCategoryId, createdAt, firstSeen) VALUES (?, ?, ?, ?, ?, ?)",
 		);
 		const tx = db.transaction(() => {
 			for (const record of records) {
 				stmt.run(
 					record.id!,
 					record.name,
+					record.imageUrl ?? null,
 					record.defaultCategoryId ?? null,
 					record.createdAt.toISOString(),
 					record.firstSeen.toISOString(),

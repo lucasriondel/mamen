@@ -5,3 +5,12 @@
 - Added `imageUrl: z.string().optional()` to `merchantSchema` in `packages/shared/src/schemas/merchant.schema.ts`
 - Added `imageUrl` to `createMerchantSchema.omit()` fields
 - Typecheck passes across all packages
+
+### Phase 2: Database & Adapter ✅
+- Added `ALTER TABLE merchants ADD COLUMN imageUrl TEXT` migration with try/catch in `001-initial-schema.ts`
+- Added `imageUrl: string | null` to `MerchantRow` type in `merchant.adapter.ts`
+- Added `imageUrl: row.imageUrl ?? undefined` to `toEntity()` mapping
+- Added `imageUrl` to INSERT in `add()`, `bulkAdd()`, `bulkPut()`
+- Added `imageUrl` change handler in `update()`
+- Typecheck passes across all packages
+- All 15 merchant route tests pass

@@ -111,4 +111,10 @@ export const runMigrations = (db: Database): void => {
     CREATE INDEX IF NOT EXISTS idx_subscriptions_merchantId ON subscriptions(merchantId);
     CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions(status);
   `);
+
+	try {
+		db.exec("ALTER TABLE merchants ADD COLUMN imageUrl TEXT");
+	} catch {
+		// Column already exists
+	}
 };
