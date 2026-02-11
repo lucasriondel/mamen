@@ -295,7 +295,7 @@ Key mutation files that need invalidateEntity calls:
 - features/anomalies/services/anomalyDetector.ts - read-only, no change
 - features/import/services/importWithRules.ts - after import
 
-Step 8: Add optimistic updates for key interactions
+Step 8: Add optimistic updates for key interactions ✅
 
 For the most latency-sensitive operations, add optimistic updates:
 

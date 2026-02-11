@@ -1,11 +1,12 @@
 import { useState, useCallback } from 'react'
 import { toast } from 'sonner'
-import { invalidateEntity } from '@/lib/api'
+import { invalidateEntity, queryClient, queryKeys } from '@/lib/api'
 import { useCategories } from '@/hooks/useCategories'
 import {
   assignManualCategory,
   undoManualCategoryAssignment,
 } from '../services/assignManualCategory'
+import type { Transaction } from '@/types'
 
 type UseQuickCategoryAssignReturn = {
   assignCategory: (
@@ -30,6 +31,25 @@ export const useQuickCategoryAssign = (): UseQuickCategoryAssignReturn => {
     ): Promise<void> => {
       setIsAssigning(true)
       setError(null)
+
+      // Snapshot all transaction caches for rollback
+      const previousCaches: [readonly unknown[], Transaction[] | undefined][] = []
+      queryClient.getQueriesData<Transaction[]>({ queryKey: queryKeys.transactions.all }).forEach(
+        ([key, data]) => {
+          previousCaches.push([key, data])
+        },
+      )
+
+      // Optimistically update all transaction caches
+      queryClient.setQueriesData<Transaction[]>(
+        { queryKey: queryKeys.transactions.all },
+        (old) =>
+          old?.map((tx) =>
+            tx.id === transactionId
+              ? { ...tx, categoryId, subcategoryId, manualCategory: true, merchantId: undefined }
+              : tx,
+          ),
+      )
 
       try {
         const previousState = await assignManualCategory(
@@ -61,6 +81,10 @@ export const useQuickCategoryAssign = (): UseQuickCategoryAssignReturn => {
           duration: 10000,
         })
       } catch (err) {
+        // Roll back optimistic update
+        for (const [key, data] of previousCaches) {
+          queryClient.setQueryData(key, data)
+        }
         const assignError =
           err instanceof Error ? err : new Error('Failed to assign category')
         setError(assignError)

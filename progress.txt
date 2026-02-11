@@ -60,3 +60,17 @@
   csvImporter (via importWithRules), CreateAccountModal, EditAccountModal, EditMerchantModal
 - Updated test/api-mock-setup.ts barrel mock to include mutations module
 - All 141 test files pass (1432 tests), typecheck passes cleanly
+
+## Step 8: Add optimistic updates for key interactions (DONE)
+
+- Added optimistic updates to 3 latency-sensitive mutation hooks:
+  1. **useQuickCategoryAssign**: Snapshots all transaction caches, optimistically updates
+     categoryId/subcategoryId/manualCategory/merchantId on the target transaction across all
+     cached query results. Rolls back on error.
+  2. **useDeleteTransactions**: Snapshots all transaction caches, optimistically removes
+     deleted transactions from all cached lists. Rolls back on error.
+  3. **useRuleMutations (deleteRule)**: Snapshots all rule caches, optimistically removes
+     the deleted rule from all cached lists. Rolls back on error.
+- Pattern: `queryClient.getQueriesData()` to snapshot, `queryClient.setQueriesData()` to
+  optimistically update all matching caches, restore snapshots in catch block on failure
+- All 141 test files pass (1432 tests), typecheck passes cleanly (no new errors)

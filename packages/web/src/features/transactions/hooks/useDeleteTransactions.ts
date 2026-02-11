@@ -1,10 +1,11 @@
 import { useState, useCallback } from 'react'
 import { toast } from 'sonner'
-import { invalidateEntity } from '@/lib/api'
+import { invalidateEntity, queryClient, queryKeys } from '@/lib/api'
 import {
   deleteTransactions,
   undoDeleteTransactions,
 } from '../services/deleteTransactions'
+import type { Transaction } from '@/types'
 
 type UseDeleteTransactionsReturn = {
   requestDelete: (ids: number[]) => void
@@ -36,6 +37,22 @@ export const useDeleteTransactions = (): UseDeleteTransactionsReturn => {
 
     setIsDeleting(true)
 
+    const idsToDelete = new Set(pendingDeleteIds)
+
+    // Snapshot all transaction caches for rollback
+    const previousCaches: [readonly unknown[], Transaction[] | undefined][] = []
+    queryClient.getQueriesData<Transaction[]>({ queryKey: queryKeys.transactions.all }).forEach(
+      ([key, data]) => {
+        previousCaches.push([key, data])
+      },
+    )
+
+    // Optimistically remove transactions from all caches
+    queryClient.setQueriesData<Transaction[]>(
+      { queryKey: queryKeys.transactions.all },
+      (old) => old?.filter((tx) => !idsToDelete.has(tx.id!)),
+    )
+
     try {
       const result = await deleteTransactions(pendingDeleteIds)
       invalidateEntity('transactions', 'accounts')
@@ -59,6 +76,10 @@ export const useDeleteTransactions = (): UseDeleteTransactionsReturn => {
         },
       )
     } catch (err) {
+      // Roll back optimistic update
+      for (const [key, data] of previousCaches) {
+        queryClient.setQueryData(key, data)
+      }
       const message =
         err instanceof Error ? err.message : 'Failed to delete transactions'
       toast.error('Failed to delete transactions', { description: message })

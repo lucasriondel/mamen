@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import { toast } from 'sonner'
-import { invalidateEntity } from '@/lib/api'
+import { invalidateEntity, queryClient, queryKeys } from '@/lib/api'
 import type { Rule } from '@/types'
 import {
   updateRuleWithReeval,
@@ -62,6 +62,20 @@ export const useRuleMutations = (): UseRuleMutationsReturn => {
     setIsDeleting(true)
     setError(null)
 
+    // Snapshot all rule caches for rollback
+    const previousCaches: [readonly unknown[], Rule[] | undefined][] = []
+    queryClient.getQueriesData<Rule[]>({ queryKey: queryKeys.rules.all }).forEach(
+      ([key, data]) => {
+        previousCaches.push([key, data])
+      },
+    )
+
+    // Optimistically remove rule from all caches
+    queryClient.setQueriesData<Rule[]>(
+      { queryKey: queryKeys.rules.all },
+      (old) => old?.filter((r) => r.id !== ruleId),
+    )
+
     try {
       const result = await deleteRuleWithCleanup(ruleId)
       invalidateEntity('rules', 'transactions', 'merchants')
@@ -80,6 +94,10 @@ export const useRuleMutations = (): UseRuleMutationsReturn => {
         duration: 10000,
       })
     } catch (err) {
+      // Roll back optimistic update
+      for (const [key, data] of previousCaches) {
+        queryClient.setQueryData(key, data)
+      }
       const e = err instanceof Error ? err : new Error('Failed to delete rule')
       setError(e)
       toast.error('Failed to delete rule')
