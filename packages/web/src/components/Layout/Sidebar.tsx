@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
+import { motion } from "framer-motion";
 import {
 	CalendarDays,
 	CreditCard,
@@ -100,100 +101,146 @@ export function Sidebar(): React.ReactElement {
 	return (
 		<aside className="flex flex-col w-[220px] border-r border-sidebar-border bg-sidebar p-4">
 			<nav className="flex flex-col gap-1">
-				{navItems.map((item) => (
-					<Link
+				{navItems.map((item, i) => (
+					<motion.div
 						key={item.to}
-						to={item.to}
-						onClick={
-							item.to === "/transactions" ? handleTransactionsClick : undefined
-						}
-						className={baseLinkClass}
+						initial={{ opacity: 0, x: -8 }}
+						animate={{ opacity: 1, x: 0 }}
+						transition={{
+							duration: 0.25,
+							delay: i * 0.04,
+							ease: [0.22, 1, 0.36, 1],
+						}}
+					>
+						<Link
+							to={item.to}
+							onClick={
+								item.to === "/transactions" ? handleTransactionsClick : undefined
+							}
+							className={baseLinkClass}
+							activeProps={{
+								className: activeIndicatorClass,
+							}}
+							activeOptions={{
+								exact: item.to === "/" || item.to === "/transactions",
+							}}
+						>
+							<span className="shrink-0 transition-[filter] duration-200 group-[.is-active]:drop-shadow-[0_0_3px_oklch(0.65_0.15_250_/_40%)]">
+								{item.icon}
+							</span>
+							{item.label}
+							{item.to === "/rules" && ruleCount > 0 && (
+								<span className="ml-auto text-xs text-muted-foreground">
+									({ruleCount})
+								</span>
+							)}
+						</Link>
+					</motion.div>
+				))}
+
+				<motion.div
+					initial={{ opacity: 0 }}
+					animate={{ opacity: 1 }}
+					transition={{ duration: 0.3, delay: navItems.length * 0.04 }}
+				>
+					<div className="my-3 border-t border-sidebar-border mx-3" />
+				</motion.div>
+
+				<motion.div
+					initial={{ opacity: 0, x: -8 }}
+					animate={{ opacity: 1, x: 0 }}
+					transition={{
+						duration: 0.25,
+						delay: (navItems.length + 1) * 0.04,
+						ease: [0.22, 1, 0.36, 1],
+					}}
+				>
+					<Link
+						to="/transactions/unmatched"
+						className={cn(baseLinkClass, "w-full text-left")}
 						activeProps={{
 							className: activeIndicatorClass,
 						}}
-						activeOptions={{
-							exact: item.to === "/" || item.to === "/transactions",
-						}}
+						aria-label={`Unmatched transactions: ${unmatchedCount}`}
 					>
 						<span className="shrink-0 transition-[filter] duration-200 group-[.is-active]:drop-shadow-[0_0_3px_oklch(0.65_0.15_250_/_40%)]">
-							{item.icon}
+							<Inbox className="h-4 w-4" />
 						</span>
-						{item.label}
-						{item.to === "/rules" && ruleCount > 0 && (
-							<span className="ml-auto text-xs text-muted-foreground">
-								({ruleCount})
-							</span>
-						)}
-					</Link>
-				))}
-
-				<div className="my-3 border-t border-sidebar-border mx-3" />
-
-				<Link
-					to="/transactions/unmatched"
-					className={cn(baseLinkClass, "w-full text-left")}
-					activeProps={{
-						className: activeIndicatorClass,
-					}}
-					aria-label={`Unmatched transactions: ${unmatchedCount}`}
-				>
-					<span className="shrink-0 transition-[filter] duration-200 group-[.is-active]:drop-shadow-[0_0_3px_oklch(0.65_0.15_250_/_40%)]">
-						<Inbox className="h-4 w-4" />
-					</span>
-					<span>Unmatched</span>
-					<span
-						className="ml-auto text-xs px-2 py-0.5 rounded-full bg-amber-500/20"
-						aria-hidden="true"
-					>
-						<AnimatedCounter value={unmatchedCount} />
-					</span>
-				</Link>
-
-				<button
-					type="button"
-					onClick={handleMonthClick}
-					className={cn(
-						baseLinkClass,
-						"w-full text-left",
-						activeFilters.has("month") && activeIndicatorClass,
-					)}
-					aria-label={`This month transactions: ${monthCount}`}
-				>
-					<span className="shrink-0 transition-[filter] duration-200 group-[.is-active]:drop-shadow-[0_0_3px_oklch(0.65_0.15_250_/_40%)]">
-						<CalendarDays className="h-4 w-4" />
-					</span>
-					<span>This Month</span>
-					<span
-						className="ml-auto text-xs px-2 py-0.5 rounded-full bg-blue-500/20"
-						aria-hidden="true"
-					>
-						<AnimatedCounter value={monthCount} />
-					</span>
-				</button>
-
-				<button
-					type="button"
-					onClick={handleSubscriptionsClick}
-					className={cn(
-						baseLinkClass,
-						"w-full text-left",
-						activeFilters.has("subscriptions") && activeIndicatorClass,
-					)}
-					aria-label={`Subscriptions: ${subscriptionCount}`}
-				>
-					<span className="shrink-0 transition-[filter] duration-200 group-[.is-active]:drop-shadow-[0_0_3px_oklch(0.65_0.15_250_/_40%)]">
-						<Repeat className="h-4 w-4" />
-					</span>
-					<span>Subscriptions</span>
-					{subscriptionCount > 0 && (
+						<span>Unmatched</span>
 						<span
-							className="ml-auto text-xs px-2 py-0.5 rounded-full bg-purple-500/20"
+							className="ml-auto text-xs px-2 py-0.5 rounded-full bg-amber-500/20"
 							aria-hidden="true"
 						>
-							<AnimatedCounter value={subscriptionCount} />
+							<AnimatedCounter value={unmatchedCount} />
 						</span>
-					)}
-				</button>
+					</Link>
+				</motion.div>
+
+				<motion.div
+					initial={{ opacity: 0, x: -8 }}
+					animate={{ opacity: 1, x: 0 }}
+					transition={{
+						duration: 0.25,
+						delay: (navItems.length + 2) * 0.04,
+						ease: [0.22, 1, 0.36, 1],
+					}}
+				>
+					<button
+						type="button"
+						onClick={handleMonthClick}
+						className={cn(
+							baseLinkClass,
+							"w-full text-left",
+							activeFilters.has("month") && activeIndicatorClass,
+						)}
+						aria-label={`This month transactions: ${monthCount}`}
+					>
+						<span className="shrink-0 transition-[filter] duration-200 group-[.is-active]:drop-shadow-[0_0_3px_oklch(0.65_0.15_250_/_40%)]">
+							<CalendarDays className="h-4 w-4" />
+						</span>
+						<span>This Month</span>
+						<span
+							className="ml-auto text-xs px-2 py-0.5 rounded-full bg-blue-500/20"
+							aria-hidden="true"
+						>
+							<AnimatedCounter value={monthCount} />
+						</span>
+					</button>
+				</motion.div>
+
+				<motion.div
+					initial={{ opacity: 0, x: -8 }}
+					animate={{ opacity: 1, x: 0 }}
+					transition={{
+						duration: 0.25,
+						delay: (navItems.length + 3) * 0.04,
+						ease: [0.22, 1, 0.36, 1],
+					}}
+				>
+					<button
+						type="button"
+						onClick={handleSubscriptionsClick}
+						className={cn(
+							baseLinkClass,
+							"w-full text-left",
+							activeFilters.has("subscriptions") && activeIndicatorClass,
+						)}
+						aria-label={`Subscriptions: ${subscriptionCount}`}
+					>
+						<span className="shrink-0 transition-[filter] duration-200 group-[.is-active]:drop-shadow-[0_0_3px_oklch(0.65_0.15_250_/_40%)]">
+							<Repeat className="h-4 w-4" />
+						</span>
+						<span>Subscriptions</span>
+						{subscriptionCount > 0 && (
+							<span
+								className="ml-auto text-xs px-2 py-0.5 rounded-full bg-purple-500/20"
+								aria-hidden="true"
+							>
+								<AnimatedCounter value={subscriptionCount} />
+							</span>
+						)}
+					</button>
+				</motion.div>
 			</nav>
 
 			<div className="mt-auto pt-4 border-t border-sidebar-border">
