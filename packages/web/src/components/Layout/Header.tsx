@@ -8,7 +8,7 @@ export function Header(): React.ReactElement {
 	const modifierSymbol = isMac() ? "⌘" : "Ctrl+";
 
 	return (
-		<header className="flex items-center justify-between border-b border-border/30 px-6 h-14">
+		<header className="flex items-center justify-between border-b border-border/30 px-6 h-14 shrink-0">
 			<h1 className="text-lg font-semibold">mamen</h1>
 			<Button
 				variant="outline"
