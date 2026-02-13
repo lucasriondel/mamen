@@ -20,3 +20,13 @@ Change 3: Add Account Column — DONE
 - Removed columnVisibility: { accountId: false } to make column visible in index.tsx
 - Added header and cell width classes (w-24) for accountId column in index.tsx
 - TypeScript type check passes cleanly
+
+Change 4: Category Badge Click Opens Popover CategoryPicker — DONE
+- Added onAssignCategory to TransactionTableMeta type in columns.tsx
+- Added imports for useState, CategoryPicker, Popover/PopoverContent/PopoverTrigger in columns.tsx
+- Extracted InlineCategoryCell component with useState for popover open/close state in columns.tsx
+- Wrapped CategoryBadge, Unmatched badge, and Matched badge in Popover with CategoryPicker in columns.tsx
+- Added e.stopPropagation() on popover triggers to prevent row click interference
+- Simplified category column cell to delegate to InlineCategoryCell in columns.tsx
+- Passed assignCategory (from useQuickCategoryAssign) as onAssignCategory in tableMeta in index.tsx
+- TypeScript type check passes cleanly

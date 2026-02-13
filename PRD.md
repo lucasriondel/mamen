@@ -43,7 +43,7 @@ Files:
 
 ---
 
-Change 4: Category Badge Click Opens Popover CategoryPicker
+Change 4: Category Badge Click Opens Popover CategoryPicker ✅ DONE
 
 Files:
 
