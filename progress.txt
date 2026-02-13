@@ -4,3 +4,9 @@ Change 1: Remove "New" / "New Merchant" from Transaction Row — DONE
 - Removed createdAt from TransactionTableMeta type in columns.tsx
 - Removed createdAt from merchants map builder in index.tsx
 - TypeScript type check passes cleanly
+
+Change 2: Show Merchant Name When Matched — DONE
+- Updated rawMerchantString cell in columns.tsx
+- Matched merchants: MerchantAvatar + merchant name (font-medium) + raw string (text-xs muted) in stacked layout
+- Unmatched merchants: only rawMerchantString displayed, no avatar
+- TypeScript type check passes cleanly

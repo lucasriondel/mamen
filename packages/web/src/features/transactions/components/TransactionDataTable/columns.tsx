@@ -75,14 +75,21 @@ export const columns: ColumnDef<Transaction>[] = [
 			const merchantInfo = meta.getMerchantInfo(row.original.merchantId);
 			return (
 				<div className="flex items-center gap-1.5 text-sm min-w-0">
-					{merchantInfo?.name && (
-						<MerchantAvatar
-							name={merchantInfo.name}
-							imageUrl={merchantInfo.imageUrl}
-							size="sm"
-						/>
+					{merchantInfo?.name ? (
+						<>
+							<MerchantAvatar
+								name={merchantInfo.name}
+								imageUrl={merchantInfo.imageUrl}
+								size="sm"
+							/>
+							<div className="flex flex-col min-w-0">
+								<span className="font-medium truncate">{merchantInfo.name}</span>
+								<span className="text-xs text-muted-foreground truncate">{row.original.rawMerchantString}</span>
+							</div>
+						</>
+					) : (
+						<span className="truncate">{row.original.rawMerchantString}</span>
 					)}
-					<span className="truncate">{row.original.rawMerchantString}</span>
 				</div>
 			);
 		},

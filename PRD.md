@@ -22,7 +22,7 @@ Files modified:
 
 ---
 
-Change 2: Show Merchant Name When Matched
+Change 2: Show Merchant Name When Matched ✅ DONE
 
 File: columns.tsx — rawMerchantString cell
 
