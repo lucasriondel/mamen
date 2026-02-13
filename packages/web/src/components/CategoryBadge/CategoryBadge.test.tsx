@@ -1,8 +1,19 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
-import { seedCategories } from "@/lib/seeds/categories";
 import { CategoryBadge } from "./index";
+
+const seedCategories = async () => {
+	const now = new Date();
+	const shoppingId = await db.categories.add({
+		name: "Shopping", slug: "shopping", color: "#3B82F6",
+		icon: "ShoppingCart", parentId: null, sortOrder: 0, createdAt: now,
+	});
+	await db.categories.add({
+		name: "Groceries", slug: "shopping-groceries", color: "#3B82F6",
+		icon: "ShoppingCart", parentId: shoppingId, sortOrder: 0, createdAt: now,
+	});
+};
 
 beforeEach(async () => {
 	await db.categories.clear();

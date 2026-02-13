@@ -1,43 +1,12 @@
-## Progress Log
+## 2026-02-13: Remove frontend seed module
 
-### Task 1: Theme & CSS Changes (PRD Section 1) ✅
-- Updated dark theme sidebar variables with cool-blue tint and muted blue-purple accent indicator
-- Updated light theme sidebar with faint cool white and blue-purple accent indicator
-- Registered `--color-sidebar-indicator` in @theme inline block
-- Added `.sidebar-nav-icon-active { filter: none; }` to reduced-motion media query
-- TypeScript: clean (0 errors)
-- Tests: 141 files, 1432 tests all passing
+Completed all 3 steps from PRD.md:
 
-### Task 2: Sidebar Redesign (PRD Section 2) ✅
-- Added active state indicator: 3px rounded pill on left edge using `before:` pseudo-element with `bg-sidebar-indicator`
-- Added `is-active` class marker for group-based icon glow targeting
-- Implemented icon glow on active: subtle drop-shadow using `group-[.is-active]:drop-shadow-[...]` on icon wrapper spans
-- Updated hover effects: `hover:bg-sidebar-accent/60 hover:translate-x-0.5 transition-all duration-200`
-- Changed sidebar bg from `bg-card` to `bg-sidebar` and border to `border-sidebar-border`
-- Changed text color from `text-muted-foreground` to `text-sidebar-foreground` for nav items
-- Added inset separator (`border-t border-sidebar-border mx-3`) between main nav and filter items
-- Updated stats section border to use `border-sidebar-border`
-- Extracted `baseLinkClass` and `activeIndicatorClass` constants for DRY nav item styling
-- Updated Layout tests to match new `bg-sidebar-accent` active class (was `bg-accent`)
-- Note: Collapse-related features (label transitions, tooltips, stats collapse) deferred — no collapse mechanism exists yet
-- TypeScript: clean (0 errors)
-- Tests: 141 files, 1432 tests all passing
+1. Deleted `packages/web/src/lib/seeds/categories.ts`, `categories.test.ts`, and the `seeds/` directory
+2. Updated 3 test files with local `seedCategories` helpers:
+   - `CategoryPicker.test.tsx` — local helper with all 10 parents + subcategories
+   - `CategoryBadge.test.tsx` — minimal helper with just Shopping + Groceries
+   - `useCategories.test.ts` — local helper with full category tree
+3. Verified: all 24 affected tests pass, no type errors, no remaining imports of `@/lib/seeds/categories`
 
-### Task 3: Layout Content Panel & Header (PRD Sections 3-4) ✅
-- Added `bg-sidebar` to outer `flex h-screen` container so sidebar background extends behind content panel
-- Added `rounded-l-2xl bg-background` to content panel for rounded left edge over sidebar bg
-- Added layered two-shadow elevation: `shadow-[-2px_0_16px_rgba(0,0,0,0.2),-8px_0_40px_rgba(0,0,0,0.15)]`
-- Softened header bottom border from `border-b` to `border-b border-border/30`
-- TypeScript: clean (0 errors)
-- Tests: 141 files, 1432 tests all passing
-
-### Task 4: Transaction List Entrance Animation (PRD Section 5) ✅
-- Added `@keyframes tx-row-enter` CSS animation (opacity 0→1, translateY 6px→0, 350ms ease-out)
-- Added `.tx-row-enter` class with `animation-delay: var(--row-delay)` for staggered timing
-- Added `.tx-row-enter` to reduced-motion media query (animation: none, opacity: 1)
-- Split virtual rows into outer (positioning) + inner (content + animation) divs to avoid transform conflict
-- Added entrance animation state: `isEntering` flag with 1.2s auto-disable, `hasAnimatedEntranceRef` for one-shot
-- Stagger: 30ms per row × 25 rows max = 750ms total stagger, 350ms per-row animation
-- Safe `matchMedia` check for jsdom compatibility in tests
-- TypeScript: clean (0 errors)
-- Tests: 141 files, 1432 tests all passing
+PRD is now COMPLETE.
