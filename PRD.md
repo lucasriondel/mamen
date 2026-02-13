@@ -1,235 +1,133 @@
-# UI Design Improvements Plan
+# CategoryPicker Improvements Plan
 
 ## Context
 
-The app's current sidebar is visually flat and generic (monochrome gray in dark mode, basic hover states). The content area has no visual separation from the sidebar. The transaction list appears instantly with no visual flourish. This plan addresses three areas: sidebar redesign, content panel elevation effect, and transaction list entrance animations.
-
-## Files to Modify
-
-| File | Scope |
-|------|-------|
-| `packages/web/src/index.css` | Theme colors, new keyframes, new CSS variables |
-| `packages/web/src/components/Layout/Sidebar.tsx` | Sidebar redesign (typography, colors, icons, active indicator, hover effects, collapse animations, tooltips) |
-| `packages/web/src/components/Layout/index.tsx` | Refine content panel shadow |
-| `packages/web/src/components/Layout/Header.tsx` | Soften border |
-| `packages/web/src/features/transactions/components/TransactionDataTable/index.tsx` | Staggered entrance animation for rows |
+The CategoryPicker currently has three limitations:
+1. **Search only works on the current view** — if you're on the parent list, typing "Groceries" finds nothing because subcategories aren't rendered
+2. **Add Category modal has no parent selector** — `parentId` is fixed by context (determined by which button the user clicked), not changeable within the modal
+3. **No way to create categories from search** — when search yields no results, it's a dead end
 
 ---
 
-## 1. Theme & CSS Changes (`index.css`) ✅
+## Feature 1: Search shows nested categories ✅
 
-### Dark theme sidebar variables — add subtle cool tint and a colored accent indicator
+**File:** `packages/web/src/components/CategoryPicker/index.tsx`
 
-```css
-/* .dark block — replace sidebar vars */
---sidebar: oklch(0.13 0.005 270);            /* very subtle cool-blue tint instead of pure gray */
---sidebar-foreground: oklch(0.55 0 0);        /* dimmer for inactive items */
---sidebar-accent: oklch(1 0 0 / 7%);         /* slightly softer hover bg */
---sidebar-border: oklch(1 0 0 / 6%);         /* more subtle separator */
---sidebar-indicator: oklch(0.65 0.15 250);   /* muted blue-purple active accent */
-```
+When the user types in the search box (and no parent is selected), switch from showing only parent categories to showing **all categories in a flat grouped list** — exactly like `QuickCategoryPicker` already does.
 
-### Light theme — add indicator and tweak sidebar
+### Changes
 
-```css
-/* :root block */
---sidebar: oklch(0.975 0.003 270);           /* faint cool white */
---sidebar-indicator: oklch(0.5 0.18 250);    /* blue-purple accent */
-```
+1. Pull `categoriesWithSubs` from `useCategories()` (line 28)
 
-### Register the new indicator variable
+2. Derive `const isSearching = search.length > 0 && !selectedParent`
 
-```css
-/* @theme inline block */
---color-sidebar-indicator: var(--sidebar-indicator);
-```
+3. Add a third rendering branch in the JSX (currently two branches at lines 80-131). The new structure:
+   - `selectedParent` → existing subcategory drill-down (unchanged)
+   - `isSearching` → flat grouped list (new, mirrors `QuickCategoryPicker` pattern)
+   - default → existing parent list (unchanged)
 
-### Add reduced-motion entry for the icon glow class
+4. The flat search view renders `categoriesWithSubs.map(parent => ...)` with:
+   - Each parent as a `CommandGroup` with heading
+   - Parent itself as a `CommandItem` with `value="{parent.name} (general)"`
+   - Each subcategory as a `CommandItem` with `value="{parent.name} {sub.name}"` (enables cmdk matching)
+   - Clicking a parent in search mode calls `onSelect(parent.id!)` directly (not drill-down)
+   - Clicking a subcategory calls `onSelect(parent.id!, sub.id!)` directly
 
-```css
-@media (prefers-reduced-motion: reduce) {
-  /* ... existing entries + add: */
-  .sidebar-nav-icon-active { filter: none; }
-}
-```
+### Test updates (`CategoryPicker.test.tsx`)
 
-No new keyframes needed — the active indicator will use Tailwind's built-in `animate-in` or a simple `transition` rather than a custom keyframe.
+- Update "filters categories by search" test (line 53): after typing "shop", the flat search view is shown — Shopping parent + its subcategories should appear. "Dining" should still NOT appear.
+- Add test: typing "Groceries" shows subcategory results from parent view
+- Update "shows no results" test (line 69): will be updated in Feature 3
 
 ---
 
-## 2. Sidebar Redesign (`Sidebar.tsx`) ✅
+## Feature 2: Parent category selector in Add Category modal
 
-### Active state indicator
-Each nav `Link` and active button gets a `before:` pseudo-element — a 3px-wide, 16px-tall rounded pill on the left edge, colored with `bg-sidebar-indicator`:
+**File:** `packages/web/src/features/categories/components/CategoryFormModal/index.tsx`
 
-```tsx
-// activeProps example for Link:
-activeProps={{
-  className: cn(
-    "is-active text-sidebar-primary-foreground bg-sidebar-accent",
-    "before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2",
-    "before:h-4 before:w-[3px] before:rounded-full before:bg-sidebar-indicator",
-  ),
-}}
-```
+Add a "Parent category" field using Popover + CategoryPicker (same pattern as `MerchantAssignmentModal` lines 1022-1056).
 
-Same pattern for the `button` elements when `activeFilters.has("month")` etc.
+### Changes
 
-### Icon glow on active
-Icons inside nav items get a subtle drop-shadow when their parent link is active, using Tailwind's `group` variant:
+1. Add imports: `useState`, `ChevronDown`, `CategoryPicker`, `Popover`/`PopoverContent`/`PopoverTrigger`, `useCategories`
 
-```tsx
-// Each Link gets `group relative` in its base className
-// Each icon span gets:
-<span className="shrink-0 transition-[filter] duration-200 group-[.is-active]:drop-shadow-[0_0_3px_oklch(0.65_0.15_250_/_40%)]">
-  {item.icon}
-</span>
-```
+2. Add state: `selectedParentId` (initialized from `parentId` prop), `parentPickerOpen`
 
-### Hover effects
-- Base: `hover:bg-sidebar-accent/60 hover:translate-x-0.5 transition-all duration-200`
-- This gives a slight rightward nudge + semi-transparent bg on hover (lighter than active state)
+3. Sync `selectedParentId` with prop in the existing `useEffect` (on mode/parentId change)
 
-### Collapse label transition
-Replace `{!collapsed && <span>label</span>}` with an always-rendered span that transitions opacity and max-width:
+4. Add the parent selector field between Name and Color/Icon fields (only in create mode):
+   - Button trigger shows selected parent name + color dot, or "Root level (no parent)"
+   - Popover contains `CategoryPicker` with `allowSubcategory={false}` and `allowCreate={false}`
+   - "Remove parent" link to reset to root level
 
-```tsx
-<span className={cn(
-  "overflow-hidden whitespace-nowrap transition-[opacity,max-width] duration-300",
-  collapsed ? "max-w-0 opacity-0" : "max-w-[150px] opacity-100"
-)}>
-  {item.label}
-</span>
-```
+5. Update `handleSubmit` to use `selectedParentId` instead of the `parentId` prop
 
-Same pattern for badge/count elements beside labels.
+6. Add `defaultName?: string` prop — used in the create mode `useEffect` to pre-fill the name field (needed by Feature 3)
 
-### Stats section collapse
-Keep the `{!collapsed && ...}` conditional for the Stats block (it's complex enough that max-width animation doesn't work well), but wrap in a transition:
+7. Update dialog description to use `selectedParentId` instead of prop
 
-```tsx
-<div className={cn(
-  "mt-auto pt-4 border-t border-sidebar-border transition-opacity duration-200",
-  collapsed && "opacity-0 pointer-events-none h-0 overflow-hidden"
-)}>
-```
-
-### Collapsed tooltips
-When `collapsed`, wrap each nav item with the existing `Tooltip` component (from `@/components/ui/tooltip`) to show the label on hover:
-
-```tsx
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-
-// Wrap the nav in <TooltipProvider delayDuration={200}>
-// Each nav item when collapsed:
-<Tooltip>
-  <TooltipTrigger asChild>{linkElement}</TooltipTrigger>
-  <TooltipContent side="right" sideOffset={8}>{item.label}</TooltipContent>
-</Tooltip>
-```
-
-### Inset separator
-```tsx
-<div className={cn("my-3 border-t border-sidebar-border", collapsed ? "mx-2" : "mx-3")} />
-```
+### No caller changes needed
+`CategoriesPage` still passes `parentId` as before — it just becomes the initial value now.
 
 ---
 
-## 3. Layout Content Panel (`Layout/index.tsx`) ✅
+## Feature 3: "Create category" option on empty search
 
-### Layered shadow
-Replace the single shadow with a two-layer shadow for a more realistic elevation:
+**Files:** `packages/web/src/components/CategoryPicker/index.tsx`, `packages/web/src/features/categories/components/CategoryFormModal/index.tsx`
 
-```
-shadow-[-2px_0_16px_rgba(0,0,0,0.2),-8px_0_40px_rgba(0,0,0,0.15)]
-```
+### Changes to CategoryPicker
 
-No other structural changes needed — `rounded-l-2xl` is already correct, and the `bg-sidebar` on the outer container already matches the sidebar background.
+1. Add `allowCreate?: boolean` prop (defaults to `true`)
 
----
+2. Add state: `createModalOpen`
 
-## 4. Header (`Header.tsx`) ✅
+3. Import `useCategoryMutations` and `CategoryFormModal`
 
-Soften the bottom border:
-```
-border-b border-border/30
-```
+4. Replace `<CommandEmpty>` content: when `allowCreate` and `search.trim()` is non-empty, show a clickable "Create '{search}'" button with a Plus icon. Otherwise show the existing "No categories found." text.
 
----
+5. Render `CategoryFormModal` at the end (outside `<Command>`, wrapped in fragment):
+   - `mode="create"`
+   - `parentId={selectedParent?.id ?? null}` (if user was browsing a parent's subcategories)
+   - `defaultName={search.trim()}`
+   - `onCreate` handler: calls `createCategory`, then `onSelect` with the new ID, resets search
 
-## 5. Transaction List Entrance Animation (`TransactionDataTable/index.tsx`) ✅
+6. **Circular dependency prevention**: CategoryFormModal's internal CategoryPicker (Feature 2) must use `allowCreate={false}` to prevent infinite nesting.
 
-### Problem
-Rows are absolutely positioned with inline `transform: translateY(...)` for virtualization. The existing `.tx-row-enter` CSS animation also uses `transform`, which would **override** the positioning transform.
+### Changes to CategoryFormModal (in addition to Feature 2)
 
-### Solution — nested div approach
-Split each virtual row into:
-- **Outer div**: positioning only (`position: absolute`, `transform: translateY(...)`, `width`, `height`)
-- **Inner div**: visual content + animation (`role`, `aria-*`, click handlers, `className`, `.tx-row-enter`)
+- `defaultName` prop already added in Feature 2
+- The `useEffect` reset uses `defaultName ?? ""` for the name field
 
-This cleanly separates virtual positioning from animation transforms.
+### Test updates
 
-### State management
-
-```tsx
-const prefersReducedMotion = useReducedMotion();
-const hasAnimatedRef = useRef(false);
-const [isEntering, setIsEntering] = useState(!prefersReducedMotion);
-
-useEffect(() => {
-  if (hasAnimatedRef.current || prefersReducedMotion) return;
-  hasAnimatedRef.current = true;
-  const timer = setTimeout(() => setIsEntering(false), 1200);
-  return () => clearTimeout(timer);
-}, [prefersReducedMotion]);
-```
-
-### Row rendering
-
-```tsx
-{virtualizer.getVirtualItems().map((virtualRow) => {
-  const shouldAnimate = isEntering && virtualRow.index < 25; // cap stagger to ~25 rows
-
-  return (
-    <div
-      key={rowId}
-      style={{ position: "absolute", top: 0, left: 0, width: "100%",
-               height: `${virtualRow.size}px`, transform: `translateY(${virtualRow.start}px)` }}
-    >
-      <div
-        id={`tx-${rowId}`}
-        role="option"
-        className={cn(
-          "flex items-center h-full px-4 gap-4 border-b cursor-pointer transition-colors",
-          /* ... existing state classes ... */
-          shouldAnimate && "tx-row-enter",
-        )}
-        style={shouldAnimate ? { "--row-delay": `${virtualRow.index * 30}ms` } as React.CSSProperties : undefined}
-        /* ... existing handlers ... */
-      >
-        {/* cells unchanged */}
-      </div>
-    </div>
-  );
-})}
-```
-
-### Timing
-- 30ms stagger per row × 25 rows = 750ms total stagger
-- Each row animation: 350ms
-- Total visual duration: ~1.1s
-- `isEntering` flips to `false` after 1.2s, removing all animation classes
+- Update "shows no results" test: expect a "Create" button instead of plain text when `allowCreate` is true
+- Add test: clicking "Create" opens the form modal
 
 ---
+
+## Implementation Order
+
+1. **Feature 1** — search shows nested (foundational, changes rendering logic)
+2. **Feature 2** — parent selector + `defaultName` in modal
+3. **Feature 3** — create on empty search (depends on both above)
+
+## Files to modify
+
+| File | Features |
+|------|----------|
+| `packages/web/src/components/CategoryPicker/index.tsx` | 1, 3 |
+| `packages/web/src/features/categories/components/CategoryFormModal/index.tsx` | 2, 3 |
+| `packages/web/src/components/CategoryPicker/CategoryPicker.test.tsx` | 1, 3 |
+
+## Reference files (patterns to follow)
+
+- `packages/web/src/features/transactions/components/QuickCategoryPicker/index.tsx` — flat grouped list pattern for Feature 1
+- `packages/web/src/features/merchants/components/MerchantAssignmentModal/index.tsx` (lines 1022-1056) — Popover + CategoryPicker pattern for Feature 2
 
 ## Verification
 
-1. **Visual check**: Run `pnpm dev` and verify:
-   - Sidebar has subtle cool tint, colored active indicator pill, hover effects with nudge
-   - Collapsed sidebar shows tooltips, labels fade smoothly
-   - Content panel appears elevated with layered shadow and rounded left edge
-   - Transaction list rows stagger in on first load
-2. **Reduced motion**: In browser DevTools, enable "prefers-reduced-motion: reduce" → verify all animations are disabled, rows appear instantly
-3. **Light mode**: Toggle to light mode → verify sidebar indicator and colors work
-4. **Keyboard nav**: Verify J/K navigation still works in transaction list (inner div now has role="option")
-5. **Run tests**: `pnpm --filter web test` to catch any regressions
+1. Open the app, go to a view with the CategoryPicker (e.g., merchant assignment)
+2. Type a subcategory name (e.g., "Groceries") in the search — it should appear with its parent shown
+3. Open the Add Category modal — verify the parent selector field shows and is changeable
+4. Search for a non-existent category — verify "Create" option appears, clicking it opens the modal pre-filled
+5. Run existing tests: `npx vitest run packages/web/src/components/CategoryPicker/CategoryPicker.test.tsx`

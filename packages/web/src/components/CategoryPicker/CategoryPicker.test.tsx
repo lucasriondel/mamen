@@ -50,7 +50,7 @@ describe("CategoryPicker", () => {
 		});
 	});
 
-	it("filters categories by search", async () => {
+	it("filters categories by search showing flat grouped list", async () => {
 		const user = userEvent.setup();
 		const onSelect = vi.fn();
 		render(<CategoryPicker onSelect={onSelect} />);
@@ -62,8 +62,55 @@ describe("CategoryPicker", () => {
 		const input = screen.getByPlaceholderText("Search categories...");
 		await user.type(input, "shop");
 
-		expect(screen.getByText("Shopping")).toBeInTheDocument();
-		expect(screen.queryByText("Dining")).not.toBeInTheDocument();
+		// Shopping parent and its subcategories should appear in flat view
+		expect(screen.getAllByText("Shopping").length).toBeGreaterThan(0);
+		expect(screen.getByText("Groceries")).toBeInTheDocument();
+		expect(screen.getByText("Online")).toBeInTheDocument();
+		expect(screen.getByText("Clothing")).toBeInTheDocument();
+		expect(screen.getByText("Electronics")).toBeInTheDocument();
+		// Dining items should not be selectable (cmdk hides non-matching items)
+		expect(screen.queryByRole("option", { name: /Dining/i })).toBeNull();
+	});
+
+	it("finds subcategories by name from parent view", async () => {
+		const user = userEvent.setup();
+		const onSelect = vi.fn();
+		render(<CategoryPicker onSelect={onSelect} />);
+
+		await waitFor(() => {
+			expect(screen.getByText("Shopping")).toBeInTheDocument();
+		});
+
+		const input = screen.getByPlaceholderText("Search categories...");
+		await user.type(input, "Groceries");
+
+		// Groceries subcategory should appear under Shopping parent group
+		expect(screen.getByText("Groceries")).toBeInTheDocument();
+		expect(screen.getAllByText("Shopping").length).toBeGreaterThan(0);
+	});
+
+	it("calls onSelect directly when clicking subcategory in search view", async () => {
+		const user = userEvent.setup();
+		const onSelect = vi.fn();
+		render(<CategoryPicker onSelect={onSelect} />);
+
+		await waitFor(() => {
+			expect(screen.getByText("Shopping")).toBeInTheDocument();
+		});
+
+		const input = screen.getByPlaceholderText("Search categories...");
+		await user.type(input, "Groceries");
+
+		await waitFor(() => {
+			expect(screen.getByText("Groceries")).toBeInTheDocument();
+		});
+
+		await user.click(screen.getByText("Groceries"));
+
+		expect(onSelect).toHaveBeenCalledTimes(1);
+		const [categoryId, subcategoryId] = onSelect.mock.calls[0];
+		expect(typeof categoryId).toBe("number");
+		expect(typeof subcategoryId).toBe("number");
 	});
 
 	it("shows no results when search does not match", async () => {

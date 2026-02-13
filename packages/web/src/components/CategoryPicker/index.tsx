@@ -25,9 +25,11 @@ export function CategoryPicker({
 	allowSubcategory = true,
 	className,
 }: CategoryPickerProps): React.ReactElement {
-	const { parentCategories, getSubcategories } = useCategories();
+	const { parentCategories, categoriesWithSubs, getSubcategories } =
+		useCategories();
 	const [selectedParent, setSelectedParent] = useState<Category | null>(null);
 	const [search, setSearch] = useState("");
+	const isSearching = search.length > 0 && !selectedParent;
 
 	const subcategories = useMemo(
 		() => (selectedParent?.id ? getSubcategories(selectedParent.id) : []),
@@ -107,6 +109,42 @@ export function CategoryPicker({
 							</CommandItem>
 						))}
 					</CommandGroup>
+				) : isSearching ? (
+					categoriesWithSubs.map((parent) => (
+						<CommandGroup key={parent.id} heading={parent.name}>
+							<CommandItem
+								value={`${parent.name} (general)`}
+								onSelect={() => onSelect(parent.id!)}
+							>
+								<span
+									className="mr-2 h-2 w-2 rounded-full shrink-0"
+									style={{ backgroundColor: parent.color }}
+									aria-hidden="true"
+								/>
+								{parent.name}
+								<span className="text-muted-foreground text-xs ml-auto">
+									General
+								</span>
+							</CommandItem>
+							{parent.subcategories.map((sub) => (
+								<CommandItem
+									key={sub.id}
+									value={`${parent.name} ${sub.name}`}
+									onSelect={() => onSelect(parent.id!, sub.id!)}
+									aria-selected={sub.id === value}
+								>
+									<span
+										className="mr-2 h-2 w-2 rounded-full shrink-0"
+										style={{ backgroundColor: sub.color }}
+										aria-hidden="true"
+									/>
+									<span className="text-muted-foreground">{parent.name}</span>
+									<ChevronRight className="h-3 w-3 text-muted-foreground" />
+									{sub.name}
+								</CommandItem>
+							))}
+						</CommandGroup>
+					))
 				) : (
 					<CommandGroup heading="Categories">
 						{parentCategories.map((category) => (

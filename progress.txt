@@ -41,3 +41,15 @@
 - Safe `matchMedia` check for jsdom compatibility in tests
 - TypeScript: clean (0 errors)
 - Tests: 141 files, 1432 tests all passing
+
+### Task 5: CategoryPicker — Feature 1: Search shows nested categories ✅
+- Pulled `categoriesWithSubs` from `useCategories()` in CategoryPicker
+- Derived `isSearching = search.length > 0 && !selectedParent` flag
+- Added third rendering branch: when searching, renders flat grouped list (mirrors QuickCategoryPicker pattern)
+- Each parent rendered as `CommandGroup` with heading; parent as `CommandItem` with `value="{name} (general)"`; subcategories as `CommandItem` with `value="{parent} {sub}"` for cmdk matching
+- Clicking parent/subcategory in search mode calls `onSelect` directly (no drill-down)
+- Updated "filters categories by search" test: verifies flat search view shows Shopping + subcategories, Dining items not selectable
+- Added "finds subcategories by name from parent view" test: typing "Groceries" surfaces it under Shopping group
+- Added "calls onSelect directly when clicking subcategory in search view" test
+- TypeScript: clean (0 errors)
+- Tests: 13 CategoryPicker tests all passing
