@@ -1,7 +1,9 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect } from "react";
+import { ChevronDown } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { CategoryPicker } from "@/components/CategoryPicker";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -20,6 +22,12 @@ import {
 	FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "@/components/ui/popover";
+import { useCategories } from "@/hooks/useCategories";
 import { type UpdateCategoryInput, updateCategorySchema } from "@/lib/schemas";
 import type { CategoryTreeNode } from "@/types";
 import { DEFAULT_COLOR, DEFAULT_ICON } from "../../lib/constants";
@@ -32,6 +40,7 @@ type CategoryFormModalProps = {
 	onOpenChange: (open: boolean) => void;
 	parentId: number | null;
 	editNode?: CategoryTreeNode | null;
+	defaultName?: string;
 	onCreate: (params: {
 		name: string;
 		parentId: number | null;
@@ -47,9 +56,20 @@ export function CategoryFormModal({
 	onOpenChange,
 	parentId,
 	editNode,
+	defaultName,
 	onCreate,
 	onUpdate,
 }: CategoryFormModalProps): React.ReactElement {
+	const { getCategoryById } = useCategories();
+	const [selectedParentId, setSelectedParentId] = useState<number | null>(
+		parentId,
+	);
+	const [parentPickerOpen, setParentPickerOpen] = useState(false);
+
+	const selectedParentCategory = selectedParentId
+		? getCategoryById(selectedParentId)
+		: null;
+
 	const form = useForm<UpdateCategoryInput>({
 		resolver: zodResolver(updateCategorySchema),
 		defaultValues: {
@@ -68,12 +88,13 @@ export function CategoryFormModal({
 			});
 		} else if (mode === "create") {
 			form.reset({
-				name: "",
+				name: defaultName ?? "",
 				color: DEFAULT_COLOR,
 				icon: DEFAULT_ICON,
 			});
+			setSelectedParentId(parentId);
 		}
-	}, [mode, editNode, form]);
+	}, [mode, editNode, parentId, defaultName, form]);
 
 	const handleSubmit = async (data: UpdateCategoryInput): Promise<void> => {
 		if (mode === "edit" && editNode?.id) {
@@ -84,7 +105,7 @@ export function CategoryFormModal({
 		} else {
 			await onCreate({
 				name: data.name,
-				parentId,
+				parentId: selectedParentId,
 				color: data.color,
 				icon: data.icon,
 			});
@@ -113,7 +134,7 @@ export function CategoryFormModal({
 					<DialogDescription>
 						{isEdit
 							? "Update the category details."
-							: parentId !== null
+							: selectedParentId !== null
 								? "Add a new subcategory."
 								: "Add a new root category."}
 					</DialogDescription>
@@ -136,6 +157,65 @@ export function CategoryFormModal({
 								</FormItem>
 							)}
 						/>
+						{!isEdit && (
+							<div className="space-y-2">
+								<FormLabel>Parent category</FormLabel>
+								<Popover
+									open={parentPickerOpen}
+									onOpenChange={setParentPickerOpen}
+								>
+									<PopoverTrigger asChild>
+										<Button
+											variant="outline"
+											className="w-full justify-between"
+											type="button"
+										>
+											{selectedParentCategory ? (
+												<span className="flex items-center gap-2">
+													<span
+														className="h-2 w-2 rounded-full shrink-0"
+														style={{
+															backgroundColor:
+																selectedParentCategory.color,
+														}}
+														aria-hidden="true"
+													/>
+													{selectedParentCategory.name}
+												</span>
+											) : (
+												<span className="text-muted-foreground">
+													Root level (no parent)
+												</span>
+											)}
+											<ChevronDown className="h-4 w-4 opacity-50" />
+										</Button>
+									</PopoverTrigger>
+									<PopoverContent
+										className="w-[280px] p-0"
+										align="start"
+									>
+										<CategoryPicker
+											value={selectedParentId ?? undefined}
+											onSelect={(categoryId) => {
+												setSelectedParentId(categoryId);
+												setParentPickerOpen(false);
+											}}
+											allowSubcategory={false}
+											allowCreate={false}
+										/>
+									</PopoverContent>
+								</Popover>
+								{selectedParentId !== null && (
+									<button
+										type="button"
+										className="text-xs text-muted-foreground hover:text-foreground underline"
+										onClick={() => setSelectedParentId(null)}
+									>
+										Remove parent
+									</button>
+								)}
+							</div>
+						)}
 						<div className="flex gap-2">
 							<FormField
 								control={form.control}

@@ -53,3 +53,20 @@
 - Added "calls onSelect directly when clicking subcategory in search view" test
 - TypeScript: clean (0 errors)
 - Tests: 13 CategoryPicker tests all passing
+
+### Task 6: CategoryPicker — Feature 2: Parent category selector in Add Category modal ✅
+- Added `defaultName?: string` prop to `CategoryFormModalProps`
+- Added `selectedParentId` state (initialized from `parentId` prop) and `parentPickerOpen` state
+- Used `getCategoryById` from `useCategories()` to resolve selected parent for display
+- Synced `selectedParentId` with `parentId` prop in the existing `useEffect` (on mode/parentId/defaultName change)
+- Pre-fills name field with `defaultName ?? ""` on create mode reset
+- Added parent selector field between Name and Color/Icon fields (only in create mode):
+  - Popover trigger button shows selected parent name + color dot, or "Root level (no parent)"
+  - PopoverContent contains `CategoryPicker` with `allowSubcategory={false}` and `allowCreate={false}`
+  - "Remove parent" link to reset to root level when a parent is selected
+- Updated `handleSubmit` to use `selectedParentId` instead of the `parentId` prop
+- Updated dialog description to use `selectedParentId` instead of prop
+- Added `allowCreate?: boolean` prop to `CategoryPickerProps` type (accepted but unused until Feature 3)
+- No caller changes needed — `CategoriesPage` still passes `parentId` as before
+- TypeScript: clean (0 errors)
+- Tests: 141 files, 1434 tests all passing

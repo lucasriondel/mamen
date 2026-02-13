@@ -16,6 +16,7 @@ export type CategoryPickerProps = {
 	value?: number;
 	onSelect: (categoryId: number, subcategoryId?: number) => void;
 	allowSubcategory?: boolean;
+	allowCreate?: boolean;
 	className?: string;
 };
 

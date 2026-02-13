@@ -41,7 +41,7 @@ When the user types in the search box (and no parent is selected), switch from s
 
 ---
 
-## Feature 2: Parent category selector in Add Category modal
+## Feature 2: Parent category selector in Add Category modal ✅
 
 **File:** `packages/web/src/features/categories/components/CategoryFormModal/index.tsx`
 
