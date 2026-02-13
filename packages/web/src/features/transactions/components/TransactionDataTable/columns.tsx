@@ -21,6 +21,7 @@ export type TransactionTableMeta = {
 	getMerchantInfo: (
 		merchantId: number | undefined,
 	) => { name?: string; imageUrl?: string } | undefined;
+	getAccountName: (accountId: number) => string;
 	onDismissAnomaly: (transactionId: number, anomalyType: AnomalyType) => void;
 	onDismissDuplicate: (transactionId: number) => void;
 	onExcludeDuplicate: (transactionId: number) => void;
@@ -209,6 +210,15 @@ export const columns: ColumnDef<Transaction>[] = [
 	{
 		id: "accountId",
 		accessorFn: (row) => row.accountId,
+		header: "Account",
+		cell: ({ row, table }) => {
+			const meta = table.options.meta as TransactionTableMeta;
+			return (
+				<div className="text-sm text-muted-foreground truncate">
+					{meta.getAccountName(row.original.accountId)}
+				</div>
+			);
+		},
 		filterFn: accountsFilterFn,
 		enableHiding: true,
 		enableSorting: false,

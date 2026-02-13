@@ -32,7 +32,7 @@ File: columns.tsx — rawMerchantString cell
 
 ---
 
-Change 3: Add Account Column
+Change 3: Add Account Column ✅ DONE
 
 Files:
 

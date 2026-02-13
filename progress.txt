@@ -10,3 +10,13 @@ Change 2: Show Merchant Name When Matched — DONE
 - Matched merchants: MerchantAvatar + merchant name (font-medium) + raw string (text-xs muted) in stacked layout
 - Unmatched merchants: only rawMerchantString displayed, no avatar
 - TypeScript type check passes cleanly
+
+Change 3: Add Account Column — DONE
+- Added getAccountName to TransactionTableMeta type in columns.tsx
+- Updated accountId column def with header "Account" and cell renderer using meta.getAccountName in columns.tsx
+- Built accountsMap from already-fetched accounts in index.tsx
+- Created getAccountName callback in index.tsx
+- Added getAccountName to tableMeta in index.tsx
+- Removed columnVisibility: { accountId: false } to make column visible in index.tsx
+- Added header and cell width classes (w-24) for accountId column in index.tsx
+- TypeScript type check passes cleanly

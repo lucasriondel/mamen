@@ -155,6 +155,16 @@ export function TransactionDataTable({
 		[merchantsMap],
 	);
 
+	const accountsMap = useMemo(
+		() => new Map(accounts.map((a) => [a.id!, a.name])),
+		[accounts],
+	);
+
+	const getAccountName = useCallback(
+		(accountId: number) => accountsMap.get(accountId) ?? "Unknown",
+		[accountsMap],
+	);
+
 	// --- Modal state ---
 	const [merchantModalOpen, setMerchantModalOpen] = useState(false);
 	const [merchantModalTransaction, setMerchantModalTransaction] =
@@ -195,6 +205,7 @@ export function TransactionDataTable({
 	const tableMeta: TransactionTableMeta = useMemo(
 		() => ({
 			getMerchantInfo,
+			getAccountName,
 			onDismissAnomaly: handleDismissAnomaly,
 			onDismissDuplicate: handleDismissDuplicate,
 			onExcludeDuplicate: handleExcludeDuplicate,
@@ -205,6 +216,7 @@ export function TransactionDataTable({
 		}),
 		[
 			getMerchantInfo,
+			getAccountName,
 			handleDismissAnomaly,
 			handleDismissDuplicate,
 			handleExcludeDuplicate,
@@ -221,7 +233,6 @@ export function TransactionDataTable({
 			sorting,
 			rowSelection,
 			columnFilters: transactionFilters.columnFilters,
-			columnVisibility: { accountId: false },
 		},
 		onSortingChange: setSorting,
 		onRowSelectionChange: setRowSelection,
@@ -616,6 +627,16 @@ export function TransactionDataTable({
 								</div>
 							);
 						}
+						if (header.id === "accountId") {
+							return (
+								<div key={header.id} className="w-24 shrink-0">
+									{flexRender(
+										header.column.columnDef.header,
+										header.getContext(),
+									)}
+								</div>
+							);
+						}
 						if (header.id === "amount") {
 							return (
 								<div key={header.id} className="w-24 shrink-0 text-right">
@@ -729,6 +750,8 @@ export function TransactionDataTable({
 													"flex-1 min-w-0",
 													cell.column.id === "category" &&
 													"w-32 shrink-0",
+													cell.column.id === "accountId" &&
+													"w-24 shrink-0",
 													cell.column.id === "amount" &&
 													"w-24 shrink-0",
 												)}
