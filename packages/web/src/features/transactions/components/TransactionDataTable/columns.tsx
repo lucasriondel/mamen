@@ -5,7 +5,6 @@ import { MerchantAvatar } from "@/components/MerchantAvatar";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AnomalyBadge } from "@/features/anomalies/components/AnomalyBadge";
-import { NewMerchantBadge } from "@/features/merchants/components/NewMerchantBadge";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/utils/formatCurrency";
 import { formatDate } from "@/lib/utils/formatDate";
@@ -21,7 +20,7 @@ import {
 export type TransactionTableMeta = {
 	getMerchantInfo: (
 		merchantId: number | undefined,
-	) => { name?: string; imageUrl?: string; createdAt?: Date } | undefined;
+	) => { name?: string; imageUrl?: string } | undefined;
 	onDismissAnomaly: (transactionId: number, anomalyType: AnomalyType) => void;
 	onDismissDuplicate: (transactionId: number) => void;
 	onExcludeDuplicate: (transactionId: number) => void;
@@ -84,9 +83,6 @@ export const columns: ColumnDef<Transaction>[] = [
 						/>
 					)}
 					<span className="truncate">{row.original.rawMerchantString}</span>
-					{merchantInfo?.createdAt && (
-						<NewMerchantBadge createdAt={merchantInfo.createdAt} size="sm" />
-					)}
 				</div>
 			);
 		},

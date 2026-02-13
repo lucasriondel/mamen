@@ -141,7 +141,6 @@ export function TransactionDataTable({
 					{
 						name: m.name,
 						imageUrl: m.imageUrl,
-						createdAt: m.createdAt,
 					},
 				]),
 			);
