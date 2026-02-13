@@ -30,3 +30,22 @@ Change 4: Category Badge Click Opens Popover CategoryPicker — DONE
 - Simplified category column cell to delegate to InlineCategoryCell in columns.tsx
 - Passed assignCategory (from useQuickCategoryAssign) as onAssignCategory in tableMeta in index.tsx
 - TypeScript type check passes cleanly
+
+Change 5: Transaction Detail Side View (Route Outlet) — DONE
+- Created routes/transactions.$transactionId.tsx child route rendering TransactionDetailPanel
+- Created features/transactions/components/TransactionDetailPanel/index.tsx with:
+  - Amount hero display with refund badge
+  - Merchant info section (avatar + name for matched, Building2 icon for unmatched)
+  - Detail rows for date, account, and category (using CategoryBadge)
+  - Anomaly flags display
+  - Import metadata section (import month, imported date, duplicate excluded badge)
+  - Close button navigating back to /transactions
+- Modified routes/transactions.tsx:
+  - Added useMatch for /transactions/$transactionId
+  - Renders horizontal layout: list (flex-1) + side panel (w-[400px] border-l) when detail match exists
+  - Moved -m-6 from TransactionsPage to layout wrapper
+- Modified TransactionDataTable/index.tsx:
+  - handleRowClick navigates to /transactions/$transactionId when no selection active
+  - Selection mode (selectionCount > 0) still toggles row selection as before
+- Ran route codegen to update routeTree.gen.ts with new /transactions/$transactionId route
+- TypeScript type check passes cleanly

@@ -404,10 +404,15 @@ export function TransactionDataTable({
 			if (selectionCount > 0) {
 				const row = table.getRow(rowId);
 				row?.toggleSelected();
+			} else {
+				navigate({
+					to: "/transactions/$transactionId",
+					params: { transactionId: rowId },
+				});
 			}
 			setCursorRowId(rowId);
 		},
-		[selectionCount, table],
+		[selectionCount, table, navigate],
 	);
 
 	// --- Refund summary for drill-down ---
