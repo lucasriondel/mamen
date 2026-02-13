@@ -1,4 +1,4 @@
-import { ArrowLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, ChevronRight, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import {
 	Command,
@@ -8,6 +8,10 @@ import {
 	CommandItem,
 	CommandList,
 } from "@/components/ui/command";
+import {
+	CategoryFormModal,
+	useCategoryMutations,
+} from "@/features/categories";
 import { useCategories } from "@/hooks/useCategories";
 import { cn } from "@/lib/utils";
 import type { Category } from "@/types";
@@ -24,12 +28,15 @@ export function CategoryPicker({
 	value,
 	onSelect,
 	allowSubcategory = true,
+	allowCreate = true,
 	className,
 }: CategoryPickerProps): React.ReactElement {
 	const { parentCategories, categoriesWithSubs, getSubcategories } =
 		useCategories();
+	const { createCategory } = useCategoryMutations();
 	const [selectedParent, setSelectedParent] = useState<Category | null>(null);
 	const [search, setSearch] = useState("");
+	const [createModalOpen, setCreateModalOpen] = useState(false);
 	const isSearching = search.length > 0 && !selectedParent;
 
 	const subcategories = useMemo(
@@ -66,7 +73,20 @@ export function CategoryPicker({
 		setSearch("");
 	};
 
+	const handleCreate = async (params: {
+		name: string;
+		parentId: number | null;
+		color?: string;
+		icon?: string;
+	}): Promise<number> => {
+		const newId = await createCategory(params);
+		onSelect(newId);
+		setSearch("");
+		return newId;
+	};
+
 	return (
+		<>
 		<Command
 			className={cn("w-[280px]", className)}
 			aria-label="Select category"
@@ -78,7 +98,20 @@ export function CategoryPicker({
 				aria-label="Search categories"
 			/>
 			<CommandList className="max-h-[320px]">
-				<CommandEmpty>No categories found.</CommandEmpty>
+				<CommandEmpty>
+					{allowCreate && search.trim() ? (
+						<button
+							type="button"
+							className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground w-full justify-center py-1"
+							onClick={() => setCreateModalOpen(true)}
+						>
+							<Plus className="h-4 w-4" />
+							Create &ldquo;{search.trim()}&rdquo;
+						</button>
+					) : (
+						"No categories found."
+					)}
+				</CommandEmpty>
 
 				{selectedParent ? (
 					<CommandGroup heading={selectedParent.name}>
@@ -170,5 +203,17 @@ export function CategoryPicker({
 				)}
 			</CommandList>
 		</Command>
+		{allowCreate && (
+			<CategoryFormModal
+				mode="create"
+				open={createModalOpen}
+				onOpenChange={setCreateModalOpen}
+				parentId={selectedParent?.id ?? null}
+				defaultName={search.trim()}
+				onCreate={handleCreate}
+				onUpdate={async () => {}}
+			/>
+		)}
+		</>
 	);
 }

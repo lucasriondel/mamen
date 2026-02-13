@@ -71,7 +71,7 @@ Add a "Parent category" field using Popover + CategoryPicker (same pattern as `M
 
 ---
 
-## Feature 3: "Create category" option on empty search
+## Feature 3: "Create category" option on empty search ✅
 
 **Files:** `packages/web/src/components/CategoryPicker/index.tsx`, `packages/web/src/features/categories/components/CategoryFormModal/index.tsx`
 

@@ -113,7 +113,7 @@ describe("CategoryPicker", () => {
 		expect(typeof subcategoryId).toBe("number");
 	});
 
-	it("shows no results when search does not match", async () => {
+	it("shows create button when search does not match and allowCreate is true", async () => {
 		const user = userEvent.setup();
 		const onSelect = vi.fn();
 		render(<CategoryPicker onSelect={onSelect} />);
@@ -125,7 +125,48 @@ describe("CategoryPicker", () => {
 		const input = screen.getByPlaceholderText("Search categories...");
 		await user.type(input, "xyznonexistent");
 
+		const createButton = screen.getByRole("button", {
+			name: /Create.*xyznonexistent/,
+		});
+		expect(createButton).toBeInTheDocument();
+	});
+
+	it("shows no results text when allowCreate is false", async () => {
+		const user = userEvent.setup();
+		const onSelect = vi.fn();
+		render(<CategoryPicker onSelect={onSelect} allowCreate={false} />);
+
+		await waitFor(() => {
+			expect(screen.getByText("Shopping")).toBeInTheDocument();
+		});
+
+		const input = screen.getByPlaceholderText("Search categories...");
+		await user.type(input, "xyznonexistent");
+
 		expect(screen.getByText("No categories found.")).toBeInTheDocument();
+	});
+
+	it("opens create modal when clicking create button", async () => {
+		const user = userEvent.setup();
+		const onSelect = vi.fn();
+		render(<CategoryPicker onSelect={onSelect} />);
+
+		await waitFor(() => {
+			expect(screen.getByText("Shopping")).toBeInTheDocument();
+		});
+
+		const input = screen.getByPlaceholderText("Search categories...");
+		await user.type(input, "xyznonexistent");
+
+		const createButton = screen.getByRole("button", {
+			name: /Create.*xyznonexistent/,
+		});
+		await user.click(createButton);
+
+		await waitFor(() => {
+			expect(screen.getByRole("dialog")).toBeInTheDocument();
+		});
+		expect(screen.getByRole("heading", { name: "Add Category" })).toBeInTheDocument();
 	});
 
 	it("shows subcategories when parent is selected", async () => {

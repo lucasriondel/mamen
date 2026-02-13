@@ -70,3 +70,18 @@
 - No caller changes needed — `CategoriesPage` still passes `parentId` as before
 - TypeScript: clean (0 errors)
 - Tests: 141 files, 1434 tests all passing
+
+### Task 7: CategoryPicker — Feature 3: "Create category" option on empty search ✅
+- Added `allowCreate` prop (defaults to `true`) to CategoryPicker — was already in type, now destructured and used
+- Added `createModalOpen` state and `handleCreate` callback using `useCategoryMutations`
+- Imported `CategoryFormModal` and `useCategoryMutations` from `@/features/categories`
+- Replaced `<CommandEmpty>` content: when `allowCreate` and `search.trim()` is non-empty, shows a clickable "Create '{search}'" button with Plus icon; otherwise shows "No categories found."
+- Renders `CategoryFormModal` outside `<Command>` (wrapped in fragment):
+  - `mode="create"`, `parentId={selectedParent?.id ?? null}`, `defaultName={search.trim()}`
+  - `onCreate` handler: calls `createCategory`, then `onSelect` with new ID, resets search
+- Circular dependency prevention: CategoryFormModal's internal CategoryPicker already uses `allowCreate={false}` (set in Feature 2)
+- Updated "shows no results" test → now expects a "Create" button when `allowCreate` is true (default)
+- Added test: `allowCreate={false}` still shows "No categories found." text
+- Added test: clicking "Create" button opens the form modal dialog
+- TypeScript: clean (0 errors)
+- Tests: 15 CategoryPicker tests all passing
