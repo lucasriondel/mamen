@@ -15,6 +15,9 @@ dist-ssr
 # Turborepo
 .turbo
 
+# TypeScript incremental build info
+*.tsbuildinfo
+
 # Environment variables
 .env
 .env.local

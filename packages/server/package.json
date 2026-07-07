@@ -4,7 +4,7 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"dev": "NODE_ENV=development bun --watch src/index.ts",
+		"dev": "mkdir -p ../../logs && NODE_ENV=development bun --watch src/index.ts 2>&1 | tee ../../logs/server.log",
 		"start": "NODE_ENV=production bun src/index.ts",
 		"build": "tsc",
 		"test": "bunx --bun vitest run",

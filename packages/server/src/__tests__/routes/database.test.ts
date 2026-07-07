@@ -133,8 +133,10 @@ describe("database routes", () => {
 				method: "GET",
 				url: "/api/categories",
 			});
-			expect(categories.json()).toHaveLength(1);
-			expect(categories.json()[0].name).toBe("C");
+			expect(categories.json()).toHaveLength(45);
+			expect(
+				categories.json().find((c: { name: string }) => c.name === "C"),
+			).toBeDefined();
 		});
 	});
 });

@@ -1,5 +1,6 @@
 import { Database } from "bun:sqlite";
 import { runMigrations } from "./migrations/001-initial-schema";
+import { seedCategories } from "./seeds/categories";
 
 let db: Database | null = null;
 
@@ -9,6 +10,7 @@ export const getConnection = (dbPath = "mamen.db"): Database => {
 		db.exec("PRAGMA journal_mode = WAL");
 		db.exec("PRAGMA foreign_keys = ON");
 		runMigrations(db);
+		seedCategories(db);
 	}
 	return db;
 };
@@ -37,5 +39,6 @@ export const getInMemoryConnection = (): Database => {
 	memDb.exec("PRAGMA journal_mode = WAL");
 	memDb.exec("PRAGMA foreign_keys = ON");
 	runMigrations(memDb);
+	seedCategories(memDb);
 	return memDb;
 };

@@ -25,10 +25,16 @@ describe("categories routes", () => {
 	});
 
 	describe("GET /api/categories", () => {
-		it("returns empty list initially", async () => {
+		it("returns seeded categories initially", async () => {
 			const res = await app.inject({ method: "GET", url: "/api/categories" });
 			expect(res.statusCode).toBe(200);
-			expect(res.json()).toEqual([]);
+			const categories = res.json();
+			expect(categories.length).toBe(44);
+			const roots = categories.filter(
+				(c: { parentId: number | null }) => c.parentId === null,
+			);
+			expect(roots.length).toBe(10);
+			expect(roots[0].name).toBe("Shopping");
 		});
 
 		it("filters by parentId", async () => {
