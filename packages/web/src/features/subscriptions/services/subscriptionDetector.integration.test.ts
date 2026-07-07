@@ -45,9 +45,31 @@ describe("Subscription Detection Integration Tests", () => {
 		const accountId = await createAccount();
 		const merchantId = await createMerchant("Netflix");
 
-		await addTransaction(accountId, merchantId, -15.99, "2025-10-15");
-		await addTransaction(accountId, merchantId, -15.99, "2025-11-14");
-		await addTransaction(accountId, merchantId, -15.99, "2025-12-15");
+		// Use dates relative to now so the most recent charge stays within
+		// one interval and the subscription is detected as active.
+		const now = new Date();
+		const oneMonthAgo = new Date(now.getTime() - 30 * MS_PER_DAY);
+		const twoMonthsAgo = new Date(now.getTime() - 61 * MS_PER_DAY);
+		const threeMonthsAgo = new Date(now.getTime() - 91 * MS_PER_DAY);
+
+		await addTransaction(
+			accountId,
+			merchantId,
+			-15.99,
+			threeMonthsAgo.toISOString().split("T")[0],
+		);
+		await addTransaction(
+			accountId,
+			merchantId,
+			-15.99,
+			twoMonthsAgo.toISOString().split("T")[0],
+		);
+		await addTransaction(
+			accountId,
+			merchantId,
+			-15.99,
+			oneMonthAgo.toISOString().split("T")[0],
+		);
 
 		const result = await runDetection();
 		expect(result.created).toBe(1);

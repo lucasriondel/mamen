@@ -100,12 +100,14 @@ describe("DashboardPage", () => {
 	it("changing period updates displayed data", async () => {
 		const catId = await db.categories.add(makeCategory() as Category);
 
-		// Transaction in January (last month from Feb perspective)
+		// Transaction dated in the previous month relative to now, so the
+		// "Last Month" period selection surfaces it regardless of when tests run.
+		const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 15);
 		await db.transactions.bulkAdd([
 			makeTransaction({
 				amount: -100,
 				categoryId: catId as number,
-				date: new Date(2026, 0, 15),
+				date: lastMonth,
 			}),
 		]);
 
