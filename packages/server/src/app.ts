@@ -4,7 +4,7 @@ import type { FastifyInstance } from "fastify";
 import Fastify from "fastify";
 import { getDatabase } from "./lib/repository";
 import type { DatabaseInstance } from "./lib/repository/adapters/sqlite";
-import { UPLOADS_DIR, ensureUploadsDir } from "./lib/uploads";
+import { ensureUploadsDir, UPLOADS_DIR } from "./lib/uploads";
 import dateParserPlugin from "./plugins/date-parser";
 import staticFilesPlugin from "./plugins/static-files";
 import accountRoutes from "./routes/accounts";

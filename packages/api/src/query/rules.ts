@@ -1,7 +1,7 @@
 import type { Rule } from "@mamen/shared";
-import { rulesApi } from "../rules";
 import { queryKeys } from "../queryKeys";
-import { defineQueries, defineMutations } from "./factory";
+import { rulesApi } from "../rules";
+import { defineMutations, defineQueries } from "./factory";
 
 export const ruleQueries = defineQueries({
 	list: {

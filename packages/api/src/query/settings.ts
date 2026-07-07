@@ -1,7 +1,7 @@
 import type { Setting, SettingKey } from "@mamen/shared";
-import { settingsApi } from "../settings";
 import { queryKeys } from "../queryKeys";
-import { defineQueries, defineMutations } from "./factory";
+import { settingsApi } from "../settings";
+import { defineMutations, defineQueries } from "./factory";
 
 export const settingQueries = defineQueries({
 	list: {

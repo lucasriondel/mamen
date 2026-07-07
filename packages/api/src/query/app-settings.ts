@@ -1,7 +1,7 @@
 import type { AppSettings } from "@mamen/shared";
 import { appSettingsApi } from "../app-settings";
 import { queryKeys } from "../queryKeys";
-import { defineQueries, defineMutations } from "./factory";
+import { defineMutations, defineQueries } from "./factory";
 
 export const appSettingQueries = defineQueries({
 	get: {

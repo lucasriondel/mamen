@@ -4,16 +4,66 @@ import { db } from "@/lib/db";
 import { useCategories } from "./useCategories";
 
 const CATEGORIES = [
-	{ name: "Shopping", color: "#3B82F6", icon: "ShoppingCart", subs: ["Online", "Groceries", "Clothing", "Electronics", "Other"] },
-	{ name: "Dining", color: "#F97316", icon: "Utensils", subs: ["Restaurants", "Coffee", "Fast Food", "Delivery"] },
-	{ name: "Transportation", color: "#06B6D4", icon: "Car", subs: ["Rideshare", "Public Transit", "Gas", "Parking"] },
-	{ name: "Subscriptions", color: "#8B5CF6", icon: "Repeat", subs: ["Streaming", "Software", "Memberships"] },
-	{ name: "Housing", color: "#64748B", icon: "Home", subs: ["Rent", "Utilities", "Insurance", "Maintenance"] },
-	{ name: "Health", color: "#EF4444", icon: "Heart", subs: ["Medical", "Pharmacy", "Fitness"] },
-	{ name: "Entertainment", color: "#EC4899", icon: "Gamepad2", subs: ["Events", "Games", "Hobbies"] },
-	{ name: "Travel", color: "#22C55E", icon: "Plane", subs: ["Flights", "Hotels", "Activities"] },
-	{ name: "Income", color: "#10B981", icon: "TrendingUp", subs: ["Salary", "Freelance", "Refunds", "Other"] },
-	{ name: "Other", color: "#6B7280", icon: "MoreHorizontal", subs: ["Uncategorized"] },
+	{
+		name: "Shopping",
+		color: "#3B82F6",
+		icon: "ShoppingCart",
+		subs: ["Online", "Groceries", "Clothing", "Electronics", "Other"],
+	},
+	{
+		name: "Dining",
+		color: "#F97316",
+		icon: "Utensils",
+		subs: ["Restaurants", "Coffee", "Fast Food", "Delivery"],
+	},
+	{
+		name: "Transportation",
+		color: "#06B6D4",
+		icon: "Car",
+		subs: ["Rideshare", "Public Transit", "Gas", "Parking"],
+	},
+	{
+		name: "Subscriptions",
+		color: "#8B5CF6",
+		icon: "Repeat",
+		subs: ["Streaming", "Software", "Memberships"],
+	},
+	{
+		name: "Housing",
+		color: "#64748B",
+		icon: "Home",
+		subs: ["Rent", "Utilities", "Insurance", "Maintenance"],
+	},
+	{
+		name: "Health",
+		color: "#EF4444",
+		icon: "Heart",
+		subs: ["Medical", "Pharmacy", "Fitness"],
+	},
+	{
+		name: "Entertainment",
+		color: "#EC4899",
+		icon: "Gamepad2",
+		subs: ["Events", "Games", "Hobbies"],
+	},
+	{
+		name: "Travel",
+		color: "#22C55E",
+		icon: "Plane",
+		subs: ["Flights", "Hotels", "Activities"],
+	},
+	{
+		name: "Income",
+		color: "#10B981",
+		icon: "TrendingUp",
+		subs: ["Salary", "Freelance", "Refunds", "Other"],
+	},
+	{
+		name: "Other",
+		color: "#6B7280",
+		icon: "MoreHorizontal",
+		subs: ["Uncategorized"],
+	},
 ] as const;
 
 const toSlug = (s: string) => s.toLowerCase().replace(/\s+/g, "-");
@@ -22,13 +72,23 @@ const seedCategories = async () => {
 	const now = new Date();
 	for (const [i, cat] of CATEGORIES.entries()) {
 		const parentId = await db.categories.add({
-			name: cat.name, slug: toSlug(cat.name), color: cat.color,
-			icon: cat.icon, parentId: null, sortOrder: i, createdAt: now,
+			name: cat.name,
+			slug: toSlug(cat.name),
+			color: cat.color,
+			icon: cat.icon,
+			parentId: null,
+			sortOrder: i,
+			createdAt: now,
 		});
 		for (const [j, sub] of cat.subs.entries()) {
 			await db.categories.add({
-				name: sub, slug: `${toSlug(cat.name)}-${toSlug(sub)}`, color: cat.color,
-				icon: cat.icon, parentId, sortOrder: j, createdAt: now,
+				name: sub,
+				slug: `${toSlug(cat.name)}-${toSlug(sub)}`,
+				color: cat.color,
+				icon: cat.icon,
+				parentId,
+				sortOrder: j,
+				createdAt: now,
 			});
 		}
 	}

@@ -1,7 +1,7 @@
 import type { Account, AccountType } from "@mamen/shared";
 import { accountsApi } from "../accounts";
 import { queryKeys } from "../queryKeys";
-import { defineQueries, defineMutations } from "./factory";
+import { defineMutations, defineQueries } from "./factory";
 
 export const accountQueries = defineQueries({
 	list: {

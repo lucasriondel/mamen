@@ -1,3 +1,6 @@
+import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
+import { Building2, Calendar, CreditCard, Tag, X } from "lucide-react";
 import { CategoryBadge } from "@/components/CategoryBadge";
 import { MerchantAvatar } from "@/components/MerchantAvatar";
 import { Badge } from "@/components/ui/badge";
@@ -11,15 +14,6 @@ import {
 } from "@/lib/api";
 import { formatCurrency } from "@/lib/utils/formatCurrency";
 import { formatDate } from "@/lib/utils/formatDate";
-import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
-import {
-	Building2,
-	Calendar,
-	CreditCard,
-	Tag,
-	X,
-} from "lucide-react";
 
 type TransactionDetailPanelProps = {
 	transactionId: number;
@@ -151,10 +145,7 @@ export function TransactionDetailPanel({
 						value={account?.name ?? "Unknown"}
 					/>
 
-					<DetailRow
-						icon={<Tag className="h-4 w-4" />}
-						label="Category"
-					>
+					<DetailRow icon={<Tag className="h-4 w-4" />} label="Category">
 						{transaction.categoryId ? (
 							<div className="flex items-center gap-1.5">
 								<CategoryBadge
@@ -205,8 +196,7 @@ export function TransactionDetailPanel({
 					<div className="text-xs text-muted-foreground space-y-1">
 						<p>Import month: {transaction.importMonth}</p>
 						<p>
-							Imported:{" "}
-							{new Date(transaction.importedAt).toLocaleDateString()}
+							Imported: {new Date(transaction.importedAt).toLocaleDateString()}
 						</p>
 						{transaction.isDuplicateExcluded && (
 							<Badge
@@ -239,9 +229,7 @@ function DetailRow({
 			<div className="text-muted-foreground">{icon}</div>
 			<div className="flex-1 min-w-0">
 				<p className="text-xs text-muted-foreground">{label}</p>
-				{children ?? (
-					<p className="text-sm font-medium">{value}</p>
-				)}
+				{children ?? <p className="text-sm font-medium">{value}</p>}
 			</div>
 		</div>
 	);

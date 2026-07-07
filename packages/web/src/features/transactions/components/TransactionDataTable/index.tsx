@@ -1,3 +1,18 @@
+import { useQuery } from "@tanstack/react-query";
+import { Link, useNavigate } from "@tanstack/react-router";
+import {
+	flexRender,
+	getCoreRowModel,
+	getFilteredRowModel,
+	getSortedRowModel,
+	type RowSelectionState,
+	type SortingState,
+	useReactTable,
+} from "@tanstack/react-table";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { AnimatePresence, motion } from "framer-motion";
+import { ArrowUpDown, ListIcon, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { InboxZeroEmpty } from "@/components/InboxZeroEmpty";
 import { SelectionStatusBar } from "@/components/SelectionStatusBar";
 import { Button } from "@/components/ui/button";
@@ -18,27 +33,6 @@ import {
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/utils/formatCurrency";
 import type { Transaction } from "@/types";
-import { useQuery } from "@tanstack/react-query";
-import { Link, useNavigate } from "@tanstack/react-router";
-import {
-	flexRender,
-	getCoreRowModel,
-	getFilteredRowModel,
-	getSortedRowModel,
-	type RowSelectionState,
-	type SortingState,
-	useReactTable,
-} from "@tanstack/react-table";
-import { useVirtualizer } from "@tanstack/react-virtual";
-import { AnimatePresence, motion } from "framer-motion";
-import { ArrowUpDown, ListIcon, X } from "lucide-react";
-import {
-	useCallback,
-	useEffect,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
 import { useBatchCategoryAssign } from "../../hooks/useBatchCategoryAssign";
 import { useDeleteTransactions } from "../../hooks/useDeleteTransactions";
 import { useDrillDownFilter } from "../../hooks/useDrillDownFilter";
@@ -728,19 +722,16 @@ export function TransactionDataTable({
 										onClick={() => handleRowClick(rowId)}
 										onMouseEnter={() => setHoveredRowId(rowId)}
 										onMouseLeave={() =>
-											setHoveredRowId((prev) =>
-												prev === rowId ? null : prev,
-											)
+											setHoveredRowId((prev) => (prev === rowId ? null : prev))
 										}
 										className={cn(
 											"flex items-center h-full px-4 gap-4 border-b cursor-pointer transition-colors",
 											"hover:bg-muted/50",
 											isCursor && !isSelected && "bg-muted/30",
-											isSelected &&
-											"bg-ring/8 border-l-2 border-l-ring",
+											isSelected && "bg-ring/8 border-l-2 border-l-ring",
 											isCursor &&
-											isSelected &&
-											"bg-ring/15 ring-1 ring-ring/30 ring-inset",
+												isSelected &&
+												"bg-ring/15 ring-1 ring-ring/30 ring-inset",
 											isHighlighted && "bg-primary/10",
 										)}
 									>
@@ -749,18 +740,13 @@ export function TransactionDataTable({
 												key={cell.id}
 												className={cn(
 													cell.column.id === "select" &&
-													"w-8 shrink-0 flex items-center",
-													cell.column.id === "date" &&
-													"w-20 shrink-0",
-													cell.column.id ===
-													"rawMerchantString" &&
-													"flex-1 min-w-0",
-													cell.column.id === "category" &&
-													"w-32 shrink-0",
-													cell.column.id === "accountId" &&
-													"w-24 shrink-0",
-													cell.column.id === "amount" &&
-													"w-24 shrink-0",
+														"w-8 shrink-0 flex items-center",
+													cell.column.id === "date" && "w-20 shrink-0",
+													cell.column.id === "rawMerchantString" &&
+														"flex-1 min-w-0",
+													cell.column.id === "category" && "w-32 shrink-0",
+													cell.column.id === "accountId" && "w-24 shrink-0",
+													cell.column.id === "amount" && "w-24 shrink-0",
 												)}
 											>
 												{flexRender(

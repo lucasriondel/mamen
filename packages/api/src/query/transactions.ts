@@ -1,7 +1,7 @@
 import type { Transaction } from "@mamen/shared";
-import { transactionsApi } from "../transactions";
 import { queryKeys } from "../queryKeys";
-import { defineQueries, defineMutations } from "./factory";
+import { transactionsApi } from "../transactions";
+import { defineMutations, defineQueries } from "./factory";
 
 export const transactionQueries = defineQueries({
 	list: {
@@ -20,8 +20,7 @@ export const transactionQueries = defineQueries({
 
 export const transactionMutations = defineMutations({
 	create: {
-		mutationFn: (data: Omit<Transaction, "id">) =>
-			transactionsApi.create(data),
+		mutationFn: (data: Omit<Transaction, "id">) => transactionsApi.create(data),
 		invalidates: ["transactions"],
 	},
 	bulkAdd: {

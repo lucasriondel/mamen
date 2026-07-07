@@ -3,16 +3,14 @@ import type {
 	SubscriptionFrequency,
 	SubscriptionStatus,
 } from "@mamen/shared";
-import { subscriptionsApi } from "../subscriptions";
 import { queryKeys } from "../queryKeys";
-import { defineQueries, defineMutations } from "./factory";
+import { subscriptionsApi } from "../subscriptions";
+import { defineMutations, defineQueries } from "./factory";
 
 export const subscriptionQueries = defineQueries({
 	list: {
-		queryKey: (params?: {
-			merchantId?: number;
-			status?: SubscriptionStatus;
-		}) => queryKeys.subscriptions.list(params),
+		queryKey: (params?: { merchantId?: number; status?: SubscriptionStatus }) =>
+			queryKeys.subscriptions.list(params),
 		queryFn: (params?: { merchantId?: number; status?: SubscriptionStatus }) =>
 			subscriptionsApi.getAll(params),
 	},
@@ -51,8 +49,7 @@ export const subscriptionMutations = defineMutations({
 		invalidates: ["subscriptions"],
 	},
 	bulkPut: {
-		mutationFn: (records: Subscription[]) =>
-			subscriptionsApi.bulkPut(records),
+		mutationFn: (records: Subscription[]) => subscriptionsApi.bulkPut(records),
 		invalidates: ["subscriptions"],
 	},
 	remove: {

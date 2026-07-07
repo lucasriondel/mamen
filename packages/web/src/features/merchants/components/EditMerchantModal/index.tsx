@@ -80,9 +80,7 @@ export function EditMerchantModal({
 	const hasImageChange =
 		imageFile !== null || (removeImage && currentImageUrl != null);
 	const hasChanges =
-		name !== currentName ||
-		categoryId !== currentCategoryId ||
-		hasImageChange;
+		name !== currentName || categoryId !== currentCategoryId || hasImageChange;
 	const canSave = name.trim().length > 0 && hasChanges && !isSaving;
 
 	const handleSave = async (): Promise<void> => {
@@ -155,10 +153,7 @@ export function EditMerchantModal({
 										className="size-12 rounded-full object-cover"
 									/>
 								) : (
-									<MerchantAvatar
-										name={name || currentName}
-										size="lg"
-									/>
+									<MerchantAvatar name={name || currentName} size="lg" />
 								)}
 								<div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-full">
 									<Camera className="h-4 w-4 text-white" />

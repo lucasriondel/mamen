@@ -1,7 +1,7 @@
 import type { Merchant } from "@mamen/shared";
 import { merchantsApi } from "../merchants";
 import { queryKeys } from "../queryKeys";
-import { defineQueries, defineMutations } from "./factory";
+import { defineMutations, defineQueries } from "./factory";
 
 export const merchantQueries = defineQueries({
 	list: {

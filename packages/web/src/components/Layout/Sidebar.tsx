@@ -115,7 +115,9 @@ export function Sidebar(): React.ReactElement {
 						<Link
 							to={item.to}
 							onClick={
-								item.to === "/transactions" ? handleTransactionsClick : undefined
+								item.to === "/transactions"
+									? handleTransactionsClick
+									: undefined
 							}
 							className={baseLinkClass}
 							activeProps={{

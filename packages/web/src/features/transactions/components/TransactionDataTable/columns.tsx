@@ -91,7 +91,10 @@ function InlineCategoryCell({
 							<button
 								type="button"
 								onClick={(e) => e.stopPropagation()}
-								className={cn("cursor-pointer", isBadgeAnimating && "badge-cascade-enter")}
+								className={cn(
+									"cursor-pointer",
+									isBadgeAnimating && "badge-cascade-enter",
+								)}
 							>
 								<CategoryBadge
 									categoryId={tx.categoryId}
@@ -126,7 +129,10 @@ function InlineCategoryCell({
 							onClick={(e) => e.stopPropagation()}
 							className="cursor-pointer"
 						>
-							<Badge variant="secondary" className="hover:bg-secondary/80 transition-colors">
+							<Badge
+								variant="secondary"
+								className="hover:bg-secondary/80 transition-colors"
+							>
 								Matched
 							</Badge>
 						</button>
@@ -218,8 +224,12 @@ export const columns: ColumnDef<Transaction>[] = [
 								size="sm"
 							/>
 							<div className="flex flex-col min-w-0">
-								<span className="font-medium truncate">{merchantInfo.name}</span>
-								<span className="text-xs text-muted-foreground truncate">{row.original.rawMerchantString}</span>
+								<span className="font-medium truncate">
+									{merchantInfo.name}
+								</span>
+								<span className="text-xs text-muted-foreground truncate">
+									{row.original.rawMerchantString}
+								</span>
 							</div>
 						</>
 					) : (
@@ -238,9 +248,7 @@ export const columns: ColumnDef<Transaction>[] = [
 		filterFn: categoryFilterFn,
 		cell: ({ row, table }) => {
 			const meta = table.options.meta as TransactionTableMeta;
-			return (
-				<InlineCategoryCell transaction={row.original} meta={meta} />
-			);
+			return <InlineCategoryCell transaction={row.original} meta={meta} />;
 		},
 		enableSorting: false,
 	},

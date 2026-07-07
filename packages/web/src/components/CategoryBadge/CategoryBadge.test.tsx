@@ -6,12 +6,22 @@ import { CategoryBadge } from "./index";
 const seedCategories = async () => {
 	const now = new Date();
 	const shoppingId = await db.categories.add({
-		name: "Shopping", slug: "shopping", color: "#3B82F6",
-		icon: "ShoppingCart", parentId: null, sortOrder: 0, createdAt: now,
+		name: "Shopping",
+		slug: "shopping",
+		color: "#3B82F6",
+		icon: "ShoppingCart",
+		parentId: null,
+		sortOrder: 0,
+		createdAt: now,
 	});
 	await db.categories.add({
-		name: "Groceries", slug: "shopping-groceries", color: "#3B82F6",
-		icon: "ShoppingCart", parentId: shoppingId, sortOrder: 0, createdAt: now,
+		name: "Groceries",
+		slug: "shopping-groceries",
+		color: "#3B82F6",
+		icon: "ShoppingCart",
+		parentId: shoppingId,
+		sortOrder: 0,
+		createdAt: now,
 	});
 };
 

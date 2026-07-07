@@ -1,12 +1,11 @@
-export { defineQueries, defineMutations } from "./factory";
-
-export { accountQueries, accountMutations } from "./accounts";
-export { appSettingQueries, appSettingMutations } from "./app-settings";
-export { categoryQueries, categoryMutations } from "./categories";
+export { accountMutations, accountQueries } from "./accounts";
+export { appSettingMutations, appSettingQueries } from "./app-settings";
+export { categoryMutations, categoryQueries } from "./categories";
 export { databaseMutations } from "./database";
+export { defineMutations, defineQueries } from "./factory";
 export { importMutations } from "./import";
-export { merchantQueries, merchantMutations } from "./merchants";
-export { ruleQueries, ruleMutations } from "./rules";
-export { settingQueries, settingMutations } from "./settings";
-export { subscriptionQueries, subscriptionMutations } from "./subscriptions";
-export { transactionQueries, transactionMutations } from "./transactions";
+export { merchantMutations, merchantQueries } from "./merchants";
+export { ruleMutations, ruleQueries } from "./rules";
+export { settingMutations, settingQueries } from "./settings";
+export { subscriptionMutations, subscriptionQueries } from "./subscriptions";
+export { transactionMutations, transactionQueries } from "./transactions";

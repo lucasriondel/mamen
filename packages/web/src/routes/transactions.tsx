@@ -22,15 +22,14 @@ function TransactionsLayout(): React.ReactElement {
 		from: "/transactions/unmatched",
 		shouldThrow: false,
 	});
-
-	if (unmatchedMatch) {
-		return <Outlet />;
-	}
-
 	const detailMatch = useMatch({
 		from: "/transactions/$transactionId",
 		shouldThrow: false,
 	});
+
+	if (unmatchedMatch) {
+		return <Outlet />;
+	}
 
 	return (
 		<div className="flex h-full -m-6">

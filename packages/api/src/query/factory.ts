@@ -1,6 +1,6 @@
 import type { QueryKey } from "@tanstack/react-query";
-import type { queryKeys } from "../queryKeys";
 import { invalidateEntity } from "../mutations";
+import type { queryKeys } from "../queryKeys";
 
 type EntityName = keyof typeof queryKeys;
 
@@ -19,7 +19,10 @@ export const defineQueries = <T extends Record<string, QueryDef<any[], any>>>(
 ) => {
 	const result = {} as {
 		[K in keyof T]: T[K] extends QueryDef<infer TArgs, infer TData>
-			? (...args: TArgs) => { queryKey: QueryKey; queryFn: () => Promise<TData> }
+			? (...args: TArgs) => {
+					queryKey: QueryKey;
+					queryFn: () => Promise<TData>;
+				}
 			: never;
 	};
 	for (const [name, def] of Object.entries(queries)) {

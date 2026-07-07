@@ -1,7 +1,7 @@
 import type { Category } from "@mamen/shared";
 import { categoriesApi } from "../categories";
 import { queryKeys } from "../queryKeys";
-import { defineQueries, defineMutations } from "./factory";
+import { defineMutations, defineQueries } from "./factory";
 
 export const categoryQueries = defineQueries({
 	list: {

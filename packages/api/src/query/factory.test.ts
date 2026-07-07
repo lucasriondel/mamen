@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from "vitest";
-import { defineQueries, defineMutations } from "./factory";
+import { describe, expect, it, vi } from "vitest";
+import { defineMutations, defineQueries } from "./factory";
 
 vi.mock("../mutations", () => ({
 	invalidateEntity: vi.fn(),

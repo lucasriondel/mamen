@@ -85,8 +85,7 @@ const mockAccountsApi = {
 	getAll: () => db.accounts.toArray(),
 	get: (id: number) => db.accounts.get(id),
 	getByName: (name: string) => db.accounts.where("name").equals(name).first(),
-	getByType: (type: string) =>
-		db.accounts.where("type").equals(type).toArray(),
+	getByType: (type: string) => db.accounts.where("type").equals(type).toArray(),
 	create: async (data: Record<string, unknown>) => {
 		const id = await db.accounts.add(data as never);
 		invalidate("accounts");
@@ -115,9 +114,7 @@ const mockTransactionsApi = {
 			if (params.categoryId !== undefined)
 				result = result.filter((t) => t.categoryId === params.categoryId);
 			if (params.importBatchId !== undefined)
-				result = result.filter(
-					(t) => t.importBatchId === params.importBatchId,
-				);
+				result = result.filter((t) => t.importBatchId === params.importBatchId);
 			if (params.linkedRefundId !== undefined)
 				result = result.filter(
 					(t) => t.linkedRefundId === params.linkedRefundId,
@@ -148,9 +145,7 @@ const mockTransactionsApi = {
 			if (params.importMonth !== undefined)
 				result = result.filter((t) => t.importMonth === params.importMonth);
 			if (params.importBatchId !== undefined)
-				result = result.filter(
-					(t) => t.importBatchId === params.importBatchId,
-				);
+				result = result.filter((t) => t.importBatchId === params.importBatchId);
 			return result.length;
 		}),
 	create: async (data: Record<string, unknown>) => {
@@ -214,8 +209,7 @@ const mockMerchantsApi = {
 			return all;
 		}),
 	get: (id: number) => db.merchants.get(id),
-	getByName: (name: string) =>
-		db.merchants.where("name").equals(name).first(),
+	getByName: (name: string) => db.merchants.where("name").equals(name).first(),
 	getByNameCaseInsensitive: (name: string) =>
 		db.merchants.toArray().then((all) => {
 			const r = all.find((m) => m.name.toLowerCase() === name.toLowerCase());
@@ -475,8 +469,7 @@ const mockDatabaseApi = {
 			await db.transactions.bulkAdd(data.transactions as never);
 		if (data.merchants) await db.merchants.bulkAdd(data.merchants as never);
 		if (data.rules) await db.rules.bulkAdd(data.rules as never);
-		if (data.categories)
-			await db.categories.bulkAdd(data.categories as never);
+		if (data.categories) await db.categories.bulkAdd(data.categories as never);
 		if (data.subscriptions)
 			await db.subscriptions.bulkAdd(data.subscriptions as never);
 		if (data.settings) await db.settings.bulkAdd(data.settings as never);
