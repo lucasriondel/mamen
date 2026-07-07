@@ -17,6 +17,7 @@ import { Route as CategoriesRouteImport } from './routes/categories'
 import { Route as AccountsRouteImport } from './routes/accounts'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TransactionsUnmatchedRouteImport } from './routes/transactions.unmatched'
+import { Route as TransactionsTransactionIdRouteImport } from './routes/transactions.$transactionId'
 import { Route as MerchantsMerchantIdRouteImport } from './routes/merchants.$merchantId'
 
 const TransactionsRoute = TransactionsRouteImport.update({
@@ -59,6 +60,12 @@ const TransactionsUnmatchedRoute = TransactionsUnmatchedRouteImport.update({
   path: '/unmatched',
   getParentRoute: () => TransactionsRoute,
 } as any)
+const TransactionsTransactionIdRoute =
+  TransactionsTransactionIdRouteImport.update({
+    id: '/$transactionId',
+    path: '/$transactionId',
+    getParentRoute: () => TransactionsRoute,
+  } as any)
 const MerchantsMerchantIdRoute = MerchantsMerchantIdRouteImport.update({
   id: '/$merchantId',
   path: '/$merchantId',
@@ -74,6 +81,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/transactions': typeof TransactionsRouteWithChildren
   '/merchants/$merchantId': typeof MerchantsMerchantIdRoute
+  '/transactions/$transactionId': typeof TransactionsTransactionIdRoute
   '/transactions/unmatched': typeof TransactionsUnmatchedRoute
 }
 export interface FileRoutesByTo {
@@ -85,6 +93,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/transactions': typeof TransactionsRouteWithChildren
   '/merchants/$merchantId': typeof MerchantsMerchantIdRoute
+  '/transactions/$transactionId': typeof TransactionsTransactionIdRoute
   '/transactions/unmatched': typeof TransactionsUnmatchedRoute
 }
 export interface FileRoutesById {
@@ -97,6 +106,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/transactions': typeof TransactionsRouteWithChildren
   '/merchants/$merchantId': typeof MerchantsMerchantIdRoute
+  '/transactions/$transactionId': typeof TransactionsTransactionIdRoute
   '/transactions/unmatched': typeof TransactionsUnmatchedRoute
 }
 export interface FileRouteTypes {
@@ -110,6 +120,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/transactions'
     | '/merchants/$merchantId'
+    | '/transactions/$transactionId'
     | '/transactions/unmatched'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -121,6 +132,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/transactions'
     | '/merchants/$merchantId'
+    | '/transactions/$transactionId'
     | '/transactions/unmatched'
   id:
     | '__root__'
@@ -132,6 +144,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/transactions'
     | '/merchants/$merchantId'
+    | '/transactions/$transactionId'
     | '/transactions/unmatched'
   fileRoutesById: FileRoutesById
 }
@@ -203,6 +216,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TransactionsUnmatchedRouteImport
       parentRoute: typeof TransactionsRoute
     }
+    '/transactions/$transactionId': {
+      id: '/transactions/$transactionId'
+      path: '/$transactionId'
+      fullPath: '/transactions/$transactionId'
+      preLoaderRoute: typeof TransactionsTransactionIdRouteImport
+      parentRoute: typeof TransactionsRoute
+    }
     '/merchants/$merchantId': {
       id: '/merchants/$merchantId'
       path: '/$merchantId'
@@ -226,10 +246,12 @@ const MerchantsRouteWithChildren = MerchantsRoute._addFileChildren(
 )
 
 interface TransactionsRouteChildren {
+  TransactionsTransactionIdRoute: typeof TransactionsTransactionIdRoute
   TransactionsUnmatchedRoute: typeof TransactionsUnmatchedRoute
 }
 
 const TransactionsRouteChildren: TransactionsRouteChildren = {
+  TransactionsTransactionIdRoute: TransactionsTransactionIdRoute,
   TransactionsUnmatchedRoute: TransactionsUnmatchedRoute,
 }
 

@@ -141,7 +141,6 @@ export function TransactionDataTable({
 					{
 						name: m.name,
 						imageUrl: m.imageUrl,
-						createdAt: m.createdAt,
 					},
 				]),
 			);
@@ -154,6 +153,16 @@ export function TransactionDataTable({
 			return merchantsMap.get(merchantId) ?? undefined;
 		},
 		[merchantsMap],
+	);
+
+	const accountsMap = useMemo(
+		() => new Map(accounts.map((a) => [a.id!, a.name])),
+		[accounts],
+	);
+
+	const getAccountName = useCallback(
+		(accountId: number) => accountsMap.get(accountId) ?? "Unknown",
+		[accountsMap],
 	);
 
 	// --- Modal state ---
@@ -196,20 +205,24 @@ export function TransactionDataTable({
 	const tableMeta: TransactionTableMeta = useMemo(
 		() => ({
 			getMerchantInfo,
+			getAccountName,
 			onDismissAnomaly: handleDismissAnomaly,
 			onDismissDuplicate: handleDismissDuplicate,
 			onExcludeDuplicate: handleExcludeDuplicate,
 			onViewLinked: navigateToTransaction,
 			onLinkClick: navigateToTransaction,
+			onAssignCategory: assignCategory,
 			animatingIds: animatingIdSet,
 			animationPhase,
 		}),
 		[
 			getMerchantInfo,
+			getAccountName,
 			handleDismissAnomaly,
 			handleDismissDuplicate,
 			handleExcludeDuplicate,
 			navigateToTransaction,
+			assignCategory,
 			animatingIdSet,
 			animationPhase,
 		],
@@ -222,7 +235,6 @@ export function TransactionDataTable({
 			sorting,
 			rowSelection,
 			columnFilters: transactionFilters.columnFilters,
-			columnVisibility: { accountId: false },
 		},
 		onSortingChange: setSorting,
 		onRowSelectionChange: setRowSelection,
@@ -392,10 +404,15 @@ export function TransactionDataTable({
 			if (selectionCount > 0) {
 				const row = table.getRow(rowId);
 				row?.toggleSelected();
+			} else {
+				navigate({
+					to: "/transactions/$transactionId",
+					params: { transactionId: rowId },
+				});
 			}
 			setCursorRowId(rowId);
 		},
-		[selectionCount, table],
+		[selectionCount, table, navigate],
 	);
 
 	// --- Refund summary for drill-down ---
@@ -617,6 +634,16 @@ export function TransactionDataTable({
 								</div>
 							);
 						}
+						if (header.id === "accountId") {
+							return (
+								<div key={header.id} className="w-24 shrink-0">
+									{flexRender(
+										header.column.columnDef.header,
+										header.getContext(),
+									)}
+								</div>
+							);
+						}
 						if (header.id === "amount") {
 							return (
 								<div key={header.id} className="w-24 shrink-0 text-right">
@@ -730,6 +757,8 @@ export function TransactionDataTable({
 													"flex-1 min-w-0",
 													cell.column.id === "category" &&
 													"w-32 shrink-0",
+													cell.column.id === "accountId" &&
+													"w-24 shrink-0",
 													cell.column.id === "amount" &&
 													"w-24 shrink-0",
 												)}

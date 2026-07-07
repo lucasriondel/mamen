@@ -18,23 +18,39 @@ export const Route = createFileRoute("/transactions")({
 });
 
 function TransactionsLayout(): React.ReactElement {
-	const childMatch = useMatch({
+	const unmatchedMatch = useMatch({
 		from: "/transactions/unmatched",
 		shouldThrow: false,
 	});
 
-	if (childMatch) {
+	if (unmatchedMatch) {
 		return <Outlet />;
 	}
 
-	return <TransactionsPage />;
+	const detailMatch = useMatch({
+		from: "/transactions/$transactionId",
+		shouldThrow: false,
+	});
+
+	return (
+		<div className="flex h-full -m-6">
+			<div className="flex-1 min-w-0 flex flex-col">
+				<TransactionsPage />
+			</div>
+			{detailMatch && (
+				<div className="w-[400px] shrink-0 border-l bg-background overflow-hidden">
+					<Outlet />
+				</div>
+			)}
+		</div>
+	);
 }
 
 function TransactionsPage(): React.ReactElement {
 	const { highlight } = Route.useSearch();
 
 	return (
-		<div className="flex flex-col h-full -m-6">
+		<div className="flex flex-col h-full">
 			<div className="px-6 py-4 border-b">
 				<h2 className="text-2xl font-bold">Transactions</h2>
 			</div>
