@@ -490,8 +490,8 @@ const mockDatabaseApi = {
 const mockInvalidateEntity = (...entities: string[]) => invalidate(...entities);
 const mockInvalidateAll = () => testQueryClient.invalidateQueries();
 
-// ─── Mock @mamen/api (the source package) ───────────────────────
-vi.mock("@mamen/api", () => ({
+// ─── Mock @mamen/web-api-legacy (the source package) ───────────────────────
+vi.mock("@mamen/web-api-legacy", () => ({
 	api: {
 		get: vi.fn(),
 		post: vi.fn(),
@@ -543,8 +543,8 @@ vi.mock("@mamen/api", () => ({
 }));
 
 // ─── Mock @/lib/api (the web barrel re-export) ─────────────────
-// Since @/lib/api re-exports from @mamen/api, we mock it the same way.
+// Since @/lib/api re-exports from @mamen/web-api-legacy, we mock it the same way.
 vi.mock("@/lib/api", async () => {
-	const mamenApi = await import("@mamen/api");
+	const mamenApi = await import("@mamen/web-api-legacy");
 	return { ...mamenApi };
 });

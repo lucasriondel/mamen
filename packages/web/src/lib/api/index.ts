@@ -1,4 +1,4 @@
-// Re-export everything from @mamen/api for backward compatibility
+// Re-export everything from @mamen/web-api-legacy for backward compatibility
 export {
 	ApiError,
 	accountMutations,
@@ -37,4 +37,4 @@ export {
 	transactionMutations,
 	transactionQueries,
 	transactionsApi,
-} from "@mamen/api";
+} from "@mamen/web-api-legacy";
