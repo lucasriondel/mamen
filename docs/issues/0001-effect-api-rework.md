@@ -30,6 +30,7 @@ The REST contract is redesigned properly (composable list filters, typed error b
 <!-- one line per closed ticket: gist + link -->
 
 - [Survey the Effect HttpApi stack](0002-survey-effect-httpapi-stack.md) — stable Effect 3.21 stack fully supports the destination; survey asset at [docs/research/effect-httpapi-stack-survey.md](../research/effect-httpapi-stack-survey.md). Three map-shaping findings: Effect 4.0 in active beta (→ [Effect 3 stable or Effect 4 beta](0008-effect-3-stable-or-4-beta.md)); new packages must pin vitest 3.2.4 (vitest 4 breaks @effect/vitest); tests must run sqlite via @effect/sql-sqlite-node behind the SqlClient tag (bun:sqlite unusable under vitest).
+- [Effect 3 stable or Effect 4 beta](0008-effect-3-stable-or-4-beta.md) — Effect 3 stable (the surveyed 3.21.4 stack); vitest 3.2.4 pinned in new packages; 3→4 migration deferred to a future effort.
 
 ## Not yet specified
 
@@ -42,3 +43,4 @@ The REST contract is redesigned properly (composable list filters, typed error b
 
 - **Web frontend adaptation** — the web app switching to @mamen/sdk happens later as its own effort; frontend is allowed to break during this map.
 - **Wire compatibility** — no requirement to preserve today's paths/params/response shapes.
+- **Effect 3→4 migration** — rework builds on Effect 3 stable per [Effect 3 stable or Effect 4 beta](0008-effect-3-stable-or-4-beta.md); moving to 4 is a future effort once 4.0 is stable, not part of this map.
