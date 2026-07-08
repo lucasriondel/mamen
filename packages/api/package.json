@@ -12,9 +12,10 @@
 		"start": "bun src/index.ts",
 		"build": "tsc",
 		"typecheck": "tsc --noEmit",
-		"test": "vitest run",
+		"test": "bun run openapi:check && vitest run",
 		"test:watch": "vitest",
-		"emit-openapi": "bun run scripts/emit-openapi.ts"
+		"emit-openapi": "bun run scripts/emit-openapi.ts",
+		"openapi:check": "bun run scripts/emit-openapi.ts --check"
 	},
 	"dependencies": {
 		"@effect/platform": "0.96.2",
