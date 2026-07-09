@@ -1,9 +1,9 @@
 ---
 id: 10
 title: Shared contract foundations (branded ids, paged/pagination, tagged errors)
-state: open
+state: closed
 labels: [wayfinder:impl]
-assignee: none
+assignee: luriondel
 parent: 1
 blocked-by: []
 ---
@@ -31,3 +31,15 @@ From the contract spec [api-contract.md](../research/api-contract.md) §1.1, §1
 ## Blocked by
 
 None — can start immediately (both real blockers, [contract](0006-design-new-rest-contract.md) + [scaffold](0007-scaffold-new-packages.md), are closed).
+
+## Resolution
+
+Shared contract foundations landed in `@mamen/shared/contract` (isolated from the zod still in the package — no zod touched). Three new modules, all re-exported from `contract/index.ts`:
+
+- **`ids.ts`** — the seven branded id schemas (`AccountId`, `CategoryId`, `MerchantId`, `TransactionId`, `RuleId`, `SubscriptionId`, `SettingId`), each `Schema.Int.pipe(Schema.brand(...))` with a matching exported `type`. Plus **`numFromStr(id)`** — `NumberFromString → compose(id)` — the path-param / branded-query coercion helper.
+- **`pagination.ts`** — the **`Pagination`** params object (`limit`/`offset` as `optionalWith(NumberFromString, { default })`, 50/0) and the generic **`Paged(item)`** envelope (`{ items, total }`).
+- **`errors.ts`** — the three domain errors as `Schema.TaggedError` with status via `HttpApiSchema.annotations`: `NotFound (404)` `{ resource, id }`, `Conflict (409)` `{ resource, message }`, `InvalidFileType (415)` `{ allowed, received }`. Plus **`BooleanFromString`** for query-string boolean filters.
+
+Verified: whole workspace typechecks (7/7 turbo tasks green), the walking-skeleton api tests still pass (health handlers, 2 tests), and a runtime check confirmed the wire shapes — `NotFound` encodes to `{ resource, id, _tag: "NotFound" }` (taxonomy §1 envelope exact), `Paged` → `{ items, total }`, and both coercion helpers decode correctly. No `Conflict` on the wire yet (no endpoint declares it until a resource with a uniqueness constraint is ported).
+
+Unblocks [Port accounts](0011-port-accounts.md) (#11) and, transitively, every other port. The `Model`/repository-side id handling (branded ids ↔ sqlite columns) is a per-port concern, not settled here.
