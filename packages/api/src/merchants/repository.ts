@@ -34,7 +34,11 @@ const MerchantRow = Schema.Struct({
 // own schema then decodes that into the class (strings → `Date`). This is where
 // the null → absent fold for the two optional columns lives; a stored `null`
 // becomes an omitted key so the wire shape matches `Schema.optional(...)`.
-const MerchantFromRow = Schema.transform(MerchantRow, Merchant, {
+//
+// Exported for the database export/import port: `decode` reads a row into a
+// `Merchant` (used by `exportAll`), `encode` folds a `Merchant` back to its
+// stored row (used by `import`, id preserved).
+export const MerchantFromRow = Schema.transform(MerchantRow, Merchant, {
 	strict: true,
 	decode: (row) => ({
 		id: row.id,

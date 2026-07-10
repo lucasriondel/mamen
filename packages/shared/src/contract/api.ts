@@ -2,6 +2,7 @@ import { HttpApi, HttpApiError, OpenApi } from "@effect/platform";
 import { AccountsGroup } from "./accounts";
 import { AppSettingsGroup } from "./app-settings";
 import { CategoriesGroup } from "./categories";
+import { DatabaseGroup } from "./database";
 import { HealthGroup } from "./health";
 import { MerchantsGroup } from "./merchants";
 import { RulesGroup } from "./rules";
@@ -25,6 +26,7 @@ export class Api extends HttpApi.make("mamen")
 	.add(SubscriptionsGroup)
 	.add(SettingsGroup)
 	.add(AppSettingsGroup)
+	.add(DatabaseGroup)
 	.addError(HttpApiError.InternalServerError)
 	.prefix("/api")
 	.annotateContext(

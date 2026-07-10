@@ -16,6 +16,12 @@ export {
 	CategoryUpdate,
 } from "./categories";
 export {
+	DatabaseGroup,
+	DbDump,
+	DbImport,
+	DbOk,
+} from "./database";
+export {
 	BooleanFromString,
 	Conflict,
 	InvalidFileType,
@@ -56,8 +62,8 @@ export {
 	SubscriptionCreate,
 	SubscriptionFrequency,
 	SubscriptionListFilters,
-	SubscriptionsGroup,
 	SubscriptionStatus,
+	SubscriptionsGroup,
 	SubscriptionUpdate,
 } from "./subscriptions";
 export {

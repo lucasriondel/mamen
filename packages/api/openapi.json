@@ -3734,6 +3734,234 @@
           "required": true
         }
       }
+    },
+    "/api/database/reset": {
+      "post": {
+        "tags": [
+          "Database"
+        ],
+        "operationId": "database.reset",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "DbOk",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DbOk"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/database/export": {
+      "post": {
+        "tags": [
+          "Database"
+        ],
+        "operationId": "database.export",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "accounts",
+                    "transactions",
+                    "merchants",
+                    "rules",
+                    "categories",
+                    "subscriptions",
+                    "settings",
+                    "appSettings"
+                  ],
+                  "properties": {
+                    "accounts": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Account"
+                      }
+                    },
+                    "transactions": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Transaction"
+                      }
+                    },
+                    "merchants": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Merchant"
+                      }
+                    },
+                    "rules": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Rule"
+                      }
+                    },
+                    "categories": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Category"
+                      }
+                    },
+                    "subscriptions": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Subscription"
+                      }
+                    },
+                    "settings": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Setting"
+                      }
+                    },
+                    "appSettings": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AppSettings"
+                      }
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/database/import": {
+      "post": {
+        "tags": [
+          "Database"
+        ],
+        "operationId": "database.import",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "DbOk",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DbOk"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [],
+                "properties": {
+                  "accounts": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Account"
+                    }
+                  },
+                  "transactions": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Transaction"
+                    }
+                  },
+                  "merchants": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Merchant"
+                    }
+                  },
+                  "rules": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Rule"
+                    }
+                  },
+                  "categories": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Category"
+                    }
+                  },
+                  "subscriptions": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Subscription"
+                    }
+                  },
+                  "settings": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Setting"
+                    }
+                  },
+                  "appSettings": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/AppSettings"
+                    }
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        }
+      }
     }
   },
   "components": {
@@ -4356,6 +4584,21 @@
           }
         },
         "additionalProperties": false
+      },
+      "DbOk": {
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          }
+        },
+        "additionalProperties": false
       }
     },
     "securitySchemes": {}
@@ -4388,6 +4631,9 @@
     },
     {
       "name": "App-settings"
+    },
+    {
+      "name": "Database"
     }
   ]
 }

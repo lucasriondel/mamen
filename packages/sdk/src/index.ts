@@ -9,22 +9,23 @@ export {
 	appSettingsQueries,
 } from "./app-settings/queries";
 export {
-	categoryKeys,
 	type CategoryListParams,
+	categoryKeys,
 	categoryMutations,
 	categoryQueries,
 } from "./categories/queries";
+export { databaseMutations } from "./database/queries";
 export { healthKeys, healthQueries } from "./health/queries";
 export {
-	merchantKeys,
 	type MerchantListParams,
+	merchantKeys,
 	merchantMutations,
 	merchantQueries,
 } from "./merchants/queries";
 export {
 	type RuleCountParams,
-	ruleKeys,
 	type RuleListParams,
+	ruleKeys,
 	ruleMutations,
 	ruleQueries,
 } from "./rules/queries";
@@ -35,15 +36,15 @@ export {
 	settingQueries,
 } from "./settings/queries";
 export {
-	subscriptionKeys,
 	type SubscriptionListParams,
+	subscriptionKeys,
 	subscriptionMutations,
 	subscriptionQueries,
 } from "./subscriptions/queries";
 export {
 	type TransactionCountParams,
-	transactionKeys,
 	type TransactionListParams,
+	transactionKeys,
 	transactionMutations,
 	transactionQueries,
 } from "./transactions/queries";
