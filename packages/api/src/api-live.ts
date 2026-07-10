@@ -4,6 +4,7 @@ import { Layer } from "effect";
 import { AccountsLive } from "./accounts/handlers";
 import { CategoriesLive } from "./categories/handlers";
 import { HealthLive } from "./health/handlers";
+import { MerchantsLive } from "./merchants/handlers";
 
 /**
  * The assembled API layer: the contract wired to every group implementation.
@@ -12,8 +13,15 @@ import { HealthLive } from "./health/handlers";
  * This layer still **requires** `SqlClient.SqlClient` — the caller provides the
  * data layer: `DatabaseLive` (Bun, real file) in prod via `ServerLive`, or
  * `DatabaseTest` (`:memory:`, sqlite-node) in tests. Keeping the DB out of here
- * is what lets the integration tests swap the driver.
+ * is what lets the integration tests swap the driver. The merchant image
+ * handlers additionally require `FileSystem` / `Path`, satisfied by the platform
+ * in the server layer (Bun / Node).
+ *
+ * The `/uploads/*` static route ({@link StaticUploadsLive}) is NOT part of this
+ * layer: it mutates the served `HttpApiBuilder.Router` directly (like
+ * `middlewareOpenApi`), so it's provided to `HttpApiBuilder.serve(...)` at the
+ * server composition, not pulled through the `HttpApi.Api` build here.
  */
 export const ApiLive = HttpApiBuilder.api(Api).pipe(
-	Layer.provide([HealthLive, AccountsLive, CategoriesLive]),
+	Layer.provide([HealthLive, AccountsLive, CategoriesLive, MerchantsLive]),
 );

@@ -9,6 +9,7 @@ import { Effect, Layer } from "effect";
 import { ApiLive } from "./api-live";
 import { CorsOrigins, Port } from "./config";
 import { DatabaseLive } from "./db/sql";
+import { StaticUploadsLive } from "./static/uploads";
 
 /** CORS layer with allowed origins resolved from config at build time. */
 const CorsLive = Layer.unwrapEffect(
@@ -28,14 +29,19 @@ const BunServerLive = Layer.unwrapEffect(
 
 /**
  * The full HTTP server layer: request logging, Scalar docs at `/docs`,
- * the OpenAPI spec at `/api/openapi.json`, CORS, and the API itself,
- * served on a Bun HTTP server whose port comes from config.
+ * the OpenAPI spec at `/api/openapi.json`, the `/uploads/*` static route, CORS,
+ * and the API itself, served on a Bun HTTP server whose port comes from config.
+ *
+ * `StaticUploadsLive` is provided to `serve` directly (it mutates the served
+ * `Router`, like `middlewareOpenApi`) rather than through `ApiLive`. Its
+ * `FileSystem`/`Path` requirement is satisfied by `BunServerLive` (BunContext).
  */
 export const ServerLive = HttpApiBuilder.serve(HttpMiddleware.logger).pipe(
 	Layer.provide(HttpApiScalar.layer({ path: "/docs" })),
 	Layer.provide(
 		HttpApiBuilder.middlewareOpenApi({ path: "/api/openapi.json" }),
 	),
+	Layer.provide(StaticUploadsLive),
 	Layer.provide(CorsLive),
 	Layer.provide(ApiLive),
 	Layer.provide(DatabaseLive),

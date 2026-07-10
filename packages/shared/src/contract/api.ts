@@ -2,6 +2,7 @@ import { HttpApi, HttpApiError, OpenApi } from "@effect/platform";
 import { AccountsGroup } from "./accounts";
 import { CategoriesGroup } from "./categories";
 import { HealthGroup } from "./health";
+import { MerchantsGroup } from "./merchants";
 
 /**
  * The mamen HTTP API contract. Pure schema values — feeds the server
@@ -13,6 +14,7 @@ export class Api extends HttpApi.make("mamen")
 	.add(HealthGroup)
 	.add(AccountsGroup)
 	.add(CategoriesGroup)
+	.add(MerchantsGroup)
 	.addError(HttpApiError.InternalServerError)
 	.prefix("/api")
 	.annotateContext(

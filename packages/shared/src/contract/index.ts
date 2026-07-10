@@ -30,4 +30,13 @@ export {
 	SubscriptionId,
 	TransactionId,
 } from "./ids";
+export {
+	MAX_IMAGE_BYTES,
+	Merchant,
+	MerchantCreate,
+	MerchantImageUpload,
+	MerchantListFilters,
+	MerchantsGroup,
+	MerchantUpdate,
+} from "./merchants";
 export { Paged, Pagination, PaginationDefaults } from "./pagination";
