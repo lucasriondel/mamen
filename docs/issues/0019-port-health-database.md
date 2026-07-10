@@ -1,9 +1,9 @@
 ---
 id: 19
 title: Port health + database (backup / restore / reset)
-state: open
+state: done
 labels: [wayfinder:impl]
-assignee: none
+assignee: luriondel
 parent: 1
 blocked-by: [10, 12, 13, 14, 15, 16, 17, 18]
 ---
@@ -20,10 +20,10 @@ Port the two remaining groups per [api-contract.md](../research/api-contract.md)
 
 ## Acceptance criteria
 
-- [ ] `HealthGroup` matches §2.1 (or the walking-skeleton endpoint is reconciled into it).
-- [ ] `DatabaseGroup` matches §2.10; `reset` wipes all 8 tables; `export` returns the full `DbDump`; `import` does the destructive clear-then-load in dependency order.
-- [ ] Round-trip test: export → reset → import restores state through the SDK.
-- [ ] Coverage gate passes.
+- [x] `HealthGroup` matches §2.1 (reconciled from the walking-skeleton endpoint — `health.check` at `GET /api/health` → `{ status: "ok" }`, already in place).
+- [x] `DatabaseGroup` matches §2.10; `reset` wipes all 8 tables; `export` returns the full `DbDump`; `import` does the destructive clear-then-load in dependency order.
+- [x] Round-trip test: export → reset → import restores state through the SDK (`database/handlers.test.ts`, ids preserved).
+- [x] Coverage gate passes (`database` module 100% line/branch/fn/stmt; suite 223 tests green).
 
 ## Blocked by
 

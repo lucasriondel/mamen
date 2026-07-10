@@ -1,6 +1,6 @@
 export type Rule = {
 	id?: number;
-	merchantId: number;
+	issuerId: number;
 	pattern: string;
 	categoryOverride?: number;
 	matchCount: number;

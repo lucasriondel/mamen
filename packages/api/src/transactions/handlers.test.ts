@@ -1,0 +1,533 @@
+import {
+	HttpApiBuilder,
+	HttpApiClient,
+	HttpClient,
+	HttpClientRequest,
+} from "@effect/platform";
+import { NodeHttpServer } from "@effect/platform-node";
+import { assert, describe, it } from "@effect/vitest";
+import {
+	AccountId,
+	AnomalyFlag,
+	Api,
+	CategoryId,
+	IssuerId,
+	NotFound,
+	type TransactionCreate,
+	TransactionId,
+} from "@mamen/shared/contract";
+import { Effect, Layer, Schema } from "effect";
+import { ApiLive } from "../api-live";
+import { DatabaseTest } from "../db/test";
+
+// Full API on a real ephemeral Node server over a fresh `:memory:` sqlite DB.
+// Exercises the transactions group end-to-end through the derived typed client —
+// the same path the SDK uses — so filters, ordering, and the anomaly-flag codec
+// are all verified over the wire.
+const HttpLive = HttpApiBuilder.serve().pipe(
+	Layer.provide(ApiLive),
+	Layer.provide(DatabaseTest),
+	Layer.provideMerge(NodeHttpServer.layerTest),
+);
+
+const asAccount = Schema.decodeSync(AccountId);
+const asCategory = Schema.decodeSync(CategoryId);
+const asIssuer = Schema.decodeSync(IssuerId);
+const asTx = Schema.decodeSync(TransactionId);
+
+const DATE = new Date("2026-03-01T00:00:00.000Z");
+
+const make = (over: Partial<TransactionCreate> = {}): TransactionCreate => ({
+	accountId: asAccount(1),
+	date: DATE,
+	amount: 42.5,
+	rawIssuerString: "ACME STORE",
+	importedAt: DATE,
+	importMonth: "2026-03",
+	...over,
+});
+
+describe("transactions endpoints", () => {
+	it.effect("list is empty initially", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const page = yield* client.transactions.list({
+				urlParams: { limit: 50, offset: 0, direction: "desc" },
+			});
+			assert.deepStrictEqual(page, { items: [], total: 0 });
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("create returns 201 body and getById round-trips it", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const created = yield* client.transactions.create({
+				payload: make({ amount: 12.34, rawIssuerString: "Coffee" }),
+			});
+			assert.strictEqual(created.amount, 12.34);
+			assert.strictEqual(created.rawIssuerString, "Coffee");
+			assert.strictEqual(created.issuerId, undefined);
+
+			const fetched = yield* client.transactions.getById({
+				path: { id: created.id },
+			});
+			assert.deepStrictEqual(fetched, created);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect(
+		"anomalyFlags round-trip over the wire through the SDK client",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const flags = [
+					new AnomalyFlag({
+						type: "new-issuer",
+						reason: "first time",
+						detectedAt: "2026-03-01T00:00:00.000Z",
+						dismissed: false,
+					}),
+				];
+				const created = yield* client.transactions.create({
+					payload: make({ anomalyFlags: flags }),
+				});
+				assert.deepStrictEqual(created.anomalyFlags, flags);
+
+				const fetched = yield* client.transactions.getById({
+					path: { id: created.id },
+				});
+				assert.deepStrictEqual(fetched.anomalyFlags, flags);
+			}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect(
+		"update applies a partial change and returns the full resource",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const created = yield* client.transactions.create({
+					payload: make({ amount: 10 }),
+				});
+				const updated = yield* client.transactions.update({
+					path: { id: created.id },
+					payload: { amount: 20, categoryId: asCategory(5) },
+				});
+				assert.strictEqual(updated.amount, 20);
+				assert.strictEqual(updated.categoryId, asCategory(5));
+				assert.strictEqual(updated.id, created.id);
+			}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("remove deletes the transaction (getById then 404s)", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const created = yield* client.transactions.create({ payload: make() });
+			yield* client.transactions.remove({ path: { id: created.id } });
+
+			const error = yield* client.transactions
+				.getById({ path: { id: created.id } })
+				.pipe(Effect.flip);
+			assert.deepStrictEqual(
+				error,
+				new NotFound({ resource: "transaction", id: created.id }),
+			);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	// --- Composable filters over the wire: the core redesign (ticket AC) --------
+
+	// Seed three diverse rows through the client, so every filter has matching and
+	// non-matching data. Typed off a concrete `HttpApiClient.make(Api)` call so the
+	// client shape stays in sync with the contract without hand-writing it.
+	const makeClient = () => HttpApiClient.make(Api);
+	type ApiClient = Effect.Effect.Success<ReturnType<typeof makeClient>>;
+	const seed = (client: ApiClient) =>
+		Effect.all([
+			client.transactions.create({
+				payload: make({
+					accountId: asAccount(1),
+					categoryId: asCategory(7),
+					issuerId: asIssuer(2),
+					date: new Date("2026-01-10T00:00:00.000Z"),
+					importMonth: "2026-01",
+					isRefund: true,
+				}),
+			}),
+			client.transactions.create({
+				payload: make({
+					accountId: asAccount(1),
+					categoryId: asCategory(8),
+					date: new Date("2026-02-10T00:00:00.000Z"),
+					importMonth: "2026-02",
+				}),
+			}),
+			client.transactions.create({
+				payload: make({
+					accountId: asAccount(2),
+					categoryId: asCategory(7),
+					date: new Date("2026-03-10T00:00:00.000Z"),
+					importMonth: "2026-03",
+				}),
+			}),
+		]);
+
+	it.effect("accountId + categoryId + startDate compose over the wire", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			yield* seed(client);
+			const page = yield* client.transactions.list({
+				urlParams: {
+					limit: 50,
+					offset: 0,
+					direction: "desc",
+					accountId: asAccount(1),
+					categoryId: asCategory(7),
+					startDate: new Date("2026-01-01T00:00:00.000Z"),
+				},
+			});
+			assert.strictEqual(page.total, 1);
+			assert.strictEqual(page.items[0]?.importMonth, "2026-01");
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("importMonth alone filters over the wire", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			yield* seed(client);
+			const page = yield* client.transactions.list({
+				urlParams: {
+					limit: 50,
+					offset: 0,
+					direction: "desc",
+					importMonth: "2026-02",
+				},
+			});
+			assert.strictEqual(page.total, 1);
+			assert.strictEqual(page.items[0]?.importMonth, "2026-02");
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("startDate alone filters over the wire", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			yield* seed(client);
+			const page = yield* client.transactions.list({
+				urlParams: {
+					limit: 50,
+					offset: 0,
+					direction: "desc",
+					startDate: new Date("2026-02-01T00:00:00.000Z"),
+				},
+			});
+			assert.strictEqual(page.total, 2);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("orderBy date asc orders the page over the wire", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			yield* seed(client);
+			const page = yield* client.transactions.list({
+				urlParams: {
+					limit: 50,
+					offset: 0,
+					orderBy: "date",
+					direction: "asc",
+				},
+			});
+			assert.deepStrictEqual(
+				page.items.map((t) => t.importMonth),
+				["2026-01", "2026-02", "2026-03"],
+			);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("count honors the same filters as list", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			yield* seed(client);
+
+			const all = yield* client.transactions.count({ urlParams: {} });
+			assert.strictEqual(all.count, 3);
+
+			const byAccount = yield* client.transactions.count({
+				urlParams: { accountId: asAccount(1) },
+			});
+			assert.strictEqual(byAccount.count, 2);
+
+			const combined = yield* client.transactions.count({
+				urlParams: {
+					accountId: asAccount(1),
+					categoryId: asCategory(7),
+					startDate: new Date("2026-01-01T00:00:00.000Z"),
+				},
+			});
+			assert.strictEqual(combined.count, 1);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("isRefund boolean filter decodes from the query string", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			yield* seed(client);
+			const refunds = yield* client.transactions.list({
+				urlParams: { limit: 50, offset: 0, direction: "desc", isRefund: true },
+			});
+			assert.strictEqual(refunds.total, 1);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	// --- NotFound (ticket AC) ---------------------------------------------------
+
+	it.effect("getById 404s on a missing id", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const error = yield* client.transactions
+				.getById({ path: { id: asTx(999) } })
+				.pipe(Effect.flip);
+			assert.deepStrictEqual(
+				error,
+				new NotFound({ resource: "transaction", id: asTx(999) }),
+			);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("update 404s on a missing id", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const error = yield* client.transactions
+				.update({ path: { id: asTx(999) }, payload: { amount: 1 } })
+				.pipe(Effect.flip);
+			assert.deepStrictEqual(
+				error,
+				new NotFound({ resource: "transaction", id: asTx(999) }),
+			);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("remove 404s on a missing id", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const error = yield* client.transactions
+				.remove({ path: { id: asTx(999) } })
+				.pipe(Effect.flip);
+			assert.deepStrictEqual(
+				error,
+				new NotFound({ resource: "transaction", id: asTx(999) }),
+			);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+});
+
+// --- Bulk + targeted-delete endpoints (ticket AC) ---------------------------
+
+describe("transactions bulk endpoints", () => {
+	it.effect(
+		"bulkCreate returns 201 with the created rows and generated ids",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const created = yield* client.transactions.bulkCreate({
+					payload: {
+						records: [
+							make({ rawIssuerString: "A", amount: 1 }),
+							make({ rawIssuerString: "B", amount: 2 }),
+						],
+					},
+				});
+				assert.strictEqual(created.length, 2);
+				assert.deepStrictEqual(
+					created.map((t) => t.rawIssuerString),
+					["A", "B"],
+				);
+				// Ids are server-generated and distinct.
+				assert.notStrictEqual(created[0]?.id, created[1]?.id);
+
+				// Both are really persisted — visible through the list.
+				const page = yield* client.transactions.list({
+					urlParams: { limit: 50, offset: 0, direction: "desc" },
+				});
+				assert.strictEqual(page.total, 2);
+			}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("bulkCreate of an empty batch is a no-op → []", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const created = yield* client.transactions.bulkCreate({
+				payload: { records: [] },
+			});
+			assert.deepStrictEqual(created, []);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("bulkPut upserts by id and returns the affected count", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const created = yield* client.transactions.create({
+				payload: make({ amount: 10, rawIssuerString: "Before" }),
+			});
+
+			// One overwrite of the existing row, one insert of a brand-new id.
+			const overwritten = {
+				...created,
+				amount: 99,
+				rawIssuerString: "After",
+			};
+			const inserted = {
+				...created,
+				id: asTx(created.id + 1000),
+				amount: 7,
+				rawIssuerString: "New",
+			};
+			const result = yield* client.transactions.bulkPut({
+				payload: { records: [overwritten, inserted] },
+			});
+			assert.strictEqual(result.count, 2);
+
+			// The overwrite replaced the row (not a second insert at that id).
+			const back = yield* client.transactions.getById({
+				path: { id: created.id },
+			});
+			assert.strictEqual(back.amount, 99);
+			assert.strictEqual(back.rawIssuerString, "After");
+
+			// The insert created the new id verbatim.
+			const fresh = yield* client.transactions.getById({
+				path: { id: inserted.id },
+			});
+			assert.strictEqual(fresh.amount, 7);
+
+			const all = yield* client.transactions.count({ urlParams: {} });
+			assert.strictEqual(all.count, 2);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect(
+		"bulkDelete returns the count actually deleted (partial existence)",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const a = yield* client.transactions.create({ payload: make() });
+				const b = yield* client.transactions.create({ payload: make() });
+
+				// Two real ids + one that never existed → only two are deleted.
+				const result = yield* client.transactions.bulkDelete({
+					payload: { ids: [a.id, b.id, asTx(999999)] },
+				});
+				assert.strictEqual(result.count, 2);
+
+				const remaining = yield* client.transactions.count({ urlParams: {} });
+				assert.strictEqual(remaining.count, 0);
+			}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("bulkDelete of an empty id list is a no-op → count 0", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			yield* client.transactions.create({ payload: make() });
+			const result = yield* client.transactions.bulkDelete({
+				payload: { ids: [] },
+			});
+			assert.strictEqual(result.count, 0);
+			const remaining = yield* client.transactions.count({ urlParams: {} });
+			assert.strictEqual(remaining.count, 1);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("bulkGet returns only the ids that exist (partial existence)", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const a = yield* client.transactions.create({
+				payload: make({ rawIssuerString: "A" }),
+			});
+			const b = yield* client.transactions.create({
+				payload: make({ rawIssuerString: "B" }),
+			});
+
+			const got = yield* client.transactions.bulkGet({
+				payload: { ids: [a.id, asTx(888888), b.id] },
+			});
+			assert.strictEqual(got.length, 2);
+			assert.deepStrictEqual(got.map((t) => t.rawIssuerString).sort(), [
+				"A",
+				"B",
+			]);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("bulkGet of an empty id list → []", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const got = yield* client.transactions.bulkGet({ payload: { ids: [] } });
+			assert.deepStrictEqual(got, []);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect(
+		"deleteByAccountMonth deletes only the matching account+month",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				// Two rows in acct 1 / 2026-03, one in acct 1 / 2026-04, one in acct 2.
+				yield* client.transactions.create({
+					payload: make({ accountId: asAccount(1), importMonth: "2026-03" }),
+				});
+				yield* client.transactions.create({
+					payload: make({ accountId: asAccount(1), importMonth: "2026-03" }),
+				});
+				yield* client.transactions.create({
+					payload: make({ accountId: asAccount(1), importMonth: "2026-04" }),
+				});
+				yield* client.transactions.create({
+					payload: make({ accountId: asAccount(2), importMonth: "2026-03" }),
+				});
+
+				const result = yield* client.transactions.deleteByAccountMonth({
+					urlParams: { accountId: asAccount(1), importMonth: "2026-03" },
+				});
+				assert.strictEqual(result.count, 2);
+
+				const remaining = yield* client.transactions.count({ urlParams: {} });
+				assert.strictEqual(remaining.count, 2);
+			}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect(
+		"deleteByAccountMonth requires both query params (missing → 400)",
+		() =>
+			Effect.gen(function* () {
+				const http = yield* HttpClient.HttpClient;
+				// Only `accountId` sent — `importMonth` is required, so decode fails.
+				const res = yield* http.execute(
+					HttpClientRequest.del(
+						"/api/transactions/by-account-month?accountId=1",
+					),
+				);
+				assert.strictEqual(res.status, 400);
+			}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("deleteByImportBatch deletes only the matching batch", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			yield* client.transactions.create({
+				payload: make({ importBatchId: "batch-1" }),
+			});
+			yield* client.transactions.create({
+				payload: make({ importBatchId: "batch-1" }),
+			});
+			yield* client.transactions.create({
+				payload: make({ importBatchId: "batch-2" }),
+			});
+
+			const result = yield* client.transactions.deleteByImportBatch({
+				path: { batchId: "batch-1" },
+			});
+			assert.strictEqual(result.count, 2);
+
+			const remaining = yield* client.transactions.count({ urlParams: {} });
+			assert.strictEqual(remaining.count, 1);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+});

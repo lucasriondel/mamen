@@ -1,5 +1,14 @@
 import { HttpApi, HttpApiError, OpenApi } from "@effect/platform";
+import { AccountsGroup } from "./accounts";
+import { AppSettingsGroup } from "./app-settings";
+import { CategoriesGroup } from "./categories";
+import { DatabaseGroup } from "./database";
 import { HealthGroup } from "./health";
+import { IssuersGroup } from "./issuers";
+import { RulesGroup } from "./rules";
+import { SettingsGroup } from "./settings";
+import { SubscriptionsGroup } from "./subscriptions";
+import { TransactionsGroup } from "./transactions";
 
 /**
  * The mamen HTTP API contract. Pure schema values — feeds the server
@@ -9,6 +18,15 @@ import { HealthGroup } from "./health";
  */
 export class Api extends HttpApi.make("mamen")
 	.add(HealthGroup)
+	.add(AccountsGroup)
+	.add(CategoriesGroup)
+	.add(IssuersGroup)
+	.add(TransactionsGroup)
+	.add(RulesGroup)
+	.add(SubscriptionsGroup)
+	.add(SettingsGroup)
+	.add(AppSettingsGroup)
+	.add(DatabaseGroup)
 	.addError(HttpApiError.InternalServerError)
 	.prefix("/api")
 	.annotateContext(
