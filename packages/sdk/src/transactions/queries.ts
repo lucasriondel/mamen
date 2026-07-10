@@ -2,6 +2,8 @@ import type {
 	AccountId,
 	CategoryId,
 	MerchantId,
+	TransactionBulkCreate,
+	TransactionBulkPut,
 	TransactionCreate,
 	TransactionId,
 	TransactionUpdate,
@@ -50,6 +52,8 @@ export const transactionKeys = {
 		[...transactionKeys.counts(), params] as const,
 	details: () => [...transactionKeys.all, "detail"] as const,
 	detail: (id: TransactionId) => [...transactionKeys.details(), id] as const,
+	bulkGet: (ids: ReadonlyArray<TransactionId>) =>
+		[...transactionKeys.all, "bulk-get", ids] as const,
 };
 
 /** tanstack-query read options for the transactions resource. */
@@ -98,6 +102,23 @@ export const transactionQueries = {
 					signal,
 				),
 		}),
+
+	/**
+	 * Fetch many by id in one round-trip. A read, but the id list rides in the
+	 * POST body (contract §2.5). Only existing ids come back — the result may be
+	 * shorter than `ids` (partial existence).
+	 */
+	bulkGet: (ids: ReadonlyArray<TransactionId>) =>
+		queryOptions({
+			queryKey: transactionKeys.bulkGet(ids),
+			queryFn: ({ signal }) =>
+				runQuery(
+					Effect.flatMap(Client, (client) =>
+						client.transactions.bulkGet({ payload: { ids } }),
+					),
+					signal,
+				),
+		}),
 };
 
 /**
@@ -113,6 +134,14 @@ export const transactionMutations = {
 			),
 		),
 
+	/** Create many at once → the created rows with generated ids (201). */
+	bulkCreate: (records: TransactionBulkCreate["records"]) =>
+		runQuery(
+			Effect.flatMap(Client, (client) =>
+				client.transactions.bulkCreate({ payload: { records } }),
+			),
+		),
+
 	update: (id: TransactionId, payload: TransactionUpdate) =>
 		runQuery(
 			Effect.flatMap(Client, (client) =>
@@ -120,10 +149,44 @@ export const transactionMutations = {
 			),
 		),
 
+	/** Upsert many full rows by id → `{ count }` written (the client holds the rows). */
+	bulkPut: (records: TransactionBulkPut["records"]) =>
+		runQuery(
+			Effect.flatMap(Client, (client) =>
+				client.transactions.bulkPut({ payload: { records } }),
+			),
+		),
+
 	remove: (id: TransactionId) =>
 		runQuery(
 			Effect.flatMap(Client, (client) =>
 				client.transactions.remove({ path: { id } }),
+			),
+		),
+
+	/** Delete many by id → `{ count }` actually deleted (unknown ids ignored). */
+	bulkDelete: (ids: ReadonlyArray<TransactionId>) =>
+		runQuery(
+			Effect.flatMap(Client, (client) =>
+				client.transactions.bulkDelete({ payload: { ids } }),
+			),
+		),
+
+	/** Targeted delete of one account's import month → `{ count }` deleted. */
+	deleteByAccountMonth: (accountId: AccountId, importMonth: string) =>
+		runQuery(
+			Effect.flatMap(Client, (client) =>
+				client.transactions.deleteByAccountMonth({
+					urlParams: { accountId, importMonth },
+				}),
+			),
+		),
+
+	/** Targeted delete of one import batch → `{ count }` deleted. */
+	deleteByImportBatch: (batchId: string) =>
+		runQuery(
+			Effect.flatMap(Client, (client) =>
+				client.transactions.deleteByImportBatch({ path: { batchId } }),
 			),
 		),
 };

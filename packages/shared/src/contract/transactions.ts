@@ -106,6 +106,50 @@ export const TransactionListOrder = {
 /** `count` success body — the full filtered row count. */
 export const TransactionCount = Schema.Struct({ count: Schema.Number });
 
+/** Bulk-create payload — `{ records }`, one row created per element (201, ids generated). */
+export const TransactionBulkCreate = Schema.Struct({
+	records: Schema.Array(TransactionCreate),
+});
+export type TransactionBulkCreate = typeof TransactionBulkCreate.Type;
+
+/**
+ * Bulk-put payload — `{ records }` of **full** `Transaction`s (id-carrying); each
+ * is upserted by id (faithful port of the old `INSERT OR REPLACE`). Returns
+ * `{ count }` per taxonomy §5, not the rows (the client already holds them).
+ */
+export const TransactionBulkPut = Schema.Struct({
+	records: Schema.Array(Transaction),
+});
+export type TransactionBulkPut = typeof TransactionBulkPut.Type;
+
+/**
+ * Bulk id-list payload — `{ ids }`, shared by `bulkDelete` and `bulkGet`. Both
+ * stay `POST` (the id list rides in the body, not a long `?ids=` query;
+ * taxonomy §5 flags bulk-get's POST-as-read exception).
+ */
+export const TransactionBulkIds = Schema.Struct({
+	ids: Schema.Array(TransactionId),
+});
+export type TransactionBulkIds = typeof TransactionBulkIds.Type;
+
+/**
+ * `bulkDelete` / `bulkPut` / `deleteBy*` success body — rows affected. A bulk
+ * delete deliberately breaks the "delete → 204" rule (taxonomy §5): the deleted
+ * count is useful information (some ids may not exist).
+ */
+export const TransactionAffected = Schema.Struct({ count: Schema.Number });
+
+/**
+ * `deleteByAccountMonth` query params — both **required** (a targeted bulk
+ * delete, not a filtered list): `accountId` decodes a branded id from the query
+ * string, `importMonth` is the `"YYYY-MM"` string. A missing param fails decode
+ * → `HttpApiDecodeError (400)`.
+ */
+export const TransactionByAccountMonth = Schema.Struct({
+	accountId: numFromStr(AccountId),
+	importMonth: Schema.String,
+});
+
 /**
  * Transactions group (contract §2.5), prefix `/transactions` — the **core**:
  * composable `list`/`count`, `getById`, `create`, `update`, `remove`. The bulk +
@@ -147,6 +191,11 @@ export class TransactionsGroup extends HttpApiGroup.make("transactions")
 			.addSuccess(Transaction, { status: 201 }),
 	)
 	.add(
+		HttpApiEndpoint.post("bulkCreate")`/transactions/bulk`
+			.setPayload(TransactionBulkCreate)
+			.addSuccess(Schema.Array(Transaction), { status: 201 }),
+	)
+	.add(
 		HttpApiEndpoint.put(
 			"update",
 		)`/transactions/${HttpApiSchema.param("id", numFromStr(TransactionId))}`
@@ -155,10 +204,39 @@ export class TransactionsGroup extends HttpApiGroup.make("transactions")
 			.addError(NotFound),
 	)
 	.add(
+		HttpApiEndpoint.put("bulkPut")`/transactions/bulk-put`
+			.setPayload(TransactionBulkPut)
+			.addSuccess(TransactionAffected),
+	)
+	.add(
 		HttpApiEndpoint.del(
 			"remove",
 		)`/transactions/${HttpApiSchema.param("id", numFromStr(TransactionId))}`
 			.addSuccess(HttpApiSchema.NoContent)
 			.addError(NotFound),
+	)
+	// `bulkDelete` / `bulkGet` stay POST — the id list rides in the body.
+	.add(
+		HttpApiEndpoint.post("bulkDelete")`/transactions/bulk-delete`
+			.setPayload(TransactionBulkIds)
+			.addSuccess(TransactionAffected),
+	)
+	.add(
+		HttpApiEndpoint.post("bulkGet")`/transactions/bulk-get`
+			.setPayload(TransactionBulkIds)
+			.addSuccess(Schema.Array(Transaction)),
+	)
+	// Targeted bulk deletes — both required-param, both return the deleted count.
+	.add(
+		HttpApiEndpoint.del("deleteByAccountMonth")`/transactions/by-account-month`
+			.setUrlParams(TransactionByAccountMonth)
+			.addSuccess(TransactionAffected),
+	)
+	.add(
+		HttpApiEndpoint.del(
+			"deleteByImportBatch",
+		)`/transactions/by-import-batch/${HttpApiSchema.param("batchId", Schema.String)}`.addSuccess(
+			TransactionAffected,
+		),
 	)
 	.annotateContext(OpenApi.annotations({ title: "Transactions" })) {}

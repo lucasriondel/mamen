@@ -43,6 +43,11 @@ export {
 export { Paged, Pagination, PaginationDefaults } from "./pagination";
 export {
 	Transaction,
+	TransactionAffected,
+	TransactionBulkCreate,
+	TransactionBulkIds,
+	TransactionBulkPut,
+	TransactionByAccountMonth,
 	TransactionCount,
 	TransactionCreate,
 	TransactionFilters,

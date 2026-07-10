@@ -1,9 +1,9 @@
 ---
 id: 15
 title: Port transactions bulk (bulk create/put/delete/get + targeted deletes)
-state: open
+state: closed
 labels: [wayfinder:impl]
-assignee: none
+assignee: luriondel
 parent: 1
 blocked-by: [14]
 ---
@@ -18,10 +18,10 @@ All web-used; all normalized per taxonomy §5 (bulk create → resources[], bulk
 
 ## Acceptance criteria
 
-- [ ] All six endpoints match spec §2.5; success statuses/bodies per taxonomy §5.
-- [ ] `bulkCreate` returns created rows with generated ids (201).
-- [ ] `deleteByAccountMonth` requires both query params (missing → decode 400); returns rows-deleted count.
-- [ ] Integration-tested through the SDK (partial-existence cases for bulk-delete/get); coverage gate passes.
+- [x] All six endpoints match spec §2.5; success statuses/bodies per taxonomy §5.
+- [x] `bulkCreate` returns created rows with generated ids (201).
+- [x] `deleteByAccountMonth` requires both query params (missing → decode 400); returns rows-deleted count.
+- [x] Integration-tested through the SDK (partial-existence cases for bulk-delete/get); coverage gate passes.
 
 ## Blocked by
 

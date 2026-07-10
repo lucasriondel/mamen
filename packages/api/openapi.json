@@ -2144,6 +2144,451 @@
           }
         }
       }
+    },
+    "/api/transactions/bulk": {
+      "post": {
+        "tags": [
+          "Transactions"
+        ],
+        "operationId": "transactions.bulkCreate",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Transaction"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "records"
+                ],
+                "properties": {
+                  "records": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "accountId",
+                        "date",
+                        "amount",
+                        "rawMerchantString",
+                        "importedAt",
+                        "importMonth"
+                      ],
+                      "properties": {
+                        "accountId": {
+                          "type": "integer",
+                          "description": "an integer",
+                          "title": "int"
+                        },
+                        "date": {
+                          "$ref": "#/components/schemas/Date"
+                        },
+                        "amount": {
+                          "type": "number"
+                        },
+                        "rawMerchantString": {
+                          "type": "string"
+                        },
+                        "merchantId": {
+                          "type": "integer",
+                          "description": "an integer",
+                          "title": "int"
+                        },
+                        "categoryId": {
+                          "type": "integer",
+                          "description": "an integer",
+                          "title": "int"
+                        },
+                        "subcategoryId": {
+                          "type": "integer",
+                          "description": "an integer",
+                          "title": "int"
+                        },
+                        "categoryOverride": {
+                          "type": "string"
+                        },
+                        "manualCategory": {
+                          "type": "boolean"
+                        },
+                        "isRefund": {
+                          "type": "boolean"
+                        },
+                        "linkedRefundId": {
+                          "type": "integer",
+                          "description": "an integer",
+                          "title": "int"
+                        },
+                        "anomalyFlags": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/AnomalyFlag"
+                          }
+                        },
+                        "isDuplicateExcluded": {
+                          "type": "boolean"
+                        },
+                        "duplicateNote": {
+                          "type": "string"
+                        },
+                        "importedAt": {
+                          "$ref": "#/components/schemas/Date"
+                        },
+                        "importMonth": {
+                          "type": "string"
+                        },
+                        "importBatchId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/transactions/bulk-put": {
+      "put": {
+        "tags": [
+          "Transactions"
+        ],
+        "operationId": "transactions.bulkPut",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "count"
+                  ],
+                  "properties": {
+                    "count": {
+                      "type": "number"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "records"
+                ],
+                "properties": {
+                  "records": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Transaction"
+                    }
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/transactions/bulk-delete": {
+      "post": {
+        "tags": [
+          "Transactions"
+        ],
+        "operationId": "transactions.bulkDelete",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "count"
+                  ],
+                  "properties": {
+                    "count": {
+                      "type": "number"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "ids"
+                ],
+                "properties": {
+                  "ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "description": "an integer",
+                      "title": "int"
+                    }
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/transactions/bulk-get": {
+      "post": {
+        "tags": [
+          "Transactions"
+        ],
+        "operationId": "transactions.bulkGet",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Transaction"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "ids"
+                ],
+                "properties": {
+                  "ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "description": "an integer",
+                      "title": "int"
+                    }
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/transactions/by-account-month": {
+      "delete": {
+        "tags": [
+          "Transactions"
+        ],
+        "operationId": "transactions.deleteByAccountMonth",
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/NumberFromString"
+            },
+            "required": true
+          },
+          {
+            "name": "importMonth",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "count"
+                  ],
+                  "properties": {
+                    "count": {
+                      "type": "number"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/transactions/by-import-batch/{batchId}": {
+      "delete": {
+        "tags": [
+          "Transactions"
+        ],
+        "operationId": "transactions.deleteByImportBatch",
+        "parameters": [
+          {
+            "name": "batchId",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "count"
+                  ],
+                  "properties": {
+                    "count": {
+                      "type": "number"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        }
+      }
     }
   },
   "components": {

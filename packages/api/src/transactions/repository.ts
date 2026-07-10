@@ -1,6 +1,7 @@
 import { SqlClient, SqlSchema } from "@effect/sql";
 import type { Fragment } from "@effect/sql/Statement";
 import {
+	type AccountId,
 	AnomalyFlag,
 	NotFound,
 	Paged,
@@ -54,64 +55,70 @@ const AnomalyFlagsJson = Schema.parseJson(Schema.Array(AnomalyFlag));
  * and the storage inverse (`encode`) is verified directly rather than left dead,
  * since the write path builds its row with the hand-written `toWriteRow` below.
  */
-export const TransactionFromRow = Schema.transform(TransactionRow, Transaction, {
-	strict: true,
-	decode: (row) => ({
-		id: row.id,
-		accountId: row.accountId,
-		date: row.date,
-		amount: row.amount,
-		rawMerchantString: row.rawMerchantString,
-		...(row.merchantId !== null ? { merchantId: row.merchantId } : {}),
-		...(row.categoryId !== null ? { categoryId: row.categoryId } : {}),
-		...(row.subcategoryId !== null
-			? { subcategoryId: row.subcategoryId }
-			: {}),
-		...(row.categoryOverride !== null
-			? { categoryOverride: row.categoryOverride }
-			: {}),
-		...(row.manualCategory === 1 ? { manualCategory: true } : {}),
-		...(row.isRefund === 1 ? { isRefund: true } : {}),
-		...(row.linkedRefundId !== null
-			? { linkedRefundId: row.linkedRefundId }
-			: {}),
-		...(row.anomalyFlags !== null
-			? { anomalyFlags: Schema.decodeSync(AnomalyFlagsJson)(row.anomalyFlags) }
-			: {}),
-		...(row.isDuplicateExcluded === 1 ? { isDuplicateExcluded: true } : {}),
-		...(row.duplicateNote !== null
-			? { duplicateNote: row.duplicateNote }
-			: {}),
-		importedAt: row.importedAt,
-		importMonth: row.importMonth,
-		...(row.importBatchId !== null
-			? { importBatchId: row.importBatchId }
-			: {}),
-	}),
-	encode: (t) => ({
-		id: t.id,
-		accountId: t.accountId,
-		date: t.date,
-		amount: t.amount,
-		rawMerchantString: t.rawMerchantString,
-		merchantId: t.merchantId ?? null,
-		categoryId: t.categoryId ?? null,
-		subcategoryId: t.subcategoryId ?? null,
-		categoryOverride: t.categoryOverride ?? null,
-		manualCategory: t.manualCategory ? 1 : 0,
-		isRefund: t.isRefund ? 1 : 0,
-		linkedRefundId: t.linkedRefundId ?? null,
-		anomalyFlags:
-			t.anomalyFlags !== undefined
-				? Schema.encodeSync(AnomalyFlagsJson)(t.anomalyFlags)
-				: null,
-		isDuplicateExcluded: t.isDuplicateExcluded ? 1 : 0,
-		duplicateNote: t.duplicateNote ?? null,
-		importedAt: t.importedAt,
-		importMonth: t.importMonth,
-		importBatchId: t.importBatchId ?? null,
-	}),
-});
+export const TransactionFromRow = Schema.transform(
+	TransactionRow,
+	Transaction,
+	{
+		strict: true,
+		decode: (row) => ({
+			id: row.id,
+			accountId: row.accountId,
+			date: row.date,
+			amount: row.amount,
+			rawMerchantString: row.rawMerchantString,
+			...(row.merchantId !== null ? { merchantId: row.merchantId } : {}),
+			...(row.categoryId !== null ? { categoryId: row.categoryId } : {}),
+			...(row.subcategoryId !== null
+				? { subcategoryId: row.subcategoryId }
+				: {}),
+			...(row.categoryOverride !== null
+				? { categoryOverride: row.categoryOverride }
+				: {}),
+			...(row.manualCategory === 1 ? { manualCategory: true } : {}),
+			...(row.isRefund === 1 ? { isRefund: true } : {}),
+			...(row.linkedRefundId !== null
+				? { linkedRefundId: row.linkedRefundId }
+				: {}),
+			...(row.anomalyFlags !== null
+				? {
+						anomalyFlags: Schema.decodeSync(AnomalyFlagsJson)(row.anomalyFlags),
+					}
+				: {}),
+			...(row.isDuplicateExcluded === 1 ? { isDuplicateExcluded: true } : {}),
+			...(row.duplicateNote !== null
+				? { duplicateNote: row.duplicateNote }
+				: {}),
+			importedAt: row.importedAt,
+			importMonth: row.importMonth,
+			...(row.importBatchId !== null
+				? { importBatchId: row.importBatchId }
+				: {}),
+		}),
+		encode: (t) => ({
+			id: t.id,
+			accountId: t.accountId,
+			date: t.date,
+			amount: t.amount,
+			rawMerchantString: t.rawMerchantString,
+			merchantId: t.merchantId ?? null,
+			categoryId: t.categoryId ?? null,
+			subcategoryId: t.subcategoryId ?? null,
+			categoryOverride: t.categoryOverride ?? null,
+			manualCategory: t.manualCategory ? 1 : 0,
+			isRefund: t.isRefund ? 1 : 0,
+			linkedRefundId: t.linkedRefundId ?? null,
+			anomalyFlags:
+				t.anomalyFlags !== undefined
+					? Schema.encodeSync(AnomalyFlagsJson)(t.anomalyFlags)
+					: null,
+			isDuplicateExcluded: t.isDuplicateExcluded ? 1 : 0,
+			duplicateNote: t.duplicateNote ?? null,
+			importedAt: t.importedAt,
+			importMonth: t.importMonth,
+			importBatchId: t.importBatchId ?? null,
+		}),
+	},
+);
 
 const PagedTransaction = Paged(Transaction);
 
@@ -165,6 +172,9 @@ type WriteRow = {
 	importBatchId: string | null;
 };
 
+/** A write row carrying its `id` — bound into `bulkPut`'s `INSERT OR REPLACE`. */
+type WriteRowWithId = WriteRow & { id: number };
+
 /**
  * The transaction repository, on `@effect/sql`. Depends only on the generic
  * `SqlClient.SqlClient` tag, so it runs unchanged against the Bun prod client
@@ -217,7 +227,9 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 			// body — so fall back to an empty fragment (no WHERE) when unfiltered.
 			const whereClause = (f: Filters) => {
 				const conditions = buildConditions(f);
-				return conditions.length === 0 ? sql`` : sql`WHERE ${sql.and(conditions)}`;
+				return conditions.length === 0
+					? sql``
+					: sql`WHERE ${sql.and(conditions)}`;
 			};
 
 			const orderClause = (
@@ -275,6 +287,25 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 					sql`UPDATE transactions SET ${sql.update(row, ["id"])} WHERE id = ${row.id} RETURNING *`,
 			});
 
+			// `bulkPut` upsert: the record carries its own `id`, so `INSERT OR REPLACE`
+			// creates-or-overwrites by primary key (faithful to the old adapter). Bound
+			// per row; the result is discarded (bulk-put returns only the count).
+			const upsertQuery = SqlSchema.findAll({
+				Request: Schema.Any as Schema.Schema<WriteRowWithId>,
+				Result: Schema.Struct({ id: Schema.Number }),
+				execute: (row) =>
+					sql`INSERT OR REPLACE INTO transactions ${sql.insert(row)} RETURNING id`,
+			});
+
+			// Reads a set of ids in one statement (partial existence allowed — the
+			// result holds only the ids that exist, order is arbitrary).
+			const bulkGetQuery = SqlSchema.findAll({
+				Request: Schema.Any as Schema.Schema<ReadonlyArray<number>>,
+				Result: TransactionFromRow,
+				execute: (ids) =>
+					sql`SELECT * FROM transactions WHERE ${sql.in("id", ids)}`,
+			});
+
 			/** Unwrap a lookup's `Option`, 404-ing when absent (id goes on the error). */
 			const requireOne = (
 				found: Option.Option<Transaction>,
@@ -314,6 +345,26 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				importBatchId: t.importBatchId ?? null,
 			});
 
+			// `bulkPut` variant: the full entity carries an `id`, so the write row
+			// keeps it (folded the same way as `toWriteRow`). Used only for the
+			// `INSERT OR REPLACE` upsert, where the primary key drives the merge.
+			const toWriteRowWithId = (t: Transaction): WriteRowWithId => ({
+				id: t.id,
+				...toWriteRow(t),
+			});
+
+			// A count of rows deleted by a `DELETE ... RETURNING id`. sqlite's
+			// `RETURNING` yields one row per deleted row, so its length is the exact
+			// affected count — the useful result a bulk delete returns (taxonomy §5).
+			// The `SqlError` isn't client-actionable → dies as a 500 ({@link orDieSql}).
+			const deleteReturningCount = <E, R>(
+				statement: Effect.Effect<ReadonlyArray<unknown>, E, R>,
+			) =>
+				statement.pipe(
+					Effect.map((rows) => ({ count: rows.length })),
+					orDieSql,
+				);
+
 			const list = (filter: ListFilter) =>
 				Effect.all({
 					items: listQuery(filter),
@@ -323,8 +374,7 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 					orDieSql,
 				);
 
-			const count = (filter: Filters) =>
-				countQuery(filter).pipe(orDieSql);
+			const count = (filter: Filters) => countQuery(filter).pipe(orDieSql);
 
 			const getById = (id: typeof TransactionId.Type) =>
 				byIdQuery(id).pipe(
@@ -358,7 +408,70 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 					Effect.asVoid,
 				);
 
-			return { list, count, getById, create, update, remove } as const;
+			// Insert every record, returning the created rows with generated ids
+			// (201). Reuses the core single-row `insertQuery`; an empty `records`
+			// array runs no statement and yields `[]`.
+			const bulkCreate = (records: ReadonlyArray<TransactionCreate>) =>
+				Effect.forEach(records, (payload) =>
+					insertQuery(toWriteRow(payload)),
+				).pipe(orDieSql);
+
+			// Upsert every full record by id (`INSERT OR REPLACE`). Returns the count
+			// written (every record is affected — upsert never no-ops). Empty → 0.
+			const bulkPut = (records: ReadonlyArray<Transaction>) =>
+				Effect.forEach(records, (record) =>
+					upsertQuery(toWriteRowWithId(record)),
+				).pipe(
+					Effect.map((batches) => ({ count: batches.flat().length })),
+					orDieSql,
+				);
+
+			// Delete the given ids in one statement; the count is how many actually
+			// existed (partial-existence: unknown ids contribute nothing). Empty → 0
+			// without touching the DB (`sql.in([])` would render an invalid `IN ()`).
+			const bulkDelete = (ids: ReadonlyArray<typeof TransactionId.Type>) =>
+				ids.length === 0
+					? Effect.succeed({ count: 0 })
+					: deleteReturningCount(
+							sql`DELETE FROM transactions WHERE ${sql.in("id", ids)} RETURNING id`,
+						);
+
+			// Read the given ids; only existing rows come back (partial existence),
+			// so the result may be shorter than `ids`. Empty → `[]` without a query.
+			const bulkGet = (ids: ReadonlyArray<typeof TransactionId.Type>) =>
+				ids.length === 0
+					? Effect.succeed([] as ReadonlyArray<Transaction>)
+					: bulkGetQuery(ids).pipe(orDieSql);
+
+			// Targeted delete: both params required at the boundary. Returns the
+			// deleted count (was `{ ok: true }` in the old server; taxonomy §5).
+			const deleteByAccountMonth = (
+				accountId: typeof AccountId.Type,
+				importMonth: string,
+			) =>
+				deleteReturningCount(
+					sql`DELETE FROM transactions WHERE accountId = ${accountId} AND importMonth = ${importMonth} RETURNING id`,
+				);
+
+			const deleteByImportBatch = (batchId: string) =>
+				deleteReturningCount(
+					sql`DELETE FROM transactions WHERE importBatchId = ${batchId} RETURNING id`,
+				);
+
+			return {
+				list,
+				count,
+				getById,
+				create,
+				update,
+				remove,
+				bulkCreate,
+				bulkPut,
+				bulkDelete,
+				bulkGet,
+				deleteByAccountMonth,
+				deleteByImportBatch,
+			} as const;
 		}),
 	},
 ) {}
