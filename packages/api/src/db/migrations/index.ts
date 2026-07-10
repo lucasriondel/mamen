@@ -1,6 +1,7 @@
 import createAccounts from "./0001_create_accounts";
 import createCategories from "./0002_create_categories";
 import createMerchants from "./0003_create_merchants";
+import createTransactions from "./0004_create_transactions";
 
 /**
  * The migration set, keyed `NNNN_name` (the Migrator parses the numeric prefix
@@ -12,4 +13,5 @@ export const migrations = {
 	"0001_create_accounts": createAccounts,
 	"0002_create_categories": createCategories,
 	"0003_create_merchants": createMerchants,
+	"0004_create_transactions": createTransactions,
 } as const;

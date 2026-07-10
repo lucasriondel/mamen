@@ -5,6 +5,7 @@ import { AccountsLive } from "./accounts/handlers";
 import { CategoriesLive } from "./categories/handlers";
 import { HealthLive } from "./health/handlers";
 import { MerchantsLive } from "./merchants/handlers";
+import { TransactionsLive } from "./transactions/handlers";
 
 /**
  * The assembled API layer: the contract wired to every group implementation.
@@ -23,5 +24,11 @@ import { MerchantsLive } from "./merchants/handlers";
  * server composition, not pulled through the `HttpApi.Api` build here.
  */
 export const ApiLive = HttpApiBuilder.api(Api).pipe(
-	Layer.provide([HealthLive, AccountsLive, CategoriesLive, MerchantsLive]),
+	Layer.provide([
+		HealthLive,
+		AccountsLive,
+		CategoriesLive,
+		MerchantsLive,
+		TransactionsLive,
+	]),
 );

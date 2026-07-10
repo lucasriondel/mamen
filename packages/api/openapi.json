@@ -1485,6 +1485,665 @@
           }
         }
       }
+    },
+    "/api/transactions": {
+      "get": {
+        "tags": [
+          "Transactions"
+        ],
+        "operationId": "transactions.list",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/NumberFromString"
+            },
+            "required": false
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/NumberFromString"
+            },
+            "required": false
+          },
+          {
+            "name": "accountId",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/NumberFromString"
+            },
+            "required": false
+          },
+          {
+            "name": "merchantId",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/NumberFromString"
+            },
+            "required": false
+          },
+          {
+            "name": "categoryId",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/NumberFromString"
+            },
+            "required": false
+          },
+          {
+            "name": "linkedRefundId",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/NumberFromString"
+            },
+            "required": false
+          },
+          {
+            "name": "importMonth",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "importBatchId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "startDate",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/Date"
+            },
+            "required": false
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/Date"
+            },
+            "required": false
+          },
+          {
+            "name": "isRefund",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "required": false
+          },
+          {
+            "name": "isDuplicateExcluded",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "required": false
+          },
+          {
+            "name": "orderBy",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "date"
+              ]
+            },
+            "required": false
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            },
+            "required": false
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "total"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Transaction"
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Transactions"
+        ],
+        "operationId": "transactions.create",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "201": {
+            "description": "Transaction",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transaction"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "accountId",
+                  "date",
+                  "amount",
+                  "rawMerchantString",
+                  "importedAt",
+                  "importMonth"
+                ],
+                "properties": {
+                  "accountId": {
+                    "type": "integer",
+                    "description": "an integer",
+                    "title": "int"
+                  },
+                  "date": {
+                    "$ref": "#/components/schemas/Date"
+                  },
+                  "amount": {
+                    "type": "number"
+                  },
+                  "rawMerchantString": {
+                    "type": "string"
+                  },
+                  "merchantId": {
+                    "type": "integer",
+                    "description": "an integer",
+                    "title": "int"
+                  },
+                  "categoryId": {
+                    "type": "integer",
+                    "description": "an integer",
+                    "title": "int"
+                  },
+                  "subcategoryId": {
+                    "type": "integer",
+                    "description": "an integer",
+                    "title": "int"
+                  },
+                  "categoryOverride": {
+                    "type": "string"
+                  },
+                  "manualCategory": {
+                    "type": "boolean"
+                  },
+                  "isRefund": {
+                    "type": "boolean"
+                  },
+                  "linkedRefundId": {
+                    "type": "integer",
+                    "description": "an integer",
+                    "title": "int"
+                  },
+                  "anomalyFlags": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/AnomalyFlag"
+                    }
+                  },
+                  "isDuplicateExcluded": {
+                    "type": "boolean"
+                  },
+                  "duplicateNote": {
+                    "type": "string"
+                  },
+                  "importedAt": {
+                    "$ref": "#/components/schemas/Date"
+                  },
+                  "importMonth": {
+                    "type": "string"
+                  },
+                  "importBatchId": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/transactions/count": {
+      "get": {
+        "tags": [
+          "Transactions"
+        ],
+        "operationId": "transactions.count",
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/NumberFromString"
+            },
+            "required": false
+          },
+          {
+            "name": "merchantId",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/NumberFromString"
+            },
+            "required": false
+          },
+          {
+            "name": "categoryId",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/NumberFromString"
+            },
+            "required": false
+          },
+          {
+            "name": "linkedRefundId",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/NumberFromString"
+            },
+            "required": false
+          },
+          {
+            "name": "importMonth",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "importBatchId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "startDate",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/Date"
+            },
+            "required": false
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/Date"
+            },
+            "required": false
+          },
+          {
+            "name": "isRefund",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "required": false
+          },
+          {
+            "name": "isDuplicateExcluded",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "required": false
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "count"
+                  ],
+                  "properties": {
+                    "count": {
+                      "type": "number"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/transactions/{id}": {
+      "get": {
+        "tags": [
+          "Transactions"
+        ],
+        "operationId": "transactions.getById",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": {
+              "$ref": "#/components/schemas/NumberFromString"
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Transaction",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transaction"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NotFound",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFound"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Transactions"
+        ],
+        "operationId": "transactions.update",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": {
+              "$ref": "#/components/schemas/NumberFromString"
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Transaction",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transaction"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NotFound",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFound"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [],
+                "properties": {
+                  "accountId": {
+                    "type": "integer",
+                    "description": "an integer",
+                    "title": "int"
+                  },
+                  "date": {
+                    "$ref": "#/components/schemas/Date"
+                  },
+                  "amount": {
+                    "type": "number"
+                  },
+                  "rawMerchantString": {
+                    "type": "string"
+                  },
+                  "merchantId": {
+                    "type": "integer",
+                    "description": "an integer",
+                    "title": "int"
+                  },
+                  "categoryId": {
+                    "type": "integer",
+                    "description": "an integer",
+                    "title": "int"
+                  },
+                  "subcategoryId": {
+                    "type": "integer",
+                    "description": "an integer",
+                    "title": "int"
+                  },
+                  "categoryOverride": {
+                    "type": "string"
+                  },
+                  "manualCategory": {
+                    "type": "boolean"
+                  },
+                  "isRefund": {
+                    "type": "boolean"
+                  },
+                  "linkedRefundId": {
+                    "type": "integer",
+                    "description": "an integer",
+                    "title": "int"
+                  },
+                  "anomalyFlags": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/AnomalyFlag"
+                    }
+                  },
+                  "isDuplicateExcluded": {
+                    "type": "boolean"
+                  },
+                  "duplicateNote": {
+                    "type": "string"
+                  },
+                  "importedAt": {
+                    "$ref": "#/components/schemas/Date"
+                  },
+                  "importMonth": {
+                    "type": "string"
+                  },
+                  "importBatchId": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        }
+      },
+      "delete": {
+        "tags": [
+          "Transactions"
+        ],
+        "operationId": "transactions.remove",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": {
+              "$ref": "#/components/schemas/NumberFromString"
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "204": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NotFound",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFound"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1786,6 +2445,125 @@
           }
         },
         "additionalProperties": false
+      },
+      "Transaction": {
+        "type": "object",
+        "required": [
+          "id",
+          "accountId",
+          "date",
+          "amount",
+          "rawMerchantString",
+          "importedAt",
+          "importMonth"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "an integer",
+            "title": "int"
+          },
+          "accountId": {
+            "type": "integer",
+            "description": "an integer",
+            "title": "int"
+          },
+          "date": {
+            "$ref": "#/components/schemas/Date"
+          },
+          "amount": {
+            "type": "number"
+          },
+          "rawMerchantString": {
+            "type": "string"
+          },
+          "merchantId": {
+            "type": "integer",
+            "description": "an integer",
+            "title": "int"
+          },
+          "categoryId": {
+            "type": "integer",
+            "description": "an integer",
+            "title": "int"
+          },
+          "subcategoryId": {
+            "type": "integer",
+            "description": "an integer",
+            "title": "int"
+          },
+          "categoryOverride": {
+            "type": "string"
+          },
+          "manualCategory": {
+            "type": "boolean"
+          },
+          "isRefund": {
+            "type": "boolean"
+          },
+          "linkedRefundId": {
+            "type": "integer",
+            "description": "an integer",
+            "title": "int"
+          },
+          "anomalyFlags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnomalyFlag"
+            }
+          },
+          "isDuplicateExcluded": {
+            "type": "boolean"
+          },
+          "duplicateNote": {
+            "type": "string"
+          },
+          "importedAt": {
+            "$ref": "#/components/schemas/Date"
+          },
+          "importMonth": {
+            "type": "string"
+          },
+          "importBatchId": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AnomalyFlag": {
+        "type": "object",
+        "required": [
+          "type",
+          "reason",
+          "detectedAt",
+          "dismissed"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "high-amount",
+              "new-merchant",
+              "potential-duplicate"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "detectedAt": {
+            "type": "string"
+          },
+          "dismissed": {
+            "type": "boolean"
+          },
+          "dismissedAt": {
+            "type": "string"
+          },
+          "linkedTransactionId": {
+            "type": "number"
+          }
+        },
+        "additionalProperties": false
       }
     },
     "securitySchemes": {}
@@ -1803,6 +2581,9 @@
     },
     {
       "name": "Merchants"
+    },
+    {
+      "name": "Transactions"
     }
   ]
 }

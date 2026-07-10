@@ -17,3 +17,10 @@ export {
 	merchantQueries,
 } from "./merchants/queries";
 export { Client, runQuery } from "./runtime";
+export {
+	type TransactionCountParams,
+	transactionKeys,
+	type TransactionListParams,
+	transactionMutations,
+	transactionQueries,
+} from "./transactions/queries";

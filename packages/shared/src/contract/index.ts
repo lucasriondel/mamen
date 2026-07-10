@@ -4,6 +4,7 @@ export {
 	AccountsGroup,
 	AccountUpdate,
 } from "./accounts";
+export { AnomalyFlag, AnomalyType } from "./anomaly";
 export { Api } from "./api";
 export {
 	CategoriesGroup,
@@ -40,3 +41,12 @@ export {
 	MerchantUpdate,
 } from "./merchants";
 export { Paged, Pagination, PaginationDefaults } from "./pagination";
+export {
+	Transaction,
+	TransactionCount,
+	TransactionCreate,
+	TransactionFilters,
+	TransactionListOrder,
+	TransactionsGroup,
+	TransactionUpdate,
+} from "./transactions";
