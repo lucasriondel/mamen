@@ -3469,6 +3469,271 @@
           }
         }
       }
+    },
+    "/api/settings": {
+      "get": {
+        "tags": [
+          "Settings"
+        ],
+        "operationId": "settings.list",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/NumberFromString"
+            },
+            "required": false
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/NumberFromString"
+            },
+            "required": false
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "total"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Setting"
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/settings/by-key/{key}": {
+      "get": {
+        "tags": [
+          "Settings"
+        ],
+        "operationId": "settings.getByKey",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "llm_endpoint",
+                "llm_api_key",
+                "llm_model",
+                "currency_symbol",
+                "date_format",
+                "anomaly_threshold",
+                "anomaly_settings",
+                "displayPreferences"
+              ]
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Setting",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Setting"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NotFound",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFound"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/settings/by-key": {
+      "put": {
+        "tags": [
+          "Settings"
+        ],
+        "operationId": "settings.putByKey",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Setting",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Setting"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Setting"
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/app-settings": {
+      "get": {
+        "tags": [
+          "App-settings"
+        ],
+        "operationId": "appSettings.get",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "AppSettings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppSettings"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NotFound",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFound"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "App-settings"
+        ],
+        "operationId": "appSettings.put",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "AppSettings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppSettings"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppSettings"
+              }
+            }
+          },
+          "required": true
+        }
+      }
     }
   },
   "components": {
@@ -4004,6 +4269,93 @@
           }
         },
         "additionalProperties": false
+      },
+      "Setting": {
+        "type": "object",
+        "required": [
+          "id",
+          "key",
+          "value"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "an integer",
+            "title": "int"
+          },
+          "key": {
+            "type": "string",
+            "enum": [
+              "llm_endpoint",
+              "llm_api_key",
+              "llm_model",
+              "currency_symbol",
+              "date_format",
+              "anomaly_threshold",
+              "anomaly_settings",
+              "displayPreferences"
+            ]
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AppSettings": {
+        "type": "object",
+        "required": [
+          "id",
+          "llm"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": [
+              "app"
+            ]
+          },
+          "llm": {
+            "$ref": "#/components/schemas/LlmSettings"
+          }
+        },
+        "additionalProperties": false
+      },
+      "LlmSettings": {
+        "type": "object",
+        "required": [
+          "endpoint",
+          "modelName",
+          "provider"
+        ],
+        "properties": {
+          "endpoint": {
+            "type": "string"
+          },
+          "apiKey": {
+            "type": "string"
+          },
+          "modelName": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "ollama",
+              "lm-studio",
+              "openai",
+              "anthropic",
+              "custom"
+            ]
+          },
+          "lastTestedAt": {
+            "$ref": "#/components/schemas/Date"
+          },
+          "lastTestSuccess": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
       }
     },
     "securitySchemes": {}
@@ -4030,6 +4382,12 @@
     },
     {
       "name": "Subscriptions"
+    },
+    {
+      "name": "Settings"
+    },
+    {
+      "name": "App-settings"
     }
   ]
 }

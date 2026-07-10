@@ -4,6 +4,11 @@ export {
 	accountQueries,
 } from "./accounts/queries";
 export {
+	appSettingsKeys,
+	appSettingsMutations,
+	appSettingsQueries,
+} from "./app-settings/queries";
+export {
 	categoryKeys,
 	type CategoryListParams,
 	categoryMutations,
@@ -24,6 +29,11 @@ export {
 	ruleQueries,
 } from "./rules/queries";
 export { Client, runQuery } from "./runtime";
+export {
+	settingKeys,
+	settingMutations,
+	settingQueries,
+} from "./settings/queries";
 export {
 	subscriptionKeys,
 	type SubscriptionListParams,

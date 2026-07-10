@@ -2,10 +2,12 @@ import { HttpApiBuilder } from "@effect/platform";
 import { Api } from "@mamen/shared/contract";
 import { Layer } from "effect";
 import { AccountsLive } from "./accounts/handlers";
+import { AppSettingsLive } from "./app-settings/handlers";
 import { CategoriesLive } from "./categories/handlers";
 import { HealthLive } from "./health/handlers";
 import { MerchantsLive } from "./merchants/handlers";
 import { RulesLive } from "./rules/handlers";
+import { SettingsLive } from "./settings/handlers";
 import { SubscriptionsLive } from "./subscriptions/handlers";
 import { TransactionsLive } from "./transactions/handlers";
 
@@ -34,5 +36,7 @@ export const ApiLive = HttpApiBuilder.api(Api).pipe(
 		TransactionsLive,
 		RulesLive,
 		SubscriptionsLive,
+		SettingsLive,
+		AppSettingsLive,
 	]),
 );

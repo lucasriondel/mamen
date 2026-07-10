@@ -6,6 +6,7 @@ export {
 } from "./accounts";
 export { AnomalyFlag, AnomalyType } from "./anomaly";
 export { Api } from "./api";
+export { AppSettings, AppSettingsGroup, LlmSettings } from "./app-settings";
 export {
 	CategoriesGroup,
 	Category,
@@ -49,6 +50,7 @@ export {
 	RulesGroup,
 	RuleUpdate,
 } from "./rules";
+export { Setting, SettingKey, SettingsGroup } from "./settings";
 export {
 	Subscription,
 	SubscriptionCreate,
