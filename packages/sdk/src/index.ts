@@ -25,6 +25,12 @@ export {
 } from "./rules/queries";
 export { Client, runQuery } from "./runtime";
 export {
+	subscriptionKeys,
+	type SubscriptionListParams,
+	subscriptionMutations,
+	subscriptionQueries,
+} from "./subscriptions/queries";
+export {
 	type TransactionCountParams,
 	transactionKeys,
 	type TransactionListParams,

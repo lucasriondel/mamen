@@ -3028,6 +3028,447 @@
           }
         }
       }
+    },
+    "/api/subscriptions": {
+      "get": {
+        "tags": [
+          "Subscriptions"
+        ],
+        "operationId": "subscriptions.list",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/NumberFromString"
+            },
+            "required": false
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/NumberFromString"
+            },
+            "required": false
+          },
+          {
+            "name": "merchantId",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/NumberFromString"
+            },
+            "required": false
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "active",
+                "possibly-cancelled"
+              ]
+            },
+            "required": false
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "total"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Subscription"
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Subscriptions"
+        ],
+        "operationId": "subscriptions.create",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "201": {
+            "description": "Subscription",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Subscription"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "merchantId",
+                  "merchantName",
+                  "typicalAmount",
+                  "frequency",
+                  "intervalDays",
+                  "lastChargeDate",
+                  "firstChargeDate",
+                  "chargeCount",
+                  "status",
+                  "transactionIds",
+                  "detectedAt",
+                  "updatedAt"
+                ],
+                "properties": {
+                  "merchantId": {
+                    "type": "integer",
+                    "description": "an integer",
+                    "title": "int"
+                  },
+                  "merchantName": {
+                    "type": "string"
+                  },
+                  "typicalAmount": {
+                    "type": "number"
+                  },
+                  "frequency": {
+                    "type": "string",
+                    "enum": [
+                      "weekly",
+                      "monthly",
+                      "yearly"
+                    ]
+                  },
+                  "intervalDays": {
+                    "type": "number"
+                  },
+                  "lastChargeDate": {
+                    "type": "string"
+                  },
+                  "firstChargeDate": {
+                    "type": "string"
+                  },
+                  "chargeCount": {
+                    "type": "number"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "active",
+                      "possibly-cancelled"
+                    ]
+                  },
+                  "transactionIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "description": "an integer",
+                      "title": "int"
+                    }
+                  },
+                  "detectedAt": {
+                    "type": "string"
+                  },
+                  "updatedAt": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/subscriptions/{id}": {
+      "put": {
+        "tags": [
+          "Subscriptions"
+        ],
+        "operationId": "subscriptions.update",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": {
+              "$ref": "#/components/schemas/NumberFromString"
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Subscription",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Subscription"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NotFound",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFound"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [],
+                "properties": {
+                  "merchantId": {
+                    "type": "integer",
+                    "description": "an integer",
+                    "title": "int"
+                  },
+                  "merchantName": {
+                    "type": "string"
+                  },
+                  "typicalAmount": {
+                    "type": "number"
+                  },
+                  "frequency": {
+                    "type": "string",
+                    "enum": [
+                      "weekly",
+                      "monthly",
+                      "yearly"
+                    ]
+                  },
+                  "intervalDays": {
+                    "type": "number"
+                  },
+                  "lastChargeDate": {
+                    "type": "string"
+                  },
+                  "firstChargeDate": {
+                    "type": "string"
+                  },
+                  "chargeCount": {
+                    "type": "number"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "active",
+                      "possibly-cancelled"
+                    ]
+                  },
+                  "transactionIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "description": "an integer",
+                      "title": "int"
+                    }
+                  },
+                  "detectedAt": {
+                    "type": "string"
+                  },
+                  "updatedAt": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/subscriptions/first-by-merchant/{merchantId}": {
+      "get": {
+        "tags": [
+          "Subscriptions"
+        ],
+        "operationId": "subscriptions.getFirstByMerchant",
+        "parameters": [
+          {
+            "name": "merchantId",
+            "in": "path",
+            "schema": {
+              "$ref": "#/components/schemas/NumberFromString"
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Subscription",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Subscription"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NotFound",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFound"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/subscriptions/by-merchant-frequency/{merchantId}/{frequency}": {
+      "get": {
+        "tags": [
+          "Subscriptions"
+        ],
+        "operationId": "subscriptions.getByMerchantFrequency",
+        "parameters": [
+          {
+            "name": "merchantId",
+            "in": "path",
+            "schema": {
+              "$ref": "#/components/schemas/NumberFromString"
+            },
+            "required": true
+          },
+          {
+            "name": "frequency",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "weekly",
+                "monthly",
+                "yearly"
+              ]
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Subscription",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Subscription"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NotFound",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFound"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -3485,6 +3926,84 @@
           }
         },
         "additionalProperties": false
+      },
+      "Subscription": {
+        "type": "object",
+        "required": [
+          "id",
+          "merchantId",
+          "merchantName",
+          "typicalAmount",
+          "frequency",
+          "intervalDays",
+          "lastChargeDate",
+          "firstChargeDate",
+          "chargeCount",
+          "status",
+          "transactionIds",
+          "detectedAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "an integer",
+            "title": "int"
+          },
+          "merchantId": {
+            "type": "integer",
+            "description": "an integer",
+            "title": "int"
+          },
+          "merchantName": {
+            "type": "string"
+          },
+          "typicalAmount": {
+            "type": "number"
+          },
+          "frequency": {
+            "type": "string",
+            "enum": [
+              "weekly",
+              "monthly",
+              "yearly"
+            ]
+          },
+          "intervalDays": {
+            "type": "number"
+          },
+          "lastChargeDate": {
+            "type": "string"
+          },
+          "firstChargeDate": {
+            "type": "string"
+          },
+          "chargeCount": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "possibly-cancelled"
+            ]
+          },
+          "transactionIds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "description": "an integer",
+              "title": "int"
+            }
+          },
+          "detectedAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
       }
     },
     "securitySchemes": {}
@@ -3508,6 +4027,9 @@
     },
     {
       "name": "Rules"
+    },
+    {
+      "name": "Subscriptions"
     }
   ]
 }

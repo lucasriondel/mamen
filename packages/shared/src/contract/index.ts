@@ -50,6 +50,15 @@ export {
 	RuleUpdate,
 } from "./rules";
 export {
+	Subscription,
+	SubscriptionCreate,
+	SubscriptionFrequency,
+	SubscriptionListFilters,
+	SubscriptionsGroup,
+	SubscriptionStatus,
+	SubscriptionUpdate,
+} from "./subscriptions";
+export {
 	Transaction,
 	TransactionAffected,
 	TransactionBulkCreate,
