@@ -1,7 +1,7 @@
 ---
 id: 1
 title: Effect API rework
-state: open
+state: closed
 labels: [wayfinder:map]
 assignee: none
 blocked-by: []
@@ -59,6 +59,6 @@ Boundaries are final — the transactions fan-out did **not** split into separat
 
 ## Out of scope
 
-- **Web frontend adaptation** — the web app switching to @mamen/sdk happens later as its own effort; frontend is allowed to break during this map.
+- **Web frontend adaptation** — the web app switching to @mamen/sdk happens later as its own effort; frontend is allowed to break during this map. Tracked concretely post-cutover as [Adapt web frontend onto @mamen/sdk](0021-adapt-web-to-sdk.md) (#21), with the exact break scope from the cutover recorded there.
 - **Wire compatibility** — no requirement to preserve today's paths/params/response shapes.
 - **Effect 3→4 migration** — rework builds on Effect 3 stable per [Effect 3 stable or Effect 4 beta](0008-effect-3-stable-or-4-beta.md); moving to 4 is a future effort once 4.0 is stable, not part of this map.

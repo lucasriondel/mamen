@@ -1,9 +1,9 @@
 ---
 id: 20
 title: Cutover — delete old packages, retire zod, rewire dev
-state: open
+state: closed
 labels: [wayfinder:impl]
-assignee: none
+assignee: luriondel
 parent: 1
 blocked-by: [11, 12, 13, 14, 15, 16, 17, 18, 19]
 ---

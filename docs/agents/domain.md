@@ -2,7 +2,7 @@
 
 How the engineering skills should consume this repo's domain documentation when exploring the codebase.
 
-This is a **multi-context** monorepo: packages live under `packages/*` (api, sdk, server, shared, web, web-api-legacy), each with its own domain vocabulary.
+This is a **multi-context** monorepo: packages live under `packages/*` (api, sdk, shared, web), each with its own domain vocabulary.
 
 ## Before exploring, read these
 
@@ -21,7 +21,7 @@ Multi-context repo (presence of `CONTEXT-MAP.md` at the root):
 ├── CONTEXT-MAP.md
 ├── docs/adr/                          ← system-wide decisions
 └── packages/
-    ├── server/
+    ├── api/
     │   ├── CONTEXT.md
     │   └── docs/adr/                  ← package-specific decisions
     ├── web/
