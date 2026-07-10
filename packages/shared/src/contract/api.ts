@@ -1,5 +1,6 @@
 import { HttpApi, HttpApiError, OpenApi } from "@effect/platform";
 import { AccountsGroup } from "./accounts";
+import { CategoriesGroup } from "./categories";
 import { HealthGroup } from "./health";
 
 /**
@@ -11,6 +12,7 @@ import { HealthGroup } from "./health";
 export class Api extends HttpApi.make("mamen")
 	.add(HealthGroup)
 	.add(AccountsGroup)
+	.add(CategoriesGroup)
 	.addError(HttpApiError.InternalServerError)
 	.prefix("/api")
 	.annotateContext(

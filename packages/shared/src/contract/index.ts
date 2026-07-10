@@ -6,6 +6,14 @@ export {
 } from "./accounts";
 export { Api } from "./api";
 export {
+	CategoriesGroup,
+	Category,
+	CategoryBulkCreate,
+	CategoryCreate,
+	CategoryListFilters,
+	CategoryUpdate,
+} from "./categories";
+export {
 	BooleanFromString,
 	Conflict,
 	InvalidFileType,

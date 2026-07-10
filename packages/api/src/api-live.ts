@@ -2,6 +2,7 @@ import { HttpApiBuilder } from "@effect/platform";
 import { Api } from "@mamen/shared/contract";
 import { Layer } from "effect";
 import { AccountsLive } from "./accounts/handlers";
+import { CategoriesLive } from "./categories/handlers";
 import { HealthLive } from "./health/handlers";
 
 /**
@@ -14,5 +15,5 @@ import { HealthLive } from "./health/handlers";
  * is what lets the integration tests swap the driver.
  */
 export const ApiLive = HttpApiBuilder.api(Api).pipe(
-	Layer.provide([HealthLive, AccountsLive]),
+	Layer.provide([HealthLive, AccountsLive, CategoriesLive]),
 );
