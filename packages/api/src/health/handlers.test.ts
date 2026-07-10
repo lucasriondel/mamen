@@ -3,12 +3,15 @@ import { NodeHttpServer } from "@effect/platform-node";
 import { assert, describe, it } from "@effect/vitest";
 import { Api, Health } from "@mamen/shared/contract";
 import { Effect, Layer } from "effect";
-import { HealthLive } from "./handlers";
+import { ApiLive } from "../api-live";
+import { DatabaseTest } from "../db/test";
 
-// The API served on a real ephemeral Node server, with a wired HttpClient —
-// the derived client's requests hit the live server, no URL plumbing.
+// The full API served on a real ephemeral Node server with a wired HttpClient —
+// the derived client's requests hit the live server, no URL plumbing. Uses the
+// assembled `ApiLive` (every group) over the `:memory:` test DB.
 const HttpLive = HttpApiBuilder.serve().pipe(
-	Layer.provide(HttpApiBuilder.api(Api).pipe(Layer.provide(HealthLive))),
+	Layer.provide(ApiLive),
+	Layer.provide(DatabaseTest),
 	Layer.provideMerge(NodeHttpServer.layerTest),
 );
 

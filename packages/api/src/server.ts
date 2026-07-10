@@ -8,6 +8,7 @@ import { BunHttpServer } from "@effect/platform-bun";
 import { Effect, Layer } from "effect";
 import { ApiLive } from "./api-live";
 import { CorsOrigins, Port } from "./config";
+import { DatabaseLive } from "./db/sql";
 
 /** CORS layer with allowed origins resolved from config at build time. */
 const CorsLive = Layer.unwrapEffect(
@@ -37,6 +38,7 @@ export const ServerLive = HttpApiBuilder.serve(HttpMiddleware.logger).pipe(
 	),
 	Layer.provide(CorsLive),
 	Layer.provide(ApiLive),
+	Layer.provide(DatabaseLive),
 	HttpServer.withLogAddress,
 	Layer.provide(BunServerLive),
 );

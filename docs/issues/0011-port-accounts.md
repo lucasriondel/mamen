@@ -1,7 +1,7 @@
 ---
 id: 11
 title: Port accounts (first DB-backed resource; settles test harness + coverage)
-state: open
+state: closed
 labels: [wayfinder:impl]
 assignee: none
 parent: 1
@@ -21,12 +21,12 @@ Endpoints (contract §2.2): `list` (paged), `getById`, `getByName`, `create`, `u
 
 ## Acceptance criteria
 
-- [ ] `AccountsGroup` contract matches spec §2.2 (branded `AccountId`, `Paged(Account)` list, `Schema.Date` timestamps, create/update payloads).
-- [ ] Server handler layer + account repository on `@effect/sql-sqlite-bun`; `SqlError` UNIQUE→`Conflict` boundary rule wired (even though accounts has no unique field — establishes the pattern).
-- [ ] Every endpoint integration-tested **through the derived SDK client** against an in-memory sqlite layer; `NotFound` paths covered.
-- [ ] `:memory:` test-layer wiring settled + documented (a reusable helper the next ports use).
-- [ ] Coverage threshold set to a real number; gate passes.
-- [ ] `@effect/vitest` unit tests for the account service.
+- [x] `AccountsGroup` contract matches spec §2.2 (branded `AccountId`, `Paged(Account)` list, `Schema.Date` timestamps, create/update payloads).
+- [x] Server handler layer + account repository on `@effect/sql-sqlite-bun`; `SqlError` UNIQUE→`Conflict` boundary rule wired (even though accounts has no unique field — establishes the pattern).
+- [x] Every endpoint integration-tested **through the derived SDK client** against an in-memory sqlite layer; `NotFound` paths covered.
+- [x] `:memory:` test-layer wiring settled + documented (a reusable helper the next ports use).
+- [x] Coverage threshold set to a real number; gate passes.
+- [x] `@effect/vitest` unit tests for the account service.
 
 ## Blocked by
 

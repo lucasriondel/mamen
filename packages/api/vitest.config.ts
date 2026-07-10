@@ -20,16 +20,21 @@ export default defineConfig({
 				"src/server.ts",
 				"src/config.ts",
 				"src/api-live.ts",
+				// Prod Bun sqlite layer — needs the Bun runtime + a real DB file,
+				// so it's exercised by the running server, not Node-run vitest. The
+				// data layer's logic is covered by the `:memory:` test layer.
+				"src/db/sql.ts",
 			],
 			// Count Layer-only / schema-only modules no test imports yet.
 			all: true,
-			// Provisional gate — the threshold number is still open on the map;
-			// raise it as resources are ported.
+			// Real gate, settled by the accounts port (#11): the vertical slice
+			// lands at 100% line/fn/stmt, 95% branch. Set with headroom so a port
+			// that transiently dips still passes, but a real regression fails.
 			thresholds: {
-				lines: 70,
-				functions: 70,
-				statements: 70,
-				branches: 60,
+				lines: 90,
+				functions: 90,
+				statements: 90,
+				branches: 85,
 			},
 		},
 	},
