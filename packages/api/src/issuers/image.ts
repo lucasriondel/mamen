@@ -19,7 +19,7 @@ const MIME_TO_EXT: Record<string, string> = {
 
 const ALLOWED_MIME_TYPES = Object.keys(MIME_TO_EXT);
 
-/** The stored `imageUrl` for a issuer filename — always root-relative. */
+/** The stored `imageUrl` for an issuer filename — always root-relative. */
 const imageUrlFor = (filename: string) => `/uploads/issuers/${filename}`;
 
 /**
@@ -84,7 +84,7 @@ export const persistIssuerImage = (
 	});
 
 /**
- * Remove a issuer image given its stored root-relative `imageUrl`, resolving
+ * Remove an issuer image given its stored root-relative `imageUrl`, resolving
  * the on-disk path under {@link UploadsDir}. Best-effort — a missing file is a
  * no-op (the old server swallowed unlink errors); other FS errors die (500).
  * Used by `deleteImage` and to clean up the previous file on re-upload.

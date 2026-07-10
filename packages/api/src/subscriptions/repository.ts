@@ -191,7 +191,7 @@ export class SubscriptionRepo extends Effect.Service<SubscriptionRepo>()(
 				execute: (id) => sql`SELECT * FROM subscriptions WHERE id = ${id}`,
 			});
 
-			// First match for a issuer. `ORDER BY id LIMIT 1` makes "first"
+			// First match for an issuer. `ORDER BY id LIMIT 1` makes "first"
 			// deterministic (the old adapter's bare `LIMIT 1` relied on insertion order).
 			const firstByIssuerQuery = SqlSchema.findOne({
 				Request: Schema.Number,

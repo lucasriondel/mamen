@@ -270,7 +270,7 @@ describe("issuers endpoints", () => {
 		}).pipe(Effect.provide(HttpLive)),
 	);
 
-	it.effect("deleteImage on a issuer with no image just returns it", () =>
+	it.effect("deleteImage on an issuer with no image just returns it", () =>
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
 			const created = yield* client.issuers.create({ payload: make() });

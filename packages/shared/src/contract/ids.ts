@@ -2,7 +2,7 @@ import { Schema } from "effect";
 
 /**
  * Branded id schemas, one per resource. Ids are numeric (integer, sqlite
- * AUTOINCREMENT) but branded so a `IssuerId` can't be passed where an
+ * AUTOINCREMENT) but branded so an `IssuerId` can't be passed where an
  * `AccountId` is expected across the contract. There is no DB-level foreign
  * key enforcement — the brand is a compile-time / contract-level guard only.
  */

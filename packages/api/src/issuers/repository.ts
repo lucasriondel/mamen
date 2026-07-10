@@ -13,7 +13,7 @@ import { orDieSql } from "../db/errors";
 /**
  * A stored issuer row — timestamps are ISO-8601 TEXT and the two optional
  * columns come back as `null` (not absent). `IssuerFromRow` decodes a row into
- * a `Issuer`, folding `null` → absent so the wire shape matches the contract's
+ * an `Issuer`, folding `null` → absent so the wire shape matches the contract's
  * `Schema.optional(...)`. Every read decodes through this, so the entity is the
  * single result type the handlers see.
  */
@@ -36,7 +36,7 @@ const IssuerRow = Schema.Struct({
 // becomes an omitted key so the wire shape matches `Schema.optional(...)`.
 //
 // Exported for the database export/import port: `decode` reads a row into a
-// `Issuer` (used by `exportAll`), `encode` folds a `Issuer` back to its
+// `Issuer` (used by `exportAll`), `encode` folds an `Issuer` back to its
 // stored row (used by `import`, id preserved).
 export const IssuerFromRow = Schema.transform(IssuerRow, Issuer, {
 	strict: true,
