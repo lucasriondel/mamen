@@ -5,6 +5,7 @@ import { AccountsLive } from "./accounts/handlers";
 import { CategoriesLive } from "./categories/handlers";
 import { HealthLive } from "./health/handlers";
 import { MerchantsLive } from "./merchants/handlers";
+import { RulesLive } from "./rules/handlers";
 import { TransactionsLive } from "./transactions/handlers";
 
 /**
@@ -30,5 +31,6 @@ export const ApiLive = HttpApiBuilder.api(Api).pipe(
 		CategoriesLive,
 		MerchantsLive,
 		TransactionsLive,
+		RulesLive,
 	]),
 );

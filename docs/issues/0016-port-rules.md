@@ -1,9 +1,9 @@
 ---
 id: 16
 title: Port rules
-state: open
+state: closed
 labels: [wayfinder:impl]
-assignee: none
+assignee: luriondel
 parent: 1
 blocked-by: [10, 11]
 ---
@@ -18,9 +18,9 @@ Dropped: `POST /rules/bulk-add`, `POST /rules/bulk-delete` (both client-only).
 
 ## Acceptance criteria
 
-- [ ] `RulesGroup` matches spec §2.6; `merchantId` list/count filter works.
-- [ ] `getByMerchantPattern` two-segment path param decodes + 404s correctly.
-- [ ] Handler + repository; integration-tested through the SDK; coverage gate passes.
+- [x] `RulesGroup` matches spec §2.6; `merchantId` list/count filter works.
+- [x] `getByMerchantPattern` two-segment path param decodes + 404s correctly.
+- [x] Handler + repository; integration-tested through the SDK; coverage gate passes.
 
 ## Blocked by
 

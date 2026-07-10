@@ -3,6 +3,7 @@ import { AccountsGroup } from "./accounts";
 import { CategoriesGroup } from "./categories";
 import { HealthGroup } from "./health";
 import { MerchantsGroup } from "./merchants";
+import { RulesGroup } from "./rules";
 import { TransactionsGroup } from "./transactions";
 
 /**
@@ -17,6 +18,7 @@ export class Api extends HttpApi.make("mamen")
 	.add(CategoriesGroup)
 	.add(MerchantsGroup)
 	.add(TransactionsGroup)
+	.add(RulesGroup)
 	.addError(HttpApiError.InternalServerError)
 	.prefix("/api")
 	.annotateContext(

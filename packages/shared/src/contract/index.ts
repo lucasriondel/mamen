@@ -42,6 +42,14 @@ export {
 } from "./merchants";
 export { Paged, Pagination, PaginationDefaults } from "./pagination";
 export {
+	Rule,
+	RuleCount,
+	RuleCreate,
+	RuleListFilters,
+	RulesGroup,
+	RuleUpdate,
+} from "./rules";
+export {
 	Transaction,
 	TransactionAffected,
 	TransactionBulkCreate,

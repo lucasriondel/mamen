@@ -16,6 +16,13 @@ export {
 	merchantMutations,
 	merchantQueries,
 } from "./merchants/queries";
+export {
+	type RuleCountParams,
+	ruleKeys,
+	type RuleListParams,
+	ruleMutations,
+	ruleQueries,
+} from "./rules/queries";
 export { Client, runQuery } from "./runtime";
 export {
 	type TransactionCountParams,
