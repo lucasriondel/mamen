@@ -1,7 +1,7 @@
 import { SqlClient, SqlSchema } from "@effect/sql";
 import type { Fragment } from "@effect/sql/Statement";
 import {
-	type MerchantId,
+	type IssuerId,
 	NotFound,
 	Paged,
 	Subscription,
@@ -23,8 +23,8 @@ import { orDieSql } from "../db/errors";
  */
 const SubscriptionRow = Schema.Struct({
 	id: Schema.Number,
-	merchantId: Schema.Number,
-	merchantName: Schema.String,
+	issuerId: Schema.Number,
+	issuerName: Schema.String,
 	typicalAmount: Schema.Number,
 	frequency: SubscriptionFrequency,
 	intervalDays: Schema.Number,
@@ -62,8 +62,8 @@ export const SubscriptionFromRow = Schema.transform(
 		strict: true,
 		decode: (row) => ({
 			id: row.id,
-			merchantId: row.merchantId,
-			merchantName: row.merchantName,
+			issuerId: row.issuerId,
+			issuerName: row.issuerName,
 			typicalAmount: row.typicalAmount,
 			frequency: row.frequency,
 			intervalDays: row.intervalDays,
@@ -77,8 +77,8 @@ export const SubscriptionFromRow = Schema.transform(
 		}),
 		encode: (s) => ({
 			id: s.id,
-			merchantId: s.merchantId,
-			merchantName: s.merchantName,
+			issuerId: s.issuerId,
+			issuerName: s.issuerName,
 			typicalAmount: s.typicalAmount,
 			frequency: s.frequency,
 			intervalDays: s.intervalDays,
@@ -105,20 +105,20 @@ const CountResult = Schema.Struct({ count: Schema.Number });
 type ListFilter = {
 	limit: number;
 	offset: number;
-	merchantId?: typeof MerchantId.Type;
+	issuerId?: typeof IssuerId.Type;
 	status?: SubscriptionStatus;
 };
 
 /** The composable filter set alone (shared by `list`'s items + total counts). */
 type Filters = {
-	merchantId?: typeof MerchantId.Type;
+	issuerId?: typeof IssuerId.Type;
 	status?: SubscriptionStatus;
 };
 
 /** A plain write row (the shape bound into INSERT/UPDATE), `transactionIds` as JSON. */
 type WriteRow = {
-	merchantId: number;
-	merchantName: string;
+	issuerId: number;
+	issuerName: string;
 	typicalAmount: number;
 	frequency: string;
 	intervalDays: number;
@@ -135,9 +135,9 @@ type WriteRow = {
  * The subscriptions repository, on `@effect/sql`. Depends only on the generic
  * `SqlClient.SqlClient` tag, so it runs unchanged against the Bun prod client and
  * the `:memory:` sqlite-node test client. Typed `NotFound` on `update` and the two
- * by-merchant lookups; no uniqueness constraint (faithful port), so writes collapse
+ * by-issuer lookups; no uniqueness constraint (faithful port), so writes collapse
  * a `SqlError` to a 500 defect ({@link orDieSql}) — no `Conflict`. The `list`
- * `merchantId?` + `status?` filters compose with `AND` (contract §2.7), replacing
+ * `issuerId?` + `status?` filters compose with `AND` (contract §2.7), replacing
  * the old either/or precedence.
  */
 export class SubscriptionRepo extends Effect.Service<SubscriptionRepo>()(
@@ -147,12 +147,12 @@ export class SubscriptionRepo extends Effect.Service<SubscriptionRepo>()(
 			const sql = yield* SqlClient.SqlClient;
 
 			// Each present filter contributes one predicate; absent ones contribute
-			// nothing. `list` items + total share this WHERE (the old `merchantId >
+			// nothing. `list` items + total share this WHERE (the old `issuerId >
 			// status` precedence is gone — both compose with AND now).
 			const buildConditions = (f: Filters): Array<Fragment> => {
 				const conditions: Array<Fragment> = [];
-				if (f.merchantId !== undefined)
-					conditions.push(sql`merchantId = ${f.merchantId}`);
+				if (f.issuerId !== undefined)
+					conditions.push(sql`issuerId = ${f.issuerId}`);
 				if (f.status !== undefined) conditions.push(sql`status = ${f.status}`);
 				return conditions;
 			};
@@ -191,23 +191,23 @@ export class SubscriptionRepo extends Effect.Service<SubscriptionRepo>()(
 				execute: (id) => sql`SELECT * FROM subscriptions WHERE id = ${id}`,
 			});
 
-			// First match for a merchant. `ORDER BY id LIMIT 1` makes "first"
+			// First match for a issuer. `ORDER BY id LIMIT 1` makes "first"
 			// deterministic (the old adapter's bare `LIMIT 1` relied on insertion order).
-			const firstByMerchantQuery = SqlSchema.findOne({
+			const firstByIssuerQuery = SqlSchema.findOne({
 				Request: Schema.Number,
 				Result: SubscriptionFromRow,
-				execute: (merchantId) =>
-					sql`SELECT * FROM subscriptions WHERE merchantId = ${merchantId} ORDER BY id LIMIT 1`,
+				execute: (issuerId) =>
+					sql`SELECT * FROM subscriptions WHERE issuerId = ${issuerId} ORDER BY id LIMIT 1`,
 			});
 
-			const byMerchantFrequencyQuery = SqlSchema.findOne({
+			const byIssuerFrequencyQuery = SqlSchema.findOne({
 				Request: Schema.Struct({
-					merchantId: Schema.Number,
+					issuerId: Schema.Number,
 					frequency: Schema.String,
 				}),
 				Result: SubscriptionFromRow,
-				execute: ({ merchantId, frequency }) =>
-					sql`SELECT * FROM subscriptions WHERE merchantId = ${merchantId} AND frequency = ${frequency} ORDER BY id LIMIT 1`,
+				execute: ({ issuerId, frequency }) =>
+					sql`SELECT * FROM subscriptions WHERE issuerId = ${issuerId} AND frequency = ${frequency} ORDER BY id LIMIT 1`,
 			});
 
 			// Writes bind a plain `WriteRow`. `Request: Schema.Any` because the row is
@@ -245,8 +245,8 @@ export class SubscriptionRepo extends Effect.Service<SubscriptionRepo>()(
 			// server assigns only `id`, so every other column is caller-provided
 			// (faithful — the old adapter accepted all fields, dates included).
 			const toWriteFields = (s: SubscriptionCreate): WriteRow => ({
-				merchantId: s.merchantId,
-				merchantName: s.merchantName,
+				issuerId: s.issuerId,
+				issuerName: s.issuerName,
 				typicalAmount: s.typicalAmount,
 				frequency: s.frequency,
 				intervalDays: s.intervalDays,
@@ -263,7 +263,7 @@ export class SubscriptionRepo extends Effect.Service<SubscriptionRepo>()(
 				Effect.all({
 					items: listQuery(filter),
 					total: countQuery({
-						merchantId: filter.merchantId,
+						issuerId: filter.issuerId,
 						status: filter.status,
 					}).pipe(Effect.map((r) => r.count)),
 				}).pipe(
@@ -277,20 +277,20 @@ export class SubscriptionRepo extends Effect.Service<SubscriptionRepo>()(
 					Effect.flatMap((found) => requireOne(found, id)),
 				);
 
-			const getFirstByMerchant = (merchantId: typeof MerchantId.Type) =>
-				firstByMerchantQuery(merchantId).pipe(
+			const getFirstByIssuer = (issuerId: typeof IssuerId.Type) =>
+				firstByIssuerQuery(issuerId).pipe(
 					orDieSql,
-					Effect.flatMap((found) => requireOne(found, merchantId)),
+					Effect.flatMap((found) => requireOne(found, issuerId)),
 				);
 
-			const getByMerchantFrequency = (
-				merchantId: typeof MerchantId.Type,
+			const getByIssuerFrequency = (
+				issuerId: typeof IssuerId.Type,
 				frequency: SubscriptionFrequency,
 			) =>
-				byMerchantFrequencyQuery({ merchantId, frequency }).pipe(
+				byIssuerFrequencyQuery({ issuerId, frequency }).pipe(
 					orDieSql,
-					// Keyed by merchant + frequency; the frequency is the caller-facing
-					// discriminator, so it goes on the 404 (the merchant is known).
+					// Keyed by issuer + frequency; the frequency is the caller-facing
+					// discriminator, so it goes on the 404 (the issuer is known).
 					Effect.flatMap((found) => requireOne(found, frequency)),
 				);
 
@@ -312,8 +312,8 @@ export class SubscriptionRepo extends Effect.Service<SubscriptionRepo>()(
 
 			return {
 				list,
-				getFirstByMerchant,
-				getByMerchantFrequency,
+				getFirstByIssuer,
+				getByIssuerFrequency,
 				create,
 				update,
 			} as const;

@@ -18,7 +18,7 @@ const isUniqueViolation = (error: SqlError): boolean =>
 /**
  * Wrap a write that can hit a UNIQUE constraint: maps the violation to
  * `Conflict`, dies on any other `SqlError`. Ports with a unique field (settings
- * key, merchant name, …) pipe their inserts/updates through this. Accounts has
+ * key, issuer name, …) pipe their inserts/updates through this. Accounts has
  * no unique field, so it uses {@link orDieSql} instead — this is the shared
  * pattern the map's SqlError boundary rule refers to.
  */

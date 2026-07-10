@@ -1,7 +1,7 @@
 import type {
 	AccountId,
 	CategoryId,
-	MerchantId,
+	IssuerId,
 	TransactionBulkCreate,
 	TransactionBulkPut,
 	TransactionCreate,
@@ -22,7 +22,7 @@ export type TransactionListParams = {
 	limit?: number;
 	offset?: number;
 	accountId?: AccountId;
-	merchantId?: MerchantId;
+	issuerId?: IssuerId;
 	categoryId?: CategoryId;
 	linkedRefundId?: TransactionId;
 	importMonth?: string;

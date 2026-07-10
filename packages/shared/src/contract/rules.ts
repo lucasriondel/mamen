@@ -6,17 +6,17 @@ import {
 } from "@effect/platform";
 import { Schema } from "effect";
 import { NotFound } from "./errors";
-import { CategoryId, MerchantId, numFromStr, RuleId } from "./ids";
+import { CategoryId, IssuerId, numFromStr, RuleId } from "./ids";
 import { Paged, Pagination } from "./pagination";
 
 /**
  * Rule entity — the wire shape returned by every rules endpoint. `categoryOverride`
  * is a category id despite the name (an INTEGER FK column, absent when unset);
- * `merchantId` is the merchant this rule matches against.
+ * `issuerId` is the issuer this rule matches against.
  */
 export class Rule extends Schema.Class<Rule>("Rule")({
 	id: RuleId,
-	merchantId: MerchantId,
+	issuerId: IssuerId,
 	pattern: Schema.String,
 	categoryOverride: Schema.optional(CategoryId), // a category id despite the name
 	matchCount: Schema.Number,
@@ -25,7 +25,7 @@ export class Rule extends Schema.Class<Rule>("Rule")({
 
 /** Create payload — the server assigns `id` and `createdAt`. */
 export const RuleCreate = Schema.Struct({
-	merchantId: Rule.fields.merchantId,
+	issuerId: Rule.fields.issuerId,
 	pattern: Rule.fields.pattern,
 	categoryOverride: Rule.fields.categoryOverride,
 	matchCount: Rule.fields.matchCount,
@@ -37,12 +37,12 @@ export const RuleUpdate = Schema.partial(RuleCreate);
 export type RuleUpdate = typeof RuleUpdate.Type;
 
 /**
- * `list` / `count` filter (contract §2.6): `merchantId?` scopes to one merchant's
+ * `list` / `count` filter (contract §2.6): `issuerId?` scopes to one issuer's
  * rules (else all). Decoded + branded from the query string via `numFromStr`.
  * `list` spreads it alongside `Pagination`; `count` takes it alone (no paging).
  */
 export const RuleListFilters = {
-	merchantId: Schema.optional(numFromStr(MerchantId)),
+	issuerId: Schema.optional(numFromStr(IssuerId)),
 } as const;
 
 /** `count` success body — the full filtered row count. */
@@ -51,8 +51,8 @@ export const RuleCount = Schema.Struct({ count: Schema.Number });
 /**
  * Rules group (contract §2.6), prefix `/rules`. No uniqueness constraint on any
  * field (faithful port), so `create`/`update` declare no `Conflict`.
- * `getById`/`getByMerchantPattern`/`update`/`remove` 404 on a missing rule;
- * `remove` → 204. `list`/`count` share the `merchantId?` filter. Dropped vs
+ * `getById`/`getByIssuerPattern`/`update`/`remove` 404 on a missing rule;
+ * `remove` → 204. `list`/`count` share the `issuerId?` filter. Dropped vs
  * today: `POST /rules/bulk-add`, `POST /rules/bulk-delete` (both client-only).
  */
 export class RulesGroup extends HttpApiGroup.make("rules")
@@ -75,8 +75,8 @@ export class RulesGroup extends HttpApiGroup.make("rules")
 	)
 	.add(
 		HttpApiEndpoint.get(
-			"getByMerchantPattern",
-		)`/rules/by-merchant-pattern/${HttpApiSchema.param("merchantId", numFromStr(MerchantId))}/${HttpApiSchema.param("pattern", Schema.String)}`
+			"getByIssuerPattern",
+		)`/rules/by-issuer-pattern/${HttpApiSchema.param("issuerId", numFromStr(IssuerId))}/${HttpApiSchema.param("pattern", Schema.String)}`
 			.addSuccess(Rule)
 			.addError(NotFound),
 	)

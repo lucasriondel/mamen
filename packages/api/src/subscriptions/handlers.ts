@@ -5,8 +5,8 @@ import { SubscriptionRepo } from "./repository";
 
 /**
  * Implements the `subscriptions` group of the contract on {@link SubscriptionRepo}:
- * `list` (composable `merchantId?` + `status?`), `create`, `update`,
- * `getFirstByMerchant`, `getByMerchantFrequency`. Each handler is a thin delegate;
+ * `list` (composable `issuerId?` + `status?`), `create`, `update`,
+ * `getFirstByIssuer`, `getByIssuerFrequency`. Each handler is a thin delegate;
  * status codes / success bodies are set by the contract, not here.
  */
 export const SubscriptionsLive = HttpApiBuilder.group(
@@ -19,11 +19,11 @@ export const SubscriptionsLive = HttpApiBuilder.group(
 				.handle("list", (_) => repo.list(_.urlParams))
 				.handle("create", (_) => repo.create(_.payload))
 				.handle("update", (_) => repo.update(_.path.id, _.payload))
-				.handle("getFirstByMerchant", (_) =>
-					repo.getFirstByMerchant(_.path.merchantId),
+				.handle("getFirstByIssuer", (_) =>
+					repo.getFirstByIssuer(_.path.issuerId),
 				)
-				.handle("getByMerchantFrequency", (_) =>
-					repo.getByMerchantFrequency(_.path.merchantId, _.path.frequency),
+				.handle("getByIssuerFrequency", (_) =>
+					repo.getByIssuerFrequency(_.path.issuerId, _.path.frequency),
 				);
 		}),
 ).pipe(Layer.provide(SubscriptionRepo.Default));

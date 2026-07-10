@@ -10,7 +10,7 @@ import { BooleanFromString, NotFound } from "./errors";
 import {
 	AccountId,
 	CategoryId,
-	MerchantId,
+	IssuerId,
 	numFromStr,
 	TransactionId,
 } from "./ids";
@@ -22,8 +22,8 @@ export class Transaction extends Schema.Class<Transaction>("Transaction")({
 	accountId: AccountId,
 	date: Schema.Date,
 	amount: Schema.Number,
-	rawMerchantString: Schema.String,
-	merchantId: Schema.optional(MerchantId),
+	rawIssuerString: Schema.String,
+	issuerId: Schema.optional(IssuerId),
 	categoryId: Schema.optional(CategoryId),
 	subcategoryId: Schema.optional(CategoryId),
 	categoryOverride: Schema.optional(Schema.String),
@@ -47,8 +47,8 @@ export const TransactionCreate = Schema.Struct({
 	accountId: Transaction.fields.accountId,
 	date: Transaction.fields.date,
 	amount: Transaction.fields.amount,
-	rawMerchantString: Transaction.fields.rawMerchantString,
-	merchantId: Transaction.fields.merchantId,
+	rawIssuerString: Transaction.fields.rawIssuerString,
+	issuerId: Transaction.fields.issuerId,
 	categoryId: Transaction.fields.categoryId,
 	subcategoryId: Transaction.fields.subcategoryId,
 	categoryOverride: Transaction.fields.categoryOverride,
@@ -79,7 +79,7 @@ export type TransactionUpdate = typeof TransactionUpdate.Type;
  */
 export const TransactionFilters = {
 	accountId: Schema.optional(numFromStr(AccountId)),
-	merchantId: Schema.optional(numFromStr(MerchantId)),
+	issuerId: Schema.optional(numFromStr(IssuerId)),
 	categoryId: Schema.optional(numFromStr(CategoryId)),
 	linkedRefundId: Schema.optional(numFromStr(TransactionId)),
 	importMonth: Schema.optional(Schema.String), // "YYYY-MM"

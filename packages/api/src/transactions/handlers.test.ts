@@ -11,7 +11,7 @@ import {
 	AnomalyFlag,
 	Api,
 	CategoryId,
-	MerchantId,
+	IssuerId,
 	NotFound,
 	type TransactionCreate,
 	TransactionId,
@@ -32,7 +32,7 @@ const HttpLive = HttpApiBuilder.serve().pipe(
 
 const asAccount = Schema.decodeSync(AccountId);
 const asCategory = Schema.decodeSync(CategoryId);
-const asMerchant = Schema.decodeSync(MerchantId);
+const asIssuer = Schema.decodeSync(IssuerId);
 const asTx = Schema.decodeSync(TransactionId);
 
 const DATE = new Date("2026-03-01T00:00:00.000Z");
@@ -41,7 +41,7 @@ const make = (over: Partial<TransactionCreate> = {}): TransactionCreate => ({
 	accountId: asAccount(1),
 	date: DATE,
 	amount: 42.5,
-	rawMerchantString: "ACME STORE",
+	rawIssuerString: "ACME STORE",
 	importedAt: DATE,
 	importMonth: "2026-03",
 	...over,
@@ -62,11 +62,11 @@ describe("transactions endpoints", () => {
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
 			const created = yield* client.transactions.create({
-				payload: make({ amount: 12.34, rawMerchantString: "Coffee" }),
+				payload: make({ amount: 12.34, rawIssuerString: "Coffee" }),
 			});
 			assert.strictEqual(created.amount, 12.34);
-			assert.strictEqual(created.rawMerchantString, "Coffee");
-			assert.strictEqual(created.merchantId, undefined);
+			assert.strictEqual(created.rawIssuerString, "Coffee");
+			assert.strictEqual(created.issuerId, undefined);
 
 			const fetched = yield* client.transactions.getById({
 				path: { id: created.id },
@@ -82,7 +82,7 @@ describe("transactions endpoints", () => {
 				const client = yield* HttpApiClient.make(Api);
 				const flags = [
 					new AnomalyFlag({
-						type: "new-merchant",
+						type: "new-issuer",
 						reason: "first time",
 						detectedAt: "2026-03-01T00:00:00.000Z",
 						dismissed: false,
@@ -147,7 +147,7 @@ describe("transactions endpoints", () => {
 				payload: make({
 					accountId: asAccount(1),
 					categoryId: asCategory(7),
-					merchantId: asMerchant(2),
+					issuerId: asIssuer(2),
 					date: new Date("2026-01-10T00:00:00.000Z"),
 					importMonth: "2026-01",
 					isRefund: true,
@@ -330,14 +330,14 @@ describe("transactions bulk endpoints", () => {
 				const created = yield* client.transactions.bulkCreate({
 					payload: {
 						records: [
-							make({ rawMerchantString: "A", amount: 1 }),
-							make({ rawMerchantString: "B", amount: 2 }),
+							make({ rawIssuerString: "A", amount: 1 }),
+							make({ rawIssuerString: "B", amount: 2 }),
 						],
 					},
 				});
 				assert.strictEqual(created.length, 2);
 				assert.deepStrictEqual(
-					created.map((t) => t.rawMerchantString),
+					created.map((t) => t.rawIssuerString),
 					["A", "B"],
 				);
 				// Ids are server-generated and distinct.
@@ -365,20 +365,20 @@ describe("transactions bulk endpoints", () => {
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
 			const created = yield* client.transactions.create({
-				payload: make({ amount: 10, rawMerchantString: "Before" }),
+				payload: make({ amount: 10, rawIssuerString: "Before" }),
 			});
 
 			// One overwrite of the existing row, one insert of a brand-new id.
 			const overwritten = {
 				...created,
 				amount: 99,
-				rawMerchantString: "After",
+				rawIssuerString: "After",
 			};
 			const inserted = {
 				...created,
 				id: asTx(created.id + 1000),
 				amount: 7,
-				rawMerchantString: "New",
+				rawIssuerString: "New",
 			};
 			const result = yield* client.transactions.bulkPut({
 				payload: { records: [overwritten, inserted] },
@@ -390,7 +390,7 @@ describe("transactions bulk endpoints", () => {
 				path: { id: created.id },
 			});
 			assert.strictEqual(back.amount, 99);
-			assert.strictEqual(back.rawMerchantString, "After");
+			assert.strictEqual(back.rawIssuerString, "After");
 
 			// The insert created the new id verbatim.
 			const fresh = yield* client.transactions.getById({
@@ -439,17 +439,17 @@ describe("transactions bulk endpoints", () => {
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
 			const a = yield* client.transactions.create({
-				payload: make({ rawMerchantString: "A" }),
+				payload: make({ rawIssuerString: "A" }),
 			});
 			const b = yield* client.transactions.create({
-				payload: make({ rawMerchantString: "B" }),
+				payload: make({ rawIssuerString: "B" }),
 			});
 
 			const got = yield* client.transactions.bulkGet({
 				payload: { ids: [a.id, asTx(888888), b.id] },
 			});
 			assert.strictEqual(got.length, 2);
-			assert.deepStrictEqual(got.map((t) => t.rawMerchantString).sort(), [
+			assert.deepStrictEqual(got.map((t) => t.rawIssuerString).sort(), [
 				"A",
 				"B",
 			]);

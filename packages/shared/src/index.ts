@@ -11,7 +11,7 @@ export type {
 	CategoryTreeNode,
 	CategoryWithSubcategories,
 } from "./types/category.types";
-export type { Merchant } from "./types/merchant.types";
+export type { Issuer } from "./types/issuer.types";
 export type { Rule } from "./types/rule.types";
 export type {
 	AppSettings,

@@ -3,7 +3,7 @@ import { NodeHttpServer } from "@effect/platform-node";
 import { assert, describe, it } from "@effect/vitest";
 import {
 	Api,
-	MerchantId,
+	IssuerId,
 	NotFound,
 	type SubscriptionCreate,
 	SubscriptionId,
@@ -22,14 +22,14 @@ const HttpLive = HttpApiBuilder.serve().pipe(
 	Layer.provideMerge(NodeHttpServer.layerTest),
 );
 
-const asMerchant = Schema.decodeSync(MerchantId);
+const asIssuer = Schema.decodeSync(IssuerId);
 const asSubscription = Schema.decodeSync(SubscriptionId);
 const asTransaction = Schema.decodeSync(TransactionId);
 
 /** A valid create payload; override any field per test. */
 const make = (over: Partial<SubscriptionCreate> = {}): SubscriptionCreate => ({
-	merchantId: asMerchant(1),
-	merchantName: "Netflix",
+	issuerId: asIssuer(1),
+	issuerName: "Netflix",
 	typicalAmount: 15.99,
 	frequency: "monthly",
 	intervalDays: 30,
@@ -54,20 +54,20 @@ describe("subscriptions endpoints", () => {
 		}).pipe(Effect.provide(HttpLive)),
 	);
 
-	it.effect("create returns 201 body; getFirstByMerchant round-trips it", () =>
+	it.effect("create returns 201 body; getFirstByIssuer round-trips it", () =>
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
 			const created = yield* client.subscriptions.create({
-				payload: make({ merchantName: "Disney+" }),
+				payload: make({ issuerName: "Disney+" }),
 			});
-			assert.strictEqual(created.merchantName, "Disney+");
+			assert.strictEqual(created.issuerName, "Disney+");
 			assert.deepStrictEqual(created.transactionIds, [
 				asTransaction(10),
 				asTransaction(20),
 			]);
 
-			const fetched = yield* client.subscriptions.getFirstByMerchant({
-				path: { merchantId: asMerchant(1) },
+			const fetched = yield* client.subscriptions.getFirstByIssuer({
+				path: { issuerId: asIssuer(1) },
 			});
 			assert.deepStrictEqual(fetched, created);
 		}).pipe(Effect.provide(HttpLive)),
@@ -88,47 +88,47 @@ describe("subscriptions endpoints", () => {
 		}).pipe(Effect.provide(HttpLive)),
 	);
 
-	it.effect("list composes merchantId + status filters over the wire (AND)", () =>
+	it.effect("list composes issuerId + status filters over the wire (AND)", () =>
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
 			yield* client.subscriptions.create({
-				payload: make({ merchantId: asMerchant(1), status: "active" }),
+				payload: make({ issuerId: asIssuer(1), status: "active" }),
 			});
 			yield* client.subscriptions.create({
 				payload: make({
-					merchantId: asMerchant(1),
+					issuerId: asIssuer(1),
 					status: "possibly-cancelled",
 				}),
 			});
 			yield* client.subscriptions.create({
-				payload: make({ merchantId: asMerchant(2), status: "active" }),
+				payload: make({ issuerId: asIssuer(2), status: "active" }),
 			});
 
 			const page = yield* client.subscriptions.list({
 				urlParams: {
 					limit: 50,
 					offset: 0,
-					merchantId: asMerchant(1),
+					issuerId: asIssuer(1),
 					status: "active",
 				},
 			});
 			assert.strictEqual(page.total, 1);
-			assert.strictEqual(page.items[0]?.merchantId, asMerchant(1));
+			assert.strictEqual(page.items[0]?.issuerId, asIssuer(1));
 			assert.strictEqual(page.items[0]?.status, "active");
 		}).pipe(Effect.provide(HttpLive)),
 	);
 
-	it.effect("getByMerchantFrequency decodes the two-segment path", () =>
+	it.effect("getByIssuerFrequency decodes the two-segment path", () =>
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
 			yield* client.subscriptions.create({
-				payload: make({ merchantId: asMerchant(5), frequency: "yearly" }),
+				payload: make({ issuerId: asIssuer(5), frequency: "yearly" }),
 			});
-			const found = yield* client.subscriptions.getByMerchantFrequency({
-				path: { merchantId: asMerchant(5), frequency: "yearly" },
+			const found = yield* client.subscriptions.getByIssuerFrequency({
+				path: { issuerId: asIssuer(5), frequency: "yearly" },
 			});
 			assert.strictEqual(found.frequency, "yearly");
-			assert.strictEqual(found.merchantId, asMerchant(5));
+			assert.strictEqual(found.issuerId, asIssuer(5));
 		}).pipe(Effect.provide(HttpLive)),
 	);
 
@@ -148,28 +148,28 @@ describe("subscriptions endpoints", () => {
 		}).pipe(Effect.provide(HttpLive)),
 	);
 
-	it.effect("getFirstByMerchant 404s when the merchant has none", () =>
+	it.effect("getFirstByIssuer 404s when the issuer has none", () =>
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
 			const error = yield* client.subscriptions
-				.getFirstByMerchant({ path: { merchantId: asMerchant(999) } })
+				.getFirstByIssuer({ path: { issuerId: asIssuer(999) } })
 				.pipe(Effect.flip);
 			assert.deepStrictEqual(
 				error,
-				new NotFound({ resource: "subscription", id: asMerchant(999) }),
+				new NotFound({ resource: "subscription", id: asIssuer(999) }),
 			);
 		}).pipe(Effect.provide(HttpLive)),
 	);
 
-	it.effect("getByMerchantFrequency 404s on no match", () =>
+	it.effect("getByIssuerFrequency 404s on no match", () =>
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
 			yield* client.subscriptions.create({
-				payload: make({ merchantId: asMerchant(1), frequency: "monthly" }),
+				payload: make({ issuerId: asIssuer(1), frequency: "monthly" }),
 			});
 			const error = yield* client.subscriptions
-				.getByMerchantFrequency({
-					path: { merchantId: asMerchant(1), frequency: "weekly" },
+				.getByIssuerFrequency({
+					path: { issuerId: asIssuer(1), frequency: "weekly" },
 				})
 				.pipe(Effect.flip);
 			assert.deepStrictEqual(
@@ -199,11 +199,11 @@ describe("subscriptions endpoints", () => {
 	// ticket's "validated literal, was an unchecked cast" AC. The typed client
 	// won't let us send an off-union value (it'd fail client-side encode), so hit
 	// the raw route with the underlying HttpClient bound to the test server.
-	it.effect("getByMerchantFrequency rejects an invalid frequency with 400", () =>
+	it.effect("getByIssuerFrequency rejects an invalid frequency with 400", () =>
 		Effect.gen(function* () {
 			const http = yield* HttpClient.HttpClient;
 			const res = yield* http.get(
-				"/api/subscriptions/by-merchant-frequency/1/daily",
+				"/api/subscriptions/by-issuer-frequency/1/daily",
 			);
 			assert.strictEqual(res.status, 400);
 		}).pipe(Effect.provide(HttpLive)),

@@ -9,8 +9,8 @@ export const DbPath = Config.string("DB_PATH").pipe(
 );
 
 /**
- * Directory that backs the `/uploads/*` static route and holds merchant images
- * (under `uploads/merchants/`). Defaults to `uploads` in the working directory,
+ * Directory that backs the `/uploads/*` static route and holds issuer images
+ * (under `uploads/issuers/`). Defaults to `uploads` in the working directory,
  * mirroring the old server's on-disk location. `imageUrl` is always stored as a
  * root-relative `/uploads/...` path independent of where this resolves.
  */

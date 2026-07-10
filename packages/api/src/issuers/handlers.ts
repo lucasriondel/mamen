@@ -1,25 +1,25 @@
 import { HttpApiBuilder } from "@effect/platform";
 import { Api } from "@mamen/shared/contract";
 import { Effect, Layer } from "effect";
-import { deleteMerchantImage, persistMerchantImage } from "./image";
-import { MerchantRepo } from "./repository";
+import { deleteIssuerImage, persistIssuerImage } from "./image";
+import { IssuerRepo } from "./repository";
 
 /**
- * Implements the `merchants` group of the contract on {@link MerchantRepo}.
+ * Implements the `issuers` group of the contract on {@link IssuerRepo}.
  *
  * The two image endpoints compose the repo with the filesystem helper: both
- * `getById` first (so a missing merchant 404s before any file work), then move /
+ * `getById` first (so a missing issuer 404s before any file work), then move /
  * clear the image file, then set / clear the `imageUrl` column and return the
- * updated `Merchant`. The `FileSystem`/`Path` requirement introduced by the
+ * updated `Issuer`. The `FileSystem`/`Path` requirement introduced by the
  * image helper is satisfied by the server layer (`BunContext` in prod,
  * `NodeContext` under the test server) — it is NOT provided here.
  */
-export const MerchantsLive = HttpApiBuilder.group(
+export const IssuersLive = HttpApiBuilder.group(
 	Api,
-	"merchants",
+	"issuers",
 	(handlers) =>
 		Effect.gen(function* () {
-			const repo = yield* MerchantRepo;
+			const repo = yield* IssuerRepo;
 			return handlers
 				.handle("list", (_) => repo.list(_.urlParams))
 				.handle("getById", (_) => repo.getById(_.path.id))
@@ -33,9 +33,9 @@ export const MerchantsLive = HttpApiBuilder.group(
 					// if any, then delete. The repo stays filesystem-free — the FS side
 					// lives here, same split as `deleteImage`.
 					repo.getById(_.path.id).pipe(
-						Effect.tap((merchant) =>
-							merchant.imageUrl !== undefined
-								? deleteMerchantImage(merchant.imageUrl)
+						Effect.tap((issuer) =>
+							issuer.imageUrl !== undefined
+								? deleteIssuerImage(issuer.imageUrl)
 								: Effect.void,
 						),
 						Effect.flatMap(() => repo.remove(_.path.id)),
@@ -43,11 +43,11 @@ export const MerchantsLive = HttpApiBuilder.group(
 				)
 				.handle("uploadImage", (_) =>
 					repo.getById(_.path.id).pipe(
-						Effect.flatMap((merchant) =>
-							persistMerchantImage(
+						Effect.flatMap((issuer) =>
+							persistIssuerImage(
 								_.path.id,
 								_.payload.file,
-								merchant.imageUrl,
+								issuer.imageUrl,
 							),
 						),
 						Effect.flatMap((imageUrl) => repo.setImage(_.path.id, imageUrl)),
@@ -55,13 +55,13 @@ export const MerchantsLive = HttpApiBuilder.group(
 				)
 				.handle("deleteImage", (_) =>
 					repo.getById(_.path.id).pipe(
-						Effect.tap((merchant) =>
-							merchant.imageUrl !== undefined
-								? deleteMerchantImage(merchant.imageUrl)
+						Effect.tap((issuer) =>
+							issuer.imageUrl !== undefined
+								? deleteIssuerImage(issuer.imageUrl)
 								: Effect.void,
 						),
 						Effect.flatMap(() => repo.clearImage(_.path.id)),
 					),
 				);
 		}),
-).pipe(Layer.provide(MerchantRepo.Default));
+).pipe(Layer.provide(IssuerRepo.Default));

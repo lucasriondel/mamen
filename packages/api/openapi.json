@@ -914,12 +914,12 @@
         }
       }
     },
-    "/api/merchants": {
+    "/api/issuers": {
       "get": {
         "tags": [
-          "Merchants"
+          "Issuers"
         ],
-        "operationId": "merchants.list",
+        "operationId": "issuers.list",
         "parameters": [
           {
             "name": "limit",
@@ -965,7 +965,7 @@
                     "items": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/Merchant"
+                        "$ref": "#/components/schemas/Issuer"
                       }
                     },
                     "total": {
@@ -994,18 +994,18 @@
       },
       "post": {
         "tags": [
-          "Merchants"
+          "Issuers"
         ],
-        "operationId": "merchants.create",
+        "operationId": "issuers.create",
         "parameters": [],
         "security": [],
         "responses": {
           "201": {
-            "description": "Merchant",
+            "description": "Issuer",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Merchant"
+                  "$ref": "#/components/schemas/Issuer"
                 }
               }
             }
@@ -1057,12 +1057,12 @@
         }
       }
     },
-    "/api/merchants/{id}": {
+    "/api/issuers/{id}": {
       "get": {
         "tags": [
-          "Merchants"
+          "Issuers"
         ],
-        "operationId": "merchants.getById",
+        "operationId": "issuers.getById",
         "parameters": [
           {
             "name": "id",
@@ -1076,11 +1076,11 @@
         "security": [],
         "responses": {
           "200": {
-            "description": "Merchant",
+            "description": "Issuer",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Merchant"
+                  "$ref": "#/components/schemas/Issuer"
                 }
               }
             }
@@ -1112,9 +1112,9 @@
       },
       "put": {
         "tags": [
-          "Merchants"
+          "Issuers"
         ],
-        "operationId": "merchants.update",
+        "operationId": "issuers.update",
         "parameters": [
           {
             "name": "id",
@@ -1128,11 +1128,11 @@
         "security": [],
         "responses": {
           "200": {
-            "description": "Merchant",
+            "description": "Issuer",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Merchant"
+                  "$ref": "#/components/schemas/Issuer"
                 }
               }
             }
@@ -1192,9 +1192,9 @@
       },
       "delete": {
         "tags": [
-          "Merchants"
+          "Issuers"
         ],
-        "operationId": "merchants.remove",
+        "operationId": "issuers.remove",
         "parameters": [
           {
             "name": "id",
@@ -1236,12 +1236,12 @@
         }
       }
     },
-    "/api/merchants/by-name/{name}": {
+    "/api/issuers/by-name/{name}": {
       "get": {
         "tags": [
-          "Merchants"
+          "Issuers"
         ],
-        "operationId": "merchants.getByName",
+        "operationId": "issuers.getByName",
         "parameters": [
           {
             "name": "name",
@@ -1255,11 +1255,11 @@
         "security": [],
         "responses": {
           "200": {
-            "description": "Merchant",
+            "description": "Issuer",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Merchant"
+                  "$ref": "#/components/schemas/Issuer"
                 }
               }
             }
@@ -1290,12 +1290,12 @@
         }
       }
     },
-    "/api/merchants/by-name-ci/{name}": {
+    "/api/issuers/by-name-ci/{name}": {
       "get": {
         "tags": [
-          "Merchants"
+          "Issuers"
         ],
-        "operationId": "merchants.getByNameCi",
+        "operationId": "issuers.getByNameCi",
         "parameters": [
           {
             "name": "name",
@@ -1309,11 +1309,11 @@
         "security": [],
         "responses": {
           "200": {
-            "description": "Merchant",
+            "description": "Issuer",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Merchant"
+                  "$ref": "#/components/schemas/Issuer"
                 }
               }
             }
@@ -1344,12 +1344,12 @@
         }
       }
     },
-    "/api/merchants/{id}/image": {
+    "/api/issuers/{id}/image": {
       "post": {
         "tags": [
-          "Merchants"
+          "Issuers"
         ],
-        "operationId": "merchants.uploadImage",
+        "operationId": "issuers.uploadImage",
         "parameters": [
           {
             "name": "id",
@@ -1363,11 +1363,11 @@
         "security": [],
         "responses": {
           "200": {
-            "description": "Merchant",
+            "description": "Issuer",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Merchant"
+                  "$ref": "#/components/schemas/Issuer"
                 }
               }
             }
@@ -1435,9 +1435,9 @@
       },
       "delete": {
         "tags": [
-          "Merchants"
+          "Issuers"
         ],
-        "operationId": "merchants.deleteImage",
+        "operationId": "issuers.deleteImage",
         "parameters": [
           {
             "name": "id",
@@ -1451,11 +1451,11 @@
         "security": [],
         "responses": {
           "200": {
-            "description": "Merchant",
+            "description": "Issuer",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Merchant"
+                  "$ref": "#/components/schemas/Issuer"
                 }
               }
             }
@@ -1518,7 +1518,7 @@
             "required": false
           },
           {
-            "name": "merchantId",
+            "name": "issuerId",
             "in": "query",
             "schema": {
               "$ref": "#/components/schemas/NumberFromString"
@@ -1705,7 +1705,7 @@
                   "accountId",
                   "date",
                   "amount",
-                  "rawMerchantString",
+                  "rawIssuerString",
                   "importedAt",
                   "importMonth"
                 ],
@@ -1721,10 +1721,10 @@
                   "amount": {
                     "type": "number"
                   },
-                  "rawMerchantString": {
+                  "rawIssuerString": {
                     "type": "string"
                   },
-                  "merchantId": {
+                  "issuerId": {
                     "type": "integer",
                     "description": "an integer",
                     "title": "int"
@@ -1799,7 +1799,7 @@
             "required": false
           },
           {
-            "name": "merchantId",
+            "name": "issuerId",
             "in": "query",
             "schema": {
               "$ref": "#/components/schemas/NumberFromString"
@@ -2038,10 +2038,10 @@
                   "amount": {
                     "type": "number"
                   },
-                  "rawMerchantString": {
+                  "rawIssuerString": {
                     "type": "string"
                   },
-                  "merchantId": {
+                  "issuerId": {
                     "type": "integer",
                     "description": "an integer",
                     "title": "int"
@@ -2198,7 +2198,7 @@
                         "accountId",
                         "date",
                         "amount",
-                        "rawMerchantString",
+                        "rawIssuerString",
                         "importedAt",
                         "importMonth"
                       ],
@@ -2214,10 +2214,10 @@
                         "amount": {
                           "type": "number"
                         },
-                        "rawMerchantString": {
+                        "rawIssuerString": {
                           "type": "string"
                         },
-                        "merchantId": {
+                        "issuerId": {
                           "type": "integer",
                           "description": "an integer",
                           "title": "int"
@@ -2614,7 +2614,7 @@
             "required": false
           },
           {
-            "name": "merchantId",
+            "name": "issuerId",
             "in": "query",
             "schema": {
               "$ref": "#/components/schemas/NumberFromString"
@@ -2703,12 +2703,12 @@
               "schema": {
                 "type": "object",
                 "required": [
-                  "merchantId",
+                  "issuerId",
                   "pattern",
                   "matchCount"
                 ],
                 "properties": {
-                  "merchantId": {
+                  "issuerId": {
                     "type": "integer",
                     "description": "an integer",
                     "title": "int"
@@ -2741,7 +2741,7 @@
         "operationId": "rules.count",
         "parameters": [
           {
-            "name": "merchantId",
+            "name": "issuerId",
             "in": "query",
             "schema": {
               "$ref": "#/components/schemas/NumberFromString"
@@ -2897,7 +2897,7 @@
                 "type": "object",
                 "required": [],
                 "properties": {
-                  "merchantId": {
+                  "issuerId": {
                     "type": "integer",
                     "description": "an integer",
                     "title": "int"
@@ -2967,15 +2967,15 @@
         }
       }
     },
-    "/api/rules/by-merchant-pattern/{merchantId}/{pattern}": {
+    "/api/rules/by-issuer-pattern/{issuerId}/{pattern}": {
       "get": {
         "tags": [
           "Rules"
         ],
-        "operationId": "rules.getByMerchantPattern",
+        "operationId": "rules.getByIssuerPattern",
         "parameters": [
           {
-            "name": "merchantId",
+            "name": "issuerId",
             "in": "path",
             "schema": {
               "$ref": "#/components/schemas/NumberFromString"
@@ -3053,7 +3053,7 @@
             "required": false
           },
           {
-            "name": "merchantId",
+            "name": "issuerId",
             "in": "query",
             "schema": {
               "$ref": "#/components/schemas/NumberFromString"
@@ -3154,8 +3154,8 @@
               "schema": {
                 "type": "object",
                 "required": [
-                  "merchantId",
-                  "merchantName",
+                  "issuerId",
+                  "issuerName",
                   "typicalAmount",
                   "frequency",
                   "intervalDays",
@@ -3168,12 +3168,12 @@
                   "updatedAt"
                 ],
                 "properties": {
-                  "merchantId": {
+                  "issuerId": {
                     "type": "integer",
                     "description": "an integer",
                     "title": "int"
                   },
-                  "merchantName": {
+                  "issuerName": {
                     "type": "string"
                   },
                   "typicalAmount": {
@@ -3288,12 +3288,12 @@
                 "type": "object",
                 "required": [],
                 "properties": {
-                  "merchantId": {
+                  "issuerId": {
                     "type": "integer",
                     "description": "an integer",
                     "title": "int"
                   },
-                  "merchantName": {
+                  "issuerName": {
                     "type": "string"
                   },
                   "typicalAmount": {
@@ -3349,15 +3349,15 @@
         }
       }
     },
-    "/api/subscriptions/first-by-merchant/{merchantId}": {
+    "/api/subscriptions/first-by-issuer/{issuerId}": {
       "get": {
         "tags": [
           "Subscriptions"
         ],
-        "operationId": "subscriptions.getFirstByMerchant",
+        "operationId": "subscriptions.getFirstByIssuer",
         "parameters": [
           {
-            "name": "merchantId",
+            "name": "issuerId",
             "in": "path",
             "schema": {
               "$ref": "#/components/schemas/NumberFromString"
@@ -3403,15 +3403,15 @@
         }
       }
     },
-    "/api/subscriptions/by-merchant-frequency/{merchantId}/{frequency}": {
+    "/api/subscriptions/by-issuer-frequency/{issuerId}/{frequency}": {
       "get": {
         "tags": [
           "Subscriptions"
         ],
-        "operationId": "subscriptions.getByMerchantFrequency",
+        "operationId": "subscriptions.getByIssuerFrequency",
         "parameters": [
           {
-            "name": "merchantId",
+            "name": "issuerId",
             "in": "path",
             "schema": {
               "$ref": "#/components/schemas/NumberFromString"
@@ -3788,7 +3788,7 @@
                   "required": [
                     "accounts",
                     "transactions",
-                    "merchants",
+                    "issuers",
                     "rules",
                     "categories",
                     "subscriptions",
@@ -3808,10 +3808,10 @@
                         "$ref": "#/components/schemas/Transaction"
                       }
                     },
-                    "merchants": {
+                    "issuers": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/Merchant"
+                        "$ref": "#/components/schemas/Issuer"
                       }
                     },
                     "rules": {
@@ -3918,10 +3918,10 @@
                       "$ref": "#/components/schemas/Transaction"
                     }
                   },
-                  "merchants": {
+                  "issuers": {
                     "type": "array",
                     "items": {
-                      "$ref": "#/components/schemas/Merchant"
+                      "$ref": "#/components/schemas/Issuer"
                     }
                   },
                   "rules": {
@@ -4200,7 +4200,7 @@
         },
         "additionalProperties": false
       },
-      "Merchant": {
+      "Issuer": {
         "type": "object",
         "required": [
           "id",
@@ -4271,7 +4271,7 @@
           "accountId",
           "date",
           "amount",
-          "rawMerchantString",
+          "rawIssuerString",
           "importedAt",
           "importMonth"
         ],
@@ -4292,10 +4292,10 @@
           "amount": {
             "type": "number"
           },
-          "rawMerchantString": {
+          "rawIssuerString": {
             "type": "string"
           },
-          "merchantId": {
+          "issuerId": {
             "type": "integer",
             "description": "an integer",
             "title": "int"
@@ -4361,7 +4361,7 @@
             "type": "string",
             "enum": [
               "high-amount",
-              "new-merchant",
+              "new-issuer",
               "potential-duplicate"
             ]
           },
@@ -4387,7 +4387,7 @@
         "type": "object",
         "required": [
           "id",
-          "merchantId",
+          "issuerId",
           "pattern",
           "matchCount",
           "createdAt"
@@ -4398,7 +4398,7 @@
             "description": "an integer",
             "title": "int"
           },
-          "merchantId": {
+          "issuerId": {
             "type": "integer",
             "description": "an integer",
             "title": "int"
@@ -4424,8 +4424,8 @@
         "type": "object",
         "required": [
           "id",
-          "merchantId",
-          "merchantName",
+          "issuerId",
+          "issuerName",
           "typicalAmount",
           "frequency",
           "intervalDays",
@@ -4443,12 +4443,12 @@
             "description": "an integer",
             "title": "int"
           },
-          "merchantId": {
+          "issuerId": {
             "type": "integer",
             "description": "an integer",
             "title": "int"
           },
-          "merchantName": {
+          "issuerName": {
             "type": "string"
           },
           "typicalAmount": {
@@ -4615,7 +4615,7 @@
       "name": "Categories"
     },
     {
-      "name": "Merchants"
+      "name": "Issuers"
     },
     {
       "name": "Transactions"

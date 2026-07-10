@@ -15,7 +15,7 @@ import { UploadsDir } from "../config";
  * content-type, automatic etag / last-modified.
  *
  * This is deliberately NOT part of the HttpApi contract: the contract owns the
- * merchant image upload / delete endpoints, but the static file surface is a
+ * issuer image upload / delete endpoints, but the static file surface is a
  * plain route (no schema, no OpenAPI entry).
  *
  * **Path-traversal guard.** The old `@fastify/static` sanitized `..` for us; the

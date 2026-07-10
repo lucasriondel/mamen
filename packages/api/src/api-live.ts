@@ -6,7 +6,7 @@ import { AppSettingsLive } from "./app-settings/handlers";
 import { CategoriesLive } from "./categories/handlers";
 import { DatabaseLive } from "./database/handlers";
 import { HealthLive } from "./health/handlers";
-import { MerchantsLive } from "./merchants/handlers";
+import { IssuersLive } from "./issuers/handlers";
 import { RulesLive } from "./rules/handlers";
 import { SettingsLive } from "./settings/handlers";
 import { SubscriptionsLive } from "./subscriptions/handlers";
@@ -19,7 +19,7 @@ import { TransactionsLive } from "./transactions/handlers";
  * This layer still **requires** `SqlClient.SqlClient` — the caller provides the
  * data layer: `DatabaseLive` (Bun, real file) in prod via `ServerLive`, or
  * `DatabaseTest` (`:memory:`, sqlite-node) in tests. Keeping the DB out of here
- * is what lets the integration tests swap the driver. The merchant image
+ * is what lets the integration tests swap the driver. The issuer image
  * handlers additionally require `FileSystem` / `Path`, satisfied by the platform
  * in the server layer (Bun / Node).
  *
@@ -33,7 +33,7 @@ export const ApiLive = HttpApiBuilder.api(Api).pipe(
 		HealthLive,
 		AccountsLive,
 		CategoriesLive,
-		MerchantsLive,
+		IssuersLive,
 		TransactionsLive,
 		RulesLive,
 		SubscriptionsLive,

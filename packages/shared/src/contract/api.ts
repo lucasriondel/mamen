@@ -4,7 +4,7 @@ import { AppSettingsGroup } from "./app-settings";
 import { CategoriesGroup } from "./categories";
 import { DatabaseGroup } from "./database";
 import { HealthGroup } from "./health";
-import { MerchantsGroup } from "./merchants";
+import { IssuersGroup } from "./issuers";
 import { RulesGroup } from "./rules";
 import { SettingsGroup } from "./settings";
 import { SubscriptionsGroup } from "./subscriptions";
@@ -20,7 +20,7 @@ export class Api extends HttpApi.make("mamen")
 	.add(HealthGroup)
 	.add(AccountsGroup)
 	.add(CategoriesGroup)
-	.add(MerchantsGroup)
+	.add(IssuersGroup)
 	.add(TransactionsGroup)
 	.add(RulesGroup)
 	.add(SubscriptionsGroup)

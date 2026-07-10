@@ -3,8 +3,8 @@ export type SubscriptionStatus = "active" | "possibly-cancelled";
 
 export type Subscription = {
 	id?: number;
-	merchantId: number;
-	merchantName: string;
+	issuerId: number;
+	issuerName: string;
 	typicalAmount: number;
 	frequency: SubscriptionFrequency;
 	intervalDays: number;

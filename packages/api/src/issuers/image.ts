@@ -1,6 +1,6 @@
 import { FileSystem, Path } from "@effect/platform";
 import type { Multipart } from "@effect/platform";
-import { InvalidFileType, type MerchantId } from "@mamen/shared/contract";
+import { InvalidFileType, type IssuerId } from "@mamen/shared/contract";
 import { Clock, Effect } from "effect";
 import { UploadsDir } from "../config";
 
@@ -19,24 +19,24 @@ const MIME_TO_EXT: Record<string, string> = {
 
 const ALLOWED_MIME_TYPES = Object.keys(MIME_TO_EXT);
 
-/** The stored `imageUrl` for a merchant filename — always root-relative. */
-const imageUrlFor = (filename: string) => `/uploads/merchants/${filename}`;
+/** The stored `imageUrl` for a issuer filename — always root-relative. */
+const imageUrlFor = (filename: string) => `/uploads/issuers/${filename}`;
 
 /**
- * Persist an uploaded merchant image and return its root-relative `imageUrl`.
+ * Persist an uploaded issuer image and return its root-relative `imageUrl`.
  *
  * The multipart parser has already written the upload to a scoped temp path
  * (auto-cleaned when the request scope closes). This validates the MIME type,
- * moves the temp file to `uploads/merchants/merchant-{id}-{ts}.{ext}` (creating
- * the directory if needed), deletes the merchant's previous image (best-effort),
+ * moves the temp file to `uploads/issuers/issuer-{id}-{ts}.{ext}` (creating
+ * the directory if needed), deletes the issuer's previous image (best-effort),
  * and yields the new `imageUrl`. The `id`/timestamp filename scheme matches the
  * old server so existing on-disk files keep their shape.
  *
  * Fails `InvalidFileType` when the content type isn't in the allow-list. Any
  * filesystem error is an infrastructure defect (dies → 500), not client-facing.
  */
-export const persistMerchantImage = (
-	id: typeof MerchantId.Type,
+export const persistIssuerImage = (
+	id: typeof IssuerId.Type,
 	file: Multipart.PersistedFile,
 	previousImageUrl: string | undefined,
 ): Effect.Effect<
@@ -62,12 +62,12 @@ export const persistMerchantImage = (
 		// error channel to the domain `InvalidFileType`.
 		const uploadsDir = yield* Effect.orDie(UploadsDir);
 
-		const merchantsDir = path.join(uploadsDir, "merchants");
-		yield* fs.makeDirectory(merchantsDir, { recursive: true }).pipe(Effect.orDie);
+		const issuersDir = path.join(uploadsDir, "issuers");
+		yield* fs.makeDirectory(issuersDir, { recursive: true }).pipe(Effect.orDie);
 
 		const now = yield* Clock.currentTimeMillis;
-		const filename = `merchant-${id}-${now}.${ext}`;
-		const dest = path.join(merchantsDir, filename);
+		const filename = `issuer-${id}-${now}.${ext}`;
+		const dest = path.join(issuersDir, filename);
 
 		// `rename` fails across devices; `copy` + the temp file's scope finalizer
 		// (which unlinks the source) is the portable move.
@@ -84,12 +84,12 @@ export const persistMerchantImage = (
 	});
 
 /**
- * Remove a merchant image given its stored root-relative `imageUrl`, resolving
+ * Remove a issuer image given its stored root-relative `imageUrl`, resolving
  * the on-disk path under {@link UploadsDir}. Best-effort — a missing file is a
  * no-op (the old server swallowed unlink errors); other FS errors die (500).
  * Used by `deleteImage` and to clean up the previous file on re-upload.
  */
-export const deleteMerchantImage = (
+export const deleteIssuerImage = (
 	imageUrl: string,
 ): Effect.Effect<void, never, FileSystem.FileSystem | Path.Path> =>
 	Effect.gen(function* () {

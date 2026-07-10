@@ -25,8 +25,8 @@ const TransactionRow = Schema.Struct({
 	accountId: Schema.Number,
 	date: Schema.String,
 	amount: Schema.Number,
-	rawMerchantString: Schema.String,
-	merchantId: Schema.NullOr(Schema.Number),
+	rawIssuerString: Schema.String,
+	issuerId: Schema.NullOr(Schema.Number),
 	categoryId: Schema.NullOr(Schema.Number),
 	subcategoryId: Schema.NullOr(Schema.Number),
 	categoryOverride: Schema.NullOr(Schema.String),
@@ -65,8 +65,8 @@ export const TransactionFromRow = Schema.transform(
 			accountId: row.accountId,
 			date: row.date,
 			amount: row.amount,
-			rawMerchantString: row.rawMerchantString,
-			...(row.merchantId !== null ? { merchantId: row.merchantId } : {}),
+			rawIssuerString: row.rawIssuerString,
+			...(row.issuerId !== null ? { issuerId: row.issuerId } : {}),
 			...(row.categoryId !== null ? { categoryId: row.categoryId } : {}),
 			...(row.subcategoryId !== null
 				? { subcategoryId: row.subcategoryId }
@@ -99,8 +99,8 @@ export const TransactionFromRow = Schema.transform(
 			accountId: t.accountId,
 			date: t.date,
 			amount: t.amount,
-			rawMerchantString: t.rawMerchantString,
-			merchantId: t.merchantId ?? null,
+			rawIssuerString: t.rawIssuerString,
+			issuerId: t.issuerId ?? null,
 			categoryId: t.categoryId ?? null,
 			subcategoryId: t.subcategoryId ?? null,
 			categoryOverride: t.categoryOverride ?? null,
@@ -132,7 +132,7 @@ const CountResult = Schema.Struct({ count: Schema.Number });
  */
 type Filters = {
 	accountId?: number;
-	merchantId?: number;
+	issuerId?: number;
 	categoryId?: number;
 	linkedRefundId?: number;
 	importMonth?: string;
@@ -156,8 +156,8 @@ type WriteRow = {
 	accountId: number;
 	date: string;
 	amount: number;
-	rawMerchantString: string;
-	merchantId: number | null;
+	rawIssuerString: string;
+	issuerId: number | null;
 	categoryId: number | null;
 	subcategoryId: number | null;
 	categoryOverride: string | null;
@@ -200,8 +200,8 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				const conditions: Array<Fragment> = [];
 				if (f.accountId !== undefined)
 					conditions.push(sql`accountId = ${f.accountId}`);
-				if (f.merchantId !== undefined)
-					conditions.push(sql`merchantId = ${f.merchantId}`);
+				if (f.issuerId !== undefined)
+					conditions.push(sql`issuerId = ${f.issuerId}`);
 				if (f.categoryId !== undefined)
 					conditions.push(sql`categoryId = ${f.categoryId}`);
 				if (f.linkedRefundId !== undefined)
@@ -320,14 +320,14 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 			// Fold a payload / entity into a plain, null-mapped write row: optional
 			// fields absent → `null`, booleans → 0/1, `anomalyFlags` → its JSON
 			// string, dates → ISO. Same explicit-field style as the sibling repos
-			// (merchants `toWriteRow`, category `toInsertRow`) — the `id` never
+			// (issuers `toWriteRow`, category `toInsertRow`) — the `id` never
 			// travels through here, so no stripping/cast is needed.
 			const toWriteRow = (t: TransactionCreate): WriteRow => ({
 				accountId: t.accountId,
 				date: t.date.toISOString(),
 				amount: t.amount,
-				rawMerchantString: t.rawMerchantString,
-				merchantId: t.merchantId ?? null,
+				rawIssuerString: t.rawIssuerString,
+				issuerId: t.issuerId ?? null,
 				categoryId: t.categoryId ?? null,
 				subcategoryId: t.subcategoryId ?? null,
 				categoryOverride: t.categoryOverride ?? null,

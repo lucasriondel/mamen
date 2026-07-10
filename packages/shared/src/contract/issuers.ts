@@ -7,7 +7,7 @@ import {
 } from "@effect/platform";
 import { Option, Schema } from "effect";
 import { InvalidFileType, NotFound } from "./errors";
-import { CategoryId, MerchantId, numFromStr } from "./ids";
+import { CategoryId, IssuerId, numFromStr } from "./ids";
 import { Paged, Pagination } from "./pagination";
 
 /**
@@ -18,11 +18,11 @@ import { Paged, Pagination } from "./pagination";
  */
 export const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 
-/** Merchant entity — the wire shape returned by every merchants endpoint. */
-export class Merchant extends Schema.Class<Merchant>("Merchant")({
-	id: MerchantId,
+/** Issuer entity — the wire shape returned by every issuers endpoint. */
+export class Issuer extends Schema.Class<Issuer>("Issuer")({
+	id: IssuerId,
 	name: Schema.String,
-	imageUrl: Schema.optional(Schema.String), // root-relative "/uploads/merchants/..."
+	imageUrl: Schema.optional(Schema.String), // root-relative "/uploads/issuers/..."
 	defaultCategoryId: Schema.optional(CategoryId),
 	createdAt: Schema.Date,
 	firstSeen: Schema.Date,
@@ -32,24 +32,24 @@ export class Merchant extends Schema.Class<Merchant>("Merchant")({
  * Create payload — the server assigns `id` and `createdAt`. `firstSeen` is
  * caller-provided (faithful port: the old adapter accepted it on the record).
  */
-export const MerchantCreate = Schema.Struct({
-	name: Merchant.fields.name,
-	imageUrl: Merchant.fields.imageUrl,
-	defaultCategoryId: Merchant.fields.defaultCategoryId,
-	firstSeen: Merchant.fields.firstSeen,
+export const IssuerCreate = Schema.Struct({
+	name: Issuer.fields.name,
+	imageUrl: Issuer.fields.imageUrl,
+	defaultCategoryId: Issuer.fields.defaultCategoryId,
+	firstSeen: Issuer.fields.firstSeen,
 });
-export type MerchantCreate = typeof MerchantCreate.Type;
+export type IssuerCreate = typeof IssuerCreate.Type;
 
 /** Update payload — every field optional (partial update). */
-export const MerchantUpdate = Schema.partial(MerchantCreate);
-export type MerchantUpdate = typeof MerchantUpdate.Type;
+export const IssuerUpdate = Schema.partial(IssuerCreate);
+export type IssuerUpdate = typeof IssuerUpdate.Type;
 
 /**
  * `list` filter (contract §2.4): `orderBy: "name"` orders by name (else natural
  * insertion order). Spread alongside `Pagination`. Faithful to today, where only
  * `orderBy=name` is recognized.
  */
-export const MerchantListFilters = {
+export const IssuerListFilters = {
 	orderBy: Schema.optional(Schema.Literal("name")),
 } as const;
 
@@ -60,7 +60,7 @@ export const MerchantListFilters = {
  * is NOT expressible here — the handler enforces it and fails `InvalidFileType`.
  * The derived client types this as `FormData`.
  */
-export const MerchantImageUpload = HttpApiSchema.Multipart(
+export const IssuerImageUpload = HttpApiSchema.Multipart(
 	Schema.Struct({ file: Multipart.SingleFileSchema }),
 	{
 		maxFileSize: Option.some(MAX_IMAGE_BYTES),
@@ -69,76 +69,76 @@ export const MerchantImageUpload = HttpApiSchema.Multipart(
 );
 
 /**
- * Merchants group (contract §2.4), prefix `/merchants`. Includes the image
- * upload + delete. No merchant-name uniqueness constraint today (faithful port),
+ * Issuers group (contract §2.4), prefix `/issuers`. Includes the image
+ * upload + delete. No issuer-name uniqueness constraint today (faithful port),
  * so `create`/`update` declare no `Conflict`. `getById`/`getByName`/`getByNameCi`
- * /`update`/`remove`/`uploadImage`/`deleteImage` 404 on a missing merchant
+ * /`update`/`remove`/`uploadImage`/`deleteImage` 404 on a missing issuer
  * (`remove` now 404s — behavior change vs the old silent `{ ok: true }`).
  * `uploadImage` additionally declares `InvalidFileType`. Dropped vs today: `PUT
- * /merchants/bulk-put` (client-only). The `/uploads/*` static route is a
+ * /issuers/bulk-put` (client-only). The `/uploads/*` static route is a
  * separate wildcard route, not part of this contract.
  */
-export class MerchantsGroup extends HttpApiGroup.make("merchants")
+export class IssuersGroup extends HttpApiGroup.make("issuers")
 	.add(
-		HttpApiEndpoint.get("list")`/merchants`
-			.setUrlParams(Schema.Struct({ ...Pagination, ...MerchantListFilters }))
-			.addSuccess(Paged(Merchant)),
+		HttpApiEndpoint.get("list")`/issuers`
+			.setUrlParams(Schema.Struct({ ...Pagination, ...IssuerListFilters }))
+			.addSuccess(Paged(Issuer)),
 	)
 	.add(
 		HttpApiEndpoint.get(
 			"getById",
-		)`/merchants/${HttpApiSchema.param("id", numFromStr(MerchantId))}`
-			.addSuccess(Merchant)
+		)`/issuers/${HttpApiSchema.param("id", numFromStr(IssuerId))}`
+			.addSuccess(Issuer)
 			.addError(NotFound),
 	)
 	.add(
 		HttpApiEndpoint.get(
 			"getByName",
-		)`/merchants/by-name/${HttpApiSchema.param("name", Schema.String)}`
-			.addSuccess(Merchant)
+		)`/issuers/by-name/${HttpApiSchema.param("name", Schema.String)}`
+			.addSuccess(Issuer)
 			.addError(NotFound),
 	)
 	.add(
 		HttpApiEndpoint.get(
 			"getByNameCi",
-		)`/merchants/by-name-ci/${HttpApiSchema.param("name", Schema.String)}`
-			.addSuccess(Merchant)
+		)`/issuers/by-name-ci/${HttpApiSchema.param("name", Schema.String)}`
+			.addSuccess(Issuer)
 			.addError(NotFound),
 	)
 	.add(
-		HttpApiEndpoint.post("create")`/merchants`
-			.setPayload(MerchantCreate)
-			.addSuccess(Merchant, { status: 201 }),
+		HttpApiEndpoint.post("create")`/issuers`
+			.setPayload(IssuerCreate)
+			.addSuccess(Issuer, { status: 201 }),
 	)
 	.add(
 		HttpApiEndpoint.put(
 			"update",
-		)`/merchants/${HttpApiSchema.param("id", numFromStr(MerchantId))}`
-			.setPayload(MerchantUpdate)
-			.addSuccess(Merchant)
+		)`/issuers/${HttpApiSchema.param("id", numFromStr(IssuerId))}`
+			.setPayload(IssuerUpdate)
+			.addSuccess(Issuer)
 			.addError(NotFound),
 	)
 	.add(
 		HttpApiEndpoint.del(
 			"remove",
-		)`/merchants/${HttpApiSchema.param("id", numFromStr(MerchantId))}`
+		)`/issuers/${HttpApiSchema.param("id", numFromStr(IssuerId))}`
 			.addSuccess(HttpApiSchema.NoContent)
 			.addError(NotFound),
 	)
 	.add(
 		HttpApiEndpoint.post(
 			"uploadImage",
-		)`/merchants/${HttpApiSchema.param("id", numFromStr(MerchantId))}/image`
-			.setPayload(MerchantImageUpload)
-			.addSuccess(Merchant)
+		)`/issuers/${HttpApiSchema.param("id", numFromStr(IssuerId))}/image`
+			.setPayload(IssuerImageUpload)
+			.addSuccess(Issuer)
 			.addError(NotFound)
 			.addError(InvalidFileType),
 	)
 	.add(
 		HttpApiEndpoint.del(
 			"deleteImage",
-		)`/merchants/${HttpApiSchema.param("id", numFromStr(MerchantId))}/image`
-			.addSuccess(Merchant)
+		)`/issuers/${HttpApiSchema.param("id", numFromStr(IssuerId))}/image`
+			.addSuccess(Issuer)
 			.addError(NotFound),
 	)
-	.annotateContext(OpenApi.annotations({ title: "Merchants" })) {}
+	.annotateContext(OpenApi.annotations({ title: "Issuers" })) {}

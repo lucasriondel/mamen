@@ -6,7 +6,7 @@ import {
 } from "@effect/platform";
 import { Schema } from "effect";
 import { NotFound } from "./errors";
-import { MerchantId, numFromStr, SubscriptionId, TransactionId } from "./ids";
+import { IssuerId, numFromStr, SubscriptionId, TransactionId } from "./ids";
 import { Paged, Pagination } from "./pagination";
 
 /** The recurrence cadence of a subscription. */
@@ -23,15 +23,15 @@ export type SubscriptionStatus = typeof SubscriptionStatus.Type;
 
 /**
  * Subscription entity — the wire shape returned by every subscriptions endpoint.
- * `merchantName` is denormalized off the merchant. **Faithful port (spec §1.2)**:
+ * `issuerName` is denormalized off the issuer. **Faithful port (spec §1.2)**:
  * the four date fields (`lastChargeDate`, `firstChargeDate`, `detectedAt`,
  * `updatedAt`) stay `Schema.String`, NOT `Schema.Date` — they are strings in both
  * the entity and the DB column today and are not upgraded.
  */
 export class Subscription extends Schema.Class<Subscription>("Subscription")({
 	id: SubscriptionId,
-	merchantId: MerchantId,
-	merchantName: Schema.String, // denormalized
+	issuerId: IssuerId,
+	issuerName: Schema.String, // denormalized
 	typicalAmount: Schema.Number,
 	frequency: SubscriptionFrequency,
 	intervalDays: Schema.Number,
@@ -46,8 +46,8 @@ export class Subscription extends Schema.Class<Subscription>("Subscription")({
 
 /** Create payload — the server assigns `id`; every other field is caller-provided. */
 export const SubscriptionCreate = Schema.Struct({
-	merchantId: Subscription.fields.merchantId,
-	merchantName: Subscription.fields.merchantName,
+	issuerId: Subscription.fields.issuerId,
+	issuerName: Subscription.fields.issuerName,
 	typicalAmount: Subscription.fields.typicalAmount,
 	frequency: Subscription.fields.frequency,
 	intervalDays: Subscription.fields.intervalDays,
@@ -66,21 +66,21 @@ export const SubscriptionUpdate = Schema.partial(SubscriptionCreate);
 export type SubscriptionUpdate = typeof SubscriptionUpdate.Type;
 
 /**
- * `list` filters (contract §2.7): `merchantId?` + `status?`, **composable** and
- * `AND`-combined — replacing the old `merchantId > status` precedence (either/or).
- * `merchantId` decodes + brands a query string via `numFromStr`; `status` is the
+ * `list` filters (contract §2.7): `issuerId?` + `status?`, **composable** and
+ * `AND`-combined — replacing the old `issuerId > status` precedence (either/or).
+ * `issuerId` decodes + brands a query string via `numFromStr`; `status` is the
  * validated literal union. Spread alongside `Pagination` on `list`.
  */
 export const SubscriptionListFilters = {
-	merchantId: Schema.optional(numFromStr(MerchantId)),
+	issuerId: Schema.optional(numFromStr(IssuerId)),
 	status: Schema.optional(SubscriptionStatus),
 } as const;
 
 /**
  * Subscriptions group (contract §2.7), prefix `/subscriptions`. No uniqueness
  * constraint on any field (faithful port), so `create`/`update` declare no
- * `Conflict`. `update` / `getFirstByMerchant` / `getByMerchantFrequency` 404 on a
- * missing subscription. `list` composes its `merchantId?` + `status?` filters.
+ * `Conflict`. `update` / `getFirstByIssuer` / `getByIssuerFrequency` 404 on a
+ * missing subscription. `list` composes its `issuerId?` + `status?` filters.
  * The `frequency` path segment is a validated `Schema.Literal` (a bad value fails
  * decode → 400) — was an unchecked cast in the old server. Dropped vs today:
  * `GET /subscriptions/:id`, `DELETE /subscriptions/:id`, `PUT /subscriptions/bulk-put`,
@@ -109,15 +109,15 @@ export class SubscriptionsGroup extends HttpApiGroup.make("subscriptions")
 	)
 	.add(
 		HttpApiEndpoint.get(
-			"getFirstByMerchant",
-		)`/subscriptions/first-by-merchant/${HttpApiSchema.param("merchantId", numFromStr(MerchantId))}`
+			"getFirstByIssuer",
+		)`/subscriptions/first-by-issuer/${HttpApiSchema.param("issuerId", numFromStr(IssuerId))}`
 			.addSuccess(Subscription)
 			.addError(NotFound),
 	)
 	.add(
 		HttpApiEndpoint.get(
-			"getByMerchantFrequency",
-		)`/subscriptions/by-merchant-frequency/${HttpApiSchema.param("merchantId", numFromStr(MerchantId))}/${HttpApiSchema.param("frequency", SubscriptionFrequency)}`
+			"getByIssuerFrequency",
+		)`/subscriptions/by-issuer-frequency/${HttpApiSchema.param("issuerId", numFromStr(IssuerId))}/${HttpApiSchema.param("frequency", SubscriptionFrequency)}`
 			.addSuccess(Subscription)
 			.addError(NotFound),
 	)

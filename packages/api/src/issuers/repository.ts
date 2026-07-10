@@ -1,9 +1,9 @@
 import { SqlClient, SqlSchema } from "@effect/sql";
 import {
-	Merchant,
-	type MerchantCreate,
-	MerchantId,
-	type MerchantUpdate,
+	Issuer,
+	type IssuerCreate,
+	IssuerId,
+	type IssuerUpdate,
 	NotFound,
 	Paged,
 } from "@mamen/shared/contract";
@@ -11,34 +11,34 @@ import { Clock, Effect, Option, Schema } from "effect";
 import { orDieSql } from "../db/errors";
 
 /**
- * A stored merchant row — timestamps are ISO-8601 TEXT and the two optional
- * columns come back as `null` (not absent). `MerchantFromRow` decodes a row into
- * a `Merchant`, folding `null` → absent so the wire shape matches the contract's
+ * A stored issuer row — timestamps are ISO-8601 TEXT and the two optional
+ * columns come back as `null` (not absent). `IssuerFromRow` decodes a row into
+ * a `Issuer`, folding `null` → absent so the wire shape matches the contract's
  * `Schema.optional(...)`. Every read decodes through this, so the entity is the
  * single result type the handlers see.
  */
-const MerchantRow = Schema.Struct({
+const IssuerRow = Schema.Struct({
 	id: Schema.Number,
 	name: Schema.String,
 	imageUrl: Schema.NullOr(Schema.String),
 	// Plain `Number` (not branded `CategoryId`): the branding is an
 	// entity-boundary guard, and the row is a raw storage shape that decodes
-	// straight into `Merchant`'s encoded form (where the brand is a plain number).
+	// straight into `Issuer`'s encoded form (where the brand is a plain number).
 	defaultCategoryId: Schema.NullOr(Schema.Number),
 	createdAt: Schema.String,
 	firstSeen: Schema.String,
 });
 
-// `Schema.transform` maps `MerchantRow`'s decoded type to `Merchant`'s *encoded*
-// shape (string timestamps; optional fields present-or-absent) — `Merchant`'s
+// `Schema.transform` maps `IssuerRow`'s decoded type to `Issuer`'s *encoded*
+// shape (string timestamps; optional fields present-or-absent) — `Issuer`'s
 // own schema then decodes that into the class (strings → `Date`). This is where
 // the null → absent fold for the two optional columns lives; a stored `null`
 // becomes an omitted key so the wire shape matches `Schema.optional(...)`.
 //
 // Exported for the database export/import port: `decode` reads a row into a
-// `Merchant` (used by `exportAll`), `encode` folds a `Merchant` back to its
+// `Issuer` (used by `exportAll`), `encode` folds a `Issuer` back to its
 // stored row (used by `import`, id preserved).
-export const MerchantFromRow = Schema.transform(MerchantRow, Merchant, {
+export const IssuerFromRow = Schema.transform(IssuerRow, Issuer, {
 	strict: true,
 	decode: (row) => ({
 		id: row.id,
@@ -60,7 +60,7 @@ export const MerchantFromRow = Schema.transform(MerchantRow, Merchant, {
 	}),
 });
 
-const PagedMerchant = Paged(Merchant);
+const PagedIssuer = Paged(Issuer);
 
 /** Number of rows in a `count(*)` result. */
 const CountResult = Schema.Struct({ count: Schema.Number });
@@ -82,7 +82,7 @@ type WriteRow = {
 };
 
 /**
- * The merchant repository, on `@effect/sql`. Depends only on the generic
+ * The issuer repository, on `@effect/sql`. Depends only on the generic
  * `SqlClient.SqlClient` tag, so it runs unchanged against the Bun prod client
  * and the `:memory:` sqlite-node test client. Typed `NotFound` on the by-id /
  * by-name / by-name-ci lookups; `name` has no uniqueness constraint (faithful
@@ -90,8 +90,8 @@ type WriteRow = {
  * `Conflict`. The image-file side of `uploadImage`/`deleteImage` lives in the
  * handler; this repo only sets/clears the `imageUrl` column via `update`.
  */
-export class MerchantRepo extends Effect.Service<MerchantRepo>()(
-	"api/MerchantRepo",
+export class IssuerRepo extends Effect.Service<IssuerRepo>()(
+	"api/IssuerRepo",
 	{
 		effect: Effect.gen(function* () {
 			const sql = yield* SqlClient.SqlClient;
@@ -105,39 +105,39 @@ export class MerchantRepo extends Effect.Service<MerchantRepo>()(
 					: sql`ORDER BY id`;
 
 			// `Request: Schema.Any` skips a redundant re-decode: the filter is
-			// already decoded at the HTTP boundary (`MerchantListFilters`), and the
+			// already decoded at the HTTP boundary (`IssuerListFilters`), and the
 			// params bind through the `sql` fragments, not the Request schema. A
 			// `Schema.Struct` Request can't co-exist with the dynamic order fragment.
 			const listQuery = SqlSchema.findAll({
 				Request: Schema.Any as Schema.Schema<ListFilter>,
-				Result: MerchantFromRow,
+				Result: IssuerFromRow,
 				execute: ({ limit, offset, orderBy }) =>
-					sql`SELECT * FROM merchants ${orderClause(orderBy)} LIMIT ${limit} OFFSET ${offset}`,
+					sql`SELECT * FROM issuers ${orderClause(orderBy)} LIMIT ${limit} OFFSET ${offset}`,
 			});
 
 			const countQuery = SqlSchema.single({
 				Request: Schema.Void,
 				Result: CountResult,
-				execute: () => sql`SELECT COUNT(*) AS count FROM merchants`,
+				execute: () => sql`SELECT COUNT(*) AS count FROM issuers`,
 			});
 
 			const byIdQuery = SqlSchema.findOne({
-				Request: MerchantId,
-				Result: MerchantFromRow,
-				execute: (id) => sql`SELECT * FROM merchants WHERE id = ${id}`,
+				Request: IssuerId,
+				Result: IssuerFromRow,
+				execute: (id) => sql`SELECT * FROM issuers WHERE id = ${id}`,
 			});
 
 			const byNameQuery = SqlSchema.findOne({
 				Request: Schema.String,
-				Result: MerchantFromRow,
-				execute: (name) => sql`SELECT * FROM merchants WHERE name = ${name}`,
+				Result: IssuerFromRow,
+				execute: (name) => sql`SELECT * FROM issuers WHERE name = ${name}`,
 			});
 
 			const byNameCiQuery = SqlSchema.findOne({
 				Request: Schema.String,
-				Result: MerchantFromRow,
+				Result: IssuerFromRow,
 				execute: (name) =>
-					sql`SELECT * FROM merchants WHERE name COLLATE NOCASE = ${name}`,
+					sql`SELECT * FROM issuers WHERE name COLLATE NOCASE = ${name}`,
 			});
 
 			// Writes bind a plain null-mapped `WriteRow` object. `Request: Schema.Any`
@@ -146,18 +146,18 @@ export class MerchantRepo extends Effect.Service<MerchantRepo>()(
 			// matters here.
 			const insertQuery = SqlSchema.single({
 				Request: Schema.Any as Schema.Schema<WriteRow>,
-				Result: MerchantFromRow,
+				Result: IssuerFromRow,
 				execute: (row) =>
-					sql`INSERT INTO merchants ${sql.insert(row)} RETURNING *`,
+					sql`INSERT INTO issuers ${sql.insert(row)} RETURNING *`,
 			});
 
 			const updateQuery = SqlSchema.single({
 				Request: Schema.Any as Schema.Schema<
-					WriteRow & { id: typeof MerchantId.Type }
+					WriteRow & { id: typeof IssuerId.Type }
 				>,
-				Result: MerchantFromRow,
+				Result: IssuerFromRow,
 				execute: (row) =>
-					sql`UPDATE merchants SET ${sql.update(row, ["id"])} WHERE id = ${row.id} RETURNING *`,
+					sql`UPDATE issuers SET ${sql.update(row, ["id"])} WHERE id = ${row.id} RETURNING *`,
 			});
 
 			// One hoisted query for both `setImage` and `clearImage` — a `string`
@@ -165,12 +165,12 @@ export class MerchantRepo extends Effect.Service<MerchantRepo>()(
 			// shape in a single place (the other writes are hoisted too).
 			const setImageUrlQuery = SqlSchema.single({
 				Request: Schema.Any as Schema.Schema<{
-					id: typeof MerchantId.Type;
+					id: typeof IssuerId.Type;
 					imageUrl: string | null;
 				}>,
-				Result: MerchantFromRow,
+				Result: IssuerFromRow,
 				execute: ({ id, imageUrl }) =>
-					sql`UPDATE merchants SET imageUrl = ${imageUrl} WHERE id = ${id} RETURNING *`,
+					sql`UPDATE issuers SET imageUrl = ${imageUrl} WHERE id = ${id} RETURNING *`,
 			});
 
 			const nowIso = Clock.currentTimeMillis.pipe(
@@ -179,17 +179,17 @@ export class MerchantRepo extends Effect.Service<MerchantRepo>()(
 
 			/** Unwrap a lookup's `Option`, 404-ing when absent (the key goes on the error). */
 			const requireOne = (
-				found: Option.Option<Merchant>,
+				found: Option.Option<Issuer>,
 				key: string | number,
-			): Effect.Effect<Merchant, NotFound> =>
+			): Effect.Effect<Issuer, NotFound> =>
 				Option.match(found, {
 					onNone: () =>
-						Effect.fail(new NotFound({ resource: "merchant", id: key })),
+						Effect.fail(new NotFound({ resource: "issuer", id: key })),
 					onSome: Effect.succeed,
 				});
 
 			/** Fold an entity into a plain, null-mapped write row (drops `id`). */
-			const toWriteRow = (m: Merchant): WriteRow => ({
+			const toWriteRow = (m: Issuer): WriteRow => ({
 				name: m.name,
 				imageUrl: m.imageUrl ?? null,
 				defaultCategoryId: m.defaultCategoryId ?? null,
@@ -202,11 +202,11 @@ export class MerchantRepo extends Effect.Service<MerchantRepo>()(
 					items: listQuery(filter),
 					total: countQuery().pipe(Effect.map((r) => r.count)),
 				}).pipe(
-					Effect.map((paged) => PagedMerchant.make(paged)),
+					Effect.map((paged) => PagedIssuer.make(paged)),
 					orDieSql,
 				);
 
-			const getById = (id: typeof MerchantId.Type) =>
+			const getById = (id: typeof IssuerId.Type) =>
 				byIdQuery(id).pipe(
 					orDieSql,
 					Effect.flatMap((found) => requireOne(found, id)),
@@ -224,7 +224,7 @@ export class MerchantRepo extends Effect.Service<MerchantRepo>()(
 					Effect.flatMap((found) => requireOne(found, name)),
 				);
 
-			const create = (payload: MerchantCreate) =>
+			const create = (payload: IssuerCreate) =>
 				nowIso.pipe(
 					Effect.flatMap((now) =>
 						insertQuery({
@@ -238,13 +238,13 @@ export class MerchantRepo extends Effect.Service<MerchantRepo>()(
 					orDieSql,
 				);
 
-			const update = (id: typeof MerchantId.Type, changes: MerchantUpdate) =>
+			const update = (id: typeof IssuerId.Type, changes: IssuerUpdate) =>
 				getById(id).pipe(
 					// getById already 404s if missing; the write then always hits a row.
 					Effect.flatMap((current) =>
 						updateQuery({
 							id,
-							...toWriteRow(new Merchant({ ...current, ...changes })),
+							...toWriteRow(new Issuer({ ...current, ...changes })),
 						}).pipe(orDieSql),
 					),
 				);
@@ -253,23 +253,23 @@ export class MerchantRepo extends Effect.Service<MerchantRepo>()(
 			 * Set the `imageUrl` column (used by `uploadImage`). Distinct from
 			 * `update` because a partial update can't distinguish "leave imageUrl
 			 * unchanged" from "set it" — this always writes the column. Returns the
-			 * updated `Merchant`; the caller has already fetched it (404 handled).
+			 * updated `Issuer`; the caller has already fetched it (404 handled).
 			 */
-			const setImage = (id: typeof MerchantId.Type, imageUrl: string) =>
+			const setImage = (id: typeof IssuerId.Type, imageUrl: string) =>
 				setImageUrlQuery({ id, imageUrl }).pipe(orDieSql);
 
 			/**
 			 * Clear the `imageUrl` column to NULL (used by `deleteImage`). A partial
 			 * `update({ imageUrl: undefined })` means "no change", so clearing needs
-			 * this explicit write. Returns the updated `Merchant` (`imageUrl` absent).
+			 * this explicit write. Returns the updated `Issuer` (`imageUrl` absent).
 			 */
-			const clearImage = (id: typeof MerchantId.Type) =>
+			const clearImage = (id: typeof IssuerId.Type) =>
 				setImageUrlQuery({ id, imageUrl: null }).pipe(orDieSql);
 
-			const remove = (id: typeof MerchantId.Type) =>
+			const remove = (id: typeof IssuerId.Type) =>
 				getById(id).pipe(
 					Effect.flatMap(() =>
-						orDieSql(sql`DELETE FROM merchants WHERE id = ${id}`),
+						orDieSql(sql`DELETE FROM issuers WHERE id = ${id}`),
 					),
 					Effect.asVoid,
 				);

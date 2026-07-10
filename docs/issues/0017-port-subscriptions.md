@@ -12,7 +12,7 @@ blocked-by: [10, 11]
 
 Port the **subscriptions** resource end-to-end per [api-contract.md](../research/api-contract.md) §2.7, copying the DB-test + coverage pattern from [Port accounts](0011-port-accounts.md).
 
-Endpoints: `list` (paged, **composable** `merchantId?` + `status?`, both AND-combinable — replacing the old `merchantId > status` precedence), `create`, `update`, `getFirstByMerchant` (`GET /subscriptions/first-by-merchant/:merchantId`), `getByMerchantFrequency` (`GET /subscriptions/by-merchant-frequency/:merchantId/:frequency`, `frequency` now a validated `Schema.Literal` — was an unchecked cast). Errors: `NotFound` on update/getFirstByMerchant/getByMerchantFrequency.
+Endpoints: `list` (paged, **composable** `merchantId?` + `status?`, both AND-combinable — replacing the old `merchantId > status` precedence), `create`, `update`, `getFirstByMerchant` (`GET /subscriptions/first-by-issuer/:merchantId`), `getByMerchantFrequency` (`GET /subscriptions/by-issuer-frequency/:merchantId/:frequency`, `frequency` now a validated `Schema.Literal` — was an unchecked cast). Errors: `NotFound` on update/getFirstByMerchant/getByMerchantFrequency.
 
 **Faithful-port gotcha (spec §1.2):** subscription date fields (`lastChargeDate`, `firstChargeDate`, `detectedAt`, `updatedAt`) stay `Schema.String`, NOT `Schema.Date` — they're strings in both entity and DB today. Do not upgrade them. `transactionIds: Schema.Array(TransactionId)`.
 

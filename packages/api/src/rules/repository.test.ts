@@ -1,7 +1,7 @@
 import { assert, describe, it } from "@effect/vitest";
 import {
 	CategoryId,
-	MerchantId,
+	IssuerId,
 	NotFound,
 	Rule,
 	type RuleCreate,
@@ -15,7 +15,7 @@ import { RuleFromRow, RuleRepo } from "./repository";
 // SqlClient, provided by `DatabaseTest`; built per test for isolation.
 const RepoTest = RuleRepo.Default.pipe(Layer.provide(DatabaseTest));
 
-const asMerchant = Schema.decodeSync(MerchantId);
+const asIssuer = Schema.decodeSync(IssuerId);
 const asCategory = Schema.decodeSync(CategoryId);
 const asRule = Schema.decodeSync(RuleId);
 
@@ -23,7 +23,7 @@ const DATE = new Date("2026-03-01T00:00:00.000Z");
 
 /** A valid create payload; override any field per test. */
 const make = (over: Partial<RuleCreate> = {}): RuleCreate => ({
-	merchantId: asMerchant(1),
+	issuerId: asIssuer(1),
 	pattern: "ACME",
 	matchCount: 0,
 	...over,
@@ -40,7 +40,7 @@ describe("RuleFromRow storage codec", () => {
 	it("round-trips a rule with categoryOverride set", () => {
 		const full = new Rule({
 			id: asRule(1),
-			merchantId: asMerchant(2),
+			issuerId: asIssuer(2),
 			pattern: "STARBUCKS",
 			categoryOverride: asCategory(7),
 			matchCount: 3,
@@ -48,14 +48,14 @@ describe("RuleFromRow storage codec", () => {
 		});
 		const row = encode(full);
 		assert.strictEqual(row.categoryOverride, 7);
-		assert.strictEqual(row.merchantId, 2);
+		assert.strictEqual(row.issuerId, 2);
 		assert.deepStrictEqual(decode(row), full);
 	});
 
 	it("round-trips a bare rule (categoryOverride absent → null column)", () => {
 		const bare = new Rule({
 			id: asRule(1),
-			merchantId: asMerchant(2),
+			issuerId: asIssuer(2),
 			pattern: "X",
 			matchCount: 0,
 			createdAt: DATE,
@@ -72,7 +72,7 @@ describe("RuleRepo", () => {
 			const repo = yield* RuleRepo;
 			const created = yield* repo.create(make({ pattern: "AMAZON" }));
 			assert.strictEqual(created.pattern, "AMAZON");
-			assert.strictEqual(created.merchantId, asMerchant(1));
+			assert.strictEqual(created.issuerId, asIssuer(1));
 			assert.ok(created.id > 0);
 			assert.ok(created.createdAt instanceof Date);
 
@@ -124,17 +124,17 @@ describe("RuleRepo", () => {
 		}).pipe(Effect.provide(RepoTest)),
 	);
 
-	it.effect("list filters by merchantId (and total reflects the filter)", () =>
+	it.effect("list filters by issuerId (and total reflects the filter)", () =>
 		Effect.gen(function* () {
 			const repo = yield* RuleRepo;
-			yield* repo.create(make({ merchantId: asMerchant(1), pattern: "a" }));
-			yield* repo.create(make({ merchantId: asMerchant(1), pattern: "b" }));
-			yield* repo.create(make({ merchantId: asMerchant(2), pattern: "c" }));
+			yield* repo.create(make({ issuerId: asIssuer(1), pattern: "a" }));
+			yield* repo.create(make({ issuerId: asIssuer(1), pattern: "b" }));
+			yield* repo.create(make({ issuerId: asIssuer(2), pattern: "c" }));
 
 			const page = yield* repo.list({
 				limit: 50,
 				offset: 0,
-				merchantId: asMerchant(1),
+				issuerId: asIssuer(1),
 			});
 			assert.strictEqual(page.total, 2);
 			assert.deepStrictEqual(
@@ -144,40 +144,40 @@ describe("RuleRepo", () => {
 		}).pipe(Effect.provide(RepoTest)),
 	);
 
-	it.effect("count returns the total, and the merchant-scoped count", () =>
+	it.effect("count returns the total, and the issuer-scoped count", () =>
 		Effect.gen(function* () {
 			const repo = yield* RuleRepo;
-			yield* repo.create(make({ merchantId: asMerchant(1) }));
-			yield* repo.create(make({ merchantId: asMerchant(1) }));
-			yield* repo.create(make({ merchantId: asMerchant(2) }));
+			yield* repo.create(make({ issuerId: asIssuer(1) }));
+			yield* repo.create(make({ issuerId: asIssuer(1) }));
+			yield* repo.create(make({ issuerId: asIssuer(2) }));
 
 			const total = yield* repo.count(undefined);
 			assert.strictEqual(total.count, 3);
 
-			const scoped = yield* repo.count(asMerchant(1));
+			const scoped = yield* repo.count(asIssuer(1));
 			assert.strictEqual(scoped.count, 2);
 		}).pipe(Effect.provide(RepoTest)),
 	);
 
-	it.effect("getByMerchantPattern returns the matching rule", () =>
+	it.effect("getByIssuerPattern returns the matching rule", () =>
 		Effect.gen(function* () {
 			const repo = yield* RuleRepo;
-			yield* repo.create(make({ merchantId: asMerchant(5), pattern: "NETFLIX" }));
-			const found = yield* repo.getByMerchantPattern(
-				asMerchant(5),
+			yield* repo.create(make({ issuerId: asIssuer(5), pattern: "NETFLIX" }));
+			const found = yield* repo.getByIssuerPattern(
+				asIssuer(5),
 				"NETFLIX",
 			);
 			assert.strictEqual(found.pattern, "NETFLIX");
-			assert.strictEqual(found.merchantId, asMerchant(5));
+			assert.strictEqual(found.issuerId, asIssuer(5));
 		}).pipe(Effect.provide(RepoTest)),
 	);
 
-	it.effect("getByMerchantPattern is scoped by merchant (same pattern, other merchant)", () =>
+	it.effect("getByIssuerPattern is scoped by issuer (same pattern, other issuer)", () =>
 		Effect.gen(function* () {
 			const repo = yield* RuleRepo;
-			yield* repo.create(make({ merchantId: asMerchant(1), pattern: "SHARED" }));
+			yield* repo.create(make({ issuerId: asIssuer(1), pattern: "SHARED" }));
 			const error = yield* repo
-				.getByMerchantPattern(asMerchant(2), "SHARED")
+				.getByIssuerPattern(asIssuer(2), "SHARED")
 				.pipe(Effect.flip);
 			assert.deepStrictEqual(
 				error,
@@ -196,7 +196,7 @@ describe("RuleRepo", () => {
 			});
 			assert.strictEqual(updated.pattern, "new");
 			assert.strictEqual(updated.matchCount, 5);
-			assert.strictEqual(updated.merchantId, created.merchantId);
+			assert.strictEqual(updated.issuerId, created.issuerId);
 			assert.strictEqual(
 				updated.createdAt.getTime(),
 				created.createdAt.getTime(),
@@ -240,11 +240,11 @@ describe("RuleRepo", () => {
 		}).pipe(Effect.provide(RepoTest)),
 	);
 
-	it.effect("getByMerchantPattern fails NotFound on a missing pattern", () =>
+	it.effect("getByIssuerPattern fails NotFound on a missing pattern", () =>
 		Effect.gen(function* () {
 			const repo = yield* RuleRepo;
 			const error = yield* repo
-				.getByMerchantPattern(asMerchant(1), "nope")
+				.getByIssuerPattern(asIssuer(1), "nope")
 				.pipe(Effect.flip);
 			assert.deepStrictEqual(
 				error,

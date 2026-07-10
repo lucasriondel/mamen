@@ -1,5 +1,5 @@
 import type {
-	MerchantId,
+	IssuerId,
 	SubscriptionCreate,
 	SubscriptionFrequency,
 	SubscriptionId,
@@ -12,13 +12,13 @@ import { Effect } from "effect";
 import { Client, runQuery } from "../runtime";
 
 /**
- * The `list` filter — `merchantId?` + `status?`, both optional and composable
+ * The `list` filter — `issuerId?` + `status?`, both optional and composable
  * (AND-combined), mirroring the contract.
  */
 export type SubscriptionListParams = {
 	limit?: number;
 	offset?: number;
-	merchantId?: MerchantId;
+	issuerId?: IssuerId;
 	status?: SubscriptionStatus;
 };
 
@@ -28,16 +28,16 @@ export const subscriptionKeys = {
 	lists: () => [...subscriptionKeys.all, "list"] as const,
 	list: (params: SubscriptionListParams) =>
 		[...subscriptionKeys.lists(), params] as const,
-	firstByMerchant: (merchantId: MerchantId) =>
-		[...subscriptionKeys.all, "first-by-merchant", merchantId] as const,
-	byMerchantFrequency: (
-		merchantId: MerchantId,
+	firstByIssuer: (issuerId: IssuerId) =>
+		[...subscriptionKeys.all, "first-by-issuer", issuerId] as const,
+	byIssuerFrequency: (
+		issuerId: IssuerId,
 		frequency: SubscriptionFrequency,
 	) =>
 		[
 			...subscriptionKeys.all,
-			"by-merchant-frequency",
-			merchantId,
+			"by-issuer-frequency",
+			issuerId,
 			frequency,
 		] as const,
 };
@@ -58,29 +58,29 @@ export const subscriptionQueries = {
 		});
 	},
 
-	getFirstByMerchant: (merchantId: MerchantId) =>
+	getFirstByIssuer: (issuerId: IssuerId) =>
 		queryOptions({
-			queryKey: subscriptionKeys.firstByMerchant(merchantId),
+			queryKey: subscriptionKeys.firstByIssuer(issuerId),
 			queryFn: ({ signal }) =>
 				runQuery(
 					Effect.flatMap(Client, (client) =>
-						client.subscriptions.getFirstByMerchant({ path: { merchantId } }),
+						client.subscriptions.getFirstByIssuer({ path: { issuerId } }),
 					),
 					signal,
 				),
 		}),
 
-	getByMerchantFrequency: (
-		merchantId: MerchantId,
+	getByIssuerFrequency: (
+		issuerId: IssuerId,
 		frequency: SubscriptionFrequency,
 	) =>
 		queryOptions({
-			queryKey: subscriptionKeys.byMerchantFrequency(merchantId, frequency),
+			queryKey: subscriptionKeys.byIssuerFrequency(issuerId, frequency),
 			queryFn: ({ signal }) =>
 				runQuery(
 					Effect.flatMap(Client, (client) =>
-						client.subscriptions.getByMerchantFrequency({
-							path: { merchantId, frequency },
+						client.subscriptions.getByIssuerFrequency({
+							path: { issuerId, frequency },
 						}),
 					),
 					signal,

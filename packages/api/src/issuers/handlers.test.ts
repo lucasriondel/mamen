@@ -11,8 +11,8 @@ import { afterAll, assert, beforeAll, describe, it } from "@effect/vitest";
 import {
 	Api,
 	InvalidFileType,
-	type MerchantCreate,
-	MerchantId,
+	type IssuerCreate,
+	IssuerId,
 	NotFound,
 } from "@mamen/shared/contract";
 import { Effect, Layer, Schema, TestClock } from "effect";
@@ -46,11 +46,11 @@ const HttpLive = HttpApiBuilder.serve().pipe(
 	Layer.provideMerge(NodeHttpServer.layerTest),
 );
 
-const asId = Schema.decodeSync(MerchantId);
+const asId = Schema.decodeSync(IssuerId);
 
 const FIRST_SEEN = new Date("2026-01-15T00:00:00.000Z");
 
-const make = (over: Partial<MerchantCreate> = {}): MerchantCreate => ({
+const make = (over: Partial<IssuerCreate> = {}): IssuerCreate => ({
 	name: "Acme",
 	firstSeen: FIRST_SEEN,
 	...over,
@@ -69,11 +69,11 @@ const imageFormData = (
 	return fd;
 };
 
-describe("merchants endpoints", () => {
+describe("issuers endpoints", () => {
 	it.effect("list is empty initially", () =>
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
-			const page = yield* client.merchants.list({
+			const page = yield* client.issuers.list({
 				urlParams: { limit: 50, offset: 0 },
 			});
 			assert.deepStrictEqual(page, { items: [], total: 0 });
@@ -83,13 +83,13 @@ describe("merchants endpoints", () => {
 	it.effect("create returns 201 body and getById round-trips it", () =>
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
-			const created = yield* client.merchants.create({
+			const created = yield* client.issuers.create({
 				payload: make({ name: "Coffee Co" }),
 			});
 			assert.strictEqual(created.name, "Coffee Co");
 			assert.strictEqual(created.imageUrl, undefined);
 
-			const fetched = yield* client.merchants.getById({
+			const fetched = yield* client.issuers.getById({
 				path: { id: created.id },
 			});
 			assert.deepStrictEqual(fetched, created);
@@ -99,14 +99,14 @@ describe("merchants endpoints", () => {
 	it.effect("getByName is exact; getByNameCi is case-insensitive", () =>
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
-			yield* client.merchants.create({ payload: make({ name: "Netflix" }) });
+			yield* client.issuers.create({ payload: make({ name: "Netflix" }) });
 
-			const exact = yield* client.merchants.getByName({
+			const exact = yield* client.issuers.getByName({
 				path: { name: "Netflix" },
 			});
 			assert.strictEqual(exact.name, "Netflix");
 
-			const ci = yield* client.merchants.getByNameCi({
+			const ci = yield* client.issuers.getByNameCi({
 				path: { name: "NETFLIX" },
 			});
 			assert.strictEqual(ci.name, "Netflix");
@@ -116,11 +116,11 @@ describe("merchants endpoints", () => {
 	it.effect("list orders by name over the wire", () =>
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
-			yield* client.merchants.create({ payload: make({ name: "banana" }) });
-			yield* client.merchants.create({ payload: make({ name: "Apple" }) });
-			yield* client.merchants.create({ payload: make({ name: "cherry" }) });
+			yield* client.issuers.create({ payload: make({ name: "banana" }) });
+			yield* client.issuers.create({ payload: make({ name: "Apple" }) });
+			yield* client.issuers.create({ payload: make({ name: "cherry" }) });
 
-			const page = yield* client.merchants.list({
+			const page = yield* client.issuers.list({
 				urlParams: { limit: 50, offset: 0, orderBy: "name" },
 			});
 			assert.deepStrictEqual(
@@ -133,11 +133,11 @@ describe("merchants endpoints", () => {
 	it.effect("list paginates and reports the full total", () =>
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
-			yield* client.merchants.create({ payload: make({ name: "a" }) });
-			yield* client.merchants.create({ payload: make({ name: "b" }) });
-			yield* client.merchants.create({ payload: make({ name: "c" }) });
+			yield* client.issuers.create({ payload: make({ name: "a" }) });
+			yield* client.issuers.create({ payload: make({ name: "b" }) });
+			yield* client.issuers.create({ payload: make({ name: "c" }) });
 
-			const page = yield* client.merchants.list({
+			const page = yield* client.issuers.list({
 				urlParams: { limit: 2, offset: 0 },
 			});
 			assert.strictEqual(page.total, 3);
@@ -148,10 +148,10 @@ describe("merchants endpoints", () => {
 	it.effect("update applies a partial change and keeps createdAt", () =>
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
-			const created = yield* client.merchants.create({
+			const created = yield* client.issuers.create({
 				payload: make({ name: "Old" }),
 			});
-			const updated = yield* client.merchants.update({
+			const updated = yield* client.issuers.update({
 				path: { id: created.id },
 				payload: { name: "New" },
 			});
@@ -164,20 +164,20 @@ describe("merchants endpoints", () => {
 		}).pipe(Effect.provide(HttpLive)),
 	);
 
-	it.effect("remove deletes the merchant (then getById 404s)", () =>
+	it.effect("remove deletes the issuer (then getById 404s)", () =>
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
-			const created = yield* client.merchants.create({
+			const created = yield* client.issuers.create({
 				payload: make({ name: "temp" }),
 			});
-			yield* client.merchants.remove({ path: { id: created.id } });
+			yield* client.issuers.remove({ path: { id: created.id } });
 
-			const error = yield* client.merchants
+			const error = yield* client.issuers
 				.getById({ path: { id: created.id } })
 				.pipe(Effect.flip);
 			assert.deepStrictEqual(
 				error,
-				new NotFound({ resource: "merchant", id: created.id }),
+				new NotFound({ resource: "issuer", id: created.id }),
 			);
 		}).pipe(Effect.provide(HttpLive)),
 	);
@@ -186,8 +186,8 @@ describe("merchants endpoints", () => {
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
 			const http = yield* HttpClient.HttpClient;
-			const created = yield* client.merchants.create({ payload: make() });
-			const uploaded = yield* client.merchants.uploadImage({
+			const created = yield* client.issuers.create({ payload: make() });
+			const uploaded = yield* client.issuers.uploadImage({
 				path: { id: created.id },
 				payload: imageFormData(),
 			});
@@ -197,34 +197,34 @@ describe("merchants endpoints", () => {
 			const before = yield* http.get(url);
 			assert.strictEqual(before.status, 200);
 
-			yield* client.merchants.remove({ path: { id: created.id } });
+			yield* client.issuers.remove({ path: { id: created.id } });
 
 			// The row is gone AND the on-disk image was unlinked.
-			const gone = yield* client.merchants
+			const gone = yield* client.issuers
 				.getById({ path: { id: created.id } })
 				.pipe(Effect.flip);
 			assert.deepStrictEqual(
 				gone,
-				new NotFound({ resource: "merchant", id: created.id }),
+				new NotFound({ resource: "issuer", id: created.id }),
 			);
 			const after = yield* http.get(url);
 			assert.strictEqual(after.status, 404);
 		}).pipe(Effect.provide(HttpLive)),
 	);
 
-	it.effect("uploadImage stores the file and returns the updated merchant", () =>
+	it.effect("uploadImage stores the file and returns the updated issuer", () =>
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
 			const http = yield* HttpClient.HttpClient;
-			const created = yield* client.merchants.create({ payload: make() });
+			const created = yield* client.issuers.create({ payload: make() });
 
-			const updated = yield* client.merchants.uploadImage({
+			const updated = yield* client.issuers.uploadImage({
 				path: { id: created.id },
 				payload: imageFormData("image/png", "logo.png"),
 			});
 
-			// imageUrl is a root-relative /uploads/merchants/... path.
-			assert.ok(updated.imageUrl?.startsWith("/uploads/merchants/merchant-"));
+			// imageUrl is a root-relative /uploads/issuers/... path.
+			assert.ok(updated.imageUrl?.startsWith("/uploads/issuers/issuer-"));
 			assert.ok(updated.imageUrl?.endsWith(".png"));
 
 			// The file is actually served by the static route.
@@ -242,9 +242,9 @@ describe("merchants endpoints", () => {
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
 			const http = yield* HttpClient.HttpClient;
-			const created = yield* client.merchants.create({ payload: make() });
+			const created = yield* client.issuers.create({ payload: make() });
 
-			const first = yield* client.merchants.uploadImage({
+			const first = yield* client.issuers.uploadImage({
 				path: { id: created.id },
 				payload: imageFormData("image/png", "first.png"),
 			});
@@ -253,7 +253,7 @@ describe("merchants endpoints", () => {
 			// Advance the clock so the second filename (id + timestamp) differs.
 			yield* TestClock.adjust("1 millis");
 
-			const second = yield* client.merchants.uploadImage({
+			const second = yield* client.issuers.uploadImage({
 				path: { id: created.id },
 				payload: imageFormData("image/jpeg", "second.jpg"),
 			});
@@ -270,13 +270,13 @@ describe("merchants endpoints", () => {
 		}).pipe(Effect.provide(HttpLive)),
 	);
 
-	it.effect("deleteImage on a merchant with no image just returns it", () =>
+	it.effect("deleteImage on a issuer with no image just returns it", () =>
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
-			const created = yield* client.merchants.create({ payload: make() });
+			const created = yield* client.issuers.create({ payload: make() });
 			assert.strictEqual(created.imageUrl, undefined);
 
-			const cleared = yield* client.merchants.deleteImage({
+			const cleared = yield* client.issuers.deleteImage({
 				path: { id: created.id },
 			});
 			assert.strictEqual(cleared.imageUrl, undefined);
@@ -287,9 +287,9 @@ describe("merchants endpoints", () => {
 	it.effect("uploadImage rejects a disallowed MIME type (415)", () =>
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
-			const created = yield* client.merchants.create({ payload: make() });
+			const created = yield* client.issuers.create({ payload: make() });
 
-			const error = yield* client.merchants
+			const error = yield* client.issuers
 				.uploadImage({
 					path: { id: created.id },
 					payload: imageFormData("application/pdf", "bad.pdf"),
@@ -304,17 +304,17 @@ describe("merchants endpoints", () => {
 			);
 
 			// A rejected upload leaves imageUrl unset.
-			const fetched = yield* client.merchants.getById({
+			const fetched = yield* client.issuers.getById({
 				path: { id: created.id },
 			});
 			assert.strictEqual(fetched.imageUrl, undefined);
 		}).pipe(Effect.provide(HttpLive)),
 	);
 
-	it.effect("uploadImage 404s on a missing merchant", () =>
+	it.effect("uploadImage 404s on a missing issuer", () =>
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
-			const error = yield* client.merchants
+			const error = yield* client.issuers
 				.uploadImage({
 					path: { id: asId(999) },
 					payload: imageFormData(),
@@ -322,23 +322,23 @@ describe("merchants endpoints", () => {
 				.pipe(Effect.flip);
 			assert.deepStrictEqual(
 				error,
-				new NotFound({ resource: "merchant", id: asId(999) }),
+				new NotFound({ resource: "issuer", id: asId(999) }),
 			);
 		}).pipe(Effect.provide(HttpLive)),
 	);
 
-	it.effect("deleteImage removes the file, clears imageUrl, returns merchant", () =>
+	it.effect("deleteImage removes the file, clears imageUrl, returns issuer", () =>
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
 			const http = yield* HttpClient.HttpClient;
-			const created = yield* client.merchants.create({ payload: make() });
-			const uploaded = yield* client.merchants.uploadImage({
+			const created = yield* client.issuers.create({ payload: make() });
+			const uploaded = yield* client.issuers.uploadImage({
 				path: { id: created.id },
 				payload: imageFormData(),
 			});
 			const url = uploaded.imageUrl as string;
 
-			const cleared = yield* client.merchants.deleteImage({
+			const cleared = yield* client.issuers.deleteImage({
 				path: { id: created.id },
 			});
 			assert.strictEqual(cleared.imageUrl, undefined);
@@ -349,15 +349,15 @@ describe("merchants endpoints", () => {
 		}).pipe(Effect.provide(HttpLive)),
 	);
 
-	it.effect("deleteImage 404s on a missing merchant", () =>
+	it.effect("deleteImage 404s on a missing issuer", () =>
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
-			const error = yield* client.merchants
+			const error = yield* client.issuers
 				.deleteImage({ path: { id: asId(999) } })
 				.pipe(Effect.flip);
 			assert.deepStrictEqual(
 				error,
-				new NotFound({ resource: "merchant", id: asId(999) }),
+				new NotFound({ resource: "issuer", id: asId(999) }),
 			);
 		}).pipe(Effect.provide(HttpLive)),
 	);
@@ -374,7 +374,7 @@ describe("merchants endpoints", () => {
 	it.effect("static /uploads route 404s on a missing file", () =>
 		Effect.gen(function* () {
 			const http = yield* HttpClient.HttpClient;
-			const res = yield* http.get("/uploads/merchants/does-not-exist.png");
+			const res = yield* http.get("/uploads/issuers/does-not-exist.png");
 			assert.strictEqual(res.status, 404);
 		}).pipe(Effect.provide(HttpLive)),
 	);
@@ -382,12 +382,12 @@ describe("merchants endpoints", () => {
 	it.effect("getById 404s on a missing id", () =>
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
-			const error = yield* client.merchants
+			const error = yield* client.issuers
 				.getById({ path: { id: asId(999) } })
 				.pipe(Effect.flip);
 			assert.deepStrictEqual(
 				error,
-				new NotFound({ resource: "merchant", id: asId(999) }),
+				new NotFound({ resource: "issuer", id: asId(999) }),
 			);
 		}).pipe(Effect.provide(HttpLive)),
 	);
@@ -395,12 +395,12 @@ describe("merchants endpoints", () => {
 	it.effect("getByName 404s on a missing name", () =>
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
-			const error = yield* client.merchants
+			const error = yield* client.issuers
 				.getByName({ path: { name: "nope" } })
 				.pipe(Effect.flip);
 			assert.deepStrictEqual(
 				error,
-				new NotFound({ resource: "merchant", id: "nope" }),
+				new NotFound({ resource: "issuer", id: "nope" }),
 			);
 		}).pipe(Effect.provide(HttpLive)),
 	);
@@ -408,12 +408,12 @@ describe("merchants endpoints", () => {
 	it.effect("update 404s on a missing id", () =>
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
-			const error = yield* client.merchants
+			const error = yield* client.issuers
 				.update({ path: { id: asId(999) }, payload: { name: "X" } })
 				.pipe(Effect.flip);
 			assert.deepStrictEqual(
 				error,
-				new NotFound({ resource: "merchant", id: asId(999) }),
+				new NotFound({ resource: "issuer", id: asId(999) }),
 			);
 		}).pipe(Effect.provide(HttpLive)),
 	);
@@ -421,12 +421,12 @@ describe("merchants endpoints", () => {
 	it.effect("remove 404s on a missing id", () =>
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
-			const error = yield* client.merchants
+			const error = yield* client.issuers
 				.remove({ path: { id: asId(999) } })
 				.pipe(Effect.flip);
 			assert.deepStrictEqual(
 				error,
-				new NotFound({ resource: "merchant", id: asId(999) }),
+				new NotFound({ resource: "issuer", id: asId(999) }),
 			);
 		}).pipe(Effect.provide(HttpLive)),
 	);

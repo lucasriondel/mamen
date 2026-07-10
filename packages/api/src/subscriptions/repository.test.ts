@@ -1,6 +1,6 @@
 import { assert, describe, it } from "@effect/vitest";
 import {
-	MerchantId,
+	IssuerId,
 	NotFound,
 	Subscription,
 	type SubscriptionCreate,
@@ -15,14 +15,14 @@ import { SubscriptionFromRow, SubscriptionRepo } from "./repository";
 // SqlClient, provided by `DatabaseTest`; built per test for isolation.
 const RepoTest = SubscriptionRepo.Default.pipe(Layer.provide(DatabaseTest));
 
-const asMerchant = Schema.decodeSync(MerchantId);
+const asIssuer = Schema.decodeSync(IssuerId);
 const asSubscription = Schema.decodeSync(SubscriptionId);
 const asTransaction = Schema.decodeSync(TransactionId);
 
 /** A valid create payload; override any field per test. */
 const make = (over: Partial<SubscriptionCreate> = {}): SubscriptionCreate => ({
-	merchantId: asMerchant(1),
-	merchantName: "Netflix",
+	issuerId: asIssuer(1),
+	issuerName: "Netflix",
 	typicalAmount: 15.99,
 	frequency: "monthly",
 	intervalDays: 30,
@@ -46,8 +46,8 @@ describe("SubscriptionFromRow storage codec", () => {
 	it("round-trips a subscription (transactionIds ↔ JSON TEXT)", () => {
 		const full = new Subscription({
 			id: asSubscription(1),
-			merchantId: asMerchant(2),
-			merchantName: "Spotify",
+			issuerId: asIssuer(2),
+			issuerName: "Spotify",
 			typicalAmount: 9.99,
 			frequency: "yearly",
 			intervalDays: 365,
@@ -68,8 +68,8 @@ describe("SubscriptionFromRow storage codec", () => {
 	it("round-trips an empty transactionIds array", () => {
 		const bare = new Subscription({
 			id: asSubscription(1),
-			merchantId: asMerchant(2),
-			merchantName: "X",
+			issuerId: asIssuer(2),
+			issuerName: "X",
 			typicalAmount: 1,
 			frequency: "weekly",
 			intervalDays: 7,
@@ -91,16 +91,16 @@ describe("SubscriptionRepo", () => {
 	it.effect("create assigns an id, then a lookup returns it", () =>
 		Effect.gen(function* () {
 			const repo = yield* SubscriptionRepo;
-			const created = yield* repo.create(make({ merchantName: "Hulu" }));
-			assert.strictEqual(created.merchantName, "Hulu");
-			assert.strictEqual(created.merchantId, asMerchant(1));
+			const created = yield* repo.create(make({ issuerName: "Hulu" }));
+			assert.strictEqual(created.issuerName, "Hulu");
+			assert.strictEqual(created.issuerId, asIssuer(1));
 			assert.ok(created.id > 0);
 			assert.deepStrictEqual(created.transactionIds, [
 				asTransaction(10),
 				asTransaction(20),
 			]);
 
-			const fetched = yield* repo.getFirstByMerchant(asMerchant(1));
+			const fetched = yield* repo.getFirstByIssuer(asIssuer(1));
 			assert.deepStrictEqual(fetched, created);
 		}).pipe(Effect.provide(RepoTest)),
 	);
@@ -145,20 +145,20 @@ describe("SubscriptionRepo", () => {
 		}).pipe(Effect.provide(RepoTest)),
 	);
 
-	it.effect("list filters by merchantId (total reflects the filter)", () =>
+	it.effect("list filters by issuerId (total reflects the filter)", () =>
 		Effect.gen(function* () {
 			const repo = yield* SubscriptionRepo;
-			yield* repo.create(make({ merchantId: asMerchant(1) }));
-			yield* repo.create(make({ merchantId: asMerchant(1) }));
-			yield* repo.create(make({ merchantId: asMerchant(2) }));
+			yield* repo.create(make({ issuerId: asIssuer(1) }));
+			yield* repo.create(make({ issuerId: asIssuer(1) }));
+			yield* repo.create(make({ issuerId: asIssuer(2) }));
 
 			const page = yield* repo.list({
 				limit: 50,
 				offset: 0,
-				merchantId: asMerchant(1),
+				issuerId: asIssuer(1),
 			});
 			assert.strictEqual(page.total, 2);
-			assert.ok(page.items.every((s) => s.merchantId === asMerchant(1)));
+			assert.ok(page.items.every((s) => s.issuerId === asIssuer(1)));
 		}).pipe(Effect.provide(RepoTest)),
 	);
 
@@ -179,54 +179,54 @@ describe("SubscriptionRepo", () => {
 		}).pipe(Effect.provide(RepoTest)),
 	);
 
-	it.effect("list composes merchantId AND status (both must match)", () =>
+	it.effect("list composes issuerId AND status (both must match)", () =>
 		Effect.gen(function* () {
 			const repo = yield* SubscriptionRepo;
-			yield* repo.create(make({ merchantId: asMerchant(1), status: "active" }));
+			yield* repo.create(make({ issuerId: asIssuer(1), status: "active" }));
 			yield* repo.create(
-				make({ merchantId: asMerchant(1), status: "possibly-cancelled" }),
+				make({ issuerId: asIssuer(1), status: "possibly-cancelled" }),
 			);
-			yield* repo.create(make({ merchantId: asMerchant(2), status: "active" }));
+			yield* repo.create(make({ issuerId: asIssuer(2), status: "active" }));
 
 			const page = yield* repo.list({
 				limit: 50,
 				offset: 0,
-				merchantId: asMerchant(1),
+				issuerId: asIssuer(1),
 				status: "active",
 			});
 			assert.strictEqual(page.total, 1);
-			assert.strictEqual(page.items[0]?.merchantId, asMerchant(1));
+			assert.strictEqual(page.items[0]?.issuerId, asIssuer(1));
 			assert.strictEqual(page.items[0]?.status, "active");
 		}).pipe(Effect.provide(RepoTest)),
 	);
 
-	it.effect("getFirstByMerchant returns the lowest-id match", () =>
+	it.effect("getFirstByIssuer returns the lowest-id match", () =>
 		Effect.gen(function* () {
 			const repo = yield* SubscriptionRepo;
 			const first = yield* repo.create(
-				make({ merchantId: asMerchant(9), merchantName: "first" }),
+				make({ issuerId: asIssuer(9), issuerName: "first" }),
 			);
 			yield* repo.create(
-				make({ merchantId: asMerchant(9), merchantName: "second" }),
+				make({ issuerId: asIssuer(9), issuerName: "second" }),
 			);
-			const found = yield* repo.getFirstByMerchant(asMerchant(9));
+			const found = yield* repo.getFirstByIssuer(asIssuer(9));
 			assert.strictEqual(found.id, first.id);
-			assert.strictEqual(found.merchantName, "first");
+			assert.strictEqual(found.issuerName, "first");
 		}).pipe(Effect.provide(RepoTest)),
 	);
 
-	it.effect("getByMerchantFrequency returns the matching subscription", () =>
+	it.effect("getByIssuerFrequency returns the matching subscription", () =>
 		Effect.gen(function* () {
 			const repo = yield* SubscriptionRepo;
 			yield* repo.create(
-				make({ merchantId: asMerchant(5), frequency: "monthly" }),
+				make({ issuerId: asIssuer(5), frequency: "monthly" }),
 			);
 			yield* repo.create(
-				make({ merchantId: asMerchant(5), frequency: "yearly" }),
+				make({ issuerId: asIssuer(5), frequency: "yearly" }),
 			);
-			const found = yield* repo.getByMerchantFrequency(asMerchant(5), "yearly");
+			const found = yield* repo.getByIssuerFrequency(asIssuer(5), "yearly");
 			assert.strictEqual(found.frequency, "yearly");
-			assert.strictEqual(found.merchantId, asMerchant(5));
+			assert.strictEqual(found.issuerId, asIssuer(5));
 		}).pipe(Effect.provide(RepoTest)),
 	);
 
@@ -242,7 +242,7 @@ describe("SubscriptionRepo", () => {
 			});
 			assert.strictEqual(updated.chargeCount, 4);
 			assert.strictEqual(updated.status, "possibly-cancelled");
-			assert.strictEqual(updated.merchantName, created.merchantName);
+			assert.strictEqual(updated.issuerName, created.issuerName);
 			assert.strictEqual(updated.id, created.id);
 		}).pipe(Effect.provide(RepoTest)),
 	);
@@ -258,27 +258,27 @@ describe("SubscriptionRepo", () => {
 		}).pipe(Effect.provide(RepoTest)),
 	);
 
-	it.effect("getFirstByMerchant fails NotFound when the merchant has none", () =>
+	it.effect("getFirstByIssuer fails NotFound when the issuer has none", () =>
 		Effect.gen(function* () {
 			const repo = yield* SubscriptionRepo;
 			const error = yield* repo
-				.getFirstByMerchant(asMerchant(404))
+				.getFirstByIssuer(asIssuer(404))
 				.pipe(Effect.flip);
 			assert.deepStrictEqual(
 				error,
-				new NotFound({ resource: "subscription", id: asMerchant(404) }),
+				new NotFound({ resource: "subscription", id: asIssuer(404) }),
 			);
 		}).pipe(Effect.provide(RepoTest)),
 	);
 
-	it.effect("getByMerchantFrequency fails NotFound on no match", () =>
+	it.effect("getByIssuerFrequency fails NotFound on no match", () =>
 		Effect.gen(function* () {
 			const repo = yield* SubscriptionRepo;
 			yield* repo.create(
-				make({ merchantId: asMerchant(1), frequency: "monthly" }),
+				make({ issuerId: asIssuer(1), frequency: "monthly" }),
 			);
 			const error = yield* repo
-				.getByMerchantFrequency(asMerchant(1), "weekly")
+				.getByIssuerFrequency(asIssuer(1), "weekly")
 				.pipe(Effect.flip);
 			assert.deepStrictEqual(
 				error,

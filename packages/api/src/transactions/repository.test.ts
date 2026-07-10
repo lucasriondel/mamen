@@ -3,7 +3,7 @@ import {
 	AccountId,
 	AnomalyFlag,
 	CategoryId,
-	MerchantId,
+	IssuerId,
 	NotFound,
 	Transaction,
 	type TransactionCreate,
@@ -19,7 +19,7 @@ const RepoTest = TransactionRepo.Default.pipe(Layer.provide(DatabaseTest));
 
 const asAccount = Schema.decodeSync(AccountId);
 const asCategory = Schema.decodeSync(CategoryId);
-const asMerchant = Schema.decodeSync(MerchantId);
+const asIssuer = Schema.decodeSync(IssuerId);
 const asTx = Schema.decodeSync(TransactionId);
 
 const DATE = new Date("2026-03-01T00:00:00.000Z");
@@ -29,7 +29,7 @@ const make = (over: Partial<TransactionCreate> = {}): TransactionCreate => ({
 	accountId: asAccount(1),
 	date: DATE,
 	amount: 42.5,
-	rawMerchantString: "ACME STORE",
+	rawIssuerString: "ACME STORE",
 	importedAt: DATE,
 	importMonth: "2026-03",
 	...over,
@@ -56,8 +56,8 @@ describe("TransactionFromRow storage codec", () => {
 			accountId: asAccount(2),
 			date: DATE,
 			amount: 12.5,
-			rawMerchantString: "ACME",
-			merchantId: asMerchant(3),
+			rawIssuerString: "ACME",
+			issuerId: asIssuer(3),
 			categoryId: asCategory(4),
 			subcategoryId: asCategory(5),
 			categoryOverride: "Food",
@@ -81,7 +81,7 @@ describe("TransactionFromRow storage codec", () => {
 		const row = encode(full);
 		// The stored row carries every column non-null, booleans as 1, the flags as JSON.
 		assert.strictEqual(row.manualCategory, 1);
-		assert.strictEqual(row.merchantId, 3);
+		assert.strictEqual(row.issuerId, 3);
 		assert.strictEqual(typeof row.anomalyFlags, "string");
 		assert.deepStrictEqual(decode(row), full);
 	});
@@ -92,12 +92,12 @@ describe("TransactionFromRow storage codec", () => {
 			accountId: asAccount(2),
 			date: DATE,
 			amount: 1,
-			rawMerchantString: "X",
+			rawIssuerString: "X",
 			importedAt: DATE,
 			importMonth: "2026-03",
 		});
 		const row = encode(bare);
-		assert.strictEqual(row.merchantId, null);
+		assert.strictEqual(row.issuerId, null);
 		assert.strictEqual(row.manualCategory, 0);
 		assert.strictEqual(row.anomalyFlags, null);
 		assert.strictEqual(row.importBatchId, null);
@@ -123,7 +123,7 @@ describe("TransactionRepo", () => {
 		Effect.gen(function* () {
 			const repo = yield* TransactionRepo;
 			const created = yield* repo.create(make());
-			assert.strictEqual(created.merchantId, undefined);
+			assert.strictEqual(created.issuerId, undefined);
 			assert.strictEqual(created.categoryId, undefined);
 			assert.strictEqual(created.isRefund, undefined);
 			assert.strictEqual(created.anomalyFlags, undefined);
@@ -136,7 +136,7 @@ describe("TransactionRepo", () => {
 			const repo = yield* TransactionRepo;
 			const created = yield* repo.create(
 				make({
-					merchantId: asMerchant(7),
+					issuerId: asIssuer(7),
 					categoryId: asCategory(3),
 					subcategoryId: asCategory(4),
 					categoryOverride: "Groceries",
@@ -148,7 +148,7 @@ describe("TransactionRepo", () => {
 					importBatchId: "batch-1",
 				}),
 			);
-			assert.strictEqual(created.merchantId, asMerchant(7));
+			assert.strictEqual(created.issuerId, asIssuer(7));
 			assert.strictEqual(created.categoryId, asCategory(3));
 			assert.strictEqual(created.subcategoryId, asCategory(4));
 			assert.strictEqual(created.categoryOverride, "Groceries");
@@ -196,7 +196,7 @@ describe("TransactionRepo", () => {
 			});
 			assert.strictEqual(updated.amount, 20);
 			assert.strictEqual(updated.categoryId, asCategory(9));
-			assert.strictEqual(updated.rawMerchantString, "ACME STORE");
+			assert.strictEqual(updated.rawIssuerString, "ACME STORE");
 			assert.strictEqual(updated.id, created.id);
 		}).pipe(Effect.provide(RepoTest)),
 	);
@@ -244,7 +244,7 @@ describe("TransactionRepo", () => {
 					make({
 						accountId: asAccount(1),
 						categoryId: asCategory(7),
-						merchantId: asMerchant(2),
+						issuerId: asIssuer(2),
 						date: new Date("2026-01-10T00:00:00.000Z"),
 						importMonth: "2026-01",
 						importBatchId: "batch-a",
@@ -340,11 +340,11 @@ describe("TransactionRepo", () => {
 				const repo = yield* TransactionRepo;
 				yield* seed(repo);
 
-				const byMerchant = yield* repo.list({
+				const byIssuer = yield* repo.list({
 					...listAll,
-					merchantId: asMerchant(2),
+					issuerId: asIssuer(2),
 				});
-				assert.strictEqual(byMerchant.total, 1);
+				assert.strictEqual(byIssuer.total, 1);
 
 				const byLinked = yield* repo.list({
 					...listAll,

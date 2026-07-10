@@ -3,7 +3,7 @@ import { Schema } from "effect";
 import { Account } from "./accounts";
 import { AppSettings } from "./app-settings";
 import { Category } from "./categories";
-import { Merchant } from "./merchants";
+import { Issuer } from "./issuers";
 import { Rule } from "./rules";
 import { Setting } from "./settings";
 import { Subscription } from "./subscriptions";
@@ -19,7 +19,7 @@ import { Transaction } from "./transactions";
 export const DbDump = Schema.Struct({
 	accounts: Schema.Array(Account),
 	transactions: Schema.Array(Transaction),
-	merchants: Schema.Array(Merchant),
+	issuers: Schema.Array(Issuer),
 	rules: Schema.Array(Rule),
 	categories: Schema.Array(Category),
 	subscriptions: Schema.Array(Subscription),
@@ -55,7 +55,7 @@ export class DbOk extends Schema.Class<DbOk>("DbOk")({
  *   whole-DB dump is not a cacheable/idempotent GET, and the client persists the
  *   JSON body itself. A conscious REST exception.
  * - `import` — destructive clear-then-load in dependency order (accounts →
- *   categories → merchants → rules → transactions → subscriptions → settings;
+ *   categories → issuers → rules → transactions → subscriptions → settings;
  *   `appSettings = appSettings[0]`). Ids are preserved so the round-trip is exact.
  */
 export class DatabaseGroup extends HttpApiGroup.make("database")

@@ -4,7 +4,7 @@ import { assert, describe, it } from "@effect/vitest";
 import {
 	Api,
 	CategoryId,
-	MerchantId,
+	IssuerId,
 	NotFound,
 	type RuleCreate,
 	RuleId,
@@ -22,13 +22,13 @@ const HttpLive = HttpApiBuilder.serve().pipe(
 	Layer.provideMerge(NodeHttpServer.layerTest),
 );
 
-const asMerchant = Schema.decodeSync(MerchantId);
+const asIssuer = Schema.decodeSync(IssuerId);
 const asCategory = Schema.decodeSync(CategoryId);
 const asRule = Schema.decodeSync(RuleId);
 
 /** A valid create payload; override any field per test. */
 const make = (over: Partial<RuleCreate> = {}): RuleCreate => ({
-	merchantId: asMerchant(1),
+	issuerId: asIssuer(1),
 	pattern: "ACME",
 	matchCount: 0,
 	...over,
@@ -84,21 +84,21 @@ describe("rules endpoints", () => {
 		}).pipe(Effect.provide(HttpLive)),
 	);
 
-	it.effect("list filters by merchantId over the wire", () =>
+	it.effect("list filters by issuerId over the wire", () =>
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
 			yield* client.rules.create({
-				payload: make({ merchantId: asMerchant(1), pattern: "a" }),
+				payload: make({ issuerId: asIssuer(1), pattern: "a" }),
 			});
 			yield* client.rules.create({
-				payload: make({ merchantId: asMerchant(1), pattern: "b" }),
+				payload: make({ issuerId: asIssuer(1), pattern: "b" }),
 			});
 			yield* client.rules.create({
-				payload: make({ merchantId: asMerchant(2), pattern: "c" }),
+				payload: make({ issuerId: asIssuer(2), pattern: "c" }),
 			});
 
 			const page = yield* client.rules.list({
-				urlParams: { limit: 50, offset: 0, merchantId: asMerchant(1) },
+				urlParams: { limit: 50, offset: 0, issuerId: asIssuer(1) },
 			});
 			assert.strictEqual(page.total, 2);
 			assert.deepStrictEqual(
@@ -108,34 +108,34 @@ describe("rules endpoints", () => {
 		}).pipe(Effect.provide(HttpLive)),
 	);
 
-	it.effect("count returns the total, and the merchant-scoped count", () =>
+	it.effect("count returns the total, and the issuer-scoped count", () =>
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
-			yield* client.rules.create({ payload: make({ merchantId: asMerchant(1) }) });
-			yield* client.rules.create({ payload: make({ merchantId: asMerchant(1) }) });
-			yield* client.rules.create({ payload: make({ merchantId: asMerchant(2) }) });
+			yield* client.rules.create({ payload: make({ issuerId: asIssuer(1) }) });
+			yield* client.rules.create({ payload: make({ issuerId: asIssuer(1) }) });
+			yield* client.rules.create({ payload: make({ issuerId: asIssuer(2) }) });
 
 			const total = yield* client.rules.count({ urlParams: {} });
 			assert.strictEqual(total.count, 3);
 
 			const scoped = yield* client.rules.count({
-				urlParams: { merchantId: asMerchant(1) },
+				urlParams: { issuerId: asIssuer(1) },
 			});
 			assert.strictEqual(scoped.count, 2);
 		}).pipe(Effect.provide(HttpLive)),
 	);
 
-	it.effect("getByMerchantPattern decodes the two-segment path and finds the rule", () =>
+	it.effect("getByIssuerPattern decodes the two-segment path and finds the rule", () =>
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
 			yield* client.rules.create({
-				payload: make({ merchantId: asMerchant(5), pattern: "NETFLIX" }),
+				payload: make({ issuerId: asIssuer(5), pattern: "NETFLIX" }),
 			});
-			const found = yield* client.rules.getByMerchantPattern({
-				path: { merchantId: asMerchant(5), pattern: "NETFLIX" },
+			const found = yield* client.rules.getByIssuerPattern({
+				path: { issuerId: asIssuer(5), pattern: "NETFLIX" },
 			});
 			assert.strictEqual(found.pattern, "NETFLIX");
-			assert.strictEqual(found.merchantId, asMerchant(5));
+			assert.strictEqual(found.issuerId, asIssuer(5));
 		}).pipe(Effect.provide(HttpLive)),
 	);
 
@@ -144,15 +144,15 @@ describe("rules endpoints", () => {
 	// NOT tested: it would split the path into extra segments and can't survive a
 	// single path param — patterns with slashes are out of scope for this route
 	// (faithful to the old single-segment param).
-	it.effect("getByMerchantPattern handles a pattern with spaces", () =>
+	it.effect("getByIssuerPattern handles a pattern with spaces", () =>
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
 			const pattern = "ACME STORE 1";
 			yield* client.rules.create({
-				payload: make({ merchantId: asMerchant(6), pattern }),
+				payload: make({ issuerId: asIssuer(6), pattern }),
 			});
-			const found = yield* client.rules.getByMerchantPattern({
-				path: { merchantId: asMerchant(6), pattern },
+			const found = yield* client.rules.getByIssuerPattern({
+				path: { issuerId: asIssuer(6), pattern },
 			});
 			assert.strictEqual(found.pattern, pattern);
 		}).pipe(Effect.provide(HttpLive)),
@@ -209,12 +209,12 @@ describe("rules endpoints", () => {
 		}).pipe(Effect.provide(HttpLive)),
 	);
 
-	it.effect("getByMerchantPattern 404s on a missing pattern", () =>
+	it.effect("getByIssuerPattern 404s on a missing pattern", () =>
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
 			const error = yield* client.rules
-				.getByMerchantPattern({
-					path: { merchantId: asMerchant(1), pattern: "nope" },
+				.getByIssuerPattern({
+					path: { issuerId: asIssuer(1), pattern: "nope" },
 				})
 				.pipe(Effect.flip);
 			assert.deepStrictEqual(

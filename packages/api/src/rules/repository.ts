@@ -1,6 +1,6 @@
 import { SqlClient, SqlSchema } from "@effect/sql";
 import {
-	type MerchantId,
+	type IssuerId,
 	NotFound,
 	Paged,
 	Rule,
@@ -19,7 +19,7 @@ import { orDieSql } from "../db/errors";
  */
 const RuleRow = Schema.Struct({
 	id: Schema.Number,
-	merchantId: Schema.Number,
+	issuerId: Schema.Number,
 	pattern: Schema.String,
 	categoryOverride: Schema.NullOr(Schema.Number),
 	matchCount: Schema.Number,
@@ -40,7 +40,7 @@ export const RuleFromRow = Schema.transform(RuleRow, Rule, {
 	strict: true,
 	decode: (row) => ({
 		id: row.id,
-		merchantId: row.merchantId,
+		issuerId: row.issuerId,
 		pattern: row.pattern,
 		...(row.categoryOverride !== null
 			? { categoryOverride: row.categoryOverride }
@@ -50,7 +50,7 @@ export const RuleFromRow = Schema.transform(RuleRow, Rule, {
 	}),
 	encode: (r) => ({
 		id: r.id,
-		merchantId: r.merchantId,
+		issuerId: r.issuerId,
 		pattern: r.pattern,
 		categoryOverride: r.categoryOverride ?? null,
 		matchCount: r.matchCount,
@@ -63,16 +63,16 @@ const PagedRule = Paged(Rule);
 /** Number of rows in a `count(*)` result. */
 const CountResult = Schema.Struct({ count: Schema.Number });
 
-/** The `list` filter, decoded from the query string (`merchantId` optional). */
+/** The `list` filter, decoded from the query string (`issuerId` optional). */
 type ListFilter = {
 	limit: number;
 	offset: number;
-	merchantId?: typeof MerchantId.Type;
+	issuerId?: typeof IssuerId.Type;
 };
 
 /** A plain null-mapped write row (the shape bound into INSERT/UPDATE). */
 type WriteRow = {
-	merchantId: number;
+	issuerId: number;
 	pattern: string;
 	categoryOverride: number | null;
 	matchCount: number;
@@ -83,7 +83,7 @@ type WriteRow = {
  * The rules repository, on `@effect/sql`. Depends only on the generic
  * `SqlClient.SqlClient` tag, so it runs unchanged against the Bun prod client
  * and the `:memory:` sqlite-node test client. Typed `NotFound` on the by-id /
- * by-merchant-pattern lookups; no uniqueness constraint (faithful port), so
+ * by-issuer-pattern lookups; no uniqueness constraint (faithful port), so
  * writes collapse a `SqlError` to a 500 defect ({@link orDieSql}) -- no
  * `Conflict`.
  */
@@ -91,30 +91,30 @@ export class RuleRepo extends Effect.Service<RuleRepo>()("api/RuleRepo", {
 	effect: Effect.gen(function* () {
 		const sql = yield* SqlClient.SqlClient;
 
-		// The `merchantId` filter (contract §2.6): present -> that merchant's rules,
+		// The `issuerId` filter (contract §2.6): present -> that issuer's rules,
 		// absent -> the whole table. `list` and `count` share it.
-		const whereClause = (merchantId: number | undefined) =>
-			merchantId === undefined
+		const whereClause = (issuerId: number | undefined) =>
+			issuerId === undefined
 				? sql``
-				: sql`WHERE merchantId = ${merchantId}`;
+				: sql`WHERE issuerId = ${issuerId}`;
 
 		// `Request: Schema.Any` skips a redundant re-decode: the filter is already
 		// decoded + branded at the HTTP boundary (`RuleListFilters` via
-		// `numFromStr(MerchantId)`), and the params bind through the `sql` fragment
+		// `numFromStr(IssuerId)`), and the params bind through the `sql` fragment
 		// below, not the Request schema. A `Schema.Struct` Request can't co-exist
 		// with the dynamic where-fragment interpolation.
 		const listQuery = SqlSchema.findAll({
 			Request: Schema.Any as Schema.Schema<ListFilter>,
 			Result: RuleFromRow,
-			execute: ({ limit, offset, merchantId }) =>
-				sql`SELECT * FROM rules ${whereClause(merchantId)} ORDER BY id LIMIT ${limit} OFFSET ${offset}`,
+			execute: ({ limit, offset, issuerId }) =>
+				sql`SELECT * FROM rules ${whereClause(issuerId)} ORDER BY id LIMIT ${limit} OFFSET ${offset}`,
 		});
 
 		const countQuery = SqlSchema.single({
-			Request: Schema.Any as Schema.Schema<{ merchantId?: number }>,
+			Request: Schema.Any as Schema.Schema<{ issuerId?: number }>,
 			Result: CountResult,
-			execute: ({ merchantId }) =>
-				sql`SELECT COUNT(*) AS count FROM rules ${whereClause(merchantId)}`,
+			execute: ({ issuerId }) =>
+				sql`SELECT COUNT(*) AS count FROM rules ${whereClause(issuerId)}`,
 		});
 
 		const byIdQuery = SqlSchema.findOne({
@@ -123,14 +123,14 @@ export class RuleRepo extends Effect.Service<RuleRepo>()("api/RuleRepo", {
 			execute: (id) => sql`SELECT * FROM rules WHERE id = ${id}`,
 		});
 
-		const byMerchantPatternQuery = SqlSchema.findOne({
+		const byIssuerPatternQuery = SqlSchema.findOne({
 			Request: Schema.Struct({
-				merchantId: Schema.Number,
+				issuerId: Schema.Number,
 				pattern: Schema.String,
 			}),
 			Result: RuleFromRow,
-			execute: ({ merchantId, pattern }) =>
-				sql`SELECT * FROM rules WHERE merchantId = ${merchantId} AND pattern = ${pattern}`,
+			execute: ({ issuerId, pattern }) =>
+				sql`SELECT * FROM rules WHERE issuerId = ${issuerId} AND pattern = ${pattern}`,
 		});
 
 		// Writes bind a plain null-mapped `WriteRow`. `Request: Schema.Any` because
@@ -171,7 +171,7 @@ export class RuleRepo extends Effect.Service<RuleRepo>()("api/RuleRepo", {
 		// create, preserved on update -- so each caller supplies it. Both a
 		// `RuleCreate` payload and a full merged `Rule` satisfy the input type.
 		const toWriteFields = (r: RuleCreate): Omit<WriteRow, "createdAt"> => ({
-			merchantId: r.merchantId,
+			issuerId: r.issuerId,
 			pattern: r.pattern,
 			categoryOverride: r.categoryOverride ?? null,
 			matchCount: r.matchCount,
@@ -180,7 +180,7 @@ export class RuleRepo extends Effect.Service<RuleRepo>()("api/RuleRepo", {
 		const list = (filter: ListFilter) =>
 			Effect.all({
 				items: listQuery(filter),
-				total: countQuery({ merchantId: filter.merchantId }).pipe(
+				total: countQuery({ issuerId: filter.issuerId }).pipe(
 					Effect.map((r) => r.count),
 				),
 			}).pipe(
@@ -188,8 +188,8 @@ export class RuleRepo extends Effect.Service<RuleRepo>()("api/RuleRepo", {
 				orDieSql,
 			);
 
-		const count = (merchantId: typeof MerchantId.Type | undefined) =>
-			countQuery({ merchantId }).pipe(orDieSql);
+		const count = (issuerId: typeof IssuerId.Type | undefined) =>
+			countQuery({ issuerId }).pipe(orDieSql);
 
 		const getById = (id: typeof RuleId.Type) =>
 			byIdQuery(id).pipe(
@@ -197,14 +197,14 @@ export class RuleRepo extends Effect.Service<RuleRepo>()("api/RuleRepo", {
 				Effect.flatMap((found) => requireOne(found, id)),
 			);
 
-		const getByMerchantPattern = (
-			merchantId: typeof MerchantId.Type,
+		const getByIssuerPattern = (
+			issuerId: typeof IssuerId.Type,
 			pattern: string,
 		) =>
-			byMerchantPatternQuery({ merchantId, pattern }).pipe(
+			byIssuerPatternQuery({ issuerId, pattern }).pipe(
 				orDieSql,
-				// The lookup is keyed by merchant + pattern; the pattern is the
-				// caller-facing key, so it goes on the 404 (the merchant is known).
+				// The lookup is keyed by issuer + pattern; the pattern is the
+				// caller-facing key, so it goes on the 404 (the issuer is known).
 				Effect.flatMap((found) => requireOne(found, pattern)),
 			);
 
@@ -241,7 +241,7 @@ export class RuleRepo extends Effect.Service<RuleRepo>()("api/RuleRepo", {
 			list,
 			count,
 			getById,
-			getByMerchantPattern,
+			getByIssuerPattern,
 			create,
 			update,
 			remove,

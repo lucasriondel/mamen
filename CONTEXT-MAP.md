@@ -23,4 +23,4 @@ repeated per package.
   *or* an income source; bidirectional by design). Supersedes the earlier term
   **Merchant**, which was payee-flavoured and a poor fit for income (salary,
   rent received). The rename is total: contract, DB, SDK, and web all say
-  *issuer* / `IssuerId`. See ADR-0001.
+  *issuer* / `IssuerId`.

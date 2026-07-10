@@ -7,7 +7,7 @@ import { Schema } from "effect";
  */
 export const AnomalyType = Schema.Literal(
 	"high-amount",
-	"new-merchant",
+	"new-issuer",
 	"potential-duplicate",
 );
 export type AnomalyType = typeof AnomalyType.Type;

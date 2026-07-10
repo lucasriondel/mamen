@@ -17,11 +17,11 @@ export {
 export { databaseMutations } from "./database/queries";
 export { healthKeys, healthQueries } from "./health/queries";
 export {
-	type MerchantListParams,
-	merchantKeys,
-	merchantMutations,
-	merchantQueries,
-} from "./merchants/queries";
+	type IssuerListParams,
+	issuerKeys,
+	issuerMutations,
+	issuerQueries,
+} from "./issuers/queries";
 export {
 	type RuleCountParams,
 	type RuleListParams,

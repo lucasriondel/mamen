@@ -5,8 +5,8 @@ export type Transaction = {
 	accountId: number;
 	date: Date;
 	amount: number;
-	rawMerchantString: string;
-	merchantId?: number;
+	rawIssuerString: string;
+	issuerId?: number;
 	categoryId?: number;
 	subcategoryId?: number;
 	categoryOverride?: string;

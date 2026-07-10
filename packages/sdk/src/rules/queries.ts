@@ -1,5 +1,5 @@
 import type {
-	MerchantId,
+	IssuerId,
 	RuleCreate,
 	RuleId,
 	RuleUpdate,
@@ -9,16 +9,16 @@ import { queryOptions } from "@tanstack/react-query";
 import { Effect } from "effect";
 import { Client, runQuery } from "../runtime";
 
-/** The `list` filter — `merchantId` optional, mirroring the contract. */
+/** The `list` filter — `issuerId` optional, mirroring the contract. */
 export type RuleListParams = {
 	limit?: number;
 	offset?: number;
-	merchantId?: MerchantId;
+	issuerId?: IssuerId;
 };
 
-/** The `count` filter — the same `merchantId?` scope, no pagination. */
+/** The `count` filter — the same `issuerId?` scope, no pagination. */
 export type RuleCountParams = {
-	merchantId?: MerchantId;
+	issuerId?: IssuerId;
 };
 
 /** Query-key factory for the rules resource. */
@@ -30,8 +30,8 @@ export const ruleKeys = {
 	count: (params: RuleCountParams) => [...ruleKeys.counts(), params] as const,
 	details: () => [...ruleKeys.all, "detail"] as const,
 	detail: (id: RuleId) => [...ruleKeys.details(), id] as const,
-	byMerchantPattern: (merchantId: MerchantId, pattern: string) =>
-		[...ruleKeys.all, "by-merchant-pattern", merchantId, pattern] as const,
+	byIssuerPattern: (issuerId: IssuerId, pattern: string) =>
+		[...ruleKeys.all, "by-issuer-pattern", issuerId, pattern] as const,
 };
 
 /** tanstack-query read options for the rules resource. */
@@ -72,14 +72,14 @@ export const ruleQueries = {
 				),
 		}),
 
-	getByMerchantPattern: (merchantId: MerchantId, pattern: string) =>
+	getByIssuerPattern: (issuerId: IssuerId, pattern: string) =>
 		queryOptions({
-			queryKey: ruleKeys.byMerchantPattern(merchantId, pattern),
+			queryKey: ruleKeys.byIssuerPattern(issuerId, pattern),
 			queryFn: ({ signal }) =>
 				runQuery(
 					Effect.flatMap(Client, (client) =>
-						client.rules.getByMerchantPattern({
-							path: { merchantId, pattern },
+						client.rules.getByIssuerPattern({
+							path: { issuerId, pattern },
 						}),
 					),
 					signal,

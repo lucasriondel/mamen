@@ -8,7 +8,7 @@ import {
 import { Effect, Schema } from "effect";
 import { AppSettingsFromRow } from "../app-settings/repository";
 import { orDieSql } from "../db/errors";
-import { MerchantFromRow } from "../merchants/repository";
+import { IssuerFromRow } from "../issuers/repository";
 import { RuleFromRow } from "../rules/repository";
 import { SubscriptionFromRow } from "../subscriptions/repository";
 import { TransactionFromRow } from "../transactions/repository";
@@ -16,7 +16,7 @@ import { TransactionFromRow } from "../transactions/repository";
 /**
  * The eight tables, in the order `import` must clear-then-load them: parents
  * before children so an insert never references a not-yet-loaded row (accounts →
- * categories → merchants → rules → transactions → subscriptions → settings →
+ * categories → issuers → rules → transactions → subscriptions → settings →
  * appSettings). There are no DB-level foreign keys (inventory §3), so this order
  * is a faithful-port convention rather than a hard constraint — but it matches
  * the old export/import and keeps the load deterministic.
@@ -24,7 +24,7 @@ import { TransactionFromRow } from "../transactions/repository";
 const TABLES = [
 	"accounts",
 	"categories",
-	"merchants",
+	"issuers",
 	"rules",
 	"transactions",
 	"subscriptions",
@@ -42,7 +42,7 @@ const TABLES = [
 const toAccountRow = Schema.encodeSync(Account);
 const toCategoryRow = Schema.encodeSync(Category);
 const toSettingRow = Schema.encodeSync(Setting);
-const toMerchantRow = Schema.encodeSync(MerchantFromRow);
+const toIssuerRow = Schema.encodeSync(IssuerFromRow);
 const toRuleRow = Schema.encodeSync(RuleFromRow);
 const toTransactionRow = Schema.encodeSync(TransactionFromRow);
 const toSubscriptionRow = Schema.encodeSync(SubscriptionFromRow);
@@ -80,7 +80,7 @@ export class DatabaseRepo extends Effect.Service<DatabaseRepo>()(
 				Effect.all({
 					accounts: readAll("accounts", Account),
 					transactions: readAll("transactions", TransactionFromRow),
-					merchants: readAll("merchants", MerchantFromRow),
+					issuers: readAll("issuers", IssuerFromRow),
 					rules: readAll("rules", RuleFromRow),
 					categories: readAll("categories", Category),
 					subscriptions: readAll("subscriptions", SubscriptionFromRow),
@@ -132,8 +132,8 @@ export class DatabaseRepo extends Effect.Service<DatabaseRepo>()(
 						rows: (dump.categories ?? []).map((x) => toCategoryRow(x)),
 					},
 					{
-						table: "merchants",
-						rows: (dump.merchants ?? []).map((x) => toMerchantRow(x)),
+						table: "issuers",
+						rows: (dump.issuers ?? []).map((x) => toIssuerRow(x)),
 					},
 					{ table: "rules", rows: (dump.rules ?? []).map((x) => toRuleRow(x)) },
 					{

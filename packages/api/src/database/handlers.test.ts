@@ -20,8 +20,8 @@ const HttpLive = HttpApiBuilder.serve().pipe(
  * Seed one row in every table through the resource endpoints and return the
  * created entities. Exercises the whole DB so `export`/`import` round-trip a
  * representative dump (every table non-empty, with ids the server assigned).
- * Foreign keys reference the seeded rows (transaction → account/merchant/category,
- * rule → merchant, subscription → merchant/transaction) so the dependency-order
+ * Foreign keys reference the seeded rows (transaction → account/issuer/category,
+ * rule → issuer, subscription → issuer/transaction) so the dependency-order
  * load is meaningful.
  */
 const seed = Effect.gen(function* () {
@@ -39,12 +39,12 @@ const seed = Effect.gen(function* () {
 			sortOrder: 1,
 		},
 	});
-	const merchant = yield* client.merchants.create({
+	const issuer = yield* client.issuers.create({
 		payload: { name: "Store", firstSeen: new Date("2026-01-01T00:00:00.000Z") },
 	});
 	const rule = yield* client.rules.create({
 		payload: {
-			merchantId: merchant.id,
+			issuerId: issuer.id,
 			pattern: "STORE*",
 			categoryOverride: category.id,
 			matchCount: 3,
@@ -55,8 +55,8 @@ const seed = Effect.gen(function* () {
 			accountId: account.id,
 			date: new Date("2026-02-15T12:00:00.000Z"),
 			amount: -42.5,
-			rawMerchantString: "STORE #1",
-			merchantId: merchant.id,
+			rawIssuerString: "STORE #1",
+			issuerId: issuer.id,
 			categoryId: category.id,
 			isRefund: false,
 			importedAt: new Date("2026-02-16T00:00:00.000Z"),
@@ -65,8 +65,8 @@ const seed = Effect.gen(function* () {
 	});
 	const subscription = yield* client.subscriptions.create({
 		payload: {
-			merchantId: merchant.id,
-			merchantName: "Store",
+			issuerId: issuer.id,
+			issuerName: "Store",
 			typicalAmount: 9.99,
 			frequency: "monthly",
 			intervalDays: 30,
@@ -95,7 +95,7 @@ const seed = Effect.gen(function* () {
 	return {
 		account,
 		category,
-		merchant,
+		issuer,
 		rule,
 		transaction,
 		subscription,
@@ -108,7 +108,7 @@ const seed = Effect.gen(function* () {
 const EMPTY_DUMP = {
 	accounts: [],
 	transactions: [],
-	merchants: [],
+	issuers: [],
 	rules: [],
 	categories: [],
 	subscriptions: [],
@@ -133,7 +133,7 @@ describe("database endpoints", () => {
 			const dump = yield* client.database.export();
 			assert.deepStrictEqual(dump.accounts, [seeded.account]);
 			assert.deepStrictEqual(dump.categories, [seeded.category]);
-			assert.deepStrictEqual(dump.merchants, [seeded.merchant]);
+			assert.deepStrictEqual(dump.issuers, [seeded.issuer]);
 			assert.deepStrictEqual(dump.rules, [seeded.rule]);
 			assert.deepStrictEqual(dump.transactions, [seeded.transaction]);
 			assert.deepStrictEqual(dump.subscriptions, [seeded.subscription]);
@@ -198,7 +198,7 @@ describe("database endpoints", () => {
 			assert.strictEqual(after.accounts[0].name, "Replaced");
 			// Every table absent from the payload was still wiped.
 			assert.deepStrictEqual(after.categories, []);
-			assert.deepStrictEqual(after.merchants, []);
+			assert.deepStrictEqual(after.issuers, []);
 			assert.deepStrictEqual(after.rules, []);
 			assert.deepStrictEqual(after.transactions, []);
 			assert.deepStrictEqual(after.subscriptions, []);

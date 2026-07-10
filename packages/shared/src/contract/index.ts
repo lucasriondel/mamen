@@ -31,7 +31,7 @@ export { Health, HealthGroup } from "./health";
 export {
 	AccountId,
 	CategoryId,
-	MerchantId,
+	IssuerId,
 	numFromStr,
 	RuleId,
 	SettingId,
@@ -40,13 +40,13 @@ export {
 } from "./ids";
 export {
 	MAX_IMAGE_BYTES,
-	Merchant,
-	MerchantCreate,
-	MerchantImageUpload,
-	MerchantListFilters,
-	MerchantsGroup,
-	MerchantUpdate,
-} from "./merchants";
+	Issuer,
+	IssuerCreate,
+	IssuerImageUpload,
+	IssuerListFilters,
+	IssuersGroup,
+	IssuerUpdate,
+} from "./issuers";
 export { Paged, Pagination, PaginationDefaults } from "./pagination";
 export {
 	Rule,

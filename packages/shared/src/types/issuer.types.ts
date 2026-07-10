@@ -1,4 +1,4 @@
-export type Merchant = {
+export type Issuer = {
 	id?: number;
 	name: string;
 	imageUrl?: string;
