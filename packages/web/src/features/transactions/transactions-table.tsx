@@ -16,6 +16,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { formatShortDate } from "@/lib/format";
+import { AssignmentPicker } from "./assignment-picker";
 import { AmountCell, IssuerCell } from "./transaction-cells";
 
 export interface TransactionsTableProps {
@@ -58,16 +59,25 @@ export function TransactionsTable({
 			columnHelper.display({
 				id: "issuer",
 				header: "Issuer",
-				cell: ({ row }) => (
-					<IssuerCell
-						rawIssuerString={row.original.rawIssuerString}
-						issuer={
-							row.original.issuerId != null
-								? issuersById.get(row.original.issuerId)
-								: undefined
-						}
-					/>
-				),
+				cell: ({ row }) => {
+					const issuer =
+						row.original.issuerId != null
+							? issuersById.get(row.original.issuerId)
+							: undefined;
+					// Resolved rows read as plain display; unresolved rows are the
+					// curation surface — clicking opens the assignment picker (PRD).
+					return issuer ? (
+						<IssuerCell
+							rawIssuerString={row.original.rawIssuerString}
+							issuer={issuer}
+						/>
+					) : (
+						<AssignmentPicker
+							transactionId={row.original.id}
+							rawIssuerString={row.original.rawIssuerString}
+						/>
+					);
+				},
 			}),
 			columnHelper.accessor("amount", {
 				header: () => <span className="block text-right">Amount</span>,

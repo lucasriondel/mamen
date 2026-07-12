@@ -1,5 +1,6 @@
 import type { Issuer } from "@mamen/shared/contract";
 import { CircleHelp } from "lucide-react";
+import { IssuerAvatar } from "@/features/issuers/issuer-avatar";
 import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -18,20 +19,6 @@ export function AmountCell({ amount }: { amount: number }) {
 			)}
 		>
 			{formatCurrency(amount)}
-		</span>
-	);
-}
-
-/** A small round avatar: the issuer image, or its initial as a fallback. */
-function IssuerAvatar({ name, imageUrl }: { name: string; imageUrl?: string }) {
-	const initial = name.trim().charAt(0).toUpperCase() || "?";
-	return (
-		<span className="flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-full bg-bg text-xs font-medium text-muted">
-			{imageUrl ? (
-				<img src={imageUrl} alt="" className="size-full object-cover" />
-			) : (
-				<span aria-hidden>{initial}</span>
-			)}
 		</span>
 	);
 }
