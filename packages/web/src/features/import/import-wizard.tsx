@@ -1,6 +1,8 @@
 import type { Account } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { type ReactNode, useMemo, useReducer } from "react";
+import { stepPresence } from "@/lib/motion";
 import { accountQueries } from "@/lib/sdk";
 import { getParserById } from "./parsers/registry";
 import type { ParsedTransaction } from "./parsers/types";
@@ -19,6 +21,7 @@ export function ImportWizard() {
 	const [state, dispatch] = useReducer(wizardReducer, initialWizardState);
 	const accountsQuery = useQuery(accountQueries.list());
 	const accounts = (accountsQuery.data?.items ?? []) as readonly Account[];
+	const reducedMotion = useReducedMotion() ?? false;
 
 	const records = useMemo<ParsedTransaction[]>(() => {
 		const parser = state.parserId ? getParserById(state.parserId) : undefined;
@@ -58,7 +61,11 @@ export function ImportWizard() {
 				</p>
 			</header>
 
-			{stepContent}
+			<AnimatePresence mode="wait" initial={false}>
+				<motion.div key={state.step} {...stepPresence(reducedMotion)}>
+					{stepContent}
+				</motion.div>
+			</AnimatePresence>
 		</section>
 	);
 }
