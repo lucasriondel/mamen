@@ -14,12 +14,10 @@ export const ACCOUNT_TYPE_OPTIONS: ReadonlyArray<{
 	{ value: "other", label: "Other" },
 ];
 
-const LABELS: Record<AccountType, string> = {
-	checking: "Checking",
-	savings: "Savings",
-	credit_card: "Credit card",
-	other: "Other",
-};
+// Derived from the options above so the labels have a single source of truth.
+const LABELS = Object.fromEntries(
+	ACCOUNT_TYPE_OPTIONS.map((option) => [option.value, option.label]),
+) as Record<AccountType, string>;
 
 /** Human label for an account `type` literal (e.g. `credit_card` → `Credit card`). */
 export function accountTypeLabel(type: AccountType): string {
