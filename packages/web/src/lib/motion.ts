@@ -31,6 +31,9 @@ export const STAGGER_STEP_S = 0.05;
  */
 export const MAX_STAGGER_INDEX = 8;
 
+/** The resting (settled) state every entrance/presence helper animates to. */
+const REST = { opacity: 1, y: 0 };
+
 /**
  * Entry-motion props for a framer-motion element: `initial`/`animate` touch only
  * `opacity` and `y` (translateY = transform), plus the timing `transition`.
@@ -68,13 +71,13 @@ export function cardEntrance(
 	if (reducedMotion) {
 		return {
 			initial: false,
-			animate: { opacity: 1, y: 0 },
+			animate: REST,
 			transition: { duration: 0 },
 		};
 	}
 	return {
 		initial: { opacity: 0, y: 8 },
-		animate: { opacity: 1, y: 0 },
+		animate: REST,
 		transition: {
 			duration: DURATION_S,
 			ease: EASE_OUT,
@@ -92,14 +95,14 @@ export function stepPresence(reducedMotion: boolean): PresenceProps {
 	if (reducedMotion) {
 		return {
 			initial: false,
-			animate: { opacity: 1, y: 0 },
+			animate: REST,
 			exit: { opacity: 0, y: 0 },
 			transition: { duration: 0 },
 		};
 	}
 	return {
 		initial: { opacity: 0, y: 8 },
-		animate: { opacity: 1, y: 0 },
+		animate: REST,
 		exit: { opacity: 0, y: -8 },
 		transition: { duration: DURATION_S, ease: EASE_OUT },
 	};
