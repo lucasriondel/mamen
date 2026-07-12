@@ -1,14 +1,12 @@
+import { ImportWizard } from "./import-wizard";
+
 /**
- * Import view (stub).
+ * Import view — the CSV import surface (PRD #7).
  *
- * The 3-step CSV import wizard (parser auto-detect, preview, idempotent commit)
- * is built in a later slice. For now it renders a heading under the app shell.
+ * Thin wrapper around the {@link ImportWizard}: the whole 3-step flow (file drop
+ * + parser auto-detect + account selection, mandatory preview, idempotent
+ * commit) lives in the wizard so the route stays a one-liner.
  */
 export function ImportView() {
-	return (
-		<section>
-			<h1 className="text-2xl font-semibold text-ink">Import</h1>
-			<p className="mt-2 text-muted">Drop a CSV statement to import it.</p>
-		</section>
-	);
+	return <ImportWizard />;
 }

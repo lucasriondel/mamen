@@ -1,0 +1,123 @@
+import {
+	createMemoryHistory,
+	createRootRoute,
+	createRoute,
+	createRouter,
+	RouterProvider,
+} from "@tanstack/react-router";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// A two-row Green-Got statement spanning a month boundary (Jan debit + Feb
+// credit) so the commit must produce a delete+create for each month.
+const CSV = [
+	'"Statut","Date","Montant","Direction","Intitulé"',
+	'"COMPLETE","2026-01-15T10:00:00.000Z","10","DEBIT","SHOP A"',
+	'"COMPLETE","2026-02-03T10:00:00.000Z","20","CREDIT","SHOP B"',
+].join("\n");
+
+const ACCOUNTS = [{ id: 1, name: "Checking", type: "checking" }];
+
+// SDK-boundary seam: mock the account read + the transactions count/mutations
+// the wizard touches, keeping the rest of the SDK (keys) real for invalidation.
+const deleteByAccountMonth = vi.fn();
+const bulkCreate = vi.fn();
+
+vi.mock("@mamen/sdk", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@mamen/sdk")>();
+	return {
+		...actual,
+		accountQueries: {
+			list: () => ({
+				queryKey: ["accounts", "list", "test"],
+				queryFn: async () => ({ items: ACCOUNTS, total: ACCOUNTS.length }),
+			}),
+		},
+		transactionQueries: {
+			...actual.transactionQueries,
+			count: (params: unknown) => ({
+				queryKey: ["transactions", "count", params],
+				queryFn: async () => ({ count: 0 }),
+			}),
+		},
+		transactionMutations: {
+			...actual.transactionMutations,
+			deleteByAccountMonth: (accountId: unknown, month: unknown) =>
+				deleteByAccountMonth(accountId, month),
+			bulkCreate: (records: unknown) => bulkCreate(records),
+		},
+	};
+});
+
+const { ImportWizard } = await import("./import-wizard");
+
+// ---- Router harness ---------------------------------------------------------
+
+function makeRouter() {
+	const rootRoute = createRootRoute();
+	const importRoute = createRoute({
+		getParentRoute: () => rootRoute,
+		path: "/import",
+		component: ImportWizard,
+	});
+	const txRoute = createRoute({
+		getParentRoute: () => rootRoute,
+		path: "/transactions",
+		component: () => <div>Transactions page</div>,
+	});
+	return createRouter({
+		routeTree: rootRoute.addChildren([importRoute, txRoute]),
+		history: createMemoryHistory({ initialEntries: ["/import"] }),
+	});
+}
+
+beforeEach(() => {
+	deleteByAccountMonth.mockReset().mockResolvedValue({ count: 0 });
+	bulkCreate.mockReset().mockResolvedValue([]);
+});
+
+describe("ImportWizard", () => {
+	it("drops a CSV, previews, and commits a delete+create per month", async () => {
+		const user = userEvent.setup();
+		render(<RouterProvider router={makeRouter()} />);
+
+		// Step 1 — drop the CSV; the format auto-detects and the config panel opens.
+		const file = new File([CSV], "statement.csv", { type: "text/csv" });
+		await user.upload(await screen.findByLabelText("CSV statement"), file);
+
+		expect(await screen.findByText("Auto-detected.")).toBeInTheDocument();
+
+		// Choose the target account, then continue to the mandatory preview.
+		await user.selectOptions(screen.getByLabelText("Target account"), "1");
+		await user.click(
+			screen.getByRole("button", { name: "Continue to preview" }),
+		);
+
+		// Step 2 — the preview shows the two months found; commit.
+		const commitButton = await screen.findByRole("button", {
+			name: "Commit import",
+		});
+		await user.click(commitButton);
+
+		// One delete per distinct month, both for the chosen account.
+		await waitFor(() =>
+			expect(deleteByAccountMonth).toHaveBeenCalledWith(1, "2026-01"),
+		);
+		expect(deleteByAccountMonth).toHaveBeenCalledWith(1, "2026-02");
+		expect(deleteByAccountMonth).toHaveBeenCalledTimes(2);
+
+		// One bulkCreate per month, with signed amounts (debit negative).
+		expect(bulkCreate).toHaveBeenCalledTimes(2);
+		const janRecords = bulkCreate.mock.calls[0][0];
+		expect(janRecords[0]).toMatchObject({
+			accountId: 1,
+			amount: -10,
+			rawIssuerString: "SHOP A",
+			importMonth: "2026-01",
+		});
+
+		// On success it navigates to the transactions view.
+		expect(await screen.findByText("Transactions page")).toBeInTheDocument();
+	});
+});
