@@ -1,9 +1,6 @@
-import { QueryClientProvider } from "@tanstack/react-query";
-import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { createRouter, RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { queryClient } from "./lib/api";
 import { routeTree } from "./routeTree.gen";
 import "./index.css";
 
@@ -15,11 +12,10 @@ declare module "@tanstack/react-router" {
 	}
 }
 
+// Providers (Query, theme, toaster) live in the `__root` route so the whole
+// tree — including any future error/pending components — sits inside them.
 createRoot(document.getElementById("root")!).render(
 	<StrictMode>
-		<QueryClientProvider client={queryClient}>
-			<RouterProvider router={router} />
-			<ReactQueryDevtools initialIsOpen={false} />
-		</QueryClientProvider>
+		<RouterProvider router={router} />
 	</StrictMode>,
 );

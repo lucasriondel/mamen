@@ -1,13 +1,17 @@
-// Wraps @testing-library/react render and renderHook with QueryClientProvider
-// so all tests automatically have access to TanStack Query context.
-// This file is loaded via vitest setupFiles AFTER api-mock-setup.ts.
+// Wraps @testing-library/react's render and renderHook with a QueryClientProvider
+// so every test has TanStack Query context without repeating boilerplate. Loaded
+// via vitest `setupFiles` after `setup.ts`.
+//
+// Salvaged from the pre-rework web (the one reusable piece of the old test
+// infra); repointed at the new `@/lib/query-client` singleton and the dead
+// IndexedDB api-mock dependency dropped.
 
 import { QueryClientProvider } from "@tanstack/react-query";
 import type * as React from "react";
 import { afterEach, vi } from "vitest";
-import { queryClient } from "@/lib/api";
+import { queryClient } from "@/lib/query-client";
 
-// Clear query cache between tests
+// Clear the query cache between tests so cached reads don't leak across cases.
 afterEach(() => {
 	queryClient.clear();
 });

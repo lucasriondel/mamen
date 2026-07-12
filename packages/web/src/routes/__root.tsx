@@ -1,24 +1,35 @@
+import { QueryClientProvider } from "@tanstack/react-query";
+import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { createRootRoute, Outlet } from "@tanstack/react-router";
-import { CommandPalette } from "@/components/CommandPalette";
-import { Layout } from "@/components/Layout";
-import { Toaster } from "@/components/ui/sonner";
-import { CommandPaletteProvider } from "@/context/CommandPaletteContext";
-import { FocusModeProvider } from "@/context/FocusModeContext";
+import { ThemeProvider } from "next-themes";
+import { Toaster } from "sonner";
+import { AppSidebar } from "@/components/app-sidebar";
+import { queryClient } from "@/lib/query-client";
 
-export const Route = createRootRoute({
-	component: RootComponent,
-});
-
-function RootComponent(): React.ReactElement {
+/**
+ * Root route — the app shell every feature route renders inside.
+ *
+ * Wires the cross-cutting providers the PRD assigns to `__root`: the TanStack
+ * Query provider (app defaults), `next-themes` for the light/dark toggle, the
+ * gousse `Sidebar`, and a `sonner` toaster for mutation-failure surfacing.
+ */
+function RootLayout() {
 	return (
-		<FocusModeProvider>
-			<CommandPaletteProvider>
-				<Layout>
-					<Outlet />
-				</Layout>
-				<CommandPalette />
-				<Toaster />
-			</CommandPaletteProvider>
-		</FocusModeProvider>
+		<QueryClientProvider client={queryClient}>
+			<ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+				<div className="flex h-screen w-full bg-bg text-ink">
+					<AppSidebar />
+					<main className="flex-1 overflow-auto p-8">
+						<Outlet />
+					</main>
+				</div>
+				<Toaster position="bottom-right" richColors />
+				<ReactQueryDevtools initialIsOpen={false} />
+			</ThemeProvider>
+		</QueryClientProvider>
 	);
 }
+
+export const Route = createRootRoute({
+	component: RootLayout,
+});

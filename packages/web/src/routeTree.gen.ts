@@ -10,39 +10,24 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TransactionsRouteImport } from './routes/transactions'
-import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as RulesRouteImport } from './routes/rules'
-import { Route as MerchantsRouteImport } from './routes/merchants'
-import { Route as CategoriesRouteImport } from './routes/categories'
+import { Route as IssuersRouteImport } from './routes/issuers'
+import { Route as ImportRouteImport } from './routes/import'
 import { Route as AccountsRouteImport } from './routes/accounts'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as TransactionsUnmatchedRouteImport } from './routes/transactions.unmatched'
-import { Route as TransactionsTransactionIdRouteImport } from './routes/transactions.$transactionId'
-import { Route as MerchantsMerchantIdRouteImport } from './routes/merchants.$merchantId'
 
 const TransactionsRoute = TransactionsRouteImport.update({
   id: '/transactions',
   path: '/transactions',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SettingsRoute = SettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
+const IssuersRoute = IssuersRouteImport.update({
+  id: '/issuers',
+  path: '/issuers',
   getParentRoute: () => rootRouteImport,
 } as any)
-const RulesRoute = RulesRouteImport.update({
-  id: '/rules',
-  path: '/rules',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MerchantsRoute = MerchantsRouteImport.update({
-  id: '/merchants',
-  path: '/merchants',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CategoriesRoute = CategoriesRouteImport.update({
-  id: '/categories',
-  path: '/categories',
+const ImportRoute = ImportRouteImport.update({
+  id: '/import',
+  path: '/import',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AccountsRoute = AccountsRouteImport.update({
@@ -55,107 +40,43 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const TransactionsUnmatchedRoute = TransactionsUnmatchedRouteImport.update({
-  id: '/unmatched',
-  path: '/unmatched',
-  getParentRoute: () => TransactionsRoute,
-} as any)
-const TransactionsTransactionIdRoute =
-  TransactionsTransactionIdRouteImport.update({
-    id: '/$transactionId',
-    path: '/$transactionId',
-    getParentRoute: () => TransactionsRoute,
-  } as any)
-const MerchantsMerchantIdRoute = MerchantsMerchantIdRouteImport.update({
-  id: '/$merchantId',
-  path: '/$merchantId',
-  getParentRoute: () => MerchantsRoute,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/accounts': typeof AccountsRoute
-  '/categories': typeof CategoriesRoute
-  '/merchants': typeof MerchantsRouteWithChildren
-  '/rules': typeof RulesRoute
-  '/settings': typeof SettingsRoute
-  '/transactions': typeof TransactionsRouteWithChildren
-  '/merchants/$merchantId': typeof MerchantsMerchantIdRoute
-  '/transactions/$transactionId': typeof TransactionsTransactionIdRoute
-  '/transactions/unmatched': typeof TransactionsUnmatchedRoute
+  '/import': typeof ImportRoute
+  '/issuers': typeof IssuersRoute
+  '/transactions': typeof TransactionsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/accounts': typeof AccountsRoute
-  '/categories': typeof CategoriesRoute
-  '/merchants': typeof MerchantsRouteWithChildren
-  '/rules': typeof RulesRoute
-  '/settings': typeof SettingsRoute
-  '/transactions': typeof TransactionsRouteWithChildren
-  '/merchants/$merchantId': typeof MerchantsMerchantIdRoute
-  '/transactions/$transactionId': typeof TransactionsTransactionIdRoute
-  '/transactions/unmatched': typeof TransactionsUnmatchedRoute
+  '/import': typeof ImportRoute
+  '/issuers': typeof IssuersRoute
+  '/transactions': typeof TransactionsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/accounts': typeof AccountsRoute
-  '/categories': typeof CategoriesRoute
-  '/merchants': typeof MerchantsRouteWithChildren
-  '/rules': typeof RulesRoute
-  '/settings': typeof SettingsRoute
-  '/transactions': typeof TransactionsRouteWithChildren
-  '/merchants/$merchantId': typeof MerchantsMerchantIdRoute
-  '/transactions/$transactionId': typeof TransactionsTransactionIdRoute
-  '/transactions/unmatched': typeof TransactionsUnmatchedRoute
+  '/import': typeof ImportRoute
+  '/issuers': typeof IssuersRoute
+  '/transactions': typeof TransactionsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths:
-    | '/'
-    | '/accounts'
-    | '/categories'
-    | '/merchants'
-    | '/rules'
-    | '/settings'
-    | '/transactions'
-    | '/merchants/$merchantId'
-    | '/transactions/$transactionId'
-    | '/transactions/unmatched'
+  fullPaths: '/' | '/accounts' | '/import' | '/issuers' | '/transactions'
   fileRoutesByTo: FileRoutesByTo
-  to:
-    | '/'
-    | '/accounts'
-    | '/categories'
-    | '/merchants'
-    | '/rules'
-    | '/settings'
-    | '/transactions'
-    | '/merchants/$merchantId'
-    | '/transactions/$transactionId'
-    | '/transactions/unmatched'
-  id:
-    | '__root__'
-    | '/'
-    | '/accounts'
-    | '/categories'
-    | '/merchants'
-    | '/rules'
-    | '/settings'
-    | '/transactions'
-    | '/merchants/$merchantId'
-    | '/transactions/$transactionId'
-    | '/transactions/unmatched'
+  to: '/' | '/accounts' | '/import' | '/issuers' | '/transactions'
+  id: '__root__' | '/' | '/accounts' | '/import' | '/issuers' | '/transactions'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AccountsRoute: typeof AccountsRoute
-  CategoriesRoute: typeof CategoriesRoute
-  MerchantsRoute: typeof MerchantsRouteWithChildren
-  RulesRoute: typeof RulesRoute
-  SettingsRoute: typeof SettingsRoute
-  TransactionsRoute: typeof TransactionsRouteWithChildren
+  ImportRoute: typeof ImportRoute
+  IssuersRoute: typeof IssuersRoute
+  TransactionsRoute: typeof TransactionsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -167,32 +88,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TransactionsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
+    '/issuers': {
+      id: '/issuers'
+      path: '/issuers'
+      fullPath: '/issuers'
+      preLoaderRoute: typeof IssuersRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/rules': {
-      id: '/rules'
-      path: '/rules'
-      fullPath: '/rules'
-      preLoaderRoute: typeof RulesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/merchants': {
-      id: '/merchants'
-      path: '/merchants'
-      fullPath: '/merchants'
-      preLoaderRoute: typeof MerchantsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/categories': {
-      id: '/categories'
-      path: '/categories'
-      fullPath: '/categories'
-      preLoaderRoute: typeof CategoriesRouteImport
+    '/import': {
+      id: '/import'
+      path: '/import'
+      fullPath: '/import'
+      preLoaderRoute: typeof ImportRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/accounts': {
@@ -209,64 +116,15 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/transactions/unmatched': {
-      id: '/transactions/unmatched'
-      path: '/unmatched'
-      fullPath: '/transactions/unmatched'
-      preLoaderRoute: typeof TransactionsUnmatchedRouteImport
-      parentRoute: typeof TransactionsRoute
-    }
-    '/transactions/$transactionId': {
-      id: '/transactions/$transactionId'
-      path: '/$transactionId'
-      fullPath: '/transactions/$transactionId'
-      preLoaderRoute: typeof TransactionsTransactionIdRouteImport
-      parentRoute: typeof TransactionsRoute
-    }
-    '/merchants/$merchantId': {
-      id: '/merchants/$merchantId'
-      path: '/$merchantId'
-      fullPath: '/merchants/$merchantId'
-      preLoaderRoute: typeof MerchantsMerchantIdRouteImport
-      parentRoute: typeof MerchantsRoute
-    }
   }
 }
-
-interface MerchantsRouteChildren {
-  MerchantsMerchantIdRoute: typeof MerchantsMerchantIdRoute
-}
-
-const MerchantsRouteChildren: MerchantsRouteChildren = {
-  MerchantsMerchantIdRoute: MerchantsMerchantIdRoute,
-}
-
-const MerchantsRouteWithChildren = MerchantsRoute._addFileChildren(
-  MerchantsRouteChildren,
-)
-
-interface TransactionsRouteChildren {
-  TransactionsTransactionIdRoute: typeof TransactionsTransactionIdRoute
-  TransactionsUnmatchedRoute: typeof TransactionsUnmatchedRoute
-}
-
-const TransactionsRouteChildren: TransactionsRouteChildren = {
-  TransactionsTransactionIdRoute: TransactionsTransactionIdRoute,
-  TransactionsUnmatchedRoute: TransactionsUnmatchedRoute,
-}
-
-const TransactionsRouteWithChildren = TransactionsRoute._addFileChildren(
-  TransactionsRouteChildren,
-)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccountsRoute: AccountsRoute,
-  CategoriesRoute: CategoriesRoute,
-  MerchantsRoute: MerchantsRouteWithChildren,
-  RulesRoute: RulesRoute,
-  SettingsRoute: SettingsRoute,
-  TransactionsRoute: TransactionsRouteWithChildren,
+  ImportRoute: ImportRoute,
+  IssuersRoute: IssuersRoute,
+  TransactionsRoute: TransactionsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

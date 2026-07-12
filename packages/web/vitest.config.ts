@@ -12,7 +12,6 @@ export default defineConfig({
 		environment: "jsdom",
 		setupFiles: [
 			"./src/test/setup.ts",
-			"./src/test/api-mock-setup.ts",
 			"./src/test/query-client-setup.tsx",
 		],
 		css: true,
