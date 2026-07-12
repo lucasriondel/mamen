@@ -1,5 +1,5 @@
 import type { Issuer, Transaction } from "@mamen/shared/contract";
-import { screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -82,7 +82,6 @@ beforeEach(() => {
 
 describe("IssuersView", () => {
 	it("renders a card with the issuer name, transaction count, and net total", async () => {
-		const { render } = await import("@testing-library/react");
 		render(<IssuersView />);
 
 		expect(await screen.findByText("Spotify")).toBeInTheDocument();
@@ -95,7 +94,6 @@ describe("IssuersView", () => {
 
 	it("opens the edit dialog when a card is clicked and renames the issuer", async () => {
 		const user = userEvent.setup();
-		const { render } = await import("@testing-library/react");
 		render(<IssuersView />);
 
 		await user.click(await screen.findByRole("button", { name: /Spotify/ }));
@@ -113,7 +111,6 @@ describe("IssuersView", () => {
 
 	it("blocks deleting an issuer still referenced by transactions", async () => {
 		const user = userEvent.setup();
-		const { render } = await import("@testing-library/react");
 		render(<IssuersView />);
 
 		await user.click(await screen.findByRole("button", { name: /Spotify/ }));
@@ -134,7 +131,6 @@ describe("IssuersView", () => {
 	it("deletes an issuer with no referencing transactions", async () => {
 		transactionsByIssuer = { 1: [] };
 		const user = userEvent.setup();
-		const { render } = await import("@testing-library/react");
 		render(<IssuersView />);
 
 		await user.click(await screen.findByRole("button", { name: /Spotify/ }));
@@ -151,7 +147,6 @@ describe("IssuersView", () => {
 
 	it("rejects an avatar image over the 2 MiB cap without uploading", async () => {
 		const user = userEvent.setup();
-		const { render } = await import("@testing-library/react");
 		render(<IssuersView />);
 
 		await user.click(await screen.findByRole("button", { name: /Spotify/ }));
@@ -168,7 +163,6 @@ describe("IssuersView", () => {
 
 	it("uploads an avatar image within the cap", async () => {
 		const user = userEvent.setup();
-		const { render } = await import("@testing-library/react");
 		render(<IssuersView />);
 
 		await user.click(await screen.findByRole("button", { name: /Spotify/ }));
