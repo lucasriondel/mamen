@@ -15,7 +15,10 @@ import {
 	transactionQueries,
 } from "@/lib/sdk";
 import { TRANSACTIONS_PAGE_SIZE, type TransactionsSearch } from "./search";
-import { TransactionsFilters } from "./transactions-filters";
+import {
+	type TransactionFilterValues,
+	TransactionsFilters,
+} from "./transactions-filters";
 import { TransactionsPagination } from "./transactions-pagination";
 import { TransactionsTable } from "./transactions-table";
 
@@ -83,10 +86,7 @@ export function TransactionsView() {
 		return [...new Set(items.map((t) => t.importMonth))].sort().reverse();
 	}, [monthsQuery.data]);
 
-	const applyFilters = (patch: {
-		accountId?: number;
-		importMonth?: string;
-	}) => {
+	const applyFilters = (patch: TransactionFilterValues) => {
 		navigate({
 			search: (prev) => ({ ...prev, ...patch, offset: 0 }),
 		});
