@@ -1,6 +1,6 @@
 import type { Account } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useReducer } from "react";
+import { type ReactNode, useMemo, useReducer } from "react";
 import { accountQueries } from "@/lib/sdk";
 import { getParserById } from "./parsers/registry";
 import type { ParsedTransaction } from "./parsers/types";
@@ -29,6 +29,24 @@ export function ImportWizard() {
 		});
 	}, [state.parserId, state.accountId, state.rows, state.importBatchId]);
 
+	let stepContent: ReactNode = null;
+	if (state.step === "upload") {
+		stepContent = <UploadStep state={state} dispatch={dispatch} />;
+	} else if (state.accountId !== null && state.parserId !== null) {
+		stepContent = (
+			<PreviewStep
+				records={records}
+				accountId={state.accountId}
+				accountName={
+					accounts.find((account) => account.id === state.accountId)?.name ??
+					"—"
+				}
+				parserLabel={getParserById(state.parserId)?.label ?? state.parserId}
+				onBack={() => dispatch({ type: "back-to-upload" })}
+			/>
+		);
+	}
+
 	return (
 		<section className="mx-auto flex max-w-3xl flex-col gap-6">
 			<header>
@@ -40,20 +58,7 @@ export function ImportWizard() {
 				</p>
 			</header>
 
-			{state.step === "upload" ? (
-				<UploadStep state={state} dispatch={dispatch} />
-			) : state.accountId !== null && state.parserId !== null ? (
-				<PreviewStep
-					records={records}
-					accountId={state.accountId}
-					accountName={
-						accounts.find((account) => account.id === state.accountId)?.name ??
-						"—"
-					}
-					parserLabel={getParserById(state.parserId)?.label ?? state.parserId}
-					onBack={() => dispatch({ type: "back-to-upload" })}
-				/>
-			) : null}
+			{stepContent}
 		</section>
 	);
 }
