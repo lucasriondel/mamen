@@ -644,3 +644,203 @@ describe("remove manual issuer", () => {
 		}).pipe(Effect.provide(HttpLive)),
 	);
 });
+
+// Delete preview + next-best fall-back re-eval (PRD #8 stories 17–18, issue #12).
+// Deleting a rule previews the rows it re-homes and, on commit, re-derives them
+// against the REMAINING rules — driven end-to-end through the client.
+describe("rule delete preview + re-eval", () => {
+	const ids = (rows: ReadonlyArray<{ id: unknown }>) => rows.map((r) => r.id);
+
+	it.effect(
+		"preview: rows owned by the rule fall to the next-best or unmatch",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				// Broad rule (issuer 1) + a more-specific rule (issuer 2) that wins the
+				// AMAZON row. A lone SPOTIFY row is owned only by the specific rule.
+				yield* client.rules.create({
+					payload: { issuerId: asIssuer(1), pattern: "AMAZON", matchCount: 0 },
+				});
+				const specific = yield* client.rules.create({
+					payload: {
+						issuerId: asIssuer(2),
+						pattern: "AMAZON EU SARL",
+						matchCount: 0,
+					},
+				});
+				const [amazon, spotify] = yield* client.transactions.bulkCreate({
+					payload: {
+						records: [
+							tx({ rawIssuerString: "AMAZON EU SARL" }),
+							tx({ rawIssuerString: "AMAZON EU SARL SPOTIFY" }),
+						],
+					},
+				});
+				// Both rows land on the specific rule (issuer 2, longest literal).
+				assert.strictEqual(amazon?.issuerId, asIssuer(2));
+				assert.strictEqual(spotify?.issuerId, asIssuer(2));
+
+				const preview = yield* client.rules.previewDelete({
+					path: { id: specific.id },
+				});
+				// `amazon` falls back to the broad rule (issuer 1); `spotify` still
+				// matches "AMAZON" too, so it also reassigns to issuer 1. Neither
+				// unmatches because the broad rule survives.
+				assert.deepStrictEqual(ids(preview.willReassign), [
+					amazon?.id,
+					spotify?.id,
+				]);
+				assert.deepStrictEqual(preview.willUnmatch, []);
+			}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect(
+		"preview: deleting the only matching rule lists rows as will-unmatch",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const only = yield* client.rules.create({
+					payload: { issuerId: asIssuer(9), pattern: "AMAZON", matchCount: 0 },
+				});
+				const [row] = yield* client.transactions.bulkCreate({
+					payload: { records: [tx({ rawIssuerString: "AMAZON EU SARL" })] },
+				});
+				assert.strictEqual(row?.issuerId, asIssuer(9));
+
+				const preview = yield* client.rules.previewDelete({
+					path: { id: only.id },
+				});
+				assert.deepStrictEqual(ids(preview.willUnmatch), [row?.id]);
+				assert.deepStrictEqual(preview.willReassign, []);
+			}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("preview: a manual row is never in either list", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const rule = yield* client.rules.create({
+				payload: { issuerId: asIssuer(1), pattern: "AMAZON", matchCount: 0 },
+			});
+			yield* client.transactions.bulkCreate({
+				payload: {
+					records: [
+						tx({
+							rawIssuerString: "AMAZON EU SARL",
+							issuerId: asIssuer(5),
+							manualIssuer: true,
+						}),
+					],
+				},
+			});
+
+			const preview = yield* client.rules.previewDelete({
+				path: { id: rule.id },
+			});
+			assert.deepStrictEqual(preview.willReassign, []);
+			assert.deepStrictEqual(preview.willUnmatch, []);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("preview: 404s when the ruleId names a missing rule", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const error = yield* client.rules
+				.previewDelete({ path: { id: asRule(999) } })
+				.pipe(Effect.flip);
+			assert.deepStrictEqual(
+				error,
+				new NotFound({ resource: "rule", id: asRule(999) }),
+			);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("delete: winning rule's rows move to the next-best rule", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			yield* client.rules.create({
+				payload: { issuerId: asIssuer(1), pattern: "AMAZON", matchCount: 0 },
+			});
+			const specific = yield* client.rules.create({
+				payload: {
+					issuerId: asIssuer(2),
+					pattern: "AMAZON EU SARL",
+					matchCount: 0,
+				},
+			});
+			const [row] = yield* client.transactions.bulkCreate({
+				payload: { records: [tx({ rawIssuerString: "AMAZON EU SARL" })] },
+			});
+			assert.strictEqual(row?.issuerId, asIssuer(2));
+
+			yield* client.rules.remove({ path: { id: specific.id } });
+
+			// Falls back to the broad rule that remains.
+			const after = yield* client.transactions.getById({
+				path: { id: row?.id ?? asTxId(0) },
+			});
+			assert.strictEqual(after.issuerId, asIssuer(1));
+			assert.notStrictEqual(after.manualIssuer, true);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("delete: rows become unmatched when no rule remains", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const only = yield* client.rules.create({
+				payload: { issuerId: asIssuer(9), pattern: "AMAZON", matchCount: 0 },
+			});
+			const [row] = yield* client.transactions.bulkCreate({
+				payload: { records: [tx({ rawIssuerString: "AMAZON EU SARL" })] },
+			});
+			assert.strictEqual(row?.issuerId, asIssuer(9));
+
+			yield* client.rules.remove({ path: { id: only.id } });
+
+			const after = yield* client.transactions.getById({
+				path: { id: row?.id ?? asTxId(0) },
+			});
+			assert.strictEqual(after.issuerId, undefined);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("delete: a manual row keeps its issuer through a delete", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const rule = yield* client.rules.create({
+				payload: { issuerId: asIssuer(1), pattern: "AMAZON", matchCount: 0 },
+			});
+			const [row] = yield* client.transactions.bulkCreate({
+				payload: {
+					records: [
+						tx({
+							rawIssuerString: "AMAZON EU SARL",
+							issuerId: asIssuer(5),
+							manualIssuer: true,
+						}),
+					],
+				},
+			});
+
+			yield* client.rules.remove({ path: { id: rule.id } });
+
+			const after = yield* client.transactions.getById({
+				path: { id: row?.id ?? asTxId(0) },
+			});
+			assert.strictEqual(after.issuerId, asIssuer(5));
+			assert.strictEqual(after.manualIssuer, true);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("delete: 404s when the rule is missing", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const error = yield* client.rules
+				.remove({ path: { id: asRule(999) } })
+				.pipe(Effect.flip);
+			assert.deepStrictEqual(
+				error,
+				new NotFound({ resource: "rule", id: asRule(999) }),
+			);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+});

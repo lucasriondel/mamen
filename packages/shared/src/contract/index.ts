@@ -52,6 +52,7 @@ export {
 	Rule,
 	RuleCount,
 	RuleCreate,
+	RuleDeletePreviewResult,
 	RuleListFilters,
 	RulePreviewInput,
 	RulePreviewResult,

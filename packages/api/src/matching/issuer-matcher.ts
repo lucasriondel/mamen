@@ -2,6 +2,7 @@ import { SqlClient, SqlSchema } from "@effect/sql";
 import type {
 	IssuerId,
 	RuleCreate,
+	RuleDeletePreviewResult,
 	RulePreviewInput,
 	RulePreviewResult,
 	RuleUpdate,
@@ -219,6 +220,52 @@ export const previewLists = (
 		}
 	}
 	return { willMatch, willReassign, manualCollisions, skipped: false };
+};
+
+/**
+ * The two consequence lists of deleting one rule (PRD #8 stories 17–18) — pure
+ * core behind the `rules` delete-preview endpoint and the shape the commit
+ * settles to. Re-derives every row against the **remaining** rules (the target
+ * removed) and diffs it against the row's current issuer:
+ * - `willReassign` — the row falls back to a *different* issuer (the next-best
+ *   specificity winner among the rules that remain);
+ * - `willUnmatch` — the row becomes unmatched (no other rule matches).
+ *
+ * Only rows the deleted rule had won can move: removing a non-winning rule never
+ * changes a row's winner. Manual rows (`manualIssuer = true`) are skipped
+ * outright — a delete never touches a hand-picked issuer (the Issuer invariant).
+ */
+export type DeletePreviewLists = {
+	willReassign: ReadonlyArray<Transaction>;
+	willUnmatch: ReadonlyArray<Transaction>;
+};
+
+export const deleteLists = (
+	rows: ReadonlyArray<Transaction>,
+	currentRules: ReadonlyArray<Rule>,
+	ruleId: typeof RuleId.Type,
+): DeletePreviewLists => {
+	const remaining = currentRules.filter((r) => r.id !== ruleId);
+	// Re-derive the whole table without the target rule; the outcome is the
+	// row's issuer *after* the delete.
+	const after = new Map(
+		derive(rows, remaining).outcomes.map((o) => [
+			o.transactionId as number,
+			o.issuerId ?? null,
+		]),
+	);
+
+	const willReassign: Array<Transaction> = [];
+	const willUnmatch: Array<Transaction> = [];
+	for (const row of rows) {
+		if (row.manualIssuer) continue; // a delete never touches a manual pick.
+		const before = row.issuerId ?? null;
+		const now = after.get(row.id) ?? null;
+		if (before === now) continue; // the target wasn't this row's winner.
+		if (now === null) willUnmatch.push(row);
+		else willReassign.push(row);
+	}
+	return { willReassign, willUnmatch };
 };
 
 /**
@@ -510,6 +557,57 @@ export class IssuerMatcher extends Effect.Service<IssuerMatcher>()(
 				);
 
 			/**
+			 * Dry-run the **delete** of the rule `id`: read the current rules + whole
+			 * table and report the full consequence set ({@link deleteLists}) — the
+			 * rows that will change issuer (`willReassign`) or become unmatched
+			 * (`willUnmatch`) once the rule is gone. `NotFound` when `id` names a
+			 * missing rule. Purely advisory — no writes.
+			 */
+			const previewDelete = (
+				id: typeof RuleId.Type,
+			): Effect.Effect<typeof RuleDeletePreviewResult.Type, NotFound> =>
+				// `orDieSql` covers only the reads; the `NotFound` introduced after it
+				// survives to the wire as a 404 (mirrors `preview`).
+				Effect.all({
+					rules: allRulesQuery(),
+					rows: allTransactionsQuery(),
+				}).pipe(
+					orDieSql,
+					Effect.flatMap(({ rules, rows }) =>
+						rules.some((r) => r.id === id)
+							? Effect.succeed(deleteLists(rows, rules, id))
+							: Effect.fail(new NotFound({ resource: "rule", id })),
+					),
+				);
+
+			/**
+			 * Apply-on-save for a **delete**: remove the rule and recompute the whole
+			 * table against the remaining rules, all in one `withTransaction` (atomic;
+			 * recomputes from *current* state, never a stale preview). Rows the rule
+			 * had won fall back to the next-best rule or become unmatched; manual rows
+			 * are untouched (`recomputeIssuers` derives them to their own issuer → no
+			 * write). 404s when `id` is missing. Returns void (204).
+			 */
+			const applyRuleDelete = (id: typeof RuleId.Type) =>
+				ruleByIdQuery(id).pipe(
+					orDieSql,
+					Effect.flatMap((found) =>
+						Option.match(found, {
+							onNone: () => Effect.fail(new NotFound({ resource: "rule", id })),
+							onSome: () =>
+								sql
+									.withTransaction(
+										Effect.gen(function* () {
+											yield* sql`DELETE FROM rules WHERE id = ${id}`;
+											yield* recomputeIssuers;
+										}),
+									)
+									.pipe(orDieSql, Effect.asVoid),
+						}),
+					),
+				);
+
+			/**
 			 * The preview's per-row "remove manual issuer" action (PRD #8 story 10):
 			 * clear the row's manual flag, then re-derive *that row* against the
 			 * current rule set — it becomes unmatched, or is claimed by an existing
@@ -555,8 +653,10 @@ export class IssuerMatcher extends Effect.Service<IssuerMatcher>()(
 				derive,
 				matchImported,
 				preview,
+				previewDelete,
 				applyRuleCreate,
 				applyRuleUpdate,
+				applyRuleDelete,
 				removeManualIssuer,
 			} as const;
 		}),

@@ -6,14 +6,17 @@ import { RuleRepo } from "./repository";
 
 /**
  * Implements the `rules` group of the contract: `list`/`count`
- * (both `issuerId?`-filtered), `getById`, `getByIssuerPattern`, `remove` on
- * {@link RuleRepo}; `preview`, `create`, `update` on the {@link IssuerMatcher}.
+ * (both `issuerId?`-filtered), `getById`, `getByIssuerPattern` on
+ * {@link RuleRepo}; `preview`, `previewDelete`, `create`, `update`, `remove` on
+ * the {@link IssuerMatcher}.
  *
- * `create`/`update` are **apply-on-save** (PRD #8): they don't just write the
- * rule, they recompute every transaction's issuer against the resulting rule set
- * atomically — so a broader rule's rows retroactively move to a newly-added
- * more-specific rule, and a manual row is never touched. `preview` is the
- * matching dry-run (three scoped lists) the create/edit form shows first.
+ * `create`/`update`/`remove` are **apply-on-save** (PRD #8): they don't just
+ * write the rule, they recompute every transaction's issuer against the
+ * resulting rule set atomically — so a broader rule's rows retroactively move to
+ * a newly-added more-specific rule, a deleted rule's rows fall back to the
+ * next-best rule (or become unmatched), and a manual row is never touched.
+ * `preview`/`previewDelete` are the matching dry-runs the create/edit/delete
+ * confirmation shows first.
  */
 export const RulesLive = HttpApiBuilder.group(Api, "rules", (handlers) =>
 	Effect.gen(function* () {
@@ -27,8 +30,9 @@ export const RulesLive = HttpApiBuilder.group(Api, "rules", (handlers) =>
 				repo.getByIssuerPattern(_.path.issuerId, _.path.pattern),
 			)
 			.handle("preview", (_) => matcher.preview(_.payload))
+			.handle("previewDelete", (_) => matcher.previewDelete(_.path.id))
 			.handle("create", (_) => matcher.applyRuleCreate(_.payload))
 			.handle("update", (_) => matcher.applyRuleUpdate(_.path.id, _.payload))
-			.handle("remove", (_) => repo.remove(_.path.id));
+			.handle("remove", (_) => matcher.applyRuleDelete(_.path.id));
 	}),
 ).pipe(Layer.provide([RuleRepo.Default, IssuerMatcher.Default]));
