@@ -204,26 +204,26 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 			const buildConditions = (f: Filters): Array<Fragment> => {
 				const conditions: Array<Fragment> = [];
 				if (f.accountId !== undefined)
-					conditions.push(sql`accountId = ${f.accountId}`);
+					conditions.push(sql`t.accountId = ${f.accountId}`);
 				if (f.issuerId !== undefined)
-					conditions.push(sql`issuerId = ${f.issuerId}`);
+					conditions.push(sql`t.issuerId = ${f.issuerId}`);
 				if (f.categoryId !== undefined)
-					conditions.push(sql`categoryId = ${f.categoryId}`);
+					conditions.push(sql`t.categoryId = ${f.categoryId}`);
 				if (f.linkedRefundId !== undefined)
-					conditions.push(sql`linkedRefundId = ${f.linkedRefundId}`);
+					conditions.push(sql`t.linkedRefundId = ${f.linkedRefundId}`);
 				if (f.importMonth !== undefined)
-					conditions.push(sql`importMonth = ${f.importMonth}`);
+					conditions.push(sql`t.importMonth = ${f.importMonth}`);
 				if (f.importBatchId !== undefined)
-					conditions.push(sql`importBatchId = ${f.importBatchId}`);
+					conditions.push(sql`t.importBatchId = ${f.importBatchId}`);
 				if (f.startDate !== undefined)
-					conditions.push(sql`date >= ${f.startDate.toISOString()}`);
+					conditions.push(sql`t.date >= ${f.startDate.toISOString()}`);
 				if (f.endDate !== undefined)
-					conditions.push(sql`date <= ${f.endDate.toISOString()}`);
+					conditions.push(sql`t.date <= ${f.endDate.toISOString()}`);
 				if (f.isRefund !== undefined)
-					conditions.push(sql`isRefund = ${f.isRefund ? 1 : 0}`);
+					conditions.push(sql`t.isRefund = ${f.isRefund ? 1 : 0}`);
 				if (f.isDuplicateExcluded !== undefined)
 					conditions.push(
-						sql`isDuplicateExcluded = ${f.isDuplicateExcluded ? 1 : 0}`,
+						sql`t.isDuplicateExcluded = ${f.isDuplicateExcluded ? 1 : 0}`,
 					);
 				return conditions;
 			};
@@ -243,9 +243,22 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 			) =>
 				orderBy === "date"
 					? direction === "asc"
-						? sql`ORDER BY date ASC`
-						: sql`ORDER BY date DESC`
-					: sql`ORDER BY id`;
+						? sql`ORDER BY t.date ASC`
+						: sql`ORDER BY t.date DESC`
+					: sql`ORDER BY t.id`;
+
+			// The read projection (model A / Derived category, PRD #8 issue #13):
+			// every stored transaction column, except `categoryId` is read
+			// *through* the row's issuer. A non-manual row takes its issuer's
+			// `defaultCategoryId` (LEFT JOIN `issuers`, `null` when unmatched or the
+			// issuer has no default); a `manualCategory` row keeps its own stored
+			// `categoryId` (manual wins). Derivation is query-time only — no column
+			// is written — so re-categorising an issuer reclassifies its whole
+			// history at once. Reads go through this; writes (`RETURNING *`) echo the
+			// stored row verbatim, and the internal `storedByIdQuery` reads the raw
+			// row so an update's merge never persists a derived value.
+			const readColumns = sql`t.id, t.accountId, t.date, t.amount, t.rawIssuerString, t.issuerId, CASE WHEN t.manualCategory = 1 THEN t.categoryId ELSE i.defaultCategoryId END AS categoryId, t.subcategoryId, t.categoryOverride, t.manualCategory, t.manualIssuer, t.isRefund, t.linkedRefundId, t.anomalyFlags, t.isDuplicateExcluded, t.duplicateNote, t.importedAt, t.importMonth, t.importBatchId`;
+			const readFrom = sql`FROM transactions t LEFT JOIN issuers i ON t.issuerId = i.id`;
 
 			// `Request: Schema.Any` skips a redundant re-decode: filters are already
 			// decoded + branded at the HTTP boundary (`TransactionFilters`), and the
@@ -256,17 +269,27 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				Request: Schema.Any as Schema.Schema<ListFilter>,
 				Result: TransactionFromRow,
 				execute: (f) =>
-					sql`SELECT * FROM transactions ${whereClause(f)} ${orderClause(f.orderBy, f.direction)} LIMIT ${f.limit} OFFSET ${f.offset}`,
+					sql`SELECT ${readColumns} ${readFrom} ${whereClause(f)} ${orderClause(f.orderBy, f.direction)} LIMIT ${f.limit} OFFSET ${f.offset}`,
 			});
 
 			const countQuery = SqlSchema.single({
 				Request: Schema.Any as Schema.Schema<Filters>,
 				Result: CountResult,
 				execute: (f) =>
-					sql`SELECT COUNT(*) AS count FROM transactions ${whereClause(f)}`,
+					sql`SELECT COUNT(*) AS count FROM transactions t ${whereClause(f)}`,
 			});
 
 			const byIdQuery = SqlSchema.findOne({
+				Request: TransactionId,
+				Result: TransactionFromRow,
+				execute: (id) =>
+					sql`SELECT ${readColumns} ${readFrom} WHERE t.id = ${id}`,
+			});
+
+			// Internal read: the raw stored row (no derivation). The merge base for
+			// `update` and the existence check for `update`/`remove`, so a write never
+			// round-trips a *derived* category back into the stored column.
+			const storedByIdQuery = SqlSchema.findOne({
 				Request: TransactionId,
 				Result: TransactionFromRow,
 				execute: (id) => sql`SELECT * FROM transactions WHERE id = ${id}`,
@@ -308,7 +331,7 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				Request: Schema.Any as Schema.Schema<ReadonlyArray<number>>,
 				Result: TransactionFromRow,
 				execute: (ids) =>
-					sql`SELECT * FROM transactions WHERE ${sql.in("id", ids)}`,
+					sql`SELECT ${readColumns} ${readFrom} WHERE ${sql.in("t.id", ids)}`,
 			});
 
 			/** Unwrap a lookup's `Option`, 404-ing when absent (id goes on the error). */
@@ -388,6 +411,15 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 					Effect.flatMap((found) => requireOne(found, id)),
 				);
 
+			// The raw stored row (no derivation) — merge base + existence check for the
+			// write paths, so an update never persists a *derived* category back onto
+			// the row. Public `getById` stays derived; only writes use this.
+			const getStoredById = (id: typeof TransactionId.Type) =>
+				storedByIdQuery(id).pipe(
+					orDieSql,
+					Effect.flatMap((found) => requireOne(found, id)),
+				);
+
 			const create = (payload: TransactionCreate) =>
 				insertQuery(toWriteRow(payload)).pipe(orDieSql);
 
@@ -395,9 +427,11 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				id: typeof TransactionId.Type,
 				changes: TransactionUpdate,
 			) =>
-				getById(id).pipe(
-					// getById already 404s if missing; the write then always hits a row.
-					// Merge current + changes into a full field-set, then re-write it.
+				getStoredById(id).pipe(
+					// getStoredById 404s if missing; the write then always hits a row.
+					// Merge the raw *stored* row (never the derived read — that would
+					// round-trip a derived category into storage) with the changes,
+					// then re-write the full field-set.
 					Effect.flatMap((current) =>
 						updateQuery({
 							id,
@@ -407,7 +441,7 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				);
 
 			const remove = (id: typeof TransactionId.Type) =>
-				getById(id).pipe(
+				getStoredById(id).pipe(
 					Effect.flatMap(() =>
 						orDieSql(sql`DELETE FROM transactions WHERE id = ${id}`),
 					),
