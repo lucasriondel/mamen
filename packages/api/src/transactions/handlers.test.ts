@@ -721,3 +721,146 @@ describe("import matching via bulkCreate", () => {
 			}).pipe(Effect.provide(HttpLive)),
 	);
 });
+
+// Derived category (model A, PRD #8, issue #13): a transaction's category is
+// read *through* its issuer's `defaultCategoryId` at query time — never copied
+// onto the row — so re-categorising an issuer reclassifies its whole history at
+// once, with no per-transaction writes. A manual category (`manualCategory`)
+// wins over the issuer default and survives issuer operations. Asserted at the
+// API boundary via the read endpoints (getById / list), the feature's seam.
+describe("derived category through issuer", () => {
+	const FIRST_SEEN = new Date("2026-01-15T00:00:00.000Z");
+
+	it.effect(
+		"a non-manual row reads its category through the issuer's defaultCategoryId",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const issuer = yield* client.issuers.create({
+					payload: {
+						name: "Amazon",
+						firstSeen: FIRST_SEEN,
+						defaultCategoryId: asCategory(7),
+					},
+				});
+				// A row attached to that issuer, no manual category, no stored categoryId.
+				const created = yield* client.transactions.create({
+					payload: make({ issuerId: issuer.id }),
+				});
+				assert.strictEqual(created.categoryId, undefined);
+
+				// Read derives the category through the issuer.
+				const fetched = yield* client.transactions.getById({
+					path: { id: created.id },
+				});
+				assert.strictEqual(fetched.categoryId, asCategory(7));
+
+				// And through the list endpoint too.
+				const page = yield* client.transactions.list({
+					urlParams: { limit: 50, offset: 0, direction: "desc" },
+				});
+				assert.strictEqual(page.items[0]?.categoryId, asCategory(7));
+			}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect(
+		"recategorising the issuer reclassifies its whole history (no per-row writes)",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const issuer = yield* client.issuers.create({
+					payload: {
+						name: "Amazon",
+						firstSeen: FIRST_SEEN,
+						defaultCategoryId: asCategory(7),
+					},
+				});
+				const a = yield* client.transactions.create({
+					payload: make({ issuerId: issuer.id, rawIssuerString: "A" }),
+				});
+				const b = yield* client.transactions.create({
+					payload: make({ issuerId: issuer.id, rawIssuerString: "B" }),
+				});
+
+				// Both derive the original category.
+				assert.strictEqual(
+					(yield* client.transactions.getById({ path: { id: a.id } }))
+						.categoryId,
+					asCategory(7),
+				);
+
+				// Recategorise the issuer — a single issuer write, no transaction writes.
+				yield* client.issuers.update({
+					path: { id: issuer.id },
+					payload: { defaultCategoryId: asCategory(9) },
+				});
+
+				// The whole history shifts on the next read.
+				assert.strictEqual(
+					(yield* client.transactions.getById({ path: { id: a.id } }))
+						.categoryId,
+					asCategory(9),
+				);
+				assert.strictEqual(
+					(yield* client.transactions.getById({ path: { id: b.id } }))
+						.categoryId,
+					asCategory(9),
+				);
+			}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect(
+		"a manual category wins over the issuer default and survives recategorising",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const issuer = yield* client.issuers.create({
+					payload: {
+						name: "Amazon",
+						firstSeen: FIRST_SEEN,
+						defaultCategoryId: asCategory(7),
+					},
+				});
+				// A hand-categorised row on that issuer.
+				const manual = yield* client.transactions.create({
+					payload: make({
+						issuerId: issuer.id,
+						categoryId: asCategory(3),
+						manualCategory: true,
+					}),
+				});
+				// Manual wins over the issuer default.
+				assert.strictEqual(
+					(yield* client.transactions.getById({ path: { id: manual.id } }))
+						.categoryId,
+					asCategory(3),
+				);
+
+				// Recategorising the issuer must not touch the manual row.
+				yield* client.issuers.update({
+					path: { id: issuer.id },
+					payload: { defaultCategoryId: asCategory(9) },
+				});
+				assert.strictEqual(
+					(yield* client.transactions.getById({ path: { id: manual.id } }))
+						.categoryId,
+					asCategory(3),
+				);
+			}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("a row with no issuer derives no category (non-manual)", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const created = yield* client.transactions.create({
+				payload: make({ categoryId: asCategory(5) }),
+			});
+			// Stored categoryId is ignored on read for a non-manual, issuer-less row —
+			// category exists only *through* an issuer (model A).
+			const fetched = yield* client.transactions.getById({
+				path: { id: created.id },
+			});
+			assert.strictEqual(fetched.categoryId, undefined);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+});
