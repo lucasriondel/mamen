@@ -3,7 +3,6 @@ import { NodeHttpServer } from "@effect/platform-node";
 import { assert, describe, it } from "@effect/vitest";
 import {
 	Api,
-	CategoryId,
 	IssuerId,
 	NotFound,
 	type RuleCreate,
@@ -23,7 +22,6 @@ const HttpLive = HttpApiBuilder.serve().pipe(
 );
 
 const asIssuer = Schema.decodeSync(IssuerId);
-const asCategory = Schema.decodeSync(CategoryId);
 const asRule = Schema.decodeSync(RuleId);
 
 /** A valid create payload; override any field per test. */
@@ -49,23 +47,16 @@ describe("rules endpoints", () => {
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
 			const created = yield* client.rules.create({
-				payload: make({ pattern: "AMAZON", categoryOverride: asCategory(3) }),
+				payload: make({ pattern: "AMAZON", issuerId: asIssuer(3) }),
 			});
 			assert.strictEqual(created.pattern, "AMAZON");
-			assert.strictEqual(created.categoryOverride, asCategory(3));
+			assert.strictEqual(created.issuerId, asIssuer(3));
+			assert.strictEqual(created.matchCount, 0);
 
 			const fetched = yield* client.rules.getById({
 				path: { id: created.id },
 			});
 			assert.deepStrictEqual(fetched, created);
-		}).pipe(Effect.provide(HttpLive)),
-	);
-
-	it.effect("create without categoryOverride leaves it absent", () =>
-		Effect.gen(function* () {
-			const client = yield* HttpApiClient.make(Api);
-			const created = yield* client.rules.create({ payload: make() });
-			assert.strictEqual(created.categoryOverride, undefined);
 		}).pipe(Effect.provide(HttpLive)),
 	);
 

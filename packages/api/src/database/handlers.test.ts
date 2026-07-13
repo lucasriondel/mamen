@@ -46,7 +46,6 @@ const seed = Effect.gen(function* () {
 		payload: {
 			issuerId: issuer.id,
 			pattern: "STORE*",
-			categoryOverride: category.id,
 			matchCount: 3,
 		},
 	});

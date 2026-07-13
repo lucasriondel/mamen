@@ -11,6 +11,7 @@ export type Transaction = {
 	subcategoryId?: number;
 	categoryOverride?: string;
 	manualCategory?: boolean;
+	manualIssuer?: boolean;
 	isRefund?: boolean;
 	linkedRefundId?: number;
 	anomalyFlags?: AnomalyFlag[];

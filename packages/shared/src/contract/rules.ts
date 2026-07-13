@@ -6,19 +6,20 @@ import {
 } from "@effect/platform";
 import { Schema } from "effect";
 import { NotFound } from "./errors";
-import { CategoryId, IssuerId, numFromStr, RuleId } from "./ids";
+import { IssuerId, numFromStr, RuleId } from "./ids";
 import { Paged, Pagination } from "./pagination";
 
 /**
- * Rule entity — the wire shape returned by every rules endpoint. `categoryOverride`
- * is a category id despite the name (an INTEGER FK column, absent when unset);
- * `issuerId` is the issuer this rule matches against.
+ * Rule entity — the wire shape returned by every rules endpoint. A Matching Rule
+ * assigns **only** an issuer (`issuerId`, the issuer this rule matches against);
+ * category is derived *through* the issuer, never carried on the rule. `pattern`
+ * is a regex over the raw issuer string; `matchCount` is bumped each time the
+ * rule wins a row.
  */
 export class Rule extends Schema.Class<Rule>("Rule")({
 	id: RuleId,
 	issuerId: IssuerId,
 	pattern: Schema.String,
-	categoryOverride: Schema.optional(CategoryId), // a category id despite the name
 	matchCount: Schema.Number,
 	createdAt: Schema.Date,
 }) {}
@@ -27,7 +28,6 @@ export class Rule extends Schema.Class<Rule>("Rule")({
 export const RuleCreate = Schema.Struct({
 	issuerId: Rule.fields.issuerId,
 	pattern: Rule.fields.pattern,
-	categoryOverride: Rule.fields.categoryOverride,
 	matchCount: Rule.fields.matchCount,
 });
 export type RuleCreate = typeof RuleCreate.Type;

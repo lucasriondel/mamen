@@ -531,3 +531,147 @@ describe("transactions bulk endpoints", () => {
 		}).pipe(Effect.provide(HttpLive)),
 	);
 });
+
+// Import matching (Matching Rules, PRD #8) is driven end-to-end through the
+// derived client: create rules, then `bulkCreate` a statement and assert the
+// observable result — issuer assignments on the rows, `matchCount` bumps on the
+// rules — never `IssuerMatcher` internals. This is the feature's single seam.
+describe("import matching via bulkCreate", () => {
+	it.effect("assigns the matching rule's issuer and bumps its matchCount", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const rule = yield* client.rules.create({
+				payload: { issuerId: asIssuer(42), pattern: "AMAZON", matchCount: 0 },
+			});
+
+			const [row] = yield* client.transactions.bulkCreate({
+				payload: { records: [make({ rawIssuerString: "AMAZON EU SARL" })] },
+			});
+			// The freshly-imported row enters the DB already resolved.
+			assert.strictEqual(row?.issuerId, asIssuer(42));
+			// The engine is stateless: the row records only that a rule set it.
+			assert.strictEqual(row?.manualIssuer, undefined);
+
+			// The win is booked on the rule.
+			const bumped = yield* client.rules.getById({ path: { id: rule.id } });
+			assert.strictEqual(bumped.matchCount, 1);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("leaves an unmatched row's issuer unset", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			yield* client.rules.create({
+				payload: { issuerId: asIssuer(1), pattern: "NETFLIX", matchCount: 0 },
+			});
+			const [row] = yield* client.transactions.bulkCreate({
+				payload: { records: [make({ rawIssuerString: "SQ *BLUE BOTTLE" })] },
+			});
+			assert.strictEqual(row?.issuerId, undefined);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("matches case-insensitively (lowercase pattern, uppercase raw)", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			yield* client.rules.create({
+				payload: { issuerId: asIssuer(7), pattern: "amazon", matchCount: 0 },
+			});
+			const [row] = yield* client.transactions.bulkCreate({
+				payload: { records: [make({ rawIssuerString: "AMAZON EU SARL" })] },
+			});
+			assert.strictEqual(row?.issuerId, asIssuer(7));
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect(
+		"the more-specific rule (longer literal) wins when several match one row",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				// Broad rule → issuer 10; specific rule → issuer 20. The row matches both.
+				const broad = yield* client.rules.create({
+					payload: { issuerId: asIssuer(10), pattern: "AMAZON", matchCount: 0 },
+				});
+				const specific = yield* client.rules.create({
+					payload: {
+						issuerId: asIssuer(20),
+						pattern: "AMAZON EU SARL",
+						matchCount: 0,
+					},
+				});
+
+				const [row] = yield* client.transactions.bulkCreate({
+					payload: { records: [make({ rawIssuerString: "AMAZON EU SARL" })] },
+				});
+				assert.strictEqual(row?.issuerId, asIssuer(20));
+
+				// Only the winner books the match; the broad rule is untouched.
+				const specificAfter = yield* client.rules.getById({
+					path: { id: specific.id },
+				});
+				const broadAfter = yield* client.rules.getById({
+					path: { id: broad.id },
+				});
+				assert.strictEqual(specificAfter.matchCount, 1);
+				assert.strictEqual(broadAfter.matchCount, 0);
+			}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("never overwrites a manually-assigned issuer", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const rule = yield* client.rules.create({
+				payload: { issuerId: asIssuer(99), pattern: "AMAZON", matchCount: 0 },
+			});
+			// A manual row for the same raw string but a different issuer.
+			const [row] = yield* client.transactions.bulkCreate({
+				payload: {
+					records: [
+						make({
+							rawIssuerString: "AMAZON EU SARL",
+							issuerId: asIssuer(5),
+							manualIssuer: true,
+						}),
+					],
+				},
+			});
+			// Manual wins — the rule's issuer never lands.
+			assert.strictEqual(row?.issuerId, asIssuer(5));
+			assert.strictEqual(row?.manualIssuer, true);
+
+			// And the rule books no win against it.
+			const after = yield* client.rules.getById({ path: { id: rule.id } });
+			assert.strictEqual(after.matchCount, 0);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect(
+		"an invalid regex pattern is skipped, not a 500 — the import still succeeds",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				// An unclosed character class — `new RegExp` throws on this.
+				yield* client.rules.create({
+					payload: { issuerId: asIssuer(1), pattern: "AMAZON[", matchCount: 0 },
+				});
+				// A valid rule that should still win its row.
+				yield* client.rules.create({
+					payload: { issuerId: asIssuer(2), pattern: "SPOTIFY", matchCount: 0 },
+				});
+
+				const rows = yield* client.transactions.bulkCreate({
+					payload: {
+						records: [
+							make({ rawIssuerString: "AMAZON EU SARL" }),
+							make({ rawIssuerString: "PAYPAL *SPOTIFY" }),
+						],
+					},
+				});
+				// No crash: the bad rule is skipped, the good rule still applies.
+				assert.strictEqual(rows.length, 2);
+				assert.strictEqual(rows[0]?.issuerId, undefined);
+				assert.strictEqual(rows[1]?.issuerId, asIssuer(2));
+			}).pipe(Effect.provide(HttpLive)),
+	);
+});

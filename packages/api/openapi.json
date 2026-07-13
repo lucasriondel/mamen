@@ -1745,6 +1745,9 @@
                   "manualCategory": {
                     "type": "boolean"
                   },
+                  "manualIssuer": {
+                    "type": "boolean"
+                  },
                   "isRefund": {
                     "type": "boolean"
                   },
@@ -2062,6 +2065,9 @@
                   "manualCategory": {
                     "type": "boolean"
                   },
+                  "manualIssuer": {
+                    "type": "boolean"
+                  },
                   "isRefund": {
                     "type": "boolean"
                   },
@@ -2236,6 +2242,9 @@
                           "type": "string"
                         },
                         "manualCategory": {
+                          "type": "boolean"
+                        },
+                        "manualIssuer": {
                           "type": "boolean"
                         },
                         "isRefund": {
@@ -2716,11 +2725,6 @@
                   "pattern": {
                     "type": "string"
                   },
-                  "categoryOverride": {
-                    "type": "integer",
-                    "description": "an integer",
-                    "title": "int"
-                  },
                   "matchCount": {
                     "type": "number"
                   }
@@ -2904,11 +2908,6 @@
                   },
                   "pattern": {
                     "type": "string"
-                  },
-                  "categoryOverride": {
-                    "type": "integer",
-                    "description": "an integer",
-                    "title": "int"
                   },
                   "matchCount": {
                     "type": "number"
@@ -4316,6 +4315,9 @@
           "manualCategory": {
             "type": "boolean"
           },
+          "manualIssuer": {
+            "type": "boolean"
+          },
           "isRefund": {
             "type": "boolean"
           },
@@ -4405,11 +4407,6 @@
           },
           "pattern": {
             "type": "string"
-          },
-          "categoryOverride": {
-            "type": "integer",
-            "description": "an integer",
-            "title": "int"
           },
           "matchCount": {
             "type": "number"

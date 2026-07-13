@@ -12,25 +12,23 @@ import { Clock, Effect, Option, Schema } from "effect";
 import { orDieSql } from "../db/errors";
 
 /**
- * A stored rule row. `categoryOverride` is a nullable INTEGER (a category id
- * despite the name) coming back as `null` (not absent); `createdAt` is ISO-8601
- * TEXT. {@link RuleFromRow} folds `categoryOverride: null` -> absent so the
- * handlers only ever see the wire `Rule`.
+ * A stored rule row. `createdAt` is ISO-8601 TEXT; the branded ids come back as
+ * plain numbers. {@link RuleFromRow} decodes it into the wire `Rule` (a Matching
+ * Rule assigns only an issuer — there is no category column). No nullable columns
+ * to fold: every rule field is required.
  */
 const RuleRow = Schema.Struct({
 	id: Schema.Number,
 	issuerId: Schema.Number,
 	pattern: Schema.String,
-	categoryOverride: Schema.NullOr(Schema.Number),
 	matchCount: Schema.Number,
 	createdAt: Schema.String,
 });
 
 /**
  * `Schema.transform` maps `RuleRow`'s decoded type to `Rule`'s *encoded* shape
- * (ISO string `createdAt`, present-or-absent `categoryOverride`, plain-number
- * ids); `Rule`'s own schema then decodes that into the class. This is where the
- * `categoryOverride: null` -> absent fold lives, so reads yield the entity.
+ * (ISO string `createdAt`, plain-number ids); `Rule`'s own schema then decodes
+ * that into the class.
  *
  * Exported for the round-trip test: reads decode through it (via `SqlSchema`),
  * and the storage inverse (`encode`) is verified directly rather than left dead,
@@ -42,9 +40,6 @@ export const RuleFromRow = Schema.transform(RuleRow, Rule, {
 		id: row.id,
 		issuerId: row.issuerId,
 		pattern: row.pattern,
-		...(row.categoryOverride !== null
-			? { categoryOverride: row.categoryOverride }
-			: {}),
 		matchCount: row.matchCount,
 		createdAt: row.createdAt,
 	}),
@@ -52,7 +47,6 @@ export const RuleFromRow = Schema.transform(RuleRow, Rule, {
 		id: r.id,
 		issuerId: r.issuerId,
 		pattern: r.pattern,
-		categoryOverride: r.categoryOverride ?? null,
 		matchCount: r.matchCount,
 		createdAt: r.createdAt,
 	}),
@@ -70,11 +64,10 @@ type ListFilter = {
 	issuerId?: typeof IssuerId.Type;
 };
 
-/** A plain null-mapped write row (the shape bound into INSERT/UPDATE). */
+/** A plain write row (the shape bound into INSERT/UPDATE). */
 type WriteRow = {
 	issuerId: number;
 	pattern: string;
-	categoryOverride: number | null;
 	matchCount: number;
 	createdAt: string;
 };
@@ -165,15 +158,13 @@ export class RuleRepo extends Effect.Service<RuleRepo>()("api/RuleRepo", {
 				onSome: Effect.succeed,
 			});
 
-		// Fold the caller-owned fields (everything but `createdAt`) into the
-		// null-mapped shape the write binds: an absent `categoryOverride` -> `null`.
-		// `createdAt` is the one column that differs by path -- server-stamped on
-		// create, preserved on update -- so each caller supplies it. Both a
-		// `RuleCreate` payload and a full merged `Rule` satisfy the input type.
+		// Fold the caller-owned fields (everything but `createdAt`) into the shape
+		// the write binds. `createdAt` is the one column that differs by path --
+		// server-stamped on create, preserved on update -- so each caller supplies
+		// it. Both a `RuleCreate` payload and a full merged `Rule` satisfy the input.
 		const toWriteFields = (r: RuleCreate): Omit<WriteRow, "createdAt"> => ({
 			issuerId: r.issuerId,
 			pattern: r.pattern,
-			categoryOverride: r.categoryOverride ?? null,
 			matchCount: r.matchCount,
 		});
 

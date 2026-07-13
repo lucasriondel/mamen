@@ -14,7 +14,8 @@ import { Effect, Option, Schema } from "effect";
 import { orDieSql } from "../db/errors";
 
 /**
- * A stored transaction row. The three "boolean" columns are sqlite `INTEGER`
+ * A stored transaction row. The four "boolean" columns (`manualCategory`,
+ * `manualIssuer`, `isRefund`, `isDuplicateExcluded`) are sqlite `INTEGER`
  * 0/1, the FK columns and optional strings come back as `null` (not absent), and
  * `anomalyFlags` is a JSON-encoded TEXT blob (or `null`). {@link TransactionFromRow}
  * folds all of this into the wire `Transaction`: `null` → absent, `1` → `true`
@@ -31,6 +32,7 @@ const TransactionRow = Schema.Struct({
 	subcategoryId: Schema.NullOr(Schema.Number),
 	categoryOverride: Schema.NullOr(Schema.String),
 	manualCategory: Schema.Number,
+	manualIssuer: Schema.Number,
 	isRefund: Schema.Number,
 	linkedRefundId: Schema.NullOr(Schema.Number),
 	anomalyFlags: Schema.NullOr(Schema.String),
@@ -75,6 +77,7 @@ export const TransactionFromRow = Schema.transform(
 				? { categoryOverride: row.categoryOverride }
 				: {}),
 			...(row.manualCategory === 1 ? { manualCategory: true } : {}),
+			...(row.manualIssuer === 1 ? { manualIssuer: true } : {}),
 			...(row.isRefund === 1 ? { isRefund: true } : {}),
 			...(row.linkedRefundId !== null
 				? { linkedRefundId: row.linkedRefundId }
@@ -105,6 +108,7 @@ export const TransactionFromRow = Schema.transform(
 			subcategoryId: t.subcategoryId ?? null,
 			categoryOverride: t.categoryOverride ?? null,
 			manualCategory: t.manualCategory ? 1 : 0,
+			manualIssuer: t.manualIssuer ? 1 : 0,
 			isRefund: t.isRefund ? 1 : 0,
 			linkedRefundId: t.linkedRefundId ?? null,
 			anomalyFlags:
@@ -162,6 +166,7 @@ type WriteRow = {
 	subcategoryId: number | null;
 	categoryOverride: string | null;
 	manualCategory: number;
+	manualIssuer: number;
 	isRefund: number;
 	linkedRefundId: number | null;
 	anomalyFlags: string | null;
@@ -332,6 +337,7 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				subcategoryId: t.subcategoryId ?? null,
 				categoryOverride: t.categoryOverride ?? null,
 				manualCategory: t.manualCategory ? 1 : 0,
+				manualIssuer: t.manualIssuer ? 1 : 0,
 				isRefund: t.isRefund ? 1 : 0,
 				linkedRefundId: t.linkedRefundId ?? null,
 				anomalyFlags:

@@ -1,6 +1,5 @@
 import { assert, describe, it } from "@effect/vitest";
 import {
-	CategoryId,
 	IssuerId,
 	NotFound,
 	Rule,
@@ -16,7 +15,6 @@ import { RuleFromRow, RuleRepo } from "./repository";
 const RepoTest = RuleRepo.Default.pipe(Layer.provide(DatabaseTest));
 
 const asIssuer = Schema.decodeSync(IssuerId);
-const asCategory = Schema.decodeSync(CategoryId);
 const asRule = Schema.decodeSync(RuleId);
 
 const DATE = new Date("2026-03-01T00:00:00.000Z");
@@ -31,38 +29,25 @@ const make = (over: Partial<RuleCreate> = {}): RuleCreate => ({
 
 describe("RuleFromRow storage codec", () => {
 	// The row codec's `encode` is the storage inverse of the read path. Verify
-	// decode∘encode = id for both a populated entity and a bare one — this pins
-	// the `categoryOverride` null↔absent fold in both directions and keeps the
-	// inverse from silently drifting.
+	// decode∘encode = id — every rule field is required now that
+	// `categoryOverride` is dropped, so there is no null↔absent fold to pin; this
+	// keeps the inverse from silently drifting.
 	const encode = Schema.encodeSync(RuleFromRow);
 	const decode = Schema.decodeSync(RuleFromRow);
 
-	it("round-trips a rule with categoryOverride set", () => {
-		const full = new Rule({
+	it("round-trips a rule (decode∘encode = id)", () => {
+		const rule = new Rule({
 			id: asRule(1),
 			issuerId: asIssuer(2),
 			pattern: "STARBUCKS",
-			categoryOverride: asCategory(7),
 			matchCount: 3,
 			createdAt: DATE,
 		});
-		const row = encode(full);
-		assert.strictEqual(row.categoryOverride, 7);
+		const row = encode(rule);
 		assert.strictEqual(row.issuerId, 2);
-		assert.deepStrictEqual(decode(row), full);
-	});
-
-	it("round-trips a bare rule (categoryOverride absent → null column)", () => {
-		const bare = new Rule({
-			id: asRule(1),
-			issuerId: asIssuer(2),
-			pattern: "X",
-			matchCount: 0,
-			createdAt: DATE,
-		});
-		const row = encode(bare);
-		assert.strictEqual(row.categoryOverride, null);
-		assert.deepStrictEqual(decode(row), bare);
+		assert.strictEqual(row.pattern, "STARBUCKS");
+		assert.strictEqual(row.matchCount, 3);
+		assert.deepStrictEqual(decode(row), rule);
 	});
 });
 
@@ -78,24 +63,6 @@ describe("RuleRepo", () => {
 
 			const fetched = yield* repo.getById(created.id);
 			assert.deepStrictEqual(fetched, created);
-		}).pipe(Effect.provide(RepoTest)),
-	);
-
-	it.effect("categoryOverride absent on create stays absent (null → undefined)", () =>
-		Effect.gen(function* () {
-			const repo = yield* RuleRepo;
-			const created = yield* repo.create(make());
-			assert.strictEqual(created.categoryOverride, undefined);
-		}).pipe(Effect.provide(RepoTest)),
-	);
-
-	it.effect("create keeps a set categoryOverride (a category id)", () =>
-		Effect.gen(function* () {
-			const repo = yield* RuleRepo;
-			const created = yield* repo.create(
-				make({ categoryOverride: asCategory(9) }),
-			);
-			assert.strictEqual(created.categoryOverride, asCategory(9));
 		}).pipe(Effect.provide(RepoTest)),
 	);
 
@@ -201,18 +168,6 @@ describe("RuleRepo", () => {
 				updated.createdAt.getTime(),
 				created.createdAt.getTime(),
 			);
-		}).pipe(Effect.provide(RepoTest)),
-	);
-
-	it.effect("update can set categoryOverride from absent", () =>
-		Effect.gen(function* () {
-			const repo = yield* RuleRepo;
-			const created = yield* repo.create(make());
-			assert.strictEqual(created.categoryOverride, undefined);
-			const updated = yield* repo.update(created.id, {
-				categoryOverride: asCategory(4),
-			});
-			assert.strictEqual(updated.categoryOverride, asCategory(4));
 		}).pipe(Effect.provide(RepoTest)),
 	);
 

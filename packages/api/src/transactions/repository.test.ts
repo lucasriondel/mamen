@@ -62,6 +62,7 @@ describe("TransactionFromRow storage codec", () => {
 			subcategoryId: asCategory(5),
 			categoryOverride: "Food",
 			manualCategory: true,
+			manualIssuer: true,
 			isRefund: true,
 			linkedRefundId: asTx(6),
 			anomalyFlags: [
@@ -81,6 +82,7 @@ describe("TransactionFromRow storage codec", () => {
 		const row = encode(full);
 		// The stored row carries every column non-null, booleans as 1, the flags as JSON.
 		assert.strictEqual(row.manualCategory, 1);
+		assert.strictEqual(row.manualIssuer, 1);
 		assert.strictEqual(row.issuerId, 3);
 		assert.strictEqual(typeof row.anomalyFlags, "string");
 		assert.deepStrictEqual(decode(row), full);
@@ -99,6 +101,7 @@ describe("TransactionFromRow storage codec", () => {
 		const row = encode(bare);
 		assert.strictEqual(row.issuerId, null);
 		assert.strictEqual(row.manualCategory, 0);
+		assert.strictEqual(row.manualIssuer, 0);
 		assert.strictEqual(row.anomalyFlags, null);
 		assert.strictEqual(row.importBatchId, null);
 		assert.deepStrictEqual(decode(row), bare);
@@ -125,6 +128,7 @@ describe("TransactionRepo", () => {
 			const created = yield* repo.create(make());
 			assert.strictEqual(created.issuerId, undefined);
 			assert.strictEqual(created.categoryId, undefined);
+			assert.strictEqual(created.manualIssuer, undefined);
 			assert.strictEqual(created.isRefund, undefined);
 			assert.strictEqual(created.anomalyFlags, undefined);
 			assert.strictEqual(created.importBatchId, undefined);
@@ -141,6 +145,7 @@ describe("TransactionRepo", () => {
 					subcategoryId: asCategory(4),
 					categoryOverride: "Groceries",
 					manualCategory: true,
+					manualIssuer: true,
 					isRefund: true,
 					linkedRefundId: asTx(1),
 					isDuplicateExcluded: true,
@@ -153,6 +158,7 @@ describe("TransactionRepo", () => {
 			assert.strictEqual(created.subcategoryId, asCategory(4));
 			assert.strictEqual(created.categoryOverride, "Groceries");
 			assert.strictEqual(created.manualCategory, true);
+			assert.strictEqual(created.manualIssuer, true);
 			assert.strictEqual(created.isRefund, true);
 			assert.strictEqual(created.linkedRefundId, asTx(1));
 			assert.strictEqual(created.isDuplicateExcluded, true);
