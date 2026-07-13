@@ -248,8 +248,8 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 					: sql`ORDER BY t.id`;
 
 			// The read projection (model A / Derived category, PRD #8 issue #13):
-			// every stored transaction column, except `categoryId` is read
-			// *through* the row's issuer. A non-manual row takes its issuer's
+			// every stored transaction column is read verbatim except `categoryId`,
+			// which is read *through* the row's issuer. A non-manual row takes its issuer's
 			// `defaultCategoryId` (LEFT JOIN `issuers`, `null` when unmatched or the
 			// issuer has no default); a `manualCategory` row keeps its own stored
 			// `categoryId` (manual wins). Derivation is query-time only — no column
