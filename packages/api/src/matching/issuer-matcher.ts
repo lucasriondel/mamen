@@ -5,9 +5,14 @@ import type {
 	RulePreviewInput,
 	RulePreviewResult,
 	RuleUpdate,
+} from "@mamen/shared/contract";
+import {
+	NotFound,
+	Rule,
+	RuleId,
+	Transaction,
 	TransactionId,
 } from "@mamen/shared/contract";
-import { NotFound, Rule, RuleId, Transaction } from "@mamen/shared/contract";
 import { Clock, Effect, Option, Schema } from "effect";
 import { orDieSql } from "../db/errors";
 import { RuleFromRow } from "../rules/repository";
@@ -283,9 +288,7 @@ export class IssuerMatcher extends Effect.Service<IssuerMatcher>()(
 			});
 
 			const txByIdQuery = SqlSchema.findOne({
-				Request: Schema.Number as unknown as Schema.Schema<
-					typeof TransactionId.Type
-				>,
+				Request: TransactionId,
 				Result: TransactionFromRow,
 				execute: (id) => sql`SELECT * FROM transactions WHERE id = ${id}`,
 			});
@@ -534,13 +537,11 @@ export class IssuerMatcher extends Effect.Service<IssuerMatcher>()(
 									yield* sql.withTransaction(
 										sql`UPDATE transactions SET issuerId = ${resolved}, manualIssuer = 0 WHERE id = ${id}`,
 									);
-									return new Transaction({
-										...current,
-										manualIssuer: false,
-										...(resolved === null
-											? { issuerId: undefined }
-											: { issuerId: resolved }),
-									});
+									// `cleared` already carries the dropped flag + null issuer;
+									// only stamp the re-derived issuer when a rule claimed it.
+									return resolved === null
+										? cleared
+										: new Transaction({ ...cleared, issuerId: resolved });
 								}).pipe(orDieSql),
 						}),
 					),
