@@ -188,8 +188,12 @@ export class IssuerMatcher extends Effect.Service<IssuerMatcher>()(
 							Effect.all(
 								[
 									...assigned.map(
+										// `manualIssuer = 0` is written alongside the issuer: a
+										// rule-assigned row is, by definition, not a manual pick
+										// (issue #10). Manual rows never reach here — `derive`
+										// filters them out (the Issuer invariant, step (a)).
 										(o) =>
-											sql`UPDATE transactions SET issuerId = ${o.issuerId} WHERE id = ${o.transactionId}`,
+											sql`UPDATE transactions SET issuerId = ${o.issuerId}, manualIssuer = 0 WHERE id = ${o.transactionId}`,
 									),
 									...[...bumps].map(
 										([ruleId, n]) =>

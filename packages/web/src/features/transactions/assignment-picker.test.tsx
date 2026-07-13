@@ -73,9 +73,13 @@ describe("AssignmentPicker", () => {
 				expect.objectContaining({ name: "ACME PAYROLL" }),
 			),
 		);
-		// Create must precede the assign, which uses the created issuer's id.
+		// Create must precede the assign, which uses the created issuer's id and
+		// stamps `manualIssuer` so Matching Rules never overwrite the hand pick.
 		await waitFor(() =>
-			expect(updateTransaction).toHaveBeenCalledWith(100, { issuerId: 10 }),
+			expect(updateTransaction).toHaveBeenCalledWith(100, {
+				issuerId: 10,
+				manualIssuer: true,
+			}),
 		);
 	});
 
@@ -88,7 +92,10 @@ describe("AssignmentPicker", () => {
 		await user.click(await screen.findByText("Spotify"));
 
 		await waitFor(() =>
-			expect(updateTransaction).toHaveBeenCalledWith(100, { issuerId: 10 }),
+			expect(updateTransaction).toHaveBeenCalledWith(100, {
+				issuerId: 10,
+				manualIssuer: true,
+			}),
 		);
 		expect(createIssuer).not.toHaveBeenCalled();
 	});

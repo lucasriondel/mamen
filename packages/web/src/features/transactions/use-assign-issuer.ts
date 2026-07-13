@@ -13,8 +13,10 @@ import { toErrorMessage } from "@/lib/sdk-error";
  * The issuer-assignment mutations behind the transactions assignment picker
  * (PRD). Assignment is single-transaction in v1 (bulk is deferred to Rules).
  *
- * Two paths, both ending in a transaction `update({ issuerId })` so the row
- * immediately reflects the resolved issuer:
+ * Two paths, both ending in a transaction `update({ issuerId, manualIssuer })`
+ * so the row immediately reflects the resolved issuer. Both stamp
+ * `manualIssuer: true` — a hand pick is sticky, so Matching Rules never silently
+ * overwrite it (the Issuer invariant; PRD #8, issue #10):
  * - `assignExisting` — assign an issuer the user already has.
  * - `createAndAssign` — mint a new issuer from the raw counterparty string
  *   (`create`), then assign it (`update`). `firstSeen` is stamped now (the
@@ -43,7 +45,11 @@ export function useAssignIssuer() {
 		}: {
 			transactionId: TransactionId;
 			issuerId: IssuerId;
-		}) => transactionMutations.update(transactionId, { issuerId }),
+		}) =>
+			transactionMutations.update(transactionId, {
+				issuerId,
+				manualIssuer: true,
+			}),
 		onSuccess: invalidate,
 		onError,
 	});
@@ -62,6 +68,7 @@ export function useAssignIssuer() {
 			});
 			return transactionMutations.update(transactionId, {
 				issuerId: issuer.id,
+				manualIssuer: true,
 			});
 		},
 		onSuccess: invalidate,

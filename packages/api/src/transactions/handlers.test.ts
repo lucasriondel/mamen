@@ -571,17 +571,19 @@ describe("import matching via bulkCreate", () => {
 		}).pipe(Effect.provide(HttpLive)),
 	);
 
-	it.effect("matches case-insensitively (lowercase pattern, uppercase raw)", () =>
-		Effect.gen(function* () {
-			const client = yield* HttpApiClient.make(Api);
-			yield* client.rules.create({
-				payload: { issuerId: asIssuer(7), pattern: "amazon", matchCount: 0 },
-			});
-			const [row] = yield* client.transactions.bulkCreate({
-				payload: { records: [make({ rawIssuerString: "AMAZON EU SARL" })] },
-			});
-			assert.strictEqual(row?.issuerId, asIssuer(7));
-		}).pipe(Effect.provide(HttpLive)),
+	it.effect(
+		"matches case-insensitively (lowercase pattern, uppercase raw)",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				yield* client.rules.create({
+					payload: { issuerId: asIssuer(7), pattern: "amazon", matchCount: 0 },
+				});
+				const [row] = yield* client.transactions.bulkCreate({
+					payload: { records: [make({ rawIssuerString: "AMAZON EU SARL" })] },
+				});
+				assert.strictEqual(row?.issuerId, asIssuer(7));
+			}).pipe(Effect.provide(HttpLive)),
 	);
 
 	it.effect(
@@ -644,6 +646,50 @@ describe("import matching via bulkCreate", () => {
 			const after = yield* client.rules.getById({ path: { id: rule.id } });
 			assert.strictEqual(after.matchCount, 0);
 		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect(
+		"a hand-picked issuer (update sets manualIssuer) survives a later import matching pass",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const rule = yield* client.rules.create({
+					payload: { issuerId: asIssuer(42), pattern: "AMAZON", matchCount: 0 },
+				});
+
+				// Import resolves the row against the rule; the engine records the
+				// assignment as non-manual (manualIssuer written false, so absent).
+				const [imported] = yield* client.transactions.bulkCreate({
+					payload: { records: [make({ rawIssuerString: "AMAZON EU SARL" })] },
+				});
+				assert.strictEqual(imported?.issuerId, asIssuer(42));
+				assert.strictEqual(imported?.manualIssuer, undefined);
+
+				// A human overrides the issuer through the single-transaction
+				// assignment flow (transaction `update`), which stamps manualIssuer.
+				const assigned = yield* client.transactions.update({
+					path: { id: imported.id },
+					payload: { issuerId: asIssuer(5), manualIssuer: true },
+				});
+				assert.strictEqual(assigned.issuerId, asIssuer(5));
+				assert.strictEqual(assigned.manualIssuer, true);
+
+				// A later import runs the matcher again; the manual row is untouched —
+				// same issuer, still flagged manual.
+				yield* client.transactions.bulkCreate({
+					payload: { records: [make({ rawIssuerString: "AMAZON FRESH" })] },
+				});
+				const after = yield* client.transactions.getById({
+					path: { id: imported.id },
+				});
+				assert.strictEqual(after.issuerId, asIssuer(5));
+				assert.strictEqual(after.manualIssuer, true);
+
+				// The rule books one win per freshly-imported row it matches (both
+				// imports), never a re-book against the manually-overridden row.
+				const bumped = yield* client.rules.getById({ path: { id: rule.id } });
+				assert.strictEqual(bumped.matchCount, 2);
+			}).pipe(Effect.provide(HttpLive)),
 	);
 
 	it.effect(
