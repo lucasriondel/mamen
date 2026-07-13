@@ -43,13 +43,19 @@ the user (or, later, a Rule) resolves into an Issuer.
 
 **Assignment**:
 The act of attaching an Issuer to a single transaction (`update({ issuerId })`).
-v1 assigns one transaction at a time; bulk resolution is deferred to Rules.
-_Avoid_: Match, tag, categorize.
+Done by hand (a **manual assignment**, sets `manualIssuer`) or automatically by
+a **Matching Rule**. Manual assignments are sticky — rules never overwrite them.
+_Avoid_: Match, tag, categorize (as a bare verb).
 
-**Rule** (future):
-A regex `pattern` over a raw issuer string that auto-assigns an Issuer (and
-optionally a category) on future imports. Not built in v1 — single-transaction
-Assignment covers the near term; Rules will subsume the bulk case.
+**Matching Rule**:
+See [CONTEXT-MAP.md](../../CONTEXT-MAP.md). A single regex `pattern` owned by an
+Issuer that auto-assigns that Issuer to matching transactions. The user manages
+these to turn cryptic raw issuer strings into known Issuers in bulk. Create /
+edit / delete each previews its effect (which transactions gain, change, or lose
+an issuer) before applying on save. Assigns **only** an issuer — category flows
+through the issuer (**derived category**), never off the rule.
+_Code note_: the entity is `Rule` in the contract/DB/SDK; "Matching Rule" is the
+user-facing name only.
 
 **Amount sign convention**:
 `amount` is a single signed number. A CSV `DEBIT` (money leaving) is stored
