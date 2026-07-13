@@ -88,6 +88,24 @@ export const RulePreviewResult = Schema.Struct({
 export type RulePreviewResult = typeof RulePreviewResult.Type;
 
 /**
+ * Delete-preview response — the full consequence set of deleting one rule (PRD
+ * #8 stories 17–18). Deleting a rule re-homes the rows it had won
+ * (`manualIssuer = false`, matching its pattern) against the **remaining** rules:
+ * - `willReassign` — rows that fall back to a *different* issuer (the next-best
+ *   specificity winner among the rules that remain);
+ * - `willUnmatch` — rows that become unmatched because no other rule matches.
+ *
+ * Manual rows (`manualIssuer = true`) are never touched by a delete, so they
+ * appear in neither list. Advisory only — the commit recomputes from current
+ * state, so a concurrent edit can't cause a stale write.
+ */
+export const RuleDeletePreviewResult = Schema.Struct({
+	willReassign: Schema.Array(Transaction),
+	willUnmatch: Schema.Array(Transaction),
+});
+export type RuleDeletePreviewResult = typeof RuleDeletePreviewResult.Type;
+
+/**
  * Rules group (contract §2.6), prefix `/rules`. No uniqueness constraint on any
  * field (faithful port), so `create`/`update` declare no `Conflict`.
  * `getById`/`getByIssuerPattern`/`update`/`remove` 404 on a missing rule;
@@ -126,6 +144,16 @@ export class RulesGroup extends HttpApiGroup.make("rules")
 		HttpApiEndpoint.post("preview")`/rules/preview`
 			.setPayload(RulePreviewInput)
 			.addSuccess(RulePreviewResult)
+			.addError(NotFound),
+	)
+	.add(
+		// Dry-run for a delete — returns the rows that will change issuer or become
+		// unmatched if this rule is removed, re-homed against the remaining rules.
+		// `NotFound` when `id` names a rule that doesn't exist.
+		HttpApiEndpoint.get(
+			"previewDelete",
+		)`/rules/${HttpApiSchema.param("id", numFromStr(RuleId))}/delete-preview`
+			.addSuccess(RuleDeletePreviewResult)
 			.addError(NotFound),
 	)
 	.add(
