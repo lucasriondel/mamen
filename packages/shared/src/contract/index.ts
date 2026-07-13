@@ -39,13 +39,13 @@ export {
 	TransactionId,
 } from "./ids";
 export {
-	MAX_IMAGE_BYTES,
 	Issuer,
 	IssuerCreate,
 	IssuerImageUpload,
 	IssuerListFilters,
 	IssuersGroup,
 	IssuerUpdate,
+	MAX_IMAGE_BYTES,
 } from "./issuers";
 export { Paged, Pagination, PaginationDefaults } from "./pagination";
 export {
@@ -53,6 +53,8 @@ export {
 	RuleCount,
 	RuleCreate,
 	RuleListFilters,
+	RulePreviewInput,
+	RulePreviewResult,
 	RulesGroup,
 	RuleUpdate,
 } from "./rules";
