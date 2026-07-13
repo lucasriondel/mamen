@@ -9,6 +9,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import { RulesSection } from "@/features/rules/rules-section";
 import { IssuerAvatar } from "./issuer-avatar";
 import { useIssuerMutations } from "./use-issuer-mutations";
 
@@ -129,6 +130,10 @@ export function IssuerEditDialog({
 					Save
 				</button>
 			</form>
+
+			<div className="border-t border-line pt-4">
+				<RulesSection issuer={issuer} />
+			</div>
 
 			<DialogFooter>
 				<div className="flex w-full flex-col gap-1 sm:items-start">

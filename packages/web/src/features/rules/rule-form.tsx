@@ -1,0 +1,159 @@
+import type {
+	Issuer,
+	IssuerId,
+	Rule,
+	Transaction,
+} from "@mamen/shared/contract";
+import { useQuery } from "@tanstack/react-query";
+import { type FormEvent, useState } from "react";
+import { ruleKeys, ruleMutations } from "@/lib/sdk";
+import { RulePreviewLists } from "./rule-preview-lists";
+import { useDebouncedValue } from "./use-debounced-value";
+import { useRuleMutations } from "./use-rule-mutations";
+
+const INPUT_CLASS =
+	"w-full rounded-md border border-line bg-bg px-3 py-2 font-mono text-sm text-ink outline-none focus:border-accent";
+
+/** How long the pattern field must be idle before the live preview refetches. */
+const PREVIEW_DEBOUNCE_MS = 300;
+
+export interface RuleFormProps {
+	issuerId: IssuerId;
+	/** Issuer lookup so the preview can name a row's current issuer. */
+	issuersById: ReadonlyMap<number, Issuer>;
+	/** The rule being edited; omit to create a new one. */
+	rule?: Rule;
+	/** Called after a successful create/update (to leave the form). */
+	onDone: () => void;
+	/** Called to abandon the form without saving. */
+	onCancel: () => void;
+}
+
+/**
+ * The Matching Rule **create/edit form** with a live three-list preview (PRD #8
+ * stories 7–12, 22). Typing a `pattern` refetches a dry-run scoped to that one
+ * pattern (`ruleId` present ⇒ update, absent ⇒ create), so the user sees exactly
+ * which transactions the rule will match, reassign, or leave (manual) before
+ * committing. Save then applies the change — preview and commit are one
+ * deliberate action; the server recomputes on commit, so the preview is
+ * advisory, never a stale write.
+ *
+ * Each manual-collision row offers a "remove manual issuer" action (story 10):
+ * clearing the flag makes the row rule-eligible again, and the preview refetches
+ * to reflect it.
+ */
+export function RuleForm({
+	issuerId,
+	issuersById,
+	rule,
+	onDone,
+	onCancel,
+}: RuleFormProps) {
+	const [pattern, setPattern] = useState(rule?.pattern ?? "");
+	const { create, update, removeManualIssuer } = useRuleMutations();
+
+	const debouncedPattern = useDebouncedValue(
+		pattern.trim(),
+		PREVIEW_DEBOUNCE_MS,
+	);
+	const previewInput = {
+		...(rule ? { ruleId: rule.id } : {}),
+		issuerId,
+		pattern: debouncedPattern,
+	};
+
+	const previewQuery = useQuery({
+		queryKey: ruleKeys.preview(previewInput),
+		queryFn: () => ruleMutations.preview(previewInput),
+		enabled: debouncedPattern.length > 0,
+	});
+
+	const saving = create.isPending || update.isPending;
+
+	const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+		event.preventDefault();
+		const trimmed = pattern.trim();
+		if (trimmed.length === 0 || saving) return;
+		if (rule) {
+			update.mutate(
+				{ id: rule.id, patch: { pattern: trimmed } },
+				{ onSuccess: onDone },
+			);
+		} else {
+			create.mutate(
+				{ issuerId, pattern: trimmed, matchCount: 0 },
+				{ onSuccess: onDone },
+			);
+		}
+	};
+
+	const removeManual = (transaction: Transaction) => {
+		if (removeManualIssuer.isPending) return;
+		removeManualIssuer.mutate(transaction.id);
+	};
+
+	return (
+		<form onSubmit={handleSubmit} className="flex flex-col gap-4">
+			<label className="flex flex-col gap-1 text-sm text-muted">
+				Pattern
+				<input
+					className={INPUT_CLASS}
+					value={pattern}
+					onChange={(event) => setPattern(event.target.value)}
+					placeholder="e.g. amazon"
+					aria-label="Matching Rule pattern"
+					// biome-ignore lint/a11y/noAutofocus: focus the sole field on open
+					autoFocus
+				/>
+				<span className="text-xs text-muted">
+					A case-insensitive regular expression matched against the raw issuer
+					string.
+				</span>
+			</label>
+
+			<div className="max-h-72 overflow-y-auto rounded-md border border-line p-3">
+				{debouncedPattern.length === 0 ? (
+					<p className="text-sm text-muted italic">
+						Type a pattern to preview its effect.
+					</p>
+				) : previewQuery.isPending ? (
+					<p className="text-sm text-muted">Previewing…</p>
+				) : previewQuery.isError ? (
+					<p className="text-sm text-high">Couldn’t load the preview.</p>
+				) : previewQuery.data ? (
+					<RulePreviewLists
+						preview={previewQuery.data}
+						issuersById={issuersById}
+						renderManualAction={(transaction) => (
+							<button
+								type="button"
+								className="shrink-0 rounded-md border border-line px-2 py-0.5 text-xs text-ink disabled:opacity-50"
+								onClick={() => removeManual(transaction)}
+								disabled={removeManualIssuer.isPending}
+							>
+								Remove manual issuer
+							</button>
+						)}
+					/>
+				) : null}
+			</div>
+
+			<div className="flex justify-end gap-2">
+				<button
+					type="button"
+					className="rounded-md border border-line px-3 py-1.5 text-sm text-ink"
+					onClick={onCancel}
+				>
+					Cancel
+				</button>
+				<button
+					type="submit"
+					className="rounded-md bg-accent px-4 py-1.5 text-sm font-medium text-bg disabled:opacity-50"
+					disabled={saving || pattern.trim().length === 0}
+				>
+					{rule ? "Save rule" : "Create rule"}
+				</button>
+			</div>
+		</form>
+	);
+}

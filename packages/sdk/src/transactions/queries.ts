@@ -164,6 +164,19 @@ export const transactionMutations = {
 			),
 		),
 
+	/**
+	 * Clear a row's manual issuer, then re-derive it against the current rule set
+	 * (PRD #8 story 10) — it becomes unmatched, or is claimed by an existing rule,
+	 * and is rule-eligible again. Powers the per-row "remove manual issuer" action
+	 * on the Matching Rule preview's manual-collision list. Returns the updated row.
+	 */
+	removeManualIssuer: (id: TransactionId) =>
+		runQuery(
+			Effect.flatMap(Client, (client) =>
+				client.transactions.removeManualIssuer({ path: { id } }),
+			),
+		),
+
 	/** Delete many by id → `{ count }` actually deleted (unknown ids ignored). */
 	bulkDelete: (ids: ReadonlyArray<TransactionId>) =>
 		runQuery(
