@@ -34,6 +34,16 @@ export type MatchOutcome = {
 	matchedRuleId: typeof RuleId.Type | null;
 };
 
+/**
+ * A {@link MatchOutcome} a rule actually won: both `issuerId` and `matchedRuleId`
+ * present. The subset that drives writes — an issuer assignment plus a
+ * `matchCount` bump (manual and unmatched outcomes have no rule to book).
+ */
+type AssignedOutcome = MatchOutcome & {
+	issuerId: typeof IssuerId.Type;
+	matchedRuleId: typeof RuleId.Type;
+};
+
 /** Regex metacharacters stripped when measuring a pattern's literal length. */
 const META = /[.*+?^${}()|[\]\\]/g;
 
@@ -165,12 +175,8 @@ export class IssuerMatcher extends Effect.Service<IssuerMatcher>()(
 					// The issuer writes (only rows a rule actually won) and the per-rule
 					// win tally, built from the derived outcomes.
 					const assigned = outcomes.filter(
-						(
-							o,
-						): o is MatchOutcome & {
-							issuerId: typeof IssuerId.Type;
-							matchedRuleId: typeof RuleId.Type;
-						} => o.matchedRuleId !== null && o.issuerId !== null,
+						(o): o is AssignedOutcome =>
+							o.matchedRuleId !== null && o.issuerId !== null,
 					);
 					const bumps = new Map<number, number>();
 					for (const o of assigned) {
