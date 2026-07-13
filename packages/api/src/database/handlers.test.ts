@@ -39,8 +39,18 @@ const seed = Effect.gen(function* () {
 			sortOrder: 1,
 		},
 	});
+	// Give the issuer a default category equal to the seeded category so the
+	// transaction's category — read *through* the issuer at query time (a
+	// non-manual row derives `issuer.defaultCategoryId`, per the derived-category
+	// model) — matches its stored `categoryId` on read-back. Without this the
+	// issuer has no default and `getById` would derive an absent category, while
+	// `create`/`export` echo the stored id, so the round-trip would diverge.
 	const issuer = yield* client.issuers.create({
-		payload: { name: "Store", firstSeen: new Date("2026-01-01T00:00:00.000Z") },
+		payload: {
+			name: "Store",
+			defaultCategoryId: category.id,
+			firstSeen: new Date("2026-01-01T00:00:00.000Z"),
+		},
 	});
 	const rule = yield* client.rules.create({
 		payload: {
