@@ -217,6 +217,17 @@ export class TransactionsGroup extends HttpApiGroup.make("transactions")
 			.addSuccess(HttpApiSchema.NoContent)
 			.addError(NotFound),
 	)
+	// The Matching Rule preview's per-row "remove manual issuer" action
+	// (PRD #8 story 10): clears the row's manual issuer, then re-derives it
+	// against the current rule set — it becomes unmatched (or claimed by an
+	// existing rule) and, crucially, rule-eligible again. Returns the updated row.
+	.add(
+		HttpApiEndpoint.post(
+			"removeManualIssuer",
+		)`/transactions/${HttpApiSchema.param("id", numFromStr(TransactionId))}/remove-manual-issuer`
+			.addSuccess(Transaction)
+			.addError(NotFound),
+	)
 	// `bulkDelete` / `bulkGet` stay POST — the id list rides in the body.
 	.add(
 		HttpApiEndpoint.post("bulkDelete")`/transactions/bulk-delete`

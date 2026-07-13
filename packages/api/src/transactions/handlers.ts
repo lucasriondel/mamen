@@ -36,6 +36,9 @@ export const TransactionsLive = HttpApiBuilder.group(
 				.handle("update", (_) => repo.update(_.path.id, _.payload))
 				.handle("bulkPut", (_) => repo.bulkPut(_.payload.records))
 				.handle("remove", (_) => repo.remove(_.path.id))
+				.handle("removeManualIssuer", (_) =>
+					matcher.removeManualIssuer(_.path.id),
+				)
 				.handle("bulkDelete", (_) => repo.bulkDelete(_.payload.ids))
 				.handle("bulkGet", (_) => repo.bulkGet(_.payload.ids))
 				.handle("deleteByAccountMonth", (_) =>
