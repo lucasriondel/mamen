@@ -26,6 +26,11 @@ dist-ssr
 # Uploads
 uploads/
 
+# SQLite database (dev)
+mamen.db
+mamen.db-shm
+mamen.db-wal
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
