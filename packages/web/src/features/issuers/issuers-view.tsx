@@ -9,7 +9,8 @@ import { IssuerCard } from "./issuer-card";
 /**
  * Issuers view (PRD) — a card grid of the entities the user has created, each
  * showing avatar, name, transaction count, and net € total. Clicking a card
- * opens the edit dialog (rename + avatar), owned by {@link IssuerCard}.
+ * navigates to the issuer detail page (`/issuers/$issuerId`), owned by
+ * {@link IssuerCard}.
  *
  * The view reads only the issuers `list`; each card owns its own transaction
  * query for the count/net (the contract has no per-issuer sum endpoint). Per the
