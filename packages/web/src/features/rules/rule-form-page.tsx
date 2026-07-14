@@ -17,6 +17,8 @@ export interface RuleFormPageProps {
 	issuerId: IssuerId;
 	/** Present ⇒ edit that rule; absent ⇒ create a new rule (the `RuleForm` split). */
 	ruleId?: RuleId;
+	/** Seed the pattern field when creating (e.g. an unresolved transaction's raw name). */
+	defaultPattern?: string;
 }
 
 /**
@@ -31,7 +33,11 @@ export interface RuleFormPageProps {
  * plus the loading / not-found states. Saving or cancelling returns to the
  * issuer detail page; the form's own `onDone`/`onCancel` fire the navigation.
  */
-export function RuleFormPage({ issuerId, ruleId }: RuleFormPageProps) {
+export function RuleFormPage({
+	issuerId,
+	ruleId,
+	defaultPattern,
+}: RuleFormPageProps) {
 	const navigate = useNavigate();
 	const isEditing = ruleId != null;
 
@@ -91,6 +97,7 @@ export function RuleFormPage({ issuerId, ruleId }: RuleFormPageProps) {
 				issuerId={issuerId}
 				issuersById={issuersById}
 				rule={rule}
+				defaultPattern={defaultPattern}
 				onDone={back}
 				onCancel={back}
 			/>

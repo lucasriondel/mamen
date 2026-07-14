@@ -1,4 +1,4 @@
-import type { IssuerId, TransactionId } from "@mamen/shared/contract";
+import type { Issuer, IssuerId, TransactionId } from "@mamen/shared/contract";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -11,20 +11,22 @@ import { toErrorMessage } from "@/lib/sdk-error";
 
 /**
  * The issuer-assignment mutations behind the transactions assignment picker
- * (PRD). Assignment is single-transaction in v1 (bulk is deferred to Rules).
+ * (PRD; issue #18). Assignment is single-transaction in v1 (bulk is deferred to
+ * Rules).
  *
- * Two paths, both ending in a transaction `update({ issuerId, manualIssuer })`
- * so the row immediately reflects the resolved issuer. Both stamp
- * `manualIssuer: true` — a hand pick is sticky, so Matching Rules never silently
- * overwrite it (the Issuer invariant; PRD #8, issue #10):
- * - `assignExisting` — assign an issuer the user already has.
- * - `createAndAssign` — mint a new issuer from the raw counterparty string
- *   (`create`), then assign it (`update`). `firstSeen` is stamped now (the
- *   contract requires it on create).
+ * The picker offers three actions; two of them live here:
+ * - `assignExisting` — **match**: assign an issuer the user already has,
+ *   stamping `manualIssuer: true`. A hand pick is sticky, so Matching Rules
+ *   never silently overwrite it (the Issuer invariant; PRD #8, issue #10).
+ * - `createIssuer` — mint a new issuer from the raw counterparty string
+ *   (`firstSeen` stamped now, as the contract requires). Returns the created
+ *   issuer so the picker can navigate to its rule-create page. It does **not**
+ *   assign the transaction — that's the rule's job once written.
  *
- * Both own their invalidation: on success the transactions **and** issuers key
- * families are invalidated (a new issuer changes the grid; the assignment
- * changes the table). Failures raise a `sonner` toast.
+ * (The third action — "add a rule to an existing issuer" — is pure navigation,
+ * no mutation.) Both mutations own their invalidation: the transactions **and**
+ * issuers key families (a new issuer changes the grid; an assignment changes
+ * the table). Failures raise a `sonner` toast.
  */
 export function useAssignIssuer() {
 	const queryClient = useQueryClient();
@@ -54,26 +56,12 @@ export function useAssignIssuer() {
 		onError,
 	});
 
-	const createAndAssign = useMutation({
-		mutationFn: async ({
-			transactionId,
-			name,
-		}: {
-			transactionId: TransactionId;
-			name: string;
-		}) => {
-			const issuer = await issuerMutations.create({
-				name,
-				firstSeen: new Date(),
-			});
-			return transactionMutations.update(transactionId, {
-				issuerId: issuer.id,
-				manualIssuer: true,
-			});
-		},
+	const createIssuer = useMutation({
+		mutationFn: ({ name }: { name: string }): Promise<Issuer> =>
+			issuerMutations.create({ name, firstSeen: new Date() }),
 		onSuccess: invalidate,
 		onError,
 	});
 
-	return { assignExisting, createAndAssign };
+	return { assignExisting, createIssuer };
 }

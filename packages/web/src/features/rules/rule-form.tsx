@@ -81,6 +81,8 @@ export interface RuleFormProps {
 	issuersById: ReadonlyMap<number, Issuer>;
 	/** The rule being edited; omit to create a new one. */
 	rule?: Rule;
+	/** Initial pattern when creating (ignored when editing — the rule wins). */
+	defaultPattern?: string;
 	/** Called after a successful create/update (to leave the form). */
 	onDone: () => void;
 	/** Called to abandon the form without saving. */
@@ -104,10 +106,11 @@ export function RuleForm({
 	issuerId,
 	issuersById,
 	rule,
+	defaultPattern,
 	onDone,
 	onCancel,
 }: RuleFormProps) {
-	const [pattern, setPattern] = useState(rule?.pattern ?? "");
+	const [pattern, setPattern] = useState(rule?.pattern ?? defaultPattern ?? "");
 	const inputRef = useRef<HTMLInputElement>(null);
 	const { create, update, removeManualIssuer } = useRuleMutations();
 
