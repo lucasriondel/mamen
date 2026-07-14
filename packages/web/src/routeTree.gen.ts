@@ -10,19 +10,15 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TransactionsRouteImport } from './routes/transactions'
-import { Route as IssuersRouteImport } from './routes/issuers'
 import { Route as ImportRouteImport } from './routes/import'
 import { Route as AccountsRouteImport } from './routes/accounts'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as IssuersIndexRouteImport } from './routes/issuers.index'
+import { Route as IssuersIssuerIdRouteImport } from './routes/issuers.$issuerId'
 
 const TransactionsRoute = TransactionsRouteImport.update({
   id: '/transactions',
   path: '/transactions',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const IssuersRoute = IssuersRouteImport.update({
-  id: '/issuers',
-  path: '/issuers',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ImportRoute = ImportRouteImport.update({
@@ -40,43 +36,76 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const IssuersIndexRoute = IssuersIndexRouteImport.update({
+  id: '/issuers/',
+  path: '/issuers/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IssuersIssuerIdRoute = IssuersIssuerIdRouteImport.update({
+  id: '/issuers/$issuerId',
+  path: '/issuers/$issuerId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/accounts': typeof AccountsRoute
   '/import': typeof ImportRoute
-  '/issuers': typeof IssuersRoute
   '/transactions': typeof TransactionsRoute
+  '/issuers/$issuerId': typeof IssuersIssuerIdRoute
+  '/issuers/': typeof IssuersIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/accounts': typeof AccountsRoute
   '/import': typeof ImportRoute
-  '/issuers': typeof IssuersRoute
   '/transactions': typeof TransactionsRoute
+  '/issuers/$issuerId': typeof IssuersIssuerIdRoute
+  '/issuers': typeof IssuersIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/accounts': typeof AccountsRoute
   '/import': typeof ImportRoute
-  '/issuers': typeof IssuersRoute
   '/transactions': typeof TransactionsRoute
+  '/issuers/$issuerId': typeof IssuersIssuerIdRoute
+  '/issuers/': typeof IssuersIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/accounts' | '/import' | '/issuers' | '/transactions'
+  fullPaths:
+    | '/'
+    | '/accounts'
+    | '/import'
+    | '/transactions'
+    | '/issuers/$issuerId'
+    | '/issuers/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/accounts' | '/import' | '/issuers' | '/transactions'
-  id: '__root__' | '/' | '/accounts' | '/import' | '/issuers' | '/transactions'
+  to:
+    | '/'
+    | '/accounts'
+    | '/import'
+    | '/transactions'
+    | '/issuers/$issuerId'
+    | '/issuers'
+  id:
+    | '__root__'
+    | '/'
+    | '/accounts'
+    | '/import'
+    | '/transactions'
+    | '/issuers/$issuerId'
+    | '/issuers/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AccountsRoute: typeof AccountsRoute
   ImportRoute: typeof ImportRoute
-  IssuersRoute: typeof IssuersRoute
   TransactionsRoute: typeof TransactionsRoute
+  IssuersIssuerIdRoute: typeof IssuersIssuerIdRoute
+  IssuersIndexRoute: typeof IssuersIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -86,13 +115,6 @@ declare module '@tanstack/react-router' {
       path: '/transactions'
       fullPath: '/transactions'
       preLoaderRoute: typeof TransactionsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/issuers': {
-      id: '/issuers'
-      path: '/issuers'
-      fullPath: '/issuers'
-      preLoaderRoute: typeof IssuersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/import': {
@@ -116,6 +138,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/issuers/': {
+      id: '/issuers/'
+      path: '/issuers'
+      fullPath: '/issuers/'
+      preLoaderRoute: typeof IssuersIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/issuers/$issuerId': {
+      id: '/issuers/$issuerId'
+      path: '/issuers/$issuerId'
+      fullPath: '/issuers/$issuerId'
+      preLoaderRoute: typeof IssuersIssuerIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -123,8 +159,9 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccountsRoute: AccountsRoute,
   ImportRoute: ImportRoute,
-  IssuersRoute: IssuersRoute,
   TransactionsRoute: TransactionsRoute,
+  IssuersIssuerIdRoute: IssuersIssuerIdRoute,
+  IssuersIndexRoute: IssuersIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
