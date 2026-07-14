@@ -163,20 +163,21 @@ describe("RulesSection — navigation into the rule pages", () => {
 		expect(await screen.findByText("New rule page")).toBeInTheDocument();
 	});
 
-	it("links each row's edit action to that rule's edit page", async () => {
+	it("navigates to the rule's edit page when its row is clicked", async () => {
 		const user = userEvent.setup();
 		renderSection();
 
-		const edit = await screen.findByRole("link", { name: /Edit rule amazon/ });
-		expect(edit).toHaveAttribute("href", "/issuers/1/rules/10");
+		// The whole row is a link into that rule's edit page.
+		const row = await screen.findByRole("link", { name: /Edit rule amazon/ });
+		expect(row).toHaveAttribute("href", "/issuers/1/rules/10");
 
-		await user.click(edit);
+		await user.click(row);
 		expect(await screen.findByText("Edit rule page")).toBeInTheDocument();
 	});
 });
 
-describe("RulesSection — delete confirmation", () => {
-	it("shows the transactions that will reassign or unmatch, then deletes", async () => {
+describe("RulesSection — inline delete confirm", () => {
+	it("expands an in-place preview (no route change) then deletes on confirm", async () => {
 		deletePreviewResult = {
 			willReassign: [
 				txn({
@@ -195,6 +196,10 @@ describe("RulesSection — delete confirmation", () => {
 			await screen.findByRole("button", { name: /Delete rule amazon/ }),
 		);
 
+		// The confirm is inline: the section (and its heading) stays put.
+		expect(
+			screen.getByRole("heading", { name: "Matching Rules" }),
+		).toBeInTheDocument();
 		expect(
 			await screen.findByRole("heading", { name: /Will reassign \(1\)/ }),
 		).toBeInTheDocument();
@@ -203,14 +208,29 @@ describe("RulesSection — delete confirmation", () => {
 		).toBeInTheDocument();
 		expect(screen.getByText("AMZN MKTP")).toBeInTheDocument();
 
-		const dialog = screen
+		const confirm = screen
 			.getByRole("button", { name: "Delete rule" })
 			.closest("div");
 		await user.click(
-			within(dialog as HTMLElement).getByRole("button", {
+			within(confirm as HTMLElement).getByRole("button", {
 				name: "Delete rule",
 			}),
 		);
 		await waitFor(() => expect(removeRule).toHaveBeenCalledWith(10));
+	});
+
+	it("backs out of the inline confirm without deleting when cancelled", async () => {
+		const user = userEvent.setup();
+		renderSection();
+
+		await user.click(
+			await screen.findByRole("button", { name: /Delete rule amazon/ }),
+		);
+		await user.click(await screen.findByRole("button", { name: "Cancel" }));
+
+		expect(
+			screen.queryByRole("button", { name: "Delete rule" }),
+		).not.toBeInTheDocument();
+		expect(removeRule).not.toHaveBeenCalled();
 	});
 });

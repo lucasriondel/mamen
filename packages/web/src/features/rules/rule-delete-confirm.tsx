@@ -4,7 +4,7 @@ import { ruleQueries } from "@/lib/sdk";
 import { TransactionPreviewList } from "./transaction-preview-list";
 import { useRuleMutations } from "./use-rule-mutations";
 
-export interface RuleDeleteDialogProps {
+export interface RuleDeleteConfirmProps {
 	rule: Rule;
 	issuersById: ReadonlyMap<number, Issuer>;
 	/** Called after a successful delete (to leave the confirmation). */
@@ -14,7 +14,8 @@ export interface RuleDeleteDialogProps {
 }
 
 /**
- * The Matching Rule **delete confirmation** (PRD #8 stories 17–18). Before
+ * The Matching Rule **inline delete confirmation** (PRD #8 stories 17–18) shown
+ * in-place under a rule row on the issuer detail page — no modal, no route. Before
  * committing, it fetches a delete dry-run and shows the full consequence set —
  * the rows that will fall back to a *different* issuer (`willReassign`) and the
  * rows that will become **unmatched** because no other rule matches
@@ -22,12 +23,12 @@ export interface RuleDeleteDialogProps {
  * never touched by a delete, so they never appear. The commit recomputes from
  * current state; this preview is advisory.
  */
-export function RuleDeleteDialog({
+export function RuleDeleteConfirm({
 	rule,
 	issuersById,
 	onDone,
 	onCancel,
-}: RuleDeleteDialogProps) {
+}: RuleDeleteConfirmProps) {
 	const { remove } = useRuleMutations();
 	const previewQuery = useQuery(ruleQueries.deletePreview(rule.id));
 
