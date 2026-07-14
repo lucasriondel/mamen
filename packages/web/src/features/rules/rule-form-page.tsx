@@ -4,6 +4,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { useMemo } from "react";
 import { issuerQueries, ruleQueries } from "@/lib/sdk";
+import { indexById } from "@/lib/utils";
 import { RuleForm } from "./rule-form";
 
 /** How many issuers to load for resolving preview rows' current issuer names. */
@@ -11,13 +12,6 @@ const ISSUER_SCAN_LIMIT = 1000;
 
 const BACK_LINK_CLASS =
 	"flex items-center gap-1 self-start text-sm text-muted transition-colors hover:text-ink";
-
-/** Index a list of `{ id }` entities by their numeric id for O(1) lookups. */
-function indexById<T extends { id: number }>(
-	items: readonly T[],
-): Map<number, T> {
-	return new Map(items.map((item) => [item.id, item]));
-}
 
 export interface RuleFormPageProps {
 	issuerId: IssuerId;

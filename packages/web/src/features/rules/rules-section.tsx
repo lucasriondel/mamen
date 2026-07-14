@@ -4,17 +4,11 @@ import { Link } from "@tanstack/react-router";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { issuerQueries, ruleQueries } from "@/lib/sdk";
+import { indexById } from "@/lib/utils";
 import { RuleDeleteDialog } from "./rule-delete-dialog";
 
 /** How many issuers to load for resolving preview rows' current issuer names. */
 const ISSUER_SCAN_LIMIT = 1000;
-
-/** Index a list of `{ id }` entities by their numeric id for O(1) lookups. */
-function indexById<T extends { id: number }>(
-	items: readonly T[],
-): Map<number, T> {
-	return new Map(items.map((item) => [item.id, item]));
-}
 
 /** The section's mutually-exclusive views: the list, or the delete confirmation. */
 type Mode = { kind: "list" } | { kind: "delete"; rule: Rule };

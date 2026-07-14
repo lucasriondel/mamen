@@ -53,6 +53,28 @@ function regexError(pattern: string): string | null {
 	}
 }
 
+/**
+ * Inline validity note for the pattern field: silent until the user types, then
+ * the compile error (as an alert) or a confirmation once the regex is valid.
+ */
+function PatternValidity({
+	pattern,
+	error,
+}: {
+	pattern: string;
+	error: string | null;
+}) {
+	if (pattern.length === 0) return null;
+	if (error !== null) {
+		return (
+			<span role="alert" className="text-xs text-high">
+				Invalid regular expression — {error}
+			</span>
+		);
+	}
+	return <span className="text-xs text-low">✓ Valid pattern</span>;
+}
+
 export interface RuleFormProps {
 	issuerId: IssuerId;
 	/** Issuer lookup so the preview can name a row's current issuer. */
@@ -179,13 +201,7 @@ export function RuleForm({
 				<code className="rounded bg-panel px-2 py-1 font-mono text-ink">
 					/{trimmedPattern || "…"}/i
 				</code>
-				{trimmedPattern.length === 0 ? null : patternError ? (
-					<span role="alert" className="text-xs text-high">
-						Invalid regular expression — {patternError}
-					</span>
-				) : (
-					<span className="text-xs text-low">✓ Valid pattern</span>
-				)}
+				<PatternValidity pattern={trimmedPattern} error={patternError} />
 			</div>
 
 			{/* One-click authoring aids: splice a common regex fragment at the caret. */}

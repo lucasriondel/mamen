@@ -14,6 +14,7 @@ import {
 	type TransactionListParams,
 	transactionQueries,
 } from "@/lib/sdk";
+import { indexById } from "@/lib/utils";
 import { TRANSACTIONS_PAGE_SIZE, type TransactionsSearch } from "./search";
 import {
 	type TransactionFilterValues,
@@ -39,13 +40,6 @@ function toListParams(search: TransactionsSearch): TransactionListParams {
 			: {}),
 		...(search.importMonth != null ? { importMonth: search.importMonth } : {}),
 	};
-}
-
-/** Index a list of `{ id }` entities by their numeric id for O(1) cell lookups. */
-function indexById<T extends { id: number }>(
-	items: readonly T[],
-): Map<number, T> {
-	return new Map(items.map((item) => [item.id, item]));
 }
 
 /**

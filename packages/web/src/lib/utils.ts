@@ -11,3 +11,10 @@ import { twMerge } from "tailwind-merge";
 export function cn(...inputs: ClassValue[]): string {
 	return twMerge(clsx(inputs));
 }
+
+/** Index a list of `{ id }` entities by their numeric id for O(1) lookups. */
+export function indexById<T extends { id: number }>(
+	items: readonly T[],
+): Map<number, T> {
+	return new Map(items.map((item) => [item.id, item]));
+}
