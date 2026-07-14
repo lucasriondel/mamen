@@ -2,24 +2,25 @@ import type {
 	Issuer,
 	Rule,
 	RuleDeletePreviewResult,
-	RulePreviewResult,
 	Transaction,
 } from "@mamen/shared/contract";
+import {
+	createMemoryHistory,
+	createRootRoute,
+	createRoute,
+	createRouter,
+	RouterProvider,
+} from "@tanstack/react-router";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock the SDK seam: the section reads the issuer's rules (`ruleQueries.list`)
-// and the issuer lookup (`issuerQueries.list`); the form previews via
-// `ruleMutations.preview` and commits via `create`/`update`; the delete dialog
-// reads `ruleQueries.deletePreview` and commits via `remove`; the manual-row
-// action calls `transactionMutations.removeManualIssuer`. Real key factories are
-// kept so the mutations' invalidation resolves.
-const createRule = vi.fn();
-const updateRule = vi.fn();
+// and the issuer lookup (`issuerQueries.list`); the delete dialog reads
+// `ruleQueries.deletePreview` and commits via `remove`. Create/edit are now their
+// own pages, so the section only links to them (no inline form). Real key
+// factories are kept so the mutations' invalidation resolves.
 const removeRule = vi.fn();
-const previewRule = vi.fn();
-const removeManualIssuer = vi.fn();
 
 let rulesByIssuer: Record<number, Rule[]>;
 let issuersList: Issuer[];
@@ -52,13 +53,7 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
 			}),
 		},
 		ruleMutations: {
-			create: (payload: unknown) => createRule(payload),
-			update: (id: unknown, patch: unknown) => updateRule(id, patch),
 			remove: (id: unknown) => removeRule(id),
-			preview: (input: unknown) => previewRule(input),
-		},
-		transactionMutations: {
-			removeManualIssuer: (id: unknown) => removeManualIssuer(id),
 		},
 	};
 });
@@ -99,21 +94,37 @@ function txn(overrides: Partial<Transaction> = {}): Transaction {
 	} as Transaction;
 }
 
-function emptyPreview(): RulePreviewResult {
-	return {
-		willMatch: [],
-		willReassign: [],
-		manualCollisions: [],
-		skipped: false,
-	};
+// ---- Router harness: the section at /issuers/$issuerId with stub rule pages. --
+
+function makeRouter(current: Issuer) {
+	const rootRoute = createRootRoute();
+	const sectionRoute = createRoute({
+		getParentRoute: () => rootRoute,
+		path: "/issuers/$issuerId",
+		component: () => <RulesSection issuer={current} />,
+	});
+	const newRoute = createRoute({
+		getParentRoute: () => rootRoute,
+		path: "/issuers/$issuerId/rules/new",
+		component: () => <p>New rule page</p>,
+	});
+	const editRoute = createRoute({
+		getParentRoute: () => rootRoute,
+		path: "/issuers/$issuerId/rules/$ruleId",
+		component: () => <p>Edit rule page</p>,
+	});
+	return createRouter({
+		routeTree: rootRoute.addChildren([sectionRoute, newRoute, editRoute]),
+		history: createMemoryHistory({ initialEntries: ["/issuers/1"] }),
+	});
+}
+
+function renderSection(current: Issuer = issuer()) {
+	render(<RouterProvider router={makeRouter(current)} />);
 }
 
 beforeEach(() => {
-	createRule.mockReset().mockResolvedValue(rule());
-	updateRule.mockReset().mockResolvedValue(rule());
 	removeRule.mockReset().mockResolvedValue(undefined);
-	previewRule.mockReset().mockResolvedValue(emptyPreview());
-	removeManualIssuer.mockReset().mockResolvedValue(txn());
 	rulesByIssuer = { 1: [rule()] };
 	issuersList = [issuer(), issuer({ id: 2 as Issuer["id"], name: "AWS" })];
 	deletePreviewResult = { willReassign: [], willUnmatch: [] };
@@ -121,7 +132,7 @@ beforeEach(() => {
 
 describe("RulesSection — rule list", () => {
 	it("lists the issuer's Matching Rules with their pattern and match count", async () => {
-		render(<RulesSection issuer={issuer()} />);
+		renderSection();
 
 		expect(await screen.findByText("amazon")).toBeInTheDocument();
 		expect(screen.getByText(/3 matches/)).toBeInTheDocument();
@@ -132,7 +143,7 @@ describe("RulesSection — rule list", () => {
 
 	it("shows an empty state when the issuer has no rules", async () => {
 		rulesByIssuer = { 1: [] };
-		render(<RulesSection issuer={issuer()} />);
+		renderSection();
 
 		expect(
 			await screen.findByText(/No Matching Rules yet/),
@@ -140,121 +151,27 @@ describe("RulesSection — rule list", () => {
 	});
 });
 
-describe("RulesSection — create/edit form + preview", () => {
-	it("previews the three lists as the pattern is typed and creates on save", async () => {
-		rulesByIssuer = { 1: [] };
-		previewRule.mockResolvedValue({
-			willMatch: [txn({ id: 100 as Transaction["id"] })],
-			willReassign: [
-				txn({
-					id: 101 as Transaction["id"],
-					rawIssuerString: "AMZN MKTP",
-					issuerId: 2 as Transaction["issuerId"],
-				}),
-			],
-			manualCollisions: [],
-			skipped: false,
-		} satisfies RulePreviewResult);
-
+describe("RulesSection — navigation into the rule pages", () => {
+	it("links 'Add rule' to the create page", async () => {
 		const user = userEvent.setup();
-		render(<RulesSection issuer={issuer()} />);
+		renderSection();
 
-		await user.click(await screen.findByRole("button", { name: /Add rule/ }));
-		await user.type(screen.getByLabelText("Matching Rule pattern"), "amazon");
+		const add = await screen.findByRole("link", { name: /Add rule/ });
+		expect(add).toHaveAttribute("href", "/issuers/1/rules/new");
 
-		// The preview fires (debounced) and the three lists render.
-		await waitFor(() =>
-			expect(previewRule).toHaveBeenCalledWith(
-				expect.objectContaining({ issuerId: 1, pattern: "amazon" }),
-			),
-		);
-		expect(
-			await screen.findByRole("heading", { name: /Will match \(1\)/ }),
-		).toBeInTheDocument();
-		expect(
-			screen.getByRole("heading", { name: /Will reassign \(1\)/ }),
-		).toBeInTheDocument();
-		// The reassign row names the current owning issuer.
-		expect(screen.getByText(/AWS/)).toBeInTheDocument();
-
-		await user.click(screen.getByRole("button", { name: "Create rule" }));
-		await waitFor(() =>
-			expect(createRule).toHaveBeenCalledWith({
-				issuerId: 1,
-				pattern: "amazon",
-				matchCount: 0,
-			}),
-		);
+		await user.click(add);
+		expect(await screen.findByText("New rule page")).toBeInTheDocument();
 	});
 
-	it("offers a per-row remove-manual-issuer action on manual collisions", async () => {
-		rulesByIssuer = { 1: [] };
-		previewRule.mockResolvedValue({
-			willMatch: [],
-			willReassign: [],
-			manualCollisions: [
-				txn({
-					id: 200 as Transaction["id"],
-					manualIssuer: true,
-					issuerId: 2 as Transaction["issuerId"],
-				}),
-			],
-			skipped: false,
-		} satisfies RulePreviewResult);
-
+	it("links each row's edit action to that rule's edit page", async () => {
 		const user = userEvent.setup();
-		render(<RulesSection issuer={issuer()} />);
+		renderSection();
 
-		await user.click(await screen.findByRole("button", { name: /Add rule/ }));
-		await user.type(screen.getByLabelText("Matching Rule pattern"), "amazon");
+		const edit = await screen.findByRole("link", { name: /Edit rule amazon/ });
+		expect(edit).toHaveAttribute("href", "/issuers/1/rules/10");
 
-		const removeButton = await screen.findByRole("button", {
-			name: "Remove manual issuer",
-		});
-		await user.click(removeButton);
-
-		await waitFor(() => expect(removeManualIssuer).toHaveBeenCalledWith(200));
-	});
-
-	it("edits an existing rule (update on save)", async () => {
-		const user = userEvent.setup();
-		render(<RulesSection issuer={issuer()} />);
-
-		await user.click(
-			await screen.findByRole("button", { name: /Edit rule amazon/ }),
-		);
-		const input = screen.getByLabelText("Matching Rule pattern");
-		await user.clear(input);
-		await user.type(input, "amzn");
-
-		await user.click(screen.getByRole("button", { name: "Save rule" }));
-		await waitFor(() =>
-			expect(updateRule).toHaveBeenCalledWith(10, { pattern: "amzn" }),
-		);
-	});
-
-	it("warns when the pattern is an invalid regex (skipped)", async () => {
-		rulesByIssuer = { 1: [] };
-		previewRule.mockResolvedValue({
-			willMatch: [],
-			willReassign: [],
-			manualCollisions: [],
-			skipped: true,
-		} satisfies RulePreviewResult);
-
-		const user = userEvent.setup();
-		render(<RulesSection issuer={issuer()} />);
-
-		await user.click(await screen.findByRole("button", { name: /Add rule/ }));
-		// An unbalanced group is an invalid regex; the mock forces `skipped`.
-		await user.type(
-			screen.getByLabelText("Matching Rule pattern"),
-			"(unclosed",
-		);
-
-		expect(
-			await screen.findByText(/isn.t a valid regular expression/),
-		).toBeInTheDocument();
+		await user.click(edit);
+		expect(await screen.findByText("Edit rule page")).toBeInTheDocument();
 	});
 });
 
@@ -272,7 +189,7 @@ describe("RulesSection — delete confirmation", () => {
 		};
 
 		const user = userEvent.setup();
-		render(<RulesSection issuer={issuer()} />);
+		renderSection();
 
 		await user.click(
 			await screen.findByRole("button", { name: /Delete rule amazon/ }),

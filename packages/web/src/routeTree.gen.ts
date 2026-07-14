@@ -15,6 +15,9 @@ import { Route as AccountsRouteImport } from './routes/accounts'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as IssuersIndexRouteImport } from './routes/issuers.index'
 import { Route as IssuersIssuerIdRouteImport } from './routes/issuers.$issuerId'
+import { Route as IssuersIssuerIdIndexRouteImport } from './routes/issuers.$issuerId.index'
+import { Route as IssuersIssuerIdRulesNewRouteImport } from './routes/issuers.$issuerId.rules.new'
+import { Route as IssuersIssuerIdRulesRuleIdRouteImport } from './routes/issuers.$issuerId.rules.$ruleId'
 
 const TransactionsRoute = TransactionsRouteImport.update({
   id: '/transactions',
@@ -46,22 +49,43 @@ const IssuersIssuerIdRoute = IssuersIssuerIdRouteImport.update({
   path: '/issuers/$issuerId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const IssuersIssuerIdIndexRoute = IssuersIssuerIdIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => IssuersIssuerIdRoute,
+} as any)
+const IssuersIssuerIdRulesNewRoute = IssuersIssuerIdRulesNewRouteImport.update({
+  id: '/rules/new',
+  path: '/rules/new',
+  getParentRoute: () => IssuersIssuerIdRoute,
+} as any)
+const IssuersIssuerIdRulesRuleIdRoute =
+  IssuersIssuerIdRulesRuleIdRouteImport.update({
+    id: '/rules/$ruleId',
+    path: '/rules/$ruleId',
+    getParentRoute: () => IssuersIssuerIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/accounts': typeof AccountsRoute
   '/import': typeof ImportRoute
   '/transactions': typeof TransactionsRoute
-  '/issuers/$issuerId': typeof IssuersIssuerIdRoute
+  '/issuers/$issuerId': typeof IssuersIssuerIdRouteWithChildren
   '/issuers/': typeof IssuersIndexRoute
+  '/issuers/$issuerId/': typeof IssuersIssuerIdIndexRoute
+  '/issuers/$issuerId/rules/$ruleId': typeof IssuersIssuerIdRulesRuleIdRoute
+  '/issuers/$issuerId/rules/new': typeof IssuersIssuerIdRulesNewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/accounts': typeof AccountsRoute
   '/import': typeof ImportRoute
   '/transactions': typeof TransactionsRoute
-  '/issuers/$issuerId': typeof IssuersIssuerIdRoute
   '/issuers': typeof IssuersIndexRoute
+  '/issuers/$issuerId': typeof IssuersIssuerIdIndexRoute
+  '/issuers/$issuerId/rules/$ruleId': typeof IssuersIssuerIdRulesRuleIdRoute
+  '/issuers/$issuerId/rules/new': typeof IssuersIssuerIdRulesNewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -69,8 +93,11 @@ export interface FileRoutesById {
   '/accounts': typeof AccountsRoute
   '/import': typeof ImportRoute
   '/transactions': typeof TransactionsRoute
-  '/issuers/$issuerId': typeof IssuersIssuerIdRoute
+  '/issuers/$issuerId': typeof IssuersIssuerIdRouteWithChildren
   '/issuers/': typeof IssuersIndexRoute
+  '/issuers/$issuerId/': typeof IssuersIssuerIdIndexRoute
+  '/issuers/$issuerId/rules/$ruleId': typeof IssuersIssuerIdRulesRuleIdRoute
+  '/issuers/$issuerId/rules/new': typeof IssuersIssuerIdRulesNewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -81,14 +108,19 @@ export interface FileRouteTypes {
     | '/transactions'
     | '/issuers/$issuerId'
     | '/issuers/'
+    | '/issuers/$issuerId/'
+    | '/issuers/$issuerId/rules/$ruleId'
+    | '/issuers/$issuerId/rules/new'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/accounts'
     | '/import'
     | '/transactions'
-    | '/issuers/$issuerId'
     | '/issuers'
+    | '/issuers/$issuerId'
+    | '/issuers/$issuerId/rules/$ruleId'
+    | '/issuers/$issuerId/rules/new'
   id:
     | '__root__'
     | '/'
@@ -97,6 +129,9 @@ export interface FileRouteTypes {
     | '/transactions'
     | '/issuers/$issuerId'
     | '/issuers/'
+    | '/issuers/$issuerId/'
+    | '/issuers/$issuerId/rules/$ruleId'
+    | '/issuers/$issuerId/rules/new'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -104,7 +139,7 @@ export interface RootRouteChildren {
   AccountsRoute: typeof AccountsRoute
   ImportRoute: typeof ImportRoute
   TransactionsRoute: typeof TransactionsRoute
-  IssuersIssuerIdRoute: typeof IssuersIssuerIdRoute
+  IssuersIssuerIdRoute: typeof IssuersIssuerIdRouteWithChildren
   IssuersIndexRoute: typeof IssuersIndexRoute
 }
 
@@ -152,15 +187,52 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IssuersIssuerIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/issuers/$issuerId/': {
+      id: '/issuers/$issuerId/'
+      path: '/'
+      fullPath: '/issuers/$issuerId/'
+      preLoaderRoute: typeof IssuersIssuerIdIndexRouteImport
+      parentRoute: typeof IssuersIssuerIdRoute
+    }
+    '/issuers/$issuerId/rules/new': {
+      id: '/issuers/$issuerId/rules/new'
+      path: '/rules/new'
+      fullPath: '/issuers/$issuerId/rules/new'
+      preLoaderRoute: typeof IssuersIssuerIdRulesNewRouteImport
+      parentRoute: typeof IssuersIssuerIdRoute
+    }
+    '/issuers/$issuerId/rules/$ruleId': {
+      id: '/issuers/$issuerId/rules/$ruleId'
+      path: '/rules/$ruleId'
+      fullPath: '/issuers/$issuerId/rules/$ruleId'
+      preLoaderRoute: typeof IssuersIssuerIdRulesRuleIdRouteImport
+      parentRoute: typeof IssuersIssuerIdRoute
+    }
   }
 }
+
+interface IssuersIssuerIdRouteChildren {
+  IssuersIssuerIdIndexRoute: typeof IssuersIssuerIdIndexRoute
+  IssuersIssuerIdRulesRuleIdRoute: typeof IssuersIssuerIdRulesRuleIdRoute
+  IssuersIssuerIdRulesNewRoute: typeof IssuersIssuerIdRulesNewRoute
+}
+
+const IssuersIssuerIdRouteChildren: IssuersIssuerIdRouteChildren = {
+  IssuersIssuerIdIndexRoute: IssuersIssuerIdIndexRoute,
+  IssuersIssuerIdRulesRuleIdRoute: IssuersIssuerIdRulesRuleIdRoute,
+  IssuersIssuerIdRulesNewRoute: IssuersIssuerIdRulesNewRoute,
+}
+
+const IssuersIssuerIdRouteWithChildren = IssuersIssuerIdRoute._addFileChildren(
+  IssuersIssuerIdRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccountsRoute: AccountsRoute,
   ImportRoute: ImportRoute,
   TransactionsRoute: TransactionsRoute,
-  IssuersIssuerIdRoute: IssuersIssuerIdRoute,
+  IssuersIssuerIdRoute: IssuersIssuerIdRouteWithChildren,
   IssuersIndexRoute: IssuersIndexRoute,
 }
 export const routeTree = rootRouteImport

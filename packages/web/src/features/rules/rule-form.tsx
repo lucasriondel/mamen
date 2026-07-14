@@ -5,7 +5,7 @@ import type {
 	Transaction,
 } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useMemo, useRef, useState } from "react";
 import { ruleKeys, ruleMutations } from "@/lib/sdk";
 import { RulePreviewLists } from "./rule-preview-lists";
 import { useDebouncedValue } from "./use-debounced-value";
@@ -16,6 +16,42 @@ const INPUT_CLASS =
 
 /** How long the pattern field must be idle before the live preview refetches. */
 const PREVIEW_DEBOUNCE_MS = 300;
+
+/**
+ * Common regex fragments offered as one-click authoring aids. Clicking a chip
+ * splices its `token` into the pattern at the caret (story: make writing a
+ * pattern easier than a bare text box). `hint` doubles as the button's
+ * accessible name so each chip is addressable in tests/AT.
+ */
+const REGEX_TOKENS: ReadonlyArray<{
+	label: string;
+	token: string;
+	hint: string;
+}> = [
+	{ label: ".*", token: ".*", hint: "any characters" },
+	{ label: "\\d+", token: "\\d+", hint: "one or more digits" },
+	{ label: "\\s", token: "\\s", hint: "a whitespace character" },
+	{ label: "^", token: "^", hint: "start of string" },
+	{ label: "$", token: "$", hint: "end of string" },
+	{ label: "|", token: "|", hint: "either alternative" },
+];
+
+/**
+ * Try to compile `pattern` as the case-insensitive regex the matcher will use;
+ * return `null` when valid or the failure message when not. Empty is treated as
+ * valid-but-inert (no feedback until the user types).
+ */
+function regexError(pattern: string): string | null {
+	if (pattern.length === 0) return null;
+	try {
+		new RegExp(pattern, "i");
+		return null;
+	} catch (error) {
+		return error instanceof Error
+			? error.message
+			: "Invalid regular expression";
+	}
+}
 
 export interface RuleFormProps {
 	issuerId: IssuerId;
@@ -50,10 +86,33 @@ export function RuleForm({
 	onCancel,
 }: RuleFormProps) {
 	const [pattern, setPattern] = useState(rule?.pattern ?? "");
+	const inputRef = useRef<HTMLInputElement>(null);
 	const { create, update, removeManualIssuer } = useRuleMutations();
 
+	const trimmedPattern = pattern.trim();
+	const patternError = useMemo(
+		() => regexError(trimmedPattern),
+		[trimmedPattern],
+	);
+
+	/** Splice a helper token into the pattern at the caret (or append). */
+	const insertToken = (token: string) => {
+		const input = inputRef.current;
+		const start = input?.selectionStart ?? pattern.length;
+		const end = input?.selectionEnd ?? pattern.length;
+		const next = pattern.slice(0, start) + token + pattern.slice(end);
+		setPattern(next);
+		// Restore focus and drop the caret just after the inserted token.
+		requestAnimationFrame(() => {
+			if (!input) return;
+			input.focus();
+			const caret = start + token.length;
+			input.setSelectionRange(caret, caret);
+		});
+	};
+
 	const debouncedPattern = useDebouncedValue(
-		pattern.trim(),
+		trimmedPattern,
 		PREVIEW_DEBOUNCE_MS,
 	);
 	const previewInput = {
@@ -97,11 +156,13 @@ export function RuleForm({
 			<label className="flex flex-col gap-1 text-sm text-muted">
 				Pattern
 				<input
+					ref={inputRef}
 					className={INPUT_CLASS}
 					value={pattern}
 					onChange={(event) => setPattern(event.target.value)}
 					placeholder="e.g. amazon"
 					aria-label="Matching Rule pattern"
+					aria-invalid={patternError !== null}
 					// biome-ignore lint/a11y/noAutofocus: focus the sole field on open
 					autoFocus
 				/>
@@ -110,6 +171,41 @@ export function RuleForm({
 					string.
 				</span>
 			</label>
+
+			{/* Readable rendering of the regex the matcher will actually run, plus
+			    live validity feedback so a broken pattern is caught before save. */}
+			<div className="flex flex-wrap items-center gap-2 text-sm">
+				<span className="text-xs text-muted">Runs as</span>
+				<code className="rounded bg-panel px-2 py-1 font-mono text-ink">
+					/{trimmedPattern || "…"}/i
+				</code>
+				{trimmedPattern.length === 0 ? null : patternError ? (
+					<span role="alert" className="text-xs text-high">
+						Invalid regular expression — {patternError}
+					</span>
+				) : (
+					<span className="text-xs text-low">✓ Valid pattern</span>
+				)}
+			</div>
+
+			{/* One-click authoring aids: splice a common regex fragment at the caret. */}
+			<div className="flex flex-col gap-1">
+				<span className="text-xs text-muted">Insert:</span>
+				<div className="flex flex-wrap gap-1.5">
+					{REGEX_TOKENS.map((tok) => (
+						<button
+							key={tok.token}
+							type="button"
+							className="rounded border border-line px-2 py-0.5 font-mono text-xs text-ink transition-colors hover:border-accent"
+							aria-label={`Insert ${tok.hint}`}
+							title={tok.hint}
+							onClick={() => insertToken(tok.token)}
+						>
+							{tok.label}
+						</button>
+					))}
+				</div>
+			</div>
 
 			<div className="max-h-72 overflow-y-auto rounded-md border border-line p-3">
 				{debouncedPattern.length === 0 ? (
