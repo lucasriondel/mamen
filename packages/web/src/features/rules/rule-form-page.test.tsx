@@ -210,6 +210,30 @@ describe("RuleFormPage — create", () => {
 		expect(await screen.findByText("Issuer detail page")).toBeInTheDocument();
 	});
 
+	it("pre-fills the pattern from defaultPattern (the ?pattern= query param)", async () => {
+		function SeededNewRulePage() {
+			return (
+				<RuleFormPage issuerId={1 as IssuerId} defaultPattern="ACME PAYROLL" />
+			);
+		}
+		const rootRoute = createRootRoute();
+		const route = createRoute({
+			getParentRoute: () => rootRoute,
+			path: "/issuers/$issuerId/rules/new",
+			component: SeededNewRulePage,
+		});
+		const router = createRouter({
+			routeTree: rootRoute.addChildren([route]),
+			history: createMemoryHistory({
+				initialEntries: ["/issuers/1/rules/new"],
+			}),
+		});
+		render(<RouterProvider router={router} />);
+
+		const input = await screen.findByLabelText("Matching Rule pattern");
+		expect(input).toHaveValue("ACME PAYROLL");
+	});
+
 	it("offers a per-row remove-manual-issuer action on manual collisions", async () => {
 		previewRule.mockResolvedValue({
 			willMatch: [],
