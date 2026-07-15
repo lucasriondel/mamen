@@ -1,5 +1,6 @@
 import type { Category } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { Empty } from "@/components/ui/empty";
 import { categoryQueries } from "@/lib/sdk";
 
@@ -29,10 +30,10 @@ function groupByFolder(categories: readonly Category[]): FolderGroup[] {
 }
 
 /**
- * Categories page (PRD #8, issue #21) — the read-only first tracer bullet. Lists
- * the seeded two-level tree: each **Category folder** as a heading with its
- * **Category leaves** grouped beneath. No totals, CRUD or assignment yet — those
- * are later slices; this proves the seed and the `/categories` route end to end.
+ * Categories page (PRD #19). Lists the seeded two-level tree: each **Category
+ * folder** as a heading with its **Category leaves** grouped beneath. Every node
+ * is navigable (issue #25) — clicking a folder or a leaf opens its transactions
+ * with a **Category total**. CRUD is a later slice.
  */
 export function CategoriesView() {
 	const categoriesQuery = useQuery(
@@ -72,21 +73,30 @@ export function CategoriesView() {
 							key={folder.id}
 							className="rounded-lg border border-line bg-panel p-4"
 						>
-							<legend className="flex items-center gap-2 font-medium text-ink">
-								<span aria-hidden>{folder.icon}</span>
-								<span>{folder.name}</span>
+							<legend>
+								<Link
+									to="/categories/$categoryId"
+									params={{ categoryId: String(folder.id) }}
+									className="flex items-center gap-2 font-medium text-ink hover:text-accent"
+								>
+									<span aria-hidden>{folder.icon}</span>
+									<span>{folder.name}</span>
+								</Link>
 							</legend>
 							{leaves.length === 0 ? (
 								<p className="mt-2 text-muted text-sm">No categories inside.</p>
 							) : (
 								<ul className="mt-3 flex flex-wrap gap-2">
 									{leaves.map((leaf) => (
-										<li
-											key={leaf.id}
-											className="flex items-center gap-1.5 rounded-md border border-line px-2.5 py-1 text-ink text-sm"
-										>
-											<span aria-hidden>{leaf.icon}</span>
-											<span>{leaf.name}</span>
+										<li key={leaf.id}>
+											<Link
+												to="/categories/$categoryId"
+												params={{ categoryId: String(leaf.id) }}
+												className="flex items-center gap-1.5 rounded-md border border-line px-2.5 py-1 text-ink text-sm transition-colors hover:border-accent"
+											>
+												<span aria-hidden>{leaf.icon}</span>
+												<span>{leaf.name}</span>
+											</Link>
 										</li>
 									))}
 								</ul>

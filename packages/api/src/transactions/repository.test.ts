@@ -122,17 +122,19 @@ describe("TransactionRepo", () => {
 		}).pipe(Effect.provide(RepoTest)),
 	);
 
-	it.effect("optional fields absent on create stay absent (null → undefined)", () =>
-		Effect.gen(function* () {
-			const repo = yield* TransactionRepo;
-			const created = yield* repo.create(make());
-			assert.strictEqual(created.issuerId, undefined);
-			assert.strictEqual(created.categoryId, undefined);
-			assert.strictEqual(created.manualIssuer, undefined);
-			assert.strictEqual(created.isRefund, undefined);
-			assert.strictEqual(created.anomalyFlags, undefined);
-			assert.strictEqual(created.importBatchId, undefined);
-		}).pipe(Effect.provide(RepoTest)),
+	it.effect(
+		"optional fields absent on create stay absent (null → undefined)",
+		() =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const created = yield* repo.create(make());
+				assert.strictEqual(created.issuerId, undefined);
+				assert.strictEqual(created.categoryId, undefined);
+				assert.strictEqual(created.manualIssuer, undefined);
+				assert.strictEqual(created.isRefund, undefined);
+				assert.strictEqual(created.anomalyFlags, undefined);
+				assert.strictEqual(created.importBatchId, undefined);
+			}).pipe(Effect.provide(RepoTest)),
 	);
 
 	it.effect("optional fields set on create round-trip through storage", () =>
@@ -243,13 +245,17 @@ describe("TransactionRepo", () => {
 
 	describe("composable list/count filters", () => {
 		// Seed a diverse set so every filter has both matching and non-matching
-		// rows. Returns the created transactions in insertion order.
+		// rows. Returns the created transactions in insertion order. The category
+		// filter matches the DERIVED category (ADR 0002), so these `categoryId`
+		// rows carry `manualCategory` (an override) to keep the stored id in force;
+		// the issuer-derived filter path has its own dedicated handler tests.
 		const seed = (repo: TransactionRepo) =>
 			Effect.all([
 				repo.create(
 					make({
 						accountId: asAccount(1),
 						categoryId: asCategory(7),
+						manualCategory: true,
 						issuerId: asIssuer(2),
 						date: new Date("2026-01-10T00:00:00.000Z"),
 						importMonth: "2026-01",
@@ -261,6 +267,7 @@ describe("TransactionRepo", () => {
 					make({
 						accountId: asAccount(1),
 						categoryId: asCategory(8),
+						manualCategory: true,
 						date: new Date("2026-02-10T00:00:00.000Z"),
 						importMonth: "2026-02",
 						importBatchId: "batch-b",
@@ -271,6 +278,7 @@ describe("TransactionRepo", () => {
 					make({
 						accountId: asAccount(2),
 						categoryId: asCategory(7),
+						manualCategory: true,
 						date: new Date("2026-03-10T00:00:00.000Z"),
 						importMonth: "2026-03",
 						linkedRefundId: asTx(1),
@@ -288,20 +296,22 @@ describe("TransactionRepo", () => {
 			}).pipe(Effect.provide(RepoTest)),
 		);
 
-		it.effect("accountId + categoryId + startDate combine (old fan-out could not)", () =>
-			Effect.gen(function* () {
-				const repo = yield* TransactionRepo;
-				yield* seed(repo);
-				// account 1, category 7, on/after 2026-01-01 → only the first row.
-				const page = yield* repo.list({
-					...listAll,
-					accountId: asAccount(1),
-					categoryId: asCategory(7),
-					startDate: new Date("2026-01-01T00:00:00.000Z"),
-				});
-				assert.strictEqual(page.total, 1);
-				assert.strictEqual(page.items[0]?.importMonth, "2026-01");
-			}).pipe(Effect.provide(RepoTest)),
+		it.effect(
+			"accountId + categoryId + startDate combine (old fan-out could not)",
+			() =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* seed(repo);
+					// account 1, category 7, on/after 2026-01-01 → only the first row.
+					const page = yield* repo.list({
+						...listAll,
+						accountId: asAccount(1),
+						categoryId: asCategory(7),
+						startDate: new Date("2026-01-01T00:00:00.000Z"),
+					});
+					assert.strictEqual(page.total, 1);
+					assert.strictEqual(page.items[0]?.importMonth, "2026-01");
+				}).pipe(Effect.provide(RepoTest)),
 		);
 
 		it.effect("importMonth alone works (was ignored without accountId)", () =>

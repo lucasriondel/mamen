@@ -1,4 +1,11 @@
 import type { Category } from "@mamen/shared/contract";
+import {
+	createMemoryHistory,
+	createRootRoute,
+	createRoute,
+	createRouter,
+	RouterProvider,
+} from "@tanstack/react-router";
 import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -27,6 +34,33 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
 });
 
 const { CategoriesView } = await import("./categories-view");
+
+// The view's nodes are `Link`s (issue #25), so render inside a router that knows
+// the `/categories` layout and the `/categories/$categoryId` target.
+function renderView() {
+	const rootRoute = createRootRoute();
+	const categoriesRoute = createRoute({
+		getParentRoute: () => rootRoute,
+		path: "/categories",
+	});
+	const indexRoute = createRoute({
+		getParentRoute: () => categoriesRoute,
+		path: "/",
+		component: CategoriesView,
+	});
+	const categoryRoute = createRoute({
+		getParentRoute: () => categoriesRoute,
+		path: "/$categoryId",
+		component: () => null,
+	});
+	const router = createRouter({
+		routeTree: rootRoute.addChildren([
+			categoriesRoute.addChildren([indexRoute, categoryRoute]),
+		]),
+		history: createMemoryHistory({ initialEntries: ["/categories"] }),
+	});
+	return render(<RouterProvider router={router} />);
+}
 
 let nextId = 1;
 function category(over: Partial<Category> = {}): Category {
@@ -71,7 +105,7 @@ describe("CategoriesView", () => {
 			category({ name: "Rent", slug: "rent", parentId: home.id, sortOrder: 0 }),
 		];
 
-		render(<CategoriesView />);
+		renderView();
 
 		// Folder headings show.
 		const foodGroup = await screen.findByRole("group", { name: /food/i });
@@ -86,13 +120,13 @@ describe("CategoriesView", () => {
 
 	it("shows an empty state when there are no categories", async () => {
 		categoriesList = [];
-		render(<CategoriesView />);
+		renderView();
 		expect(await screen.findByText(/no categories/i)).toBeInTheDocument();
 	});
 
 	it("shows an error state when the list read fails", async () => {
 		listShouldFail = true;
-		render(<CategoriesView />);
+		renderView();
 		// `retry: 1` on the shared client means one backoff (~1s) before the error
 		// surfaces, so allow extra time here.
 		expect(
