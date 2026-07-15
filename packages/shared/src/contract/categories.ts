@@ -5,7 +5,7 @@ import {
 	OpenApi,
 } from "@effect/platform";
 import { Schema } from "effect";
-import { NotFound } from "./errors";
+import { CategoryParentNotFolder, NotFound } from "./errors";
 import { CategoryId, numFromStr } from "./ids";
 import { Paged, Pagination } from "./pagination";
 
@@ -55,9 +55,11 @@ export const CategoryListFilters = {
 
 /**
  * Categories group (contract §2.3), prefix `/categories`. `slug` has no DB
- * uniqueness constraint (faithful port), so `create`/`bulkCreate`/`update`
- * declare no `Conflict`. `getById`/`getBySlug`/`update`/`remove` 404 on a
- * missing key. Dropped vs today: `GET /categories/root`, `PUT
+ * uniqueness constraint (faithful port), so no endpoint declares `Conflict`.
+ * `create`/`bulkCreate` declare `CategoryParentNotFolder` (422): the two-level
+ * invariant (ADR 0001, rule 1) rejects a `parentId` pointing at a leaf, which
+ * would nest the new category three deep. `getById`/`getBySlug`/`update`/`remove`
+ * 404 on a missing key. Dropped vs today: `GET /categories/root`, `PUT
  * /categories/bulk-put`, `POST /categories/clear` (all client-only).
  */
 export class CategoriesGroup extends HttpApiGroup.make("categories")
@@ -83,12 +85,14 @@ export class CategoriesGroup extends HttpApiGroup.make("categories")
 	.add(
 		HttpApiEndpoint.post("create")`/categories`
 			.setPayload(CategoryCreate)
-			.addSuccess(Category, { status: 201 }),
+			.addSuccess(Category, { status: 201 })
+			.addError(CategoryParentNotFolder),
 	)
 	.add(
 		HttpApiEndpoint.post("bulkCreate")`/categories/bulk-add`
 			.setPayload(CategoryBulkCreate)
-			.addSuccess(Schema.Array(Category), { status: 201 }),
+			.addSuccess(Schema.Array(Category), { status: 201 })
+			.addError(CategoryParentNotFolder),
 	)
 	.add(
 		HttpApiEndpoint.put(

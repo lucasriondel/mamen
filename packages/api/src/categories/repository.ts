@@ -3,6 +3,7 @@ import {
 	Category,
 	type CategoryCreate,
 	CategoryId,
+	CategoryParentNotFolder,
 	type CategoryUpdate,
 	NotFound,
 	Paged,
@@ -93,6 +94,80 @@ export class CategoryRepo extends Effect.Service<CategoryRepo>()(
 				execute: (slug) => sql`SELECT * FROM categories WHERE slug = ${slug}`,
 			});
 
+			// One indexed lookup of a would-be parent's own `parentId` — the
+			// folder/leaf test for the two-level invariant (ADR 0001, rule 1). A
+			// `null` parentId means the parent is a folder (a legal home for a
+			// leaf); a non-null one means the parent is itself a leaf, so a child
+			// hung under it would sit at depth 3. Mirrors the transactions guard.
+			const parentOfQuery = SqlSchema.findOne({
+				Request: Schema.Number,
+				Result: Schema.Struct({ parentId: Schema.NullOr(Schema.Number) }),
+				execute: (id) => sql`SELECT parentId FROM categories WHERE id = ${id}`,
+			});
+
+			// The non-folders among a set of would-be parent ids — the batch depth
+			// test a bulk payload runs in **one** query, not one per row (ADR 0001).
+			// Any id it returns already has a parent, so a child hung under it would
+			// sit at depth 3; an empty result means every parent is a folder or
+			// unknown.
+			const leavesInQuery = SqlSchema.findAll({
+				Request: Schema.Any as Schema.Schema<ReadonlyArray<number>>,
+				Result: Schema.Struct({ id: Schema.Number }),
+				execute: (ids) =>
+					sql`SELECT id FROM categories WHERE parentId IS NOT NULL AND ${sql.in("id", ids)}`,
+			});
+
+			/**
+			 * The two-level invariant (ADR 0001, rule 1) at the categories door: a
+			 * new category's `parentId` must point at a **folder** (a root, no
+			 * parent), never at a **leaf**. A `null` parentId (creating a folder)
+			 * skips the check; an unknown id is left to pass (no FK exists — policing
+			 * missing rows is not this invariant's job).
+			 */
+			const assertParentIsFolder = (
+				parentId: number | null | undefined,
+			): Effect.Effect<void, CategoryParentNotFolder> =>
+				parentId == null
+					? Effect.void
+					: parentOfQuery(parentId).pipe(
+							orDieSql,
+							Effect.flatMap((found) =>
+								Option.match(found, {
+									onNone: () => Effect.void,
+									onSome: (row) =>
+										row.parentId === null
+											? Effect.void
+											: Effect.fail(new CategoryParentNotFolder({ parentId })),
+								}),
+							),
+						);
+
+			// Batch guard for a bulk payload: resolve every distinct parentId's
+			// leaf/folder status in **one** query (ADR 0001), failing on the first
+			// leaf found. An empty id set (every row is a folder) touches no DB.
+			const assertAllParentsAreFolders = (
+				records: ReadonlyArray<CategoryCreate>,
+			): Effect.Effect<void, CategoryParentNotFolder> => {
+				const ids = [
+					...new Set(
+						records.flatMap((r) => (r.parentId != null ? [r.parentId] : [])),
+					),
+				];
+				return ids.length === 0
+					? Effect.void
+					: leavesInQuery(ids).pipe(
+							orDieSql,
+							Effect.flatMap((rows) => {
+								const leaf = rows[0];
+								return leaf === undefined
+									? Effect.void
+									: Effect.fail(
+											new CategoryParentNotFolder({ parentId: leaf.id }),
+										);
+							}),
+						);
+			};
+
 			const CategoryInsert = CategoryRow.pipe(Schema.omit("id"));
 
 			const insertQuery = SqlSchema.single({
@@ -159,9 +234,13 @@ export class CategoryRepo extends Effect.Service<CategoryRepo>()(
 			});
 
 			const create = (payload: CategoryCreate) =>
-				nowIso.pipe(
-					Effect.flatMap((now) => insertQuery(toInsertRow(payload, now))),
-					orDieSql,
+				assertParentIsFolder(payload.parentId).pipe(
+					Effect.andThen(
+						nowIso.pipe(
+							Effect.flatMap((now) => insertQuery(toInsertRow(payload, now))),
+							orDieSql,
+						),
+					),
 				);
 
 			/**
@@ -170,13 +249,17 @@ export class CategoryRepo extends Effect.Service<CategoryRepo>()(
 			 * array yields `[]` — no statement runs.
 			 */
 			const bulkCreate = (records: ReadonlyArray<CategoryCreate>) =>
-				nowIso.pipe(
-					Effect.flatMap((now) =>
-						Effect.forEach(records, (payload) =>
-							insertQuery(toInsertRow(payload, now)),
+				assertAllParentsAreFolders(records).pipe(
+					Effect.andThen(
+						nowIso.pipe(
+							Effect.flatMap((now) =>
+								Effect.forEach(records, (payload) =>
+									insertQuery(toInsertRow(payload, now)),
+								),
+							),
+							orDieSql,
 						),
 					),
-					orDieSql,
 				);
 
 			const update = (id: typeof CategoryId.Type, changes: CategoryUpdate) =>

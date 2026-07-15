@@ -46,6 +46,22 @@ export class CategoryNotLeaf extends Schema.TaggedError<CategoryNotLeaf>()(
 	HttpApiSchema.annotations({ status: 422 }),
 ) {}
 
+/**
+ * A new category's `parentId` points at a category that itself has a parent —
+ * a **leaf**, not a **folder**. Enforces the other half of the two-level
+ * invariant at the API boundary (ADR 0001, rule 1): a category nested three deep
+ * hangs transactions off a node the folder rollup never visits, understating the
+ * total with no error on screen. `parentId` names the offending leaf so the
+ * caller can re-parent under one of the folders instead.
+ */
+export class CategoryParentNotFolder extends Schema.TaggedError<CategoryParentNotFolder>()(
+	"CategoryParentNotFolder",
+	{
+		parentId: Schema.Number,
+	},
+	HttpApiSchema.annotations({ status: 422 }),
+) {}
+
 /** An upload's MIME type is not in the image allow-list. */
 export class InvalidFileType extends Schema.TaggedError<InvalidFileType>()(
 	"InvalidFileType",

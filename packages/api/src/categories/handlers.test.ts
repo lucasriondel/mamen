@@ -5,6 +5,7 @@ import {
 	Api,
 	type CategoryCreate,
 	CategoryId,
+	CategoryParentNotFolder,
 	NotFound,
 } from "@mamen/shared/contract";
 import { Effect, Layer, Schema } from "effect";
@@ -287,6 +288,84 @@ describe("categories endpoints", () => {
 			);
 		}).pipe(Effect.provide(HttpLive)),
 	);
+
+	// The two-level invariant (ADR 0001, rule 1) at the categories door: a new
+	// category's `parentId` must point at a **folder** (a root, no parent), never
+	// at a **leaf** — a category hung under a leaf would sit at depth 3, off a node
+	// the folder rollup never visits, silently understating the total.
+	describe("two-level invariant on create/bulkCreate (depth-3 rejection)", () => {
+		it.effect("create rejects a parentId pointing at a leaf", () =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				// Food (folder) → Groceries (leaf under it).
+				const folder = yield* client.categories.create({
+					payload: make({ slug: "food" }),
+				});
+				const leaf = yield* client.categories.create({
+					payload: make({ slug: "groceries", parentId: folder.id }),
+				});
+
+				// A grandchild under the leaf would sit at depth 3 — rejected.
+				const error = yield* client.categories
+					.create({
+						payload: make({ slug: "organic", parentId: leaf.id }),
+					})
+					.pipe(Effect.flip);
+				assert.ok(error instanceof CategoryParentNotFolder);
+				assert.strictEqual(error.parentId, leaf.id);
+			}).pipe(Effect.provide(HttpLive)),
+		);
+
+		it.effect("create accepts a parentId pointing at a folder", () =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const folder = yield* client.categories.create({
+					payload: make({ slug: "food" }),
+				});
+				const leaf = yield* client.categories.create({
+					payload: make({ slug: "groceries", parentId: folder.id }),
+				});
+				assert.strictEqual(leaf.parentId, folder.id);
+			}).pipe(Effect.provide(HttpLive)),
+		);
+
+		it.effect(
+			"bulkCreate rejects a leaf parent in any row, writing nothing",
+			() =>
+				Effect.gen(function* () {
+					const client = yield* HttpApiClient.make(Api);
+					const folder = yield* client.categories.create({
+						payload: make({ slug: "food" }),
+					});
+					const leaf = yield* client.categories.create({
+						payload: make({ slug: "groceries", parentId: folder.id }),
+					});
+
+					const before = yield* client.categories.list({
+						urlParams: { limit: 100, offset: 0 },
+					});
+
+					const error = yield* client.categories
+						.bulkCreate({
+							payload: {
+								records: [
+									make({ slug: "dairy", parentId: folder.id }),
+									make({ slug: "organic", parentId: leaf.id }),
+								],
+							},
+						})
+						.pipe(Effect.flip);
+					assert.ok(error instanceof CategoryParentNotFolder);
+					assert.strictEqual(error.parentId, leaf.id);
+
+					// The batch is rejected up front — not a single row is written.
+					const after = yield* client.categories.list({
+						urlParams: { limit: 100, offset: 0 },
+					});
+					assert.strictEqual(after.total, before.total);
+				}).pipe(Effect.provide(HttpLive)),
+		);
+	});
 
 	it.effect("update 404s on a missing id", () =>
 		Effect.gen(function* () {

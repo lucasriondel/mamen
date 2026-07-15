@@ -1,6 +1,6 @@
 import type { Category, Transaction } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
-import { Check, X } from "lucide-react";
+import { ArrowLeft, Check, Plus, X } from "lucide-react";
 import { useState } from "react";
 import {
 	Command,
@@ -19,9 +19,13 @@ import {
 import { categoryQueries } from "@/lib/sdk";
 import { CategoryCell } from "./transaction-cells";
 import { useCategoryOverride } from "./use-category-override";
+import { useCreateCategoryLeaf } from "./use-create-category-leaf";
 
 /** A folder paired with the leaves beneath it that match the current search. */
 type FolderGroup = { folder: Category; leaves: Category[] };
+
+/** Which step of the picker is showing: pick a leaf, or choose a folder for a new one. */
+type Mode = "pick" | "choose-folder";
 
 /** Case-insensitive substring match of a category name against the query. */
 function matches(name: string, query: string): boolean {
@@ -75,11 +79,20 @@ export interface CategoryPickerProps {
  * A row with no issuer can still take an override — resolving the issuer is not a
  * prerequisite. `shouldFilter={false}` — the grouping does the filtering, so
  * ordering stays deterministic. The tree is fetched only once the picker opens.
+ *
+ * When the typed name matches no leaf, the picker offers to **create** one
+ * (issue #24): a two-step, in-popover flow mirroring the assignment picker's
+ * add-rule mode switch — hit create, choose the folder it belongs in, and the
+ * leaf is minted with the typed name pre-filled and applied to this transaction
+ * in one gesture. Only *leaves* can be created here; folders are structural and
+ * live on the categories page. The transaction never leaves the screen.
  */
 export function CategoryPicker({ transaction, category }: CategoryPickerProps) {
 	const [open, setOpen] = useState(false);
 	const [query, setQuery] = useState("");
+	const [mode, setMode] = useState<Mode>("pick");
 	const { setOverride, removeOverride } = useCategoryOverride();
+	const createLeaf = useCreateCategoryLeaf();
 
 	// The whole (small) tree — fetched only on open. A single user's taxonomy is
 	// coarse (PRD), so a wide limit takes it in one page.
@@ -93,11 +106,25 @@ export function CategoryPicker({ transaction, category }: CategoryPickerProps) {
 	// inherited row (through the issuer) is not manual and stays plain.
 	const isOverride = transaction.manualCategory === true && category != null;
 	const groups = groupLeaves(categories, query);
-	const pending = setOverride.isPending || removeOverride.isPending;
+	const folders = categories.filter((c) => c.parentId === null);
+	const trimmed = query.trim();
+	// Offer to create only when the search finds no leaf by that exact name — a
+	// folder is structural and never created here, so it doesn't block a create.
+	const hasExactLeaf = categories.some(
+		(c) =>
+			c.parentId !== null &&
+			c.name.trim().toLowerCase() === trimmed.toLowerCase(),
+	);
+	const canCreate = trimmed.length > 0 && !hasExactLeaf;
+	const pending =
+		setOverride.isPending || removeOverride.isPending || createLeaf.isPending;
 
 	const handleOpenChange = (next: boolean) => {
 		setOpen(next);
-		if (next) setQuery("");
+		if (next) {
+			setQuery("");
+			setMode("pick");
+		}
 	};
 
 	/** Apply a leaf as an override on this one transaction. */
@@ -118,6 +145,21 @@ export function CategoryPicker({ transaction, category }: CategoryPickerProps) {
 		);
 	};
 
+	/** Step two: create the leaf under the chosen folder, then apply it here. */
+	const createInFolder = (parentId: Category["id"]) => {
+		if (pending || trimmed.length === 0) return;
+		createLeaf.mutate(
+			{ name: trimmed, parentId },
+			{
+				onSuccess: (created) =>
+					setOverride.mutate(
+						{ transactionId: transaction.id, categoryId: created.id },
+						{ onSuccess: () => setOpen(false) },
+					),
+			},
+		);
+	};
+
 	return (
 		<Popover open={open} onOpenChange={handleOpenChange}>
 			<PopoverTrigger asChild>
@@ -134,52 +176,121 @@ export function CategoryPicker({ transaction, category }: CategoryPickerProps) {
 					<CommandInput
 						value={query}
 						onValueChange={setQuery}
-						placeholder="Search categories…"
+						placeholder={
+							mode === "choose-folder"
+								? "Pick a folder for the new category…"
+								: "Search categories…"
+						}
 						aria-label="Search categories"
+						readOnly={mode === "choose-folder"}
 					/>
 					<CommandList>
-						{groups.length === 0 ? (
-							<CommandEmpty>No categories found.</CommandEmpty>
-						) : null}
-
-						{groups.map(({ folder, leaves }) => (
-							<CommandGroup key={folder.id} heading={folder.name}>
-								{leaves.map((leaf) => (
-									<CommandItem
-										key={leaf.id}
-										value={`category-${leaf.id}`}
-										onSelect={() => apply(leaf.id)}
-										disabled={pending}
-									>
-										<span aria-hidden>{leaf.icon}</span>
-										<span className="truncate">{leaf.name}</span>
-										{leaf.id === category?.id ? (
-											<Check
-												size={14}
-												className="ml-auto shrink-0 text-accent"
-												aria-label="Current category"
-											/>
-										) : null}
-									</CommandItem>
-								))}
-							</CommandGroup>
-						))}
-
-						{isOverride ? (
+						{mode === "choose-folder" ? (
 							<>
+								{folders.length === 0 ? (
+									<CommandEmpty>No folders to create in.</CommandEmpty>
+								) : null}
+								<CommandGroup heading={`New category “${trimmed}” in…`}>
+									{folders.map((folder) => (
+										<CommandItem
+											key={folder.id}
+											value={`folder-${folder.id}`}
+											onSelect={() => createInFolder(folder.id)}
+											disabled={pending}
+										>
+											<span aria-hidden>{folder.icon}</span>
+											<span className="truncate">{folder.name}</span>
+										</CommandItem>
+									))}
+								</CommandGroup>
 								<CommandSeparator />
 								<CommandGroup>
 									<CommandItem
-										value="__remove__"
-										onSelect={remove}
+										value="__back__"
+										onSelect={() => setMode("pick")}
 										disabled={pending}
 									>
-										<X size={16} className="shrink-0 text-muted" aria-hidden />
-										<span className="truncate">Remove override</span>
+										<ArrowLeft
+											size={16}
+											className="shrink-0 text-muted"
+											aria-hidden
+										/>
+										<span className="truncate">Back</span>
 									</CommandItem>
 								</CommandGroup>
 							</>
-						) : null}
+						) : (
+							<>
+								{groups.length === 0 && !canCreate ? (
+									<CommandEmpty>No categories found.</CommandEmpty>
+								) : null}
+
+								{groups.map(({ folder, leaves }) => (
+									<CommandGroup key={folder.id} heading={folder.name}>
+										{leaves.map((leaf) => (
+											<CommandItem
+												key={leaf.id}
+												value={`category-${leaf.id}`}
+												onSelect={() => apply(leaf.id)}
+												disabled={pending}
+											>
+												<span aria-hidden>{leaf.icon}</span>
+												<span className="truncate">{leaf.name}</span>
+												{leaf.id === category?.id ? (
+													<Check
+														size={14}
+														className="ml-auto shrink-0 text-accent"
+														aria-label="Current category"
+													/>
+												) : null}
+											</CommandItem>
+										))}
+									</CommandGroup>
+								))}
+
+								{canCreate ? (
+									<>
+										{groups.length > 0 ? <CommandSeparator /> : null}
+										<CommandGroup>
+											<CommandItem
+												value="__create__"
+												onSelect={() => setMode("choose-folder")}
+												disabled={pending}
+											>
+												<Plus
+													size={16}
+													className="shrink-0 text-muted"
+													aria-hidden
+												/>
+												<span className="truncate">
+													Create category “{trimmed}”
+												</span>
+											</CommandItem>
+										</CommandGroup>
+									</>
+								) : null}
+
+								{isOverride ? (
+									<>
+										<CommandSeparator />
+										<CommandGroup>
+											<CommandItem
+												value="__remove__"
+												onSelect={remove}
+												disabled={pending}
+											>
+												<X
+													size={16}
+													className="shrink-0 text-muted"
+													aria-hidden
+												/>
+												<span className="truncate">Remove override</span>
+											</CommandItem>
+										</CommandGroup>
+									</>
+								) : null}
+							</>
+						)}
 					</CommandList>
 				</Command>
 			</PopoverContent>

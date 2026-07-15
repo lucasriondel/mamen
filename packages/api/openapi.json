@@ -516,6 +516,16 @@
               }
             }
           },
+          "422": {
+            "description": "CategoryParentNotFolder",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryParentNotFolder"
+                }
+              }
+            }
+          },
           "500": {
             "description": "InternalServerError"
           }
@@ -844,6 +854,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "CategoryParentNotFolder",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryParentNotFolder"
                 }
               }
             }
@@ -4484,6 +4504,25 @@
           },
           "createdAt": {
             "$ref": "#/components/schemas/Date"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CategoryParentNotFolder": {
+        "type": "object",
+        "required": [
+          "parentId",
+          "_tag"
+        ],
+        "properties": {
+          "parentId": {
+            "type": "number"
+          },
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "CategoryParentNotFolder"
+            ]
           }
         },
         "additionalProperties": false

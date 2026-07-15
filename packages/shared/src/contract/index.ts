@@ -24,6 +24,7 @@ export {
 export {
 	BooleanFromString,
 	CategoryNotLeaf,
+	CategoryParentNotFolder,
 	Conflict,
 	InvalidFileType,
 	NotFound,

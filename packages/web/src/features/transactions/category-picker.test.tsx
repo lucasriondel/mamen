@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // factories are kept so the mutations' invalidation resolves. cmdk's jsdom shims
 // (ResizeObserver, scrollIntoView) live in `src/test/setup.ts`.
 const updateTransaction = vi.fn();
+const createCategory = vi.fn();
 
 // A tiny two-level tree: two folders, each with leaves. Folders (parentId null)
 // are unselectable — headings only; leaves are the only assignable kind.
@@ -65,6 +66,9 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
 				queryFn: async () => ({ items: CATEGORIES, total: CATEGORIES.length }),
 			}),
 		},
+		categoryMutations: {
+			create: (payload: unknown) => createCategory(payload),
+		},
 		transactionMutations: {
 			update: (id: unknown, payload: unknown) => updateTransaction(id, payload),
 		},
@@ -92,6 +96,9 @@ const groceries = CATEGORIES[1] as unknown as Category;
 
 beforeEach(() => {
 	updateTransaction.mockReset().mockResolvedValue({ id: 100 });
+	createCategory
+		.mockReset()
+		.mockResolvedValue({ id: 42, name: "Coffee gear", parentId: 1 });
 });
 
 async function open(name: RegExp) {
@@ -156,6 +163,55 @@ describe("CategoryPicker", () => {
 		await waitFor(() =>
 			expect(updateTransaction).toHaveBeenCalledWith(101, {
 				manualCategory: false,
+			}),
+		);
+	});
+
+	it("offers to create a leaf when the typed name matches nothing", async () => {
+		render(<CategoryPicker transaction={tx()} />);
+		const user = await open(/Unassigned/);
+
+		await user.type(screen.getByLabelText("Search categories"), "Coffee gear");
+
+		// Nothing matches, so the create affordance appears, naming the query.
+		expect(screen.getByText(/Create.*Coffee gear/)).toBeInTheDocument();
+	});
+
+	it("does not offer to create when the name already exists as a leaf", async () => {
+		render(<CategoryPicker transaction={tx()} />);
+		const user = await open(/Unassigned/);
+
+		await user.type(screen.getByLabelText("Search categories"), "Groceries");
+
+		expect(screen.queryByText(/Create/)).not.toBeInTheDocument();
+	});
+
+	it("creates a leaf in a chosen folder and applies it to the transaction", async () => {
+		// Two-step create: type a name → pick the folder → the leaf is created with
+		// the typed name pre-filled and applied to THIS transaction as an override,
+		// all without leaving the popover.
+		render(<CategoryPicker transaction={tx({ id: 100 })} />);
+		const user = await open(/Unassigned/);
+
+		await user.type(screen.getByLabelText("Search categories"), "Coffee gear");
+		await user.click(screen.getByText(/Create.*Coffee gear/));
+
+		// Step two: asked which folder the new leaf belongs in — folders only.
+		expect(await screen.findByText("Food")).toBeInTheDocument();
+		expect(screen.getByText("Life")).toBeInTheDocument();
+		await user.click(screen.getByText("Food"));
+
+		// The leaf is created under the chosen folder with the pre-filled name.
+		await waitFor(() =>
+			expect(createCategory).toHaveBeenCalledWith(
+				expect.objectContaining({ name: "Coffee gear", parentId: 1 }),
+			),
+		);
+		// …then applied to this transaction as an override.
+		await waitFor(() =>
+			expect(updateTransaction).toHaveBeenCalledWith(100, {
+				categoryId: 42,
+				manualCategory: true,
 			}),
 		);
 	});
