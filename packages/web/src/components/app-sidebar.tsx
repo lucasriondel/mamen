@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import {
 	ArrowLeftRight,
 	Building2,
+	FolderTree,
 	type LucideIcon,
 	Upload,
 	Wallet,
@@ -26,6 +27,7 @@ const NAV_LINKS: readonly NavLink[] = [
 	{ to: "/import", label: "Import", icon: Upload },
 	{ to: "/accounts", label: "Accounts", icon: Wallet },
 	{ to: "/issuers", label: "Issuers", icon: Building2 },
+	{ to: "/categories", label: "Categories", icon: FolderTree },
 ];
 
 /**

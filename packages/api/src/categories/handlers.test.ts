@@ -2,9 +2,9 @@ import { HttpApiBuilder, HttpApiClient } from "@effect/platform";
 import { NodeHttpServer } from "@effect/platform-node";
 import { assert, describe, it } from "@effect/vitest";
 import {
-	CategoryId,
-	type CategoryCreate,
 	Api,
+	type CategoryCreate,
+	CategoryId,
 	NotFound,
 } from "@mamen/shared/contract";
 import { Effect, Layer, Schema } from "effect";
@@ -33,14 +33,75 @@ const make = (over: Partial<CategoryCreate> = {}): CategoryCreate => ({
 	...over,
 });
 
+// The seeded tree (migration 0010): the six Category folders, top-to-bottom,
+// each mapped to the leaf names that sit beneath it. Asserted independently of
+// the migration's own data so the test pins the *shape* a caller observes.
+const SEEDED_TREE: Record<string, readonly string[]> = {
+	Food: ["Groceries", "Restaurants", "Cafés"],
+	Home: ["Rent", "Energy", "Insurance", "Internet & Phone"],
+	Transport: ["Fuel & Charging", "Transit", "Vehicle"],
+	Life: ["Health", "Pets", "Shopping", "Subscriptions", "Gifts & Donations"],
+	Leisure: ["Events", "Travel"],
+	"Income & Other": ["Salary", "Taxes", "Transfers", "Uncategorised"],
+};
+const SEEDED_FOLDERS = Object.keys(SEEDED_TREE);
+const SEEDED_LEAF_COUNT = Object.values(SEEDED_TREE).reduce(
+	(n, ls) => n + ls.length,
+	0,
+);
+const SEEDED_COUNT = SEEDED_FOLDERS.length + SEEDED_LEAF_COUNT;
+
+describe("seeded category tree (migration 0010)", () => {
+	it.effect(
+		"a fresh migrated DB has the two-level tree at the right shape",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const page = yield* client.categories.list({
+					urlParams: { limit: 100, offset: 0 },
+				});
+				const all = page.items;
+
+				const folders = all.filter((c) => c.parentId === null);
+				const leaves = all.filter((c) => c.parentId !== null);
+
+				// Six folders, in seed order; every leaf sits under a real folder.
+				assert.deepStrictEqual(
+					folders.map((f) => f.name),
+					SEEDED_FOLDERS,
+				);
+				assert.strictEqual(leaves.length, SEEDED_LEAF_COUNT);
+				const folderIds = new Set(folders.map((f) => f.id));
+				assert.ok(leaves.every((l) => folderIds.has(l.parentId!)));
+
+				// Each folder holds exactly its seeded leaves.
+				const byId = new Map(folders.map((f) => [f.id, f.name]));
+				const leavesByFolder: Record<string, string[]> = {};
+				for (const leaf of leaves) {
+					const folderName = byId.get(leaf.parentId!) as string;
+					const bucket = leavesByFolder[folderName] ?? [];
+					bucket.push(leaf.name);
+					leavesByFolder[folderName] = bucket;
+				}
+				assert.deepStrictEqual(leavesByFolder, SEEDED_TREE);
+
+				// *Uncategorised* — the override escape hatch — is present as a leaf.
+				const uncategorised = all.find((c) => c.name === "Uncategorised");
+				assert.ok(uncategorised);
+				assert.strictEqual(byId.get(uncategorised.parentId!), "Income & Other");
+			}).pipe(Effect.provide(HttpLive)),
+	);
+});
+
 describe("categories endpoints", () => {
-	it.effect("list is empty initially", () =>
+	it.effect("list returns the seeded tree initially", () =>
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
 			const page = yield* client.categories.list({
-				urlParams: { limit: 50, offset: 0 },
+				urlParams: { limit: 100, offset: 0 },
 			});
-			assert.deepStrictEqual(page, { items: [], total: 0 });
+			assert.strictEqual(page.total, SEEDED_COUNT);
+			assert.strictEqual(page.items.length, SEEDED_COUNT);
 		}).pipe(Effect.provide(HttpLive)),
 	);
 
@@ -81,7 +142,9 @@ describe("categories endpoints", () => {
 			const page = yield* client.categories.list({
 				urlParams: { limit: 2, offset: 0 },
 			});
-			assert.strictEqual(page.total, 3);
+			// The seeded tree already occupies the table, so the three new rows lift
+			// the total above the seed count rather than standing on their own.
+			assert.strictEqual(page.total, SEEDED_COUNT + 3);
 			assert.strictEqual(page.items.length, 2);
 		}).pipe(Effect.provide(HttpLive)),
 	);
@@ -104,28 +167,37 @@ describe("categories endpoints", () => {
 				urlParams: { limit: 50, offset: 0, parentId: parent.id },
 			});
 			assert.strictEqual(page.total, 2);
-			assert.deepStrictEqual(
-				page.items.map((c) => c.slug).sort(),
-				["child-1", "child-2"],
-			);
+			assert.deepStrictEqual(page.items.map((c) => c.slug).sort(), [
+				"child-1",
+				"child-2",
+			]);
 		}).pipe(Effect.provide(HttpLive)),
 	);
 
 	it.effect("list orders by sortOrder over the wire", () =>
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
-			yield* client.categories.create({
-				payload: make({ slug: "third", sortOrder: 30 }),
+			// Scope under a fresh parent so the seeded rows don't interleave.
+			const parent = yield* client.categories.create({
+				payload: make({ slug: "ordered-parent" }),
 			});
 			yield* client.categories.create({
-				payload: make({ slug: "first", sortOrder: 10 }),
+				payload: make({ slug: "third", parentId: parent.id, sortOrder: 30 }),
 			});
 			yield* client.categories.create({
-				payload: make({ slug: "second", sortOrder: 20 }),
+				payload: make({ slug: "first", parentId: parent.id, sortOrder: 10 }),
+			});
+			yield* client.categories.create({
+				payload: make({ slug: "second", parentId: parent.id, sortOrder: 20 }),
 			});
 
 			const page = yield* client.categories.list({
-				urlParams: { limit: 50, offset: 0, orderBy: "sortOrder" },
+				urlParams: {
+					limit: 50,
+					offset: 0,
+					parentId: parent.id,
+					orderBy: "sortOrder",
+				},
 			});
 			assert.deepStrictEqual(
 				page.items.map((c) => c.slug),
@@ -139,19 +211,16 @@ describe("categories endpoints", () => {
 			const client = yield* HttpApiClient.make(Api);
 			const created = yield* client.categories.bulkCreate({
 				payload: {
-					records: [
-						make({ slug: "one" }),
-						make({ slug: "two" }),
-					],
+					records: [make({ slug: "one" }), make({ slug: "two" })],
 				},
 			});
 			assert.strictEqual(created.length, 2);
 			assert.ok(created.every((c) => c.id > 0));
 
 			const page = yield* client.categories.list({
-				urlParams: { limit: 50, offset: 0 },
+				urlParams: { limit: 100, offset: 0 },
 			});
-			assert.strictEqual(page.total, 2);
+			assert.strictEqual(page.total, SEEDED_COUNT + 2);
 		}).pipe(Effect.provide(HttpLive)),
 	);
 

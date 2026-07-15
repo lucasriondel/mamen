@@ -14,6 +14,10 @@ const RepoTest = CategoryRepo.Default.pipe(Layer.provide(DatabaseTest));
 
 const asId = Schema.decodeSync(CategoryId);
 
+// A fresh migrated DB ships the seeded tree (migration 0010): 6 folders + 21
+// leaves. Every unfiltered count below starts from this baseline.
+const SEEDED_COUNT = 27;
+
 /** A valid create payload; override any field per test. */
 const make = (over: Partial<CategoryCreate> = {}): CategoryCreate => ({
 	name: "Food",
@@ -57,9 +61,9 @@ describe("CategoryRepo", () => {
 			yield* repo.create(make({ slug: "a" }));
 			yield* repo.create(make({ slug: "b" }));
 
-			const page = yield* repo.list({ limit: 50, offset: 0 });
-			assert.strictEqual(page.total, 2);
-			assert.strictEqual(page.items.length, 2);
+			const page = yield* repo.list({ limit: 100, offset: 0 });
+			assert.strictEqual(page.total, SEEDED_COUNT + 2);
+			assert.strictEqual(page.items.length, SEEDED_COUNT + 2);
 		}).pipe(Effect.provide(RepoTest)),
 	);
 
@@ -71,7 +75,7 @@ describe("CategoryRepo", () => {
 			yield* repo.create(make({ slug: "c" }));
 
 			const page = yield* repo.list({ limit: 1, offset: 1 });
-			assert.strictEqual(page.total, 3);
+			assert.strictEqual(page.total, SEEDED_COUNT + 3);
 			assert.strictEqual(page.items.length, 1);
 		}).pipe(Effect.provide(RepoTest)),
 	);
@@ -90,23 +94,32 @@ describe("CategoryRepo", () => {
 				parentId: parent.id,
 			});
 			assert.strictEqual(page.total, 2);
-			assert.deepStrictEqual(
-				page.items.map((c) => c.slug).sort(),
-				["child-1", "child-2"],
-			);
+			assert.deepStrictEqual(page.items.map((c) => c.slug).sort(), [
+				"child-1",
+				"child-2",
+			]);
 		}).pipe(Effect.provide(RepoTest)),
 	);
 
 	it.effect("list orders by sortOrder when asked", () =>
 		Effect.gen(function* () {
 			const repo = yield* CategoryRepo;
-			yield* repo.create(make({ slug: "third", sortOrder: 30 }));
-			yield* repo.create(make({ slug: "first", sortOrder: 10 }));
-			yield* repo.create(make({ slug: "second", sortOrder: 20 }));
+			// Scope under a fresh parent so the seeded rows don't interleave.
+			const parent = yield* repo.create(make({ slug: "ordered-parent" }));
+			yield* repo.create(
+				make({ slug: "third", parentId: parent.id, sortOrder: 30 }),
+			);
+			yield* repo.create(
+				make({ slug: "first", parentId: parent.id, sortOrder: 10 }),
+			);
+			yield* repo.create(
+				make({ slug: "second", parentId: parent.id, sortOrder: 20 }),
+			);
 
 			const page = yield* repo.list({
 				limit: 50,
 				offset: 0,
+				parentId: parent.id,
 				orderBy: "sortOrder",
 			});
 			assert.deepStrictEqual(
@@ -153,8 +166,8 @@ describe("CategoryRepo", () => {
 			assert.strictEqual(created.length, 3);
 			assert.ok(created.every((c) => c.id > 0));
 
-			const page = yield* repo.list({ limit: 50, offset: 0 });
-			assert.strictEqual(page.total, 3);
+			const page = yield* repo.list({ limit: 100, offset: 0 });
+			assert.strictEqual(page.total, SEEDED_COUNT + 3);
 		}).pipe(Effect.provide(RepoTest)),
 	);
 
@@ -163,8 +176,8 @@ describe("CategoryRepo", () => {
 			const repo = yield* CategoryRepo;
 			const created = yield* repo.bulkCreate([]);
 			assert.deepStrictEqual(created, []);
-			const page = yield* repo.list({ limit: 50, offset: 0 });
-			assert.strictEqual(page.total, 0);
+			const page = yield* repo.list({ limit: 100, offset: 0 });
+			assert.strictEqual(page.total, SEEDED_COUNT);
 		}).pipe(Effect.provide(RepoTest)),
 	);
 
@@ -180,7 +193,9 @@ describe("CategoryRepo", () => {
 	it.effect("update merges the partial and preserves createdAt", () =>
 		Effect.gen(function* () {
 			const repo = yield* CategoryRepo;
-			const created = yield* repo.create(make({ name: "Old", color: "#000000" }));
+			const created = yield* repo.create(
+				make({ name: "Old", color: "#000000" }),
+			);
 			const updated = yield* repo.update(created.id, {
 				name: "New",
 				color: "#ffffff",
