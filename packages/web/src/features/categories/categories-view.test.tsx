@@ -6,13 +6,29 @@ import {
 	createRouter,
 	RouterProvider,
 } from "@tanstack/react-router";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock the SDK boundary (PRD "Seam 2"): the categories page reads the categories
-// `list` and groups the flat rows into folders-with-leaves for display.
+// `list`, sums each folder through `transactionQueries.count`, and curates the
+// tree through `categoryMutations` (create / update / remove). Failures surface
+// as a `sonner` toast, mocked here so a refusal message can be asserted.
 let categoriesList: Category[];
 let listShouldFail: boolean;
+let countTotal: number;
+
+const createCategory = vi.fn();
+const updateCategory = vi.fn();
+const removeCategory = vi.fn();
+const toastError = vi.fn();
+
+vi.mock("sonner", () => ({
+	toast: {
+		error: (msg: string) => toastError(msg),
+		success: vi.fn(),
+	},
+}));
 
 vi.mock("@mamen/sdk", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("@mamen/sdk")>();
@@ -23,12 +39,20 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
 				queryKey: ["categories", "list", "test"],
 				queryFn: async () => {
 					if (listShouldFail) throw new Error("boom");
-					return {
-						items: categoriesList,
-						total: categoriesList.length,
-					};
+					return { items: categoriesList, total: categoriesList.length };
 				},
 			}),
+		},
+		transactionQueries: {
+			count: (params: { categoryId?: unknown }) => ({
+				queryKey: ["transactions", "count", params.categoryId],
+				queryFn: async () => ({ count: 1, total: countTotal }),
+			}),
+		},
+		categoryMutations: {
+			create: (payload: unknown) => createCategory(payload),
+			update: (id: unknown, payload: unknown) => updateCategory(id, payload),
+			remove: (id: unknown) => removeCategory(id),
 		},
 	};
 });
@@ -77,45 +101,58 @@ function category(over: Partial<Category> = {}): Category {
 	} as Category;
 }
 
+// A small two-level tree used by most cases: Food{Groceries, Restaurants} + Home.
+function seedTree() {
+	const food = category({ name: "Food", slug: "food", sortOrder: 0 });
+	const home = category({ name: "Home", slug: "home", sortOrder: 1 });
+	const groceries = category({
+		name: "Groceries",
+		slug: "groceries",
+		parentId: food.id,
+		sortOrder: 0,
+	});
+	const restaurants = category({
+		name: "Restaurants",
+		slug: "restaurants",
+		parentId: food.id,
+		sortOrder: 1,
+	});
+	categoriesList = [food, home, groceries, restaurants];
+	return { food, home, groceries, restaurants };
+}
+
 describe("CategoriesView", () => {
 	beforeEach(() => {
 		nextId = 1;
 		categoriesList = [];
 		listShouldFail = false;
+		countTotal = 0;
+		createCategory.mockReset().mockResolvedValue(category());
+		updateCategory.mockReset().mockResolvedValue(category());
+		removeCategory.mockReset().mockResolvedValue(undefined);
+		toastError.mockReset();
 	});
 
 	it("renders each folder with its leaves grouped beneath it", async () => {
-		const food = category({ name: "Food", slug: "food", sortOrder: 0 });
-		const home = category({ name: "Home", slug: "home", sortOrder: 1 });
-		categoriesList = [
-			food,
-			home,
-			category({
-				name: "Groceries",
-				slug: "groceries",
-				parentId: food.id,
-				sortOrder: 0,
-			}),
-			category({
-				name: "Restaurants",
-				slug: "restaurants",
-				parentId: food.id,
-				sortOrder: 1,
-			}),
-			category({ name: "Rent", slug: "rent", parentId: home.id, sortOrder: 0 }),
-		];
-
+		seedTree();
 		renderView();
 
-		// Folder headings show.
 		const foodGroup = await screen.findByRole("group", { name: /food/i });
 		const homeGroup = screen.getByRole("group", { name: /home/i });
 
-		// Each leaf sits under its own folder, not the other.
 		expect(within(foodGroup).getByText("Groceries")).toBeInTheDocument();
 		expect(within(foodGroup).getByText("Restaurants")).toBeInTheDocument();
-		expect(within(foodGroup).queryByText("Rent")).not.toBeInTheDocument();
-		expect(within(homeGroup).getByText("Rent")).toBeInTheDocument();
+		expect(within(homeGroup).queryByText("Groceries")).not.toBeInTheDocument();
+	});
+
+	it("shows a signed Category total on each folder", async () => {
+		seedTree();
+		countTotal = -42.5;
+		renderView();
+
+		// The total comes from the `count` endpoint over the folder's leaf ids.
+		const total = await screen.findByLabelText(/food total/i);
+		await waitFor(() => expect(total).toHaveTextContent(/42/));
 	});
 
 	it("shows an empty state when there are no categories", async () => {
@@ -127,12 +164,123 @@ describe("CategoriesView", () => {
 	it("shows an error state when the list read fails", async () => {
 		listShouldFail = true;
 		renderView();
-		// `retry: 1` on the shared client means one backoff (~1s) before the error
-		// surfaces, so allow extra time here.
 		expect(
 			await screen.findByText(/couldn't load categories/i, undefined, {
 				timeout: 4000,
 			}),
 		).toBeInTheDocument();
+	});
+
+	it("creates a folder from the header action", async () => {
+		const user = userEvent.setup();
+		seedTree();
+		renderView();
+
+		await user.click(
+			await screen.findByRole("button", { name: /new folder/i }),
+		);
+		await user.type(screen.getByLabelText(/category name/i), "Leisure");
+		await user.click(screen.getByRole("button", { name: /create folder/i }));
+
+		await waitFor(() => expect(createCategory).toHaveBeenCalledTimes(1));
+		expect(createCategory).toHaveBeenCalledWith(
+			expect.objectContaining({
+				name: "Leisure",
+				slug: "leisure",
+				parentId: null,
+			}),
+		);
+	});
+
+	it("creates a leaf inside a chosen folder", async () => {
+		const user = userEvent.setup();
+		const { food } = seedTree();
+		renderView();
+
+		const foodGroup = await screen.findByRole("group", { name: /food/i });
+		await user.click(
+			within(foodGroup).getByRole("button", { name: /add category/i }),
+		);
+		await user.type(screen.getByLabelText(/category name/i), "Cafés");
+		await user.click(screen.getByRole("button", { name: /create category/i }));
+
+		await waitFor(() => expect(createCategory).toHaveBeenCalledTimes(1));
+		expect(createCategory).toHaveBeenCalledWith(
+			expect.objectContaining({ name: "Cafés", parentId: food.id }),
+		);
+	});
+
+	it("renames a category without moving it", async () => {
+		const user = userEvent.setup();
+		const { groceries } = seedTree();
+		renderView();
+
+		await user.click(
+			await screen.findByRole("button", { name: /rename groceries/i }),
+		);
+		const field = screen.getByLabelText(/category name/i);
+		await user.clear(field);
+		await user.type(field, "Supermarket");
+		await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+		await waitFor(() => expect(updateCategory).toHaveBeenCalledTimes(1));
+		expect(updateCategory).toHaveBeenCalledWith(groceries.id, {
+			name: "Supermarket",
+		});
+	});
+
+	it("moves a leaf to a different folder", async () => {
+		const user = userEvent.setup();
+		const { home, groceries } = seedTree();
+		renderView();
+
+		await user.click(
+			await screen.findByRole("button", { name: /move groceries/i }),
+		);
+		await user.selectOptions(
+			screen.getByLabelText(/target folder/i),
+			String(home.id),
+		);
+		await user.click(screen.getByRole("button", { name: /^move$/i }));
+
+		await waitFor(() => expect(updateCategory).toHaveBeenCalledTimes(1));
+		expect(updateCategory).toHaveBeenCalledWith(groceries.id, {
+			parentId: home.id,
+		});
+	});
+
+	it("deletes a category when nothing depends on it", async () => {
+		const user = userEvent.setup();
+		const { groceries } = seedTree();
+		renderView();
+
+		await user.click(
+			await screen.findByRole("button", { name: /delete groceries/i }),
+		);
+		await waitFor(() =>
+			expect(removeCategory).toHaveBeenCalledWith(groceries.id),
+		);
+		expect(toastError).not.toHaveBeenCalled();
+	});
+
+	it("surfaces the guarded-delete refusal, naming what depends on it", async () => {
+		const user = userEvent.setup();
+		const { food } = seedTree();
+		// The API refuses to delete a folder with children — CategoryInUse names them.
+		removeCategory.mockRejectedValue({
+			_tag: "CategoryInUse",
+			categoryId: food.id,
+			children: 2,
+			transactions: 0,
+			issuers: 0,
+		});
+		renderView();
+
+		await user.click(
+			await screen.findByRole("button", { name: /delete food/i }),
+		);
+
+		await waitFor(() => expect(toastError).toHaveBeenCalledTimes(1));
+		expect(toastError.mock.calls[0][0]).toMatch(/2 categories inside/i);
 	});
 });

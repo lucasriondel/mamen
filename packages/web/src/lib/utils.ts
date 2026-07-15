@@ -12,6 +12,21 @@ export function cn(...inputs: ClassValue[]): string {
 	return twMerge(clsx(inputs));
 }
 
+/**
+ * A URL/DB-safe slug derived from a free-text name — lowercased, accent-folded,
+ * non-alphanumerics collapsed to single hyphens, trimmed. Shared by the category
+ * create flows (picker + categories page), which both mint a slug from a name.
+ */
+export function slugify(name: string): string {
+	return name
+		.trim()
+		.toLowerCase()
+		.normalize("NFKD")
+		.replace(/[̀-ͯ]/g, "")
+		.replace(/[^a-z0-9]+/g, "-")
+		.replace(/^-+|-+$/g, "");
+}
+
 /** Index a list of `{ id }` entities by their numeric id for O(1) lookups. */
 export function indexById<T extends { id: number }>(
 	items: readonly T[],

@@ -3,17 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { categoryKeys, categoryMutations } from "@/lib/sdk";
 import { toErrorMessage } from "@/lib/sdk-error";
-
-/** A URL/DB-safe slug derived from a free-text category name. */
-function slugify(name: string): string {
-	return name
-		.trim()
-		.toLowerCase()
-		.normalize("NFKD")
-		.replace(/[\u0300-\u036f]/g, "")
-		.replace(/[^a-z0-9]+/g, "-")
-		.replace(/^-+|-+$/g, "");
-}
+import { slugify } from "@/lib/utils";
 
 /**
  * Create a **Category leaf** from the transaction picker (PRD #19, issue #24).
