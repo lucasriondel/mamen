@@ -20,6 +20,11 @@ const ACCOUNTS = [
 
 const ISSUERS = [{ id: 10, name: "Spotify" }];
 
+const CATEGORIES = [
+	{ id: 1, name: "Life", slug: "life", parentId: null, sortOrder: 0 },
+	{ id: 5, name: "Subscriptions", slug: "subs", parentId: 1, sortOrder: 0 },
+];
+
 const TXNS = [
 	{
 		id: 100,
@@ -28,6 +33,8 @@ const TXNS = [
 		amount: -9.99,
 		rawIssuerString: "SPOTIFY P2A34",
 		issuerId: 10,
+		// Derived through the issuer's default (the API computes this) → the leaf.
+		categoryId: 5,
 		importedAt: new Date(),
 		importMonth: "2026-01",
 	},
@@ -65,10 +72,18 @@ vi.mock("@mamen/sdk", () => ({
 			queryFn: async () => ({ items: ISSUERS, total: ISSUERS.length }),
 		}),
 	},
+	categoryQueries: {
+		list: () => ({
+			queryKey: ["categories", "list"],
+			queryFn: async () => ({ items: CATEGORIES, total: CATEGORIES.length }),
+		}),
+	},
 	accountKeys: {},
 	accountMutations: {},
 	issuerKeys: {},
 	issuerMutations: {},
+	categoryKeys: {},
+	categoryMutations: {},
 	transactionKeys: {},
 	transactionMutations: {},
 }));
@@ -128,6 +143,28 @@ describe("TransactionsView", () => {
 				offset: 0,
 			}),
 		);
+	});
+
+	it("shows the derived category leaf name, and Unassigned when none", async () => {
+		await renderView();
+
+		// The Category column sits between Issuer and Amount.
+		const headers = screen
+			.getAllByRole("columnheader")
+			.map((h) => h.textContent);
+		expect(headers).toEqual([
+			"Date",
+			"Account",
+			"Issuer",
+			"Category",
+			"Amount",
+		]);
+
+		// Row with a derived categoryId → its leaf name, plain (no folder path).
+		expect(screen.getByText("Subscriptions")).toBeInTheDocument();
+		expect(screen.queryByText(/Life/)).not.toBeInTheDocument();
+		// Row with no derived category → Unassigned.
+		expect(screen.getByText("Unassigned")).toBeInTheDocument();
 	});
 
 	it("writes accountId to the URL and calls list with that filter", async () => {

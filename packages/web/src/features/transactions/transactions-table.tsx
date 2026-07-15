@@ -1,4 +1,9 @@
-import type { Account, Issuer, Transaction } from "@mamen/shared/contract";
+import type {
+	Account,
+	Category,
+	Issuer,
+	Transaction,
+} from "@mamen/shared/contract";
 import {
 	createColumnHelper,
 	flexRender,
@@ -17,7 +22,7 @@ import {
 } from "@/components/ui/table";
 import { formatShortDate } from "@/lib/format";
 import { AssignmentPicker } from "./assignment-picker";
-import { AmountCell, IssuerCell } from "./transaction-cells";
+import { AmountCell, CategoryCell, IssuerCell } from "./transaction-cells";
 
 export interface TransactionsTableProps {
 	transactions: readonly Transaction[];
@@ -25,6 +30,8 @@ export interface TransactionsTableProps {
 	accountsById: ReadonlyMap<number, Account>;
 	/** Issuer lookup for the Issuer curation cell. */
 	issuersById: ReadonlyMap<number, Issuer>;
+	/** Category lookup for the derived-category cell. */
+	categoriesById: ReadonlyMap<number, Category>;
 	/** Current date sort order (server-driven). */
 	direction: "asc" | "desc";
 	/** Toggle the date sort order (asc ⇄ desc). */
@@ -34,15 +41,18 @@ export interface TransactionsTableProps {
 const columnHelper = createColumnHelper<Transaction>();
 
 /**
- * The transactions data grid (columns **Date | Account | Issuer | Amount**),
- * rendered with TanStack Table onto the token-styled `Table` primitive. Sorting
- * is server-driven: the Date header toggles `direction` in the URL rather than
- * reordering rows client-side, so the shown page always matches the query.
+ * The transactions data grid (columns **Date | Account | Issuer | Category |
+ * Amount**), rendered with TanStack Table onto the token-styled `Table`
+ * primitive. Sorting is server-driven: the Date header toggles `direction` in
+ * the URL rather than reordering rows client-side, so the shown page always
+ * matches the query. The Category column reads the row's *derived* `categoryId`
+ * (computed through its issuer by the API) against `categoriesById`.
  */
 export function TransactionsTable({
 	transactions,
 	accountsById,
 	issuersById,
+	categoriesById,
 	direction,
 	onToggleSort,
 }: TransactionsTableProps) {
@@ -79,12 +89,23 @@ export function TransactionsTable({
 					);
 				},
 			}),
+			columnHelper.display({
+				id: "category",
+				header: "Category",
+				cell: ({ row }) => {
+					const category =
+						row.original.categoryId != null
+							? categoriesById.get(row.original.categoryId)
+							: undefined;
+					return <CategoryCell category={category} />;
+				},
+			}),
 			columnHelper.accessor("amount", {
 				header: () => <span className="block text-right">Amount</span>,
 				cell: (info) => <AmountCell amount={info.getValue()} />,
 			}),
 		],
-		[accountsById, issuersById],
+		[accountsById, issuersById, categoriesById],
 	);
 
 	const table = useReactTable({

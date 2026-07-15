@@ -1,6 +1,7 @@
 import type {
 	Account,
 	AccountId,
+	Category,
 	Issuer,
 	Transaction,
 } from "@mamen/shared/contract";
@@ -10,6 +11,7 @@ import { useMemo } from "react";
 import { Empty } from "@/components/ui/empty";
 import {
 	accountQueries,
+	categoryQueries,
 	issuerQueries,
 	type TransactionListParams,
 	transactionQueries,
@@ -60,6 +62,9 @@ export function TransactionsView() {
 	const transactionsQuery = useQuery(transactionQueries.list(listParams));
 	const accountsQuery = useQuery(accountQueries.list());
 	const issuersQuery = useQuery(issuerQueries.list());
+	// The whole (small) category tree, for the derived-category column's name
+	// lookup. Wide limit — a single user's taxonomy is coarse (PRD).
+	const categoriesQuery = useQuery(categoryQueries.list({ limit: 200 }));
 	// Distinct months come from a wide unfiltered scan — the contract has no
 	// distinct-month endpoint and a single user's history is small (PRD).
 	const monthsQuery = useQuery(
@@ -68,12 +73,14 @@ export function TransactionsView() {
 
 	const accounts = (accountsQuery.data?.items ?? []) as readonly Account[];
 	const issuers = (issuersQuery.data?.items ?? []) as readonly Issuer[];
+	const categories = (categoriesQuery.data?.items ?? []) as readonly Category[];
 	const transactions = (transactionsQuery.data?.items ??
 		[]) as readonly Transaction[];
 	const total = transactionsQuery.data?.total ?? 0;
 
 	const accountsById = useMemo(() => indexById(accounts), [accounts]);
 	const issuersById = useMemo(() => indexById(issuers), [issuers]);
+	const categoriesById = useMemo(() => indexById(categories), [categories]);
 
 	const months = useMemo(() => {
 		const items = (monthsQuery.data?.items ?? []) as readonly Transaction[];
@@ -135,6 +142,7 @@ export function TransactionsView() {
 						transactions={transactions}
 						accountsById={accountsById}
 						issuersById={issuersById}
+						categoriesById={categoriesById}
 						direction={search.direction ?? "desc"}
 						onToggleSort={toggleSort}
 					/>

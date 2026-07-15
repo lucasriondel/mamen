@@ -1,7 +1,7 @@
-import type { Issuer } from "@mamen/shared/contract";
+import type { Category, Issuer } from "@mamen/shared/contract";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { AmountCell, IssuerCell } from "./transaction-cells";
+import { AmountCell, CategoryCell, IssuerCell } from "./transaction-cells";
 
 describe("AmountCell", () => {
 	it("colors a debit (negative) with the gousse high token and keeps the sign", () => {
@@ -41,5 +41,36 @@ describe("IssuerCell", () => {
 		const cell = screen.getByText("SPOTIFY P2A34").closest("[data-unresolved]");
 		expect(cell).toHaveAttribute("data-unresolved", "true");
 		expect(cell).toHaveClass("text-muted");
+	});
+});
+
+const category: Category = {
+	id: 5 as Category["id"],
+	name: "Groceries",
+	slug: "groceries",
+	color: "#0f0",
+	icon: "cart",
+	parentId: 1 as Category["id"],
+	sortOrder: 0,
+	createdAt: new Date(),
+};
+
+describe("CategoryCell", () => {
+	it("inherited: shows the leaf name plain, without its folder path", () => {
+		render(<CategoryCell category={category} />);
+		expect(screen.getByText("Groceries")).toBeInTheDocument();
+		// Leaf name only — the folder is navigation, not identity (never a path).
+		expect(screen.queryByText(/Food/)).not.toBeInTheDocument();
+		expect(screen.queryByText(/›|\/|>/)).not.toBeInTheDocument();
+	});
+
+	it("unassigned: shows Unassigned when no category is derived", () => {
+		render(<CategoryCell />);
+		const el = screen.getByText("Unassigned");
+		expect(el).toBeInTheDocument();
+		expect(el.closest("[data-unassigned]")).toHaveAttribute(
+			"data-unassigned",
+			"true",
+		);
 	});
 });

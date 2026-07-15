@@ -1,4 +1,4 @@
-import type { Issuer } from "@mamen/shared/contract";
+import type { Category, Issuer } from "@mamen/shared/contract";
 import { CircleHelp } from "lucide-react";
 import { IssuerAvatar } from "@/features/issuers/issuer-avatar";
 import { formatCurrency } from "@/lib/format";
@@ -57,6 +57,36 @@ export function IssuerCell({
 		>
 			<CircleHelp size={14} className="shrink-0" aria-hidden />
 			<span className="truncate">{rawIssuerString}</span>
+		</span>
+	);
+}
+
+/**
+ * The **Category** cell — a transaction's category, read *through* its issuer's
+ * default (the Derived category model; PRD #19). Two states in this slice:
+ *
+ * - **Inherited** (`category` resolved) → the leaf's name, rendered plain. Just
+ *   the leaf (*Groceries*), never its folder path — the folder is navigation,
+ *   not identity, and a table column is too tight for a path.
+ * - **Unassigned** (`category` absent) → no issuer default and no override. A
+ *   data-completeness signal with exactly one cause, never a user's decision,
+ *   so it is always actionable and rendered muted.
+ *
+ * The category override + click-to-pick interaction lands in the next slice
+ * (#23); this cell only renders the two read states.
+ */
+export function CategoryCell({ category }: { category?: Category }) {
+	if (category) {
+		return <span className="text-ink">{category.name}</span>;
+	}
+
+	return (
+		<span
+			className="text-muted italic"
+			title="No category yet"
+			data-unassigned="true"
+		>
+			Unassigned
 		</span>
 	);
 }

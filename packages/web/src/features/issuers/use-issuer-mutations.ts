@@ -1,4 +1,8 @@
-import type { IssuerId, IssuerUpdate } from "@mamen/shared/contract";
+import type {
+	CategoryId,
+	IssuerId,
+	IssuerUpdate,
+} from "@mamen/shared/contract";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { issuerKeys, issuerMutations } from "@/lib/sdk";
@@ -52,5 +56,21 @@ export function useIssuerMutations() {
 		onError,
 	});
 
-	return { rename, uploadImage, deleteImage, remove };
+	// The bulk lever (PRD #19): set — or clear (`null`) — an issuer's default
+	// category, reclassifying its whole non-overridden history at once (the
+	// category is derived through the issuer at query time, never copied). A
+	// folder is rejected by the API (`CategoryNotLeaf`) and surfaces as a toast.
+	const setDefaultCategory = useMutation({
+		mutationFn: ({
+			id,
+			categoryId,
+		}: {
+			id: IssuerId;
+			categoryId: CategoryId | null;
+		}) => issuerMutations.update(id, { defaultCategoryId: categoryId }),
+		onSuccess: invalidate,
+		onError,
+	});
+
+	return { rename, uploadImage, deleteImage, remove, setDefaultCategory };
 }

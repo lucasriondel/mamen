@@ -11,6 +11,7 @@ import { formatCurrency, formatShortDate } from "@/lib/format";
 import { issuerQueries, transactionQueries } from "@/lib/sdk";
 import { cn } from "@/lib/utils";
 import { IssuerAvatar } from "./issuer-avatar";
+import { IssuerDefaultCategoryPicker } from "./issuer-default-category-picker";
 import { useIssuerMutations } from "./use-issuer-mutations";
 
 /**
@@ -212,6 +213,8 @@ function IssuerDetailContent({
 					Save
 				</button>
 			</form>
+
+			<IssuerDefaultCategoryPicker issuer={issuer} />
 
 			<div className="flex flex-col gap-3">
 				<h2 className="text-lg font-semibold text-ink">Transactions</h2>
