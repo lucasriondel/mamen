@@ -1,5 +1,13 @@
 # Two-level category tree, enforced at the API
 
+> **Status: superseded by [ADR 0003](./0003-categories-nest-to-any-depth-assignability-is-childlessness.md).**
+> Categories now nest to any depth and assignability means childlessness, not
+> depth. The reasoning below is kept because ADR 0003 inherits half of it: the
+> failure mode described here is real, and *enforcement at the API rather than
+> the UI* survives the reversal. What changed is that the rollup became a
+> recursive descent, which is what made the two-level cap load-bearing in the
+> first place.
+
 Categories are a strict two-level tree — assignable **leaves** grouped under
 non-assignable **folders** — and the API rejects any write that would break that
 shape, rather than leaving the rule to the UI. `parentId` permits any depth, so
