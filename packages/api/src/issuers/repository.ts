@@ -288,26 +288,26 @@ export class IssuerRepo extends Effect.Service<IssuerRepo>()(
 				assertLeaf(changes.defaultCategoryId).pipe(
 					// getById already 404s if missing; the write then always hits a row.
 					Effect.andThen(getById(id)),
-					Effect.flatMap((current) =>
-						updateQuery({
+					Effect.flatMap((current) => {
+						// A `null` in `changes` *clears* the default, an absent one leaves
+						// it unchanged. `new Issuer` can't carry a null defaultCategoryId
+						// (its field is optional, not nullable), so merge every other field
+						// through it and set the FK on the write row directly.
+						const defaultCategoryId =
+							changes.defaultCategoryId !== undefined
+								? changes.defaultCategoryId
+								: (current.defaultCategoryId ?? null);
+						const merged = new Issuer({
+							...current,
+							...changes,
+							defaultCategoryId: current.defaultCategoryId,
+						});
+						return updateQuery({
+							...toWriteRow(merged),
 							id,
-							// `new Issuer` can't carry a null defaultCategoryId (its field is
-							// optional, not nullable), so merge every other field through it
-							// and set the FK on the write row directly: a `null` in `changes`
-							// *clears* the default, an absent one leaves it unchanged.
-							...toWriteRow(
-								new Issuer({
-									...current,
-									...changes,
-									defaultCategoryId: current.defaultCategoryId,
-								}),
-							),
-							defaultCategoryId:
-								changes.defaultCategoryId !== undefined
-									? changes.defaultCategoryId
-									: (current.defaultCategoryId ?? null),
-						}).pipe(orDieSql),
-					),
+							defaultCategoryId,
+						}).pipe(orDieSql);
+					}),
 				);
 
 			/**
