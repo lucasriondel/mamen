@@ -23,7 +23,8 @@ import {
 import { formatShortDate } from "@/lib/format";
 import { AssignmentPicker } from "./assignment-picker";
 import { CategoryPicker } from "./category-picker";
-import { AmountCell, IssuerCell } from "./transaction-cells";
+import { IssuerPicker } from "./issuer-picker";
+import { AmountCell } from "./transaction-cells";
 
 export interface TransactionsTableProps {
 	transactions: readonly Transaction[];
@@ -75,13 +76,11 @@ export function TransactionsTable({
 						row.original.issuerId != null
 							? issuersById.get(row.original.issuerId)
 							: undefined;
-					// Resolved rows read as plain display; unresolved rows are the
-					// curation surface — clicking opens the assignment picker (PRD).
+					// Both states are curation surfaces: a resolved row opens the
+					// issuer picker (why this issuer, re-pick, go to its page); an
+					// unresolved row opens the assignment picker (PRD).
 					return issuer ? (
-						<IssuerCell
-							rawIssuerString={row.original.rawIssuerString}
-							issuer={issuer}
-						/>
+						<IssuerPicker transaction={row.original} issuer={issuer} />
 					) : (
 						<AssignmentPicker
 							transactionId={row.original.id}
