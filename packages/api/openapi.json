@@ -1828,14 +1828,6 @@
                     "description": "an integer",
                     "title": "int"
                   },
-                  "subcategoryId": {
-                    "type": "integer",
-                    "description": "an integer",
-                    "title": "int"
-                  },
-                  "categoryOverride": {
-                    "type": "string"
-                  },
                   "manualCategory": {
                     "type": "boolean"
                   },
@@ -2172,14 +2164,6 @@
                     "description": "an integer",
                     "title": "int"
                   },
-                  "subcategoryId": {
-                    "type": "integer",
-                    "description": "an integer",
-                    "title": "int"
-                  },
-                  "categoryOverride": {
-                    "type": "string"
-                  },
                   "manualCategory": {
                     "type": "boolean"
                   },
@@ -2360,14 +2344,6 @@
                           "type": "integer",
                           "description": "an integer",
                           "title": "int"
-                        },
-                        "subcategoryId": {
-                          "type": "integer",
-                          "description": "an integer",
-                          "title": "int"
-                        },
-                        "categoryOverride": {
-                          "type": "string"
                         },
                         "manualCategory": {
                           "type": "boolean"
@@ -4751,14 +4727,6 @@
             "type": "integer",
             "description": "an integer",
             "title": "int"
-          },
-          "subcategoryId": {
-            "type": "integer",
-            "description": "an integer",
-            "title": "int"
-          },
-          "categoryOverride": {
-            "type": "string"
           },
           "manualCategory": {
             "type": "boolean"

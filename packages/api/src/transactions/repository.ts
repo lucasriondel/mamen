@@ -30,8 +30,6 @@ const TransactionRow = Schema.Struct({
 	rawIssuerString: Schema.String,
 	issuerId: Schema.NullOr(Schema.Number),
 	categoryId: Schema.NullOr(Schema.Number),
-	subcategoryId: Schema.NullOr(Schema.Number),
-	categoryOverride: Schema.NullOr(Schema.String),
 	manualCategory: Schema.Number,
 	manualIssuer: Schema.Number,
 	isRefund: Schema.Number,
@@ -71,12 +69,6 @@ export const TransactionFromRow = Schema.transform(
 			rawIssuerString: row.rawIssuerString,
 			...(row.issuerId !== null ? { issuerId: row.issuerId } : {}),
 			...(row.categoryId !== null ? { categoryId: row.categoryId } : {}),
-			...(row.subcategoryId !== null
-				? { subcategoryId: row.subcategoryId }
-				: {}),
-			...(row.categoryOverride !== null
-				? { categoryOverride: row.categoryOverride }
-				: {}),
 			...(row.manualCategory === 1 ? { manualCategory: true } : {}),
 			...(row.manualIssuer === 1 ? { manualIssuer: true } : {}),
 			...(row.isRefund === 1 ? { isRefund: true } : {}),
@@ -106,8 +98,6 @@ export const TransactionFromRow = Schema.transform(
 			rawIssuerString: t.rawIssuerString,
 			issuerId: t.issuerId ?? null,
 			categoryId: t.categoryId ?? null,
-			subcategoryId: t.subcategoryId ?? null,
-			categoryOverride: t.categoryOverride ?? null,
 			manualCategory: t.manualCategory ? 1 : 0,
 			manualIssuer: t.manualIssuer ? 1 : 0,
 			isRefund: t.isRefund ? 1 : 0,
@@ -171,8 +161,6 @@ type WriteRow = {
 	rawIssuerString: string;
 	issuerId: number | null;
 	categoryId: number | null;
-	subcategoryId: number | null;
-	categoryOverride: string | null;
 	manualCategory: number;
 	manualIssuer: number;
 	isRefund: number;
@@ -285,7 +273,7 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 			// history at once. Reads go through this; writes (`RETURNING *`) echo the
 			// stored row verbatim, and the internal `storedByIdQuery` reads the raw
 			// row so an update's merge never persists a derived value.
-			const readColumns = sql`t.id, t.accountId, t.date, t.amount, t.rawIssuerString, t.issuerId, ${derivedCategory} AS categoryId, t.subcategoryId, t.categoryOverride, t.manualCategory, t.manualIssuer, t.isRefund, t.linkedRefundId, t.anomalyFlags, t.isDuplicateExcluded, t.duplicateNote, t.importedAt, t.importMonth, t.importBatchId`;
+			const readColumns = sql`t.id, t.accountId, t.date, t.amount, t.rawIssuerString, t.issuerId, ${derivedCategory} AS categoryId, t.manualCategory, t.manualIssuer, t.isRefund, t.linkedRefundId, t.anomalyFlags, t.isDuplicateExcluded, t.duplicateNote, t.importedAt, t.importMonth, t.importBatchId`;
 			const readFrom = sql`FROM transactions t LEFT JOIN issuers i ON t.issuerId = i.id`;
 
 			// `Request: Schema.Any` skips a redundant re-decode: filters are already
@@ -465,8 +453,6 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				rawIssuerString: t.rawIssuerString,
 				issuerId: t.issuerId ?? null,
 				categoryId: t.categoryId ?? null,
-				subcategoryId: t.subcategoryId ?? null,
-				categoryOverride: t.categoryOverride ?? null,
 				manualCategory: t.manualCategory ? 1 : 0,
 				manualIssuer: t.manualIssuer ? 1 : 0,
 				isRefund: t.isRefund ? 1 : 0,

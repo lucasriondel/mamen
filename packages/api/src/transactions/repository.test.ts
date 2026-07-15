@@ -1,3 +1,4 @@
+import { SqlClient } from "@effect/sql";
 import { assert, describe, it } from "@effect/vitest";
 import {
 	AccountId,
@@ -59,8 +60,6 @@ describe("TransactionFromRow storage codec", () => {
 			rawIssuerString: "ACME",
 			issuerId: asIssuer(3),
 			categoryId: asCategory(4),
-			subcategoryId: asCategory(5),
-			categoryOverride: "Food",
 			manualCategory: true,
 			manualIssuer: true,
 			isRefund: true,
@@ -109,6 +108,18 @@ describe("TransactionFromRow storage codec", () => {
 });
 
 describe("TransactionRepo", () => {
+	it.effect("the vestigial category columns are dropped from the table", () =>
+		Effect.gen(function* () {
+			const sql = yield* SqlClient.SqlClient;
+			const columns = yield* sql<{
+				name: string;
+			}>`PRAGMA table_info(transactions)`;
+			const names = columns.map((c) => c.name);
+			assert.ok(!names.includes("subcategoryId"));
+			assert.ok(!names.includes("categoryOverride"));
+		}).pipe(Effect.provide(DatabaseTest)),
+	);
+
 	it.effect("create assigns an id, then getById round-trips it", () =>
 		Effect.gen(function* () {
 			const repo = yield* TransactionRepo;
@@ -144,8 +155,6 @@ describe("TransactionRepo", () => {
 				make({
 					issuerId: asIssuer(7),
 					categoryId: asCategory(3),
-					subcategoryId: asCategory(4),
-					categoryOverride: "Groceries",
 					manualCategory: true,
 					manualIssuer: true,
 					isRefund: true,
@@ -157,8 +166,6 @@ describe("TransactionRepo", () => {
 			);
 			assert.strictEqual(created.issuerId, asIssuer(7));
 			assert.strictEqual(created.categoryId, asCategory(3));
-			assert.strictEqual(created.subcategoryId, asCategory(4));
-			assert.strictEqual(created.categoryOverride, "Groceries");
 			assert.strictEqual(created.manualCategory, true);
 			assert.strictEqual(created.manualIssuer, true);
 			assert.strictEqual(created.isRefund, true);

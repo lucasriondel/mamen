@@ -8,8 +8,6 @@ export type Transaction = {
 	rawIssuerString: string;
 	issuerId?: number;
 	categoryId?: number;
-	subcategoryId?: number;
-	categoryOverride?: string;
 	manualCategory?: boolean;
 	manualIssuer?: boolean;
 	isRefund?: boolean;
