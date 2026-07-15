@@ -127,8 +127,15 @@ export const TransactionFromRow = Schema.transform(
 
 const PagedTransaction = Paged(Transaction);
 
-/** Number of rows in a `count(*)` result. */
-const CountResult = Schema.Struct({ count: Schema.Number });
+/**
+ * A `count` result: the filtered row `count` and the signed net `total` (the
+ * `SUM(amount)` over the same set, `COALESCE`d to 0 when empty). Both are driven
+ * by one filter object so they can never disagree (ADR 0002).
+ */
+const CountResult = Schema.Struct({
+	count: Schema.Number,
+	total: Schema.Number,
+});
 
 /**
  * The composable filter set, decoded + branded at the HTTP boundary
@@ -138,7 +145,7 @@ const CountResult = Schema.Struct({ count: Schema.Number });
 type Filters = {
 	accountId?: number;
 	issuerId?: number;
-	categoryId?: number;
+	categoryId?: number | ReadonlyArray<number>;
 	linkedRefundId?: number;
 	importMonth?: string;
 	importBatchId?: string;
@@ -198,6 +205,14 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 		effect: Effect.gen(function* () {
 			const sql = yield* SqlClient.SqlClient;
 
+			// The **derived** category expression (model A / ADR 0002): a manual row
+			// keeps its own stored `categoryId`; a non-manual row reads its issuer's
+			// `defaultCategoryId` (null when unmatched or the issuer has no default).
+			// One fragment, reused by the read projection, the count, AND the category
+			// filter — so the read and the filter can never disagree (the drift ADR
+			// 0002 records). Requires the `issuers` LEFT JOIN (`readFrom`) in scope.
+			const derivedCategory = sql`CASE WHEN t.manualCategory = 1 THEN t.categoryId ELSE i.defaultCategoryId END`;
+
 			// Each present filter contributes one predicate; absent ones contribute
 			// nothing. `dates` bind as ISO strings (the `date` column is ISO TEXT,
 			// so lexicographic comparison matches chronological order). Returns the
@@ -208,8 +223,20 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 					conditions.push(sql`t.accountId = ${f.accountId}`);
 				if (f.issuerId !== undefined)
 					conditions.push(sql`t.issuerId = ${f.issuerId}`);
-				if (f.categoryId !== undefined)
-					conditions.push(sql`t.categoryId = ${f.categoryId}`);
+				// Filter on the DERIVED category, not the stored column (ADR 0002): an
+				// issuer-categorised row (the common case) must match, not only a
+				// hand-overridden one. The filter accepts a **set** — a folder page
+				// lists all its leaves in one query; an empty set matches nothing.
+				if (f.categoryId !== undefined) {
+					const ids = Array.isArray(f.categoryId)
+						? f.categoryId
+						: [f.categoryId];
+					conditions.push(
+						ids.length === 0
+							? sql`1 = 0`
+							: sql`${derivedCategory} IN ${sql.in(ids)}`,
+					);
+				}
 				if (f.linkedRefundId !== undefined)
 					conditions.push(sql`t.linkedRefundId = ${f.linkedRefundId}`);
 				if (f.importMonth !== undefined)
@@ -258,7 +285,7 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 			// history at once. Reads go through this; writes (`RETURNING *`) echo the
 			// stored row verbatim, and the internal `storedByIdQuery` reads the raw
 			// row so an update's merge never persists a derived value.
-			const readColumns = sql`t.id, t.accountId, t.date, t.amount, t.rawIssuerString, t.issuerId, CASE WHEN t.manualCategory = 1 THEN t.categoryId ELSE i.defaultCategoryId END AS categoryId, t.subcategoryId, t.categoryOverride, t.manualCategory, t.manualIssuer, t.isRefund, t.linkedRefundId, t.anomalyFlags, t.isDuplicateExcluded, t.duplicateNote, t.importedAt, t.importMonth, t.importBatchId`;
+			const readColumns = sql`t.id, t.accountId, t.date, t.amount, t.rawIssuerString, t.issuerId, ${derivedCategory} AS categoryId, t.subcategoryId, t.categoryOverride, t.manualCategory, t.manualIssuer, t.isRefund, t.linkedRefundId, t.anomalyFlags, t.isDuplicateExcluded, t.duplicateNote, t.importedAt, t.importMonth, t.importBatchId`;
 			const readFrom = sql`FROM transactions t LEFT JOIN issuers i ON t.issuerId = i.id`;
 
 			// `Request: Schema.Any` skips a redundant re-decode: filters are already
@@ -273,11 +300,17 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 					sql`SELECT ${readColumns} ${readFrom} ${whereClause(f)} ${orderClause(f.orderBy, f.direction)} LIMIT ${f.limit} OFFSET ${f.offset}`,
 			});
 
+			// Count + signed net total over the filtered set. It carries the SAME
+			// `issuers` LEFT JOIN (`readFrom`) as the list — the join the old count
+			// query lacked, without which a category filter couldn't reach the derived
+			// value (ADR 0002). `SUM(amount)` is signed and net (a refund's positive
+			// amount cancels the purchase); `COALESCE(…, 0)` keeps an empty set at 0
+			// rather than SQL `NULL`.
 			const countQuery = SqlSchema.single({
 				Request: Schema.Any as Schema.Schema<Filters>,
 				Result: CountResult,
 				execute: (f) =>
-					sql`SELECT COUNT(*) AS count FROM transactions t ${whereClause(f)}`,
+					sql`SELECT COUNT(*) AS count, COALESCE(SUM(t.amount), 0) AS total ${readFrom} ${whereClause(f)}`,
 			});
 
 			const byIdQuery = SqlSchema.findOne({
@@ -404,9 +437,7 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 								const folder = rows[0];
 								return folder === undefined
 									? Effect.void
-									: Effect.fail(
-											new CategoryNotLeaf({ categoryId: folder.id }),
-										);
+									: Effect.fail(new CategoryNotLeaf({ categoryId: folder.id }));
 							}),
 						);
 			};

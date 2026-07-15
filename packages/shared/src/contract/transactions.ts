@@ -71,18 +71,32 @@ export const TransactionUpdate = Schema.partial(TransactionCreate);
 export type TransactionUpdate = typeof TransactionUpdate.Type;
 
 /**
+ * The `categoryId` filter — a single id **or a set** (ADR 0002). A folder's
+ * category page lists all of its leaves' transactions in one query, so the
+ * filter accepts several category ids at once (repeated `?categoryId=`), while a
+ * leaf page still passes a lone id. A single query value decodes to one branded
+ * id; a repeated one to an array — the repository normalises both to a set. The
+ * filter matches the **derived** category, not the stored column (ADR 0002).
+ */
+export const CategoryIdFilter = Schema.Union(
+	numFromStr(CategoryId),
+	Schema.Array(numFromStr(CategoryId)),
+);
+
+/**
  * The composable filter set (contract §2.5) — the core redesign. Every field is
  * optional and `AND`-combined; the old 9-branch either/or fan-out (where
  * `accountId` dominated and every other filter was unreachable) is gone. `count`
  * reuses the identical set; `list` adds `Pagination` + `orderBy`/`direction`.
  * Branded-id filters decode a query string via `numFromStr`; the two boolean
  * filters via `BooleanFromString`; `startDate`/`endDate` are inclusive bounds on
- * the entity's `date` (encoded to ISO strings in the URL).
+ * the entity's `date` (encoded to ISO strings in the URL). `categoryId` accepts
+ * a **set** (see {@link CategoryIdFilter}) and matches the derived category.
  */
 export const TransactionFilters = {
 	accountId: Schema.optional(numFromStr(AccountId)),
 	issuerId: Schema.optional(numFromStr(IssuerId)),
-	categoryId: Schema.optional(numFromStr(CategoryId)),
+	categoryId: Schema.optional(CategoryIdFilter),
 	linkedRefundId: Schema.optional(numFromStr(TransactionId)),
 	importMonth: Schema.optional(Schema.String), // "YYYY-MM"
 	importBatchId: Schema.optional(Schema.String),
@@ -105,8 +119,17 @@ export const TransactionListOrder = {
 	}),
 } as const;
 
-/** `count` success body — the full filtered row count. */
-export const TransactionCount = Schema.Struct({ count: Schema.Number });
+/**
+ * `count` success body — the full filtered row `count` plus a signed, net
+ * `total` (ADR 0002). The total covers the **whole filtered set**, not a page,
+ * and follows the same filter object as the count, so a category page's number
+ * can never disagree with its list. Signed per the amount sign convention: a
+ * refunded purchase nets to zero, an income category totals positive.
+ */
+export const TransactionCount = Schema.Struct({
+	count: Schema.Number,
+	total: Schema.Number,
+});
 
 /** Bulk-create payload — `{ records }`, one row created per element (201, ids generated). */
 export const TransactionBulkCreate = Schema.Struct({

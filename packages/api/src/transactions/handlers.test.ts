@@ -143,12 +143,18 @@ describe("transactions endpoints", () => {
 	// client shape stays in sync with the contract without hand-writing it.
 	const makeClient = () => HttpApiClient.make(Api);
 	type ApiClient = Effect.Effect.Success<ReturnType<typeof makeClient>>;
+	// The category filter matches the DERIVED category (ADR 0002), so a stored
+	// `categoryId` only counts when the row carries an override (`manualCategory`)
+	// — these seed rows do, so `categoryId=7/8` still selects them. The
+	// issuer-derived path (a non-manual row categorised through its issuer) is
+	// covered by its own dedicated test below.
 	const seed = (client: ApiClient) =>
 		Effect.all([
 			client.transactions.create({
 				payload: make({
 					accountId: asAccount(1),
 					categoryId: asCategory(7),
+					manualCategory: true,
 					issuerId: asIssuer(2),
 					date: new Date("2026-01-10T00:00:00.000Z"),
 					importMonth: "2026-01",
@@ -159,6 +165,7 @@ describe("transactions endpoints", () => {
 				payload: make({
 					accountId: asAccount(1),
 					categoryId: asCategory(8),
+					manualCategory: true,
 					date: new Date("2026-02-10T00:00:00.000Z"),
 					importMonth: "2026-02",
 				}),
@@ -167,6 +174,7 @@ describe("transactions endpoints", () => {
 				payload: make({
 					accountId: asAccount(2),
 					categoryId: asCategory(7),
+					manualCategory: true,
 					date: new Date("2026-03-10T00:00:00.000Z"),
 					importMonth: "2026-03",
 				}),
@@ -1018,5 +1026,208 @@ describe("category two-level invariant at the transactions door", () => {
 			});
 			assert.strictEqual(page.total, 0);
 		}).pipe(Effect.provide(HttpLive)),
+	);
+});
+
+// The category page's engine (issue #25, ADR 0002): the transactions filter
+// matches the DERIVED category — the same `CASE` the list returns — not the
+// stored column, and its count response carries a signed net total. The count
+// query gains the issuer join it lacked, so the count and the list can never
+// disagree. `categoryId` also accepts a set, so a folder page fetches its
+// leaves' transactions in one query. Leaf ids 7/8/9 sit under folder 5 (Home).
+describe("category filter matches the derived category (ADR 0002)", () => {
+	const FIRST_SEEN = new Date("2026-01-15T00:00:00.000Z");
+
+	// The regression this whole slice exists to fix, and the highest-value test
+	// in #19: a transaction categorised THROUGH its issuer (no override) must
+	// appear when filtering by that category. Before ADR 0002 the filter matched
+	// the stored column and silently omitted every issuer-categorised row — the
+	// common case — so the page showed a near-empty list while looking fine.
+	it.effect(
+		"an issuer-categorised (non-manual) transaction appears when filtering by its category",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const issuer = yield* client.issuers.create({
+					payload: {
+						name: "EDF",
+						firstSeen: FIRST_SEEN,
+						defaultCategoryId: asCategory(7),
+					},
+				});
+				// Non-manual, no stored categoryId — categorised only through the issuer.
+				const tx = yield* client.transactions.create({
+					payload: make({ issuerId: issuer.id }),
+				});
+				assert.strictEqual(tx.categoryId, undefined);
+
+				const page = yield* client.transactions.list({
+					urlParams: {
+						limit: 50,
+						offset: 0,
+						direction: "desc",
+						categoryId: asCategory(7),
+					},
+				});
+				assert.strictEqual(page.total, 1);
+				assert.strictEqual(page.items[0]?.id, tx.id);
+
+				// The count endpoint shares the same join + derivation, so it agrees.
+				const counted = yield* client.transactions.count({
+					urlParams: { categoryId: asCategory(7) },
+				});
+				assert.strictEqual(counted.count, 1);
+			}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect(
+		"the category filter accepts a set — a folder's leaves in one query",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				// Two issuers defaulting to two different leaves under the same folder,
+				// plus a third leaf that must stay out of the set.
+				const energy = yield* client.issuers.create({
+					payload: {
+						name: "EDF",
+						firstSeen: FIRST_SEEN,
+						defaultCategoryId: asCategory(7),
+					},
+				});
+				const insurer = yield* client.issuers.create({
+					payload: {
+						name: "AXA",
+						firstSeen: FIRST_SEEN,
+						defaultCategoryId: asCategory(8),
+					},
+				});
+				const netco = yield* client.issuers.create({
+					payload: {
+						name: "Free",
+						firstSeen: FIRST_SEEN,
+						defaultCategoryId: asCategory(9),
+					},
+				});
+				yield* client.transactions.create({
+					payload: make({ issuerId: energy.id, rawIssuerString: "A" }),
+				});
+				yield* client.transactions.create({
+					payload: make({ issuerId: insurer.id, rawIssuerString: "B" }),
+				});
+				yield* client.transactions.create({
+					payload: make({ issuerId: netco.id, rawIssuerString: "C" }),
+				});
+
+				const page = yield* client.transactions.list({
+					urlParams: {
+						limit: 50,
+						offset: 0,
+						direction: "desc",
+						categoryId: [asCategory(7), asCategory(8)],
+					},
+				});
+				assert.strictEqual(page.total, 2);
+
+				const counted = yield* client.transactions.count({
+					urlParams: { categoryId: [asCategory(7), asCategory(8)] },
+				});
+				assert.strictEqual(counted.count, 2);
+			}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect(
+		"the count total is signed and net over the whole filtered set",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const issuer = yield* client.issuers.create({
+					payload: {
+						name: "EDF",
+						firstSeen: FIRST_SEEN,
+						defaultCategoryId: asCategory(7),
+					},
+				});
+				// A purchase and its refund under the same category net to zero…
+				yield* client.transactions.create({
+					payload: make({ issuerId: issuer.id, amount: -80 }),
+				});
+				yield* client.transactions.create({
+					payload: make({ issuerId: issuer.id, amount: 80, isRefund: true }),
+				});
+				// …a third, unrefunded purchase leaves a signed net behind.
+				yield* client.transactions.create({
+					payload: make({ issuerId: issuer.id, amount: -30 }),
+				});
+
+				const counted = yield* client.transactions.count({
+					urlParams: { categoryId: asCategory(7) },
+				});
+				assert.strictEqual(counted.count, 3);
+				assert.strictEqual(counted.total, -30);
+			}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect(
+		"the total follows the account filter and covers the whole set, not the page",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const issuer = yield* client.issuers.create({
+					payload: {
+						name: "EDF",
+						firstSeen: FIRST_SEEN,
+						defaultCategoryId: asCategory(7),
+					},
+				});
+				// Three rows in account 1 and one in account 2, all category 7.
+				yield* client.transactions.create({
+					payload: make({
+						accountId: asAccount(1),
+						issuerId: issuer.id,
+						amount: 10,
+					}),
+				});
+				yield* client.transactions.create({
+					payload: make({
+						accountId: asAccount(1),
+						issuerId: issuer.id,
+						amount: 10,
+					}),
+				});
+				yield* client.transactions.create({
+					payload: make({
+						accountId: asAccount(1),
+						issuerId: issuer.id,
+						amount: 10,
+					}),
+				});
+				yield* client.transactions.create({
+					payload: make({
+						accountId: asAccount(2),
+						issuerId: issuer.id,
+						amount: 5,
+					}),
+				});
+
+				// The account filter narrows the total (it follows the view's filters).
+				const acct1 = yield* client.transactions.count({
+					urlParams: { categoryId: asCategory(7), accountId: asAccount(1) },
+				});
+				assert.strictEqual(acct1.count, 3);
+				assert.strictEqual(acct1.total, 30);
+
+				// A one-row page understates nothing: the list pages, the total does not.
+				const page = yield* client.transactions.list({
+					urlParams: {
+						limit: 1,
+						offset: 0,
+						direction: "desc",
+						categoryId: asCategory(7),
+						accountId: asAccount(1),
+					},
+				});
+				assert.strictEqual(page.items.length, 1);
+				assert.strictEqual(page.total, 3);
+			}).pipe(Effect.provide(HttpLive)),
 	);
 });

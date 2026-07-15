@@ -1556,7 +1556,17 @@
             "name": "categoryId",
             "in": "query",
             "schema": {
-              "$ref": "#/components/schemas/NumberFromString"
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/NumberFromString"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NumberFromString"
+                  }
+                }
+              ]
             },
             "required": false
           },
@@ -1850,7 +1860,17 @@
             "name": "categoryId",
             "in": "query",
             "schema": {
-              "$ref": "#/components/schemas/NumberFromString"
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/NumberFromString"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NumberFromString"
+                  }
+                }
+              ]
             },
             "required": false
           },
@@ -1928,10 +1948,14 @@
                 "schema": {
                   "type": "object",
                   "required": [
-                    "count"
+                    "count",
+                    "total"
                   ],
                   "properties": {
                     "count": {
+                      "type": "number"
+                    },
+                    "total": {
                       "type": "number"
                     }
                   },
