@@ -33,8 +33,8 @@ export class Conflict extends Schema.TaggedError<Conflict>()(
 /**
  * A category that must be an assignable **leaf** was supplied as a **folder**
  * (a category with no parent). Enforces the two-level invariant at the API
- * boundary (ADR 0001): a folder held as `issuer.defaultCategoryId` (or, later,
- * a `transaction.categoryId`) hangs money off a node the category rollup visits
+ * boundary (ADR 0001): a folder held as `issuer.defaultCategoryId` or as a
+ * `transaction.categoryId` hangs money off a node the category rollup visits
  * but never counts, understating the total with no error on screen. `categoryId`
  * names the offending folder so the caller can pick one of its leaves instead.
  */

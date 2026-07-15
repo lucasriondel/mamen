@@ -6,7 +6,7 @@ import {
 } from "@effect/platform";
 import { Schema } from "effect";
 import { AnomalyFlag } from "./anomaly";
-import { BooleanFromString, NotFound } from "./errors";
+import { BooleanFromString, CategoryNotLeaf, NotFound } from "./errors";
 import {
 	AccountId,
 	CategoryId,
@@ -162,6 +162,12 @@ export const TransactionByAccountMonth = Schema.Struct({
  * No transaction field has a DB uniqueness constraint, so writes declare no
  * `Conflict`. `getById`/`update`/`remove` 404 on a missing id; `remove` → 204.
  * `count` shares `list`'s filter set minus pagination/order.
+ *
+ * `create`/`bulkCreate`/`update` declare `CategoryNotLeaf`: a transaction's
+ * `categoryId` must be an assignable **leaf**, never a **folder** — the other
+ * half of ADR 0001's rule 4 (the issuer door already enforced it). A
+ * folder-categorised row hangs money off a node the category rollup visits but
+ * never counts, understating the total with no error on screen.
  */
 export class TransactionsGroup extends HttpApiGroup.make("transactions")
 	.add(
@@ -190,12 +196,14 @@ export class TransactionsGroup extends HttpApiGroup.make("transactions")
 	.add(
 		HttpApiEndpoint.post("create")`/transactions`
 			.setPayload(TransactionCreate)
-			.addSuccess(Transaction, { status: 201 }),
+			.addSuccess(Transaction, { status: 201 })
+			.addError(CategoryNotLeaf),
 	)
 	.add(
 		HttpApiEndpoint.post("bulkCreate")`/transactions/bulk`
 			.setPayload(TransactionBulkCreate)
-			.addSuccess(Schema.Array(Transaction), { status: 201 }),
+			.addSuccess(Schema.Array(Transaction), { status: 201 })
+			.addError(CategoryNotLeaf),
 	)
 	.add(
 		HttpApiEndpoint.put(
@@ -203,7 +211,8 @@ export class TransactionsGroup extends HttpApiGroup.make("transactions")
 		)`/transactions/${HttpApiSchema.param("id", numFromStr(TransactionId))}`
 			.setPayload(TransactionUpdate)
 			.addSuccess(Transaction)
-			.addError(NotFound),
+			.addError(NotFound)
+			.addError(CategoryNotLeaf),
 	)
 	.add(
 		HttpApiEndpoint.put("bulkPut")`/transactions/bulk-put`

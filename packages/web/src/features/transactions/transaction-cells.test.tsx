@@ -64,6 +64,17 @@ describe("CategoryCell", () => {
 		expect(screen.queryByText(/›|\/|>/)).not.toBeInTheDocument();
 	});
 
+	it("override: shows the leaf name marked, distinct from an inherited one", () => {
+		render(<CategoryCell category={category} isOverride />);
+		const el = screen.getByText("Groceries");
+		expect(el).toBeInTheDocument();
+		// Marked — the exception gets the ink (a data hook + a marker), where an
+		// inherited row is plain.
+		const marked = el.closest("[data-override]");
+		expect(marked).toHaveAttribute("data-override", "true");
+		expect(marked).not.toHaveAttribute("data-inherited");
+	});
+
 	it("unassigned: shows Unassigned when no category is derived", () => {
 		render(<CategoryCell />);
 		const el = screen.getByText("Unassigned");

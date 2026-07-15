@@ -63,21 +63,49 @@ export function IssuerCell({
 
 /**
  * The **Category** cell — a transaction's category, read *through* its issuer's
- * default (the Derived category model; PRD #19). Two states in this slice:
+ * default (the Derived category model; PRD #19). Three states:
  *
- * - **Inherited** (`category` resolved) → the leaf's name, rendered plain. Just
- *   the leaf (*Groceries*), never its folder path — the folder is navigation,
- *   not identity, and a table column is too tight for a path.
+ * - **Inherited** (`category` resolved, not an override) → the leaf's name,
+ *   rendered plain. Just the leaf (*Groceries*), never its folder path — the
+ *   folder is navigation, not identity, and a table column is too tight for one.
+ * - **Override** (`category` resolved, `isOverride`) → the leaf's name, **marked**:
+ *   the exception gets the ink, so that when re-categorising an issuer visibly
+ *   skips a row the reason is on screen rather than looking like a bug.
  * - **Unassigned** (`category` absent) → no issuer default and no override. A
  *   data-completeness signal with exactly one cause, never a user's decision,
  *   so it is always actionable and rendered muted.
  *
- * The category override + click-to-pick interaction lands in the next slice
- * (#23); this cell only renders the two read states.
+ * This cell only renders the read states; the click-to-pick interaction wraps it
+ * in {@link CategoryPicker}.
  */
-export function CategoryCell({ category }: { category?: Category }) {
+export function CategoryCell({
+	category,
+	isOverride = false,
+}: {
+	category?: Category;
+	isOverride?: boolean;
+}) {
 	if (category) {
-		return <span className="text-ink">{category.name}</span>;
+		if (isOverride) {
+			return (
+				<span
+					className="flex items-center gap-1.5 font-medium text-ink"
+					title="Category override — set on this transaction only"
+					data-override="true"
+				>
+					<span
+						className="size-1.5 shrink-0 rounded-full bg-accent"
+						aria-hidden
+					/>
+					<span>{category.name}</span>
+				</span>
+			);
+		}
+		return (
+			<span className="text-ink" data-inherited="true">
+				{category.name}
+			</span>
+		);
 	}
 
 	return (

@@ -22,7 +22,8 @@ import {
 } from "@/components/ui/table";
 import { formatShortDate } from "@/lib/format";
 import { AssignmentPicker } from "./assignment-picker";
-import { AmountCell, CategoryCell, IssuerCell } from "./transaction-cells";
+import { CategoryPicker } from "./category-picker";
+import { AmountCell, IssuerCell } from "./transaction-cells";
 
 export interface TransactionsTableProps {
 	transactions: readonly Transaction[];
@@ -97,7 +98,11 @@ export function TransactionsTable({
 						row.original.categoryId != null
 							? categoriesById.get(row.original.categoryId)
 							: undefined;
-					return <CategoryCell category={category} />;
+					// The cell is the curation surface: clicking opens the override
+					// picker. It writes an override to this one row only (PRD #19).
+					return (
+						<CategoryPicker transaction={row.original} category={category} />
+					);
 				},
 			}),
 			columnHelper.accessor("amount", {

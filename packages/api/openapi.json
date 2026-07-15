@@ -1719,6 +1719,16 @@
               }
             }
           },
+          "422": {
+            "description": "CategoryNotLeaf",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryNotLeaf"
+                }
+              }
+            }
+          },
           "500": {
             "description": "InternalServerError"
           }
@@ -2046,6 +2056,16 @@
               }
             }
           },
+          "422": {
+            "description": "CategoryNotLeaf",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryNotLeaf"
+                }
+              }
+            }
+          },
           "500": {
             "description": "InternalServerError"
           }
@@ -2206,6 +2226,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "CategoryNotLeaf",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryNotLeaf"
                 }
               }
             }

@@ -11,6 +11,7 @@ import {
 	AnomalyFlag,
 	Api,
 	CategoryId,
+	CategoryNotLeaf,
 	IssuerId,
 	NotFound,
 	type TransactionCreate,
@@ -110,10 +111,11 @@ describe("transactions endpoints", () => {
 				});
 				const updated = yield* client.transactions.update({
 					path: { id: created.id },
-					payload: { amount: 20, categoryId: asCategory(5) },
+					// A seeded **leaf** (Groceries, id 2) — a folder is now rejected.
+					payload: { amount: 20, categoryId: asCategory(2) },
 				});
 				assert.strictEqual(updated.amount, 20);
-				assert.strictEqual(updated.categoryId, asCategory(5));
+				assert.strictEqual(updated.categoryId, asCategory(2));
 				assert.strictEqual(updated.id, created.id);
 			}).pipe(Effect.provide(HttpLive)),
 	);
@@ -853,7 +855,7 @@ describe("derived category through issuer", () => {
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
 			const created = yield* client.transactions.create({
-				payload: make({ categoryId: asCategory(5) }),
+				payload: make({ categoryId: asCategory(2) }),
 			});
 			// Stored categoryId is ignored on read for a non-manual, issuer-less row —
 			// category exists only *through* an issuer (model A).
@@ -896,5 +898,125 @@ describe("derived category through issuer", () => {
 					undefined,
 				);
 			}).pipe(Effect.provide(HttpLive)),
+	);
+
+	// The Category override lifecycle (issue #23): an override wins over the
+	// issuer default, and removing it — clearing `manualCategory` — reverts the
+	// row to that default, never to no category.
+	it.effect(
+		"removing an override (manualCategory → false) reverts to the issuer default",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const issuer = yield* client.issuers.create({
+					payload: {
+						name: "Amazon",
+						firstSeen: FIRST_SEEN,
+						defaultCategoryId: asCategory(7),
+					},
+				});
+				// A hand-picked override to a *different* leaf than the issuer default.
+				const tx = yield* client.transactions.create({
+					payload: make({
+						issuerId: issuer.id,
+						categoryId: asCategory(3),
+						manualCategory: true,
+					}),
+				});
+				// The override wins over the issuer's default.
+				assert.strictEqual(
+					(yield* client.transactions.getById({ path: { id: tx.id } }))
+						.categoryId,
+					asCategory(3),
+				);
+
+				// Remove the override: clear the manual flag. The row reverts to the
+				// issuer default (asCategory(7)), never to Unassigned.
+				yield* client.transactions.update({
+					path: { id: tx.id },
+					payload: { manualCategory: false },
+				});
+				assert.strictEqual(
+					(yield* client.transactions.getById({ path: { id: tx.id } }))
+						.categoryId,
+					asCategory(7),
+				);
+			}).pipe(Effect.provide(HttpLive)),
+	);
+});
+
+// ADR 0001 rule 4 at the transactions door (issue #23): a `categoryId` must be
+// an assignable **leaf**, never a **folder** — the same corruption the issuer
+// door already rejects, arriving through a different door. The seed provides
+// both: folder ids (1 = Food, a root) and leaf ids (2 = Groceries, under Food).
+describe("category two-level invariant at the transactions door", () => {
+	const FOLDER = asCategory(1); // Food — a seeded folder (no parent).
+	const LEAF = asCategory(2); // Groceries — a seeded leaf under Food.
+
+	it.effect("create rejects a folder as categoryId", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const error = yield* client.transactions
+				.create({ payload: make({ categoryId: FOLDER }) })
+				.pipe(Effect.flip);
+			assert.ok(error instanceof CategoryNotLeaf);
+			assert.strictEqual(error.categoryId, FOLDER);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("create accepts a leaf as a manual categoryId", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const created = yield* client.transactions.create({
+				payload: make({ categoryId: LEAF, manualCategory: true }),
+			});
+			assert.strictEqual(
+				(yield* client.transactions.getById({ path: { id: created.id } }))
+					.categoryId,
+				LEAF,
+			);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("update rejects a folder as categoryId", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const created = yield* client.transactions.create({ payload: make() });
+			const error = yield* client.transactions
+				.update({
+					path: { id: created.id },
+					payload: { categoryId: FOLDER, manualCategory: true },
+				})
+				.pipe(Effect.flip);
+			assert.ok(error instanceof CategoryNotLeaf);
+			assert.strictEqual(error.categoryId, FOLDER);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("bulkCreate rejects a folder in any row, writing nothing", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const error = yield* client.transactions
+				.bulkCreate({
+					payload: {
+						records: [
+							make({
+								rawIssuerString: "A",
+								categoryId: LEAF,
+								manualCategory: true,
+							}),
+							make({ rawIssuerString: "B", categoryId: FOLDER }),
+						],
+					},
+				})
+				.pipe(Effect.flip);
+			assert.ok(error instanceof CategoryNotLeaf);
+			assert.strictEqual(error.categoryId, FOLDER);
+			// The batch is rejected up front, before a single row is written.
+			const page = yield* client.transactions.list({
+				urlParams: { limit: 50, offset: 0, direction: "desc" },
+			});
+			assert.strictEqual(page.total, 0);
+		}).pipe(Effect.provide(HttpLive)),
 	);
 });

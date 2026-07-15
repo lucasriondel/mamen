@@ -3,6 +3,7 @@ import type { Fragment } from "@effect/sql/Statement";
 import {
 	type AccountId,
 	AnomalyFlag,
+	CategoryNotLeaf,
 	NotFound,
 	Paged,
 	Transaction,
@@ -334,6 +335,81 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 					sql`SELECT ${readColumns} ${readFrom} WHERE ${sql.in("t.id", ids)}`,
 			});
 
+			// One indexed lookup of a category's `parentId` — the leaf/folder test
+			// for the two-level invariant guard. A `null` parentId is a folder
+			// (root); a non-null one is a leaf. Mirrors the issuer repo's guard.
+			const parentIdQuery = SqlSchema.findOne({
+				Request: Schema.Number,
+				Result: Schema.Struct({ parentId: Schema.NullOr(Schema.Number) }),
+				execute: (id) => sql`SELECT parentId FROM categories WHERE id = ${id}`,
+			});
+
+			// The folders among a set of category ids — the batch leaf test a bulk
+			// payload runs in **one** query, not one per row (ADR 0001). Any id it
+			// returns is a folder (`parentId IS NULL`); an empty result means every
+			// id is a leaf or unknown.
+			const foldersInQuery = SqlSchema.findAll({
+				Request: Schema.Any as Schema.Schema<ReadonlyArray<number>>,
+				Result: Schema.Struct({ id: Schema.Number }),
+				execute: (ids) =>
+					sql`SELECT id FROM categories WHERE parentId IS NULL AND ${sql.in("id", ids)}`,
+			});
+
+			/**
+			 * The two-level invariant (ADR 0001, rule 4) at the transactions door: a
+			 * `categoryId` must be an assignable **leaf**, never a **folder** (a
+			 * category with no parent) — the same corruption, arriving through a
+			 * different door than the issuer default. Absent (`undefined`) or `null`
+			 * skips the check; an unknown id is left to pass (no FK exists — policing
+			 * missing rows is not this invariant's job). Enforced on both a manual
+			 * and a non-manual write: a folder id stored today becomes live the moment
+			 * the row is flipped manual.
+			 */
+			const assertLeaf = (
+				categoryId: number | null | undefined,
+			): Effect.Effect<void, CategoryNotLeaf> =>
+				categoryId == null
+					? Effect.void
+					: parentIdQuery(categoryId).pipe(
+							orDieSql,
+							Effect.flatMap((found) =>
+								Option.match(found, {
+									onNone: () => Effect.void,
+									onSome: (row) =>
+										row.parentId === null
+											? Effect.fail(new CategoryNotLeaf({ categoryId }))
+											: Effect.void,
+								}),
+							),
+						);
+
+			// Batch guard for a bulk payload: resolve every distinct categoryId's
+			// leaf/folder status in **one** query (ADR 0001), failing on the first
+			// folder found. An empty id set (no row carries a category) touches no DB.
+			const assertAllLeaves = (
+				records: ReadonlyArray<TransactionCreate>,
+			): Effect.Effect<void, CategoryNotLeaf> => {
+				const ids = [
+					...new Set(
+						records.flatMap((r) =>
+							r.categoryId != null ? [r.categoryId] : [],
+						),
+					),
+				];
+				return ids.length === 0
+					? Effect.void
+					: foldersInQuery(ids).pipe(
+							orDieSql,
+							Effect.flatMap((rows) =>
+								rows.length === 0
+									? Effect.void
+									: Effect.fail(
+											new CategoryNotLeaf({ categoryId: rows[0]?.id ?? 0 }),
+										),
+							),
+						);
+			};
+
 			/** Unwrap a lookup's `Option`, 404-ing when absent (id goes on the error). */
 			const requireOne = (
 				found: Option.Option<Transaction>,
@@ -421,13 +497,18 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				);
 
 			const create = (payload: TransactionCreate) =>
-				insertQuery(toWriteRow(payload)).pipe(orDieSql);
+				assertLeaf(payload.categoryId).pipe(
+					Effect.andThen(insertQuery(toWriteRow(payload)).pipe(orDieSql)),
+				);
 
 			const update = (
 				id: typeof TransactionId.Type,
 				changes: TransactionUpdate,
 			) =>
-				getStoredById(id).pipe(
+				// Guard only the incoming change: a folder categoryId in the payload is
+				// rejected before the merge (a leaf already stored stays untouched).
+				assertLeaf(changes.categoryId).pipe(
+					Effect.andThen(getStoredById(id)),
 					// getStoredById 404s if missing; the write then always hits a row.
 					// Merge the raw *stored* row (never the derived read — that would
 					// round-trip a derived category into storage) with the changes,
@@ -450,11 +531,17 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 
 			// Insert every record, returning the created rows with generated ids
 			// (201). Reuses the core single-row `insertQuery`; an empty `records`
-			// array runs no statement and yields `[]`.
+			// array runs no statement and yields `[]`. A folder in any row's
+			// `categoryId` is rejected up front in one query (ADR 0001), before a
+			// single row is written.
 			const bulkCreate = (records: ReadonlyArray<TransactionCreate>) =>
-				Effect.forEach(records, (payload) =>
-					insertQuery(toWriteRow(payload)),
-				).pipe(orDieSql);
+				assertAllLeaves(records).pipe(
+					Effect.andThen(
+						Effect.forEach(records, (payload) =>
+							insertQuery(toWriteRow(payload)),
+						).pipe(orDieSql),
+					),
+				);
 
 			// Upsert every full record by id (`INSERT OR REPLACE`). Returns the count
 			// written (every record is affected — upsert never no-ops). Empty → 0.
