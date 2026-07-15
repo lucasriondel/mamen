@@ -51,9 +51,7 @@ function resolveCategoryIds(
 	if (category === undefined) return { category: undefined, ids: [] };
 	const ids =
 		category.parentId === null
-			? categories
-					.filter((c) => c.parentId === categoryId)
-					.map((c) => c.id as CategoryId)
+			? categories.filter((c) => c.parentId === categoryId).map((c) => c.id)
 			: [categoryId as CategoryId];
 	return { category, ids };
 }
@@ -85,30 +83,9 @@ export function CategoryTransactionsView() {
 	);
 	const hasSet = ids.length > 0;
 
-	const listParams = useMemo<TransactionListParams>(
-		() => ({
-			limit: TRANSACTIONS_PAGE_SIZE,
-			offset: search.offset ?? 0,
-			orderBy: "date",
-			direction: search.direction ?? "desc",
-			categoryId: ids,
-			...(search.accountId != null
-				? { accountId: search.accountId as AccountId }
-				: {}),
-			...(search.importMonth != null
-				? { importMonth: search.importMonth }
-				: {}),
-		}),
-		[
-			ids,
-			search.offset,
-			search.direction,
-			search.accountId,
-			search.importMonth,
-		],
-	);
-
-	const countParams = useMemo(
+	// The category + account/month filter shared by the list and the count, so the
+	// total header and the rows beneath it read the exact same set.
+	const filters = useMemo(
 		() => ({
 			categoryId: ids,
 			...(search.accountId != null
@@ -121,6 +98,17 @@ export function CategoryTransactionsView() {
 		[ids, search.accountId, search.importMonth],
 	);
 
+	const listParams = useMemo<TransactionListParams>(
+		() => ({
+			limit: TRANSACTIONS_PAGE_SIZE,
+			offset: search.offset ?? 0,
+			orderBy: "date",
+			direction: search.direction ?? "desc",
+			...filters,
+		}),
+		[filters, search.offset, search.direction],
+	);
+
 	const transactionsQuery = useQuery({
 		...transactionQueries.list(listParams),
 		enabled: hasSet,
@@ -128,7 +116,7 @@ export function CategoryTransactionsView() {
 	// The signed net total over the whole filtered set — from the `count`
 	// response, sharing the list's filter object so the two can never disagree.
 	const countQuery = useQuery({
-		...transactionQueries.count(countParams),
+		...transactionQueries.count(filters),
 		enabled: hasSet,
 	});
 	const accountsQuery = useQuery(accountQueries.list());
