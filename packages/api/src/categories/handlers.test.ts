@@ -2,9 +2,12 @@ import { HttpApiBuilder, HttpApiClient } from "@effect/platform";
 import { NodeHttpServer } from "@effect/platform-node";
 import { assert, describe, it } from "@effect/vitest";
 import {
+	AccountId,
 	Api,
 	type CategoryCreate,
+	CategoryHasChildren,
 	CategoryId,
+	CategoryInUse,
 	CategoryParentNotFolder,
 	NotFound,
 } from "@mamen/shared/contract";
@@ -22,6 +25,9 @@ const HttpLive = HttpApiBuilder.serve().pipe(
 );
 
 const asId = Schema.decodeSync(CategoryId);
+const asAccount = Schema.decodeSync(AccountId);
+
+const TX_DATE = new Date("2026-03-01T00:00:00.000Z");
 
 /** A valid create payload; override any field per test. */
 const make = (over: Partial<CategoryCreate> = {}): CategoryCreate => ({
@@ -363,6 +369,240 @@ describe("categories endpoints", () => {
 						urlParams: { limit: 100, offset: 0 },
 					});
 					assert.strictEqual(after.total, before.total);
+				}).pipe(Effect.provide(HttpLive)),
+		);
+	});
+
+	// The two-level invariant's remaining `update` guards (ADR 0001, rules 2–3):
+	// a leaf may not move under another leaf, and a folder with children may not be
+	// given a parent — either would sink a category to depth 3, off a node the
+	// folder rollup never visits, silently understating the total.
+	describe("two-level invariant on update (re-parent guards)", () => {
+		it.effect("rejects moving a leaf under another leaf", () =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const folder = yield* client.categories.create({
+					payload: make({ slug: "food" }),
+				});
+				const groceries = yield* client.categories.create({
+					payload: make({ slug: "groceries", parentId: folder.id }),
+				});
+				const restaurants = yield* client.categories.create({
+					payload: make({ slug: "restaurants", parentId: folder.id }),
+				});
+
+				// Moving Groceries under Restaurants (a leaf) would sit it at depth 3.
+				const error = yield* client.categories
+					.update({
+						path: { id: groceries.id },
+						payload: { parentId: restaurants.id },
+					})
+					.pipe(Effect.flip);
+				assert.ok(error instanceof CategoryParentNotFolder);
+				assert.strictEqual(error.parentId, restaurants.id);
+			}).pipe(Effect.provide(HttpLive)),
+		);
+
+		it.effect("rejects giving a parent to a folder that has children", () =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const food = yield* client.categories.create({
+					payload: make({ slug: "food" }),
+				});
+				yield* client.categories.create({
+					payload: make({ slug: "groceries", parentId: food.id }),
+				});
+				const other = yield* client.categories.create({
+					payload: make({ slug: "other" }),
+				});
+
+				// Food still holds Groceries; re-homing it under Other would sink
+				// Groceries to depth 3.
+				const error = yield* client.categories
+					.update({ path: { id: food.id }, payload: { parentId: other.id } })
+					.pipe(Effect.flip);
+				assert.ok(error instanceof CategoryHasChildren);
+				assert.strictEqual(error.categoryId, food.id);
+			}).pipe(Effect.provide(HttpLive)),
+		);
+
+		it.effect("moves a leaf to a different folder (its identity follows)", () =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const food = yield* client.categories.create({
+					payload: make({ slug: "food" }),
+				});
+				const life = yield* client.categories.create({
+					payload: make({ slug: "life" }),
+				});
+				const coffee = yield* client.categories.create({
+					payload: make({ slug: "coffee", parentId: food.id }),
+				});
+
+				const moved = yield* client.categories.update({
+					path: { id: coffee.id },
+					payload: { parentId: life.id },
+				});
+				// Same category id — a transaction pointing at it follows to the new
+				// folder for free; only its `parentId` changed.
+				assert.strictEqual(moved.id, coffee.id);
+				assert.strictEqual(moved.parentId, life.id);
+			}).pipe(Effect.provide(HttpLive)),
+		);
+
+		it.effect("lets an empty folder be given a parent (becomes a leaf)", () =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const food = yield* client.categories.create({
+					payload: make({ slug: "food" }),
+				});
+				const empty = yield* client.categories.create({
+					payload: make({ slug: "empty" }),
+				});
+
+				// No children hang off `empty`, so re-homing it under a folder is a
+				// legal folder→leaf move.
+				const moved = yield* client.categories.update({
+					path: { id: empty.id },
+					payload: { parentId: food.id },
+				});
+				assert.strictEqual(moved.parentId, food.id);
+			}).pipe(Effect.provide(HttpLive)),
+		);
+	});
+
+	// The guarded delete (ADR 0001): a category is refused deletion while anything
+	// still depends on it, and the refusal names each dependent by count so the
+	// user can re-assign first. Neither cascading nor nulling is offered.
+	describe("guarded delete", () => {
+		it.effect("refuses to delete a folder that still has children", () =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const folder = yield* client.categories.create({
+					payload: make({ slug: "food" }),
+				});
+				yield* client.categories.create({
+					payload: make({ slug: "groceries", parentId: folder.id }),
+				});
+				yield* client.categories.create({
+					payload: make({ slug: "restaurants", parentId: folder.id }),
+				});
+
+				const error = yield* client.categories
+					.remove({ path: { id: folder.id } })
+					.pipe(Effect.flip);
+				assert.ok(error instanceof CategoryInUse);
+				assert.strictEqual(error.categoryId, folder.id);
+				assert.strictEqual(error.children, 2);
+				assert.strictEqual(error.transactions, 0);
+				assert.strictEqual(error.issuers, 0);
+
+				// The folder is untouched — nothing was cascaded away.
+				const still = yield* client.categories.getById({
+					path: { id: folder.id },
+				});
+				assert.strictEqual(still.id, folder.id);
+			}).pipe(Effect.provide(HttpLive)),
+		);
+
+		it.effect("refuses to delete a leaf still assigned to transactions", () =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const folder = yield* client.categories.create({
+					payload: make({ slug: "food" }),
+				});
+				const leaf = yield* client.categories.create({
+					payload: make({ slug: "groceries", parentId: folder.id }),
+				});
+
+				// A transaction carrying this leaf as a Category override.
+				yield* client.transactions.create({
+					payload: {
+						accountId: asAccount(1),
+						date: TX_DATE,
+						amount: 12.5,
+						rawIssuerString: "MARKET",
+						importedAt: TX_DATE,
+						importMonth: "2026-03",
+						categoryId: leaf.id,
+						manualCategory: true,
+					},
+				});
+
+				const error = yield* client.categories
+					.remove({ path: { id: leaf.id } })
+					.pipe(Effect.flip);
+				assert.ok(error instanceof CategoryInUse);
+				assert.strictEqual(error.categoryId, leaf.id);
+				assert.strictEqual(error.children, 0);
+				assert.strictEqual(error.transactions, 1);
+				assert.strictEqual(error.issuers, 0);
+			}).pipe(Effect.provide(HttpLive)),
+		);
+
+		it.effect("refuses to delete a leaf held as an issuer default", () =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const folder = yield* client.categories.create({
+					payload: make({ slug: "food" }),
+				});
+				const leaf = yield* client.categories.create({
+					payload: make({ slug: "groceries", parentId: folder.id }),
+				});
+
+				// An issuer holding this leaf as its default category.
+				yield* client.issuers.create({
+					payload: {
+						name: "Whole Foods",
+						firstSeen: TX_DATE,
+						defaultCategoryId: leaf.id,
+					},
+				});
+
+				const error = yield* client.categories
+					.remove({ path: { id: leaf.id } })
+					.pipe(Effect.flip);
+				assert.ok(error instanceof CategoryInUse);
+				assert.strictEqual(error.categoryId, leaf.id);
+				assert.strictEqual(error.children, 0);
+				assert.strictEqual(error.transactions, 0);
+				assert.strictEqual(error.issuers, 1);
+			}).pipe(Effect.provide(HttpLive)),
+		);
+
+		it.effect(
+			"deletes a leaf when nothing depends on it (a bare override doesn't count)",
+			() =>
+				Effect.gen(function* () {
+					const client = yield* HttpApiClient.make(Api);
+					const folder = yield* client.categories.create({
+						payload: make({ slug: "food" }),
+					});
+					const leaf = yield* client.categories.create({
+						payload: make({ slug: "groceries", parentId: folder.id }),
+					});
+
+					// A transaction that once referenced the leaf but whose override was
+					// removed (manualCategory cleared) is *not* a live assignment — the
+					// derivation ignores a non-manual `categoryId` — so it must not block.
+					yield* client.transactions.create({
+						payload: {
+							accountId: asAccount(1),
+							date: TX_DATE,
+							amount: 12.5,
+							rawIssuerString: "MARKET",
+							importedAt: TX_DATE,
+							importMonth: "2026-03",
+							categoryId: leaf.id,
+							manualCategory: false,
+						},
+					});
+
+					yield* client.categories.remove({ path: { id: leaf.id } });
+					const error = yield* client.categories
+						.getById({ path: { id: leaf.id } })
+						.pipe(Effect.flip);
+					assert.ok(error instanceof NotFound);
 				}).pipe(Effect.provide(HttpLive)),
 		);
 	});

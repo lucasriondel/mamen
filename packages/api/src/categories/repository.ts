@@ -2,7 +2,9 @@ import { SqlClient, SqlSchema } from "@effect/sql";
 import {
 	Category,
 	type CategoryCreate,
+	CategoryHasChildren,
 	CategoryId,
+	CategoryInUse,
 	CategoryParentNotFolder,
 	type CategoryUpdate,
 	NotFound,
@@ -55,12 +57,12 @@ export class CategoryRepo extends Effect.Service<CategoryRepo>()(
 			// insertion order / `id`). Both independent and combinable — the
 			// fragment is empty when neither is set, replacing the old fan-out.
 			const whereClause = (parentId: number | undefined) =>
-				parentId === undefined
-					? sql``
-					: sql`WHERE parentId = ${parentId}`;
+				parentId === undefined ? sql`` : sql`WHERE parentId = ${parentId}`;
 
 			const orderClause = (orderBy: "sortOrder" | undefined) =>
-				orderBy === "sortOrder" ? sql`ORDER BY sortOrder ASC` : sql`ORDER BY id`;
+				orderBy === "sortOrder"
+					? sql`ORDER BY sortOrder ASC`
+					: sql`ORDER BY id`;
 
 			// `Request: Schema.Any` skips a redundant re-decode: the filter is
 			// already decoded + branded at the HTTP boundary (`CategoryListFilters`
@@ -168,6 +170,34 @@ export class CategoryRepo extends Effect.Service<CategoryRepo>()(
 						);
 			};
 
+			// The three dependency counts the guarded delete consults (ADR 0001).
+			// Each is one indexed count; together they name what still depends on a
+			// category so the refusal can tell the caller what to re-assign first.
+			// `children` — leaves under a folder; `transactions` — override rows
+			// pointing at a leaf (a *manual* category, the only kind the derivation
+			// reads; a stale non-manual `categoryId` is not a live assignment);
+			// `issuers` — a leaf held as an Issuer default category.
+			const childCountQuery = SqlSchema.single({
+				Request: Schema.Number,
+				Result: CountResult,
+				execute: (id) =>
+					sql`SELECT COUNT(*) AS count FROM categories WHERE parentId = ${id}`,
+			});
+
+			const txRefCountQuery = SqlSchema.single({
+				Request: Schema.Number,
+				Result: CountResult,
+				execute: (id) =>
+					sql`SELECT COUNT(*) AS count FROM transactions WHERE categoryId = ${id} AND manualCategory = 1`,
+			});
+
+			const issuerRefCountQuery = SqlSchema.single({
+				Request: Schema.Number,
+				Result: CountResult,
+				execute: (id) =>
+					sql`SELECT COUNT(*) AS count FROM issuers WHERE defaultCategoryId = ${id}`,
+			});
+
 			const CategoryInsert = CategoryRow.pipe(Schema.omit("id"));
 
 			const insertQuery = SqlSchema.single({
@@ -198,6 +228,60 @@ export class CategoryRepo extends Effect.Service<CategoryRepo>()(
 						Effect.fail(new NotFound({ resource: "category", id: key })),
 					onSome: Effect.succeed,
 				});
+
+			/**
+			 * The two-level invariant's remaining `update` guard for the moved node
+			 * (ADR 0001, rule 3): a **folder that still has children** may not be given
+			 * a parent, which would sink its children to depth 3. Only fires when the
+			 * update sets a non-null `parentId`; clearing a parent (`null`) or leaving
+			 * it unchanged (`undefined`) skips it, as does a leaf (no children). The
+			 * companion "leaf under another leaf" case is caught by
+			 * {@link assertParentIsFolder} on the *new* parent.
+			 */
+			const assertNotFolderWithChildren = (
+				id: number,
+				parentId: number | null | undefined,
+			): Effect.Effect<void, CategoryHasChildren> =>
+				parentId == null
+					? Effect.void
+					: childCountQuery(id).pipe(
+							orDieSql,
+							Effect.flatMap((r) =>
+								r.count > 0
+									? Effect.fail(new CategoryHasChildren({ categoryId: id }))
+									: Effect.void,
+							),
+						);
+
+			/**
+			 * The **Guarded delete** (ADR 0001): refuse while anything still depends on
+			 * the category. Runs the three dependency counts in one pass; if any is
+			 * non-zero, fails with {@link CategoryInUse} carrying every count, so the
+			 * refusal can name each dependent kind. Neither cascading nor nulling is
+			 * offered — both silently drop money out of totals.
+			 */
+			const assertNoDependents = (
+				id: number,
+			): Effect.Effect<void, CategoryInUse> =>
+				Effect.all({
+					children: childCountQuery(id).pipe(Effect.map((r) => r.count)),
+					transactions: txRefCountQuery(id).pipe(Effect.map((r) => r.count)),
+					issuers: issuerRefCountQuery(id).pipe(Effect.map((r) => r.count)),
+				}).pipe(
+					orDieSql,
+					Effect.flatMap(({ children, transactions, issuers }) =>
+						children + transactions + issuers > 0
+							? Effect.fail(
+									new CategoryInUse({
+										categoryId: id,
+										children,
+										transactions,
+										issuers,
+									}),
+								)
+							: Effect.void,
+					),
+				);
 
 			const list = (filter: ListFilter) =>
 				Effect.all({
@@ -266,15 +350,26 @@ export class CategoryRepo extends Effect.Service<CategoryRepo>()(
 				getById(id).pipe(
 					// getById already 404s if missing; the write then always hits a row.
 					Effect.flatMap((current) =>
-						updateQuery(
-							new Category({ ...current, ...changes }),
-						).pipe(orDieSql),
+						// The two-level invariant's `update` guards (ADR 0001, rules 2–3):
+						// the new parent must be a folder (never a leaf), and a folder with
+						// children may not be given a parent. Both run before the write.
+						assertParentIsFolder(changes.parentId).pipe(
+							Effect.andThen(assertNotFolderWithChildren(id, changes.parentId)),
+							Effect.andThen(
+								updateQuery(new Category({ ...current, ...changes })).pipe(
+									orDieSql,
+								),
+							),
+						),
 					),
 				);
 
 			const remove = (id: typeof CategoryId.Type) =>
 				getById(id).pipe(
-					Effect.flatMap(() =>
+					// getById 404s if missing; then the guarded delete refuses while
+					// anything still depends on the category (ADR 0001).
+					Effect.andThen(assertNoDependents(id)),
+					Effect.andThen(
 						orDieSql(sql`DELETE FROM categories WHERE id = ${id}`),
 					),
 					Effect.asVoid,

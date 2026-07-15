@@ -62,6 +62,46 @@ export class CategoryParentNotFolder extends Schema.TaggedError<CategoryParentNo
 	HttpApiSchema.annotations({ status: 422 }),
 ) {}
 
+/**
+ * A category being moved is a **folder that still has children**, and the update
+ * would give it a parent — turning a grouping node into a leaf while its own
+ * children hang beneath it, three deep. The other half of the two-level
+ * invariant's `update` guards (ADR 0001, rule 3): a depth-3 category hangs
+ * transactions off a node the folder rollup never visits, understating the total
+ * with no error on screen. `categoryId` names the folder so the caller can empty
+ * or re-home its children first. (A leaf moved under another leaf is caught by
+ * {@link CategoryParentNotFolder}; this is the mirror for the moved node.)
+ */
+export class CategoryHasChildren extends Schema.TaggedError<CategoryHasChildren>()(
+	"CategoryHasChildren",
+	{
+		categoryId: Schema.Number,
+	},
+	HttpApiSchema.annotations({ status: 422 }),
+) {}
+
+/**
+ * A category cannot be deleted because something still **depends on it** — the
+ * **Guarded delete** (ADR 0001). The refusal names each kind of dependent by
+ * count so the caller can go re-assign first: `children` (a **Category folder**
+ * still holding leaves), `transactions` (a **Category leaf** still carrying
+ * overrides that point at it), and `issuers` (a leaf still held as an **Issuer
+ * default category**). At least one is non-zero. Neither cascading the delete nor
+ * nulling the references is acceptable: both silently drop money out of every
+ * total — the exact failure the two-level invariant exists to prevent, arriving
+ * through a different door. Mirrors the guarded delete already used for issuers.
+ */
+export class CategoryInUse extends Schema.TaggedError<CategoryInUse>()(
+	"CategoryInUse",
+	{
+		categoryId: Schema.Number,
+		children: Schema.Number,
+		transactions: Schema.Number,
+		issuers: Schema.Number,
+	},
+	HttpApiSchema.annotations({ status: 409 }),
+) {}
+
 /** An upload's MIME type is not in the image allow-list. */
 export class InvalidFileType extends Schema.TaggedError<InvalidFileType>()(
 	"InvalidFileType",

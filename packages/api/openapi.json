@@ -680,6 +680,23 @@
               }
             }
           },
+          "422": {
+            "description": "CategoryParentNotFolder",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/CategoryParentNotFolder"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CategoryHasChildren"
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "500": {
             "description": "InternalServerError"
           }
@@ -762,6 +779,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/NotFound"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CategoryInUse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryInUse"
                 }
               }
             }
@@ -4546,6 +4573,56 @@
             "type": "string",
             "enum": [
               "CategoryParentNotFolder"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "CategoryHasChildren": {
+        "type": "object",
+        "required": [
+          "categoryId",
+          "_tag"
+        ],
+        "properties": {
+          "categoryId": {
+            "type": "number"
+          },
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "CategoryHasChildren"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "CategoryInUse": {
+        "type": "object",
+        "required": [
+          "categoryId",
+          "children",
+          "transactions",
+          "issuers",
+          "_tag"
+        ],
+        "properties": {
+          "categoryId": {
+            "type": "number"
+          },
+          "children": {
+            "type": "number"
+          },
+          "transactions": {
+            "type": "number"
+          },
+          "issuers": {
+            "type": "number"
+          },
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "CategoryInUse"
             ]
           }
         },

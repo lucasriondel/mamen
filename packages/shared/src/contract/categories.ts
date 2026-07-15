@@ -5,7 +5,12 @@ import {
 	OpenApi,
 } from "@effect/platform";
 import { Schema } from "effect";
-import { CategoryParentNotFolder, NotFound } from "./errors";
+import {
+	CategoryHasChildren,
+	CategoryInUse,
+	CategoryParentNotFolder,
+	NotFound,
+} from "./errors";
 import { CategoryId, numFromStr } from "./ids";
 import { Paged, Pagination } from "./pagination";
 
@@ -58,8 +63,14 @@ export const CategoryListFilters = {
  * uniqueness constraint (faithful port), so no endpoint declares `Conflict`.
  * `create`/`bulkCreate` declare `CategoryParentNotFolder` (422): the two-level
  * invariant (ADR 0001, rule 1) rejects a `parentId` pointing at a leaf, which
- * would nest the new category three deep. `getById`/`getBySlug`/`update`/`remove`
- * 404 on a missing key. Dropped vs today: `GET /categories/root`, `PUT
+ * would nest the new category three deep. `update` declares the same
+ * `CategoryParentNotFolder` (moving a leaf under another leaf) plus
+ * `CategoryHasChildren` (422, giving a parent to a folder that still has
+ * children) — the two-level invariant's remaining `update` guards (ADR 0001,
+ * rules 2–3). `remove` declares `CategoryInUse` (409): the **Guarded delete**,
+ * refused while a folder has children or a leaf is still assigned to
+ * transactions or held as an issuer default. `getById`/`getBySlug`/`update`/
+ * `remove` 404 on a missing key. Dropped vs today: `GET /categories/root`, `PUT
  * /categories/bulk-put`, `POST /categories/clear` (all client-only).
  */
 export class CategoriesGroup extends HttpApiGroup.make("categories")
@@ -100,13 +111,16 @@ export class CategoriesGroup extends HttpApiGroup.make("categories")
 		)`/categories/${HttpApiSchema.param("id", numFromStr(CategoryId))}`
 			.setPayload(CategoryUpdate)
 			.addSuccess(Category)
-			.addError(NotFound),
+			.addError(NotFound)
+			.addError(CategoryParentNotFolder)
+			.addError(CategoryHasChildren),
 	)
 	.add(
 		HttpApiEndpoint.del(
 			"remove",
 		)`/categories/${HttpApiSchema.param("id", numFromStr(CategoryId))}`
 			.addSuccess(HttpApiSchema.NoContent)
-			.addError(NotFound),
+			.addError(NotFound)
+			.addError(CategoryInUse),
 	)
 	.annotateContext(OpenApi.annotations({ title: "Categories" })) {}

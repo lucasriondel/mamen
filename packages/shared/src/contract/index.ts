@@ -23,6 +23,8 @@ export {
 } from "./database";
 export {
 	BooleanFromString,
+	CategoryHasChildren,
+	CategoryInUse,
 	CategoryNotLeaf,
 	CategoryParentNotFolder,
 	Conflict,
