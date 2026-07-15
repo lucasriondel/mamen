@@ -400,13 +400,14 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 					? Effect.void
 					: foldersInQuery(ids).pipe(
 							orDieSql,
-							Effect.flatMap((rows) =>
-								rows.length === 0
+							Effect.flatMap((rows) => {
+								const folder = rows[0];
+								return folder === undefined
 									? Effect.void
 									: Effect.fail(
-											new CategoryNotLeaf({ categoryId: rows[0]?.id ?? 0 }),
-										),
-							),
+											new CategoryNotLeaf({ categoryId: folder.id }),
+										);
+							}),
 						);
 			};
 
