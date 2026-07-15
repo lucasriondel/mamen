@@ -29,13 +29,25 @@ const seed = Effect.gen(function* () {
 	const account = yield* client.accounts.create({
 		payload: { name: "Checking", type: "checking" },
 	});
+	// A folder + a leaf under it: the issuer default must be an assignable leaf,
+	// never a folder (two-level invariant, ADR 0001).
+	const folder = yield* client.categories.create({
+		payload: {
+			name: "Food",
+			slug: "food",
+			color: "#0f0",
+			icon: "folder",
+			parentId: null,
+			sortOrder: 1,
+		},
+	});
 	const category = yield* client.categories.create({
 		payload: {
 			name: "Groceries",
 			slug: "groceries",
 			color: "#0f0",
 			icon: "cart",
-			parentId: null,
+			parentId: folder.id,
 			sortOrder: 1,
 		},
 	});

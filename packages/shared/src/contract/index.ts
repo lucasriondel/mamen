@@ -23,6 +23,7 @@ export {
 } from "./database";
 export {
 	BooleanFromString,
+	CategoryNotLeaf,
 	Conflict,
 	InvalidFileType,
 	NotFound,

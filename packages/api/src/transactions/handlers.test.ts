@@ -863,4 +863,38 @@ describe("derived category through issuer", () => {
 			assert.strictEqual(fetched.categoryId, undefined);
 		}).pipe(Effect.provide(HttpLive)),
 	);
+
+	it.effect(
+		"clearing the issuer default unassigns its non-manual transactions",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const issuer = yield* client.issuers.create({
+					payload: {
+						name: "Amazon",
+						firstSeen: FIRST_SEEN,
+						defaultCategoryId: asCategory(7),
+					},
+				});
+				const created = yield* client.transactions.create({
+					payload: make({ issuerId: issuer.id }),
+				});
+				assert.strictEqual(
+					(yield* client.transactions.getById({ path: { id: created.id } }))
+						.categoryId,
+					asCategory(7),
+				);
+
+				// Clear the issuer default (a `null` update) → the row reads Unassigned.
+				yield* client.issuers.update({
+					path: { id: issuer.id },
+					payload: { defaultCategoryId: null },
+				});
+				assert.strictEqual(
+					(yield* client.transactions.getById({ path: { id: created.id } }))
+						.categoryId,
+					undefined,
+				);
+			}).pipe(Effect.provide(HttpLive)),
+	);
 });

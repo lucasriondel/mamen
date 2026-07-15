@@ -10,6 +10,8 @@ import { NodeHttpServer } from "@effect/platform-node";
 import { afterAll, assert, beforeAll, describe, it } from "@effect/vitest";
 import {
 	Api,
+	type CategoryCreate,
+	CategoryNotLeaf,
 	InvalidFileType,
 	type IssuerCreate,
 	IssuerId,
@@ -53,6 +55,17 @@ const FIRST_SEEN = new Date("2026-01-15T00:00:00.000Z");
 const make = (over: Partial<IssuerCreate> = {}): IssuerCreate => ({
 	name: "Acme",
 	firstSeen: FIRST_SEEN,
+	...over,
+});
+
+/** A category-create payload; a folder by default (`parentId: null`). */
+const makeCategory = (over: Partial<CategoryCreate> = {}): CategoryCreate => ({
+	name: "Food",
+	slug: "food",
+	color: "#ff0000",
+	icon: "🍔",
+	parentId: null,
+	sortOrder: 0,
 	...over,
 });
 
@@ -161,6 +174,94 @@ describe("issuers endpoints", () => {
 				updated.createdAt.getTime(),
 				created.createdAt.getTime(),
 			);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	// The two-level invariant (ADR 0001) at the issuers door: a default category
+	// must be an assignable leaf, never a folder. A folder-assigned issuer would
+	// hang its transactions off a node the rollup visits but never counts.
+	it.effect("create accepts a leaf as the default category", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const folder = yield* client.categories.create({
+				payload: makeCategory({ name: "Food", slug: "food-x" }),
+			});
+			const leaf = yield* client.categories.create({
+				payload: makeCategory({
+					name: "Groceries",
+					slug: "groceries-x",
+					parentId: folder.id,
+				}),
+			});
+
+			const created = yield* client.issuers.create({
+				payload: make({ name: "Market", defaultCategoryId: leaf.id }),
+			});
+			assert.strictEqual(created.defaultCategoryId, leaf.id);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("create rejects a folder as the default category", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const folder = yield* client.categories.create({
+				payload: makeCategory({ name: "Food", slug: "food-y", parentId: null }),
+			});
+
+			const error = yield* client.issuers
+				.create({ payload: make({ defaultCategoryId: folder.id }) })
+				.pipe(Effect.flip);
+			assert.ok(error instanceof CategoryNotLeaf);
+			assert.strictEqual(error.categoryId, folder.id);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("update rejects a folder as the default category", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const created = yield* client.issuers.create({ payload: make() });
+			const folder = yield* client.categories.create({
+				payload: makeCategory({ name: "Food", slug: "food-z", parentId: null }),
+			});
+
+			const error = yield* client.issuers
+				.update({
+					path: { id: created.id },
+					payload: { defaultCategoryId: folder.id },
+				})
+				.pipe(Effect.flip);
+			assert.ok(error instanceof CategoryNotLeaf);
+			assert.strictEqual(error.categoryId, folder.id);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("update sets and then clears the default category", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const folder = yield* client.categories.create({
+				payload: makeCategory({ name: "Food", slug: "food-c" }),
+			});
+			const leaf = yield* client.categories.create({
+				payload: makeCategory({
+					name: "Groceries",
+					slug: "groceries-c",
+					parentId: folder.id,
+				}),
+			});
+			const created = yield* client.issuers.create({ payload: make() });
+
+			const set = yield* client.issuers.update({
+				path: { id: created.id },
+				payload: { defaultCategoryId: leaf.id },
+			});
+			assert.strictEqual(set.defaultCategoryId, leaf.id);
+
+			// A `null` clears it (absent-means-unchanged can't express this).
+			const cleared = yield* client.issuers.update({
+				path: { id: created.id },
+				payload: { defaultCategoryId: null },
+			});
+			assert.strictEqual(cleared.defaultCategoryId, undefined);
 		}).pipe(Effect.provide(HttpLive)),
 	);
 

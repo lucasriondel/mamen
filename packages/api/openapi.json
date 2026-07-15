@@ -1020,6 +1020,16 @@
               }
             }
           },
+          "422": {
+            "description": "CategoryNotLeaf",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryNotLeaf"
+                }
+              }
+            }
+          },
           "500": {
             "description": "InternalServerError"
           }
@@ -1157,6 +1167,16 @@
               }
             }
           },
+          "422": {
+            "description": "CategoryNotLeaf",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryNotLeaf"
+                }
+              }
+            }
+          },
           "500": {
             "description": "InternalServerError"
           }
@@ -1175,9 +1195,16 @@
                     "type": "string"
                   },
                   "defaultCategoryId": {
-                    "type": "integer",
-                    "description": "an integer",
-                    "title": "int"
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "description": "an integer",
+                        "title": "int"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "firstSeen": {
                     "$ref": "#/components/schemas/Date"
@@ -4461,6 +4488,25 @@
           },
           "firstSeen": {
             "$ref": "#/components/schemas/Date"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CategoryNotLeaf": {
+        "type": "object",
+        "required": [
+          "categoryId",
+          "_tag"
+        ],
+        "properties": {
+          "categoryId": {
+            "type": "number"
+          },
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "CategoryNotLeaf"
+            ]
           }
         },
         "additionalProperties": false

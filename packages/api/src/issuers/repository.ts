@@ -1,5 +1,6 @@
 import { SqlClient, SqlSchema } from "@effect/sql";
 import {
+	CategoryNotLeaf,
 	Issuer,
 	type IssuerCreate,
 	IssuerId,
@@ -89,6 +90,10 @@ type WriteRow = {
  * port), so writes collapse a `SqlError` to a 500 defect ({@link orDieSql}) — no
  * `Conflict`. The image-file side of `uploadImage`/`deleteImage` lives in the
  * handler; this repo only sets/clears the `imageUrl` column via `update`.
+ *
+ * `create`/`update` guard `defaultCategoryId` against the two-level invariant
+ * (ADR 0001) via {@link assertLeaf} — a folder is rejected as `CategoryNotLeaf`.
+ * `update` additionally treats a `null` `defaultCategoryId` as a *clear*.
  */
 export class IssuerRepo extends Effect.Service<IssuerRepo>()(
 	"api/IssuerRepo",
@@ -140,6 +145,15 @@ export class IssuerRepo extends Effect.Service<IssuerRepo>()(
 					sql`SELECT * FROM issuers WHERE name COLLATE NOCASE = ${name}`,
 			});
 
+			// One indexed lookup of a category's `parentId` — the leaf/folder test
+			// for the two-level invariant guard below. A `null` parentId means the
+			// category is a folder (root); a non-null one means it's a leaf.
+			const parentIdQuery = SqlSchema.findOne({
+				Request: Schema.Number,
+				Result: Schema.Struct({ parentId: Schema.NullOr(Schema.Number) }),
+				execute: (id) => sql`SELECT parentId FROM categories WHERE id = ${id}`,
+			});
+
 			// Writes bind a plain null-mapped `WriteRow` object. `Request: Schema.Any`
 			// because the row is already a plain object (built in `create`/`update`),
 			// not something to decode; only the `Result` decode (RETURNING → entity)
@@ -188,6 +202,34 @@ export class IssuerRepo extends Effect.Service<IssuerRepo>()(
 					onSome: Effect.succeed,
 				});
 
+			/**
+			 * The two-level invariant (ADR 0001) at the issuers door: a default
+			 * category must be an assignable **leaf**, never a **folder** (a category
+			 * with no parent). A folder-assigned issuer would hang its transactions
+			 * off a node the category rollup visits but never counts, understating
+			 * the total with no error on screen — so reject at the write boundary,
+			 * the same door the UI and any future writer share. Absent (`undefined`)
+			 * or a clear (`null`) skips the check; an unknown id is left to pass (no
+			 * FK exists — policing missing rows is not this invariant's job).
+			 */
+			const assertLeaf = (
+				categoryId: number | null | undefined,
+			): Effect.Effect<void, CategoryNotLeaf> =>
+				categoryId == null
+					? Effect.void
+					: parentIdQuery(categoryId).pipe(
+							orDieSql,
+							Effect.flatMap((found) =>
+								Option.match(found, {
+									onNone: () => Effect.void,
+									onSome: (row) =>
+										row.parentId === null
+											? Effect.fail(new CategoryNotLeaf({ categoryId }))
+											: Effect.void,
+								}),
+							),
+						);
+
 			/** Fold an entity into a plain, null-mapped write row (drops `id`). */
 			const toWriteRow = (m: Issuer): WriteRow => ({
 				name: m.name,
@@ -225,26 +267,45 @@ export class IssuerRepo extends Effect.Service<IssuerRepo>()(
 				);
 
 			const create = (payload: IssuerCreate) =>
-				nowIso.pipe(
-					Effect.flatMap((now) =>
-						insertQuery({
-							name: payload.name,
-							imageUrl: payload.imageUrl ?? null,
-							defaultCategoryId: payload.defaultCategoryId ?? null,
-							createdAt: now,
-							firstSeen: payload.firstSeen.toISOString(),
-						}),
+				assertLeaf(payload.defaultCategoryId).pipe(
+					Effect.andThen(
+						nowIso.pipe(
+							Effect.flatMap((now) =>
+								insertQuery({
+									name: payload.name,
+									imageUrl: payload.imageUrl ?? null,
+									defaultCategoryId: payload.defaultCategoryId ?? null,
+									createdAt: now,
+									firstSeen: payload.firstSeen.toISOString(),
+								}),
+							),
+							orDieSql,
+						),
 					),
-					orDieSql,
 				);
 
 			const update = (id: typeof IssuerId.Type, changes: IssuerUpdate) =>
-				getById(id).pipe(
+				assertLeaf(changes.defaultCategoryId).pipe(
 					// getById already 404s if missing; the write then always hits a row.
+					Effect.andThen(getById(id)),
 					Effect.flatMap((current) =>
 						updateQuery({
 							id,
-							...toWriteRow(new Issuer({ ...current, ...changes })),
+							// `new Issuer` can't carry a null defaultCategoryId (its field is
+							// optional, not nullable), so merge every other field through it
+							// and set the FK on the write row directly: a `null` in `changes`
+							// *clears* the default, an absent one leaves it unchanged.
+							...toWriteRow(
+								new Issuer({
+									...current,
+									...changes,
+									defaultCategoryId: current.defaultCategoryId,
+								}),
+							),
+							defaultCategoryId:
+								changes.defaultCategoryId !== undefined
+									? changes.defaultCategoryId
+									: (current.defaultCategoryId ?? null),
 						}).pipe(orDieSql),
 					),
 				);
