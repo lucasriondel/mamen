@@ -104,7 +104,7 @@ export function descendantIds(
 ): CategoryId[] {
 	return categories
 		.filter((cat) => cat.parentId === folderId)
-		.map((cat) => cat.id as CategoryId);
+		.map((cat) => cat.id);
 }
 
 /**
