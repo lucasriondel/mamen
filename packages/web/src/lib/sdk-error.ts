@@ -70,8 +70,6 @@ export function toErrorMessage(error: unknown): string {
 			return categoryInUseMessage(error);
 		case "CategoryHasChildren":
 			return "Move or delete the categories inside this folder before moving it under another.";
-		case "CategoryParentNotFolder":
-			return "A category can only sit inside a top-level folder, not inside another category.";
 		case "CategoryNotLeaf":
 			return "Pick a category, not a folder.";
 		default:

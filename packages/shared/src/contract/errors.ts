@@ -54,12 +54,11 @@ export class CategoryNotLeaf extends Schema.TaggedError<CategoryNotLeaf>()(
 
 /**
  * A category being moved is a **folder that still has children**, and the update
- * would give it a parent — turning a grouping node into a leaf while its own
- * children hang beneath it, three deep. The other half of the two-level
- * invariant's `update` guards (ADR 0001, rule 3): a depth-3 category hangs
- * transactions off a node the folder rollup never visits, understating the total
- * with no error on screen. `categoryId` names the folder so the caller can empty
- * or re-home its children first.
+ * would give it a parent. The remaining moved-node `update` guard that survives
+ * from ADR 0001 into the **Leaf-assignable invariant** (ADR 0003): a childless
+ * node is a legal home under any parent — depth is no longer capped — but a
+ * folder with children may not itself be given a parent. `categoryId` names the
+ * folder so the caller can empty or re-home its children first.
  */
 export class CategoryHasChildren extends Schema.TaggedError<CategoryHasChildren>()(
 	"CategoryHasChildren",

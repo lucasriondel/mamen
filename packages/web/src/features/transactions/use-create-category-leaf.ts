@@ -14,9 +14,8 @@ import { slugify } from "@/lib/utils";
  * already done is not wasted, and a slug is derived from it. Colour/icon get
  * neutral defaults the user can refine later on the categories page.
  *
- * On a rejected write — a `parentId` pointing at a leaf surfaces as
- * `CategoryParentNotFolder` server-side — a `sonner` toast reports it. Success
- * invalidates the categories key family so the new leaf shows in the picker.
+ * On a rejected write a `sonner` toast reports it. Success invalidates the
+ * categories key family so the new leaf shows in the picker.
  */
 export function useCreateCategoryLeaf() {
 	const queryClient = useQueryClient();
