@@ -2,12 +2,12 @@ import { SqlClient, SqlSchema } from "@effect/sql";
 import {
 	Category,
 	type CategoryCreate,
-	CategoryHasChildren,
 	CategoryHoldsMoney,
 	CategoryId,
 	CategoryInUse,
 	type CategorySpill,
 	type CategoryUpdate,
+	CategoryWouldCycle,
 	NotFound,
 	Paged,
 } from "@mamen/shared/contract";
@@ -125,6 +125,16 @@ export class CategoryRepo extends Effect.Service<CategoryRepo>()(
 					sql`SELECT COUNT(*) AS count FROM issuers WHERE defaultCategoryId = ${id}`,
 			});
 
+			// One hop up the tree: a node's `parentId` (or `null` at a root, `None`
+			// if the id is unknown). The cycle guard walks this repeatedly on
+			// `idx_categories_parentId`'s covered lookup to climb from a proposed new
+			// parent toward the root.
+			const parentOfQuery = SqlSchema.findOne({
+				Request: Schema.Number,
+				Result: Schema.Struct({ parentId: Schema.NullOr(Schema.Number) }),
+				execute: (id) => sql`SELECT parentId FROM categories WHERE id = ${id}`,
+			});
+
 			const CategoryInsert = CategoryRow.pipe(Schema.omit("id"));
 
 			const insertQuery = SqlSchema.single({
@@ -157,24 +167,44 @@ export class CategoryRepo extends Effect.Service<CategoryRepo>()(
 				});
 
 			/**
-			 * The remaining `update` guard for the moved node (ADR 0003): a **folder
-			 * that still has children** may not be given a parent. Only fires when the
-			 * update sets a non-null `parentId`; clearing a parent (`null`) or leaving
-			 * it unchanged (`undefined`) skips it, as does a leaf (no children). A
-			 * childless node is a legal home under any parent — depth is no longer
-			 * capped.
+			 * The **cycle guard** (ADR 0003, issue #31): a re-parent may not make a
+			 * node its own **ancestor**. The two-level tree made cycles impossible by
+			 * construction — a folder had no parent, so nothing could point back at it
+			 * — but unbounded depth removes that accident, and a cycle is not cosmetic:
+			 * a category orphaned into a ring vanishes from the tree entirely and the
+			 * recursive rollup walks it forever. Walk up from the proposed new parent
+			 * and refuse on reaching `id`, the node being moved. Refusing a node's own
+			 * descendant covers the **self-parent** case for free (a node is its own
+			 * trivial ancestor), so both fall out of one check. A `null`/`undefined`
+			 * parent (clearing / no change) cannot cycle. The walk terminates: the
+			 * pre-write tree has no cycles (this guard is why), so it climbs to a root's
+			 * `null`; a genuine cycle short-circuits the moment the cursor reaches `id`
+			 * — so a grandparent moved under its own grandchild is refused, not hung.
 			 */
-			const assertNotFolderWithChildren = (
+			const assertNoCycle = (
 				id: number,
 				parentId: number | null | undefined,
-			): Effect.Effect<void, CategoryHasChildren> =>
+			): Effect.Effect<void, CategoryWouldCycle> =>
 				parentId == null
 					? Effect.void
-					: childCountQuery(id).pipe(
-							orDieSql,
-							Effect.flatMap((r) =>
-								r.count > 0
-									? Effect.fail(new CategoryHasChildren({ categoryId: id }))
+					: Effect.iterate(parentId as number | null, {
+							while: (cursor) => cursor !== null && cursor !== id,
+							body: (cursor) =>
+								parentOfQuery(cursor as number).pipe(
+									orDieSql,
+									Effect.map(
+										Option.match({
+											onNone: () => null,
+											onSome: (r) => r.parentId,
+										}),
+									),
+								),
+						}).pipe(
+							Effect.flatMap((reached) =>
+								reached === id
+									? Effect.fail(
+											new CategoryWouldCycle({ categoryId: id, parentId }),
+										)
 									: Effect.void,
 							),
 						);
@@ -323,12 +353,15 @@ export class CategoryRepo extends Effect.Service<CategoryRepo>()(
 				getById(id).pipe(
 					// getById already 404s if missing; the write then always hits a row.
 					Effect.flatMap((current) =>
-						// Two re-parent guards (ADR 0003): the moved node may not be a
-						// folder that still has children (`assertNotFolderWithChildren`), and
-						// the new parent may not still hold money — a Kind flip that would
-						// strand it (`assertParentTakesNoMoney`, issue #30). The old "new
-						// parent must be a folder" check is gone — any node is a legal parent.
-						assertNotFolderWithChildren(id, changes.parentId).pipe(
+						// Two re-parent guards (ADR 0003): the move may not make the node
+						// its own ancestor — a cycle (`assertNoCycle`, issue #31) — and the
+						// new parent may not still hold money — a Kind flip that would
+						// strand it (`assertParentTakesNoMoney`, issue #30). Any node is a
+						// legal parent at any depth now (the old "new parent must be a
+						// folder" and "a folder with children may not be re-homed" checks
+						// are both gone), so re-parenting a whole subtree is legal; only a
+						// cycle or stranded money is refused.
+						assertNoCycle(id, changes.parentId).pipe(
 							Effect.andThen(assertParentTakesNoMoney(changes.parentId)),
 							Effect.andThen(
 								updateQuery(new Category({ ...current, ...changes })).pipe(

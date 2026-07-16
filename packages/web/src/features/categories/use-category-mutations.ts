@@ -22,7 +22,7 @@ const NEW_LEAF_ICON = "🏷️";
  * copy comes from the tagged error `_tag` ({@link toErrorMessage}). The guarded
  * delete's `CategoryInUse` carries dependent counts, so its toast *names* what to
  * re-assign first — more useful than a confirm dialog, because it says what would
- * break. The re-parent guard (`CategoryHasChildren`) and the leaf-only guard
+ * break. The re-parent cycle guard (`CategoryWouldCycle`) and the leaf-only guard
  * surface the same way.
  */
 export function useCategoryMutations() {

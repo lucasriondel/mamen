@@ -53,22 +53,6 @@ export class CategoryNotLeaf extends Schema.TaggedError<CategoryNotLeaf>()(
 ) {}
 
 /**
- * A category being moved is a **folder that still has children**, and the update
- * would give it a parent. The remaining moved-node `update` guard that survives
- * from ADR 0001 into the **Leaf-assignable invariant** (ADR 0003): a childless
- * node is a legal home under any parent — depth is no longer capped — but a
- * folder with children may not itself be given a parent. `categoryId` names the
- * folder so the caller can empty or re-home its children first.
- */
-export class CategoryHasChildren extends Schema.TaggedError<CategoryHasChildren>()(
-	"CategoryHasChildren",
-	{
-		categoryId: Schema.Number,
-	},
-	HttpApiSchema.annotations({ status: 422 }),
-) {}
-
-/**
  * A **Kind flip** was refused because it would **strand money**. Adding a child
  * to a **Category leaf** turns it into a **Category folder** (ADR 0003), but a
  * folder is a rollup node the total visits without counting its own rows — so a
@@ -89,6 +73,27 @@ export class CategoryHoldsMoney extends Schema.TaggedError<CategoryHoldsMoney>()
 		categoryId: Schema.Number,
 		transactions: Schema.Number,
 		issuers: Schema.Number,
+	},
+	HttpApiSchema.annotations({ status: 422 }),
+) {}
+
+/**
+ * A **re-parent** was refused because it would make a category its own
+ * **ancestor** — a cycle. Unbounded depth (ADR 0003) removes the accident that
+ * made cycles impossible in the two-level tree (a folder had no parent, so
+ * nothing could point back at it), so re-parenting must walk up from the proposed
+ * new parent and refuse if the walk reaches the node being moved. A cycle is not
+ * cosmetic: a category orphaned into a ring vanishes from the tree entirely and
+ * the recursive rollup walks it forever. Refusing a node's own descendant covers
+ * the **self-parent** case for free (a node is its own trivial ancestor), so both
+ * fall out of one check. `categoryId` names the node being moved; `parentId` the
+ * proposed parent that sits at or below it.
+ */
+export class CategoryWouldCycle extends Schema.TaggedError<CategoryWouldCycle>()(
+	"CategoryWouldCycle",
+	{
+		categoryId: Schema.Number,
+		parentId: Schema.Number,
 	},
 	HttpApiSchema.annotations({ status: 422 }),
 ) {}

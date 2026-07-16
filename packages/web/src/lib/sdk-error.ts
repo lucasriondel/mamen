@@ -107,8 +107,8 @@ export function toErrorMessage(error: unknown): string {
 			return categoryInUseMessage(error);
 		case "CategoryHoldsMoney":
 			return categoryHoldsMoneyMessage(error);
-		case "CategoryHasChildren":
-			return "Move or delete the categories inside this folder before moving it under another.";
+		case "CategoryWouldCycle":
+			return "A category can't be moved under itself or one of its own sub-categories.";
 		case "CategoryNotLeaf":
 			return "Pick a category, not a folder.";
 		default:

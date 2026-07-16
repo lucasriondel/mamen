@@ -5,10 +5,10 @@ import {
 	AccountId,
 	Api,
 	type CategoryCreate,
-	CategoryHasChildren,
 	CategoryHoldsMoney,
 	CategoryId,
 	CategoryInUse,
+	CategoryWouldCycle,
 	NotFound,
 } from "@mamen/shared/contract";
 import { Effect, Layer, Schema } from "effect";
@@ -394,26 +394,33 @@ describe("categories endpoints", () => {
 			}).pipe(Effect.provide(HttpLive)),
 		);
 
-		it.effect("rejects giving a parent to a folder that has children", () =>
+		it.effect("re-homes a folder that still has children (depth deepens)", () =>
 			Effect.gen(function* () {
 				const client = yield* HttpApiClient.make(Api);
 				const food = yield* client.categories.create({
 					payload: make({ slug: "food" }),
 				});
-				yield* client.categories.create({
+				const groceries = yield* client.categories.create({
 					payload: make({ slug: "groceries", parentId: food.id }),
 				});
 				const other = yield* client.categories.create({
 					payload: make({ slug: "other" }),
 				});
 
-				// Food still holds Groceries; re-homing it under Other would sink
-				// Groceries to depth 3.
-				const error = yield* client.categories
-					.update({ path: { id: food.id }, payload: { parentId: other.id } })
-					.pipe(Effect.flip);
-				assert.ok(error instanceof CategoryHasChildren);
-				assert.strictEqual(error.categoryId, food.id);
+				// Food still holds Groceries, but any node is a legal home at any depth
+				// now (ADR 0003): re-homing the whole subtree under Other simply sinks
+				// Groceries to depth 3. Only a cycle or stranded money is refused — the
+				// old folder-with-children re-parent block is gone (issue #31).
+				const moved = yield* client.categories.update({
+					path: { id: food.id },
+					payload: { parentId: other.id },
+				});
+				assert.strictEqual(moved.parentId, other.id);
+				// Groceries followed its parent — it still hangs off Food, now at depth 3.
+				const child = yield* client.categories.getById({
+					path: { id: groceries.id },
+				});
+				assert.strictEqual(child.parentId, food.id);
 			}).pipe(Effect.provide(HttpLive)),
 		);
 
@@ -458,6 +465,61 @@ describe("categories endpoints", () => {
 					payload: { parentId: food.id },
 				});
 				assert.strictEqual(moved.parentId, food.id);
+			}).pipe(Effect.provide(HttpLive)),
+		);
+	});
+
+	// A re-parent that would make a category its own ancestor (ADR 0003, issue
+	// #31): unbounded depth removes the accident that made cycles impossible in the
+	// two-level tree, so the update door walks up from the proposed new parent and
+	// refuses on reaching the node being moved. A ring vanishes from the tree and
+	// the recursive rollup walks it forever — so this is enforced at the API, not
+	// just the picker.
+	describe("re-parent that would create a cycle", () => {
+		it.effect("refuses re-parenting a category under itself", () =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const node = yield* client.categories.create({
+					payload: make({ slug: "food" }),
+				});
+
+				// A node is its own trivial ancestor — self-parent is the degenerate
+				// cycle, caught by the same walk.
+				const error = yield* client.categories
+					.update({ path: { id: node.id }, payload: { parentId: node.id } })
+					.pipe(Effect.flip);
+				assert.ok(error instanceof CategoryWouldCycle);
+				assert.strictEqual(error.categoryId, node.id);
+				assert.strictEqual(error.parentId, node.id);
+			}).pipe(Effect.provide(HttpLive)),
+		);
+
+		it.effect("refuses moving a grandparent under its own grandchild", () =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				// A deep chain: grandparent → parent → grandchild. Moving the grandparent
+				// under the grandchild would orphan the whole chain into a ring.
+				const grandparent = yield* client.categories.create({
+					payload: make({ slug: "life" }),
+				});
+				const parent = yield* client.categories.create({
+					payload: make({ slug: "subscriptions", parentId: grandparent.id }),
+				});
+				const grandchild = yield* client.categories.create({
+					payload: make({ slug: "streaming", parentId: parent.id }),
+				});
+
+				// The walk up from `grandchild` reaches `grandparent` and refuses — it
+				// terminates on the moved node, so it is not hung.
+				const error = yield* client.categories
+					.update({
+						path: { id: grandparent.id },
+						payload: { parentId: grandchild.id },
+					})
+					.pipe(Effect.flip);
+				assert.ok(error instanceof CategoryWouldCycle);
+				assert.strictEqual(error.categoryId, grandparent.id);
+				assert.strictEqual(error.parentId, grandchild.id);
 			}).pipe(Effect.provide(HttpLive)),
 		);
 	});

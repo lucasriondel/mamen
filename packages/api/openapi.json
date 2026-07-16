@@ -681,16 +681,16 @@
             }
           },
           "422": {
-            "description": "CategoryHasChildren",
+            "description": "CategoryHoldsMoney",
             "content": {
               "application/json": {
                 "schema": {
                   "anyOf": [
                     {
-                      "$ref": "#/components/schemas/CategoryHasChildren"
+                      "$ref": "#/components/schemas/CategoryHoldsMoney"
                     },
                     {
-                      "$ref": "#/components/schemas/CategoryHoldsMoney"
+                      "$ref": "#/components/schemas/CategoryWouldCycle"
                     }
                   ]
                 }
@@ -4651,20 +4651,24 @@
         },
         "additionalProperties": false
       },
-      "CategoryHasChildren": {
+      "CategoryWouldCycle": {
         "type": "object",
         "required": [
           "categoryId",
+          "parentId",
           "_tag"
         ],
         "properties": {
           "categoryId": {
             "type": "number"
           },
+          "parentId": {
+            "type": "number"
+          },
           "_tag": {
             "type": "string",
             "enum": [
-              "CategoryHasChildren"
+              "CategoryWouldCycle"
             ]
           }
         },

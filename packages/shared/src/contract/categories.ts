@@ -6,9 +6,9 @@ import {
 } from "@effect/platform";
 import { Schema } from "effect";
 import {
-	CategoryHasChildren,
 	CategoryHoldsMoney,
 	CategoryInUse,
+	CategoryWouldCycle,
 	NotFound,
 } from "./errors";
 import { CategoryId, numFromStr } from "./ids";
@@ -83,8 +83,11 @@ export const CategoryListFilters = {
  * `CategoryHoldsMoney` (422): a **Kind flip** is refused while the would-be
  * parent still holds money (transactions or an issuer default), so the money is
  * not stranded off a rollup node. `update` declares the same, plus
- * `CategoryHasChildren` (422): a folder that still has children may not be given
- * a parent (the remaining moved-node guard). `remove` declares `CategoryInUse`
+ * `CategoryWouldCycle` (422): a re-parent under the node itself or any of its own
+ * descendants is refused, since unbounded depth removes the accident that once
+ * made cycles impossible. There is no folder-with-children re-parent guard — any
+ * node is a legal home at any depth, so re-parenting a whole subtree is legal.
+ * `remove` declares `CategoryInUse`
  * (409): the **Guarded delete**, refused while a folder has children or a leaf is
  * still assigned to transactions or held as an issuer default.
  *
@@ -137,8 +140,8 @@ export class CategoriesGroup extends HttpApiGroup.make("categories")
 			.setPayload(CategoryUpdate)
 			.addSuccess(Category)
 			.addError(NotFound)
-			.addError(CategoryHasChildren)
-			.addError(CategoryHoldsMoney),
+			.addError(CategoryHoldsMoney)
+			.addError(CategoryWouldCycle),
 	)
 	.add(
 		HttpApiEndpoint.post(

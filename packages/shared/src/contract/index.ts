@@ -24,10 +24,10 @@ export {
 } from "./database";
 export {
 	BooleanFromString,
-	CategoryHasChildren,
 	CategoryHoldsMoney,
 	CategoryInUse,
 	CategoryNotLeaf,
+	CategoryWouldCycle,
 	Conflict,
 	InvalidFileType,
 	NotFound,
