@@ -127,6 +127,49 @@ describe("category-tree", () => {
 			expect(descendantIds(categories, groceries.id)).toEqual([]);
 			expect(descendantIds(categories, 12345)).toEqual([]);
 		});
+
+		it("descends the whole subtree to a leaf at any depth", () => {
+			// Life > Subscriptions > {Streaming (leaf), Music (leaf)}; Life > Bills
+			// (leaf). Rolling up Life must reach the depth-3 leaves and the depth-2
+			// leaf, but never the intermediate Subscriptions folder — it holds no
+			// money, and the money hangs on the leaves beneath it.
+			nextId = 1;
+			const life = category({ name: "Life", sortOrder: 0 });
+			const subs = category({
+				name: "Subscriptions",
+				parentId: life.id,
+				sortOrder: 0,
+			});
+			const bills = category({
+				name: "Bills",
+				parentId: life.id,
+				sortOrder: 1,
+			});
+			const streaming = category({
+				name: "Streaming",
+				parentId: subs.id,
+				sortOrder: 0,
+			});
+			const music = category({
+				name: "Music",
+				parentId: subs.id,
+				sortOrder: 1,
+			});
+			const categories = [life, subs, bills, streaming, music];
+
+			// The rollup of the root reaches every leaf, at depth 2 and depth 3, and
+			// excludes the mid-tier folder.
+			expect(descendantIds(categories, life.id)).toEqual([
+				streaming.id,
+				music.id,
+				bills.id,
+			]);
+			// A mid-tier folder rolls up only its own subtree.
+			expect(descendantIds(categories, subs.id)).toEqual([
+				streaming.id,
+				music.id,
+			]);
+		});
 	});
 
 	describe("categoryPath", () => {

@@ -16,7 +16,9 @@ const ACCOUNTS = [{ id: 1, name: "Checking", type: "checking" }];
 const ISSUERS = [{ id: 10, name: "Carrefour" }];
 
 // Food (folder 1) → Groceries (leaf 5), Restaurants (leaf 6); Home (folder 2) →
-// Rent (leaf 7). So a folder page (id 1) merges {5, 6}; a leaf page (id 5) is {5}.
+// Rent (leaf 7), Utilities (folder 8) → Electricity (leaf 9). So a folder page
+// (id 1) merges {5, 6}; a leaf page (id 5) is {5}; the deep folder page (id 2)
+// descends past Utilities to the depth-3 leaf and merges {7, 9}.
 const CATEGORIES = [
 	{ id: 1, name: "Food", slug: "food", parentId: null, sortOrder: 0 },
 	{ id: 2, name: "Home", slug: "home", parentId: null, sortOrder: 1 },
@@ -29,6 +31,14 @@ const CATEGORIES = [
 		sortOrder: 1,
 	},
 	{ id: 7, name: "Rent", slug: "rent", parentId: 2, sortOrder: 0 },
+	{ id: 8, name: "Utilities", slug: "utilities", parentId: 2, sortOrder: 1 },
+	{
+		id: 9,
+		name: "Electricity",
+		slug: "electricity",
+		parentId: 8,
+		sortOrder: 0,
+	},
 ];
 
 const TXNS = [
@@ -165,6 +175,25 @@ describe("CategoryTransactionsView", () => {
 		);
 		expect(countMock).toHaveBeenCalledWith(
 			expect.objectContaining({ categoryId: [5, 6] }),
+		);
+	});
+
+	it("a folder page descends its whole subtree to a leaf at any depth", async () => {
+		await renderView("/categories/2");
+
+		expect(
+			await screen.findByRole("heading", { name: /Home/ }),
+		).toBeInTheDocument();
+
+		// Home (folder 2) rolls up its direct leaf Rent (7) and, past the
+		// Utilities sub-folder (8), the depth-3 leaf Electricity (9) — one merged
+		// set, one query, with the money at depth 3 not understated. The mid-tier
+		// folder id (8) is never in the set.
+		expect(listMock).toHaveBeenCalledWith(
+			expect.objectContaining({ categoryId: [7, 9] }),
+		);
+		expect(countMock).toHaveBeenCalledWith(
+			expect.objectContaining({ categoryId: [7, 9] }),
 		);
 	});
 

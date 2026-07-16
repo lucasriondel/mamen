@@ -10,7 +10,11 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Empty } from "@/components/ui/empty";
-import { categoryPath, foldersWithLeaves } from "@/lib/category-tree";
+import {
+	categoryPath,
+	descendantIds,
+	foldersWithLeaves,
+} from "@/lib/category-tree";
 import { formatCurrency } from "@/lib/format";
 import { categoryQueries, transactionQueries } from "@/lib/sdk";
 import { cn } from "@/lib/utils";
@@ -55,14 +59,18 @@ export function CategoriesView() {
 	const mutations = useCategoryMutations();
 	const [editor, setEditor] = useState<Editor | null>(null);
 
-	// A **Category total** per folder: the signed net over all of its leaves'
-	// transactions, from the `count` endpoint (whole set, not a page). A folder
-	// with no leaves has nothing to sum, so its query stays disabled.
+	// A **Category total** per folder: the signed net over every leaf in its whole
+	// subtree, at any depth (`descendantIds`, ADR 0003 / issue #29), from the
+	// `count` endpoint (whole set, not a page). A folder with no leaves beneath it
+	// has nothing to sum, so its query stays disabled.
 	const totals = useQueries({
-		queries: groups.map(({ leaves }) => ({
-			...transactionQueries.count({ categoryId: leaves.map((l) => l.id) }),
-			enabled: leaves.length > 0,
-		})),
+		queries: groups.map(({ folder }) => {
+			const ids = descendantIds(categories, folder.id);
+			return {
+				...transactionQueries.count({ categoryId: ids }),
+				enabled: ids.length > 0,
+			};
+		}),
 	});
 
 	return (

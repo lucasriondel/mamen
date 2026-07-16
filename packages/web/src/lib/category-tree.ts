@@ -12,9 +12,10 @@ import type { Category, CategoryId } from "@mamen/shared/contract";
  * caller-visible seam: descendant resolution, the folder/leaf split, tree
  * building for nested rendering, and path labels for parent pickers.
  *
- * Today the tree is deliberately two levels and the rollup is a single hop;
- * ADR 0003 will deepen it to any depth (assignability by childlessness, a real
- * recursive descent). Both changes land here, not in the five callers.
+ * The rollup is a real recursive descent (ADR 0003, issue #29): a folder's total
+ * is the money on every leaf beneath it, at any depth, not one hop down. The
+ * folder/leaf split still reads structure off `parentId === null`; flipping that
+ * to childlessness so nested folders render is a separate change (issue #32).
  */
 
 /** A folder paired with the leaves that sit beneath it, in tree order. */
@@ -93,18 +94,32 @@ export function searchFolders(
 }
 
 /**
- * The assignable ids that roll up into a folder — its leaf ids. One hop today
- * (the folder's direct children are all leaves); ADR 0003 turns this into a full
- * recursive descent. Callers pass this set to the transactions `count`/`list`
- * endpoints, which accept a set of category ids (ADR 0002).
+ * The assignable ids that roll up into a folder — every **leaf** beneath it, at
+ * any depth, in tree order. A real recursive descent (ADR 0003): a folder's total
+ * is the money on its whole subtree, so a leaf held three levels down counts just
+ * as one held directly. The intermediate folders are skipped — they hold no money
+ * of their own (assignability is childlessness), so a total is the sum over its
+ * leaves alone, with nothing double-counted. A leaf or an unknown id has no
+ * descendants and yields nothing. Callers pass this set to the transactions
+ * `count`/`list` endpoints, which accept a set of category ids (ADR 0002) — one
+ * id set, one query, no matter how deep the tree.
  */
 export function descendantIds(
 	categories: readonly Category[],
 	folderId: number,
 ): CategoryId[] {
-	return categories
-		.filter((cat) => cat.parentId === folderId)
-		.map((cat) => cat.id);
+	const childrenOf = new Map<number | null, Category[]>();
+	for (const cat of categories) {
+		const bucket = childrenOf.get(cat.parentId) ?? [];
+		bucket.push(cat);
+		childrenOf.set(cat.parentId, bucket);
+	}
+	const collect = (id: number): CategoryId[] =>
+		(childrenOf.get(id) ?? []).flatMap((child) => {
+			const grandchildren = childrenOf.get(child.id) ?? [];
+			return grandchildren.length === 0 ? [child.id] : collect(child.id);
+		});
+	return collect(folderId);
 }
 
 /**

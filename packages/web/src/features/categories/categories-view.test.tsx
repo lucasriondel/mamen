@@ -18,6 +18,10 @@ let categoriesList: Category[];
 let listShouldFail: boolean;
 let countTotal: number;
 
+// Records the id set each per-folder total is summed over, so a test can assert
+// the rollup descends the whole subtree rather than one hop.
+const countCalls: unknown[] = [];
+
 const createCategory = vi.fn();
 const updateCategory = vi.fn();
 const removeCategory = vi.fn();
@@ -44,10 +48,13 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
 			}),
 		},
 		transactionQueries: {
-			count: (params: { categoryId?: unknown }) => ({
-				queryKey: ["transactions", "count", params.categoryId],
-				queryFn: async () => ({ count: 1, total: countTotal }),
-			}),
+			count: (params: { categoryId?: unknown }) => {
+				countCalls.push(params.categoryId);
+				return {
+					queryKey: ["transactions", "count", params.categoryId],
+					queryFn: async () => ({ count: 1, total: countTotal }),
+				};
+			},
 		},
 		categoryMutations: {
 			create: (payload: unknown) => createCategory(payload),
@@ -127,6 +134,7 @@ describe("CategoriesView", () => {
 		categoriesList = [];
 		listShouldFail = false;
 		countTotal = 0;
+		countCalls.length = 0;
 		createCategory.mockReset().mockResolvedValue(category());
 		updateCategory.mockReset().mockResolvedValue(category());
 		removeCategory.mockReset().mockResolvedValue(undefined);
@@ -153,6 +161,34 @@ describe("CategoriesView", () => {
 		// The total comes from the `count` endpoint over the folder's leaf ids.
 		const total = await screen.findByLabelText(/food total/i);
 		await waitFor(() => expect(total).toHaveTextContent(/42/));
+	});
+
+	it("descends the whole subtree for a folder's total", async () => {
+		// Home > Utilities > Electricity: the folder total must reach the depth-3
+		// leaf, not stop one hop down, or the money below the second level vanishes
+		// from the total silently (the hole #28 opened, closed here).
+		const home = category({ name: "Home", slug: "home", sortOrder: 0 });
+		const utilities = category({
+			name: "Utilities",
+			slug: "utilities",
+			parentId: home.id,
+			sortOrder: 0,
+		});
+		const electricity = category({
+			name: "Electricity",
+			slug: "electricity",
+			parentId: utilities.id,
+			sortOrder: 0,
+		});
+		categoriesList = [home, utilities, electricity];
+
+		renderView();
+
+		await screen.findByRole("group", { name: /home/i });
+		// The root's total is summed over its deep leaf id, not the mid-tier
+		// Utilities folder that holds no money of its own — the depth-3 money is
+		// counted, not dropped.
+		await waitFor(() => expect(countCalls).toContainEqual([electricity.id]));
 	});
 
 	it("shows an empty state when there are no categories", async () => {
