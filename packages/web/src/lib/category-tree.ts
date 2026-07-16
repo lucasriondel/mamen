@@ -100,8 +100,8 @@ export type PickerNode = { category: Category; depth: number; isLeaf: boolean };
  * depth) matches, so an emptied branch is dropped as noise; the surviving
  * ancestors stay as context. `depth` drives indentation, so the pickers read the
  * nesting without nested groups — cmdk navigates the flat leaf items and steps
- * over the folder headings, which are not items. Supersedes {@link searchFolders}
- * for the pickers, which only ever saw two levels.
+ * over the folder headings, which are not items. Supersedes the old two-level
+ * folder grouping the pickers used, which only ever saw one hop of nesting.
  */
 export function searchTree(
 	categories: readonly Category[],
