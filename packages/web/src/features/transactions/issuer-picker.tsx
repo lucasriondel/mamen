@@ -95,6 +95,7 @@ export function IssuerPicker({ transaction, issuer }: IssuerPickerProps) {
 					<IssuerCell
 						rawIssuerString={transaction.rawIssuerString}
 						issuer={issuer}
+						isManual={isManual}
 					/>
 				</button>
 			</PopoverTrigger>

@@ -42,6 +42,24 @@ describe("IssuerCell", () => {
 		expect(cell).toHaveAttribute("data-unresolved", "true");
 		expect(cell).toHaveClass("text-muted");
 	});
+
+	it("manual: marks a hand-picked issuer, mirroring an overridden category", () => {
+		render(
+			<IssuerCell rawIssuerString="SPOTIFY P2A34" issuer={issuer} isManual />,
+		);
+		const el = screen.getByText("Spotify");
+		expect(el).toBeInTheDocument();
+		// Same marker the Category override carries: a data hook + a dot, so a
+		// hand-picked issuer reads as the exception it is.
+		const marked = el.closest("[data-manual]");
+		expect(marked).toHaveAttribute("data-manual", "true");
+	});
+
+	it("rule-matched: leaves an auto-derived issuer plain, no marker", () => {
+		render(<IssuerCell rawIssuerString="SPOTIFY P2A34" issuer={issuer} />);
+		const el = screen.getByText("Spotify");
+		expect(el.closest("[data-manual]")).toBeNull();
+	});
 });
 
 const category: Category = {

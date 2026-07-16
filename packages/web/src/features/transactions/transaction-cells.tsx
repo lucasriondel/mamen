@@ -5,6 +5,19 @@ import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 /**
+ * The **override marker** — a small accent dot marking the *exception* a manual
+ * curation is: a Category override, or a hand-picked (manual) issuer (issue #37).
+ * Shared by {@link CategoryCell} and {@link IssuerCell} so the two exceptions
+ * read identically and can never drift apart — the whole point of the issue was
+ * that they match.
+ */
+function OverrideDot() {
+	return (
+		<span className="size-1.5 shrink-0 rounded-full bg-accent" aria-hidden />
+	);
+}
+
+/**
  * The signed **Amount** cell: right-aligned, `tabular-nums` for digit alignment,
  * and colored by sign via the gousse severity tokens — debits (negative) red
  * (`high`), credits (positive) green (`low`). Zero stays neutral (`ink`).
@@ -27,20 +40,41 @@ export function AmountCell({ amount }: { amount: number }) {
  * The **Issuer** cell — the row's curation surface (PRD).
  *
  * - Resolved (an issuer is found for `issuerId`) → the issuer's name + avatar.
+ *   A **manual assignment** (`isManual`) is *marked* with the same accent dot the
+ *   {@link CategoryCell} override carries (issue #37): a hand pick is the sticky
+ *   exception a rule can't overwrite, so it earns the same ink as a Category
+ *   override rather than reading like an ordinary rule-matched row.
  * - Unresolved → the raw counterparty text, muted, with an affordance marking
  *   that it still needs an issuer.
  *
  * The click interaction (opening the assignment picker) is delivered in the
- * Issuers + Assignment slice; this cell only renders the two states.
+ * Issuers + Assignment slice; this cell only renders the read states.
  */
 export function IssuerCell({
 	rawIssuerString,
 	issuer,
+	isManual = false,
 }: {
 	rawIssuerString: string;
 	issuer?: Issuer;
+	isManual?: boolean;
 }) {
 	if (issuer) {
+		if (isManual) {
+			return (
+				<span
+					className="flex items-center gap-2"
+					title="Issuer set manually on this transaction"
+					data-manual="true"
+				>
+					<IssuerAvatar name={issuer.name} imageUrl={issuer.imageUrl} />
+					<span className="flex items-center gap-1.5 font-medium text-ink">
+						<OverrideDot />
+						<span>{issuer.name}</span>
+					</span>
+				</span>
+			);
+		}
 		return (
 			<span className="flex items-center gap-2">
 				<IssuerAvatar name={issuer.name} imageUrl={issuer.imageUrl} />
@@ -93,10 +127,7 @@ export function CategoryCell({
 					title="Category override — set on this transaction only"
 					data-override="true"
 				>
-					<span
-						className="size-1.5 shrink-0 rounded-full bg-accent"
-						aria-hidden
-					/>
+					<OverrideDot />
 					<span>{category.name}</span>
 				</span>
 			);
