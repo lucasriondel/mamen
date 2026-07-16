@@ -4,10 +4,9 @@ import {
 	buildTree,
 	categoryPath,
 	descendantIds,
-	foldersWithLeaves,
 	isFolder,
 	isLeaf,
-	searchFolders,
+	searchTree,
 	subtreeIds,
 } from "./category-tree";
 
@@ -102,39 +101,6 @@ describe("category-tree", () => {
 		});
 	});
 
-	describe("foldersWithLeaves", () => {
-		it("pairs every folder with its leaves, keeping empty folders", () => {
-			const { food, home, categories } = seed();
-			const groups = foldersWithLeaves(categories);
-			expect(groups.map((g) => g.folder.id)).toEqual([food.id, home.id]);
-			expect(groups.find((g) => g.folder.id === home.id)?.leaves).toHaveLength(
-				0,
-			);
-		});
-	});
-
-	describe("searchFolders", () => {
-		it("keeps only leaves matching the query and drops emptied folders", () => {
-			const { food, categories } = seed();
-			const groups = searchFolders(categories, "gro");
-			expect(groups).toHaveLength(1);
-			expect(groups[0].folder.id).toBe(food.id);
-			expect(groups[0].leaves.map((l) => l.name)).toEqual(["Groceries"]);
-		});
-
-		it("matches case-insensitively and ignores surrounding whitespace", () => {
-			const { categories } = seed();
-			const groups = searchFolders(categories, "  RESTAURANT ");
-			expect(groups[0].leaves.map((l) => l.name)).toEqual(["Restaurants"]);
-		});
-
-		it("returns every folder with a leaf on an empty query", () => {
-			const { categories } = seed();
-			const groups = searchFolders(categories, "");
-			expect(groups.map((g) => g.folder.name)).toEqual(["Food"]);
-		});
-	});
-
 	describe("descendantIds", () => {
 		it("expands a folder to its leaf ids (one hop)", () => {
 			const { food, groceries, restaurants, categories } = seed();
@@ -216,6 +182,78 @@ describe("category-tree", () => {
 			expect(subtreeIds(categories, groceries.id)).toEqual(
 				new Set([groceries.id]),
 			);
+		});
+	});
+
+	describe("searchTree", () => {
+		it("flattens the forest DFS, folders as headings and leaves selectable, with depth", () => {
+			const { food, home, groceries, restaurants, categories } = seed();
+			// Food{Groceries, Restaurants}, Home (empty root → a leaf), orphan dropped.
+			expect(searchTree(categories, "")).toEqual([
+				{ category: food, depth: 0, isLeaf: false },
+				{ category: groceries, depth: 1, isLeaf: true },
+				{ category: restaurants, depth: 1, isLeaf: true },
+				{ category: home, depth: 0, isLeaf: true },
+			]);
+		});
+
+		it("keeps folder headings at every level and marks childless nodes at any depth selectable", () => {
+			// Life > Subscriptions > Streaming(leaf); Life > Bills(leaf). The mid-tier
+			// Subscriptions is a folder heading at depth 1; Streaming is a leaf at depth 2.
+			nextId = 1;
+			const life = category({ name: "Life", sortOrder: 0 });
+			const subs = category({
+				name: "Subscriptions",
+				parentId: life.id,
+				sortOrder: 0,
+			});
+			const bills = category({
+				name: "Bills",
+				parentId: life.id,
+				sortOrder: 1,
+			});
+			const streaming = category({
+				name: "Streaming",
+				parentId: subs.id,
+				sortOrder: 0,
+			});
+			const categories = [life, subs, bills, streaming];
+			expect(searchTree(categories, "")).toEqual([
+				{ category: life, depth: 0, isLeaf: false },
+				{ category: subs, depth: 1, isLeaf: false },
+				{ category: streaming, depth: 2, isLeaf: true },
+				{ category: bills, depth: 1, isLeaf: true },
+			]);
+		});
+
+		it("keeps a folder heading iff a descendant leaf at any depth matches the query", () => {
+			nextId = 1;
+			const life = category({ name: "Life", sortOrder: 0 });
+			const subs = category({
+				name: "Subscriptions",
+				parentId: life.id,
+				sortOrder: 0,
+			});
+			const streaming = category({
+				name: "Streaming",
+				parentId: subs.id,
+				sortOrder: 0,
+			});
+			const bills = category({
+				name: "Bills",
+				parentId: life.id,
+				sortOrder: 1,
+			});
+			const categories = [life, subs, streaming, bills];
+			// "stream" matches only the depth-3 leaf; its ancestor folders survive as
+			// headings, the non-matching sibling leaf is dropped.
+			expect(searchTree(categories, "stream")).toEqual([
+				{ category: life, depth: 0, isLeaf: false },
+				{ category: subs, depth: 1, isLeaf: false },
+				{ category: streaming, depth: 2, isLeaf: true },
+			]);
+			// A query matching nothing drops the whole tree, empty folders included.
+			expect(searchTree(categories, "zzz")).toEqual([]);
 		});
 	});
 

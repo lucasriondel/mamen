@@ -1,7 +1,8 @@
 import type { Category, Issuer } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
-import { Check, Tag, X } from "lucide-react";
+import { Tag, X } from "lucide-react";
 import { useState } from "react";
+import { CategoryTreeItems } from "@/components/category-tree-items";
 import {
 	Command,
 	CommandEmpty,
@@ -16,7 +17,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "@/components/ui/popover";
-import { searchFolders } from "@/lib/category-tree";
+import { searchTree } from "@/lib/category-tree";
 import { categoryQueries } from "@/lib/sdk";
 import { useIssuerMutations } from "./use-issuer-mutations";
 
@@ -49,7 +50,7 @@ export function IssuerDefaultCategoryPicker({ issuer }: { issuer: Issuer }) {
 		issuer.defaultCategoryId != null
 			? categories.find((c) => c.id === issuer.defaultCategoryId)
 			: undefined;
-	const groups = searchFolders(categories, query);
+	const nodes = searchTree(categories, query);
 	const pending = setDefaultCategory.isPending;
 
 	const handleOpenChange = (next: boolean) => {
@@ -92,32 +93,17 @@ export function IssuerDefaultCategoryPicker({ issuer }: { issuer: Issuer }) {
 							aria-label="Search categories"
 						/>
 						<CommandList>
-							{groups.length === 0 ? (
+							{nodes.length === 0 ? (
 								<CommandEmpty>No categories found.</CommandEmpty>
 							) : null}
 
-							{groups.map(({ folder, leaves }) => (
-								<CommandGroup key={folder.id} heading={folder.name}>
-									{leaves.map((leaf) => (
-										<CommandItem
-											key={leaf.id}
-											value={`category-${leaf.id}`}
-											onSelect={() => choose(leaf.id)}
-											disabled={pending}
-										>
-											<span aria-hidden>{leaf.icon}</span>
-											<span className="truncate">{leaf.name}</span>
-											{leaf.id === issuer.defaultCategoryId ? (
-												<Check
-													size={14}
-													className="ml-auto shrink-0 text-accent"
-													aria-label="Current default"
-												/>
-											) : null}
-										</CommandItem>
-									))}
-								</CommandGroup>
-							))}
+							<CategoryTreeItems
+								nodes={nodes}
+								selectedId={issuer.defaultCategoryId}
+								onSelect={choose}
+								disabled={pending}
+								selectedLabel="Current default"
+							/>
 
 							{current ? (
 								<>

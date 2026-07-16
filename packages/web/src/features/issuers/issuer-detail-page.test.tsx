@@ -72,6 +72,24 @@ const CATEGORIES = [
 		parentId: 2,
 		sortOrder: 0,
 	},
+	// A depth-3 branch: Life › Utilities › Electricity. Utilities is a mid-tier
+	// folder heading; Electricity is an assignable leaf three levels deep.
+	{
+		id: 8,
+		name: "Utilities",
+		slug: "utilities",
+		icon: "🔌",
+		parentId: 2,
+		sortOrder: 1,
+	},
+	{
+		id: 9,
+		name: "Electricity",
+		slug: "electricity",
+		icon: "⚡",
+		parentId: 8,
+		sortOrder: 0,
+	},
 ] as unknown as Category[];
 
 vi.mock("@mamen/sdk", async (importOriginal) => {
@@ -314,6 +332,29 @@ describe("IssuerDetailPage", () => {
 		expect(optionNames.some((n) => n?.includes("Subscriptions"))).toBe(true);
 		expect(optionNames.some((n) => n?.includes("Food"))).toBe(false);
 		expect(optionNames.some((n) => n?.includes("Life"))).toBe(false);
+	});
+
+	it("renders the tree to arbitrary depth: a depth-3 leaf is selectable, its mid-tier folder a heading", async () => {
+		const user = userEvent.setup();
+		renderAt("/issuers/1");
+
+		await user.click(
+			await screen.findByRole("button", { name: /No category/ }),
+		);
+		await screen.findByLabelText("Search categories");
+
+		const optionNames = screen.getAllByRole("option").map((o) => o.textContent);
+		// Electricity is three levels deep yet still an assignable option…
+		expect(optionNames.some((n) => n?.includes("Electricity"))).toBe(true);
+		// …while its mid-tier folder Utilities is a heading, never an option.
+		expect(optionNames.some((n) => n?.includes("Utilities"))).toBe(false);
+		expect(screen.getByText("Utilities")).toBeInTheDocument();
+
+		// Selecting the deep leaf sets it as the default by its id alone.
+		await user.click(screen.getByText("Electricity"));
+		await waitFor(() =>
+			expect(updateIssuer).toHaveBeenCalledWith(1, { defaultCategoryId: 9 }),
+		);
 	});
 
 	it("clears an already-set default category", async () => {

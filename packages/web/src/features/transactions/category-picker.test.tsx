@@ -54,6 +54,24 @@ const CATEGORIES = [
 		parentId: 4,
 		sortOrder: 0,
 	},
+	// A depth-3 branch: Life › Utilities › Electricity. Utilities is a mid-tier
+	// folder (heading only); Electricity is a leaf three deep (still selectable).
+	{
+		id: 6,
+		name: "Utilities",
+		slug: "utilities",
+		icon: "🔌",
+		parentId: 4,
+		sortOrder: 1,
+	},
+	{
+		id: 7,
+		name: "Electricity",
+		slug: "electricity",
+		icon: "⚡",
+		parentId: 6,
+		sortOrder: 0,
+	},
 ];
 
 vi.mock("@mamen/sdk", async (importOriginal) => {
@@ -135,6 +153,27 @@ describe("CategoryPicker", () => {
 		// The folders appear as headings, never as selectable options.
 		expect(optionNames.some((n) => n?.includes("Food"))).toBe(false);
 		expect(optionNames.some((n) => n?.includes("Life"))).toBe(false);
+	});
+
+	it("renders the tree to arbitrary depth: a depth-3 leaf is selectable, its mid-tier folder a heading", async () => {
+		render(<CategoryPicker transaction={tx({ id: 100 })} />);
+		const user = await open(/Unassigned/);
+
+		const optionNames = screen.getAllByRole("option").map((o) => o.textContent);
+		// Electricity sits three deep and is still an assignable option…
+		expect(optionNames.some((n) => n?.includes("Electricity"))).toBe(true);
+		// …while its mid-tier folder Utilities is a heading, never an option.
+		expect(optionNames.some((n) => n?.includes("Utilities"))).toBe(false);
+		expect(screen.getByText("Utilities")).toBeInTheDocument();
+
+		// Selecting the deep leaf writes its id as the override, no path involved.
+		await user.click(screen.getByText("Electricity"));
+		await waitFor(() =>
+			expect(updateTransaction).toHaveBeenCalledWith(100, {
+				categoryId: 7,
+				manualCategory: true,
+			}),
+		);
 	});
 
 	it("searching filters the leaves by name", async () => {

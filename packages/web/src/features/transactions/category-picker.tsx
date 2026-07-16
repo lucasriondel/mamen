@@ -1,7 +1,8 @@
 import type { Category, Transaction } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Check, Plus, X } from "lucide-react";
+import { ArrowLeft, Plus, X } from "lucide-react";
 import { useState } from "react";
+import { CategoryTreeItems } from "@/components/category-tree-items";
 import {
 	Command,
 	CommandEmpty,
@@ -16,7 +17,12 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "@/components/ui/popover";
-import { isFolder, isLeaf, searchFolders } from "@/lib/category-tree";
+import {
+	categoryPath,
+	isFolder,
+	isLeaf,
+	searchTree,
+} from "@/lib/category-tree";
 import { categoryQueries } from "@/lib/sdk";
 import { CategoryCell } from "./transaction-cells";
 import { useCategoryOverride } from "./use-category-override";
@@ -74,7 +80,7 @@ export function CategoryPicker({ transaction, category }: CategoryPickerProps) {
 	// An override is a *marked* row: a manual category on this transaction. An
 	// inherited row (through the issuer) is not manual and stays plain.
 	const isOverride = transaction.manualCategory === true && category != null;
-	const groups = searchFolders(categories, query);
+	const nodes = searchTree(categories, query);
 	const folders = categories.filter((c) => isFolder(categories, c));
 	const trimmed = query.trim();
 	// Offer to create only when the search finds no leaf by that exact name — a
@@ -168,7 +174,9 @@ export function CategoryPicker({ transaction, category }: CategoryPickerProps) {
 											disabled={pending}
 										>
 											<span aria-hidden>{folder.icon}</span>
-											<span className="truncate">{folder.name}</span>
+											<span className="truncate">
+												{categoryPath(categories, folder)}
+											</span>
 										</CommandItem>
 									))}
 								</CommandGroup>
@@ -190,36 +198,21 @@ export function CategoryPicker({ transaction, category }: CategoryPickerProps) {
 							</>
 						) : (
 							<>
-								{groups.length === 0 && !canCreate ? (
+								{nodes.length === 0 && !canCreate ? (
 									<CommandEmpty>No categories found.</CommandEmpty>
 								) : null}
 
-								{groups.map(({ folder, leaves }) => (
-									<CommandGroup key={folder.id} heading={folder.name}>
-										{leaves.map((leaf) => (
-											<CommandItem
-												key={leaf.id}
-												value={`category-${leaf.id}`}
-												onSelect={() => apply(leaf.id)}
-												disabled={pending}
-											>
-												<span aria-hidden>{leaf.icon}</span>
-												<span className="truncate">{leaf.name}</span>
-												{leaf.id === category?.id ? (
-													<Check
-														size={14}
-														className="ml-auto shrink-0 text-accent"
-														aria-label="Current category"
-													/>
-												) : null}
-											</CommandItem>
-										))}
-									</CommandGroup>
-								))}
+								<CategoryTreeItems
+									nodes={nodes}
+									selectedId={category?.id}
+									onSelect={apply}
+									disabled={pending}
+									selectedLabel="Current category"
+								/>
 
 								{canCreate ? (
 									<>
-										{groups.length > 0 ? <CommandSeparator /> : null}
+										{nodes.length > 0 ? <CommandSeparator /> : null}
 										<CommandGroup>
 											<CommandItem
 												value="__create__"

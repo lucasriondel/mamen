@@ -10,7 +10,8 @@ import type { Category, CategoryId } from "@mamen/shared/contract";
  * totals). Five copies of a rule is how a rule gets half-applied — a missed copy
  * is silently wrong in one surface only (ADR 0003). This module is the single
  * caller-visible seam: descendant resolution, the folder/leaf split, tree
- * building for nested rendering, and path labels for parent pickers.
+ * building for nested rendering, the DFS flatten the pickers render
+ * ({@link searchTree}), and path labels for parent pickers.
  *
  * The rollup is a real recursive descent (ADR 0003, issue #29): a folder's total
  * is the money on every leaf beneath it, at any depth, not one hop down. The
@@ -19,9 +20,6 @@ import type { Category, CategoryId } from "@mamen/shared/contract";
  * nested folder renders as a folder and an empty root renders as an assignable
  * leaf.
  */
-
-/** A folder paired with the leaves that sit beneath it, in tree order. */
-export type FolderGroup = { folder: Category; leaves: Category[] };
 
 /**
  * Group categories by `parentId`, each bucket in the list's order (roots under
@@ -83,39 +81,49 @@ export function buildTree(categories: readonly Category[]): CategoryTreeNode[] {
 	return build(null);
 }
 
-/**
- * Every folder paired with its leaves, empty folders kept. The two-level view of
- * {@link buildTree}: a folder's children are its leaves.
- */
-export function foldersWithLeaves(
-	categories: readonly Category[],
-): FolderGroup[] {
-	return buildTree(categories).map((node) => ({
-		folder: node,
-		leaves: node.children,
-	}));
-}
-
 /** Case-insensitive substring match of a category name against the query. */
 function matches(name: string, query: string): boolean {
 	return name.toLowerCase().includes(query.trim().toLowerCase());
 }
 
 /**
- * {@link foldersWithLeaves}, filtered to leaves whose name matches the query,
- * with folders left empty dropped. The shape the pickers render: folders are
- * headings only (a folder is not assignable), so an emptied one is noise.
+ * A category positioned for nested picker rendering: its **depth** from the root
+ * and whether it is an assignable **leaf** (childless) or a heading **folder**.
  */
-export function searchFolders(
+export type PickerNode = { category: Category; depth: number; isLeaf: boolean };
+
+/**
+ * The tree flattened to one DFS-ordered list a picker renders directly, filtered
+ * to the query. Every childless category is a selectable **leaf** — at any depth
+ * (ADR 0003), so an empty root is assignable too — kept iff its own name matches.
+ * Every folder is an unselectable **heading**, kept iff a leaf beneath it (at any
+ * depth) matches, so an emptied branch is dropped as noise; the surviving
+ * ancestors stay as context. `depth` drives indentation, so the pickers read the
+ * nesting without nested groups — cmdk navigates the flat leaf items and steps
+ * over the folder headings, which are not items. Supersedes {@link searchFolders}
+ * for the pickers, which only ever saw two levels.
+ */
+export function searchTree(
 	categories: readonly Category[],
 	query: string,
-): FolderGroup[] {
-	return foldersWithLeaves(categories)
-		.map(({ folder, leaves }) => ({
-			folder,
-			leaves: leaves.filter((leaf) => matches(leaf.name, query)),
-		}))
-		.filter((group) => group.leaves.length > 0);
+): PickerNode[] {
+	const walk = (nodes: CategoryTreeNode[], depth: number): PickerNode[] => {
+		const out: PickerNode[] = [];
+		for (const { children, ...category } of nodes) {
+			if (children.length > 0) {
+				const inner = walk(children, depth + 1);
+				// A folder earns its heading only when something under it survived.
+				if (inner.length > 0) {
+					out.push({ category, depth, isLeaf: false });
+					out.push(...inner);
+				}
+			} else if (matches(category.name, query)) {
+				out.push({ category, depth, isLeaf: true });
+			}
+		}
+		return out;
+	};
+	return walk(buildTree(categories), 0);
 }
 
 /**

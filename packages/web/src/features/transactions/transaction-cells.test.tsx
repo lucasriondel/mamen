@@ -64,6 +64,23 @@ describe("CategoryCell", () => {
 		expect(screen.queryByText(/›|\/|>/)).not.toBeInTheDocument();
 	});
 
+	it("shows the leaf name alone at depth 3 — depth adds navigation, never identity", () => {
+		// A leaf three levels deep (Life › Utilities › Electricity). Deeper nesting
+		// (issue #33) only lengthens the path, so it argues *for* the leaf-only rule:
+		// the cell still reads the leaf name, never any ancestor and never a path.
+		const deep: Category = {
+			...category,
+			id: 9 as Category["id"],
+			name: "Electricity",
+			slug: "electricity",
+			parentId: 8 as Category["id"],
+		};
+		render(<CategoryCell category={deep} />);
+		expect(screen.getByText("Electricity")).toBeInTheDocument();
+		expect(screen.queryByText(/Life|Utilities/)).not.toBeInTheDocument();
+		expect(screen.queryByText(/›|\/|>/)).not.toBeInTheDocument();
+	});
+
 	it("override: shows the leaf name marked, distinct from an inherited one", () => {
 		render(<CategoryCell category={category} isOverride />);
 		const el = screen.getByText("Groceries");
