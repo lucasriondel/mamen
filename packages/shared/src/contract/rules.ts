@@ -43,8 +43,21 @@ export const RuleCreate = Schema.Struct({
 });
 export type RuleCreate = typeof RuleCreate.Type;
 
-/** Update payload — every field optional (partial update). */
-export const RuleUpdate = Schema.partial(RuleCreate);
+/**
+ * Update payload — every field optional (partial update). The Value matcher is
+ * the one field with a three-way patch (issue #43): **absent** leaves it
+ * unchanged, an explicit **`null`** clears it back to a regex-only rule, and a
+ * positive number sets it. `null` is the wire-expressible clear sentinel that
+ * `undefined` can't be (JSON drops undefined keys) — this is what #42 deferred.
+ */
+export const RuleUpdate = Schema.Struct({
+	issuerId: Schema.optional(Rule.fields.issuerId),
+	pattern: Schema.optional(Rule.fields.pattern),
+	matchValue: Schema.optional(
+		Schema.NullOr(Schema.Number.pipe(Schema.positive())),
+	),
+	matchCount: Schema.optional(Rule.fields.matchCount),
+});
 export type RuleUpdate = typeof RuleUpdate.Type;
 
 /**

@@ -3197,10 +3197,17 @@
                     "type": "string"
                   },
                   "matchValue": {
-                    "type": "number",
-                    "description": "a positive number",
-                    "title": "positive",
-                    "exclusiveMinimum": 0
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "description": "a positive number",
+                        "title": "positive",
+                        "exclusiveMinimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "matchCount": {
                     "type": "number"

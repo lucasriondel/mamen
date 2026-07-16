@@ -584,7 +584,19 @@ export class IssuerMatcher extends Effect.Service<IssuerMatcher>()(
 								sql
 									.withTransaction(
 										Effect.gen(function* () {
-											const merged = new Rule({ ...current, ...changes });
+											// Three-way Value-matcher patch (issue #43): key absent ⇒
+											// keep current, explicit `null` ⇒ clear, number ⇒ set. `null`
+											// can't reach `new Rule` (its field is a positive number),
+											// so fold the sentinel to `undefined` before constructing.
+											const matchValue =
+												changes.matchValue === undefined
+													? current.matchValue
+													: (changes.matchValue ?? undefined);
+											const merged = new Rule({
+												...current,
+												...changes,
+												matchValue,
+											});
 											const updated = yield* updateRuleQuery({
 												id,
 												issuerId: merged.issuerId,

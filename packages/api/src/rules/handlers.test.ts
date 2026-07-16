@@ -992,4 +992,51 @@ describe("rule value matcher", () => {
 			assert.strictEqual(fetched.matchValue, 6.99);
 		}).pipe(Effect.provide(HttpLive)),
 	);
+
+	// An explicit `null` in the update payload clears a set Value matcher back to a
+	// regex-only rule (issue #43) — the wire sentinel `undefined` can't express.
+	it.effect("update clears matchValue when sent an explicit null", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const created = yield* client.rules.create({
+				payload: {
+					issuerId: asIssuer(1),
+					pattern: "AMAZON",
+					matchValue: 6.99,
+					matchCount: 0,
+				},
+			});
+			assert.strictEqual(created.matchValue, 6.99);
+
+			const cleared = yield* client.rules.update({
+				path: { id: created.id },
+				payload: { matchValue: null },
+			});
+			assert.strictEqual(cleared.matchValue, undefined);
+
+			const fetched = yield* client.rules.getById({ path: { id: created.id } });
+			assert.strictEqual(fetched.matchValue, undefined);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	// Absent `matchValue` in an update leaves a set Value matcher untouched.
+	it.effect("update leaves matchValue untouched when the key is absent", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const created = yield* client.rules.create({
+				payload: {
+					issuerId: asIssuer(1),
+					pattern: "AMAZON",
+					matchValue: 6.99,
+					matchCount: 0,
+				},
+			});
+			const updated = yield* client.rules.update({
+				path: { id: created.id },
+				payload: { pattern: "AMZN" },
+			});
+			assert.strictEqual(updated.pattern, "AMZN");
+			assert.strictEqual(updated.matchValue, 6.99);
+		}).pipe(Effect.provide(HttpLive)),
+	);
 });

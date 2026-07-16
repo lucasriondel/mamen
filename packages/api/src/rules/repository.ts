@@ -218,7 +218,14 @@ export class RuleRepo extends Effect.Service<RuleRepo>()("api/RuleRepo", {
 				// Merge current + changes into a full entity, then re-write every
 				// column (preserving the original `createdAt`).
 				Effect.flatMap((current) => {
-					const merged = new Rule({ ...current, ...changes });
+					// Three-way Value-matcher patch (issue #43): key absent ⇒ keep
+					// current, explicit `null` ⇒ clear, number ⇒ set. `null` can't reach
+					// `new Rule` (positive number field), so fold it to `undefined`.
+					const matchValue =
+						changes.matchValue === undefined
+							? current.matchValue
+							: (changes.matchValue ?? undefined);
+					const merged = new Rule({ ...current, ...changes, matchValue });
 					return updateQuery({
 						id,
 						...toWriteFields(merged),
