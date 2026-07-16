@@ -25,13 +25,29 @@ repeated per package.
   rent received). The rename is total: contract, DB, SDK, and web all say
   *issuer* / `IssuerId`.
 
-- **Matching Rule** — a single regex `pattern` owned by one Issuer that
-  auto-assigns that Issuer to any transaction whose **raw issuer string**
-  matches. An Issuer may own several (one regex each); together they are the
-  Issuer's rule set. *In code the entity is `Rule` / `RuleId` / `rules` — the
-  "Matching Rule" name is UI/glossary-only, chosen so users don't confuse it
-  with other kinds of rule.* A rule assigns **only an issuer**, never a category
-  (category is derived — see **Derived category**).
+- **Matching Rule** — a regex `pattern`, optionally paired with a **Value
+  matcher**, owned by one Issuer that auto-assigns that Issuer to any transaction
+  whose **raw issuer string** matches (and whose amount matches, when a value is
+  set). An Issuer may own several; together they are the Issuer's rule set. *In
+  code the entity is `Rule` / `RuleId` / `rules` — the "Matching Rule" name is
+  UI/glossary-only, chosen so users don't confuse it with other kinds of rule.* A
+  rule assigns **only an issuer**, never a category (category is derived — see
+  **Derived category**). A rule that should *re-categorise* a subset (Amazon Prime
+  out of Amazon) does so by pointing at a **narrower issuer** carrying its own
+  default category, never by carrying a category itself — see
+  `docs/adr/0004-value-matcher-rides-the-issuer.md`.
+
+- **Value matcher** — an optional second predicate on a **Matching Rule**
+  (`matchValue`, a positive amount magnitude): when set, the rule matches a row
+  only if its pattern matches the raw issuer string **and** the row's amount
+  magnitude equals `matchValue` to the cent (`round(abs(amount)·100) ==
+  round(matchValue·100)` — money is integer cents, never a float `===`). Sign is
+  irrelevant: the user matches "6.99", the engine compares magnitudes. A rule
+  with no value is a plain regex rule (every rule before this feature). Its whole
+  purpose is to let one issuer-string fork by amount — an Amazon `6.99` (Prime)
+  routed to a different Issuer than a general Amazon charge.
+  _Avoid_: amount matcher, price rule (the field is a match predicate, not the
+  transaction's amount).
 
 - **Manual assignment** — a human directly choosing a transaction's issuer or
   category, recorded by the `manualIssuer` / `manualCategory` flags. Manual
@@ -40,11 +56,16 @@ repeated per package.
 
 - **Issuer invariant** — a transaction's issuer is, in priority order: its
   **manual assignment** if `manualIssuer` is set; else the **specificity-winner**
-  among all Matching Rules whose pattern matches its raw issuer string; else
-  **unmatched** (no issuer). Specificity = longest literal (regex metachars
-  stripped), tiebreak newest rule. This invariant holds after every operation —
-  import, and rule create / edit / delete — each of which re-derives the affected
-  rows and (except manual) makes the table reflect the best current rule.
+  among all Matching Rules that match the row (pattern matches the raw issuer
+  string **and**, if the rule has a **Value matcher**, the amount matches too);
+  else **unmatched** (no issuer). Specificity, in order: a rule *with* a value
+  matcher outranks one without (a value predicate matches a strict subset, so it
+  is more specific); then longest literal (regex metachars stripped); then newest
+  rule. This ordering is what lets a value-rule (Amazon + `6.99`) win over the
+  broad regex-only rule (Amazon) it shares a literal length with, robustly rather
+  than by createdAt luck. The invariant holds after every operation — import, and
+  rule create / edit / delete — each of which re-derives the affected rows and
+  (except manual) makes the table reflect the best current rule.
 
 - **Derived category** — a transaction's category is read *through* its issuer
   (`issuer.defaultCategoryId`) at query time, not copied onto the transaction —

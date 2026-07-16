@@ -43,7 +43,9 @@ describe("validateTransactionsSearch", () => {
 
 	it("drops a blank/whitespace-only or non-string search", () => {
 		expect(validateTransactionsSearch({ search: "" }).search).toBeUndefined();
-		expect(validateTransactionsSearch({ search: "   " }).search).toBeUndefined();
+		expect(
+			validateTransactionsSearch({ search: "   " }).search,
+		).toBeUndefined();
 		expect(validateTransactionsSearch({ search: 5 }).search).toBeUndefined();
 	});
 
