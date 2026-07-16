@@ -25,6 +25,7 @@ const countCalls: unknown[] = [];
 const createCategory = vi.fn();
 const updateCategory = vi.fn();
 const removeCategory = vi.fn();
+const spillCategory = vi.fn();
 const toastError = vi.fn();
 
 vi.mock("sonner", () => ({
@@ -59,6 +60,7 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
 		categoryMutations: {
 			create: (payload: unknown) => createCategory(payload),
 			update: (id: unknown, payload: unknown) => updateCategory(id, payload),
+			spill: (id: unknown, payload: unknown) => spillCategory(id, payload),
 			remove: (id: unknown) => removeCategory(id),
 		},
 	};
@@ -137,6 +139,7 @@ describe("CategoriesView", () => {
 		countCalls.length = 0;
 		createCategory.mockReset().mockResolvedValue(category());
 		updateCategory.mockReset().mockResolvedValue(category());
+		spillCategory.mockReset().mockResolvedValue(category());
 		removeCategory.mockReset().mockResolvedValue(undefined);
 		toastError.mockReset();
 	});
@@ -235,7 +238,7 @@ describe("CategoriesView", () => {
 
 		const foodGroup = await screen.findByRole("group", { name: /food/i });
 		await user.click(
-			within(foodGroup).getByRole("button", { name: /add category/i }),
+			within(foodGroup).getByRole("button", { name: /add category in food/i }),
 		);
 		await user.type(screen.getByLabelText(/category name/i), "Cafés");
 		await user.click(screen.getByRole("button", { name: /create category/i }));
@@ -297,6 +300,70 @@ describe("CategoriesView", () => {
 			expect(removeCategory).toHaveBeenCalledWith(groceries.id),
 		);
 		expect(toastError).not.toHaveBeenCalled();
+	});
+
+	it("nests a category under a childless leaf with no ceremony", async () => {
+		const user = userEvent.setup();
+		const { groceries } = seedTree();
+		renderView();
+
+		// Groceries is a childless leaf; adding a child simply turns it into a
+		// folder — no refusal, no spill.
+		await user.click(
+			await screen.findByRole("button", {
+				name: /add category in groceries/i,
+			}),
+		);
+		await user.type(screen.getByLabelText(/category name/i), "Organic");
+		await user.click(screen.getByRole("button", { name: /create category/i }));
+
+		await waitFor(() => expect(createCategory).toHaveBeenCalledTimes(1));
+		expect(createCategory).toHaveBeenCalledWith(
+			expect.objectContaining({ name: "Organic", parentId: groceries.id }),
+		);
+		expect(spillCategory).not.toHaveBeenCalled();
+	});
+
+	it("offers spill when nesting under a money-holding leaf, then moves the money", async () => {
+		const user = userEvent.setup();
+		const { groceries } = seedTree();
+		// The API refuses the Kind flip: Groceries still holds money.
+		createCategory.mockRejectedValue({
+			_tag: "CategoryHoldsMoney",
+			categoryId: groceries.id,
+			transactions: 40,
+			issuers: 1,
+		});
+		renderView();
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: /add category in groceries/i,
+			}),
+		);
+		await user.type(screen.getByLabelText(/category name/i), "Organic");
+		await user.click(screen.getByRole("button", { name: /create category/i }));
+
+		// The refusal is not a toast dead-end: the spill step appears, naming what
+		// depends on the node.
+		const spillField = await screen.findByLabelText(/spill category name/i);
+		expect(
+			screen.getByText(/40 transactions and 1 issuer default/i),
+		).toBeInTheDocument();
+		expect(toastError).not.toHaveBeenCalled();
+
+		// The user names the destination — never auto-filled — and the money moves.
+		await user.type(spillField, "Streaming services");
+		await user.click(screen.getByRole("button", { name: /^spill$/i }));
+
+		await waitFor(() => expect(spillCategory).toHaveBeenCalledTimes(1));
+		expect(spillCategory).toHaveBeenCalledWith(
+			groceries.id,
+			expect.objectContaining({
+				name: "Streaming services",
+				slug: "streaming-services",
+			}),
+		);
 	});
 
 	it("surfaces the guarded-delete refusal, naming what depends on it", async () => {

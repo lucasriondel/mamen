@@ -69,6 +69,31 @@ export class CategoryHasChildren extends Schema.TaggedError<CategoryHasChildren>
 ) {}
 
 /**
+ * A **Kind flip** was refused because it would **strand money**. Adding a child
+ * to a **Category leaf** turns it into a **Category folder** (ADR 0003), but a
+ * folder is a rollup node the total visits without counting its own rows — so a
+ * leaf that still holds money cannot take a child until that money is moved.
+ * Fires on `create`/`bulkCreate`/`update` whenever the given `parentId` points at
+ * a node that holds money: `transactions` (rows carrying it as a **Category
+ * override**) plus `issuers` (holding it as an **Issuer default category** — a
+ * derived category hangs a whole issuer's history off the node invisibly, so
+ * counting only directly-assigned rows would miss the common case). At least one
+ * is non-zero; `categoryId` names the would-be parent. The categories page
+ * answers the refusal by offering to **Spill** — move those transactions into a
+ * new child leaf the user names — so the money keeps a home. Mirrors the
+ * guarded-delete ergonomics ({@link CategoryInUse}).
+ */
+export class CategoryHoldsMoney extends Schema.TaggedError<CategoryHoldsMoney>()(
+	"CategoryHoldsMoney",
+	{
+		categoryId: Schema.Number,
+		transactions: Schema.Number,
+		issuers: Schema.Number,
+	},
+	HttpApiSchema.annotations({ status: 422 }),
+) {}
+
+/**
  * A category cannot be deleted because something still **depends on it** — the
  * **Guarded delete** (ADR 0001). The refusal names each kind of dependent by
  * count so the caller can go re-assign first: `children` (a **Category folder**

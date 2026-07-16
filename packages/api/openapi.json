@@ -516,6 +516,16 @@
               }
             }
           },
+          "422": {
+            "description": "CategoryHoldsMoney",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryHoldsMoney"
+                }
+              }
+            }
+          },
           "500": {
             "description": "InternalServerError"
           }
@@ -675,7 +685,14 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CategoryHasChildren"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/CategoryHasChildren"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CategoryHoldsMoney"
+                    }
+                  ]
                 }
               }
             }
@@ -868,6 +885,16 @@
               }
             }
           },
+          "422": {
+            "description": "CategoryHoldsMoney",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryHoldsMoney"
+                }
+              }
+            }
+          },
           "500": {
             "description": "InternalServerError"
           }
@@ -924,6 +951,95 @@
                       },
                       "additionalProperties": false
                     }
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/categories/{id}/spill": {
+      "post": {
+        "tags": [
+          "Categories"
+        ],
+        "operationId": "categories.spill",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": {
+              "$ref": "#/components/schemas/NumberFromString"
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "201": {
+            "description": "Category",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Category"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NotFound",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFound"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "slug",
+                  "color",
+                  "icon",
+                  "sortOrder"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "slug": {
+                    "type": "string"
+                  },
+                  "color": {
+                    "type": "string"
+                  },
+                  "icon": {
+                    "type": "string"
+                  },
+                  "sortOrder": {
+                    "type": "number"
                   }
                 },
                 "additionalProperties": false
@@ -4504,6 +4620,33 @@
           },
           "createdAt": {
             "$ref": "#/components/schemas/Date"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CategoryHoldsMoney": {
+        "type": "object",
+        "required": [
+          "categoryId",
+          "transactions",
+          "issuers",
+          "_tag"
+        ],
+        "properties": {
+          "categoryId": {
+            "type": "number"
+          },
+          "transactions": {
+            "type": "number"
+          },
+          "issuers": {
+            "type": "number"
+          },
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "CategoryHoldsMoney"
+            ]
           }
         },
         "additionalProperties": false

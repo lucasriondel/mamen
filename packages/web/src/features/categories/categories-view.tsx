@@ -17,6 +17,7 @@ import {
 } from "@/lib/category-tree";
 import { formatCurrency } from "@/lib/format";
 import { categoryQueries, transactionQueries } from "@/lib/sdk";
+import { categoryHoldsMoney } from "@/lib/sdk-error";
 import { cn } from "@/lib/utils";
 import { useCategoryMutations } from "./use-category-mutations";
 
@@ -31,7 +32,8 @@ type Editor =
 	| { kind: "createFolder" }
 	| { kind: "createLeaf"; parent: Category }
 	| { kind: "rename"; node: Category }
-	| { kind: "move"; leaf: Category };
+	| { kind: "move"; leaf: Category }
+	| { kind: "spill"; node: Category; transactions: number; issuers: number };
 
 const BUTTON_CLASS =
 	"rounded-md border border-line px-2 py-1 text-muted text-xs transition-colors hover:border-accent hover:text-ink disabled:opacity-50";
@@ -114,6 +116,7 @@ export function CategoriesView() {
 							onAddLeaf={() =>
 								setEditor({ kind: "createLeaf", parent: folder })
 							}
+							onNest={(leaf) => setEditor({ kind: "createLeaf", parent: leaf })}
 							onRename={(node) => setEditor({ kind: "rename", node })}
 							onMove={(leaf) => setEditor({ kind: "move", leaf })}
 							onDelete={(id) => mutations.remove.mutate(id)}
@@ -127,6 +130,7 @@ export function CategoriesView() {
 				editor={editor}
 				folders={groups.map((g) => g.folder)}
 				onClose={() => setEditor(null)}
+				onEditor={setEditor}
 				mutations={mutations}
 			/>
 		</section>
@@ -138,6 +142,7 @@ interface FolderCardProps {
 	leaves: Category[];
 	total: number;
 	onAddLeaf: () => void;
+	onNest: (leaf: Category) => void;
 	onRename: (node: Category) => void;
 	onMove: (leaf: Category) => void;
 	onDelete: (id: CategoryId) => void;
@@ -150,6 +155,7 @@ function FolderCard({
 	leaves,
 	total,
 	onAddLeaf,
+	onNest,
 	onRename,
 	onMove,
 	onDelete,
@@ -181,7 +187,12 @@ function FolderCard({
 			</legend>
 
 			<div className="mt-3 flex flex-wrap gap-2">
-				<button type="button" className={BUTTON_CLASS} onClick={onAddLeaf}>
+				<button
+					type="button"
+					className={BUTTON_CLASS}
+					onClick={onAddLeaf}
+					aria-label={`Add category in ${folder.name}`}
+				>
 					Add category
 				</button>
 				<button
@@ -220,6 +231,17 @@ function FolderCard({
 								<span className="truncate">{leaf.name}</span>
 							</Link>
 							<div className="flex shrink-0 gap-2">
+								{/* Nesting a category under a leaf is a **Kind flip**: it turns
+								    the leaf into a folder. Refused while the leaf holds money —
+								    the view answers with the Spill dialog (issue #30). */}
+								<button
+									type="button"
+									className={BUTTON_CLASS}
+									onClick={() => onNest(leaf)}
+									aria-label={`Add category in ${leaf.name}`}
+								>
+									Add category
+								</button>
 								<button
 									type="button"
 									className={BUTTON_CLASS}
@@ -258,19 +280,24 @@ interface CategoryEditorDialogProps {
 	editor: Editor | null;
 	folders: readonly Category[];
 	onClose: () => void;
+	onEditor: (editor: Editor) => void;
 	mutations: ReturnType<typeof useCategoryMutations>;
 }
 
 /**
  * The single modal that hosts every add/edit flow, its content switched by the
  * open {@link Editor}. Each submit fires its mutation and closes on success; a
- * rejected write (a depth-3 move, a folder-with-children move, a name clash)
- * surfaces as a toast from the mutation hook and leaves the dialog open.
+ * rejected write (a folder-with-children move, a name clash) surfaces as a toast
+ * from the mutation hook and leaves the dialog open. The one exception is a
+ * refused **Kind flip** (`CategoryHoldsMoney`): nesting under a money-holding
+ * leaf swaps the dialog to the **Spill** step, where the user names the leaf the
+ * money moves into (issue #30).
  */
 function CategoryEditorDialog({
 	editor,
 	folders,
 	onClose,
+	onEditor,
 	mutations,
 }: CategoryEditorDialogProps) {
 	return (
@@ -295,6 +322,35 @@ function CategoryEditorDialog({
 						onSubmit={(name) =>
 							mutations.createLeaf.mutate(
 								{ name, parentId: editor.parent.id },
+								{
+									onSuccess: onClose,
+									// A refused Kind flip is not a dead end: swap to the spill
+									// step so the money can move into a leaf the user names.
+									onError: (error) => {
+										const deps = categoryHoldsMoney(error);
+										if (deps) {
+											onEditor({
+												kind: "spill",
+												node: editor.parent,
+												transactions: deps.transactions,
+												issuers: deps.issuers,
+											});
+										}
+									},
+								},
+							)
+						}
+					/>
+				)}
+				{editor?.kind === "spill" && (
+					<SpillForm
+						node={editor.node}
+						transactions={editor.transactions}
+						issuers={editor.issuers}
+						pending={mutations.spill.isPending}
+						onSubmit={(name) =>
+							mutations.spill.mutate(
+								{ id: editor.node.id, name },
 								{ onSuccess: onClose },
 							)
 						}
@@ -376,6 +432,80 @@ function NameForm({
 					disabled={pending || trimmed.length === 0}
 				>
 					{submitLabel}
+				</button>
+			</DialogFooter>
+		</form>
+	);
+}
+
+/** Join a count list into prose: "40 transactions and 1 issuer default". */
+function describeDependents(transactions: number, issuers: number): string {
+	const parts: string[] = [];
+	if (transactions > 0) {
+		parts.push(`${transactions} transaction${transactions === 1 ? "" : "s"}`);
+	}
+	if (issuers > 0) {
+		parts.push(`${issuers} issuer default${issuers === 1 ? "" : "s"}`);
+	}
+	if (parts.length === 0) return "money";
+	if (parts.length === 1) return parts[0];
+	return `${parts[0]} and ${parts[1]}`;
+}
+
+/**
+ * The **Spill** step (issue #30): a leaf can't take a child while it still holds
+ * money, so first move that money into a new child leaf the user names. Names
+ * what depends on the node so the refusal is legible, then takes the one name —
+ * never auto-filled, because the destination lives in the tree forever.
+ */
+function SpillForm({
+	node,
+	transactions,
+	issuers,
+	pending,
+	onSubmit,
+}: {
+	node: Category;
+	transactions: number;
+	issuers: number;
+	pending: boolean;
+	onSubmit: (name: string) => void;
+}) {
+	const [name, setName] = useState("");
+	const trimmed = name.trim();
+
+	const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+		event.preventDefault();
+		if (trimmed.length === 0 || pending) return;
+		onSubmit(trimmed);
+	};
+
+	return (
+		<form onSubmit={handleSubmit} className="flex flex-col gap-4">
+			<DialogHeader>
+				<DialogTitle>Spill {node.name}</DialogTitle>
+			</DialogHeader>
+			<p className="text-muted text-sm">
+				{node.name} holds {describeDependents(transactions, issuers)}, so it
+				can't take a child yet. Name a new category to move it into —{" "}
+				{node.name} becomes a folder and nothing is stranded.
+			</p>
+			<label className="flex flex-col gap-1 text-muted text-sm">
+				New category name
+				<input
+					className={INPUT_CLASS}
+					value={name}
+					onChange={(e) => setName(e.target.value)}
+					aria-label="Spill category name"
+				/>
+			</label>
+			<DialogFooter>
+				<button
+					type="submit"
+					className={PRIMARY_CLASS}
+					disabled={pending || trimmed.length === 0}
+				>
+					Spill
 				</button>
 			</DialogFooter>
 		</form>

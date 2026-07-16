@@ -54,6 +54,43 @@ function categoryInUseMessage(error: unknown): string {
 }
 
 /**
+ * The refused **Kind flip** (`CategoryHoldsMoney`): a leaf can't take a child
+ * while it still holds money. Worded from the two counts the API returns so the
+ * user sees what would be stranded, and pointed at the **Spill** gesture that
+ * moves it into a new child. (The categories page also opens the spill dialog on
+ * this error, so the toast is the explanation, not the only recourse.)
+ */
+function categoryHoldsMoneyMessage(error: unknown): string {
+	const e = error as { transactions?: number; issuers?: number };
+	const parts: string[] = [];
+	if (e.transactions) {
+		parts.push(
+			`${e.transactions} transaction${e.transactions === 1 ? "" : "s"}`,
+		);
+	}
+	if (e.issuers) {
+		parts.push(`${e.issuers} issuer default${e.issuers === 1 ? "" : "s"}`);
+	}
+	return parts.length === 0
+		? "This category holds money, so it can't take a child yet. Spill it into a new category first."
+		: `This category holds ${joinClauses(parts)}. Spill them into a new category so nothing is stranded.`;
+}
+
+/**
+ * If `error` is a refused **Kind flip** (`CategoryHoldsMoney`), return the two
+ * dependent counts it carries; otherwise `null`. Lets the categories page branch
+ * on the refusal — open the **Spill** dialog rather than only toast — without
+ * re-implementing the `_tag` narrowing.
+ */
+export function categoryHoldsMoney(
+	error: unknown,
+): { transactions: number; issuers: number } | null {
+	if (tagOf(error) !== "CategoryHoldsMoney") return null;
+	const e = error as { transactions?: number; issuers?: number };
+	return { transactions: e.transactions ?? 0, issuers: e.issuers ?? 0 };
+}
+
+/**
  * Turn a caught SDK error into a short sentence fit for a toast. Unknown `_tag`s
  * (and non-tagged throwables like network failures) fall back to a generic line
  * so the user always gets *some* explanation, never a raw stack.
@@ -68,6 +105,8 @@ export function toErrorMessage(error: unknown): string {
 			return "That file type isn't supported.";
 		case "CategoryInUse":
 			return categoryInUseMessage(error);
+		case "CategoryHoldsMoney":
+			return categoryHoldsMoneyMessage(error);
 		case "CategoryHasChildren":
 			return "Move or delete the categories inside this folder before moving it under another.";
 		case "CategoryNotLeaf":
