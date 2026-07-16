@@ -31,7 +31,21 @@ repeated per package.
   Issuer's rule set. *In code the entity is `Rule` / `RuleId` / `rules` — the
   "Matching Rule" name is UI/glossary-only, chosen so users don't confuse it
   with other kinds of rule.* A rule assigns **only an issuer**, never a category
-  (category is derived — see **Derived category**).
+  (category is derived — see **Derived category**). A rule may also carry an
+  optional **Value matcher** (below).
+
+- **Value matcher** — an optional positive amount magnitude (`matchValue`) on a
+  Matching Rule that lets one issuer-string **fork by amount**: with it set, the
+  rule matches a row only if the `pattern` matches the raw issuer string **and**
+  the row's amount magnitude equals `matchValue` to the cent
+  (`round(abs(amount)·100) == round(matchValue·100)` — never a float `===`, and
+  sign-agnostic, so a `6.99` rule matches a `-6.99` debit). Absent ⇒ a plain
+  regex rule, unchanged. A value-rule **outranks** a regex-only one in
+  specificity, *above* literal length (it matches a strict subset), so an Amazon
+  `6.99` rule robustly beats the broad `amazon` rule rather than by `createdAt`
+  luck. The narrower category rides the **narrower Issuer** the value-rule points
+  at, never the rule itself — see
+  [ADR 0004](./docs/adr/0004-value-matcher-rides-the-issuer.md).
 
 - **Manual assignment** — a human directly choosing a transaction's issuer or
   category, recorded by the `manualIssuer` / `manualCategory` flags. Manual
@@ -40,9 +54,12 @@ repeated per package.
 
 - **Issuer invariant** — a transaction's issuer is, in priority order: its
   **manual assignment** if `manualIssuer` is set; else the **specificity-winner**
-  among all Matching Rules whose pattern matches its raw issuer string; else
-  **unmatched** (no issuer). Specificity = longest literal (regex metachars
-  stripped), tiebreak newest rule. This invariant holds after every operation —
+  among all Matching Rules whose pattern matches its raw issuer string **and**
+  whose **Value matcher** (if any) admits its amount; else **unmatched** (no
+  issuer). Specificity = a **Value matcher** first (a value-rule matches a strict
+  subset, so it outranks a regex-only rule), then longest literal (regex
+  metachars stripped), tiebreak newest rule. This invariant holds after every
+  operation —
   import, and rule create / edit / delete — each of which re-derives the affected
   rows and (except manual) makes the table reflect the best current rule.
 

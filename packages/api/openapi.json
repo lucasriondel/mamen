@@ -3006,6 +3006,12 @@
                   "pattern": {
                     "type": "string"
                   },
+                  "matchValue": {
+                    "type": "number",
+                    "description": "a positive number",
+                    "title": "positive",
+                    "exclusiveMinimum": 0
+                  },
                   "matchCount": {
                     "type": "number"
                   }
@@ -3189,6 +3195,12 @@
                   },
                   "pattern": {
                     "type": "string"
+                  },
+                  "matchValue": {
+                    "type": "number",
+                    "description": "a positive number",
+                    "title": "positive",
+                    "exclusiveMinimum": 0
                   },
                   "matchCount": {
                     "type": "number"
@@ -3404,6 +3416,12 @@
                   },
                   "pattern": {
                     "type": "string"
+                  },
+                  "matchValue": {
+                    "type": "number",
+                    "description": "a positive number",
+                    "title": "positive",
+                    "exclusiveMinimum": 0
                   }
                 },
                 "additionalProperties": false
@@ -4964,6 +4982,12 @@
           },
           "pattern": {
             "type": "string"
+          },
+          "matchValue": {
+            "type": "number",
+            "description": "a positive number",
+            "title": "positive",
+            "exclusiveMinimum": 0
           },
           "matchCount": {
             "type": "number"

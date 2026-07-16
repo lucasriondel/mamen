@@ -65,12 +65,32 @@ const META = /[.*+?^${}()|[\]\\]/g;
 const literalLength = (pattern: string): number =>
 	pattern.replace(META, "").length;
 
+/** An amount magnitude in whole cents — the sign-agnostic key value-matching compares. */
+const cents = (amount: number): number => Math.round(Math.abs(amount) * 100);
+
+/** A rule carries a Value matcher iff `matchValue` is present (issue #42). */
+const hasValueMatcher = (rule: Rule): boolean => rule.matchValue != null;
+
 /**
- * Order two matching rules by specificity: the longer literal wins; ties break to
- * the newer rule (`createdAt`). `< 0` means `a` wins, `> 0` means `b` wins. Mirrors
- * the deleted pre-Effect engine's comparator (`compareRuleSpecificity`).
+ * Whether a rule's Value matcher admits a row's amount: a regex-only rule admits
+ * every amount; a value-rule admits only amounts whose magnitude equals
+ * `matchValue` to the cent (never a float `===`; sign-agnostic — magnitude vs
+ * magnitude). Issue #42 / ADR 0004.
+ */
+const valueMatches = (rule: Rule, amount: number): boolean =>
+	rule.matchValue == null || cents(amount) === cents(rule.matchValue);
+
+/**
+ * Order two matching rules by specificity: a Value-matcher rule outranks a
+ * regex-only one (it matches a strict subset — issue #42), *above* literal
+ * length; then the longer literal; then the newer rule (`createdAt`). `< 0` means
+ * `a` wins, `> 0` means `b` wins. Extends the pre-#42 comparator with the
+ * value-tier at the top.
  */
 const compareSpecificity = (a: Rule, b: Rule): number => {
+	const va = hasValueMatcher(a);
+	const vb = hasValueMatcher(b);
+	if (va !== vb) return va ? -1 : 1;
 	const la = literalLength(a.pattern);
 	const lb = literalLength(b.pattern);
 	if (la !== lb) return lb - la;
@@ -95,14 +115,27 @@ const compile = (rules: ReadonlyArray<Rule>): CompiledSet => {
 };
 
 /**
- * The specificity-winner among the rules whose pattern matches `raw`, or
- * `undefined` when none match. Pure — the core of the Issuer invariant's step (b).
+ * Whether a compiled rule matches a row: its pattern matches the raw issuer
+ * string **and** its Value matcher (if any) admits the row's amount magnitude
+ * (issue #42). The two-part predicate every match path routes through.
+ */
+const ruleMatchesRow = (
+	c: CompiledRule,
+	raw: string,
+	amount: number,
+): boolean => c.regex.test(raw) && valueMatches(c.rule, amount);
+
+/**
+ * The specificity-winner among the rules that match a row (pattern **and** value,
+ * see {@link ruleMatchesRow}), or `undefined` when none match. Pure — the core of
+ * the Issuer invariant's step (b).
  */
 const winnerFor = (
 	raw: string,
+	amount: number,
 	compiled: ReadonlyArray<CompiledRule>,
 ): Rule | undefined => {
-	const matching = compiled.filter((c) => c.regex.test(raw));
+	const matching = compiled.filter((c) => ruleMatchesRow(c, raw, amount));
 	if (matching.length === 0) return undefined;
 	return matching.reduce((best, cur) =>
 		compareSpecificity(best.rule, cur.rule) <= 0 ? best : cur,
@@ -134,7 +167,7 @@ export const derive = (
 				matchedRuleId: null,
 			};
 		}
-		const winner = winnerFor(row.rawIssuerString, compiled);
+		const winner = winnerFor(row.rawIssuerString, row.amount, compiled);
 		return winner === undefined
 			? { transactionId: row.id, issuerId: null, matchedRuleId: null } // (c)
 			: {
@@ -204,15 +237,19 @@ export const previewLists = (
 	const willReassign: Array<Transaction> = [];
 	const manualCollisions: Array<Transaction> = [];
 	for (const row of rows) {
-		// Scope: only rows this one pattern matches are ever in a bucket.
-		if (!prospectiveEntry.regex.test(row.rawIssuerString)) continue;
+		// Scope: only rows this one rule matches — pattern AND its Value matcher, if
+		// any (issue #42) — are ever in a bucket. A present `matchValue` narrows the
+		// scope to rows of that amount magnitude, leaving the three buckets as-is.
+		if (!ruleMatchesRow(prospectiveEntry, row.rawIssuerString, row.amount))
+			continue;
 		if (row.manualIssuer) {
 			manualCollisions.push(row);
 			continue;
 		}
 		// The full-set winner must be *this* rule, else the edit changes nothing
 		// for the row (a more-specific rule already/still owns it).
-		if (winnerFor(row.rawIssuerString, compiled) !== prospective) continue;
+		if (winnerFor(row.rawIssuerString, row.amount, compiled) !== prospective)
+			continue;
 		if (row.issuerId == null) {
 			willMatch.push(row);
 		} else if (row.issuerId !== prospective.issuerId) {
@@ -314,6 +351,7 @@ export class IssuerMatcher extends Effect.Service<IssuerMatcher>()(
 				Request: Schema.Any as Schema.Schema<{
 					issuerId: number;
 					pattern: string;
+					matchValue: number | null;
 					matchCount: number;
 					createdAt: string;
 				}>,
@@ -326,6 +364,7 @@ export class IssuerMatcher extends Effect.Service<IssuerMatcher>()(
 					id: typeof RuleId.Type;
 					issuerId: number;
 					pattern: string;
+					matchValue: number | null;
 					matchCount: number;
 					createdAt: string;
 				}>,
@@ -478,6 +517,10 @@ export class IssuerMatcher extends Effect.Service<IssuerMatcher>()(
 									...existing,
 									issuerId: input.issuerId,
 									pattern: input.pattern,
+									// The input carries the rule's whole prospective state, so an
+									// absent `matchValue` means the edited rule has no Value matcher
+									// (not "keep the stored one") — issue #42.
+									matchValue: input.matchValue,
 								});
 								return previewLists(rows, rules, prospective, true);
 							}
@@ -491,6 +534,7 @@ export class IssuerMatcher extends Effect.Service<IssuerMatcher>()(
 								id: RuleId.make(0),
 								issuerId: input.issuerId,
 								pattern: input.pattern,
+								matchValue: input.matchValue,
 								matchCount: 0,
 								createdAt: new Date(now),
 							});
@@ -513,6 +557,7 @@ export class IssuerMatcher extends Effect.Service<IssuerMatcher>()(
 								const created = yield* insertRuleQuery({
 									issuerId: payload.issuerId,
 									pattern: payload.pattern,
+									matchValue: payload.matchValue ?? null,
 									matchCount: payload.matchCount,
 									createdAt: now,
 								});
@@ -544,6 +589,7 @@ export class IssuerMatcher extends Effect.Service<IssuerMatcher>()(
 												id,
 												issuerId: merged.issuerId,
 												pattern: merged.pattern,
+												matchValue: merged.matchValue ?? null,
 												matchCount: merged.matchCount,
 												createdAt: merged.createdAt.toISOString(),
 											});
