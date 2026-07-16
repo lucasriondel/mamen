@@ -149,11 +149,44 @@ describe("CategoriesView", () => {
 		renderView();
 
 		const foodGroup = await screen.findByRole("group", { name: /food/i });
-		const homeGroup = screen.getByRole("group", { name: /home/i });
 
 		expect(within(foodGroup).getByText("Groceries")).toBeInTheDocument();
 		expect(within(foodGroup).getByText("Restaurants")).toBeInTheDocument();
-		expect(within(homeGroup).queryByText("Groceries")).not.toBeInTheDocument();
+		// Home is an empty root — under childlessness (ADR 0003 / issue #32) it is
+		// a leaf, not a grouping folder, so it renders as a plain row, never a
+		// group, and never holds Food's leaves.
+		expect(
+			screen.queryByRole("group", { name: /home/i }),
+		).not.toBeInTheDocument();
+		expect(screen.getByText("Home")).toBeInTheDocument();
+	});
+
+	it("renders a nested folder as a folder, to arbitrary depth", async () => {
+		// Life > Subscriptions > Streaming: Subscriptions is a mid-tier folder and
+		// must render as one (a group), nested inside Life — not flattened away.
+		const life = category({ name: "Life", slug: "life", sortOrder: 0 });
+		const subs = category({
+			name: "Subscriptions",
+			slug: "subscriptions",
+			parentId: life.id,
+			sortOrder: 0,
+		});
+		const streaming = category({
+			name: "Streaming services",
+			slug: "streaming-services",
+			parentId: subs.id,
+			sortOrder: 0,
+		});
+		categoriesList = [life, subs, streaming];
+		renderView();
+
+		const lifeGroup = await screen.findByRole("group", { name: /life/i });
+		const subsGroup = within(lifeGroup).getByRole("group", {
+			name: /subscriptions/i,
+		});
+		expect(
+			within(subsGroup).getByText("Streaming services"),
+		).toBeInTheDocument();
 	});
 
 	it("shows a signed Category total on each folder", async () => {
@@ -210,16 +243,18 @@ describe("CategoriesView", () => {
 		).toBeInTheDocument();
 	});
 
-	it("creates a folder from the header action", async () => {
+	it("creates a root category from the header action, with no parent", async () => {
 		const user = userEvent.setup();
 		seedTree();
 		renderView();
 
+		// One create gesture: the header makes a category with no parent (a root),
+		// not a distinct "folder" variant (issue #32).
 		await user.click(
-			await screen.findByRole("button", { name: /new folder/i }),
+			await screen.findByRole("button", { name: /new category/i }),
 		);
 		await user.type(screen.getByLabelText(/category name/i), "Leisure");
-		await user.click(screen.getByRole("button", { name: /create folder/i }));
+		await user.click(screen.getByRole("button", { name: /create category/i }));
 
 		await waitFor(() => expect(createCategory).toHaveBeenCalledTimes(1));
 		expect(createCategory).toHaveBeenCalledWith(
@@ -268,7 +303,7 @@ describe("CategoriesView", () => {
 		});
 	});
 
-	it("moves a leaf to a different folder", async () => {
+	it("moves a leaf to a different parent", async () => {
 		const user = userEvent.setup();
 		const { home, groceries } = seedTree();
 		renderView();
@@ -277,7 +312,7 @@ describe("CategoriesView", () => {
 			await screen.findByRole("button", { name: /move groceries/i }),
 		);
 		await user.selectOptions(
-			screen.getByLabelText(/target folder/i),
+			screen.getByLabelText(/target parent/i),
 			String(home.id),
 		);
 		await user.click(screen.getByRole("button", { name: /^move$/i }));
@@ -286,6 +321,51 @@ describe("CategoriesView", () => {
 		expect(updateCategory).toHaveBeenCalledWith(groceries.id, {
 			parentId: home.id,
 		});
+	});
+
+	it("moves a whole folder under another — any node, not only a leaf", async () => {
+		const user = userEvent.setup();
+		const { food, home } = seedTree();
+		renderView();
+
+		// The Move gesture is offered on a folder (Food), and its target picker
+		// lists every category path-labelled, the moved subtree excluded (#32).
+		await user.click(await screen.findByRole("button", { name: /move food/i }));
+		await user.selectOptions(
+			screen.getByLabelText(/target parent/i),
+			String(home.id),
+		);
+		await user.click(screen.getByRole("button", { name: /^move$/i }));
+
+		await waitFor(() => expect(updateCategory).toHaveBeenCalledTimes(1));
+		expect(updateCategory).toHaveBeenCalledWith(food.id, {
+			parentId: home.id,
+		});
+	});
+
+	it("surfaces the cycle refusal legibly, not as a raw error", async () => {
+		const user = userEvent.setup();
+		const { food, home } = seedTree();
+		// The picker pre-empts the obvious cycle (a node's own subtree is not
+		// offered), but the API is the real guard — for a seed, an import, or a
+		// racing edit. When it refuses (`CategoryWouldCycle`) the move must read as
+		// a sentence, never a raw tag (issue #31 surfaced here, #32).
+		updateCategory.mockRejectedValue({
+			_tag: "CategoryWouldCycle",
+			categoryId: food.id,
+			parentId: home.id,
+		});
+		renderView();
+
+		await user.click(await screen.findByRole("button", { name: /move food/i }));
+		await user.selectOptions(
+			screen.getByLabelText(/target parent/i),
+			String(home.id),
+		);
+		await user.click(screen.getByRole("button", { name: /^move$/i }));
+
+		await waitFor(() => expect(toastError).toHaveBeenCalledTimes(1));
+		expect(toastError.mock.calls[0][0]).toMatch(/under itself|sub-categor/i);
 	});
 
 	it("deletes a category when nothing depends on it", async () => {
@@ -364,6 +444,100 @@ describe("CategoriesView", () => {
 				slug: "streaming-services",
 			}),
 		);
+	});
+
+	it("builds Life > Subscriptions > Streaming services through the UI alone", async () => {
+		// The issue's demo: a three-deep branch, created end-to-end with the one
+		// create gesture — a root, then a child, then a grandchild — no folder
+		// variant, no depth ceiling (#32). The mock echoes each created node back so
+		// the tree deepens between steps.
+		const user = userEvent.setup();
+		categoriesList = [];
+
+		const life = category({ name: "Life", slug: "life", sortOrder: 0 });
+		const subs = category({
+			name: "Subscriptions",
+			slug: "subscriptions",
+			parentId: life.id,
+			sortOrder: 0,
+		});
+		const streaming = category({
+			name: "Streaming services",
+			slug: "streaming-services",
+			parentId: subs.id,
+			sortOrder: 0,
+		});
+
+		// Each create echoes its node back *and* lands it in the list, so the
+		// post-create refetch (the mutation invalidates) deepens the tree — exactly
+		// as the server would.
+		createCategory
+			.mockImplementationOnce(() => {
+				categoriesList = [life];
+				return Promise.resolve(life);
+			})
+			.mockImplementationOnce(() => {
+				categoriesList = [life, subs];
+				return Promise.resolve(subs);
+			})
+			.mockImplementationOnce(() => {
+				categoriesList = [life, subs, streaming];
+				return Promise.resolve(streaming);
+			});
+
+		// Step 1: a root category from the header, no parent.
+		renderView();
+		await user.click(
+			await screen.findByRole("button", { name: /new category/i }),
+		);
+		await user.type(screen.getByLabelText(/category name/i), "Life");
+		await user.click(screen.getByRole("button", { name: /create category/i }));
+		await waitFor(() =>
+			expect(createCategory).toHaveBeenLastCalledWith(
+				expect.objectContaining({ name: "Life", parentId: null }),
+			),
+		);
+
+		// Step 2: nest Subscriptions under Life via its Add category action.
+		await user.click(
+			await screen.findByRole("button", { name: /add category in life/i }),
+		);
+		await user.type(screen.getByLabelText(/category name/i), "Subscriptions");
+		await user.click(screen.getByRole("button", { name: /create category/i }));
+		await waitFor(() =>
+			expect(createCategory).toHaveBeenLastCalledWith(
+				expect.objectContaining({ name: "Subscriptions", parentId: life.id }),
+			),
+		);
+
+		// Step 3: nest Streaming services under Subscriptions — depth 3.
+		await user.click(
+			await screen.findByRole("button", {
+				name: /add category in subscriptions/i,
+			}),
+		);
+		await user.type(
+			screen.getByLabelText(/category name/i),
+			"Streaming services",
+		);
+		await user.click(screen.getByRole("button", { name: /create category/i }));
+		await waitFor(() =>
+			expect(createCategory).toHaveBeenLastCalledWith(
+				expect.objectContaining({
+					name: "Streaming services",
+					parentId: subs.id,
+				}),
+			),
+		);
+
+		// End state: the three-deep branch renders, folders nested to depth 3.
+		const lifeGroup = await screen.findByRole("group", { name: /life/i });
+		const subsGroup = within(lifeGroup).getByRole("group", {
+			name: /subscriptions/i,
+		});
+		expect(
+			within(subsGroup).getByText("Streaming services"),
+		).toBeInTheDocument();
 	});
 
 	it("surfaces the guarded-delete refusal, naming what depends on it", async () => {

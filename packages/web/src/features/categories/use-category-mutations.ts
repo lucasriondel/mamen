@@ -7,14 +7,18 @@ import { slugify } from "@/lib/utils";
 
 /** Neutral colour/icon defaults a new category gets; refined later if wanted. */
 const NEW_COLOR = "#94a3b8";
-const NEW_FOLDER_ICON = "📁";
-const NEW_LEAF_ICON = "🏷️";
+// One icon for every new node: under ADR 0003 a category is born childless (a
+// leaf) and *becomes* a folder only if something is later nested beneath it, so
+// there is no folder-vs-leaf variant to pre-decide at creation (issue #32).
+const NEW_CATEGORY_ICON = "🏷️";
 
 /**
- * The taxonomy-curation write mutations for the categories page (PRD #19, issue
- * #26): create a **Category folder** or a **Category leaf**, rename any node,
- * move a leaf to a different folder, and delete — the last one **guarded** by the
- * API, which refuses while anything still depends on the category.
+ * The taxonomy-curation write mutations for the categories page (PRD #19, issues
+ * #26/#32): **create** a category — one gesture, optionally under a parent, its
+ * kind decided by what ends up beneath it — rename any node, **move** any node to
+ * a different parent (a whole subtree follows), spill, and delete — the last one
+ * **guarded** by the API, which refuses while anything still depends on the
+ * category.
  *
  * As elsewhere the SDK stays invalidation-agnostic, so each mutation owns its
  * side effects: on success invalidate the whole categories key family so the tree
@@ -22,8 +26,7 @@ const NEW_LEAF_ICON = "🏷️";
  * copy comes from the tagged error `_tag` ({@link toErrorMessage}). The guarded
  * delete's `CategoryInUse` carries dependent counts, so its toast *names* what to
  * re-assign first — more useful than a confirm dialog, because it says what would
- * break. The re-parent cycle guard (`CategoryWouldCycle`) and the leaf-only guard
- * surface the same way.
+ * break. The re-parent cycle guard (`CategoryWouldCycle`) surfaces the same way.
  */
 export function useCategoryMutations() {
 	const queryClient = useQueryClient();
@@ -35,38 +38,26 @@ export function useCategoryMutations() {
 		toast.error(toErrorMessage(error));
 	};
 
-	// A **Category folder**: no parent, never assignable — the grouping node.
-	const createFolder = useMutation({
-		mutationFn: (name: string): Promise<Category> =>
-			categoryMutations.create({
-				name,
-				slug: slugify(name),
-				color: NEW_COLOR,
-				icon: NEW_FOLDER_ICON,
-				parentId: null,
-				sortOrder: 0,
-			}),
-		onSuccess: invalidate,
-		onError,
-	});
-
-	// A **Category leaf** inside a chosen node — the only assignable kind. Nesting
-	// one under a leaf is a **Kind flip**; if that leaf still holds money the API
-	// refuses (`CategoryHoldsMoney`) and the view answers with the spill dialog, so
-	// the toast is suppressed for that one case to avoid double-signalling.
-	const createLeaf = useMutation({
+	// **Create** a category, optionally under a parent (`parentId: null` = a new
+	// root). One gesture, no folder-vs-leaf variant: the node is born a leaf and
+	// becomes a folder iff something is later nested beneath it (ADR 0003 / issue
+	// #32). Nesting under an existing leaf is a **Kind flip**; if that leaf still
+	// holds money the API refuses (`CategoryHoldsMoney`) and the view answers with
+	// the spill dialog, so the toast is suppressed for that one case to avoid
+	// double-signalling.
+	const create = useMutation({
 		mutationFn: ({
 			name,
 			parentId,
 		}: {
 			name: string;
-			parentId: CategoryId;
+			parentId: CategoryId | null;
 		}): Promise<Category> =>
 			categoryMutations.create({
 				name,
 				slug: slugify(name),
 				color: NEW_COLOR,
-				icon: NEW_LEAF_ICON,
+				icon: NEW_CATEGORY_ICON,
 				parentId,
 				sortOrder: 0,
 			}),
@@ -84,11 +75,19 @@ export function useCategoryMutations() {
 		onError,
 	});
 
-	// Move a leaf to a different folder; its id is unchanged, so its transactions
-	// follow for free. Any node is a legal parent now (ADR 0003).
+	// Move any node to a different parent (`parentId: null` promotes it to a
+	// root); its id is unchanged, so its transactions and its whole subtree follow
+	// for free. Any node is a legal parent now (ADR 0003); the API refuses a move
+	// that would form a cycle (`CategoryWouldCycle`) or strand money under a
+	// money-holding target (`CategoryHoldsMoney`), both surfaced as a toast.
 	const move = useMutation({
-		mutationFn: ({ id, parentId }: { id: CategoryId; parentId: CategoryId }) =>
-			categoryMutations.update(id, { parentId }),
+		mutationFn: ({
+			id,
+			parentId,
+		}: {
+			id: CategoryId;
+			parentId: CategoryId | null;
+		}) => categoryMutations.update(id, { parentId }),
 		onSuccess: invalidate,
 		onError,
 	});
@@ -109,7 +108,7 @@ export function useCategoryMutations() {
 				name,
 				slug: slugify(name),
 				color: NEW_COLOR,
-				icon: NEW_LEAF_ICON,
+				icon: NEW_CATEGORY_ICON,
 				sortOrder: 0,
 			}),
 		onSuccess: invalidate,
@@ -124,5 +123,5 @@ export function useCategoryMutations() {
 		onError,
 	});
 
-	return { createFolder, createLeaf, rename, move, spill, remove };
+	return { create, rename, move, spill, remove };
 }

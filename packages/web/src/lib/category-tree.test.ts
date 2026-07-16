@@ -8,6 +8,7 @@ import {
 	isFolder,
 	isLeaf,
 	searchFolders,
+	subtreeIds,
 } from "./category-tree";
 
 let nextId = 1;
@@ -47,12 +48,33 @@ function seed() {
 
 describe("category-tree", () => {
 	describe("the folder / leaf split", () => {
-		it("reads a root as a folder and a parented node as a leaf", () => {
-			const { food, groceries } = seed();
-			expect(isFolder(food)).toBe(true);
-			expect(isLeaf(food)).toBe(false);
-			expect(isFolder(groceries)).toBe(false);
-			expect(isLeaf(groceries)).toBe(true);
+		it("reads a node with children as a folder and a childless node as a leaf", () => {
+			const { food, groceries, categories } = seed();
+			expect(isFolder(categories, food)).toBe(true);
+			expect(isLeaf(categories, food)).toBe(false);
+			expect(isFolder(categories, groceries)).toBe(false);
+			expect(isLeaf(categories, groceries)).toBe(true);
+		});
+
+		it("reads an empty root as a leaf, not a folder — childlessness, not root-ness", () => {
+			// ADR 0003 / issue #32: Home has no parent but also no children, so it is
+			// an assignable leaf, not a grouping folder. The old `parentId === null`
+			// proxy called it a folder.
+			const { home, categories } = seed();
+			expect(isFolder(categories, home)).toBe(false);
+			expect(isLeaf(categories, home)).toBe(true);
+		});
+
+		it("reads a nested node with children as a folder — depth is not root-ness", () => {
+			// A mid-tier node with a child of its own is a folder even though it has
+			// a parent; the old proxy called it a leaf.
+			nextId = 1;
+			const life = category({ name: "Life" });
+			const subs = category({ name: "Subscriptions", parentId: life.id });
+			const streaming = category({ name: "Streaming", parentId: subs.id });
+			const categories = [life, subs, streaming];
+			expect(isFolder(categories, subs)).toBe(true);
+			expect(isLeaf(categories, streaming)).toBe(true);
 		});
 	});
 
@@ -169,6 +191,31 @@ describe("category-tree", () => {
 				streaming.id,
 				music.id,
 			]);
+		});
+	});
+
+	describe("subtreeIds", () => {
+		it("includes the node itself and every descendant, folders included", () => {
+			nextId = 1;
+			const life = category({ name: "Life" });
+			const subs = category({ name: "Subscriptions", parentId: life.id });
+			const streaming = category({ name: "Streaming", parentId: subs.id });
+			const bills = category({ name: "Bills", parentId: life.id });
+			const food = category({ name: "Food" });
+			const categories = [life, subs, streaming, bills, food];
+
+			const ids = subtreeIds(categories, life.id);
+			// Life, the mid-tier Subscriptions folder, and the leaves beneath — but
+			// never a sibling tree (Food).
+			expect(ids).toEqual(new Set([life.id, subs.id, streaming.id, bills.id]));
+			expect(ids.has(food.id)).toBe(false);
+		});
+
+		it("is just the node for a childless leaf", () => {
+			const { groceries, categories } = seed();
+			expect(subtreeIds(categories, groceries.id)).toEqual(
+				new Set([groceries.id]),
+			);
 		});
 	});
 

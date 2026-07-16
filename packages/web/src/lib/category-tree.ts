@@ -14,8 +14,10 @@ import type { Category, CategoryId } from "@mamen/shared/contract";
  *
  * The rollup is a real recursive descent (ADR 0003, issue #29): a folder's total
  * is the money on every leaf beneath it, at any depth, not one hop down. The
- * folder/leaf split still reads structure off `parentId === null`; flipping that
- * to childlessness so nested folders render is a separate change (issue #32).
+ * folder/leaf split reads **childlessness**, not root-ness (issue #32): a node
+ * with children is a folder, a childless node is a leaf, at any depth — so a
+ * nested folder renders as a folder and an empty root renders as an assignable
+ * leaf.
  */
 
 /** A folder paired with the leaves that sit beneath it, in tree order. */
@@ -39,17 +41,27 @@ function childrenByParent(
 }
 
 /**
- * A **Category folder** is structural, not assignable. Today that is exactly a
- * root (`parentId === null`); ADR 0003 flips this test to childlessness. Keep the
- * definition here so the flip is a one-line change, not a five-surface sweep.
+ * A **Category folder** is structural, not assignable — and under ADR 0003 that
+ * is decided by **childlessness, not root-ness**: a node is a folder iff
+ * something hangs beneath it. Not `parentId === null` — that proxy held only in
+ * the two-level world and silently mislabels both a nested folder (a non-root
+ * with children) and an empty root (a childless node that is really an
+ * assignable leaf). Needs the whole list to probe for children, so the check
+ * lives beside the tree it reads.
  */
-export function isFolder(category: Category): boolean {
-	return category.parentId === null;
+export function isFolder(
+	categories: readonly Category[],
+	category: Category,
+): boolean {
+	return categories.some((c) => c.parentId === category.id);
 }
 
 /** A **Category leaf** — assignable — is the complement of {@link isFolder}. */
-export function isLeaf(category: Category): boolean {
-	return !isFolder(category);
+export function isLeaf(
+	categories: readonly Category[],
+	category: Category,
+): boolean {
+	return !isFolder(categories, category);
 }
 
 /**
@@ -128,6 +140,28 @@ export function descendantIds(
 			childrenOf.has(child.id) ? collect(child.id) : [child.id],
 		);
 	return collect(folderId);
+}
+
+/**
+ * Every id in a node's subtree, the node itself included. A re-parent picker
+ * subtracts this set from its target list so it never offers the moved node or
+ * anything beneath it — a move under your own descendant is a cycle the API
+ * refuses (`CategoryWouldCycle`), so pre-empting it keeps the picker honest.
+ * Unlike {@link descendantIds} this keeps the intermediate folders, since those
+ * are exactly the illegal targets.
+ */
+export function subtreeIds(
+	categories: readonly Category[],
+	rootId: number,
+): Set<CategoryId> {
+	const childrenOf = childrenByParent(categories);
+	const ids = new Set<CategoryId>();
+	const walk = (id: number): void => {
+		ids.add(id as CategoryId);
+		for (const child of childrenOf.get(id) ?? []) walk(child.id);
+	};
+	walk(rootId);
+	return ids;
 }
 
 /**

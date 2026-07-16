@@ -37,12 +37,15 @@ const routeApi = getRouteApi("/categories/$categoryId");
 const MONTH_SCAN_LIMIT = 1000;
 
 /**
- * Resolve which category ids a page filters by. A **Category leaf** (has a
- * parent) filters by its own id; a **Category folder** (no parent) merges all of
- * its leaves' ids, so "how much did I spend on Food" is one query rather than
- * mental arithmetic. A missing id (or a folder with no leaves) yields an empty
- * set — the caller shows an empty state rather than querying, since an empty set
- * over the wire would drop the filter and return everything.
+ * Resolve which category ids a page filters by. A **Category leaf** (childless)
+ * filters by its own id; a **Category folder** (has children, at any depth)
+ * merges all of its leaves' ids, so "how much did I spend on Food" is one query
+ * rather than mental arithmetic. The folder test is childlessness, not root-ness
+ * (ADR 0003 / issue #32), so a *nested* folder page merges its subtree too
+ * rather than reading as a leaf and showing its own (empty) rows. A missing id
+ * (or a folder with no leaves) yields an empty set — the caller shows an empty
+ * state rather than querying, since an empty set over the wire would drop the
+ * filter and return everything.
  */
 function resolveCategoryIds(
 	categories: readonly Category[],
@@ -50,7 +53,7 @@ function resolveCategoryIds(
 ): { category: Category | undefined; ids: CategoryId[] } {
 	const category = categories.find((c) => c.id === categoryId);
 	if (category === undefined) return { category: undefined, ids: [] };
-	const ids = isFolder(category)
+	const ids = isFolder(categories, category)
 		? descendantIds(categories, categoryId)
 		: [categoryId as CategoryId];
 	return { category, ids };

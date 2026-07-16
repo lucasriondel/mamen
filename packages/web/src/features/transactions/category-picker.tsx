@@ -75,12 +75,14 @@ export function CategoryPicker({ transaction, category }: CategoryPickerProps) {
 	// inherited row (through the issuer) is not manual and stays plain.
 	const isOverride = transaction.manualCategory === true && category != null;
 	const groups = searchFolders(categories, query);
-	const folders = categories.filter(isFolder);
+	const folders = categories.filter((c) => isFolder(categories, c));
 	const trimmed = query.trim();
 	// Offer to create only when the search finds no leaf by that exact name — a
 	// folder is structural and never created here, so it doesn't block a create.
 	const hasExactLeaf = categories.some(
-		(c) => isLeaf(c) && c.name.trim().toLowerCase() === trimmed.toLowerCase(),
+		(c) =>
+			isLeaf(categories, c) &&
+			c.name.trim().toLowerCase() === trimmed.toLowerCase(),
 	);
 	const canCreate = trimmed.length > 0 && !hasExactLeaf;
 	const pending =
