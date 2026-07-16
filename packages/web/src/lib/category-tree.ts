@@ -22,6 +22,23 @@ import type { Category, CategoryId } from "@mamen/shared/contract";
 export type FolderGroup = { folder: Category; leaves: Category[] };
 
 /**
+ * Group categories by `parentId`, each bucket in the list's order (roots under
+ * the `null` key). The one adjacency map the recursive descents share, so both
+ * read structure the same way.
+ */
+function childrenByParent(
+	categories: readonly Category[],
+): Map<number | null, Category[]> {
+	const childrenOf = new Map<number | null, Category[]>();
+	for (const cat of categories) {
+		const bucket = childrenOf.get(cat.parentId) ?? [];
+		bucket.push(cat);
+		childrenOf.set(cat.parentId, bucket);
+	}
+	return childrenOf;
+}
+
+/**
  * A **Category folder** is structural, not assignable. Today that is exactly a
  * root (`parentId === null`); ADR 0003 flips this test to childlessness. Keep the
  * definition here so the flip is a one-line change, not a five-surface sweep.
@@ -44,12 +61,7 @@ export function isLeaf(category: Category): boolean {
  * rootless — this never invents structure.
  */
 export function buildTree(categories: readonly Category[]): CategoryTreeNode[] {
-	const childrenOf = new Map<number | null, Category[]>();
-	for (const cat of categories) {
-		const bucket = childrenOf.get(cat.parentId) ?? [];
-		bucket.push(cat);
-		childrenOf.set(cat.parentId, bucket);
-	}
+	const childrenOf = childrenByParent(categories);
 	const build = (parentId: number | null): CategoryTreeNode[] =>
 		(childrenOf.get(parentId) ?? []).map((cat) => ({
 			...cat,
@@ -108,17 +120,13 @@ export function descendantIds(
 	categories: readonly Category[],
 	folderId: number,
 ): CategoryId[] {
-	const childrenOf = new Map<number | null, Category[]>();
-	for (const cat of categories) {
-		const bucket = childrenOf.get(cat.parentId) ?? [];
-		bucket.push(cat);
-		childrenOf.set(cat.parentId, bucket);
-	}
+	const childrenOf = childrenByParent(categories);
+	// A child with its own children is an intermediate folder — descend past it;
+	// a childless child is a leaf — collect it.
 	const collect = (id: number): CategoryId[] =>
-		(childrenOf.get(id) ?? []).flatMap((child) => {
-			const grandchildren = childrenOf.get(child.id) ?? [];
-			return grandchildren.length === 0 ? [child.id] : collect(child.id);
-		});
+		(childrenOf.get(id) ?? []).flatMap((child) =>
+			childrenOf.has(child.id) ? collect(child.id) : [child.id],
+		);
 	return collect(folderId);
 }
 
