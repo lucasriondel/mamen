@@ -16,39 +16,9 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "@/components/ui/popover";
+import { searchFolders } from "@/lib/category-tree";
 import { categoryQueries } from "@/lib/sdk";
 import { useIssuerMutations } from "./use-issuer-mutations";
-
-/** A folder paired with the leaves beneath it that match the current search. */
-type FolderGroup = { folder: Category; leaves: Category[] };
-
-/** Case-insensitive substring match of a category name against the query. */
-function matches(name: string, query: string): boolean {
-	return name.toLowerCase().includes(query.trim().toLowerCase());
-}
-
-/**
- * Group leaves under their folder, keeping only leaves whose name matches the
- * search, and dropping folders left with none. Folders themselves are never
- * offered — a **Category folder** is not assignable (two-level invariant), so it
- * is a heading only. Orphan leaves (parent absent from the page) are dropped.
- */
-function groupLeaves(
-	categories: readonly Category[],
-	query: string,
-): FolderGroup[] {
-	const folders = categories.filter((c) => c.parentId === null);
-	const leavesByParent = new Map<number, Category[]>();
-	for (const cat of categories) {
-		if (cat.parentId === null || !matches(cat.name, query)) continue;
-		const bucket = leavesByParent.get(cat.parentId) ?? [];
-		bucket.push(cat);
-		leavesByParent.set(cat.parentId, bucket);
-	}
-	return folders
-		.map((folder) => ({ folder, leaves: leavesByParent.get(folder.id) ?? [] }))
-		.filter((g) => g.leaves.length > 0);
-}
 
 /**
  * The **Issuer default category** picker on the issuer detail page (PRD #19,
@@ -79,7 +49,7 @@ export function IssuerDefaultCategoryPicker({ issuer }: { issuer: Issuer }) {
 		issuer.defaultCategoryId != null
 			? categories.find((c) => c.id === issuer.defaultCategoryId)
 			: undefined;
-	const groups = groupLeaves(categories, query);
+	const groups = searchFolders(categories, query);
 	const pending = setDefaultCategory.isPending;
 
 	const handleOpenChange = (next: boolean) => {

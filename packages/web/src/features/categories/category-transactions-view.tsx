@@ -10,6 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getRouteApi, Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { Empty } from "@/components/ui/empty";
+import { descendantIds, isFolder } from "@/lib/category-tree";
 import { formatCurrency } from "@/lib/format";
 import {
 	accountQueries,
@@ -49,10 +50,9 @@ function resolveCategoryIds(
 ): { category: Category | undefined; ids: CategoryId[] } {
 	const category = categories.find((c) => c.id === categoryId);
 	if (category === undefined) return { category: undefined, ids: [] };
-	const ids =
-		category.parentId === null
-			? categories.filter((c) => c.parentId === categoryId).map((c) => c.id)
-			: [categoryId as CategoryId];
+	const ids = isFolder(category)
+		? descendantIds(categories, categoryId)
+		: [categoryId as CategoryId];
 	return { category, ids };
 }
 

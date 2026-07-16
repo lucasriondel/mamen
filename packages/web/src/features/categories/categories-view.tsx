@@ -10,13 +10,11 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Empty } from "@/components/ui/empty";
+import { categoryPath, foldersWithLeaves } from "@/lib/category-tree";
 import { formatCurrency } from "@/lib/format";
 import { categoryQueries, transactionQueries } from "@/lib/sdk";
 import { cn } from "@/lib/utils";
 import { useCategoryMutations } from "./use-category-mutations";
-
-/** A folder paired with the leaves that sit beneath it, in sort order. */
-type FolderGroup = { folder: Category; leaves: Category[] };
 
 /**
  * Which write dialog is open, and on what. `null` = closed. The categories page
@@ -39,28 +37,6 @@ const PRIMARY_CLASS =
 	"rounded-md bg-accent px-4 py-2 font-medium text-bg text-sm disabled:opacity-50";
 
 /**
- * Group the flat category list into folders-with-leaves. A **Category folder**
- * has no parent; a **Category leaf** points at one. Folders keep the list's
- * order (the query asks for `sortOrder`); each folder's leaves are the rows that
- * name it as parent. Orphan leaves (a parent missing from the page) are dropped
- * rather than shown rootless — this page never invents structure.
- */
-function groupByFolder(categories: readonly Category[]): FolderGroup[] {
-	const folders = categories.filter((c) => c.parentId === null);
-	const leavesByParent = new Map<number, Category[]>();
-	for (const cat of categories) {
-		if (cat.parentId === null) continue;
-		const bucket = leavesByParent.get(cat.parentId) ?? [];
-		bucket.push(cat);
-		leavesByParent.set(cat.parentId, bucket);
-	}
-	return folders.map((folder) => ({
-		folder,
-		leaves: leavesByParent.get(folder.id) ?? [],
-	}));
-}
-
-/**
  * Categories page (PRD #19, issue #26). Lists the two-level tree and lets you
  * **curate** it: create a folder, create a leaf inside one, rename anything, move
  * a leaf to a different folder (its transactions follow), and delete — the last
@@ -74,7 +50,7 @@ export function CategoriesView() {
 		categoryQueries.list({ limit: 200, orderBy: "sortOrder" }),
 	);
 	const categories = (categoriesQuery.data?.items ?? []) as readonly Category[];
-	const groups = groupByFolder(categories);
+	const groups = foldersWithLeaves(categories);
 
 	const mutations = useCategoryMutations();
 	const [editor, setEditor] = useState<Editor | null>(null);
@@ -434,7 +410,7 @@ function MoveForm({
 				>
 					{folders.map((folder) => (
 						<option key={folder.id} value={String(folder.id)}>
-							{folder.name}
+							{categoryPath(folders, folder)}
 						</option>
 					))}
 				</select>

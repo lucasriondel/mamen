@@ -16,45 +16,14 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "@/components/ui/popover";
+import { isFolder, isLeaf, searchFolders } from "@/lib/category-tree";
 import { categoryQueries } from "@/lib/sdk";
 import { CategoryCell } from "./transaction-cells";
 import { useCategoryOverride } from "./use-category-override";
 import { useCreateCategoryLeaf } from "./use-create-category-leaf";
 
-/** A folder paired with the leaves beneath it that match the current search. */
-type FolderGroup = { folder: Category; leaves: Category[] };
-
 /** Which step of the picker is showing: pick a leaf, or choose a folder for a new one. */
 type Mode = "pick" | "choose-folder";
-
-/** Case-insensitive substring match of a category name against the query. */
-function matches(name: string, query: string): boolean {
-	return name.toLowerCase().includes(query.trim().toLowerCase());
-}
-
-/**
- * Group leaves under their folder, keeping only leaves whose name matches the
- * search, and dropping folders left with none. Folders themselves are never
- * offered — a **Category folder** is not assignable (two-level invariant), so it
- * is a heading only. Orphan leaves (parent absent from the page) are dropped.
- * The same shape the issuer default-category picker uses.
- */
-function groupLeaves(
-	categories: readonly Category[],
-	query: string,
-): FolderGroup[] {
-	const folders = categories.filter((c) => c.parentId === null);
-	const leavesByParent = new Map<number, Category[]>();
-	for (const cat of categories) {
-		if (cat.parentId === null || !matches(cat.name, query)) continue;
-		const bucket = leavesByParent.get(cat.parentId) ?? [];
-		bucket.push(cat);
-		leavesByParent.set(cat.parentId, bucket);
-	}
-	return folders
-		.map((folder) => ({ folder, leaves: leavesByParent.get(folder.id) ?? [] }))
-		.filter((g) => g.leaves.length > 0);
-}
 
 export interface CategoryPickerProps {
 	/** The transaction being curated — the override is written to this row only. */
@@ -105,15 +74,13 @@ export function CategoryPicker({ transaction, category }: CategoryPickerProps) {
 	// An override is a *marked* row: a manual category on this transaction. An
 	// inherited row (through the issuer) is not manual and stays plain.
 	const isOverride = transaction.manualCategory === true && category != null;
-	const groups = groupLeaves(categories, query);
-	const folders = categories.filter((c) => c.parentId === null);
+	const groups = searchFolders(categories, query);
+	const folders = categories.filter(isFolder);
 	const trimmed = query.trim();
 	// Offer to create only when the search finds no leaf by that exact name — a
 	// folder is structural and never created here, so it doesn't block a create.
 	const hasExactLeaf = categories.some(
-		(c) =>
-			c.parentId !== null &&
-			c.name.trim().toLowerCase() === trimmed.toLowerCase(),
+		(c) => isLeaf(c) && c.name.trim().toLowerCase() === trimmed.toLowerCase(),
 	);
 	const canCreate = trimmed.length > 0 && !hasExactLeaf;
 	const pending =
