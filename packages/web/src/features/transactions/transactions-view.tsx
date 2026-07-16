@@ -41,6 +41,7 @@ function toListParams(search: TransactionsSearch): TransactionListParams {
 			? { accountId: search.accountId as AccountId }
 			: {}),
 		...(search.importMonth != null ? { importMonth: search.importMonth } : {}),
+		...(search.search != null ? { search: search.search } : {}),
 	};
 }
 
@@ -116,7 +117,11 @@ export function TransactionsView() {
 			<TransactionsFilters
 				accounts={accounts}
 				months={months}
-				value={{ accountId: search.accountId, importMonth: search.importMonth }}
+				value={{
+					accountId: search.accountId,
+					importMonth: search.importMonth,
+					search: search.search,
+				}}
 				onChange={applyFilters}
 			/>
 
@@ -131,7 +136,9 @@ export function TransactionsView() {
 				<Empty
 					title="No transactions"
 					description={
-						search.accountId != null || search.importMonth != null
+						search.accountId != null ||
+						search.importMonth != null ||
+						search.search != null
 							? "No transactions match the current filters."
 							: "Import a bank statement to see your transactions here."
 					}

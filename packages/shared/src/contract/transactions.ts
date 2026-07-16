@@ -119,6 +119,11 @@ export const TransactionFilters = {
 	endDate: Schema.optional(Schema.Date), // inclusive upper bound on `date`
 	isRefund: Schema.optional(BooleanFromString),
 	isDuplicateExcluded: Schema.optional(BooleanFromString),
+	// A free-text substring (case-insensitive) matched against the raw issuer
+	// string, the assigned issuer's name, the notes, and the amount as displayed
+	// (2 decimals, unsigned) — the union, so one box searches every human-readable
+	// field of a row. AND-combined with the rest, like every sibling filter (#40).
+	search: Schema.optional(Schema.String),
 } as const;
 
 /**

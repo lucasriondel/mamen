@@ -146,6 +146,7 @@ type Filters = {
 	endDate?: Date;
 	isRefund?: boolean;
 	isDuplicateExcluded?: boolean;
+	search?: string;
 };
 
 /** The full `list` filter — the composable set plus pagination + ordering. */
@@ -245,6 +246,32 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 					conditions.push(
 						sql`t.isDuplicateExcluded = ${f.isDuplicateExcluded ? 1 : 0}`,
 					);
+				// Free-text search (#40): a case-insensitive substring matched against
+				// the union of every human-readable field of a row — raw issuer text,
+				// the joined issuer name (`i.name`, from `readFrom`'s LEFT JOIN), the
+				// notes, and the amount rendered as text (so "6.99" finds that price).
+				// A blank/whitespace-only term contributes no predicate. `\` escapes
+				// the LIKE metachars `%` `_` so a user typing them means them literally.
+				const search = f.search?.trim();
+				if (search) {
+					// Escape the LIKE metachars `%` `_` (backslash first, so the escape
+					// char itself is escaped) so a user typing them means them literally;
+					// pair every LIKE with `ESCAPE '\'`.
+					const like = `%${search.replace(/[\\%_]/g, "\\$&")}%`;
+					const contains = (col: Fragment) =>
+						sql`${col} LIKE ${like} ESCAPE '\\'`;
+					// Match the amount as the UI renders it: two fraction digits and no
+					// sign (debits and credits both show a bare figure), so "6.99" finds
+					// a -6.99 debit and "42.50" finds a 42.5 amount. `,`→`.` lets a user
+					// type the fr-FR decimal comma. `printf('%.2f', abs(...))` mirrors the
+					// formatter's `minimumFractionDigits: 2` without its grouping/symbol.
+					const amountLike = `%${search
+						.replace(",", ".")
+						.replace(/[\\%_]/g, "\\$&")}%`;
+					conditions.push(
+						sql`(${contains(sql`t.rawIssuerString`)} OR ${contains(sql`i.name`)} OR ${contains(sql`t.notes`)} OR printf('%.2f', abs(t.amount)) LIKE ${amountLike} ESCAPE '\\')`,
+					);
+				}
 				return conditions;
 			};
 

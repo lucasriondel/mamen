@@ -32,6 +32,21 @@ describe("validateTransactionsSearch", () => {
 		).toBeUndefined();
 	});
 
+	it("keeps a non-empty search string, trimmed", () => {
+		expect(validateTransactionsSearch({ search: "netflix" }).search).toBe(
+			"netflix",
+		);
+		expect(validateTransactionsSearch({ search: "  spar  " }).search).toBe(
+			"spar",
+		);
+	});
+
+	it("drops a blank/whitespace-only or non-string search", () => {
+		expect(validateTransactionsSearch({ search: "" }).search).toBeUndefined();
+		expect(validateTransactionsSearch({ search: "   " }).search).toBeUndefined();
+		expect(validateTransactionsSearch({ search: 5 }).search).toBeUndefined();
+	});
+
 	it("only accepts asc/desc for direction", () => {
 		expect(validateTransactionsSearch({ direction: "asc" }).direction).toBe(
 			"asc",

@@ -19,6 +19,12 @@ import { TransactionFromRow, TransactionRepo } from "./repository";
 // SqlClient, provided by `DatabaseTest`; built per test for isolation.
 const RepoTest = TransactionRepo.Default.pipe(Layer.provide(DatabaseTest));
 
+// Like `RepoTest`, but keeps the underlying `SqlClient` in the output context so
+// a test can seed raw rows (e.g. an `issuers` row for the join-backed search).
+const RepoAndSqlTest = TransactionRepo.Default.pipe(
+	Layer.provideMerge(DatabaseTest),
+);
+
 const asAccount = Schema.decodeSync(AccountId);
 const asCategory = Schema.decodeSync(CategoryId);
 const asIssuer = Schema.decodeSync(IssuerId);
@@ -491,6 +497,159 @@ describe("TransactionRepo", () => {
 				assert.strictEqual(page.items.length, 1);
 			}).pipe(Effect.provide(RepoTest)),
 		);
+
+		describe("free-text search (issue #40)", () => {
+			// A dedicated seed: distinct raw-issuer strings, notes, and amounts so a
+			// term can hit exactly one field at a time. Row 3 also links a real
+			// `issuers` row so the join-backed `i.name` match is exercised.
+			const seedSearch = (repo: TransactionRepo) =>
+				Effect.gen(function* () {
+					const sql = yield* SqlClient.SqlClient;
+					yield* sql`INSERT INTO issuers (id, name, createdAt, firstSeen) VALUES (9, 'Spotify AB', ${DATE.toISOString()}, ${DATE.toISOString()})`;
+					yield* repo.create(
+						make({
+							rawIssuerString: "CARREFOUR MARKET",
+							amount: 42.5,
+							notes: "weekly groceries",
+						}),
+					);
+					yield* repo.create(
+						make({
+							rawIssuerString: "EDF ENERGY",
+							// A debit, stored signed — the search matches its unsigned figure.
+							amount: -6.99,
+						}),
+					);
+					yield* repo.create(
+						make({
+							rawIssuerString: "SPOT-9021",
+							issuerId: asIssuer(9),
+							amount: 9.99,
+							notes: "music",
+						}),
+					);
+				});
+
+			it.effect("matches the raw issuer string, case-insensitively", () =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* seedSearch(repo);
+					const page = yield* repo.list({ ...listAll, search: "carrefour" });
+					assert.strictEqual(page.total, 1);
+					assert.strictEqual(
+						page.items[0]?.rawIssuerString,
+						"CARREFOUR MARKET",
+					);
+				}).pipe(Effect.provide(RepoAndSqlTest)),
+			);
+
+			it.effect("matches the joined issuer name", () =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* seedSearch(repo);
+					// "spotify" is only on the joined issuer, not the raw string.
+					const page = yield* repo.list({ ...listAll, search: "spotify" });
+					assert.strictEqual(page.total, 1);
+					assert.strictEqual(page.items[0]?.rawIssuerString, "SPOT-9021");
+				}).pipe(Effect.provide(RepoAndSqlTest)),
+			);
+
+			it.effect("matches the notes text", () =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* seedSearch(repo);
+					const page = yield* repo.list({ ...listAll, search: "groceries" });
+					assert.strictEqual(page.total, 1);
+					assert.strictEqual(
+						page.items[0]?.rawIssuerString,
+						"CARREFOUR MARKET",
+					);
+				}).pipe(Effect.provide(RepoAndSqlTest)),
+			);
+
+			it.effect("matches the amount, ignoring the debit sign", () =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* seedSearch(repo);
+					// EDF is stored as -6.99; the user types the bare figure they see.
+					const page = yield* repo.list({ ...listAll, search: "6.99" });
+					assert.strictEqual(page.total, 1);
+					assert.strictEqual(page.items[0]?.rawIssuerString, "EDF ENERGY");
+				}).pipe(Effect.provide(RepoAndSqlTest)),
+			);
+
+			it.effect("matches the amount at the displayed 2-decimal precision", () =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* seedSearch(repo);
+					// CARREFOUR is stored as 42.5 but displayed as 42.50 (fr-FR, 2dp).
+					const page = yield* repo.list({ ...listAll, search: "42.50" });
+					assert.strictEqual(page.total, 1);
+					assert.strictEqual(
+						page.items[0]?.rawIssuerString,
+						"CARREFOUR MARKET",
+					);
+				}).pipe(Effect.provide(RepoAndSqlTest)),
+			);
+
+			it.effect("accepts the fr-FR decimal comma in an amount search", () =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* seedSearch(repo);
+					const page = yield* repo.list({ ...listAll, search: "42,50" });
+					assert.strictEqual(page.total, 1);
+					assert.strictEqual(
+						page.items[0]?.rawIssuerString,
+						"CARREFOUR MARKET",
+					);
+				}).pipe(Effect.provide(RepoAndSqlTest)),
+			);
+
+			it.effect("combines with other filters (AND)", () =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* seedSearch(repo);
+					// "e" hits every raw string, but account 2 has none of these rows.
+					const page = yield* repo.list({
+						...listAll,
+						search: "e",
+						accountId: asAccount(2),
+					});
+					assert.strictEqual(page.total, 0);
+				}).pipe(Effect.provide(RepoAndSqlTest)),
+			);
+
+			it.effect("a blank/whitespace term is a no-op (returns all)", () =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* seedSearch(repo);
+					const page = yield* repo.list({ ...listAll, search: "   " });
+					assert.strictEqual(page.total, 3);
+				}).pipe(Effect.provide(RepoAndSqlTest)),
+			);
+
+			it.effect("treats LIKE metachars as literal text", () =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* seedSearch(repo);
+					// "%" would match everything if unescaped; none of the rows contain
+					// a literal percent sign, so the escaped search matches nothing.
+					const page = yield* repo.list({ ...listAll, search: "%" });
+					assert.strictEqual(page.total, 0);
+				}).pipe(Effect.provide(RepoAndSqlTest)),
+			);
+
+			it.effect("count honors the search filter", () =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* seedSearch(repo);
+					assert.strictEqual(
+						(yield* repo.count({ search: "spotify" })).count,
+						1,
+					);
+				}).pipe(Effect.provide(RepoAndSqlTest)),
+			);
+		});
 
 		it.effect("count honors every filter list does", () =>
 			Effect.gen(function* () {

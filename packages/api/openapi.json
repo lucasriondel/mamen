@@ -1771,6 +1771,14 @@
             "required": false
           },
           {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
             "name": "orderBy",
             "in": "query",
             "schema": {
@@ -2069,6 +2077,14 @@
                 "true",
                 "false"
               ]
+            },
+            "required": false
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
             },
             "required": false
           }

@@ -37,6 +37,8 @@ export type TransactionListParams = {
 	endDate?: Date;
 	isRefund?: boolean;
 	isDuplicateExcluded?: boolean;
+	/** Free-text substring matched across issuer text/name, notes, amount (#40). */
+	search?: string;
 	orderBy?: "date";
 	direction?: "asc" | "desc";
 };
