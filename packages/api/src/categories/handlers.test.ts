@@ -676,6 +676,110 @@ describe("categories endpoints", () => {
 		);
 	});
 
+	// Spill (ADR 0003, issue #30): the atomic answer to a refused Kind flip. It
+	// creates a new child leaf under the money-holding node and moves the node's
+	// money into it — manual override transactions *and* issuers holding it as a
+	// default — in one transaction, so the node becomes a folder and its money
+	// keeps a home with no half-done tree.
+	describe("spill", () => {
+		it.effect(
+			"moves both transactions and an issuer default into a named new child leaf",
+			() =>
+				Effect.gen(function* () {
+					const client = yield* HttpApiClient.make(Api);
+					const folder = yield* client.categories.create({
+						payload: make({ slug: "life" }),
+					});
+					const subs = yield* client.categories.create({
+						payload: make({ slug: "subscriptions", parentId: folder.id }),
+					});
+					const tx = yield* client.transactions.create({
+						payload: {
+							accountId: asAccount(1),
+							date: TX_DATE,
+							amount: 9.99,
+							rawIssuerString: "NETFLIX",
+							importedAt: TX_DATE,
+							importMonth: "2026-03",
+							categoryId: subs.id,
+							manualCategory: true,
+						},
+					});
+					const issuer = yield* client.issuers.create({
+						payload: {
+							name: "Netflix",
+							firstSeen: TX_DATE,
+							defaultCategoryId: subs.id,
+						},
+					});
+
+					// Sanity: the flip is refused while Subscriptions holds money.
+					const refused = yield* client.categories
+						.create({
+							payload: make({ slug: "streaming", parentId: subs.id }),
+						})
+						.pipe(Effect.flip);
+					assert.ok(refused instanceof CategoryHoldsMoney);
+
+					// Spill: the user names the destination leaf.
+					const leaf = yield* client.categories.spill({
+						path: { id: subs.id },
+						payload: {
+							name: "Streaming services",
+							slug: "streaming-services",
+							color: "#94a3b8",
+							icon: "🏷️",
+							sortOrder: 0,
+						},
+					});
+					assert.strictEqual(leaf.name, "Streaming services");
+					assert.strictEqual(leaf.parentId, subs.id);
+
+					// The transaction's manual override now points at the new leaf,
+					// still manual.
+					const movedTx = yield* client.transactions.getById({
+						path: { id: tx.id },
+					});
+					assert.strictEqual(movedTx.categoryId, leaf.id);
+					assert.strictEqual(movedTx.manualCategory, true);
+
+					// The issuer's default now points at the new leaf.
+					const movedIssuer = yield* client.issuers.getById({
+						path: { id: issuer.id },
+					});
+					assert.strictEqual(movedIssuer.defaultCategoryId, leaf.id);
+
+					// Subscriptions now holds no money — a further child is accepted.
+					const another = yield* client.categories.create({
+						payload: make({ slug: "podcasts", parentId: subs.id }),
+					});
+					assert.strictEqual(another.parentId, subs.id);
+				}).pipe(Effect.provide(HttpLive)),
+		);
+
+		it.effect("404s spilling a missing node", () =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const error = yield* client.categories
+					.spill({
+						path: { id: asId(999) },
+						payload: {
+							name: "Nope",
+							slug: "nope",
+							color: "#94a3b8",
+							icon: "🏷️",
+							sortOrder: 0,
+						},
+					})
+					.pipe(Effect.flip);
+				assert.deepStrictEqual(
+					error,
+					new NotFound({ resource: "category", id: asId(999) }),
+				);
+			}).pipe(Effect.provide(HttpLive)),
+		);
+	});
+
 	// The guarded delete (ADR 0001): a category is refused deletion while anything
 	// still depends on it, and the refusal names each dependent by count so the
 	// user can re-assign first. Neither cascading nor nulling is offered.

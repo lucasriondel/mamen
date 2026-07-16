@@ -2,6 +2,7 @@ import type {
 	CategoryBulkCreate,
 	CategoryCreate,
 	CategoryId,
+	CategorySpill,
 	CategoryUpdate,
 } from "@mamen/shared/contract";
 import { PaginationDefaults } from "@mamen/shared/contract";
@@ -92,6 +93,17 @@ export const categoryMutations = {
 		runQuery(
 			Effect.flatMap(Client, (client) =>
 				client.categories.update({ path: { id }, payload }),
+			),
+		),
+
+	/**
+	 * **Spill** the money-holding node's transactions into a new child leaf the
+	 * user named — the atomic answer to a refused Kind flip. Returns the new leaf.
+	 */
+	spill: (id: CategoryId, payload: CategorySpill) =>
+		runQuery(
+			Effect.flatMap(Client, (client) =>
+				client.categories.spill({ path: { id }, payload }),
 			),
 		),
 

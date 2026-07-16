@@ -17,6 +17,7 @@ export const CategoriesLive = HttpApiBuilder.group(
 				.handle("create", (_) => repo.create(_.payload))
 				.handle("bulkCreate", (_) => repo.bulkCreate(_.payload.records))
 				.handle("update", (_) => repo.update(_.path.id, _.payload))
+				.handle("spill", (_) => repo.spill(_.path.id, _.payload))
 				.handle("remove", (_) => repo.remove(_.path.id));
 		}),
 ).pipe(Layer.provide(CategoryRepo.Default));

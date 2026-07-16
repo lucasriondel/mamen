@@ -2,7 +2,7 @@ import type { Category, CategoryId } from "@mamen/shared/contract";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { categoryKeys, categoryMutations } from "@/lib/sdk";
-import { toErrorMessage } from "@/lib/sdk-error";
+import { categoryHoldsMoney, toErrorMessage } from "@/lib/sdk-error";
 import { slugify } from "@/lib/utils";
 
 /** Neutral colour/icon defaults a new category gets; refined later if wanted. */
@@ -50,7 +50,10 @@ export function useCategoryMutations() {
 		onError,
 	});
 
-	// A **Category leaf** inside a chosen folder — the only assignable kind.
+	// A **Category leaf** inside a chosen node — the only assignable kind. Nesting
+	// one under a leaf is a **Kind flip**; if that leaf still holds money the API
+	// refuses (`CategoryHoldsMoney`) and the view answers with the spill dialog, so
+	// the toast is suppressed for that one case to avoid double-signalling.
 	const createLeaf = useMutation({
 		mutationFn: ({
 			name,
@@ -68,7 +71,9 @@ export function useCategoryMutations() {
 				sortOrder: 0,
 			}),
 		onSuccess: invalidate,
-		onError,
+		onError: (error) => {
+			if (!categoryHoldsMoney(error)) onError(error);
+		},
 	});
 
 	// Rename any node without losing history — only the display name changes.
@@ -88,6 +93,29 @@ export function useCategoryMutations() {
 		onError,
 	});
 
+	// **Spill** (issue #30): the answer to a refused Kind flip. Create a new child
+	// leaf under the money-holding node and move its money into it atomically
+	// (server-side), so the node becomes a folder and nothing is stranded. The
+	// user always names the destination — never auto-named.
+	const spill = useMutation({
+		mutationFn: ({
+			id,
+			name,
+		}: {
+			id: CategoryId;
+			name: string;
+		}): Promise<Category> =>
+			categoryMutations.spill(id, {
+				name,
+				slug: slugify(name),
+				color: NEW_COLOR,
+				icon: NEW_LEAF_ICON,
+				sortOrder: 0,
+			}),
+		onSuccess: invalidate,
+		onError,
+	});
+
 	// The guarded delete: the API refuses (`CategoryInUse`) while anything depends
 	// on the category, and the toast names the dependents.
 	const remove = useMutation({
@@ -96,5 +124,5 @@ export function useCategoryMutations() {
 		onError,
 	});
 
-	return { createFolder, createLeaf, rename, move, remove };
+	return { createFolder, createLeaf, rename, move, spill, remove };
 }

@@ -13,6 +13,7 @@ export {
 	CategoryBulkCreate,
 	CategoryCreate,
 	CategoryListFilters,
+	CategorySpill,
 	CategoryUpdate,
 } from "./categories";
 export {

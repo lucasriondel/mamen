@@ -48,6 +48,22 @@ export const CategoryBulkCreate = Schema.Struct({
 export type CategoryBulkCreate = typeof CategoryBulkCreate.Type;
 
 /**
+ * **Spill** payload — the fields of the new child **Category leaf** the money
+ * lands in; its parent is the path id, so `parentId` is not carried. The user
+ * always names the destination (an auto-named leaf is a guess about intent that
+ * then lives in their tree forever), which is why `name`/`slug` are required
+ * rather than derived server-side. See {@link CategoriesGroup}'s `spill`.
+ */
+export const CategorySpill = Schema.Struct({
+	name: Category.fields.name,
+	slug: Category.fields.slug,
+	color: Category.fields.color,
+	icon: Category.fields.icon,
+	sortOrder: Category.fields.sortOrder,
+});
+export type CategorySpill = typeof CategorySpill.Type;
+
+/**
  * `list` filters (contract §2.3), composable — both optional and `AND`-combined,
  * replacing the old branch-1..4 fan-out (root / by-parent / ordered / both).
  * `parentId` filters to a parent's children; `orderBy: "sortOrder"` orders by
@@ -71,6 +87,13 @@ export const CategoryListFilters = {
  * a parent (the remaining moved-node guard). `remove` declares `CategoryInUse`
  * (409): the **Guarded delete**, refused while a folder has children or a leaf is
  * still assigned to transactions or held as an issuer default.
+ *
+ * `spill` (POST `/categories/:id/spill`) answers a refused Kind flip: it creates
+ * a new child **Category leaf** under the node and moves the node's money into it
+ * — *manual* override transactions and issuers holding it as a default — in one
+ * atomic transaction, so the node becomes a folder and its money keeps a home
+ * with no half-done tree. 404s if the node is missing; 201 with the new leaf.
+ *
  * `getById`/`getBySlug`/`update`/`remove` 404 on a missing key. Dropped vs today:
  * `GET /categories/root`, `PUT /categories/bulk-put`, `POST /categories/clear`
  * (all client-only).
@@ -116,6 +139,14 @@ export class CategoriesGroup extends HttpApiGroup.make("categories")
 			.addError(NotFound)
 			.addError(CategoryHasChildren)
 			.addError(CategoryHoldsMoney),
+	)
+	.add(
+		HttpApiEndpoint.post(
+			"spill",
+		)`/categories/${HttpApiSchema.param("id", numFromStr(CategoryId))}/spill`
+			.setPayload(CategorySpill)
+			.addSuccess(Category, { status: 201 })
+			.addError(NotFound),
 	)
 	.add(
 		HttpApiEndpoint.del(

@@ -6,6 +6,7 @@ import {
 	CategoryHoldsMoney,
 	CategoryId,
 	CategoryInUse,
+	type CategorySpill,
 	type CategoryUpdate,
 	NotFound,
 	Paged,
@@ -338,6 +339,47 @@ export class CategoryRepo extends Effect.Service<CategoryRepo>()(
 					),
 				);
 
+			/**
+			 * **Spill** (ADR 0003, issue #30): the atomic answer to a refused Kind
+			 * flip. Create a new child leaf under `id` and move the node's money into
+			 * it in one `withTransaction` — the insert, the manual-override re-point,
+			 * and the issuer-default re-point commit together, so there is never a state
+			 * where the child exists but the money did not move. Bypasses the
+			 * money-holding guard on purpose: it *is* the sanctioned flip, and it clears
+			 * the money as it makes the child. 404s (via `getById`) if the node is gone.
+			 * The user names the destination; nothing is auto-named.
+			 */
+			const spill = (
+				id: typeof CategoryId.Type,
+				payload: CategorySpill,
+			): Effect.Effect<Category, NotFound> =>
+				getById(id).pipe(
+					Effect.andThen(nowIso),
+					Effect.flatMap((now) =>
+						sql
+							.withTransaction(
+								insertQuery(
+									toInsertRow({ ...payload, parentId: id }, now),
+								).pipe(
+									Effect.tap((leaf) =>
+										Effect.all(
+											[
+												// Manual override rows on the node → the new leaf (still a
+												// manual pick, only the target moves).
+												sql`UPDATE transactions SET categoryId = ${leaf.id} WHERE categoryId = ${id} AND manualCategory = 1`,
+												// Issuers holding the node as their default → the new leaf,
+												// carrying the whole derived history with them.
+												sql`UPDATE issuers SET defaultCategoryId = ${leaf.id} WHERE defaultCategoryId = ${id}`,
+											],
+											{ discard: true },
+										),
+									),
+								),
+							)
+							.pipe(orDieSql),
+					),
+				);
+
 			const remove = (id: typeof CategoryId.Type) =>
 				getById(id).pipe(
 					// getById 404s if missing; then the guarded delete refuses while
@@ -356,6 +398,7 @@ export class CategoryRepo extends Effect.Service<CategoryRepo>()(
 				create,
 				bulkCreate,
 				update,
+				spill,
 				remove,
 			} as const;
 		}),
