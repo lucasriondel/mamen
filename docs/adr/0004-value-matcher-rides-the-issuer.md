@@ -1,95 +1,69 @@
-# The value matcher rides the issuer; a rule never carries a category
+# The Value matcher rides the issuer
 
-A **Matching Rule** may gain an optional **Value matcher** (`matchValue`), so a
-single issuer-string can fork by amount — an Amazon `6.99` (Prime) routed to a
-*different* Issuer than a general Amazon charge (issue #39). The re-categorisation
-the issue asks for ("a rule overrides the category imposed by the issuer") is
-delivered **through the issuer**, not by putting a category on the rule: the
-narrow rule points at a narrower Issuer (*Amazon Prime*) whose
-`defaultCategoryId` is the desired category (*subscription*). The rule keeps its
-one job — assign an issuer — and category stays **derived**.
+A Matching Rule gains an optional **Value matcher** — a positive amount magnitude
+`matchValue`. When set, the rule matches a row only if its `pattern` matches the
+raw issuer string **and** the row's amount magnitude equals `matchValue` to the
+cent. When absent, the rule is a plain regex rule, byte-identical to the pre-#42
+behaviour. The point is to let one issuer-string fork by amount — the recurring
+Amazon `6.99` subscription goes to a narrow issuer while the rest of Amazon stays
+on the broad one.
 
-## Why not put the category on the rule
+## The category rides the issuer, never the rule
 
-Because that path was already built and deliberately torn out. The `rules` table
-carried a `categoryOverride` column (migration `0005`) that **no derivation ever
-read**, dropped in migration `0008`. The category is derived at query time from
-exactly two inputs (`transactions/repository.ts`):
+A rule assigns **only an issuer** (the **Issuer invariant** / **Derived
+category** in `CONTEXT-MAP.md`), and the Value matcher does not change that. To
+give the `6.99` rows their own category you point the value-rule at a **narrower
+Issuer** carrying its own `defaultCategoryId` — the category is derived through
+that issuer, exactly as for every other row. No category is ever carried on the
+rule, so there is no second derivation path to keep in sync, and re-categorising
+the narrow issuer reclassifies its whole history for free.
 
-```sql
-CASE WHEN t.manualCategory = 1 THEN t.categoryId ELSE i.defaultCategoryId END
-```
+## Specificity: the value tier sits on top
 
-A rule-carried category would be a **third** input, reopening the precedence
-question (does a rule-category beat a manual override? an issuer default?) and
-forcing every category read — display, count, and the category **filter** that
-must match display (ADR 0002) — to grow a join to `rules` and re-run the regex in
-SQL. The engine deliberately runs regex in JS, never SQL (`issuer-matcher.ts`),
-so an invalid pattern is a *skipped rule*, not a 500; a category derivation that
-depended on rule-matching would have to either duplicate that JS matching into
-the read path or move it into SQL and lose that property. Riding the issuer costs
-none of this: the existing two-input derivation is untouched, and *Amazon Prime*
-being its own row is not a workaround — it **is** the model. Prime is a distinct
-payee with a distinct default category; the value matcher is just how the import
-tells the two Amazons apart.
+A rule *with* a Value matcher matches a strict subset of what the same pattern
+without one matches, so it **outranks** a regex-only rule — placed *above*
+literal length in the comparator, then literal length, then newest rule. This is
+what makes the Amazon-`6.99` rule beat the broad `amazon` rule **robustly**
+rather than by `createdAt` luck: an older value-rule still wins over a newer
+regex-only rule of equal literal length. Without the tier, the two would tie on
+literal length and the winner would flip with insertion order.
+
+## Cents, never float `===`
+
+Amounts are compared as **whole cents** — `round(abs(amount)·100) ==
+round(matchValue·100)` — never a float `===`, which `6.99` would fail against its
+own round-trip. The comparison is **sign-agnostic**: both sides are magnitudes,
+so a `6.99` rule matches a `-6.99` debit and a `+6.99` credit alike. `matchValue`
+is stored and compared as a magnitude; the sign lives on the transaction, not the
+rule.
 
 ## Considered options
 
-**Category on the `Rule` (resurrect `categoryOverride`)** — rejected. Reintroduces
-the exact dead column, adds a third derivation input, and drags rule-matching into
-the category read path (or into SQL). The one concrete pull toward it — "the user
-thinks *one Amazon, conditional category*" — is a UI framing, answerable with a
-label, not a schema.
+**A category column on the rule** was rejected: it duplicates the issuer's
+`defaultCategoryId` as a second, rule-local derivation path, and the two drift
+the moment an issuer is re-categorised. Deriving through a narrower issuer keeps
+one source of truth.
 
-**A separate value-rule pass above the regex pass** — rejected as control-flow
-dressed as ordering. Deriving value-rules first and falling through to regex-only
-rules yields the same result as making "has a value matcher" the top specificity
-term, but forks `derive` into two passes instead of extending the one comparator
-that is already the single specificity seam.
+**Value-only rules** (a `matchValue` with no `pattern`) were rejected: `pattern`
+stays required, both must match when value is present. A rule that fires on an
+amount alone, across every issuer-string, is a footgun with no motivating case.
 
-**Range / operator matchers (`>`, `<`, between)** — deferred, not rejected. The
-driving cases are fixed subscription prices (Prime `6.99`, Netflix `13.49`), so
-exact-to-the-cent ships first. Exact is a degenerate range; adding operators later
-widens `matchValue` without breaking any exact rule, so nothing here forecloses it.
+**Tie value into literal length** (e.g. count a value as N literal chars) was
+rejected as a fudge: it makes specificity depend on an arbitrary constant and
+still ties against a long-enough pattern. A distinct tier above literal length is
+the honest encoding of "matches a strict subset".
 
 ## Consequences
 
-- **Value is a new specificity tier, above literal length.** A rule *with* a value
-  matcher matches a strict subset of what its pattern alone would, so it is
-  genuinely more specific and outranks a regex-only rule it ties or loses to on
-  literal length. Without this tier the Prime rule (`amazon` + `6.99`) beats the
-  broad `amazon` rule only by newer-`createdAt` luck — recreate the broad rule and
-  it silently steals the row back. The tier makes it robust. The cost: *any*
-  value-rule outranks *any* longer plain regex (`amazon prime video` loses to
-  `amazon` + `6.99`); accepted as correct — the amount is the sharper signal.
+- **A new nullable migration**, `matchValue REAL`, no backfill — existing rows
+  read as regex-only. One null↔absent fold on the rule row codec (the only
+  nullable column on the entity now that `categoryOverride` is gone).
 
-- **Comparison is in integer cents, never float `===`.**
-  `round(abs(amount)·100) == round(matchValue·100)`. `amount` is a SQLite `REAL`
-  and `matchValue` is user-typed; a bit-level `6.99 !== 6.99` would make a rule
-  **silently never match** — the worst failure mode, no error, just nothing.
-  Cents are exact by construction and need no epsilon to justify.
+- **The match predicate is now two-part** everywhere it runs: `regex.test(raw) &&
+  valueMatches(rule, amount)`. Threaded through create/update/delete recompute,
+  import matching, and both preview paths — the amount now rides into
+  `winnerFor`, which previously took only the raw string.
 
-- **`matchValue` stores a positive magnitude, sign-agnostic.** The user matches
-  "6.99"; the engine compares `abs(amount)`. Storing the magnitude keeps the DEBIT
-  = negative / CREDIT = positive convention out of the matcher entirely.
-
-- **The three pure matchers thread a scalar `amount`.** `winnerFor`, `derive`,
-  `previewLists`, `deleteLists` gain the amount alongside the raw string; the scope
-  guard `regex.test(raw)` becomes `regex.test(raw) && valueOk(rule, amount)`. The
-  preview keeps its **three** buckets — a value narrows scope exactly as a
-  non-matching pattern does, so a matched-text-wrong-value row is simply out of
-  scope, not a new list. `RulePreviewResult` is unchanged; `RulePreviewInput`
-  gains `matchValue`.
-
-- **The workflow is two-step, and the issue's framing is not how it feels.** To
-  re-categorise Prime the user creates the Issuer *Amazon Prime* (default category
-  *subscription*), then a rule `amazon` + `6.99` pointing at it — not a single
-  "override this row's category" gesture. The issuer grid and its counts
-  (issue #39's sibling work) now show *Amazon* and *Amazon Prime* as separate
-  rows. Accepted: they are separate payees. The **category** recap is already
-  correct for free, since it reads through the issuer.
-
-- **Migration `0012` adds `matchValue REAL` nullable, no backfill.** Existing rows
-  are `NULL` ⇒ regex-only ⇒ byte-identical behaviour to before. The field is named
-  `matchValue`, not `amount`/`value`, so it never reads as the transaction's own
-  amount.
+- **Preview narrows, it does not add a bucket.** A present `matchValue` tightens
+  the existing scope guard; the three preview buckets stay the same, so
+  `RulePreviewResult` is unchanged and only `RulePreviewInput` gains `matchValue`.

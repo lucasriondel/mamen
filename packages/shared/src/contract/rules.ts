@@ -21,6 +21,15 @@ export class Rule extends Schema.Class<Rule>("Rule")({
 	id: RuleId,
 	issuerId: IssuerId,
 	pattern: Schema.String,
+	/**
+	 * The optional **Value matcher** (issue #42, ADR 0004): a positive amount
+	 * magnitude. When present the rule matches a row only if `pattern` matches the
+	 * raw issuer string **and** the row's amount magnitude equals `matchValue` to
+	 * the cent — so one issuer-string can fork by amount. Absent ⇒ a plain regex
+	 * rule, byte-identical to the pre-#42 behaviour. Sign-agnostic: stored and
+	 * compared as a magnitude, so a `6.99` rule matches a `-6.99` debit.
+	 */
+	matchValue: Schema.optional(Schema.Number.pipe(Schema.positive())),
 	matchCount: Schema.Number,
 	createdAt: Schema.Date,
 }) {}
@@ -29,6 +38,7 @@ export class Rule extends Schema.Class<Rule>("Rule")({
 export const RuleCreate = Schema.Struct({
 	issuerId: Rule.fields.issuerId,
 	pattern: Rule.fields.pattern,
+	matchValue: Rule.fields.matchValue,
 	matchCount: Rule.fields.matchCount,
 });
 export type RuleCreate = typeof RuleCreate.Type;
@@ -53,14 +63,16 @@ export const RuleCount = Schema.Struct({ count: Schema.Number });
  * Preview request — the single rule *being edited*, described independently of
  * whether it exists yet. `ruleId` present ⇒ an **update** (that rule's pattern /
  * issuer are being changed to these values, its `createdAt` preserved); absent ⇒
- * a **create** (a brand-new, therefore newest, rule). `issuerId` + `pattern` are
- * the rule's prospective state. The preview is scoped to this one pattern, never
- * the issuer's whole rule set (PRD #8 stories 7–11).
+ * a **create** (a brand-new, therefore newest, rule). `issuerId` + `pattern` +
+ * `matchValue?` are the rule's prospective state (a present `matchValue` narrows
+ * the scope to rows of that amount magnitude). The preview is scoped to this one
+ * pattern, never the issuer's whole rule set (PRD #8 stories 7–11).
  */
 export const RulePreviewInput = Schema.Struct({
 	ruleId: Schema.optional(RuleId),
 	issuerId: Rule.fields.issuerId,
 	pattern: Rule.fields.pattern,
+	matchValue: Rule.fields.matchValue,
 });
 export type RulePreviewInput = typeof RulePreviewInput.Type;
 

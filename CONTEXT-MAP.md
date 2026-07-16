@@ -35,7 +35,7 @@ repeated per package.
   **Derived category**). A rule that should *re-categorise* a subset (Amazon Prime
   out of Amazon) does so by pointing at a **narrower issuer** carrying its own
   default category, never by carrying a category itself — see
-  `docs/adr/0004-value-matcher-rides-the-issuer.md`.
+  [ADR 0004](./docs/adr/0004-value-matcher-rides-the-issuer.md).
 
 - **Value matcher** — an optional second predicate on a **Matching Rule**
   (`matchValue`, a positive amount magnitude): when set, the rule matches a row

@@ -10,6 +10,7 @@ import addTransactionsManualIssuer from "./0009_add_transactions_manual_issuer";
 import seedCategories from "./0010_seed_categories";
 import dropTransactionsCategoryColumns from "./0011_drop_transactions_category_columns";
 import addTransactionsNotes from "./0012_add_transactions_notes";
+import addRulesMatchValue from "./0013_add_rules_match_value";
 
 /**
  * The migration set, keyed `NNNN_name` (the Migrator parses the numeric prefix
@@ -30,4 +31,5 @@ export const migrations = {
 	"0010_seed_categories": seedCategories,
 	"0011_drop_transactions_category_columns": dropTransactionsCategoryColumns,
 	"0012_add_transactions_notes": addTransactionsNotes,
+	"0013_add_rules_match_value": addRulesMatchValue,
 } as const;

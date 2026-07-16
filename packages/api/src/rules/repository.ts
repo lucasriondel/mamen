@@ -14,13 +14,15 @@ import { orDieSql } from "../db/errors";
 /**
  * A stored rule row. `createdAt` is ISO-8601 TEXT; the branded ids come back as
  * plain numbers. {@link RuleFromRow} decodes it into the wire `Rule` (a Matching
- * Rule assigns only an issuer — there is no category column). No nullable columns
- * to fold: every rule field is required.
+ * Rule assigns only an issuer — there is no category column). The one nullable
+ * column is `matchValue` (the optional Value matcher, issue #42): SQL `NULL`
+ * folds to an absent wire field.
  */
 const RuleRow = Schema.Struct({
 	id: Schema.Number,
 	issuerId: Schema.Number,
 	pattern: Schema.String,
+	matchValue: Schema.NullOr(Schema.Number),
 	matchCount: Schema.Number,
 	createdAt: Schema.String,
 });
@@ -40,6 +42,8 @@ export const RuleFromRow = Schema.transform(RuleRow, Rule, {
 		id: row.id,
 		issuerId: row.issuerId,
 		pattern: row.pattern,
+		// `NULL` matchValue folds to an absent wire field (a regex-only rule).
+		...(row.matchValue !== null ? { matchValue: row.matchValue } : {}),
 		matchCount: row.matchCount,
 		createdAt: row.createdAt,
 	}),
@@ -47,6 +51,7 @@ export const RuleFromRow = Schema.transform(RuleRow, Rule, {
 		id: r.id,
 		issuerId: r.issuerId,
 		pattern: r.pattern,
+		matchValue: r.matchValue ?? null,
 		matchCount: r.matchCount,
 		createdAt: r.createdAt,
 	}),
@@ -68,6 +73,7 @@ type ListFilter = {
 type WriteRow = {
 	issuerId: number;
 	pattern: string;
+	matchValue: number | null;
 	matchCount: number;
 	createdAt: string;
 };
@@ -87,9 +93,7 @@ export class RuleRepo extends Effect.Service<RuleRepo>()("api/RuleRepo", {
 		// The `issuerId` filter (contract §2.6): present -> that issuer's rules,
 		// absent -> the whole table. `list` and `count` share it.
 		const whereClause = (issuerId: number | undefined) =>
-			issuerId === undefined
-				? sql``
-				: sql`WHERE issuerId = ${issuerId}`;
+			issuerId === undefined ? sql`` : sql`WHERE issuerId = ${issuerId}`;
 
 		// `Request: Schema.Any` skips a redundant re-decode: the filter is already
 		// decoded + branded at the HTTP boundary (`RuleListFilters` via
@@ -165,6 +169,7 @@ export class RuleRepo extends Effect.Service<RuleRepo>()("api/RuleRepo", {
 		const toWriteFields = (r: RuleCreate): Omit<WriteRow, "createdAt"> => ({
 			issuerId: r.issuerId,
 			pattern: r.pattern,
+			matchValue: r.matchValue ?? null,
 			matchCount: r.matchCount,
 		});
 
