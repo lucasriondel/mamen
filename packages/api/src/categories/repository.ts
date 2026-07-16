@@ -126,9 +126,9 @@ export class CategoryRepo extends Effect.Service<CategoryRepo>()(
 			});
 
 			// One hop up the tree: a node's `parentId` (or `null` at a root, `None`
-			// if the id is unknown). The cycle guard walks this repeatedly on
-			// `idx_categories_parentId`'s covered lookup to climb from a proposed new
-			// parent toward the root.
+			// if the id is unknown). Looks up a row by its primary key `id`, so the
+			// cycle guard climbs from a proposed new parent toward the root one
+			// primary-key lookup at a time.
 			const parentOfQuery = SqlSchema.findOne({
 				Request: Schema.Number,
 				Result: Schema.Struct({ parentId: Schema.NullOr(Schema.Number) }),
