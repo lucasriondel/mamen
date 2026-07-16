@@ -67,8 +67,9 @@ export function isLeaf(
 /**
  * Build the category forest: roots with their children nested, each node's
  * children in the list's order (the queries ask for `sortOrder`). The descent is
- * genuinely recursive, so it already handles any depth — the two-level data just
- * bottoms out after one hop. An orphan (a node whose parent is absent from the
+ * genuinely recursive, so it handles any depth (issue #32); a flat two-level tree
+ * simply bottoms out after one hop. An orphan (a node whose parent is absent from
+ * the
  * list) is never reached from a root, so it is dropped rather than shown
  * rootless — this never invents structure.
  */
@@ -166,9 +167,10 @@ export function subtreeIds(
 
 /**
  * The label for a node in a parent picker — its path from the root, joined with
- * a separator (e.g. `Food › Groceries`). Today every folder is a root, so a path
- * is a bare name; under nesting it disambiguates same-named leaves across
- * folders. Walks up the `parentId` chain, stopping at a root or a missing link.
+ * a separator (e.g. `Food › Groceries`). A root's path is a bare name; a nested
+ * node's path spells out its ancestry, disambiguating same-named nodes across
+ * folders (issue #32). Walks up the `parentId` chain, stopping at a root or a
+ * missing link.
  */
 export function categoryPath(
 	categories: readonly Category[],
