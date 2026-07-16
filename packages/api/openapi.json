@@ -516,6 +516,16 @@
               }
             }
           },
+          "422": {
+            "description": "CategoryHoldsMoney",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryHoldsMoney"
+                }
+              }
+            }
+          },
           "500": {
             "description": "InternalServerError"
           }
@@ -675,7 +685,14 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CategoryHasChildren"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/CategoryHasChildren"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CategoryHoldsMoney"
+                    }
+                  ]
                 }
               }
             }
@@ -864,6 +881,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "CategoryHoldsMoney",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryHoldsMoney"
                 }
               }
             }
@@ -4504,6 +4531,33 @@
           },
           "createdAt": {
             "$ref": "#/components/schemas/Date"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CategoryHoldsMoney": {
+        "type": "object",
+        "required": [
+          "categoryId",
+          "transactions",
+          "issuers",
+          "_tag"
+        ],
+        "properties": {
+          "categoryId": {
+            "type": "number"
+          },
+          "transactions": {
+            "type": "number"
+          },
+          "issuers": {
+            "type": "number"
+          },
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "CategoryHoldsMoney"
+            ]
           }
         },
         "additionalProperties": false

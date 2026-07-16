@@ -24,6 +24,7 @@ export {
 export {
 	BooleanFromString,
 	CategoryHasChildren,
+	CategoryHoldsMoney,
 	CategoryInUse,
 	CategoryNotLeaf,
 	Conflict,

@@ -5,7 +5,12 @@ import {
 	OpenApi,
 } from "@effect/platform";
 import { Schema } from "effect";
-import { CategoryHasChildren, CategoryInUse, NotFound } from "./errors";
+import {
+	CategoryHasChildren,
+	CategoryHoldsMoney,
+	CategoryInUse,
+	NotFound,
+} from "./errors";
 import { CategoryId, numFromStr } from "./ids";
 import { Paged, Pagination } from "./pagination";
 
@@ -58,7 +63,10 @@ export const CategoryListFilters = {
  * uniqueness constraint (faithful port), so no endpoint declares `Conflict`.
  * Categories nest to **any depth** (ADR 0003): any node may be a parent, so
  * `create`/`bulkCreate` declare no depth guard — a leaf parent is a legal home
- * now that a child simply turns it into a folder. `update` declares
+ * now that a child simply turns it into a folder. They do declare
+ * `CategoryHoldsMoney` (422): a **Kind flip** is refused while the would-be
+ * parent still holds money (transactions or an issuer default), so the money is
+ * not stranded off a rollup node. `update` declares the same, plus
  * `CategoryHasChildren` (422): a folder that still has children may not be given
  * a parent (the remaining moved-node guard). `remove` declares `CategoryInUse`
  * (409): the **Guarded delete**, refused while a folder has children or a leaf is
@@ -90,12 +98,14 @@ export class CategoriesGroup extends HttpApiGroup.make("categories")
 	.add(
 		HttpApiEndpoint.post("create")`/categories`
 			.setPayload(CategoryCreate)
-			.addSuccess(Category, { status: 201 }),
+			.addSuccess(Category, { status: 201 })
+			.addError(CategoryHoldsMoney),
 	)
 	.add(
 		HttpApiEndpoint.post("bulkCreate")`/categories/bulk-add`
 			.setPayload(CategoryBulkCreate)
-			.addSuccess(Schema.Array(Category), { status: 201 }),
+			.addSuccess(Schema.Array(Category), { status: 201 })
+			.addError(CategoryHoldsMoney),
 	)
 	.add(
 		HttpApiEndpoint.put(
@@ -104,7 +114,8 @@ export class CategoriesGroup extends HttpApiGroup.make("categories")
 			.setPayload(CategoryUpdate)
 			.addSuccess(Category)
 			.addError(NotFound)
-			.addError(CategoryHasChildren),
+			.addError(CategoryHasChildren)
+			.addError(CategoryHoldsMoney),
 	)
 	.add(
 		HttpApiEndpoint.del(

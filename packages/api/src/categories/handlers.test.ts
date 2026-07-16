@@ -6,6 +6,7 @@ import {
 	Api,
 	type CategoryCreate,
 	CategoryHasChildren,
+	CategoryHoldsMoney,
 	CategoryId,
 	CategoryInUse,
 	NotFound,
@@ -457,6 +458,220 @@ describe("categories endpoints", () => {
 					payload: { parentId: food.id },
 				});
 				assert.strictEqual(moved.parentId, food.id);
+			}).pipe(Effect.provide(HttpLive)),
+		);
+	});
+
+	// A Kind flip that would strand money (ADR 0003, issue #30): adding a child to
+	// a leaf that still holds money would hang that money off a rollup node the
+	// total visits but never counts. The guard refuses on create/bulkCreate/update
+	// and names what depends on the node — transactions *and* issuer defaults —
+	// mirroring the guarded-delete ergonomics.
+	describe("kind flip that would strand money", () => {
+		it.effect("refuses creating a child under a leaf holding a transaction", () =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const folder = yield* client.categories.create({
+					payload: make({ slug: "life" }),
+				});
+				const subs = yield* client.categories.create({
+					payload: make({ slug: "subscriptions", parentId: folder.id }),
+				});
+				yield* client.transactions.create({
+					payload: {
+						accountId: asAccount(1),
+						date: TX_DATE,
+						amount: 9.99,
+						rawIssuerString: "NETFLIX",
+						importedAt: TX_DATE,
+						importMonth: "2026-03",
+						categoryId: subs.id,
+						manualCategory: true,
+					},
+				});
+
+				const error = yield* client.categories
+					.create({
+						payload: make({ slug: "streaming", parentId: subs.id }),
+					})
+					.pipe(Effect.flip);
+				assert.ok(error instanceof CategoryHoldsMoney);
+				assert.strictEqual(error.categoryId, subs.id);
+				assert.strictEqual(error.transactions, 1);
+				assert.strictEqual(error.issuers, 0);
+			}).pipe(Effect.provide(HttpLive)),
+		);
+
+		it.effect("refuses creating a child under a leaf held as issuer default", () =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const folder = yield* client.categories.create({
+					payload: make({ slug: "life" }),
+				});
+				const subs = yield* client.categories.create({
+					payload: make({ slug: "subscriptions", parentId: folder.id }),
+				});
+				yield* client.issuers.create({
+					payload: {
+						name: "Netflix",
+						firstSeen: TX_DATE,
+						defaultCategoryId: subs.id,
+					},
+				});
+
+				const error = yield* client.categories
+					.create({
+						payload: make({ slug: "streaming", parentId: subs.id }),
+					})
+					.pipe(Effect.flip);
+				assert.ok(error instanceof CategoryHoldsMoney);
+				assert.strictEqual(error.categoryId, subs.id);
+				assert.strictEqual(error.transactions, 0);
+				assert.strictEqual(error.issuers, 1);
+			}).pipe(Effect.provide(HttpLive)),
+		);
+
+		it.effect("counts both transactions and issuer defaults on the node", () =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const folder = yield* client.categories.create({
+					payload: make({ slug: "life" }),
+				});
+				const subs = yield* client.categories.create({
+					payload: make({ slug: "subscriptions", parentId: folder.id }),
+				});
+				yield* client.transactions.create({
+					payload: {
+						accountId: asAccount(1),
+						date: TX_DATE,
+						amount: 9.99,
+						rawIssuerString: "NETFLIX",
+						importedAt: TX_DATE,
+						importMonth: "2026-03",
+						categoryId: subs.id,
+						manualCategory: true,
+					},
+				});
+				yield* client.issuers.create({
+					payload: {
+						name: "Netflix",
+						firstSeen: TX_DATE,
+						defaultCategoryId: subs.id,
+					},
+				});
+
+				const error = yield* client.categories
+					.create({
+						payload: make({ slug: "streaming", parentId: subs.id }),
+					})
+					.pipe(Effect.flip);
+				assert.ok(error instanceof CategoryHoldsMoney);
+				assert.strictEqual(error.transactions, 1);
+				assert.strictEqual(error.issuers, 1);
+			}).pipe(Effect.provide(HttpLive)),
+		);
+
+		it.effect("refuses re-parenting a child under a money-holding leaf", () =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const folder = yield* client.categories.create({
+					payload: make({ slug: "life" }),
+				});
+				const subs = yield* client.categories.create({
+					payload: make({ slug: "subscriptions", parentId: folder.id }),
+				});
+				const gifts = yield* client.categories.create({
+					payload: make({ slug: "gifts", parentId: folder.id }),
+				});
+				yield* client.transactions.create({
+					payload: {
+						accountId: asAccount(1),
+						date: TX_DATE,
+						amount: 9.99,
+						rawIssuerString: "NETFLIX",
+						importedAt: TX_DATE,
+						importMonth: "2026-03",
+						categoryId: subs.id,
+						manualCategory: true,
+					},
+				});
+
+				// Moving Gifts under Subscriptions would flip Subscriptions to a folder
+				// while it still holds a transaction — refused.
+				const error = yield* client.categories
+					.update({
+						path: { id: gifts.id },
+						payload: { parentId: subs.id },
+					})
+					.pipe(Effect.flip);
+				assert.ok(error instanceof CategoryHoldsMoney);
+				assert.strictEqual(error.categoryId, subs.id);
+				assert.strictEqual(error.transactions, 1);
+			}).pipe(Effect.provide(HttpLive)),
+		);
+
+		it.effect("refuses a money-holding leaf parent in a bulkCreate row", () =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const folder = yield* client.categories.create({
+					payload: make({ slug: "life" }),
+				});
+				const subs = yield* client.categories.create({
+					payload: make({ slug: "subscriptions", parentId: folder.id }),
+				});
+				yield* client.transactions.create({
+					payload: {
+						accountId: asAccount(1),
+						date: TX_DATE,
+						amount: 9.99,
+						rawIssuerString: "NETFLIX",
+						importedAt: TX_DATE,
+						importMonth: "2026-03",
+						categoryId: subs.id,
+						manualCategory: true,
+					},
+				});
+
+				const error = yield* client.categories
+					.bulkCreate({
+						payload: {
+							records: [make({ slug: "streaming", parentId: subs.id })],
+						},
+					})
+					.pipe(Effect.flip);
+				assert.ok(error instanceof CategoryHoldsMoney);
+				assert.strictEqual(error.categoryId, subs.id);
+			}).pipe(Effect.provide(HttpLive)),
+		);
+
+		it.effect("a leaf with no dependents takes a child with no ceremony", () =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const folder = yield* client.categories.create({
+					payload: make({ slug: "life" }),
+				});
+				const subs = yield* client.categories.create({
+					payload: make({ slug: "subscriptions", parentId: folder.id }),
+				});
+				// A bare (non-manual) override is not a live assignment, so it does not
+				// block the flip.
+				yield* client.transactions.create({
+					payload: {
+						accountId: asAccount(1),
+						date: TX_DATE,
+						amount: 9.99,
+						rawIssuerString: "NETFLIX",
+						importedAt: TX_DATE,
+						importMonth: "2026-03",
+						categoryId: subs.id,
+						manualCategory: false,
+					},
+				});
+
+				const streaming = yield* client.categories.create({
+					payload: make({ slug: "streaming", parentId: subs.id }),
+				});
+				assert.strictEqual(streaming.parentId, subs.id);
 			}).pipe(Effect.provide(HttpLive)),
 		);
 	});

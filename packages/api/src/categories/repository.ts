@@ -3,6 +3,7 @@ import {
 	Category,
 	type CategoryCreate,
 	CategoryHasChildren,
+	CategoryHoldsMoney,
 	CategoryId,
 	CategoryInUse,
 	type CategoryUpdate,
@@ -178,6 +179,45 @@ export class CategoryRepo extends Effect.Service<CategoryRepo>()(
 						);
 
 			/**
+			 * The **Kind flip** guard (ADR 0003, issue #30): a leaf gaining its first
+			 * child turns into a folder, but a folder is a rollup node the total visits
+			 * without counting its own rows — so a would-be parent that still holds
+			 * money must not take a child. Runs the two money counts the guarded delete
+			 * already uses — *manual* transaction overrides pointing at the node and
+			 * issuers holding it as a default (a derived category hangs a whole issuer's
+			 * history off the node invisibly) — and fails {@link CategoryHoldsMoney}
+			 * with both counts if either is non-zero. A `null`/`undefined` parent (no
+			 * flip) or a childless-but-empty parent passes. The categories page answers
+			 * the refusal by offering to **Spill** those transactions into a new child.
+			 */
+			const assertParentTakesNoMoney = (
+				parentId: number | null | undefined,
+			): Effect.Effect<void, CategoryHoldsMoney> =>
+				parentId == null
+					? Effect.void
+					: Effect.all({
+							transactions: txRefCountQuery(parentId).pipe(
+								Effect.map((r) => r.count),
+							),
+							issuers: issuerRefCountQuery(parentId).pipe(
+								Effect.map((r) => r.count),
+							),
+						}).pipe(
+							orDieSql,
+							Effect.flatMap(({ transactions, issuers }) =>
+								transactions + issuers > 0
+									? Effect.fail(
+											new CategoryHoldsMoney({
+												categoryId: parentId,
+												transactions,
+												issuers,
+											}),
+										)
+									: Effect.void,
+							),
+						);
+
+			/**
 			 * The **Guarded delete** (ADR 0001): refuse while anything still depends on
 			 * the category. Runs the three dependency counts in one pass; if any is
 			 * non-zero, fails with {@link CategoryInUse} carrying every count, so the
@@ -241,39 +281,54 @@ export class CategoryRepo extends Effect.Service<CategoryRepo>()(
 				createdAt: now,
 			});
 
-			// No parent guard: under the Leaf-assignable invariant (ADR 0003)
-			// categories nest to any depth, so any node — leaf or folder — is a
-			// legal home. Adding a child simply turns its parent into a folder.
+			// Any node — leaf or folder — is a legal home (ADR 0003): adding a child
+			// simply turns its parent into a folder. The one guard is the Kind flip
+			// (issue #30): a would-be parent still holding money may not take a child
+			// until that money is spilled into a new leaf.
 			const create = (payload: CategoryCreate) =>
-				nowIso.pipe(
-					Effect.flatMap((now) => insertQuery(toInsertRow(payload, now))),
-					orDieSql,
+				assertParentTakesNoMoney(payload.parentId).pipe(
+					Effect.andThen(
+						nowIso.pipe(
+							Effect.flatMap((now) => insertQuery(toInsertRow(payload, now))),
+							orDieSql,
+						),
+					),
 				);
 
 			/**
 			 * Insert every record, returning the created rows with their generated
 			 * ids (201). Each row shares the one `now` timestamp. An empty `records`
-			 * array yields `[]` — no statement runs. No parent guard (ADR 0003): any
-			 * depth is legal.
+			 * array yields `[]` — no statement runs. Any depth is legal (ADR 0003);
+			 * the one guard is the Kind flip (issue #30) — every row's parent is
+			 * checked first, so a batch cannot slip a child under a money-holding leaf.
 			 */
 			const bulkCreate = (records: ReadonlyArray<CategoryCreate>) =>
-				nowIso.pipe(
-					Effect.flatMap((now) =>
-						Effect.forEach(records, (payload) =>
-							insertQuery(toInsertRow(payload, now)),
+				Effect.forEach(records, (payload) =>
+					assertParentTakesNoMoney(payload.parentId),
+				).pipe(
+					Effect.andThen(
+						nowIso.pipe(
+							Effect.flatMap((now) =>
+								Effect.forEach(records, (payload) =>
+									insertQuery(toInsertRow(payload, now)),
+								),
+							),
+							orDieSql,
 						),
 					),
-					orDieSql,
 				);
 
 			const update = (id: typeof CategoryId.Type, changes: CategoryUpdate) =>
 				getById(id).pipe(
 					// getById already 404s if missing; the write then always hits a row.
 					Effect.flatMap((current) =>
-						// A folder with children may not be given a parent (ADR 0003): the
-						// remaining moved-node guard. The old "new parent must be a folder"
-						// check is gone — any node is a legal parent now.
+						// Two re-parent guards (ADR 0003): the moved node may not be a
+						// folder that still has children (`assertNotFolderWithChildren`), and
+						// the new parent may not still hold money — a Kind flip that would
+						// strand it (`assertParentTakesNoMoney`, issue #30). The old "new
+						// parent must be a folder" check is gone — any node is a legal parent.
 						assertNotFolderWithChildren(id, changes.parentId).pipe(
+							Effect.andThen(assertParentTakesNoMoney(changes.parentId)),
 							Effect.andThen(
 								updateQuery(new Category({ ...current, ...changes })).pipe(
 									orDieSql,
