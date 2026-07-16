@@ -1,14 +1,43 @@
-import type { Account } from "@mamen/shared/contract";
+import type { Account, AccountId } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { type ReactNode, useMemo, useReducer } from "react";
 import { stepPresence } from "@/lib/motion";
 import { accountQueries } from "@/lib/sdk";
-import { getParserById } from "./parsers/registry";
+import { takeHandoff } from "./import-handoff";
+import { detectParser, getParserById } from "./parsers/registry";
 import type { ParsedTransaction } from "./parsers/types";
 import { PreviewStep } from "./preview-step";
 import { UploadStep } from "./upload-step";
-import { initialWizardState, wizardReducer } from "./wizard-reducer";
+import {
+	makeInitialWizardState,
+	type WizardPrefill,
+	wizardReducer,
+} from "./wizard-reducer";
+
+/**
+ * Assemble the wizard's prefill from a grid handoff: the account chosen on the
+ * dropped-on cell, plus the statement the cell already parsed (if any). Read
+ * once at mount — `takeHandoff` clears the pending file so a later manual
+ * `/import` visit starts clean.
+ */
+function readPrefill(initialAccountId?: AccountId): WizardPrefill | undefined {
+	const handoff = takeHandoff();
+	if (initialAccountId === undefined && handoff === null) return undefined;
+	return {
+		accountId: initialAccountId ?? null,
+		...(handoff
+			? {
+					file: {
+						fileName: handoff.fileName,
+						headers: handoff.headers,
+						rows: handoff.rows,
+						detectedParserId: detectParser(handoff.headers)?.id ?? null,
+					},
+				}
+			: {}),
+	};
+}
 
 /**
  * The 3-step CSV import wizard (PRD): (1) file drop + parser auto-detect +
@@ -17,8 +46,17 @@ import { initialWizardState, wizardReducer } from "./wizard-reducer";
  * derived from the chosen parser + rows so the preview and commit share one
  * source of truth.
  */
-export function ImportWizard() {
-	const [state, dispatch] = useReducer(wizardReducer, initialWizardState);
+export function ImportWizard({
+	initialAccountId,
+}: {
+	/** Account to pre-select, from a grid cell's `/import?accountId=…` handoff. */
+	initialAccountId?: AccountId;
+}) {
+	const [state, dispatch] = useReducer(
+		wizardReducer,
+		initialAccountId,
+		(accountId) => makeInitialWizardState(readPrefill(accountId)),
+	);
 	const accountsQuery = useQuery(accountQueries.list());
 	const accounts = (accountsQuery.data?.items ?? []) as readonly Account[];
 	const reducedMotion = useReducedMotion() ?? false;

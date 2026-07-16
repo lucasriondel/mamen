@@ -1,5 +1,12 @@
 import type { Account } from "@mamen/shared/contract";
-import { screen, waitFor, within } from "@testing-library/react";
+import {
+	createMemoryHistory,
+	createRootRoute,
+	createRoute,
+	createRouter,
+	RouterProvider,
+} from "@tanstack/react-router";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -14,6 +21,8 @@ const removeAccount = vi.fn();
 let listResult: { items: Account[]; total: number };
 let listShouldFail: boolean;
 let transactionCount: number;
+// Rows the import grid's client-side scan sees (drives which cells are imported).
+let transactionsScan: Array<{ accountId: number; importMonth: string }>;
 
 vi.mock("@mamen/sdk", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("@mamen/sdk")>();
@@ -38,12 +47,41 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
 				queryKey: ["transactions", "count", params],
 				queryFn: async () => ({ count: transactionCount }),
 			}),
+			list: (params: unknown) => ({
+				queryKey: ["transactions", "list", params],
+				queryFn: async () => ({
+					items: transactionsScan,
+					total: transactionsScan.length,
+				}),
+			}),
 		},
 	};
 });
 
 // Imported after the mock so the view binds to the mocked SDK surface.
 const { AccountsView } = await import("./accounts-view");
+
+// The accounts view is a route component (its import grid links via `useNavigate`
+// and reads no search of its own), so drive it through a memory router.
+const rootRoute = createRootRoute();
+const accountsRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/accounts",
+	component: AccountsView,
+});
+const importRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/import",
+	component: () => null,
+});
+
+function renderView() {
+	const router = createRouter({
+		routeTree: rootRoute.addChildren([accountsRoute, importRoute]),
+		history: createMemoryHistory({ initialEntries: ["/accounts"] }),
+	});
+	return render(<RouterProvider router={router} />);
+}
 
 function account(overrides: Partial<Account> = {}): Account {
 	return {
@@ -63,6 +101,7 @@ beforeEach(() => {
 	listResult = { items: [], total: 0 };
 	listShouldFail = false;
 	transactionCount = 0;
+	transactionsScan = [];
 });
 
 describe("AccountsView", () => {
@@ -75,8 +114,7 @@ describe("AccountsView", () => {
 			total: 2,
 		};
 
-		const { render } = await import("@testing-library/react");
-		render(<AccountsView />);
+		renderView();
 
 		// Scope to the accounts list — the create form's `<select>` also renders
 		// options labelled "Checking"/"Savings".
@@ -89,10 +127,12 @@ describe("AccountsView", () => {
 
 	it("creates an account with the entered name and selected type", async () => {
 		const user = userEvent.setup();
-		const { render } = await import("@testing-library/react");
-		render(<AccountsView />);
+		renderView();
 
-		await user.type(screen.getByLabelText("Account name"), "Holiday fund");
+		await user.type(
+			await screen.findByLabelText("Account name"),
+			"Holiday fund",
+		);
 		await user.selectOptions(screen.getByLabelText("Account type"), "savings");
 		await user.click(screen.getByRole("button", { name: "Add account" }));
 
@@ -109,8 +149,7 @@ describe("AccountsView", () => {
 		transactionCount = 3;
 
 		const user = userEvent.setup();
-		const { render } = await import("@testing-library/react");
-		render(<AccountsView />);
+		renderView();
 
 		const deleteButton = await screen.findByRole("button", { name: "Delete" });
 		// The guard both disables the button and explains why.
@@ -126,8 +165,7 @@ describe("AccountsView", () => {
 		transactionCount = 0;
 
 		const user = userEvent.setup();
-		const { render } = await import("@testing-library/react");
-		render(<AccountsView />);
+		renderView();
 
 		const deleteButton = await screen.findByRole("button", { name: "Delete" });
 		await waitFor(() => expect(deleteButton).toBeEnabled());
@@ -140,8 +178,7 @@ describe("AccountsView", () => {
 		listResult = { items: [account({ name: "Old name" })], total: 1 };
 
 		const user = userEvent.setup();
-		const { render } = await import("@testing-library/react");
-		render(<AccountsView />);
+		renderView();
 
 		await user.click(await screen.findByRole("button", { name: "Rename" }));
 		const input = screen.getByLabelText("New account name");
@@ -157,8 +194,7 @@ describe("AccountsView", () => {
 	it("shows an inline error state when the list read fails", async () => {
 		listShouldFail = true;
 
-		const { render } = await import("@testing-library/react");
-		render(<AccountsView />);
+		renderView();
 
 		// `retry: 1` on the shared client means one backoff (~1s) before the
 		// error surfaces, so allow extra time here.
