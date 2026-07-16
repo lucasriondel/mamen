@@ -4,6 +4,7 @@ import {
 	Building2,
 	FolderTree,
 	type LucideIcon,
+	PieChart,
 	Upload,
 	Wallet,
 } from "lucide-react";
@@ -24,6 +25,7 @@ interface NavLink {
 /** The primary navigation surfaces, in sidebar order. */
 const NAV_LINKS: readonly NavLink[] = [
 	{ to: "/transactions", label: "Transactions", icon: ArrowLeftRight },
+	{ to: "/recap", label: "Recap", icon: PieChart },
 	{ to: "/import", label: "Import", icon: Upload },
 	{ to: "/accounts", label: "Accounts", icon: Wallet },
 	{ to: "/issuers", label: "Issuers", icon: Building2 },
@@ -31,7 +33,7 @@ const NAV_LINKS: readonly NavLink[] = [
 ];
 
 /**
- * The app's left navigation: brand, links to the four feature surfaces, and the
+ * The app's left navigation: brand, links to the feature surfaces, and the
  * theme toggle pinned to the bottom. The active route is highlighted via
  * TanStack Router's `activeProps`.
  */
