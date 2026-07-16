@@ -953,13 +953,15 @@ describe("derived category through issuer", () => {
 	);
 });
 
-// ADR 0001 rule 4 at the transactions door (issue #23): a `categoryId` must be
-// an assignable **leaf**, never a **folder** — the same corruption the issuer
-// door already rejects, arriving through a different door. The seed provides
-// both: folder ids (1 = Food, a root) and leaf ids (2 = Groceries, under Food).
-describe("category two-level invariant at the transactions door", () => {
-	const FOLDER = asCategory(1); // Food — a seeded folder (no parent).
-	const LEAF = asCategory(2); // Groceries — a seeded leaf under Food.
+// The Leaf-assignable invariant (ADR 0003) at the transactions door: a
+// `categoryId` must be an assignable **leaf** (a node with no children), never a
+// **folder** — the same corruption the issuer door already rejects, arriving
+// through a different door. Assignability is childlessness, not root-ness. The
+// seed provides both: folder ids (1 = Food, which has children) and leaf ids
+// (2 = Groceries, childless under Food).
+describe("category leaf-assignable invariant at the transactions door", () => {
+	const FOLDER = asCategory(1); // Food — a seeded node with children.
+	const LEAF = asCategory(2); // Groceries — a seeded childless leaf under Food.
 
 	it.effect("create rejects a folder as categoryId", () =>
 		Effect.gen(function* () {
@@ -1025,6 +1027,59 @@ describe("category two-level invariant at the transactions door", () => {
 				urlParams: { limit: 50, offset: 0, direction: "desc" },
 			});
 			assert.strictEqual(page.total, 0);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	// The heart of ADR 0003: a hand-built depth-3 tree. The deepest node is a
+	// childless leaf (assignable at any depth), while its mid-tier parent — which
+	// has both a parent and a child — must be refused. Under the old `parentId ===
+	// null` proxy that mid-tier node would have silently passed as assignable.
+	it.effect("accepts a depth-3 leaf, rejects its mid-tier parent", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const category = (
+				slug: string,
+				parentId: typeof CategoryId.Type | null,
+			) =>
+				client.categories.create({
+					payload: {
+						name: slug,
+						slug,
+						color: "#000000",
+						icon: "📁",
+						parentId,
+						sortOrder: 0,
+					},
+				});
+
+			// Life > Subscriptions > Streaming (three deep, deliberately ragged).
+			const life = yield* category("life-3", null);
+			const subscriptions = yield* category("subs-3", life.id);
+			const streaming = yield* category("streaming-3", subscriptions.id);
+
+			// The depth-3 childless leaf is assignable.
+			const created = yield* client.transactions.create({
+				payload: make({ categoryId: streaming.id, manualCategory: true }),
+			});
+			assert.strictEqual(
+				(yield* client.transactions.getById({ path: { id: created.id } }))
+					.categoryId,
+				streaming.id,
+			);
+
+			// The mid-tier node (Subscriptions) now has a child — refused, even
+			// though it also has a parent (the old proxy would have let it through).
+			const error = yield* client.transactions
+				.create({
+					payload: make({
+						rawIssuerString: "MID",
+						categoryId: subscriptions.id,
+						manualCategory: true,
+					}),
+				})
+				.pipe(Effect.flip);
+			assert.ok(error instanceof CategoryNotLeaf);
+			assert.strictEqual(error.categoryId, subscriptions.id);
 		}).pipe(Effect.provide(HttpLive)),
 	);
 });

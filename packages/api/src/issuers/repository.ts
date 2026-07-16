@@ -91,8 +91,9 @@ type WriteRow = {
  * `Conflict`. The image-file side of `uploadImage`/`deleteImage` lives in the
  * handler; this repo only sets/clears the `imageUrl` column via `update`.
  *
- * `create`/`update` guard `defaultCategoryId` against the two-level invariant
- * (ADR 0001) via {@link assertLeaf} — a folder is rejected as `CategoryNotLeaf`.
+ * `create`/`update` guard `defaultCategoryId` against the Leaf-assignable
+ * invariant (ADR 0003) via {@link assertLeaf} — a node with children is rejected
+ * as `CategoryNotLeaf`.
  * `update` additionally treats a `null` `defaultCategoryId` as a *clear*.
  */
 export class IssuerRepo extends Effect.Service<IssuerRepo>()(
@@ -145,13 +146,16 @@ export class IssuerRepo extends Effect.Service<IssuerRepo>()(
 					sql`SELECT * FROM issuers WHERE name COLLATE NOCASE = ${name}`,
 			});
 
-			// One indexed lookup of a category's `parentId` — the leaf/folder test
-			// for the two-level invariant guard below. A `null` parentId means the
-			// category is a folder (root); a non-null one means it's a leaf.
-			const parentIdQuery = SqlSchema.findOne({
+			// One indexed existence probe of a category's children — the
+			// childlessness test for the Leaf-assignable invariant (ADR 0003) below.
+			// A row means the category has children (a folder, unassignable); none
+			// means it is childless (a leaf, assignable) at any depth. Rides
+			// `idx_categories_parentId`.
+			const hasChildrenQuery = SqlSchema.findOne({
 				Request: Schema.Number,
-				Result: Schema.Struct({ parentId: Schema.NullOr(Schema.Number) }),
-				execute: (id) => sql`SELECT parentId FROM categories WHERE id = ${id}`,
+				Result: Schema.Struct({ one: Schema.Number }),
+				execute: (id) =>
+					sql`SELECT 1 AS one FROM categories WHERE parentId = ${id} LIMIT 1`,
 			});
 
 			// Writes bind a plain null-mapped `WriteRow` object. `Request: Schema.Any`
@@ -203,30 +207,28 @@ export class IssuerRepo extends Effect.Service<IssuerRepo>()(
 				});
 
 			/**
-			 * The two-level invariant (ADR 0001) at the issuers door: a default
-			 * category must be an assignable **leaf**, never a **folder** (a category
-			 * with no parent). A folder-assigned issuer would hang its transactions
-			 * off a node the category rollup visits but never counts, understating
-			 * the total with no error on screen — so reject at the write boundary,
-			 * the same door the UI and any future writer share. Absent (`undefined`)
-			 * or a clear (`null`) skips the check; an unknown id is left to pass (no
-			 * FK exists — policing missing rows is not this invariant's job).
+			 * The Leaf-assignable invariant (ADR 0003) at the issuers door: a default
+			 * category must be an assignable **leaf** (a category with no children),
+			 * never a **folder**. Assignability is childlessness, not root-ness — a
+			 * childless node is a leaf at *any* depth. A folder-assigned issuer would
+			 * hang its transactions off a node the category rollup visits but never
+			 * counts, understating the total with no error on screen — so reject at
+			 * the write boundary, the same door the UI and any future writer share.
+			 * Absent (`undefined`) or a clear (`null`) skips the check; an unknown id
+			 * is left to pass (no FK exists — policing missing rows is not this
+			 * invariant's job).
 			 */
 			const assertLeaf = (
 				categoryId: number | null | undefined,
 			): Effect.Effect<void, CategoryNotLeaf> =>
 				categoryId == null
 					? Effect.void
-					: parentIdQuery(categoryId).pipe(
+					: hasChildrenQuery(categoryId).pipe(
 							orDieSql,
 							Effect.flatMap((found) =>
-								Option.match(found, {
-									onNone: () => Effect.void,
-									onSome: (row) =>
-										row.parentId === null
-											? Effect.fail(new CategoryNotLeaf({ categoryId }))
-											: Effect.void,
-								}),
+								Option.isSome(found)
+									? Effect.fail(new CategoryNotLeaf({ categoryId }))
+									: Effect.void,
 							),
 						);
 

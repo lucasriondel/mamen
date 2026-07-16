@@ -26,7 +26,6 @@ export {
 	CategoryHasChildren,
 	CategoryInUse,
 	CategoryNotLeaf,
-	CategoryParentNotFolder,
 	Conflict,
 	InvalidFileType,
 	NotFound,

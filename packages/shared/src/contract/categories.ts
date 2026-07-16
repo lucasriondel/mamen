@@ -5,12 +5,7 @@ import {
 	OpenApi,
 } from "@effect/platform";
 import { Schema } from "effect";
-import {
-	CategoryHasChildren,
-	CategoryInUse,
-	CategoryParentNotFolder,
-	NotFound,
-} from "./errors";
+import { CategoryHasChildren, CategoryInUse, NotFound } from "./errors";
 import { CategoryId, numFromStr } from "./ids";
 import { Paged, Pagination } from "./pagination";
 
@@ -61,17 +56,16 @@ export const CategoryListFilters = {
 /**
  * Categories group (contract §2.3), prefix `/categories`. `slug` has no DB
  * uniqueness constraint (faithful port), so no endpoint declares `Conflict`.
- * `create`/`bulkCreate` declare `CategoryParentNotFolder` (422): the two-level
- * invariant (ADR 0001, rule 1) rejects a `parentId` pointing at a leaf, which
- * would nest the new category three deep. `update` declares the same
- * `CategoryParentNotFolder` (moving a leaf under another leaf) plus
- * `CategoryHasChildren` (422, giving a parent to a folder that still has
- * children) — the two-level invariant's remaining `update` guards (ADR 0001,
- * rules 2–3). `remove` declares `CategoryInUse` (409): the **Guarded delete**,
- * refused while a folder has children or a leaf is still assigned to
- * transactions or held as an issuer default. `getById`/`getBySlug`/`update`/
- * `remove` 404 on a missing key. Dropped vs today: `GET /categories/root`, `PUT
- * /categories/bulk-put`, `POST /categories/clear` (all client-only).
+ * Categories nest to **any depth** (ADR 0003): any node may be a parent, so
+ * `create`/`bulkCreate` declare no depth guard — a leaf parent is a legal home
+ * now that a child simply turns it into a folder. `update` declares
+ * `CategoryHasChildren` (422): a folder that still has children may not be given
+ * a parent (the remaining moved-node guard). `remove` declares `CategoryInUse`
+ * (409): the **Guarded delete**, refused while a folder has children or a leaf is
+ * still assigned to transactions or held as an issuer default.
+ * `getById`/`getBySlug`/`update`/`remove` 404 on a missing key. Dropped vs today:
+ * `GET /categories/root`, `PUT /categories/bulk-put`, `POST /categories/clear`
+ * (all client-only).
  */
 export class CategoriesGroup extends HttpApiGroup.make("categories")
 	.add(
@@ -96,14 +90,12 @@ export class CategoriesGroup extends HttpApiGroup.make("categories")
 	.add(
 		HttpApiEndpoint.post("create")`/categories`
 			.setPayload(CategoryCreate)
-			.addSuccess(Category, { status: 201 })
-			.addError(CategoryParentNotFolder),
+			.addSuccess(Category, { status: 201 }),
 	)
 	.add(
 		HttpApiEndpoint.post("bulkCreate")`/categories/bulk-add`
 			.setPayload(CategoryBulkCreate)
-			.addSuccess(Schema.Array(Category), { status: 201 })
-			.addError(CategoryParentNotFolder),
+			.addSuccess(Schema.Array(Category), { status: 201 }),
 	)
 	.add(
 		HttpApiEndpoint.put(
@@ -112,7 +104,6 @@ export class CategoriesGroup extends HttpApiGroup.make("categories")
 			.setPayload(CategoryUpdate)
 			.addSuccess(Category)
 			.addError(NotFound)
-			.addError(CategoryParentNotFolder)
 			.addError(CategoryHasChildren),
 	)
 	.add(

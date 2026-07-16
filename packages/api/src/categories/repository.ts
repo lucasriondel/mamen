@@ -5,7 +5,6 @@ import {
 	CategoryHasChildren,
 	CategoryId,
 	CategoryInUse,
-	CategoryParentNotFolder,
 	type CategoryUpdate,
 	NotFound,
 	Paged,
@@ -96,80 +95,6 @@ export class CategoryRepo extends Effect.Service<CategoryRepo>()(
 				execute: (slug) => sql`SELECT * FROM categories WHERE slug = ${slug}`,
 			});
 
-			// One indexed lookup of a would-be parent's own `parentId` — the
-			// folder/leaf test for the two-level invariant (ADR 0001, rule 1). A
-			// `null` parentId means the parent is a folder (a legal home for a
-			// leaf); a non-null one means the parent is itself a leaf, so a child
-			// hung under it would sit at depth 3. Mirrors the transactions guard.
-			const parentOfQuery = SqlSchema.findOne({
-				Request: Schema.Number,
-				Result: Schema.Struct({ parentId: Schema.NullOr(Schema.Number) }),
-				execute: (id) => sql`SELECT parentId FROM categories WHERE id = ${id}`,
-			});
-
-			// The non-folders among a set of would-be parent ids — the batch depth
-			// test a bulk payload runs in **one** query, not one per row (ADR 0001).
-			// Any id it returns already has a parent, so a child hung under it would
-			// sit at depth 3; an empty result means every parent is a folder or
-			// unknown.
-			const leavesInQuery = SqlSchema.findAll({
-				Request: Schema.Any as Schema.Schema<ReadonlyArray<number>>,
-				Result: Schema.Struct({ id: Schema.Number }),
-				execute: (ids) =>
-					sql`SELECT id FROM categories WHERE parentId IS NOT NULL AND ${sql.in("id", ids)}`,
-			});
-
-			/**
-			 * The two-level invariant (ADR 0001, rule 1) at the categories door: a
-			 * new category's `parentId` must point at a **folder** (a root, no
-			 * parent), never at a **leaf**. A `null` parentId (creating a folder)
-			 * skips the check; an unknown id is left to pass (no FK exists — policing
-			 * missing rows is not this invariant's job).
-			 */
-			const assertParentIsFolder = (
-				parentId: number | null | undefined,
-			): Effect.Effect<void, CategoryParentNotFolder> =>
-				parentId == null
-					? Effect.void
-					: parentOfQuery(parentId).pipe(
-							orDieSql,
-							Effect.flatMap((found) =>
-								Option.match(found, {
-									onNone: () => Effect.void,
-									onSome: (row) =>
-										row.parentId === null
-											? Effect.void
-											: Effect.fail(new CategoryParentNotFolder({ parentId })),
-								}),
-							),
-						);
-
-			// Batch guard for a bulk payload: resolve every distinct parentId's
-			// leaf/folder status in **one** query (ADR 0001), failing on the first
-			// leaf found. An empty id set (every row is a folder) touches no DB.
-			const assertAllParentsAreFolders = (
-				records: ReadonlyArray<CategoryCreate>,
-			): Effect.Effect<void, CategoryParentNotFolder> => {
-				const ids = [
-					...new Set(
-						records.flatMap((r) => (r.parentId != null ? [r.parentId] : [])),
-					),
-				];
-				return ids.length === 0
-					? Effect.void
-					: leavesInQuery(ids).pipe(
-							orDieSql,
-							Effect.flatMap((rows) => {
-								const leaf = rows[0];
-								return leaf === undefined
-									? Effect.void
-									: Effect.fail(
-											new CategoryParentNotFolder({ parentId: leaf.id }),
-										);
-							}),
-						);
-			};
-
 			// The three dependency counts the guarded delete consults (ADR 0001).
 			// Each is one indexed count; together they name what still depends on a
 			// category so the refusal can tell the caller what to re-assign first.
@@ -230,13 +155,12 @@ export class CategoryRepo extends Effect.Service<CategoryRepo>()(
 				});
 
 			/**
-			 * The two-level invariant's remaining `update` guard for the moved node
-			 * (ADR 0001, rule 3): a **folder that still has children** may not be given
-			 * a parent, which would sink its children to depth 3. Only fires when the
+			 * The remaining `update` guard for the moved node (ADR 0003): a **folder
+			 * that still has children** may not be given a parent. Only fires when the
 			 * update sets a non-null `parentId`; clearing a parent (`null`) or leaving
-			 * it unchanged (`undefined`) skips it, as does a leaf (no children). The
-			 * companion "leaf under another leaf" case is caught by
-			 * {@link assertParentIsFolder} on the *new* parent.
+			 * it unchanged (`undefined`) skips it, as does a leaf (no children). A
+			 * childless node is a legal home under any parent — depth is no longer
+			 * capped.
 			 */
 			const assertNotFolderWithChildren = (
 				id: number,
@@ -317,44 +241,39 @@ export class CategoryRepo extends Effect.Service<CategoryRepo>()(
 				createdAt: now,
 			});
 
+			// No parent guard: under the Leaf-assignable invariant (ADR 0003)
+			// categories nest to any depth, so any node — leaf or folder — is a
+			// legal home. Adding a child simply turns its parent into a folder.
 			const create = (payload: CategoryCreate) =>
-				assertParentIsFolder(payload.parentId).pipe(
-					Effect.andThen(
-						nowIso.pipe(
-							Effect.flatMap((now) => insertQuery(toInsertRow(payload, now))),
-							orDieSql,
-						),
-					),
+				nowIso.pipe(
+					Effect.flatMap((now) => insertQuery(toInsertRow(payload, now))),
+					orDieSql,
 				);
 
 			/**
 			 * Insert every record, returning the created rows with their generated
 			 * ids (201). Each row shares the one `now` timestamp. An empty `records`
-			 * array yields `[]` — no statement runs.
+			 * array yields `[]` — no statement runs. No parent guard (ADR 0003): any
+			 * depth is legal.
 			 */
 			const bulkCreate = (records: ReadonlyArray<CategoryCreate>) =>
-				assertAllParentsAreFolders(records).pipe(
-					Effect.andThen(
-						nowIso.pipe(
-							Effect.flatMap((now) =>
-								Effect.forEach(records, (payload) =>
-									insertQuery(toInsertRow(payload, now)),
-								),
-							),
-							orDieSql,
+				nowIso.pipe(
+					Effect.flatMap((now) =>
+						Effect.forEach(records, (payload) =>
+							insertQuery(toInsertRow(payload, now)),
 						),
 					),
+					orDieSql,
 				);
 
 			const update = (id: typeof CategoryId.Type, changes: CategoryUpdate) =>
 				getById(id).pipe(
 					// getById already 404s if missing; the write then always hits a row.
 					Effect.flatMap((current) =>
-						// The two-level invariant's `update` guards (ADR 0001, rules 2–3):
-						// the new parent must be a folder (never a leaf), and a folder with
-						// children may not be given a parent. Both run before the write.
-						assertParentIsFolder(changes.parentId).pipe(
-							Effect.andThen(assertNotFolderWithChildren(id, changes.parentId)),
+						// A folder with children may not be given a parent (ADR 0003): the
+						// remaining moved-node guard. The old "new parent must be a folder"
+						// check is gone — any node is a legal parent now.
+						assertNotFolderWithChildren(id, changes.parentId).pipe(
 							Effect.andThen(
 								updateQuery(new Category({ ...current, ...changes })).pipe(
 									orDieSql,

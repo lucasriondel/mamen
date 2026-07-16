@@ -356,56 +356,56 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 					sql`SELECT ${readColumns} ${readFrom} WHERE ${sql.in("t.id", ids)}`,
 			});
 
-			// One indexed lookup of a category's `parentId` — the leaf/folder test
-			// for the two-level invariant guard. A `null` parentId is a folder
-			// (root); a non-null one is a leaf. Mirrors the issuer repo's guard.
-			const parentIdQuery = SqlSchema.findOne({
+			// One indexed existence probe of a category's children — the
+			// childlessness test for the Leaf-assignable invariant (ADR 0003). A row
+			// means the category has children (a folder, unassignable); none means it
+			// is childless (a leaf, assignable) at any depth. Rides
+			// `idx_categories_parentId`. Mirrors the issuer repo's guard.
+			const hasChildrenQuery = SqlSchema.findOne({
 				Request: Schema.Number,
-				Result: Schema.Struct({ parentId: Schema.NullOr(Schema.Number) }),
-				execute: (id) => sql`SELECT parentId FROM categories WHERE id = ${id}`,
+				Result: Schema.Struct({ one: Schema.Number }),
+				execute: (id) =>
+					sql`SELECT 1 AS one FROM categories WHERE parentId = ${id} LIMIT 1`,
 			});
 
-			// The folders among a set of category ids — the batch leaf test a bulk
-			// payload runs in **one** query, not one per row (ADR 0001). Any id it
-			// returns is a folder (`parentId IS NULL`); an empty result means every
-			// id is a leaf or unknown.
+			// The folders among a set of category ids — the batch childlessness test
+			// a bulk payload runs in **one** query, not one per row (ADR 0003). Each
+			// id it returns is some row's parent (a folder); an empty result means
+			// every id is childless or unknown.
 			const foldersInQuery = SqlSchema.findAll({
 				Request: Schema.Any as Schema.Schema<ReadonlyArray<number>>,
 				Result: Schema.Struct({ id: Schema.Number }),
 				execute: (ids) =>
-					sql`SELECT id FROM categories WHERE parentId IS NULL AND ${sql.in("id", ids)}`,
+					sql`SELECT DISTINCT parentId AS id FROM categories WHERE ${sql.in("parentId", ids)}`,
 			});
 
 			/**
-			 * The two-level invariant (ADR 0001, rule 4) at the transactions door: a
-			 * `categoryId` must be an assignable **leaf**, never a **folder** (a
-			 * category with no parent) — the same corruption, arriving through a
-			 * different door than the issuer default. Absent (`undefined`) or `null`
-			 * skips the check; an unknown id is left to pass (no FK exists — policing
-			 * missing rows is not this invariant's job). Enforced on both a manual
-			 * and a non-manual write: a folder id stored today becomes live the moment
-			 * the row is flipped manual.
+			 * The Leaf-assignable invariant (ADR 0003) at the transactions door: a
+			 * `categoryId` must be an assignable **leaf** (a category with no
+			 * children), never a **folder** — the same corruption, arriving through a
+			 * different door than the issuer default. Assignability is childlessness,
+			 * not root-ness: a childless node is a leaf at *any* depth. Absent
+			 * (`undefined`) or `null` skips the check; an unknown id is left to pass
+			 * (no FK exists — policing missing rows is not this invariant's job).
+			 * Enforced on both a manual and a non-manual write: a folder id stored
+			 * today becomes live the moment the row is flipped manual.
 			 */
 			const assertLeaf = (
 				categoryId: number | null | undefined,
 			): Effect.Effect<void, CategoryNotLeaf> =>
 				categoryId == null
 					? Effect.void
-					: parentIdQuery(categoryId).pipe(
+					: hasChildrenQuery(categoryId).pipe(
 							orDieSql,
 							Effect.flatMap((found) =>
-								Option.match(found, {
-									onNone: () => Effect.void,
-									onSome: (row) =>
-										row.parentId === null
-											? Effect.fail(new CategoryNotLeaf({ categoryId }))
-											: Effect.void,
-								}),
+								Option.isSome(found)
+									? Effect.fail(new CategoryNotLeaf({ categoryId }))
+									: Effect.void,
 							),
 						);
 
 			// Batch guard for a bulk payload: resolve every distinct categoryId's
-			// leaf/folder status in **one** query (ADR 0001), failing on the first
+			// leaf/folder status in **one** query (ADR 0003), failing on the first
 			// folder found. An empty id set (no row carries a category) touches no DB.
 			const assertAllLeaves = (
 				records: ReadonlyArray<TransactionCreate>,
