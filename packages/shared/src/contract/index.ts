@@ -54,6 +54,7 @@ export {
 } from "./issuers";
 export { Paged, Pagination, PaginationDefaults } from "./pagination";
 export {
+	mergeRuleUpdate,
 	Rule,
 	RuleCount,
 	RuleCreate,

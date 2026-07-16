@@ -1,6 +1,7 @@
 import { SqlClient, SqlSchema } from "@effect/sql";
 import {
 	type IssuerId,
+	mergeRuleUpdate,
 	NotFound,
 	Paged,
 	Rule,
@@ -218,14 +219,7 @@ export class RuleRepo extends Effect.Service<RuleRepo>()("api/RuleRepo", {
 				// Merge current + changes into a full entity, then re-write every
 				// column (preserving the original `createdAt`).
 				Effect.flatMap((current) => {
-					// Three-way Value-matcher patch (issue #43): key absent ⇒ keep
-					// current, explicit `null` ⇒ clear, number ⇒ set. `null` can't reach
-					// `new Rule` (positive number field), so fold it to `undefined`.
-					const matchValue =
-						changes.matchValue === undefined
-							? current.matchValue
-							: (changes.matchValue ?? undefined);
-					const merged = new Rule({ ...current, ...changes, matchValue });
+					const merged = mergeRuleUpdate(current, changes);
 					return updateQuery({
 						id,
 						...toWriteFields(merged),

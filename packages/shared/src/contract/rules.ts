@@ -61,6 +61,22 @@ export const RuleUpdate = Schema.Struct({
 export type RuleUpdate = typeof RuleUpdate.Type;
 
 /**
+ * Apply a {@link RuleUpdate} patch onto the stored `current` rule, returning the
+ * full merged entity to re-write. Implements the three-way Value-matcher
+ * semantics (issue #43): an absent `matchValue` keeps the current one, an
+ * explicit `null` clears it, a number sets it. The `null` clear sentinel is
+ * folded to `undefined` because `Rule.matchValue` is an optional positive number
+ * and can't hold `null`.
+ */
+export const mergeRuleUpdate = (current: Rule, changes: RuleUpdate): Rule => {
+	const matchValue =
+		changes.matchValue === undefined
+			? current.matchValue
+			: (changes.matchValue ?? undefined);
+	return new Rule({ ...current, ...changes, matchValue });
+};
+
+/**
  * `list` / `count` filter (contract §2.6): `issuerId?` scopes to one issuer's
  * rules (else all). Decoded + branded from the query string via `numFromStr`.
  * `list` spreads it alongside `Pagination`; `count` takes it alone (no paging).

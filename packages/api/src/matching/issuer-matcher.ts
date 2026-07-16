@@ -8,6 +8,7 @@ import type {
 	RuleUpdate,
 } from "@mamen/shared/contract";
 import {
+	mergeRuleUpdate,
 	NotFound,
 	Rule,
 	RuleId,
@@ -584,19 +585,7 @@ export class IssuerMatcher extends Effect.Service<IssuerMatcher>()(
 								sql
 									.withTransaction(
 										Effect.gen(function* () {
-											// Three-way Value-matcher patch (issue #43): key absent ⇒
-											// keep current, explicit `null` ⇒ clear, number ⇒ set. `null`
-											// can't reach `new Rule` (its field is a positive number),
-											// so fold the sentinel to `undefined` before constructing.
-											const matchValue =
-												changes.matchValue === undefined
-													? current.matchValue
-													: (changes.matchValue ?? undefined);
-											const merged = new Rule({
-												...current,
-												...changes,
-												matchValue,
-											});
+											const merged = mergeRuleUpdate(current, changes);
 											const updated = yield* updateRuleQuery({
 												id,
 												issuerId: merged.issuerId,
