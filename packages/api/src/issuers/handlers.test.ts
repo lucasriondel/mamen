@@ -177,9 +177,11 @@ describe("issuers endpoints", () => {
 		}).pipe(Effect.provide(HttpLive)),
 	);
 
-	// The two-level invariant (ADR 0001) at the issuers door: a default category
-	// must be an assignable leaf, never a folder. A folder-assigned issuer would
-	// hang its transactions off a node the rollup visits but never counts.
+	// The Leaf-assignable invariant (ADR 0003) at the issuers door: a default
+	// category must be an assignable leaf (a node with no children), never a
+	// folder. A folder-assigned issuer would hang its transactions off a node the
+	// rollup visits but never counts. Assignability is childlessness, not
+	// root-ness — a childless node is a leaf at any depth.
 	it.effect("create accepts a leaf as the default category", () =>
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
@@ -201,11 +203,20 @@ describe("issuers endpoints", () => {
 		}).pipe(Effect.provide(HttpLive)),
 	);
 
-	it.effect("create rejects a folder as the default category", () =>
+	it.effect("create rejects a folder (a node with children)", () =>
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
+			// A node is a folder by having children, not by being a root — give it a
+			// child so the childlessness guard (ADR 0003) fires.
 			const folder = yield* client.categories.create({
 				payload: makeCategory({ name: "Food", slug: "food-y", parentId: null }),
+			});
+			yield* client.categories.create({
+				payload: makeCategory({
+					name: "Groceries",
+					slug: "groceries-y",
+					parentId: folder.id,
+				}),
 			});
 
 			const error = yield* client.issuers
@@ -216,12 +227,19 @@ describe("issuers endpoints", () => {
 		}).pipe(Effect.provide(HttpLive)),
 	);
 
-	it.effect("update rejects a folder as the default category", () =>
+	it.effect("update rejects a folder (a node with children)", () =>
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
 			const created = yield* client.issuers.create({ payload: make() });
 			const folder = yield* client.categories.create({
 				payload: makeCategory({ name: "Food", slug: "food-z", parentId: null }),
+			});
+			yield* client.categories.create({
+				payload: makeCategory({
+					name: "Groceries",
+					slug: "groceries-z",
+					parentId: folder.id,
+				}),
 			});
 
 			const error = yield* client.issuers

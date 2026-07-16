@@ -32,32 +32,22 @@ export class Conflict extends Schema.TaggedError<Conflict>()(
 
 /**
  * A category that must be an assignable **leaf** was supplied as a **folder**
- * (a category with no parent). Enforces the two-level invariant at the API
- * boundary (ADR 0001): a folder held as `issuer.defaultCategoryId` or as a
- * `transaction.categoryId` hangs money off a node the category rollup visits
+ * (a category that **has children**). Enforces the **Leaf-assignable invariant**
+ * at the API boundary (ADR 0003): a category is assignable iff it has no
+ * children, at *any* depth — so this fires for a node with children regardless of
+ * where it sits, not for a root. A folder held as `issuer.defaultCategoryId` or
+ * as a `transaction.categoryId` hangs money off a node the category rollup visits
  * but never counts, understating the total with no error on screen. `categoryId`
  * names the offending folder so the caller can pick one of its leaves instead.
+ *
+ * The name is kept while its meaning inverts: it once flagged a **root** (used as
+ * a proxy for "not a leaf"), which under nesting silently admitted mid-tier
+ * folders as assignable — see ADR 0003.
  */
 export class CategoryNotLeaf extends Schema.TaggedError<CategoryNotLeaf>()(
 	"CategoryNotLeaf",
 	{
 		categoryId: Schema.Number,
-	},
-	HttpApiSchema.annotations({ status: 422 }),
-) {}
-
-/**
- * A new category's `parentId` points at a category that itself has a parent —
- * a **leaf**, not a **folder**. Enforces the other half of the two-level
- * invariant at the API boundary (ADR 0001, rule 1): a category nested three deep
- * hangs transactions off a node the folder rollup never visits, understating the
- * total with no error on screen. `parentId` names the offending leaf so the
- * caller can re-parent under one of the folders instead.
- */
-export class CategoryParentNotFolder extends Schema.TaggedError<CategoryParentNotFolder>()(
-	"CategoryParentNotFolder",
-	{
-		parentId: Schema.Number,
 	},
 	HttpApiSchema.annotations({ status: 422 }),
 ) {}
@@ -69,8 +59,7 @@ export class CategoryParentNotFolder extends Schema.TaggedError<CategoryParentNo
  * invariant's `update` guards (ADR 0001, rule 3): a depth-3 category hangs
  * transactions off a node the folder rollup never visits, understating the total
  * with no error on screen. `categoryId` names the folder so the caller can empty
- * or re-home its children first. (A leaf moved under another leaf is caught by
- * {@link CategoryParentNotFolder}; this is the mirror for the moved node.)
+ * or re-home its children first.
  */
 export class CategoryHasChildren extends Schema.TaggedError<CategoryHasChildren>()(
 	"CategoryHasChildren",

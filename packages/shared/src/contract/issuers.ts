@@ -86,7 +86,8 @@ export const IssuerImageUpload = HttpApiSchema.Multipart(
  * /`update`/`remove`/`uploadImage`/`deleteImage` 404 on a missing issuer
  * (`remove` now 404s — behavior change vs the old silent `{ ok: true }`).
  * `create`/`update` declare `CategoryNotLeaf`: an issuer's default category must
- * be an assignable leaf, never a folder (two-level invariant, ADR 0001).
+ * be an assignable leaf (a category with no children), never a folder — the
+ * **Leaf-assignable invariant** at any depth (ADR 0003).
  * `uploadImage` additionally declares `InvalidFileType`. Dropped vs today: `PUT
  * /issuers/bulk-put` (client-only). The `/uploads/*` static route is a
  * separate wildcard route, not part of this contract.

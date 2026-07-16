@@ -8,7 +8,6 @@ import {
 	CategoryHasChildren,
 	CategoryId,
 	CategoryInUse,
-	CategoryParentNotFolder,
 	NotFound,
 } from "@mamen/shared/contract";
 import { Effect, Layer, Schema } from "effect";
@@ -295,30 +294,27 @@ describe("categories endpoints", () => {
 		}).pipe(Effect.provide(HttpLive)),
 	);
 
-	// The two-level invariant (ADR 0001, rule 1) at the categories door: a new
-	// category's `parentId` must point at a **folder** (a root, no parent), never
-	// at a **leaf** — a category hung under a leaf would sit at depth 3, off a node
-	// the folder rollup never visits, silently understating the total.
-	describe("two-level invariant on create/bulkCreate (depth-3 rejection)", () => {
-		it.effect("create rejects a parentId pointing at a leaf", () =>
+	// The Leaf-assignable invariant (ADR 0003) at the categories door: categories
+	// nest to **any depth**, so any node — leaf or folder — is a legal parent. The
+	// old depth-3 rejection is gone; creating under an existing leaf simply turns
+	// that leaf into a folder.
+	describe("categories nest to any depth on create/bulkCreate (ADR 0003)", () => {
+		it.effect("create accepts a parentId pointing at a leaf (depth 3)", () =>
 			Effect.gen(function* () {
 				const client = yield* HttpApiClient.make(Api);
-				// Food (folder) → Groceries (leaf under it).
+				// Life (folder) → Subscriptions (leaf) → Streaming (depth-3 child).
 				const folder = yield* client.categories.create({
-					payload: make({ slug: "food" }),
+					payload: make({ slug: "life" }),
 				});
-				const leaf = yield* client.categories.create({
-					payload: make({ slug: "groceries", parentId: folder.id }),
+				const subscriptions = yield* client.categories.create({
+					payload: make({ slug: "subscriptions", parentId: folder.id }),
 				});
 
-				// A grandchild under the leaf would sit at depth 3 — rejected.
-				const error = yield* client.categories
-					.create({
-						payload: make({ slug: "organic", parentId: leaf.id }),
-					})
-					.pipe(Effect.flip);
-				assert.ok(error instanceof CategoryParentNotFolder);
-				assert.strictEqual(error.parentId, leaf.id);
+				// A grandchild under the former leaf is now legal — it sits at depth 3.
+				const streaming = yield* client.categories.create({
+					payload: make({ slug: "streaming", parentId: subscriptions.id }),
+				});
+				assert.strictEqual(streaming.parentId, subscriptions.id);
 			}).pipe(Effect.provide(HttpLive)),
 		);
 
@@ -335,50 +331,46 @@ describe("categories endpoints", () => {
 			}).pipe(Effect.provide(HttpLive)),
 		);
 
-		it.effect(
-			"bulkCreate rejects a leaf parent in any row, writing nothing",
-			() =>
-				Effect.gen(function* () {
-					const client = yield* HttpApiClient.make(Api);
-					const folder = yield* client.categories.create({
-						payload: make({ slug: "food" }),
-					});
-					const leaf = yield* client.categories.create({
-						payload: make({ slug: "groceries", parentId: folder.id }),
-					});
+		it.effect("bulkCreate accepts a leaf parent in a row (depth 3)", () =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const folder = yield* client.categories.create({
+					payload: make({ slug: "life" }),
+				});
+				const subscriptions = yield* client.categories.create({
+					payload: make({ slug: "subscriptions", parentId: folder.id }),
+				});
 
-					const before = yield* client.categories.list({
-						urlParams: { limit: 100, offset: 0 },
-					});
+				const before = yield* client.categories.list({
+					urlParams: { limit: 100, offset: 0 },
+				});
 
-					const error = yield* client.categories
-						.bulkCreate({
-							payload: {
-								records: [
-									make({ slug: "dairy", parentId: folder.id }),
-									make({ slug: "organic", parentId: leaf.id }),
-								],
-							},
-						})
-						.pipe(Effect.flip);
-					assert.ok(error instanceof CategoryParentNotFolder);
-					assert.strictEqual(error.parentId, leaf.id);
+				const created = yield* client.categories.bulkCreate({
+					payload: {
+						records: [
+							make({ slug: "gifts", parentId: folder.id }),
+							make({ slug: "streaming", parentId: subscriptions.id }),
+						],
+					},
+				});
+				assert.strictEqual(created.length, 2);
+				// The depth-3 row lands under the former leaf, no rejection.
+				assert.strictEqual(created[1]?.parentId, subscriptions.id);
 
-					// The batch is rejected up front — not a single row is written.
-					const after = yield* client.categories.list({
-						urlParams: { limit: 100, offset: 0 },
-					});
-					assert.strictEqual(after.total, before.total);
-				}).pipe(Effect.provide(HttpLive)),
+				const after = yield* client.categories.list({
+					urlParams: { limit: 100, offset: 0 },
+				});
+				assert.strictEqual(after.total, before.total + 2);
+			}).pipe(Effect.provide(HttpLive)),
 		);
 	});
 
-	// The two-level invariant's remaining `update` guards (ADR 0001, rules 2–3):
-	// a leaf may not move under another leaf, and a folder with children may not be
-	// given a parent — either would sink a category to depth 3, off a node the
-	// folder rollup never visits, silently understating the total.
-	describe("two-level invariant on update (re-parent guards)", () => {
-		it.effect("rejects moving a leaf under another leaf", () =>
+	// The remaining `update` guard (ADR 0003): a leaf may move under any node at
+	// any depth (childlessness, not position, decides), but a folder with children
+	// may not be given a parent — the moved-node guard that survives from the
+	// two-level world.
+	describe("re-parent guards on update (ADR 0003)", () => {
+		it.effect("moves a leaf under another leaf (now legal, depth 3)", () =>
 			Effect.gen(function* () {
 				const client = yield* HttpApiClient.make(Api);
 				const folder = yield* client.categories.create({
@@ -391,15 +383,13 @@ describe("categories endpoints", () => {
 					payload: make({ slug: "restaurants", parentId: folder.id }),
 				});
 
-				// Moving Groceries under Restaurants (a leaf) would sit it at depth 3.
-				const error = yield* client.categories
-					.update({
-						path: { id: groceries.id },
-						payload: { parentId: restaurants.id },
-					})
-					.pipe(Effect.flip);
-				assert.ok(error instanceof CategoryParentNotFolder);
-				assert.strictEqual(error.parentId, restaurants.id);
+				// Moving Groceries (childless) under Restaurants (childless) is a legal
+				// depth-3 move now — assignability is childlessness, not root-ness.
+				const moved = yield* client.categories.update({
+					path: { id: groceries.id },
+					payload: { parentId: restaurants.id },
+				});
+				assert.strictEqual(moved.parentId, restaurants.id);
 			}).pipe(Effect.provide(HttpLive)),
 		);
 

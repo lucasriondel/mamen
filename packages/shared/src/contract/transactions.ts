@@ -183,10 +183,11 @@ export const TransactionByAccountMonth = Schema.Struct({
  * `count` shares `list`'s filter set minus pagination/order.
  *
  * `create`/`bulkCreate`/`update` declare `CategoryNotLeaf`: a transaction's
- * `categoryId` must be an assignable **leaf**, never a **folder** — the other
- * half of ADR 0001's rule 4 (the issuer door already enforced it). A
- * folder-categorised row hangs money off a node the category rollup visits but
- * never counts, understating the total with no error on screen.
+ * `categoryId` must be an assignable **leaf** (a category with no children),
+ * never a **folder** — the **Leaf-assignable invariant** (ADR 0003), at any
+ * depth, the same one the issuer door enforces. A folder-categorised row hangs
+ * money off a node the category rollup visits but never counts, understating the
+ * total with no error on screen.
  */
 export class TransactionsGroup extends HttpApiGroup.make("transactions")
 	.add(
