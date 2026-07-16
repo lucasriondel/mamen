@@ -16,6 +16,14 @@ import {
 } from "./ids";
 import { Paged, Pagination } from "./pagination";
 
+/**
+ * The cap on a transaction's free-text `notes` (issue #38) — the one length
+ * constraint on the entity, enforced in the schema below so an over-long note
+ * fails decode (400) at the API boundary. Exported so the web editor can guide
+ * the user to the same limit rather than restating the number and drifting.
+ */
+export const NOTES_MAX_LENGTH = 1000;
+
 /** Transaction entity — the wire shape returned by every transactions endpoint. */
 export class Transaction extends Schema.Class<Transaction>("Transaction")({
 	id: TransactionId,
@@ -32,6 +40,16 @@ export class Transaction extends Schema.Class<Transaction>("Transaction")({
 	anomalyFlags: Schema.optional(Schema.Array(AnomalyFlag)),
 	isDuplicateExcluded: Schema.optional(Schema.Boolean),
 	duplicateNote: Schema.optional(Schema.String),
+	/**
+	 * Free-text note the user records against a single transaction (issue #38).
+	 * Optional; absent means no note. Capped at 1000 chars at the contract
+	 * boundary, so an over-long note fails decode (400) rather than reaching the
+	 * DB — the one constrained string on the entity. Searching it is #40's job,
+	 * not carried here as a filter.
+	 */
+	notes: Schema.optional(
+		Schema.String.pipe(Schema.maxLength(NOTES_MAX_LENGTH)),
+	),
 	importedAt: Schema.Date,
 	importMonth: Schema.String, // "YYYY-MM"
 	importBatchId: Schema.optional(Schema.String),
@@ -56,6 +74,7 @@ export const TransactionCreate = Schema.Struct({
 	anomalyFlags: Transaction.fields.anomalyFlags,
 	isDuplicateExcluded: Transaction.fields.isDuplicateExcluded,
 	duplicateNote: Transaction.fields.duplicateNote,
+	notes: Transaction.fields.notes,
 	importedAt: Transaction.fields.importedAt,
 	importMonth: Transaction.fields.importMonth,
 	importBatchId: Transaction.fields.importBatchId,

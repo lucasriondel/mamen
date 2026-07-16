@@ -120,6 +120,34 @@ describe("transactions endpoints", () => {
 			}).pipe(Effect.provide(HttpLive)),
 	);
 
+	it.effect("update sets a free-text note and it round-trips (issue #38)", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const created = yield* client.transactions.create({
+				payload: make({ amount: 10 }),
+			});
+			const noted = yield* client.transactions.update({
+				path: { id: created.id },
+				payload: { notes: "reimbursable — kept the receipt" },
+			});
+			assert.strictEqual(noted.notes, "reimbursable — kept the receipt");
+
+			// The note survives an unrelated later edit (the write re-writes the
+			// whole row from the stored merge base — the load-bearing case).
+			const reamounted = yield* client.transactions.update({
+				path: { id: created.id },
+				payload: { amount: 20 },
+			});
+			assert.strictEqual(reamounted.amount, 20);
+			assert.strictEqual(reamounted.notes, "reimbursable — kept the receipt");
+
+			const fetched = yield* client.transactions.getById({
+				path: { id: created.id },
+			});
+			assert.strictEqual(fetched.notes, "reimbursable — kept the receipt");
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
 	it.effect("remove deletes the transaction (getById then 404s)", () =>
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);

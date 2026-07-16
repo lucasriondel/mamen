@@ -1943,6 +1943,12 @@
                   "duplicateNote": {
                     "type": "string"
                   },
+                  "notes": {
+                    "type": "string",
+                    "description": "a string at most 1000 character(s) long",
+                    "title": "maxLength(1000)",
+                    "maxLength": 1000
+                  },
                   "importedAt": {
                     "$ref": "#/components/schemas/Date"
                   },
@@ -2279,6 +2285,12 @@
                   "duplicateNote": {
                     "type": "string"
                   },
+                  "notes": {
+                    "type": "string",
+                    "description": "a string at most 1000 character(s) long",
+                    "title": "maxLength(1000)",
+                    "maxLength": 1000
+                  },
                   "importedAt": {
                     "$ref": "#/components/schemas/Date"
                   },
@@ -2459,6 +2471,12 @@
                         },
                         "duplicateNote": {
                           "type": "string"
+                        },
+                        "notes": {
+                          "type": "string",
+                          "description": "a string at most 1000 character(s) long",
+                          "title": "maxLength(1000)",
+                          "maxLength": 1000
                         },
                         "importedAt": {
                           "$ref": "#/components/schemas/Date"
@@ -4854,6 +4872,12 @@
           },
           "duplicateNote": {
             "type": "string"
+          },
+          "notes": {
+            "type": "string",
+            "description": "a string at most 1000 character(s) long",
+            "title": "maxLength(1000)",
+            "maxLength": 1000
           },
           "importedAt": {
             "$ref": "#/components/schemas/Date"

@@ -75,6 +75,7 @@ export {
 	SubscriptionUpdate,
 } from "./subscriptions";
 export {
+	NOTES_MAX_LENGTH,
 	Transaction,
 	TransactionAffected,
 	TransactionBulkCreate,

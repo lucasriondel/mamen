@@ -1,7 +1,12 @@
 import type { Category, Issuer } from "@mamen/shared/contract";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { AmountCell, CategoryCell, IssuerCell } from "./transaction-cells";
+import {
+	AmountCell,
+	CategoryCell,
+	IssuerCell,
+	NotesCell,
+} from "./transaction-cells";
 
 describe("AmountCell", () => {
 	it("colors a debit (negative) with the gousse high token and keeps the sign", () => {
@@ -118,5 +123,26 @@ describe("CategoryCell", () => {
 			"data-unassigned",
 			"true",
 		);
+	});
+});
+
+describe("NotesCell", () => {
+	it("noted: shows the note text with the full text on the tooltip", () => {
+		render(<NotesCell notes="lunch with the team" />);
+		const el = screen.getByText("lunch with the team");
+		expect(el).toBeInTheDocument();
+		expect(el).toHaveClass("truncate");
+		expect(el).toHaveAttribute("title", "lunch with the team");
+	});
+
+	it("empty: shows an Add note affordance when there is no note", () => {
+		render(<NotesCell />);
+		const el = screen.getByText("Add note");
+		expect(el.closest("[data-empty]")).toHaveAttribute("data-empty", "true");
+	});
+
+	it("blank-only note reads as empty, not as a note", () => {
+		render(<NotesCell notes="   " />);
+		expect(screen.getByText("Add note")).toBeInTheDocument();
 	});
 });

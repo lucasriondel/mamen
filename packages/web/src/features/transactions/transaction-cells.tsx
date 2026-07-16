@@ -1,5 +1,5 @@
 import type { Category, Issuer } from "@mamen/shared/contract";
-import { CircleHelp } from "lucide-react";
+import { CircleHelp, StickyNote } from "lucide-react";
 import { IssuerAvatar } from "@/features/issuers/issuer-avatar";
 import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -146,6 +146,41 @@ export function CategoryCell({
 			data-unassigned="true"
 		>
 			Unassigned
+		</span>
+	);
+}
+
+/**
+ * The **Notes** cell — the user's free-text note on a single transaction
+ * (issue #38). Two read states:
+ *
+ * - **Noted** (`notes` non-empty) → the note itself, one line, truncated. The
+ *   full text is on the `title` tooltip and in the editor; a table cell shows
+ *   only as much as fits.
+ * - **Empty** (no note) → a muted "Add note" affordance, so the empty cell still
+ *   reads as an editable surface rather than dead space.
+ *
+ * Read-only, like the sibling cells; the click-to-edit interaction wraps it in
+ * {@link NotesPicker}.
+ */
+export function NotesCell({ notes }: { notes?: string }) {
+	const trimmed = notes?.trim();
+	if (trimmed) {
+		return (
+			<span className="block max-w-[16rem] truncate text-ink" title={trimmed}>
+				{trimmed}
+			</span>
+		);
+	}
+
+	return (
+		<span
+			className="flex items-center gap-1.5 text-muted italic"
+			title="Add a note"
+			data-empty="true"
+		>
+			<StickyNote size={14} className="shrink-0" aria-hidden />
+			<span>Add note</span>
 		</span>
 	);
 }

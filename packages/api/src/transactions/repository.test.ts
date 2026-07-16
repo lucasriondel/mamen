@@ -9,8 +9,9 @@ import {
 	Transaction,
 	type TransactionCreate,
 	TransactionId,
+	TransactionUpdate,
 } from "@mamen/shared/contract";
-import { Effect, Layer, Schema } from "effect";
+import { Effect, Either, Layer, Schema } from "effect";
 import { DatabaseTest } from "../db/test";
 import { TransactionFromRow, TransactionRepo } from "./repository";
 
@@ -74,6 +75,7 @@ describe("TransactionFromRow storage codec", () => {
 			],
 			isDuplicateExcluded: true,
 			duplicateNote: "dup",
+			notes: "lunch with the team",
 			importedAt: DATE,
 			importMonth: "2026-03",
 			importBatchId: "batch-9",
@@ -83,6 +85,7 @@ describe("TransactionFromRow storage codec", () => {
 		assert.strictEqual(row.manualCategory, 1);
 		assert.strictEqual(row.manualIssuer, 1);
 		assert.strictEqual(row.issuerId, 3);
+		assert.strictEqual(row.notes, "lunch with the team");
 		assert.strictEqual(typeof row.anomalyFlags, "string");
 		assert.deepStrictEqual(decode(row), full);
 	});
@@ -102,8 +105,25 @@ describe("TransactionFromRow storage codec", () => {
 		assert.strictEqual(row.manualCategory, 0);
 		assert.strictEqual(row.manualIssuer, 0);
 		assert.strictEqual(row.anomalyFlags, null);
+		assert.strictEqual(row.notes, null);
 		assert.strictEqual(row.importBatchId, null);
 		assert.deepStrictEqual(decode(row), bare);
+	});
+});
+
+describe("Transaction notes cap (issue #38)", () => {
+	// The `notes` cap is the one constrained string on the entity: 1000 chars,
+	// enforced at the contract boundary so an over-long note fails decode (400)
+	// rather than reaching the DB. `TransactionUpdate` (a partial of the create)
+	// is the payload the notes editor sends; decode it with only `notes` set.
+	const decode = Schema.decodeEither(TransactionUpdate);
+
+	it("accepts a note at the 1000-char limit", () => {
+		assert.ok(Either.isRight(decode({ notes: "n".repeat(1000) })));
+	});
+
+	it("rejects a note over 1000 chars", () => {
+		assert.ok(Either.isLeft(decode({ notes: "n".repeat(1001) })));
 	});
 });
 
@@ -161,6 +181,7 @@ describe("TransactionRepo", () => {
 					linkedRefundId: asTx(1),
 					isDuplicateExcluded: true,
 					duplicateNote: "seen before",
+					notes: "reimbursable",
 					importBatchId: "batch-1",
 				}),
 			);
@@ -172,6 +193,7 @@ describe("TransactionRepo", () => {
 			assert.strictEqual(created.linkedRefundId, asTx(1));
 			assert.strictEqual(created.isDuplicateExcluded, true);
 			assert.strictEqual(created.duplicateNote, "seen before");
+			assert.strictEqual(created.notes, "reimbursable");
 			assert.strictEqual(created.importBatchId, "batch-1");
 		}).pipe(Effect.provide(RepoTest)),
 	);
@@ -213,6 +235,24 @@ describe("TransactionRepo", () => {
 			assert.strictEqual(updated.categoryId, asCategory(9));
 			assert.strictEqual(updated.rawIssuerString, "ACME STORE");
 			assert.strictEqual(updated.id, created.id);
+		}).pipe(Effect.provide(RepoTest)),
+	);
+
+	// Notes are set through the same partial `update` as any field (issue #38),
+	// and — because the write re-writes the whole row from the stored merge base —
+	// a later update to a *different* field must not silently drop the note.
+	it.effect("update sets notes, and a later unrelated update keeps them", () =>
+		Effect.gen(function* () {
+			const repo = yield* TransactionRepo;
+			const created = yield* repo.create(make());
+			assert.strictEqual(created.notes, undefined);
+
+			const noted = yield* repo.update(created.id, { notes: "call the bank" });
+			assert.strictEqual(noted.notes, "call the bank");
+
+			const reamounted = yield* repo.update(created.id, { amount: 42 });
+			assert.strictEqual(reamounted.amount, 42);
+			assert.strictEqual(reamounted.notes, "call the bank");
 		}).pipe(Effect.provide(RepoTest)),
 	);
 

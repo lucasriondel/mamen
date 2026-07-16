@@ -24,6 +24,7 @@ import { formatShortDate } from "@/lib/format";
 import { AssignmentPicker } from "./assignment-picker";
 import { CategoryPicker } from "./category-picker";
 import { IssuerPicker } from "./issuer-picker";
+import { NotesPicker } from "./notes-picker";
 import { AmountCell } from "./transaction-cells";
 
 export interface TransactionsTableProps {
@@ -44,7 +45,7 @@ const columnHelper = createColumnHelper<Transaction>();
 
 /**
  * The transactions data grid (columns **Date | Account | Issuer | Category |
- * Amount**), rendered with TanStack Table onto the token-styled `Table`
+ * Amount | Notes**), rendered with TanStack Table onto the token-styled `Table`
  * primitive. Sorting is server-driven: the Date header toggles `direction` in
  * the URL rather than reordering rows client-side, so the shown page always
  * matches the query. The Category column reads the row's *derived* `categoryId`
@@ -107,6 +108,13 @@ export function TransactionsTable({
 			columnHelper.accessor("amount", {
 				header: () => <span className="block text-right">Amount</span>,
 				cell: (info) => <AmountCell amount={info.getValue()} />,
+			}),
+			columnHelper.display({
+				id: "notes",
+				header: "Notes",
+				// The cell is the editing surface: clicking opens the notes editor,
+				// which writes a free-text note to this one row (issue #38).
+				cell: ({ row }) => <NotesPicker transaction={row.original} />,
 			}),
 		],
 		[accountsById, issuersById, categoriesById],

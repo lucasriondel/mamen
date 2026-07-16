@@ -15,6 +15,7 @@ export type Transaction = {
 	anomalyFlags?: AnomalyFlag[];
 	isDuplicateExcluded?: boolean;
 	duplicateNote?: string;
+	notes?: string;
 	importedAt: Date;
 	importMonth: string;
 	importBatchId?: string;

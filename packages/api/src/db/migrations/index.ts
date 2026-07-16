@@ -9,6 +9,7 @@ import dropRulesCategoryOverride from "./0008_drop_rules_category_override";
 import addTransactionsManualIssuer from "./0009_add_transactions_manual_issuer";
 import seedCategories from "./0010_seed_categories";
 import dropTransactionsCategoryColumns from "./0011_drop_transactions_category_columns";
+import addTransactionsNotes from "./0012_add_transactions_notes";
 
 /**
  * The migration set, keyed `NNNN_name` (the Migrator parses the numeric prefix
@@ -28,4 +29,5 @@ export const migrations = {
 	"0009_add_transactions_manual_issuer": addTransactionsManualIssuer,
 	"0010_seed_categories": seedCategories,
 	"0011_drop_transactions_category_columns": dropTransactionsCategoryColumns,
+	"0012_add_transactions_notes": addTransactionsNotes,
 } as const;

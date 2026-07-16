@@ -37,6 +37,7 @@ const TransactionRow = Schema.Struct({
 	anomalyFlags: Schema.NullOr(Schema.String),
 	isDuplicateExcluded: Schema.Number,
 	duplicateNote: Schema.NullOr(Schema.String),
+	notes: Schema.NullOr(Schema.String),
 	importedAt: Schema.String,
 	importMonth: Schema.String,
 	importBatchId: Schema.NullOr(Schema.String),
@@ -84,6 +85,7 @@ export const TransactionFromRow = Schema.transform(
 			...(row.duplicateNote !== null
 				? { duplicateNote: row.duplicateNote }
 				: {}),
+			...(row.notes !== null ? { notes: row.notes } : {}),
 			importedAt: row.importedAt,
 			importMonth: row.importMonth,
 			...(row.importBatchId !== null
@@ -108,6 +110,7 @@ export const TransactionFromRow = Schema.transform(
 					: null,
 			isDuplicateExcluded: t.isDuplicateExcluded ? 1 : 0,
 			duplicateNote: t.duplicateNote ?? null,
+			notes: t.notes ?? null,
 			importedAt: t.importedAt,
 			importMonth: t.importMonth,
 			importBatchId: t.importBatchId ?? null,
@@ -168,6 +171,7 @@ type WriteRow = {
 	anomalyFlags: string | null;
 	isDuplicateExcluded: number;
 	duplicateNote: string | null;
+	notes: string | null;
 	importedAt: string;
 	importMonth: string;
 	importBatchId: string | null;
@@ -273,7 +277,7 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 			// history at once. Reads go through this; writes (`RETURNING *`) echo the
 			// stored row verbatim, and the internal `storedByIdQuery` reads the raw
 			// row so an update's merge never persists a derived value.
-			const readColumns = sql`t.id, t.accountId, t.date, t.amount, t.rawIssuerString, t.issuerId, ${derivedCategory} AS categoryId, t.manualCategory, t.manualIssuer, t.isRefund, t.linkedRefundId, t.anomalyFlags, t.isDuplicateExcluded, t.duplicateNote, t.importedAt, t.importMonth, t.importBatchId`;
+			const readColumns = sql`t.id, t.accountId, t.date, t.amount, t.rawIssuerString, t.issuerId, ${derivedCategory} AS categoryId, t.manualCategory, t.manualIssuer, t.isRefund, t.linkedRefundId, t.anomalyFlags, t.isDuplicateExcluded, t.duplicateNote, t.notes, t.importedAt, t.importMonth, t.importBatchId`;
 			const readFrom = sql`FROM transactions t LEFT JOIN issuers i ON t.issuerId = i.id`;
 
 			// `Request: Schema.Any` skips a redundant re-decode: filters are already
@@ -463,6 +467,7 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 						: null,
 				isDuplicateExcluded: t.isDuplicateExcluded ? 1 : 0,
 				duplicateNote: t.duplicateNote ?? null,
+				notes: t.notes ?? null,
 				importedAt: t.importedAt.toISOString(),
 				importMonth: t.importMonth,
 				importBatchId: t.importBatchId ?? null,

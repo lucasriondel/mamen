@@ -148,7 +148,7 @@ describe("TransactionsView", () => {
 	it("shows the derived category leaf name, and Unassigned when none", async () => {
 		await renderView();
 
-		// The Category column sits between Issuer and Amount.
+		// The Category column sits between Issuer and Amount; Notes is last.
 		const headers = screen
 			.getAllByRole("columnheader")
 			.map((h) => h.textContent);
@@ -158,6 +158,7 @@ describe("TransactionsView", () => {
 			"Issuer",
 			"Category",
 			"Amount",
+			"Notes",
 		]);
 
 		// Row with a derived categoryId → its leaf name, plain (no folder path).
