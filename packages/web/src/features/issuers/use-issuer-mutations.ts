@@ -1,5 +1,6 @@
 import type {
 	CategoryId,
+	IssuerCreate,
 	IssuerId,
 	IssuerUpdate,
 } from "@mamen/shared/contract";
@@ -29,6 +30,19 @@ export function useIssuerMutations() {
 	const onError = (error: unknown) => {
 		toast.error(toErrorMessage(error));
 	};
+
+	// Hand-create an issuer (issue: standalone "Create issuer" page). Unlike the
+	// assignment picker's create — which mints a bare name to hang a rule on — this
+	// pre-seeds a `defaultCategoryId` so the issuer auto-files its future matching
+	// transactions before it has any. `firstSeen` is caller-provided by contract;
+	// there's no first transaction yet, so we stamp "now" (as the assignment picker
+	// does). Returns the new Issuer (with id) so the caller can navigate to it.
+	const create = useMutation({
+		mutationFn: (payload: Omit<IssuerCreate, "firstSeen">) =>
+			issuerMutations.create({ ...payload, firstSeen: new Date() }),
+		onSuccess: invalidate,
+		onError,
+	});
 
 	const rename = useMutation({
 		mutationFn: ({ id, patch }: { id: IssuerId; patch: IssuerUpdate }) =>
@@ -72,5 +86,12 @@ export function useIssuerMutations() {
 		onError,
 	});
 
-	return { rename, uploadImage, deleteImage, remove, setDefaultCategory };
+	return {
+		create,
+		rename,
+		uploadImage,
+		deleteImage,
+		remove,
+		setDefaultCategory,
+	};
 }

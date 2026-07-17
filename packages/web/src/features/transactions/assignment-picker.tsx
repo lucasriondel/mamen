@@ -18,6 +18,7 @@ import {
 	PopoverTrigger,
 } from "@/components/ui/popover";
 import { IssuerAvatar } from "@/features/issuers/issuer-avatar";
+import { hasExactIssuerName } from "@/features/issuers/issuer-name";
 import { issuerQueries } from "@/lib/sdk";
 import { useAssignIssuer } from "./use-assign-issuer";
 
@@ -72,10 +73,7 @@ export function AssignmentPicker({
 
 	const filtered = issuers.filter((issuer) => matches(issuer, query));
 	const trimmed = query.trim();
-	const hasExact = issuers.some(
-		(issuer) => issuer.name.trim().toLowerCase() === trimmed.toLowerCase(),
-	);
-	const canCreate = trimmed.length > 0 && !hasExact;
+	const canCreate = trimmed.length > 0 && !hasExactIssuerName(issuers, trimmed);
 	const pending = assignExisting.isPending || createIssuer.isPending;
 
 	const handleOpenChange = (next: boolean) => {

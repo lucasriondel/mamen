@@ -1,7 +1,8 @@
 import type { Issuer, Transaction } from "@mamen/shared/contract";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { getRouteApi } from "@tanstack/react-router";
+import { getRouteApi, Link } from "@tanstack/react-router";
 import { motion, useReducedMotion } from "framer-motion";
+import { Plus } from "lucide-react";
 import { useMemo } from "react";
 import { Empty } from "@/components/ui/empty";
 import { cardEntrance } from "@/lib/motion";
@@ -91,9 +92,18 @@ export function IssuersView() {
 						The places your money comes from and goes to.
 					</p>
 				</div>
-				{issuers.length > 0 ? (
-					<IssuerSortControl sort={sort} onChange={onSortChange} />
-				) : null}
+				<div className="flex items-center gap-2">
+					{issuers.length > 0 ? (
+						<IssuerSortControl sort={sort} onChange={onSortChange} />
+					) : null}
+					<Link
+						to="/issuers/new"
+						className="flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-bg"
+					>
+						<Plus size={16} aria-hidden />
+						Create issuer
+					</Link>
+				</div>
 			</header>
 
 			{issuersQuery.isError ? (
@@ -106,8 +116,16 @@ export function IssuersView() {
 			) : issuers.length === 0 ? (
 				<Empty
 					title="No issuers yet"
-					description="Resolve a transaction's counterparty to create your first issuer."
-				/>
+					description="Create one here to pre-seed its default category, or resolve a transaction's counterparty to mint one on the fly."
+				>
+					<Link
+						to="/issuers/new"
+						className="mt-2 flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-bg"
+					>
+						<Plus size={16} aria-hidden />
+						Create your first issuer
+					</Link>
+				</Empty>
 			) : (
 				<div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
 					{metrics.map(({ issuer, count, net }, index) => (

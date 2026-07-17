@@ -82,8 +82,13 @@ function renderGrid(initialEntry = "/issuers") {
 		path: "/issuers/$issuerId",
 		component: () => <p>Detail for {"" /* placeholder */}</p>,
 	});
+	const newRoute = createRoute({
+		getParentRoute: () => rootRoute,
+		path: "/issuers/new",
+		component: () => <p>Create issuer page</p>,
+	});
 	const router = createRouter({
-		routeTree: rootRoute.addChildren([indexRoute, detailRoute]),
+		routeTree: rootRoute.addChildren([indexRoute, detailRoute, newRoute]),
 		history: createMemoryHistory({ initialEntries: [initialEntry] }),
 	});
 	render(<RouterProvider router={router} />);
@@ -95,10 +100,11 @@ function renderGrid(initialEntry = "/issuers") {
  */
 async function cardOrder(known: readonly string[]): Promise<string[]> {
 	const links = await screen.findAllByRole("link");
-	return links.map((link) => {
-		const name = known.find((n) => within(link).queryByText(n));
-		return name ?? "?";
-	});
+	// Keep only the issuer cards (a link naming a known issuer); the header's
+	// "Create issuer" link is not a card and is dropped.
+	return links
+		.map((link) => known.find((n) => within(link).queryByText(n)) ?? null)
+		.filter((name): name is string => name != null);
 }
 
 beforeEach(() => {
@@ -123,6 +129,33 @@ describe("IssuersView", () => {
 
 		const card = await screen.findByRole("link", { name: /Spotify/ });
 		expect(card).toHaveAttribute("href", "/issuers/1");
+	});
+
+	it("always offers a header link to create an issuer", async () => {
+		renderGrid();
+
+		const create = await screen.findByRole("link", { name: "Create issuer" });
+		expect(create).toHaveAttribute("href", "/issuers/new");
+	});
+});
+
+describe("IssuersView empty state", () => {
+	beforeEach(() => {
+		issuersList = [];
+		transactionsByIssuer = {};
+	});
+
+	it("offers a create link and mentions both ways an issuer is born", async () => {
+		renderGrid();
+
+		// The empty state's own create link points at the standalone form…
+		const create = await screen.findByRole("link", {
+			name: "Create your first issuer",
+		});
+		expect(create).toHaveAttribute("href", "/issuers/new");
+
+		// …and the copy names the other birth path (resolving a counterparty).
+		expect(screen.getByText(/counterparty/i)).toBeInTheDocument();
 	});
 });
 

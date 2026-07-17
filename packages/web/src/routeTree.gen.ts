@@ -17,6 +17,7 @@ import { Route as AccountsRouteImport } from './routes/accounts'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as IssuersIndexRouteImport } from './routes/issuers.index'
 import { Route as CategoriesIndexRouteImport } from './routes/categories.index'
+import { Route as IssuersNewRouteImport } from './routes/issuers.new'
 import { Route as IssuersIssuerIdRouteImport } from './routes/issuers.$issuerId'
 import { Route as CategoriesCategoryIdRouteImport } from './routes/categories.$categoryId'
 import { Route as IssuersIssuerIdIndexRouteImport } from './routes/issuers.$issuerId.index'
@@ -63,6 +64,11 @@ const CategoriesIndexRoute = CategoriesIndexRouteImport.update({
   path: '/',
   getParentRoute: () => CategoriesRoute,
 } as any)
+const IssuersNewRoute = IssuersNewRouteImport.update({
+  id: '/issuers/new',
+  path: '/issuers/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IssuersIssuerIdRoute = IssuersIssuerIdRouteImport.update({
   id: '/issuers/$issuerId',
   path: '/issuers/$issuerId',
@@ -99,6 +105,7 @@ export interface FileRoutesByFullPath {
   '/transactions': typeof TransactionsRoute
   '/categories/$categoryId': typeof CategoriesCategoryIdRoute
   '/issuers/$issuerId': typeof IssuersIssuerIdRouteWithChildren
+  '/issuers/new': typeof IssuersNewRoute
   '/categories/': typeof CategoriesIndexRoute
   '/issuers/': typeof IssuersIndexRoute
   '/issuers/$issuerId/': typeof IssuersIssuerIdIndexRoute
@@ -112,6 +119,7 @@ export interface FileRoutesByTo {
   '/recap': typeof RecapRoute
   '/transactions': typeof TransactionsRoute
   '/categories/$categoryId': typeof CategoriesCategoryIdRoute
+  '/issuers/new': typeof IssuersNewRoute
   '/categories': typeof CategoriesIndexRoute
   '/issuers': typeof IssuersIndexRoute
   '/issuers/$issuerId': typeof IssuersIssuerIdIndexRoute
@@ -128,6 +136,7 @@ export interface FileRoutesById {
   '/transactions': typeof TransactionsRoute
   '/categories/$categoryId': typeof CategoriesCategoryIdRoute
   '/issuers/$issuerId': typeof IssuersIssuerIdRouteWithChildren
+  '/issuers/new': typeof IssuersNewRoute
   '/categories/': typeof CategoriesIndexRoute
   '/issuers/': typeof IssuersIndexRoute
   '/issuers/$issuerId/': typeof IssuersIssuerIdIndexRoute
@@ -145,6 +154,7 @@ export interface FileRouteTypes {
     | '/transactions'
     | '/categories/$categoryId'
     | '/issuers/$issuerId'
+    | '/issuers/new'
     | '/categories/'
     | '/issuers/'
     | '/issuers/$issuerId/'
@@ -158,6 +168,7 @@ export interface FileRouteTypes {
     | '/recap'
     | '/transactions'
     | '/categories/$categoryId'
+    | '/issuers/new'
     | '/categories'
     | '/issuers'
     | '/issuers/$issuerId'
@@ -173,6 +184,7 @@ export interface FileRouteTypes {
     | '/transactions'
     | '/categories/$categoryId'
     | '/issuers/$issuerId'
+    | '/issuers/new'
     | '/categories/'
     | '/issuers/'
     | '/issuers/$issuerId/'
@@ -188,6 +200,7 @@ export interface RootRouteChildren {
   RecapRoute: typeof RecapRoute
   TransactionsRoute: typeof TransactionsRoute
   IssuersIssuerIdRoute: typeof IssuersIssuerIdRouteWithChildren
+  IssuersNewRoute: typeof IssuersNewRoute
   IssuersIndexRoute: typeof IssuersIndexRoute
 }
 
@@ -248,6 +261,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/categories/'
       preLoaderRoute: typeof CategoriesIndexRouteImport
       parentRoute: typeof CategoriesRoute
+    }
+    '/issuers/new': {
+      id: '/issuers/new'
+      path: '/issuers/new'
+      fullPath: '/issuers/new'
+      preLoaderRoute: typeof IssuersNewRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/issuers/$issuerId': {
       id: '/issuers/$issuerId'
@@ -325,6 +345,7 @@ const rootRouteChildren: RootRouteChildren = {
   RecapRoute: RecapRoute,
   TransactionsRoute: TransactionsRoute,
   IssuersIssuerIdRoute: IssuersIssuerIdRouteWithChildren,
+  IssuersNewRoute: IssuersNewRoute,
   IssuersIndexRoute: IssuersIndexRoute,
 }
 export const routeTree = rootRouteImport
