@@ -75,6 +75,50 @@ function PatternValidity({
 	return <span className="text-xs text-low">✓ Valid pattern</span>;
 }
 
+/**
+ * The optional Value matcher field (issue #43): leave blank for a text-only
+ * rule, or enter a positive amount magnitude to also require that amount. Shows
+ * the parse error as an alert once a non-parsing value is typed, otherwise the
+ * sign-agnostic helper note.
+ */
+function ValueMatcherField({
+	value,
+	onChange,
+	error,
+}: {
+	value: string;
+	onChange: (next: string) => void;
+	error: string | null;
+}) {
+	return (
+		<label className="flex flex-col gap-1 text-sm text-muted">
+			Value
+			<input
+				className={INPUT_CLASS}
+				type="number"
+				inputMode="decimal"
+				step="0.01"
+				min="0"
+				value={value}
+				onChange={(event) => onChange(event.target.value)}
+				placeholder="e.g. 6.99 — leave blank for text-only"
+				aria-label="Matching Rule value"
+				aria-invalid={error !== null}
+			/>
+			{error !== null ? (
+				<span role="alert" className="text-xs text-high">
+					{error}
+				</span>
+			) : (
+				<span className="text-xs text-muted">
+					Optional — also require the transaction's amount to equal this
+					magnitude (sign-agnostic).
+				</span>
+			)}
+		</label>
+	);
+}
+
 export interface RuleFormProps {
 	issuerId: IssuerId;
 	/** Issuer lookup so the preview can name a row's current issuer. */
@@ -226,33 +270,7 @@ export function RuleForm({
 				</span>
 			</label>
 
-			{/* The optional Value matcher (issue #43): leave blank for a text-only
-			    rule, or enter a positive amount to also require that magnitude. */}
-			<label className="flex flex-col gap-1 text-sm text-muted">
-				Value
-				<input
-					className={INPUT_CLASS}
-					type="number"
-					inputMode="decimal"
-					step="0.01"
-					min="0"
-					value={value}
-					onChange={(event) => setValue(event.target.value)}
-					placeholder="e.g. 6.99 — leave blank for text-only"
-					aria-label="Matching Rule value"
-					aria-invalid={valueError !== null}
-				/>
-				{valueError !== null ? (
-					<span role="alert" className="text-xs text-high">
-						{valueError}
-					</span>
-				) : (
-					<span className="text-xs text-muted">
-						Optional — also require the transaction's amount to equal this
-						magnitude (sign-agnostic).
-					</span>
-				)}
-			</label>
+			<ValueMatcherField value={value} onChange={setValue} error={valueError} />
 
 			{/* Readable rendering of the regex the matcher will actually run, plus
 			    live validity feedback so a broken pattern is caught before save. */}
