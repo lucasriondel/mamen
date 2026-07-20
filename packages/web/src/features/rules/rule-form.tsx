@@ -75,6 +75,50 @@ function PatternValidity({
 	return <span className="text-xs text-low">✓ Valid pattern</span>;
 }
 
+/**
+ * The optional Value matcher field (issue #43): leave blank for a text-only
+ * rule, or enter a positive amount magnitude to also require that amount. Shows
+ * the parse error as an alert once a non-parsing value is typed, otherwise the
+ * sign-agnostic helper note.
+ */
+function ValueMatcherField({
+	value,
+	onChange,
+	error,
+}: {
+	value: string;
+	onChange: (next: string) => void;
+	error: string | null;
+}) {
+	return (
+		<label className="flex flex-col gap-1 text-sm text-muted">
+			Value
+			<input
+				className={INPUT_CLASS}
+				type="number"
+				inputMode="decimal"
+				step="0.01"
+				min="0"
+				value={value}
+				onChange={(event) => onChange(event.target.value)}
+				placeholder="e.g. 6.99 — leave blank for text-only"
+				aria-label="Matching Rule value"
+				aria-invalid={error !== null}
+			/>
+			{error !== null ? (
+				<span role="alert" className="text-xs text-high">
+					{error}
+				</span>
+			) : (
+				<span className="text-xs text-muted">
+					Optional — also require the transaction's amount to equal this
+					magnitude (sign-agnostic).
+				</span>
+			)}
+		</label>
+	);
+}
+
 export interface RuleFormProps {
 	issuerId: IssuerId;
 	/** Issuer lookup so the preview can name a row's current issuer. */
@@ -111,6 +155,9 @@ export function RuleForm({
 	onCancel,
 }: RuleFormProps) {
 	const [pattern, setPattern] = useState(rule?.pattern ?? defaultPattern ?? "");
+	const [value, setValue] = useState(
+		rule?.matchValue != null ? String(rule.matchValue) : "",
+	);
 	const inputRef = useRef<HTMLInputElement>(null);
 	const { create, update, removeManualIssuer } = useRuleMutations();
 
@@ -119,6 +166,18 @@ export function RuleForm({
 		() => regexError(trimmedPattern),
 		[trimmedPattern],
 	);
+
+	// The optional Value matcher (issue #43): a blank field is the opt-out (a
+	// regex-only rule); a filled field must parse to a positive amount magnitude.
+	// `matchValue` is the committed number (or `null` = explicitly none); the
+	// error only nags once a non-parsing value is typed.
+	const trimmedValue = value.trim();
+	const parsedValue = trimmedValue === "" ? null : Number(trimmedValue);
+	const valueError =
+		parsedValue !== null && (!Number.isFinite(parsedValue) || parsedValue <= 0)
+			? "Value must be a positive number."
+			: null;
+	const matchValue = valueError === null ? parsedValue : null;
 
 	/** Splice a helper token into the pattern at the caret (or append). */
 	const insertToken = (token: string) => {
@@ -140,10 +199,17 @@ export function RuleForm({
 		trimmedPattern,
 		PREVIEW_DEBOUNCE_MS,
 	);
+	const debouncedMatchValue = useDebouncedValue(
+		matchValue,
+		PREVIEW_DEBOUNCE_MS,
+	);
 	const previewInput = {
 		...(rule ? { ruleId: rule.id } : {}),
 		issuerId,
 		pattern: debouncedPattern,
+		// A present value narrows the dry-run to rows of that amount magnitude;
+		// omitted entirely when blank so the request stays regex-only.
+		...(debouncedMatchValue != null ? { matchValue: debouncedMatchValue } : {}),
 	};
 
 	const previewQuery = useQuery({
@@ -157,15 +223,22 @@ export function RuleForm({
 	const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
 		const trimmed = pattern.trim();
-		if (trimmed.length === 0 || saving) return;
+		if (trimmed.length === 0 || saving || valueError !== null) return;
 		if (rule) {
+			// On update always send `matchValue` so blanking it clears the matcher;
+			// `null` is the explicit clear sentinel (a dropped key would leave it set).
 			update.mutate(
-				{ id: rule.id, patch: { pattern: trimmed } },
+				{ id: rule.id, patch: { pattern: trimmed, matchValue } },
 				{ onSuccess: onDone },
 			);
 		} else {
 			create.mutate(
-				{ issuerId, pattern: trimmed, matchCount: 0 },
+				{
+					issuerId,
+					pattern: trimmed,
+					matchCount: 0,
+					...(matchValue != null ? { matchValue } : {}),
+				},
 				{ onSuccess: onDone },
 			);
 		}
@@ -196,6 +269,8 @@ export function RuleForm({
 					string.
 				</span>
 			</label>
+
+			<ValueMatcherField value={value} onChange={setValue} error={valueError} />
 
 			{/* Readable rendering of the regex the matcher will actually run, plus
 			    live validity feedback so a broken pattern is caught before save. */}
@@ -264,7 +339,9 @@ export function RuleForm({
 				<button
 					type="submit"
 					className="rounded-md bg-accent px-4 py-1.5 text-sm font-medium text-bg disabled:opacity-50"
-					disabled={saving || pattern.trim().length === 0}
+					disabled={
+						saving || pattern.trim().length === 0 || valueError !== null
+					}
 				>
 					{rule ? "Save rule" : "Create rule"}
 				</button>

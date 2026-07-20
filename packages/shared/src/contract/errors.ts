@@ -30,6 +30,96 @@ export class Conflict extends Schema.TaggedError<Conflict>()(
 	HttpApiSchema.annotations({ status: 409 }),
 ) {}
 
+/**
+ * A category that must be an assignable **leaf** was supplied as a **folder**
+ * (a category that **has children**). Enforces the **Leaf-assignable invariant**
+ * at the API boundary (ADR 0003): a category is assignable iff it has no
+ * children, at *any* depth — so this fires for a node with children regardless of
+ * where it sits, not for a root. A folder held as `issuer.defaultCategoryId` or
+ * as a `transaction.categoryId` hangs money off a node the category rollup visits
+ * but never counts, understating the total with no error on screen. `categoryId`
+ * names the offending folder so the caller can pick one of its leaves instead.
+ *
+ * The name is kept while its meaning inverts: it once flagged a **root** (used as
+ * a proxy for "not a leaf"), which under nesting silently admitted mid-tier
+ * folders as assignable — see ADR 0003.
+ */
+export class CategoryNotLeaf extends Schema.TaggedError<CategoryNotLeaf>()(
+	"CategoryNotLeaf",
+	{
+		categoryId: Schema.Number,
+	},
+	HttpApiSchema.annotations({ status: 422 }),
+) {}
+
+/**
+ * A **Kind flip** was refused because it would **strand money**. Adding a child
+ * to a **Category leaf** turns it into a **Category folder** (ADR 0003), but a
+ * folder is a rollup node the total visits without counting its own rows — so a
+ * leaf that still holds money cannot take a child until that money is moved.
+ * Fires on `create`/`bulkCreate`/`update` whenever the given `parentId` points at
+ * a node that holds money: `transactions` (rows carrying it as a **Category
+ * override**) plus `issuers` (holding it as an **Issuer default category** — a
+ * derived category hangs a whole issuer's history off the node invisibly, so
+ * counting only directly-assigned rows would miss the common case). At least one
+ * is non-zero; `categoryId` names the would-be parent. The categories page
+ * answers the refusal by offering to **Spill** — move those transactions into a
+ * new child leaf the user names — so the money keeps a home. Mirrors the
+ * guarded-delete ergonomics ({@link CategoryInUse}).
+ */
+export class CategoryHoldsMoney extends Schema.TaggedError<CategoryHoldsMoney>()(
+	"CategoryHoldsMoney",
+	{
+		categoryId: Schema.Number,
+		transactions: Schema.Number,
+		issuers: Schema.Number,
+	},
+	HttpApiSchema.annotations({ status: 422 }),
+) {}
+
+/**
+ * A **re-parent** was refused because it would make a category its own
+ * **ancestor** — a cycle. Unbounded depth (ADR 0003) removes the accident that
+ * made cycles impossible in the two-level tree (a folder had no parent, so
+ * nothing could point back at it), so re-parenting must walk up from the proposed
+ * new parent and refuse if the walk reaches the node being moved. A cycle is not
+ * cosmetic: a category orphaned into a ring vanishes from the tree entirely and
+ * the recursive rollup walks it forever. Refusing a node's own descendant covers
+ * the **self-parent** case for free (a node is its own trivial ancestor), so both
+ * fall out of one check. `categoryId` names the node being moved; `parentId` the
+ * proposed parent that sits at or below it.
+ */
+export class CategoryWouldCycle extends Schema.TaggedError<CategoryWouldCycle>()(
+	"CategoryWouldCycle",
+	{
+		categoryId: Schema.Number,
+		parentId: Schema.Number,
+	},
+	HttpApiSchema.annotations({ status: 422 }),
+) {}
+
+/**
+ * A category cannot be deleted because something still **depends on it** — the
+ * **Guarded delete** (ADR 0001). The refusal names each kind of dependent by
+ * count so the caller can go re-assign first: `children` (a **Category folder**
+ * still holding leaves), `transactions` (a **Category leaf** still carrying
+ * overrides that point at it), and `issuers` (a leaf still held as an **Issuer
+ * default category**). At least one is non-zero. Neither cascading the delete nor
+ * nulling the references is acceptable: both silently drop money out of every
+ * total — the exact failure the two-level invariant exists to prevent, arriving
+ * through a different door. Mirrors the guarded delete already used for issuers.
+ */
+export class CategoryInUse extends Schema.TaggedError<CategoryInUse>()(
+	"CategoryInUse",
+	{
+		categoryId: Schema.Number,
+		children: Schema.Number,
+		transactions: Schema.Number,
+		issuers: Schema.Number,
+	},
+	HttpApiSchema.annotations({ status: 409 }),
+) {}
+
 /** An upload's MIME type is not in the image allow-list. */
 export class InvalidFileType extends Schema.TaggedError<InvalidFileType>()(
 	"InvalidFileType",

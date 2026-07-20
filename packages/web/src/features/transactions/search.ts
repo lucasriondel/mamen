@@ -22,6 +22,8 @@ export interface TransactionsSearch {
 	accountId?: number;
 	/** Filter to one `YYYY-MM` import month, or all months when absent. */
 	importMonth?: string;
+	/** Free-text term matched across issuer text/name, notes, and amount (#40). */
+	search?: string;
 	/** Date sort order; defaults to `desc` (newest-first), matching the SDK. */
 	direction?: "asc" | "desc";
 	/** Offset into the filtered set; defaults to `0` (first page). */
@@ -49,6 +51,11 @@ export function validateTransactionsSearch(
 
 	if (typeof search.importMonth === "string" && search.importMonth !== "") {
 		result.importMonth = search.importMonth;
+	}
+
+	if (typeof search.search === "string") {
+		const term = search.search.trim();
+		if (term !== "") result.search = term;
 	}
 
 	if (search.direction === "asc" || search.direction === "desc") {

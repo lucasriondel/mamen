@@ -1,4 +1,9 @@
-import type { Issuer, Rule, Transaction } from "@mamen/shared/contract";
+import type {
+	Category,
+	Issuer,
+	Rule,
+	Transaction,
+} from "@mamen/shared/contract";
 import {
 	createMemoryHistory,
 	createRootRoute,
@@ -23,6 +28,69 @@ let issuersById: Record<number, Issuer>;
 let issuersList: Issuer[];
 let transactionsByIssuer: Record<number, Transaction[]>;
 let rulesByIssuer: Record<number, Rule[]>;
+
+// A tiny two-level tree: two folders, each with leaves. Folders (parentId null)
+// are unselectable in the picker; leaves are the only assignable kind.
+const CATEGORIES = [
+	{
+		id: 1,
+		name: "Food",
+		slug: "food",
+		icon: "🍔",
+		parentId: null,
+		sortOrder: 0,
+	},
+	{
+		id: 5,
+		name: "Groceries",
+		slug: "groceries",
+		icon: "🛒",
+		parentId: 1,
+		sortOrder: 0,
+	},
+	{
+		id: 6,
+		name: "Cafés",
+		slug: "cafes",
+		icon: "☕",
+		parentId: 1,
+		sortOrder: 1,
+	},
+	{
+		id: 2,
+		name: "Life",
+		slug: "life",
+		icon: "🌱",
+		parentId: null,
+		sortOrder: 1,
+	},
+	{
+		id: 7,
+		name: "Subscriptions",
+		slug: "subs",
+		icon: "🔁",
+		parentId: 2,
+		sortOrder: 0,
+	},
+	// A depth-3 branch: Life › Utilities › Electricity. Utilities is a mid-tier
+	// folder heading; Electricity is an assignable leaf three levels deep.
+	{
+		id: 8,
+		name: "Utilities",
+		slug: "utilities",
+		icon: "🔌",
+		parentId: 2,
+		sortOrder: 1,
+	},
+	{
+		id: 9,
+		name: "Electricity",
+		slug: "electricity",
+		icon: "⚡",
+		parentId: 8,
+		sortOrder: 0,
+	},
+] as unknown as Category[];
 
 vi.mock("@mamen/sdk", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("@mamen/sdk")>();
@@ -57,6 +125,15 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
 					const items = rulesByIssuer[params.issuerId ?? -1] ?? [];
 					return { items, total: items.length };
 				},
+			}),
+		},
+		categoryQueries: {
+			list: () => ({
+				queryKey: ["categories", "list"],
+				queryFn: async () => ({
+					items: CATEGORIES,
+					total: CATEGORIES.length,
+				}),
 			}),
 		},
 		issuerMutations: {
@@ -221,6 +298,77 @@ describe("IssuerDetailPage", () => {
 		expect(
 			await screen.findByText(/The places your money comes from and goes to/),
 		).toBeInTheDocument();
+	});
+
+	it("sets the issuer default category from a leaf", async () => {
+		const user = userEvent.setup();
+		renderAt("/issuers/1");
+
+		// The trigger reads "No category" until a default is set.
+		await user.click(
+			await screen.findByRole("button", { name: /No category/ }),
+		);
+		await screen.findByLabelText("Search categories");
+
+		await user.click(screen.getByText("Groceries"));
+
+		await waitFor(() =>
+			expect(updateIssuer).toHaveBeenCalledWith(1, { defaultCategoryId: 5 }),
+		);
+	});
+
+	it("offers leaves only — folders are headings, not options", async () => {
+		const user = userEvent.setup();
+		renderAt("/issuers/1");
+
+		await user.click(
+			await screen.findByRole("button", { name: /No category/ }),
+		);
+		await screen.findByLabelText("Search categories");
+
+		// Every selectable option is a leaf; the folders appear only as headings.
+		const optionNames = screen.getAllByRole("option").map((o) => o.textContent);
+		expect(optionNames.some((n) => n?.includes("Groceries"))).toBe(true);
+		expect(optionNames.some((n) => n?.includes("Subscriptions"))).toBe(true);
+		expect(optionNames.some((n) => n?.includes("Food"))).toBe(false);
+		expect(optionNames.some((n) => n?.includes("Life"))).toBe(false);
+	});
+
+	it("renders the tree to arbitrary depth: a depth-3 leaf is selectable, its mid-tier folder a heading", async () => {
+		const user = userEvent.setup();
+		renderAt("/issuers/1");
+
+		await user.click(
+			await screen.findByRole("button", { name: /No category/ }),
+		);
+		await screen.findByLabelText("Search categories");
+
+		const optionNames = screen.getAllByRole("option").map((o) => o.textContent);
+		// Electricity is three levels deep yet still an assignable option…
+		expect(optionNames.some((n) => n?.includes("Electricity"))).toBe(true);
+		// …while its mid-tier folder Utilities is a heading, never an option.
+		expect(optionNames.some((n) => n?.includes("Utilities"))).toBe(false);
+		expect(screen.getByText("Utilities")).toBeInTheDocument();
+
+		// Selecting the deep leaf sets it as the default by its id alone.
+		await user.click(screen.getByText("Electricity"));
+		await waitFor(() =>
+			expect(updateIssuer).toHaveBeenCalledWith(1, { defaultCategoryId: 9 }),
+		);
+	});
+
+	it("clears an already-set default category", async () => {
+		issuersById = { 1: issuer({ defaultCategoryId: 5 as Issuer["id"] }) };
+		const user = userEvent.setup();
+		renderAt("/issuers/1");
+
+		// The trigger now names the current default; open and remove it.
+		await user.click(await screen.findByRole("button", { name: /Groceries/ }));
+		await user.click(await screen.findByText("Remove default category"));
+
+		await waitFor(() =>
+			expect(updateIssuer).toHaveBeenCalledWith(1, { defaultCategoryId: null }),
+		);
 	});
 
 	it("rejects an avatar image over the 2 MiB cap without uploading", async () => {

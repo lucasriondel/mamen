@@ -844,3 +844,199 @@ describe("rule delete preview + re-eval", () => {
 		}).pipe(Effect.provide(HttpLive)),
 	);
 });
+
+// The optional Value matcher (issue #42, ADR 0004): a rule with a `matchValue`
+// forks one issuer-string by amount. Every assertion rides the rules + import API
+// seam — never the engine internals.
+describe("rule value matcher", () => {
+	const ids = (rows: ReadonlyArray<{ id: unknown }>) => rows.map((r) => r.id);
+
+	// The headline AC: a value-rule reassigns only the matching-amount row and
+	// leaves the other-amount row on its previous issuer (retroactive recompute).
+	it.effect(
+		"create with matchValue reassigns only the matching-amount row",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				// A broad rule claims every AMAZON row for issuer 1.
+				yield* client.rules.create({
+					payload: { issuerId: asIssuer(1), pattern: "AMAZON", matchCount: 0 },
+				});
+				const [cheap, dear] = yield* client.transactions.bulkCreate({
+					payload: {
+						records: [
+							tx({ rawIssuerString: "AMAZON EU SARL", amount: -6.99 }),
+							tx({ rawIssuerString: "AMAZON EU SARL", amount: -20 }),
+						],
+					},
+				});
+				assert.strictEqual(cheap?.issuerId, asIssuer(1));
+				assert.strictEqual(dear?.issuerId, asIssuer(1));
+
+				// A value-rule for 6.99 → issuer 2. It matches the -6.99 row (magnitude,
+				// sign-agnostic) and outranks the broad rule; the -20 row is out of scope.
+				yield* client.rules.create({
+					payload: {
+						issuerId: asIssuer(2),
+						pattern: "AMAZON",
+						matchValue: 6.99,
+						matchCount: 0,
+					},
+				});
+
+				const afterCheap = yield* client.transactions.getById({
+					path: { id: cheap?.id ?? asTxId(0) },
+				});
+				const afterDear = yield* client.transactions.getById({
+					path: { id: dear?.id ?? asTxId(0) },
+				});
+				assert.strictEqual(afterCheap.issuerId, asIssuer(2));
+				assert.strictEqual(afterDear.issuerId, asIssuer(1));
+			}).pipe(Effect.provide(HttpLive)),
+	);
+
+	// Specificity tier: a value-rule outranks a regex-only rule of equal literal
+	// length regardless of createdAt — the value rule is created FIRST (older), so
+	// only the value-tier (not createdAt luck) can explain its win.
+	it.effect(
+		"value-rule outranks an equal-length regex-only rule regardless of createdAt",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				// Older value-rule → issuer 2; newer regex-only rule of the SAME pattern
+				// (equal literal length) → issuer 1. Newest-wins would give issuer 1.
+				yield* client.rules.create({
+					payload: {
+						issuerId: asIssuer(2),
+						pattern: "AMAZON",
+						matchValue: 6.99,
+						matchCount: 0,
+					},
+				});
+				yield* client.rules.create({
+					payload: { issuerId: asIssuer(1), pattern: "AMAZON", matchCount: 0 },
+				});
+
+				const [row] = yield* client.transactions.bulkCreate({
+					payload: {
+						records: [tx({ rawIssuerString: "AMAZON EU SARL", amount: -6.99 })],
+					},
+				});
+				// The value-rule wins despite being older → the value-tier decided it.
+				assert.strictEqual(row?.issuerId, asIssuer(2));
+			}).pipe(Effect.provide(HttpLive)),
+	);
+
+	// A freshly-imported matching-amount row is claimed by the value-rule at import
+	// (the import matching path, not a later recompute).
+	it.effect("import matches a fresh 6.99 row to the value-rule's issuer", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			yield* client.rules.create({
+				payload: {
+					issuerId: asIssuer(7),
+					pattern: "AMAZON",
+					matchValue: 6.99,
+					matchCount: 0,
+				},
+			});
+			const [row] = yield* client.transactions.bulkCreate({
+				payload: {
+					records: [tx({ rawIssuerString: "AMAZON EU SARL", amount: 6.99 })],
+				},
+			});
+			assert.strictEqual(row?.issuerId, asIssuer(7));
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	// Preview narrows the buckets by amount: the matching-amount row is in
+	// willMatch, the other-amount row is out of scope entirely.
+	it.effect("preview with matchValue narrows the buckets to the amount", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const [cheap] = yield* client.transactions.bulkCreate({
+				payload: {
+					records: [tx({ rawIssuerString: "AMAZON EU SARL", amount: -6.99 })],
+				},
+			});
+			yield* client.transactions.bulkCreate({
+				payload: {
+					records: [tx({ rawIssuerString: "AMAZON EU SARL", amount: -20 })],
+				},
+			});
+
+			const preview = yield* client.rules.preview({
+				payload: { issuerId: asIssuer(3), pattern: "AMAZON", matchValue: 6.99 },
+			});
+			assert.strictEqual(preview.skipped, false);
+			assert.deepStrictEqual(ids(preview.willMatch), [cheap?.id]);
+			assert.deepStrictEqual(preview.willReassign, []);
+			assert.deepStrictEqual(preview.manualCollisions, []);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	// A value-rule and getById round-trip carries the matchValue back on the wire.
+	it.effect("create echoes matchValue and getById round-trips it", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const created = yield* client.rules.create({
+				payload: {
+					issuerId: asIssuer(1),
+					pattern: "AMAZON",
+					matchValue: 6.99,
+					matchCount: 0,
+				},
+			});
+			assert.strictEqual(created.matchValue, 6.99);
+			const fetched = yield* client.rules.getById({ path: { id: created.id } });
+			assert.strictEqual(fetched.matchValue, 6.99);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	// An explicit `null` in the update payload clears a set Value matcher back to a
+	// regex-only rule (issue #43) — the wire sentinel `undefined` can't express.
+	it.effect("update clears matchValue when sent an explicit null", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const created = yield* client.rules.create({
+				payload: {
+					issuerId: asIssuer(1),
+					pattern: "AMAZON",
+					matchValue: 6.99,
+					matchCount: 0,
+				},
+			});
+			assert.strictEqual(created.matchValue, 6.99);
+
+			const cleared = yield* client.rules.update({
+				path: { id: created.id },
+				payload: { matchValue: null },
+			});
+			assert.strictEqual(cleared.matchValue, undefined);
+
+			const fetched = yield* client.rules.getById({ path: { id: created.id } });
+			assert.strictEqual(fetched.matchValue, undefined);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	// Absent `matchValue` in an update leaves a set Value matcher untouched.
+	it.effect("update leaves matchValue untouched when the key is absent", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const created = yield* client.rules.create({
+				payload: {
+					issuerId: asIssuer(1),
+					pattern: "AMAZON",
+					matchValue: 6.99,
+					matchCount: 0,
+				},
+			});
+			const updated = yield* client.rules.update({
+				path: { id: created.id },
+				payload: { pattern: "AMZN" },
+			});
+			assert.strictEqual(updated.pattern, "AMZN");
+			assert.strictEqual(updated.matchValue, 6.99);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+});

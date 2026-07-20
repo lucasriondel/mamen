@@ -46,8 +46,30 @@ describe("RuleFromRow storage codec", () => {
 		const row = encode(rule);
 		assert.strictEqual(row.issuerId, 2);
 		assert.strictEqual(row.pattern, "STARBUCKS");
+		assert.strictEqual(row.matchValue, null);
 		assert.strictEqual(row.matchCount, 3);
 		assert.deepStrictEqual(decode(row), rule);
+	});
+
+	// The optional Value matcher (issue #42): a present `matchValue` survives the
+	// round-trip as a number, and an absent one folds to a `NULL` column (a
+	// regex-only rule) — the one null↔absent fold on the entity.
+	it("round-trips a value-rule and folds absent matchValue to NULL", () => {
+		const valueRule = new Rule({
+			id: asRule(1),
+			issuerId: asIssuer(2),
+			pattern: "AMAZON",
+			matchValue: 6.99,
+			matchCount: 0,
+			createdAt: DATE,
+		});
+		const row = encode(valueRule);
+		assert.strictEqual(row.matchValue, 6.99);
+		assert.deepStrictEqual(decode(row), valueRule);
+
+		// A NULL column decodes back to an absent `matchValue` (regex-only rule).
+		const regexOnly = decode({ ...row, matchValue: null });
+		assert.strictEqual(regexOnly.matchValue, undefined);
 	});
 });
 

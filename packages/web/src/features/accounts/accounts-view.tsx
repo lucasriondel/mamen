@@ -3,6 +3,7 @@ import { type UseQueryResult, useQuery } from "@tanstack/react-query";
 import { accountQueries } from "@/lib/sdk";
 import { AccountRow } from "./account-row";
 import { CreateAccountForm } from "./create-account-form";
+import { ImportGrid } from "./import-grid";
 
 /**
  * Accounts view — minimal CRUD over the accounts the user's statements belong to.
@@ -16,7 +17,7 @@ export function AccountsView() {
 	const accountsQuery = useQuery(accountQueries.list());
 
 	return (
-		<section className="mx-auto flex max-w-3xl flex-col gap-8">
+		<section className="mx-auto flex max-w-4xl flex-col gap-8">
 			<header>
 				<h1 className="text-2xl font-semibold text-ink">Accounts</h1>
 				<p className="mt-1 text-muted">
@@ -27,6 +28,8 @@ export function AccountsView() {
 			<CreateAccountForm />
 
 			<AccountsList query={accountsQuery} />
+
+			<ImportGrid />
 		</section>
 	);
 }

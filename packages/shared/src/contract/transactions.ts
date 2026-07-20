@@ -6,7 +6,7 @@ import {
 } from "@effect/platform";
 import { Schema } from "effect";
 import { AnomalyFlag } from "./anomaly";
-import { BooleanFromString, NotFound } from "./errors";
+import { BooleanFromString, CategoryNotLeaf, NotFound } from "./errors";
 import {
 	AccountId,
 	CategoryId,
@@ -15,6 +15,14 @@ import {
 	TransactionId,
 } from "./ids";
 import { Paged, Pagination } from "./pagination";
+
+/**
+ * The cap on a transaction's free-text `notes` (issue #38) — the one length
+ * constraint on the entity, enforced in the schema below so an over-long note
+ * fails decode (400) at the API boundary. Exported so the web editor can guide
+ * the user to the same limit rather than restating the number and drifting.
+ */
+export const NOTES_MAX_LENGTH = 1000;
 
 /** Transaction entity — the wire shape returned by every transactions endpoint. */
 export class Transaction extends Schema.Class<Transaction>("Transaction")({
@@ -25,8 +33,6 @@ export class Transaction extends Schema.Class<Transaction>("Transaction")({
 	rawIssuerString: Schema.String,
 	issuerId: Schema.optional(IssuerId),
 	categoryId: Schema.optional(CategoryId),
-	subcategoryId: Schema.optional(CategoryId),
-	categoryOverride: Schema.optional(Schema.String),
 	manualCategory: Schema.optional(Schema.Boolean),
 	manualIssuer: Schema.optional(Schema.Boolean),
 	isRefund: Schema.optional(Schema.Boolean),
@@ -34,6 +40,16 @@ export class Transaction extends Schema.Class<Transaction>("Transaction")({
 	anomalyFlags: Schema.optional(Schema.Array(AnomalyFlag)),
 	isDuplicateExcluded: Schema.optional(Schema.Boolean),
 	duplicateNote: Schema.optional(Schema.String),
+	/**
+	 * Free-text note the user records against a single transaction (issue #38).
+	 * Optional; absent means no note. Capped at 1000 chars at the contract
+	 * boundary, so an over-long note fails decode (400) rather than reaching the
+	 * DB — the one constrained string on the entity. Searching it is #40's job,
+	 * not carried here as a filter.
+	 */
+	notes: Schema.optional(
+		Schema.String.pipe(Schema.maxLength(NOTES_MAX_LENGTH)),
+	),
 	importedAt: Schema.Date,
 	importMonth: Schema.String, // "YYYY-MM"
 	importBatchId: Schema.optional(Schema.String),
@@ -51,8 +67,6 @@ export const TransactionCreate = Schema.Struct({
 	rawIssuerString: Transaction.fields.rawIssuerString,
 	issuerId: Transaction.fields.issuerId,
 	categoryId: Transaction.fields.categoryId,
-	subcategoryId: Transaction.fields.subcategoryId,
-	categoryOverride: Transaction.fields.categoryOverride,
 	manualCategory: Transaction.fields.manualCategory,
 	manualIssuer: Transaction.fields.manualIssuer,
 	isRefund: Transaction.fields.isRefund,
@@ -60,6 +74,7 @@ export const TransactionCreate = Schema.Struct({
 	anomalyFlags: Transaction.fields.anomalyFlags,
 	isDuplicateExcluded: Transaction.fields.isDuplicateExcluded,
 	duplicateNote: Transaction.fields.duplicateNote,
+	notes: Transaction.fields.notes,
 	importedAt: Transaction.fields.importedAt,
 	importMonth: Transaction.fields.importMonth,
 	importBatchId: Transaction.fields.importBatchId,
@@ -71,18 +86,32 @@ export const TransactionUpdate = Schema.partial(TransactionCreate);
 export type TransactionUpdate = typeof TransactionUpdate.Type;
 
 /**
+ * The `categoryId` filter — a single id **or a set** (ADR 0002). A folder's
+ * category page lists all of its leaves' transactions in one query, so the
+ * filter accepts several category ids at once (repeated `?categoryId=`), while a
+ * leaf page still passes a lone id. A single query value decodes to one branded
+ * id; a repeated one to an array — the repository normalises both to a set. The
+ * filter matches the **derived** category, not the stored column (ADR 0002).
+ */
+export const CategoryIdFilter = Schema.Union(
+	numFromStr(CategoryId),
+	Schema.Array(numFromStr(CategoryId)),
+);
+
+/**
  * The composable filter set (contract §2.5) — the core redesign. Every field is
  * optional and `AND`-combined; the old 9-branch either/or fan-out (where
  * `accountId` dominated and every other filter was unreachable) is gone. `count`
  * reuses the identical set; `list` adds `Pagination` + `orderBy`/`direction`.
  * Branded-id filters decode a query string via `numFromStr`; the two boolean
  * filters via `BooleanFromString`; `startDate`/`endDate` are inclusive bounds on
- * the entity's `date` (encoded to ISO strings in the URL).
+ * the entity's `date` (encoded to ISO strings in the URL). `categoryId` accepts
+ * a **set** (see {@link CategoryIdFilter}) and matches the derived category.
  */
 export const TransactionFilters = {
 	accountId: Schema.optional(numFromStr(AccountId)),
 	issuerId: Schema.optional(numFromStr(IssuerId)),
-	categoryId: Schema.optional(numFromStr(CategoryId)),
+	categoryId: Schema.optional(CategoryIdFilter),
 	linkedRefundId: Schema.optional(numFromStr(TransactionId)),
 	importMonth: Schema.optional(Schema.String), // "YYYY-MM"
 	importBatchId: Schema.optional(Schema.String),
@@ -90,6 +119,11 @@ export const TransactionFilters = {
 	endDate: Schema.optional(Schema.Date), // inclusive upper bound on `date`
 	isRefund: Schema.optional(BooleanFromString),
 	isDuplicateExcluded: Schema.optional(BooleanFromString),
+	// A free-text substring (case-insensitive) matched against the raw issuer
+	// string, the assigned issuer's name, the notes, and the amount as displayed
+	// (2 decimals, unsigned) — the union, so one box searches every human-readable
+	// field of a row. AND-combined with the rest, like every sibling filter (#40).
+	search: Schema.optional(Schema.String),
 } as const;
 
 /**
@@ -105,8 +139,17 @@ export const TransactionListOrder = {
 	}),
 } as const;
 
-/** `count` success body — the full filtered row count. */
-export const TransactionCount = Schema.Struct({ count: Schema.Number });
+/**
+ * `count` success body — the full filtered row `count` plus a signed, net
+ * `total` (ADR 0002). The total covers the **whole filtered set**, not a page,
+ * and follows the same filter object as the count, so a category page's number
+ * can never disagree with its list. Signed per the amount sign convention: a
+ * refunded purchase nets to zero, an income category totals positive.
+ */
+export const TransactionCount = Schema.Struct({
+	count: Schema.Number,
+	total: Schema.Number,
+});
 
 /** Bulk-create payload — `{ records }`, one row created per element (201, ids generated). */
 export const TransactionBulkCreate = Schema.Struct({
@@ -162,6 +205,13 @@ export const TransactionByAccountMonth = Schema.Struct({
  * No transaction field has a DB uniqueness constraint, so writes declare no
  * `Conflict`. `getById`/`update`/`remove` 404 on a missing id; `remove` → 204.
  * `count` shares `list`'s filter set minus pagination/order.
+ *
+ * `create`/`bulkCreate`/`update` declare `CategoryNotLeaf`: a transaction's
+ * `categoryId` must be an assignable **leaf** (a category with no children),
+ * never a **folder** — the **Leaf-assignable invariant** (ADR 0003), at any
+ * depth, the same one the issuer door enforces. A folder-categorised row hangs
+ * money off a node the category rollup visits but never counts, understating the
+ * total with no error on screen.
  */
 export class TransactionsGroup extends HttpApiGroup.make("transactions")
 	.add(
@@ -190,12 +240,14 @@ export class TransactionsGroup extends HttpApiGroup.make("transactions")
 	.add(
 		HttpApiEndpoint.post("create")`/transactions`
 			.setPayload(TransactionCreate)
-			.addSuccess(Transaction, { status: 201 }),
+			.addSuccess(Transaction, { status: 201 })
+			.addError(CategoryNotLeaf),
 	)
 	.add(
 		HttpApiEndpoint.post("bulkCreate")`/transactions/bulk`
 			.setPayload(TransactionBulkCreate)
-			.addSuccess(Schema.Array(Transaction), { status: 201 }),
+			.addSuccess(Schema.Array(Transaction), { status: 201 })
+			.addError(CategoryNotLeaf),
 	)
 	.add(
 		HttpApiEndpoint.put(
@@ -203,7 +255,8 @@ export class TransactionsGroup extends HttpApiGroup.make("transactions")
 		)`/transactions/${HttpApiSchema.param("id", numFromStr(TransactionId))}`
 			.setPayload(TransactionUpdate)
 			.addSuccess(Transaction)
-			.addError(NotFound),
+			.addError(NotFound)
+			.addError(CategoryNotLeaf),
 	)
 	.add(
 		HttpApiEndpoint.put("bulkPut")`/transactions/bulk-put`

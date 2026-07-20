@@ -21,6 +21,15 @@ export class Rule extends Schema.Class<Rule>("Rule")({
 	id: RuleId,
 	issuerId: IssuerId,
 	pattern: Schema.String,
+	/**
+	 * The optional **Value matcher** (issue #42, ADR 0004): a positive amount
+	 * magnitude. When present the rule matches a row only if `pattern` matches the
+	 * raw issuer string **and** the row's amount magnitude equals `matchValue` to
+	 * the cent — so one issuer-string can fork by amount. Absent ⇒ a plain regex
+	 * rule, byte-identical to the pre-#42 behaviour. Sign-agnostic: stored and
+	 * compared as a magnitude, so a `6.99` rule matches a `-6.99` debit.
+	 */
+	matchValue: Schema.optional(Schema.Number.pipe(Schema.positive())),
 	matchCount: Schema.Number,
 	createdAt: Schema.Date,
 }) {}
@@ -29,13 +38,43 @@ export class Rule extends Schema.Class<Rule>("Rule")({
 export const RuleCreate = Schema.Struct({
 	issuerId: Rule.fields.issuerId,
 	pattern: Rule.fields.pattern,
+	matchValue: Rule.fields.matchValue,
 	matchCount: Rule.fields.matchCount,
 });
 export type RuleCreate = typeof RuleCreate.Type;
 
-/** Update payload — every field optional (partial update). */
-export const RuleUpdate = Schema.partial(RuleCreate);
+/**
+ * Update payload — every field optional (partial update). The Value matcher is
+ * the one field with a three-way patch (issue #43): **absent** leaves it
+ * unchanged, an explicit **`null`** clears it back to a regex-only rule, and a
+ * positive number sets it. `null` is the wire-expressible clear sentinel that
+ * `undefined` can't be (JSON drops undefined keys) — this is what #42 deferred.
+ */
+export const RuleUpdate = Schema.Struct({
+	issuerId: Schema.optional(Rule.fields.issuerId),
+	pattern: Schema.optional(Rule.fields.pattern),
+	matchValue: Schema.optional(
+		Schema.NullOr(Schema.Number.pipe(Schema.positive())),
+	),
+	matchCount: Schema.optional(Rule.fields.matchCount),
+});
 export type RuleUpdate = typeof RuleUpdate.Type;
+
+/**
+ * Apply a {@link RuleUpdate} patch onto the stored `current` rule, returning the
+ * full merged entity to re-write. Implements the three-way Value-matcher
+ * semantics (issue #43): an absent `matchValue` keeps the current one, an
+ * explicit `null` clears it, a number sets it. The `null` clear sentinel is
+ * folded to `undefined` because `Rule.matchValue` is an optional positive number
+ * and can't hold `null`.
+ */
+export const mergeRuleUpdate = (current: Rule, changes: RuleUpdate): Rule => {
+	const matchValue =
+		changes.matchValue === undefined
+			? current.matchValue
+			: (changes.matchValue ?? undefined);
+	return new Rule({ ...current, ...changes, matchValue });
+};
 
 /**
  * `list` / `count` filter (contract §2.6): `issuerId?` scopes to one issuer's
@@ -53,14 +92,16 @@ export const RuleCount = Schema.Struct({ count: Schema.Number });
  * Preview request — the single rule *being edited*, described independently of
  * whether it exists yet. `ruleId` present ⇒ an **update** (that rule's pattern /
  * issuer are being changed to these values, its `createdAt` preserved); absent ⇒
- * a **create** (a brand-new, therefore newest, rule). `issuerId` + `pattern` are
- * the rule's prospective state. The preview is scoped to this one pattern, never
- * the issuer's whole rule set (PRD #8 stories 7–11).
+ * a **create** (a brand-new, therefore newest, rule). `issuerId` + `pattern` +
+ * `matchValue?` are the rule's prospective state (a present `matchValue` narrows
+ * the scope to rows of that amount magnitude). The preview is scoped to this one
+ * pattern, never the issuer's whole rule set (PRD #8 stories 7–11).
  */
 export const RulePreviewInput = Schema.Struct({
 	ruleId: Schema.optional(RuleId),
 	issuerId: Rule.fields.issuerId,
 	pattern: Rule.fields.pattern,
+	matchValue: Rule.fields.matchValue,
 });
 export type RulePreviewInput = typeof RulePreviewInput.Type;
 

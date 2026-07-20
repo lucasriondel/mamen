@@ -51,6 +51,8 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
 });
 
 const { ImportWizard } = await import("./import-wizard");
+const { stashHandoff } = await import("./import-handoff");
+const { parseCsvFile } = await import("./parse-file");
 
 // ---- Router harness ---------------------------------------------------------
 
@@ -119,5 +121,34 @@ describe("ImportWizard", () => {
 
 		// On success it navigates to the transactions view.
 		expect(await screen.findByText("Transactions page")).toBeInTheDocument();
+	});
+
+	it("opens pre-filled from a grid handoff — account chosen, file already parsed", async () => {
+		// The grid parses the CSV up front and hands it off, then deep-links with
+		// the chosen account. The wizard should land ready, straight past the drop.
+		const { headers, rows } = await parseCsvFile(
+			new File([CSV], "statement.csv", { type: "text/csv" }),
+		);
+		stashHandoff({ fileName: "statement.csv", headers, rows });
+
+		const rootRoute = createRootRoute();
+		const importRoute = createRoute({
+			getParentRoute: () => rootRoute,
+			path: "/import",
+			component: () => <ImportWizard initialAccountId={1 as never} />,
+		});
+		const router = createRouter({
+			routeTree: rootRoute.addChildren([importRoute]),
+			history: createMemoryHistory({ initialEntries: ["/import"] }),
+		});
+		render(<RouterProvider router={router} />);
+
+		// Format auto-detected from the handed-off headers (no drop needed)…
+		expect(await screen.findByText("Auto-detected.")).toBeInTheDocument();
+		// …and the account is pre-selected, so preview is reachable immediately.
+		const continueButton = await screen.findByRole("button", {
+			name: "Continue to preview",
+		});
+		expect(continueButton).toBeEnabled();
 	});
 });

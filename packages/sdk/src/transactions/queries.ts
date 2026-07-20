@@ -23,7 +23,13 @@ export type TransactionListParams = {
 	offset?: number;
 	accountId?: AccountId;
 	issuerId?: IssuerId;
-	categoryId?: CategoryId;
+	/**
+	 * One category id, or a **set** of them (ADR 0002). A leaf page passes a lone
+	 * id; a folder page passes all of its leaves' ids so their transactions come
+	 * back in one query. The filter matches the *derived* category, so it includes
+	 * issuer-categorised rows, not only hand-overridden ones.
+	 */
+	categoryId?: CategoryId | ReadonlyArray<CategoryId>;
 	linkedRefundId?: TransactionId;
 	importMonth?: string;
 	importBatchId?: string;
@@ -31,6 +37,8 @@ export type TransactionListParams = {
 	endDate?: Date;
 	isRefund?: boolean;
 	isDuplicateExcluded?: boolean;
+	/** Free-text substring matched across issuer text/name, notes, amount (#40). */
+	search?: string;
 	orderBy?: "date";
 	direction?: "asc" | "desc";
 };

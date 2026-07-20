@@ -2,8 +2,12 @@ import { SqlClient, SqlSchema } from "@effect/sql";
 import {
 	Category,
 	type CategoryCreate,
+	CategoryHoldsMoney,
 	CategoryId,
+	CategoryInUse,
+	type CategorySpill,
 	type CategoryUpdate,
+	CategoryWouldCycle,
 	NotFound,
 	Paged,
 } from "@mamen/shared/contract";
@@ -54,12 +58,12 @@ export class CategoryRepo extends Effect.Service<CategoryRepo>()(
 			// insertion order / `id`). Both independent and combinable — the
 			// fragment is empty when neither is set, replacing the old fan-out.
 			const whereClause = (parentId: number | undefined) =>
-				parentId === undefined
-					? sql``
-					: sql`WHERE parentId = ${parentId}`;
+				parentId === undefined ? sql`` : sql`WHERE parentId = ${parentId}`;
 
 			const orderClause = (orderBy: "sortOrder" | undefined) =>
-				orderBy === "sortOrder" ? sql`ORDER BY sortOrder ASC` : sql`ORDER BY id`;
+				orderBy === "sortOrder"
+					? sql`ORDER BY sortOrder ASC`
+					: sql`ORDER BY id`;
 
 			// `Request: Schema.Any` skips a redundant re-decode: the filter is
 			// already decoded + branded at the HTTP boundary (`CategoryListFilters`
@@ -93,6 +97,44 @@ export class CategoryRepo extends Effect.Service<CategoryRepo>()(
 				execute: (slug) => sql`SELECT * FROM categories WHERE slug = ${slug}`,
 			});
 
+			// The three dependency counts the guarded delete consults (ADR 0001).
+			// Each is one indexed count; together they name what still depends on a
+			// category so the refusal can tell the caller what to re-assign first.
+			// `children` — leaves under a folder; `transactions` — override rows
+			// pointing at a leaf (a *manual* category, the only kind the derivation
+			// reads; a stale non-manual `categoryId` is not a live assignment);
+			// `issuers` — a leaf held as an Issuer default category.
+			const childCountQuery = SqlSchema.single({
+				Request: Schema.Number,
+				Result: CountResult,
+				execute: (id) =>
+					sql`SELECT COUNT(*) AS count FROM categories WHERE parentId = ${id}`,
+			});
+
+			const txRefCountQuery = SqlSchema.single({
+				Request: Schema.Number,
+				Result: CountResult,
+				execute: (id) =>
+					sql`SELECT COUNT(*) AS count FROM transactions WHERE categoryId = ${id} AND manualCategory = 1`,
+			});
+
+			const issuerRefCountQuery = SqlSchema.single({
+				Request: Schema.Number,
+				Result: CountResult,
+				execute: (id) =>
+					sql`SELECT COUNT(*) AS count FROM issuers WHERE defaultCategoryId = ${id}`,
+			});
+
+			// One hop up the tree: a node's `parentId` (or `null` at a root, `None`
+			// if the id is unknown). Looks up a row by its primary key `id`, so the
+			// cycle guard climbs from a proposed new parent toward the root one
+			// primary-key lookup at a time.
+			const parentOfQuery = SqlSchema.findOne({
+				Request: Schema.Number,
+				Result: Schema.Struct({ parentId: Schema.NullOr(Schema.Number) }),
+				execute: (id) => sql`SELECT parentId FROM categories WHERE id = ${id}`,
+			});
+
 			const CategoryInsert = CategoryRow.pipe(Schema.omit("id"));
 
 			const insertQuery = SqlSchema.single({
@@ -123,6 +165,118 @@ export class CategoryRepo extends Effect.Service<CategoryRepo>()(
 						Effect.fail(new NotFound({ resource: "category", id: key })),
 					onSome: Effect.succeed,
 				});
+
+			/**
+			 * The **cycle guard** (ADR 0003, issue #31): a re-parent may not make a
+			 * node its own **ancestor**. The two-level tree made cycles impossible by
+			 * construction — a folder had no parent, so nothing could point back at it
+			 * — but unbounded depth removes that accident, and a cycle is not cosmetic:
+			 * a category orphaned into a ring vanishes from the tree entirely and the
+			 * recursive rollup walks it forever. Walk up from the proposed new parent
+			 * and refuse on reaching `id`, the node being moved. Refusing a node's own
+			 * descendant covers the **self-parent** case for free (a node is its own
+			 * trivial ancestor), so both fall out of one check. A `null`/`undefined`
+			 * parent (clearing / no change) cannot cycle. The walk terminates: the
+			 * pre-write tree has no cycles (this guard is why), so it climbs to a root's
+			 * `null`; a genuine cycle short-circuits the moment the cursor reaches `id`
+			 * — so a grandparent moved under its own grandchild is refused, not hung.
+			 */
+			const assertNoCycle = (
+				id: number,
+				parentId: number | null | undefined,
+			): Effect.Effect<void, CategoryWouldCycle> =>
+				parentId == null
+					? Effect.void
+					: Effect.iterate(parentId as number | null, {
+							while: (cursor) => cursor !== null && cursor !== id,
+							body: (cursor) =>
+								parentOfQuery(cursor as number).pipe(
+									orDieSql,
+									Effect.map(
+										Option.match({
+											onNone: () => null,
+											onSome: (r) => r.parentId,
+										}),
+									),
+								),
+						}).pipe(
+							Effect.flatMap((reached) =>
+								reached === id
+									? Effect.fail(
+											new CategoryWouldCycle({ categoryId: id, parentId }),
+										)
+									: Effect.void,
+							),
+						);
+
+			/**
+			 * The **Kind flip** guard (ADR 0003, issue #30): a leaf gaining its first
+			 * child turns into a folder, but a folder is a rollup node the total visits
+			 * without counting its own rows — so a would-be parent that still holds
+			 * money must not take a child. Runs the two money counts the guarded delete
+			 * already uses — *manual* transaction overrides pointing at the node and
+			 * issuers holding it as a default (a derived category hangs a whole issuer's
+			 * history off the node invisibly) — and fails {@link CategoryHoldsMoney}
+			 * with both counts if either is non-zero. A `null`/`undefined` parent (no
+			 * flip) or a childless-but-empty parent passes. The categories page answers
+			 * the refusal by offering to **Spill** those transactions into a new child.
+			 */
+			const assertParentTakesNoMoney = (
+				parentId: number | null | undefined,
+			): Effect.Effect<void, CategoryHoldsMoney> =>
+				parentId == null
+					? Effect.void
+					: Effect.all({
+							transactions: txRefCountQuery(parentId).pipe(
+								Effect.map((r) => r.count),
+							),
+							issuers: issuerRefCountQuery(parentId).pipe(
+								Effect.map((r) => r.count),
+							),
+						}).pipe(
+							orDieSql,
+							Effect.flatMap(({ transactions, issuers }) =>
+								transactions + issuers > 0
+									? Effect.fail(
+											new CategoryHoldsMoney({
+												categoryId: parentId,
+												transactions,
+												issuers,
+											}),
+										)
+									: Effect.void,
+							),
+						);
+
+			/**
+			 * The **Guarded delete** (ADR 0001): refuse while anything still depends on
+			 * the category. Runs the three dependency counts in one pass; if any is
+			 * non-zero, fails with {@link CategoryInUse} carrying every count, so the
+			 * refusal can name each dependent kind. Neither cascading nor nulling is
+			 * offered — both silently drop money out of totals.
+			 */
+			const assertNoDependents = (
+				id: number,
+			): Effect.Effect<void, CategoryInUse> =>
+				Effect.all({
+					children: childCountQuery(id).pipe(Effect.map((r) => r.count)),
+					transactions: txRefCountQuery(id).pipe(Effect.map((r) => r.count)),
+					issuers: issuerRefCountQuery(id).pipe(Effect.map((r) => r.count)),
+				}).pipe(
+					orDieSql,
+					Effect.flatMap(({ children, transactions, issuers }) =>
+						children + transactions + issuers > 0
+							? Effect.fail(
+									new CategoryInUse({
+										categoryId: id,
+										children,
+										transactions,
+										issuers,
+									}),
+								)
+							: Effect.void,
+					),
+				);
 
 			const list = (filter: ListFilter) =>
 				Effect.all({
@@ -158,40 +312,113 @@ export class CategoryRepo extends Effect.Service<CategoryRepo>()(
 				createdAt: now,
 			});
 
+			// Any node — leaf or folder — is a legal home (ADR 0003): adding a child
+			// simply turns its parent into a folder. The one guard is the Kind flip
+			// (issue #30): a would-be parent still holding money may not take a child
+			// until that money is spilled into a new leaf.
 			const create = (payload: CategoryCreate) =>
-				nowIso.pipe(
-					Effect.flatMap((now) => insertQuery(toInsertRow(payload, now))),
-					orDieSql,
+				assertParentTakesNoMoney(payload.parentId).pipe(
+					Effect.andThen(
+						nowIso.pipe(
+							Effect.flatMap((now) => insertQuery(toInsertRow(payload, now))),
+							orDieSql,
+						),
+					),
 				);
 
 			/**
 			 * Insert every record, returning the created rows with their generated
 			 * ids (201). Each row shares the one `now` timestamp. An empty `records`
-			 * array yields `[]` — no statement runs.
+			 * array yields `[]` — no statement runs. Any depth is legal (ADR 0003);
+			 * the one guard is the Kind flip (issue #30) — every row's parent is
+			 * checked first, so a batch cannot slip a child under a money-holding leaf.
 			 */
 			const bulkCreate = (records: ReadonlyArray<CategoryCreate>) =>
-				nowIso.pipe(
-					Effect.flatMap((now) =>
-						Effect.forEach(records, (payload) =>
-							insertQuery(toInsertRow(payload, now)),
+				Effect.forEach(records, (payload) =>
+					assertParentTakesNoMoney(payload.parentId),
+				).pipe(
+					Effect.andThen(
+						nowIso.pipe(
+							Effect.flatMap((now) =>
+								Effect.forEach(records, (payload) =>
+									insertQuery(toInsertRow(payload, now)),
+								),
+							),
+							orDieSql,
 						),
 					),
-					orDieSql,
 				);
 
 			const update = (id: typeof CategoryId.Type, changes: CategoryUpdate) =>
 				getById(id).pipe(
 					// getById already 404s if missing; the write then always hits a row.
 					Effect.flatMap((current) =>
-						updateQuery(
-							new Category({ ...current, ...changes }),
-						).pipe(orDieSql),
+						// Two re-parent guards (ADR 0003): the move may not make the node
+						// its own ancestor — a cycle (`assertNoCycle`, issue #31) — and the
+						// new parent may not still hold money — a Kind flip that would
+						// strand it (`assertParentTakesNoMoney`, issue #30). Any node is a
+						// legal parent at any depth now (the old "new parent must be a
+						// folder" and "a folder with children may not be re-homed" checks
+						// are both gone), so re-parenting a whole subtree is legal; only a
+						// cycle or stranded money is refused.
+						assertNoCycle(id, changes.parentId).pipe(
+							Effect.andThen(assertParentTakesNoMoney(changes.parentId)),
+							Effect.andThen(
+								updateQuery(new Category({ ...current, ...changes })).pipe(
+									orDieSql,
+								),
+							),
+						),
+					),
+				);
+
+			/**
+			 * **Spill** (ADR 0003, issue #30): the atomic answer to a refused Kind
+			 * flip. Create a new child leaf under `id` and move the node's money into
+			 * it in one `withTransaction` — the insert, the manual-override re-point,
+			 * and the issuer-default re-point commit together, so there is never a state
+			 * where the child exists but the money did not move. Bypasses the
+			 * money-holding guard on purpose: it *is* the sanctioned flip, and it clears
+			 * the money as it makes the child. 404s (via `getById`) if the node is gone.
+			 * The user names the destination; nothing is auto-named.
+			 */
+			const spill = (
+				id: typeof CategoryId.Type,
+				payload: CategorySpill,
+			): Effect.Effect<Category, NotFound> =>
+				getById(id).pipe(
+					Effect.andThen(nowIso),
+					Effect.flatMap((now) =>
+						sql
+							.withTransaction(
+								insertQuery(
+									toInsertRow({ ...payload, parentId: id }, now),
+								).pipe(
+									Effect.tap((leaf) =>
+										Effect.all(
+											[
+												// Manual override rows on the node → the new leaf (still a
+												// manual pick, only the target moves).
+												sql`UPDATE transactions SET categoryId = ${leaf.id} WHERE categoryId = ${id} AND manualCategory = 1`,
+												// Issuers holding the node as their default → the new leaf,
+												// carrying the whole derived history with them.
+												sql`UPDATE issuers SET defaultCategoryId = ${leaf.id} WHERE defaultCategoryId = ${id}`,
+											],
+											{ discard: true },
+										),
+									),
+								),
+							)
+							.pipe(orDieSql),
 					),
 				);
 
 			const remove = (id: typeof CategoryId.Type) =>
 				getById(id).pipe(
-					Effect.flatMap(() =>
+					// getById 404s if missing; then the guarded delete refuses while
+					// anything still depends on the category (ADR 0001).
+					Effect.andThen(assertNoDependents(id)),
+					Effect.andThen(
 						orDieSql(sql`DELETE FROM categories WHERE id = ${id}`),
 					),
 					Effect.asVoid,
@@ -204,6 +431,7 @@ export class CategoryRepo extends Effect.Service<CategoryRepo>()(
 				create,
 				bulkCreate,
 				update,
+				spill,
 				remove,
 			} as const;
 		}),

@@ -29,13 +29,25 @@ const seed = Effect.gen(function* () {
 	const account = yield* client.accounts.create({
 		payload: { name: "Checking", type: "checking" },
 	});
+	// A folder + a leaf under it: the issuer default must be an assignable leaf,
+	// never a folder (two-level invariant, ADR 0001).
+	const folder = yield* client.categories.create({
+		payload: {
+			name: "Food",
+			slug: "food",
+			color: "#0f0",
+			icon: "folder",
+			parentId: null,
+			sortOrder: 1,
+		},
+	});
 	const category = yield* client.categories.create({
 		payload: {
 			name: "Groceries",
 			slug: "groceries",
 			color: "#0f0",
 			icon: "cart",
-			parentId: null,
+			parentId: folder.id,
 			sortOrder: 1,
 		},
 	});
@@ -126,12 +138,25 @@ const EMPTY_DUMP = {
 };
 
 describe("database endpoints", () => {
-	it.effect("export returns an empty dump on a fresh DB", () =>
-		Effect.gen(function* () {
-			const client = yield* HttpApiClient.make(Api);
-			const dump = yield* client.database.export();
-			assert.deepStrictEqual(dump, EMPTY_DUMP);
-		}).pipe(Effect.provide(HttpLive)),
+	it.effect(
+		"export on a fresh DB is empty but for the seeded category tree",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const dump = yield* client.database.export();
+
+				// A fresh migrated DB ships the seeded categories (migration 0010) —
+				// 6 folders + their leaves — and nothing else.
+				assert.strictEqual(
+					dump.categories.filter((c) => c.parentId === null).length,
+					6,
+				);
+				assert.ok(
+					dump.categories.every((c) => c.parentId === null || c.id > 0),
+				);
+				assert.ok(dump.categories.length > 6);
+				assert.deepStrictEqual({ ...dump, categories: [] }, EMPTY_DUMP);
+			}).pipe(Effect.provide(HttpLive)),
 	);
 
 	it.effect("export captures every seeded table", () =>
@@ -141,7 +166,12 @@ describe("database endpoints", () => {
 
 			const dump = yield* client.database.export();
 			assert.deepStrictEqual(dump.accounts, [seeded.account]);
-			assert.deepStrictEqual(dump.categories, [seeded.category]);
+			// The dump carries the seeded tree plus the one this test created.
+			assert.ok(
+				dump.categories.some(
+					(c) => c.id === seeded.category.id && c.slug === "groceries",
+				),
+			);
 			assert.deepStrictEqual(dump.issuers, [seeded.issuer]);
 			assert.deepStrictEqual(dump.rules, [seeded.rule]);
 			assert.deepStrictEqual(dump.transactions, [seeded.transaction]);

@@ -516,6 +516,16 @@
               }
             }
           },
+          "422": {
+            "description": "CategoryHoldsMoney",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryHoldsMoney"
+                }
+              }
+            }
+          },
           "500": {
             "description": "InternalServerError"
           }
@@ -670,6 +680,23 @@
               }
             }
           },
+          "422": {
+            "description": "CategoryHoldsMoney",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/CategoryHoldsMoney"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CategoryWouldCycle"
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "500": {
             "description": "InternalServerError"
           }
@@ -752,6 +779,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/NotFound"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CategoryInUse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryInUse"
                 }
               }
             }
@@ -848,6 +885,16 @@
               }
             }
           },
+          "422": {
+            "description": "CategoryHoldsMoney",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryHoldsMoney"
+                }
+              }
+            }
+          },
           "500": {
             "description": "InternalServerError"
           }
@@ -904,6 +951,95 @@
                       },
                       "additionalProperties": false
                     }
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/categories/{id}/spill": {
+      "post": {
+        "tags": [
+          "Categories"
+        ],
+        "operationId": "categories.spill",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": {
+              "$ref": "#/components/schemas/NumberFromString"
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "201": {
+            "description": "Category",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Category"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NotFound",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFound"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "slug",
+                  "color",
+                  "icon",
+                  "sortOrder"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "slug": {
+                    "type": "string"
+                  },
+                  "color": {
+                    "type": "string"
+                  },
+                  "icon": {
+                    "type": "string"
+                  },
+                  "sortOrder": {
+                    "type": "number"
                   }
                 },
                 "additionalProperties": false
@@ -1016,6 +1152,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "CategoryNotLeaf",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryNotLeaf"
                 }
               }
             }
@@ -1157,6 +1303,16 @@
               }
             }
           },
+          "422": {
+            "description": "CategoryNotLeaf",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryNotLeaf"
+                }
+              }
+            }
+          },
           "500": {
             "description": "InternalServerError"
           }
@@ -1175,9 +1331,16 @@
                     "type": "string"
                   },
                   "defaultCategoryId": {
-                    "type": "integer",
-                    "description": "an integer",
-                    "title": "int"
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "description": "an integer",
+                        "title": "int"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "firstSeen": {
                     "$ref": "#/components/schemas/Date"
@@ -1529,7 +1692,17 @@
             "name": "categoryId",
             "in": "query",
             "schema": {
-              "$ref": "#/components/schemas/NumberFromString"
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/NumberFromString"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NumberFromString"
+                  }
+                }
+              ]
             },
             "required": false
           },
@@ -1594,6 +1767,14 @@
                 "true",
                 "false"
               ]
+            },
+            "required": false
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
             },
             "required": false
           },
@@ -1692,6 +1873,16 @@
               }
             }
           },
+          "422": {
+            "description": "CategoryNotLeaf",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryNotLeaf"
+                }
+              }
+            }
+          },
           "500": {
             "description": "InternalServerError"
           }
@@ -1734,14 +1925,6 @@
                     "description": "an integer",
                     "title": "int"
                   },
-                  "subcategoryId": {
-                    "type": "integer",
-                    "description": "an integer",
-                    "title": "int"
-                  },
-                  "categoryOverride": {
-                    "type": "string"
-                  },
                   "manualCategory": {
                     "type": "boolean"
                   },
@@ -1767,6 +1950,12 @@
                   },
                   "duplicateNote": {
                     "type": "string"
+                  },
+                  "notes": {
+                    "type": "string",
+                    "description": "a string at most 1000 character(s) long",
+                    "title": "maxLength(1000)",
+                    "maxLength": 1000
                   },
                   "importedAt": {
                     "$ref": "#/components/schemas/Date"
@@ -1813,7 +2002,17 @@
             "name": "categoryId",
             "in": "query",
             "schema": {
-              "$ref": "#/components/schemas/NumberFromString"
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/NumberFromString"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NumberFromString"
+                  }
+                }
+              ]
             },
             "required": false
           },
@@ -1880,6 +2079,14 @@
               ]
             },
             "required": false
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -1891,10 +2098,14 @@
                 "schema": {
                   "type": "object",
                   "required": [
-                    "count"
+                    "count",
+                    "total"
                   ],
                   "properties": {
                     "count": {
+                      "type": "number"
+                    },
+                    "total": {
                       "type": "number"
                     }
                   },
@@ -2019,6 +2230,16 @@
               }
             }
           },
+          "422": {
+            "description": "CategoryNotLeaf",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryNotLeaf"
+                }
+              }
+            }
+          },
           "500": {
             "description": "InternalServerError"
           }
@@ -2054,14 +2275,6 @@
                     "description": "an integer",
                     "title": "int"
                   },
-                  "subcategoryId": {
-                    "type": "integer",
-                    "description": "an integer",
-                    "title": "int"
-                  },
-                  "categoryOverride": {
-                    "type": "string"
-                  },
                   "manualCategory": {
                     "type": "boolean"
                   },
@@ -2087,6 +2300,12 @@
                   },
                   "duplicateNote": {
                     "type": "string"
+                  },
+                  "notes": {
+                    "type": "string",
+                    "description": "a string at most 1000 character(s) long",
+                    "title": "maxLength(1000)",
+                    "maxLength": 1000
                   },
                   "importedAt": {
                     "$ref": "#/components/schemas/Date"
@@ -2183,6 +2402,16 @@
               }
             }
           },
+          "422": {
+            "description": "CategoryNotLeaf",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryNotLeaf"
+                }
+              }
+            }
+          },
           "500": {
             "description": "InternalServerError"
           }
@@ -2233,14 +2462,6 @@
                           "description": "an integer",
                           "title": "int"
                         },
-                        "subcategoryId": {
-                          "type": "integer",
-                          "description": "an integer",
-                          "title": "int"
-                        },
-                        "categoryOverride": {
-                          "type": "string"
-                        },
                         "manualCategory": {
                           "type": "boolean"
                         },
@@ -2266,6 +2487,12 @@
                         },
                         "duplicateNote": {
                           "type": "string"
+                        },
+                        "notes": {
+                          "type": "string",
+                          "description": "a string at most 1000 character(s) long",
+                          "title": "maxLength(1000)",
+                          "maxLength": 1000
                         },
                         "importedAt": {
                           "$ref": "#/components/schemas/Date"
@@ -2779,6 +3006,12 @@
                   "pattern": {
                     "type": "string"
                   },
+                  "matchValue": {
+                    "type": "number",
+                    "description": "a positive number",
+                    "title": "positive",
+                    "exclusiveMinimum": 0
+                  },
                   "matchCount": {
                     "type": "number"
                   }
@@ -2962,6 +3195,19 @@
                   },
                   "pattern": {
                     "type": "string"
+                  },
+                  "matchValue": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "description": "a positive number",
+                        "title": "positive",
+                        "exclusiveMinimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "matchCount": {
                     "type": "number"
@@ -3177,6 +3423,12 @@
                   },
                   "pattern": {
                     "type": "string"
+                  },
+                  "matchValue": {
+                    "type": "number",
+                    "description": "a positive number",
+                    "title": "positive",
+                    "exclusiveMinimum": 0
                   }
                 },
                 "additionalProperties": false
@@ -4431,6 +4683,87 @@
         },
         "additionalProperties": false
       },
+      "CategoryHoldsMoney": {
+        "type": "object",
+        "required": [
+          "categoryId",
+          "transactions",
+          "issuers",
+          "_tag"
+        ],
+        "properties": {
+          "categoryId": {
+            "type": "number"
+          },
+          "transactions": {
+            "type": "number"
+          },
+          "issuers": {
+            "type": "number"
+          },
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "CategoryHoldsMoney"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "CategoryWouldCycle": {
+        "type": "object",
+        "required": [
+          "categoryId",
+          "parentId",
+          "_tag"
+        ],
+        "properties": {
+          "categoryId": {
+            "type": "number"
+          },
+          "parentId": {
+            "type": "number"
+          },
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "CategoryWouldCycle"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "CategoryInUse": {
+        "type": "object",
+        "required": [
+          "categoryId",
+          "children",
+          "transactions",
+          "issuers",
+          "_tag"
+        ],
+        "properties": {
+          "categoryId": {
+            "type": "number"
+          },
+          "children": {
+            "type": "number"
+          },
+          "transactions": {
+            "type": "number"
+          },
+          "issuers": {
+            "type": "number"
+          },
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "CategoryInUse"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
       "Issuer": {
         "type": "object",
         "required": [
@@ -4461,6 +4794,25 @@
           },
           "firstSeen": {
             "$ref": "#/components/schemas/Date"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CategoryNotLeaf": {
+        "type": "object",
+        "required": [
+          "categoryId",
+          "_tag"
+        ],
+        "properties": {
+          "categoryId": {
+            "type": "number"
+          },
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "CategoryNotLeaf"
+            ]
           }
         },
         "additionalProperties": false
@@ -4536,14 +4888,6 @@
             "description": "an integer",
             "title": "int"
           },
-          "subcategoryId": {
-            "type": "integer",
-            "description": "an integer",
-            "title": "int"
-          },
-          "categoryOverride": {
-            "type": "string"
-          },
           "manualCategory": {
             "type": "boolean"
           },
@@ -4569,6 +4913,12 @@
           },
           "duplicateNote": {
             "type": "string"
+          },
+          "notes": {
+            "type": "string",
+            "description": "a string at most 1000 character(s) long",
+            "title": "maxLength(1000)",
+            "maxLength": 1000
           },
           "importedAt": {
             "$ref": "#/components/schemas/Date"
@@ -4639,6 +4989,12 @@
           },
           "pattern": {
             "type": "string"
+          },
+          "matchValue": {
+            "type": "number",
+            "description": "a positive number",
+            "title": "positive",
+            "exclusiveMinimum": 0
           },
           "matchCount": {
             "type": "number"

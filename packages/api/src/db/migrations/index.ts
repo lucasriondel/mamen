@@ -7,6 +7,10 @@ import createSubscriptions from "./0006_create_subscriptions";
 import createSettings from "./0007_create_settings";
 import dropRulesCategoryOverride from "./0008_drop_rules_category_override";
 import addTransactionsManualIssuer from "./0009_add_transactions_manual_issuer";
+import seedCategories from "./0010_seed_categories";
+import dropTransactionsCategoryColumns from "./0011_drop_transactions_category_columns";
+import addTransactionsNotes from "./0012_add_transactions_notes";
+import addRulesMatchValue from "./0013_add_rules_match_value";
 
 /**
  * The migration set, keyed `NNNN_name` (the Migrator parses the numeric prefix
@@ -24,4 +28,8 @@ export const migrations = {
 	"0007_create_settings": createSettings,
 	"0008_drop_rules_category_override": dropRulesCategoryOverride,
 	"0009_add_transactions_manual_issuer": addTransactionsManualIssuer,
+	"0010_seed_categories": seedCategories,
+	"0011_drop_transactions_category_columns": dropTransactionsCategoryColumns,
+	"0012_add_transactions_notes": addTransactionsNotes,
+	"0013_add_rules_match_value": addRulesMatchValue,
 } as const;

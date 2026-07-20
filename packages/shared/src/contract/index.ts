@@ -13,6 +13,7 @@ export {
 	CategoryBulkCreate,
 	CategoryCreate,
 	CategoryListFilters,
+	CategorySpill,
 	CategoryUpdate,
 } from "./categories";
 export {
@@ -23,6 +24,10 @@ export {
 } from "./database";
 export {
 	BooleanFromString,
+	CategoryHoldsMoney,
+	CategoryInUse,
+	CategoryNotLeaf,
+	CategoryWouldCycle,
 	Conflict,
 	InvalidFileType,
 	NotFound,
@@ -49,6 +54,7 @@ export {
 } from "./issuers";
 export { Paged, Pagination, PaginationDefaults } from "./pagination";
 export {
+	mergeRuleUpdate,
 	Rule,
 	RuleCount,
 	RuleCreate,
@@ -70,6 +76,7 @@ export {
 	SubscriptionUpdate,
 } from "./subscriptions";
 export {
+	NOTES_MAX_LENGTH,
 	Transaction,
 	TransactionAffected,
 	TransactionBulkCreate,

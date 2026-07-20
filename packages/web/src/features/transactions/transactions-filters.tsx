@@ -1,5 +1,6 @@
 import type { Account } from "@mamen/shared/contract";
-import { X } from "lucide-react";
+import { Search, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { formatMonth } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -7,6 +8,7 @@ import { cn } from "@/lib/utils";
 export interface TransactionFilterValues {
 	accountId?: number;
 	importMonth?: string;
+	search?: string;
 }
 
 export interface TransactionsFiltersProps {
@@ -23,16 +25,23 @@ export interface TransactionsFiltersProps {
 	onChange: (patch: TransactionFilterValues) => void;
 }
 
-const selectClass = cn(
+const inputClass = cn(
 	"h-9 rounded-md border border-line bg-panel px-2 text-sm text-ink",
 	"focus:outline-none focus:ring-2 focus:ring-accent",
 );
 
+/** How long typing pauses before a search term is written to the URL/query. */
+const SEARCH_DEBOUNCE_MS = 250;
+
 /**
- * The account + month filter bar. Two native `<select>`s (AND-composed) plus a
- * "Clear" affordance shown only when a filter is active. Presentational: it
- * reads `value` and emits changes through `onChange`; the route turns those into
- * typed URL search params.
+ * The account + month + text-search filter bar. Two native `<select>`s and a
+ * search box, all AND-composed, plus a "Clear" affordance shown only when a
+ * filter is active. Presentational: it reads `value` and emits changes through
+ * `onChange`; the route turns those into typed URL search params.
+ *
+ * The search box keeps its own local state and debounces `onChange`, so a URL
+ * write (which resets pagination and adds a history entry) fires once the user
+ * pauses rather than on every keystroke.
  */
 export function TransactionsFilters({
 	accounts,
@@ -40,15 +49,23 @@ export function TransactionsFilters({
 	value,
 	onChange,
 }: TransactionsFiltersProps) {
-	const hasFilters = value.accountId != null || value.importMonth != null;
+	const hasFilters =
+		value.accountId != null ||
+		value.importMonth != null ||
+		value.search != null;
 
 	return (
 		<div className="flex flex-wrap items-center gap-3">
+			<TransactionsSearchInput
+				value={value.search}
+				onChange={(search) => onChange({ search })}
+			/>
+
 			<label className="flex items-center gap-2 text-sm text-muted">
 				Account
 				<select
 					aria-label="Filter by account"
-					className={selectClass}
+					className={inputClass}
 					value={value.accountId ?? ""}
 					onChange={(e) =>
 						onChange({
@@ -70,7 +87,7 @@ export function TransactionsFilters({
 				Month
 				<select
 					aria-label="Filter by month"
-					className={selectClass}
+					className={inputClass}
 					value={value.importMonth ?? ""}
 					onChange={(e) =>
 						onChange({
@@ -91,7 +108,11 @@ export function TransactionsFilters({
 				<button
 					type="button"
 					onClick={() =>
-						onChange({ accountId: undefined, importMonth: undefined })
+						onChange({
+							accountId: undefined,
+							importMonth: undefined,
+							search: undefined,
+						})
 					}
 					className="flex items-center gap-1 rounded-md px-2 py-1.5 text-sm text-muted transition-colors hover:bg-panel hover:text-ink"
 				>
@@ -99,6 +120,66 @@ export function TransactionsFilters({
 					Clear
 				</button>
 			) : null}
+		</div>
+	);
+}
+
+type TransactionsSearchInputProps = {
+	/** The applied search term from the URL, or `undefined` when cleared. */
+	value: string | undefined;
+	/** Emit a (debounced) term change; `undefined` clears the search. */
+	onChange: (search: string | undefined) => void;
+};
+
+/**
+ * The debounced search box. Local `text` state gives an immediate, responsive
+ * field; a trailing-edge timer commits the trimmed term to `onChange` after the
+ * user pauses. The applied `value` (from the URL) is mirrored back into `text`
+ * whenever it changes externally (Clear button, back/forward), but never mid-typing.
+ */
+function TransactionsSearchInput({
+	value,
+	onChange,
+}: TransactionsSearchInputProps) {
+	const [text, setText] = useState(value ?? "");
+	// Keep the latest `onChange` without making it a debounce dependency.
+	const onChangeRef = useRef(onChange);
+	onChangeRef.current = onChange;
+
+	// Reflect external changes to the applied term (Clear, history nav) into the
+	// field. `value ?? ""` compared to `text` avoids clobbering in-flight typing.
+	const applied = value ?? "";
+	// biome-ignore lint/correctness/useExhaustiveDependencies: sync only on the
+	// applied value; `text` is intentionally excluded so typing isn't overwritten.
+	useEffect(() => {
+		setText(applied);
+	}, [applied]);
+
+	// Debounce committing the trimmed term. A no-op when it already matches the
+	// applied value, so mirroring `value` in doesn't echo back out.
+	useEffect(() => {
+		const trimmed = text.trim();
+		if (trimmed === applied) return;
+		const id = setTimeout(() => {
+			onChangeRef.current(trimmed === "" ? undefined : trimmed);
+		}, SEARCH_DEBOUNCE_MS);
+		return () => clearTimeout(id);
+	}, [text, applied]);
+
+	return (
+		<div className="relative flex items-center">
+			<Search
+				size={14}
+				className="pointer-events-none absolute left-2 text-muted"
+			/>
+			<input
+				type="search"
+				aria-label="Search transactions"
+				placeholder="Search transactions…"
+				className={cn(inputClass, "w-56 pl-7")}
+				value={text}
+				onChange={(e) => setText(e.target.value)}
+			/>
 		</div>
 	);
 }

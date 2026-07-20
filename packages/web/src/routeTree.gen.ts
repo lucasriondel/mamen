@@ -10,11 +10,16 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TransactionsRouteImport } from './routes/transactions'
+import { Route as RecapRouteImport } from './routes/recap'
 import { Route as ImportRouteImport } from './routes/import'
+import { Route as CategoriesRouteImport } from './routes/categories'
 import { Route as AccountsRouteImport } from './routes/accounts'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as IssuersIndexRouteImport } from './routes/issuers.index'
+import { Route as CategoriesIndexRouteImport } from './routes/categories.index'
+import { Route as IssuersNewRouteImport } from './routes/issuers.new'
 import { Route as IssuersIssuerIdRouteImport } from './routes/issuers.$issuerId'
+import { Route as CategoriesCategoryIdRouteImport } from './routes/categories.$categoryId'
 import { Route as IssuersIssuerIdIndexRouteImport } from './routes/issuers.$issuerId.index'
 import { Route as IssuersIssuerIdRulesNewRouteImport } from './routes/issuers.$issuerId.rules.new'
 import { Route as IssuersIssuerIdRulesRuleIdRouteImport } from './routes/issuers.$issuerId.rules.$ruleId'
@@ -24,9 +29,19 @@ const TransactionsRoute = TransactionsRouteImport.update({
   path: '/transactions',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RecapRoute = RecapRouteImport.update({
+  id: '/recap',
+  path: '/recap',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ImportRoute = ImportRouteImport.update({
   id: '/import',
   path: '/import',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CategoriesRoute = CategoriesRouteImport.update({
+  id: '/categories',
+  path: '/categories',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AccountsRoute = AccountsRouteImport.update({
@@ -44,10 +59,25 @@ const IssuersIndexRoute = IssuersIndexRouteImport.update({
   path: '/issuers/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CategoriesIndexRoute = CategoriesIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => CategoriesRoute,
+} as any)
+const IssuersNewRoute = IssuersNewRouteImport.update({
+  id: '/issuers/new',
+  path: '/issuers/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IssuersIssuerIdRoute = IssuersIssuerIdRouteImport.update({
   id: '/issuers/$issuerId',
   path: '/issuers/$issuerId',
   getParentRoute: () => rootRouteImport,
+} as any)
+const CategoriesCategoryIdRoute = CategoriesCategoryIdRouteImport.update({
+  id: '/$categoryId',
+  path: '/$categoryId',
+  getParentRoute: () => CategoriesRoute,
 } as any)
 const IssuersIssuerIdIndexRoute = IssuersIssuerIdIndexRouteImport.update({
   id: '/',
@@ -69,9 +99,14 @@ const IssuersIssuerIdRulesRuleIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/accounts': typeof AccountsRoute
+  '/categories': typeof CategoriesRouteWithChildren
   '/import': typeof ImportRoute
+  '/recap': typeof RecapRoute
   '/transactions': typeof TransactionsRoute
+  '/categories/$categoryId': typeof CategoriesCategoryIdRoute
   '/issuers/$issuerId': typeof IssuersIssuerIdRouteWithChildren
+  '/issuers/new': typeof IssuersNewRoute
+  '/categories/': typeof CategoriesIndexRoute
   '/issuers/': typeof IssuersIndexRoute
   '/issuers/$issuerId/': typeof IssuersIssuerIdIndexRoute
   '/issuers/$issuerId/rules/$ruleId': typeof IssuersIssuerIdRulesRuleIdRoute
@@ -81,7 +116,11 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/accounts': typeof AccountsRoute
   '/import': typeof ImportRoute
+  '/recap': typeof RecapRoute
   '/transactions': typeof TransactionsRoute
+  '/categories/$categoryId': typeof CategoriesCategoryIdRoute
+  '/issuers/new': typeof IssuersNewRoute
+  '/categories': typeof CategoriesIndexRoute
   '/issuers': typeof IssuersIndexRoute
   '/issuers/$issuerId': typeof IssuersIssuerIdIndexRoute
   '/issuers/$issuerId/rules/$ruleId': typeof IssuersIssuerIdRulesRuleIdRoute
@@ -91,9 +130,14 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/accounts': typeof AccountsRoute
+  '/categories': typeof CategoriesRouteWithChildren
   '/import': typeof ImportRoute
+  '/recap': typeof RecapRoute
   '/transactions': typeof TransactionsRoute
+  '/categories/$categoryId': typeof CategoriesCategoryIdRoute
   '/issuers/$issuerId': typeof IssuersIssuerIdRouteWithChildren
+  '/issuers/new': typeof IssuersNewRoute
+  '/categories/': typeof CategoriesIndexRoute
   '/issuers/': typeof IssuersIndexRoute
   '/issuers/$issuerId/': typeof IssuersIssuerIdIndexRoute
   '/issuers/$issuerId/rules/$ruleId': typeof IssuersIssuerIdRulesRuleIdRoute
@@ -104,9 +148,14 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/accounts'
+    | '/categories'
     | '/import'
+    | '/recap'
     | '/transactions'
+    | '/categories/$categoryId'
     | '/issuers/$issuerId'
+    | '/issuers/new'
+    | '/categories/'
     | '/issuers/'
     | '/issuers/$issuerId/'
     | '/issuers/$issuerId/rules/$ruleId'
@@ -116,7 +165,11 @@ export interface FileRouteTypes {
     | '/'
     | '/accounts'
     | '/import'
+    | '/recap'
     | '/transactions'
+    | '/categories/$categoryId'
+    | '/issuers/new'
+    | '/categories'
     | '/issuers'
     | '/issuers/$issuerId'
     | '/issuers/$issuerId/rules/$ruleId'
@@ -125,9 +178,14 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/accounts'
+    | '/categories'
     | '/import'
+    | '/recap'
     | '/transactions'
+    | '/categories/$categoryId'
     | '/issuers/$issuerId'
+    | '/issuers/new'
+    | '/categories/'
     | '/issuers/'
     | '/issuers/$issuerId/'
     | '/issuers/$issuerId/rules/$ruleId'
@@ -137,9 +195,12 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AccountsRoute: typeof AccountsRoute
+  CategoriesRoute: typeof CategoriesRouteWithChildren
   ImportRoute: typeof ImportRoute
+  RecapRoute: typeof RecapRoute
   TransactionsRoute: typeof TransactionsRoute
   IssuersIssuerIdRoute: typeof IssuersIssuerIdRouteWithChildren
+  IssuersNewRoute: typeof IssuersNewRoute
   IssuersIndexRoute: typeof IssuersIndexRoute
 }
 
@@ -152,11 +213,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TransactionsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/recap': {
+      id: '/recap'
+      path: '/recap'
+      fullPath: '/recap'
+      preLoaderRoute: typeof RecapRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/import': {
       id: '/import'
       path: '/import'
       fullPath: '/import'
       preLoaderRoute: typeof ImportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/categories': {
+      id: '/categories'
+      path: '/categories'
+      fullPath: '/categories'
+      preLoaderRoute: typeof CategoriesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/accounts': {
@@ -180,12 +255,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IssuersIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/categories/': {
+      id: '/categories/'
+      path: '/'
+      fullPath: '/categories/'
+      preLoaderRoute: typeof CategoriesIndexRouteImport
+      parentRoute: typeof CategoriesRoute
+    }
+    '/issuers/new': {
+      id: '/issuers/new'
+      path: '/issuers/new'
+      fullPath: '/issuers/new'
+      preLoaderRoute: typeof IssuersNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/issuers/$issuerId': {
       id: '/issuers/$issuerId'
       path: '/issuers/$issuerId'
       fullPath: '/issuers/$issuerId'
       preLoaderRoute: typeof IssuersIssuerIdRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/categories/$categoryId': {
+      id: '/categories/$categoryId'
+      path: '/$categoryId'
+      fullPath: '/categories/$categoryId'
+      preLoaderRoute: typeof CategoriesCategoryIdRouteImport
+      parentRoute: typeof CategoriesRoute
     }
     '/issuers/$issuerId/': {
       id: '/issuers/$issuerId/'
@@ -211,6 +307,20 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface CategoriesRouteChildren {
+  CategoriesCategoryIdRoute: typeof CategoriesCategoryIdRoute
+  CategoriesIndexRoute: typeof CategoriesIndexRoute
+}
+
+const CategoriesRouteChildren: CategoriesRouteChildren = {
+  CategoriesCategoryIdRoute: CategoriesCategoryIdRoute,
+  CategoriesIndexRoute: CategoriesIndexRoute,
+}
+
+const CategoriesRouteWithChildren = CategoriesRoute._addFileChildren(
+  CategoriesRouteChildren,
+)
+
 interface IssuersIssuerIdRouteChildren {
   IssuersIssuerIdIndexRoute: typeof IssuersIssuerIdIndexRoute
   IssuersIssuerIdRulesRuleIdRoute: typeof IssuersIssuerIdRulesRuleIdRoute
@@ -230,9 +340,12 @@ const IssuersIssuerIdRouteWithChildren = IssuersIssuerIdRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccountsRoute: AccountsRoute,
+  CategoriesRoute: CategoriesRouteWithChildren,
   ImportRoute: ImportRoute,
+  RecapRoute: RecapRoute,
   TransactionsRoute: TransactionsRoute,
   IssuersIssuerIdRoute: IssuersIssuerIdRouteWithChildren,
+  IssuersNewRoute: IssuersNewRoute,
   IssuersIndexRoute: IssuersIndexRoute,
 }
 export const routeTree = rootRouteImport

@@ -1,4 +1,9 @@
-import type { IssuerId, IssuerUpdate } from "@mamen/shared/contract";
+import type {
+	CategoryId,
+	IssuerCreate,
+	IssuerId,
+	IssuerUpdate,
+} from "@mamen/shared/contract";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { issuerKeys, issuerMutations } from "@/lib/sdk";
@@ -26,6 +31,19 @@ export function useIssuerMutations() {
 		toast.error(toErrorMessage(error));
 	};
 
+	// Hand-create an issuer (issue: standalone "Create issuer" page). Unlike the
+	// assignment picker's create — which mints a bare name to hang a rule on — this
+	// pre-seeds a `defaultCategoryId` so the issuer auto-files its future matching
+	// transactions before it has any. `firstSeen` is caller-provided by contract;
+	// there's no first transaction yet, so we stamp "now" (as the assignment picker
+	// does). Returns the new Issuer (with id) so the caller can navigate to it.
+	const create = useMutation({
+		mutationFn: (payload: Omit<IssuerCreate, "firstSeen">) =>
+			issuerMutations.create({ ...payload, firstSeen: new Date() }),
+		onSuccess: invalidate,
+		onError,
+	});
+
 	const rename = useMutation({
 		mutationFn: ({ id, patch }: { id: IssuerId; patch: IssuerUpdate }) =>
 			issuerMutations.update(id, patch),
@@ -52,5 +70,28 @@ export function useIssuerMutations() {
 		onError,
 	});
 
-	return { rename, uploadImage, deleteImage, remove };
+	// The bulk lever (PRD #19): set — or clear (`null`) — an issuer's default
+	// category, reclassifying its whole non-overridden history at once (the
+	// category is derived through the issuer at query time, never copied). A
+	// folder is rejected by the API (`CategoryNotLeaf`) and surfaces as a toast.
+	const setDefaultCategory = useMutation({
+		mutationFn: ({
+			id,
+			categoryId,
+		}: {
+			id: IssuerId;
+			categoryId: CategoryId | null;
+		}) => issuerMutations.update(id, { defaultCategoryId: categoryId }),
+		onSuccess: invalidate,
+		onError,
+	});
+
+	return {
+		create,
+		rename,
+		uploadImage,
+		deleteImage,
+		remove,
+		setDefaultCategory,
+	};
 }

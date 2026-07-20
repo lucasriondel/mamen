@@ -6,7 +6,7 @@ import {
 	OpenApi,
 } from "@effect/platform";
 import { Option, Schema } from "effect";
-import { InvalidFileType, NotFound } from "./errors";
+import { CategoryNotLeaf, InvalidFileType, NotFound } from "./errors";
 import { CategoryId, IssuerId, numFromStr } from "./ids";
 import { Paged, Pagination } from "./pagination";
 
@@ -40,8 +40,19 @@ export const IssuerCreate = Schema.Struct({
 });
 export type IssuerCreate = typeof IssuerCreate.Type;
 
-/** Update payload — every field optional (partial update). */
-export const IssuerUpdate = Schema.partial(IssuerCreate);
+/**
+ * Update payload — every field optional (partial update). `defaultCategoryId`
+ * is additionally **nullable**: a `null` *clears* the issuer's default category
+ * (the "undo a categorisation" gesture), which absent-means-unchanged can't
+ * express. A present leaf id sets it; the API rejects a folder ({@link
+ * CategoryNotLeaf}).
+ */
+export const IssuerUpdate = Schema.partial(
+	Schema.Struct({
+		...IssuerCreate.fields,
+		defaultCategoryId: Schema.NullOr(CategoryId),
+	}),
+);
 export type IssuerUpdate = typeof IssuerUpdate.Type;
 
 /**
@@ -74,6 +85,9 @@ export const IssuerImageUpload = HttpApiSchema.Multipart(
  * so `create`/`update` declare no `Conflict`. `getById`/`getByName`/`getByNameCi`
  * /`update`/`remove`/`uploadImage`/`deleteImage` 404 on a missing issuer
  * (`remove` now 404s — behavior change vs the old silent `{ ok: true }`).
+ * `create`/`update` declare `CategoryNotLeaf`: an issuer's default category must
+ * be an assignable leaf (a category with no children), never a folder — the
+ * **Leaf-assignable invariant** at any depth (ADR 0003).
  * `uploadImage` additionally declares `InvalidFileType`. Dropped vs today: `PUT
  * /issuers/bulk-put` (client-only). The `/uploads/*` static route is a
  * separate wildcard route, not part of this contract.
@@ -108,7 +122,8 @@ export class IssuersGroup extends HttpApiGroup.make("issuers")
 	.add(
 		HttpApiEndpoint.post("create")`/issuers`
 			.setPayload(IssuerCreate)
-			.addSuccess(Issuer, { status: 201 }),
+			.addSuccess(Issuer, { status: 201 })
+			.addError(CategoryNotLeaf),
 	)
 	.add(
 		HttpApiEndpoint.put(
@@ -116,7 +131,8 @@ export class IssuersGroup extends HttpApiGroup.make("issuers")
 		)`/issuers/${HttpApiSchema.param("id", numFromStr(IssuerId))}`
 			.setPayload(IssuerUpdate)
 			.addSuccess(Issuer)
-			.addError(NotFound),
+			.addError(NotFound)
+			.addError(CategoryNotLeaf),
 	)
 	.add(
 		HttpApiEndpoint.del(

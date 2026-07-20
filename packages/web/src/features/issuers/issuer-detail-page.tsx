@@ -10,7 +10,9 @@ import { RulesSection } from "@/features/rules/rules-section";
 import { formatCurrency, formatShortDate } from "@/lib/format";
 import { issuerQueries, transactionQueries } from "@/lib/sdk";
 import { cn } from "@/lib/utils";
+import { BUTTON_CLASS, INPUT_CLASS } from "./field-styles";
 import { IssuerAvatar } from "./issuer-avatar";
+import { IssuerDefaultCategoryPicker } from "./issuer-default-category-picker";
 import { useIssuerMutations } from "./use-issuer-mutations";
 
 /**
@@ -19,11 +21,6 @@ import { useIssuerMutations } from "./use-issuer-mutations";
  * client-side; per-issuer counts are small (PRD), so one wide page is enough.
  */
 const ISSUER_TXN_SCAN_LIMIT = 1000;
-
-const BUTTON_CLASS =
-	"rounded-md border border-line px-3 py-1.5 text-sm text-ink disabled:opacity-50";
-const INPUT_CLASS =
-	"rounded-md border border-line bg-bg px-3 py-2 text-sm text-ink outline-none focus:border-accent";
 
 const routeApi = getRouteApi("/issuers/$issuerId");
 
@@ -212,6 +209,8 @@ function IssuerDetailContent({
 					Save
 				</button>
 			</form>
+
+			<IssuerDefaultCategoryPicker issuer={issuer} />
 
 			<div className="flex flex-col gap-3">
 				<h2 className="text-lg font-semibold text-ink">Transactions</h2>

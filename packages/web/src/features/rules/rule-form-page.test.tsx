@@ -210,6 +210,63 @@ describe("RuleFormPage — create", () => {
 		expect(await screen.findByText("Issuer detail page")).toBeInTheDocument();
 	});
 
+	it("threads matchValue into the preview and persists it on create", async () => {
+		const user = userEvent.setup();
+		renderAt("/issuers/1/rules/new");
+
+		await user.type(
+			await screen.findByLabelText("Matching Rule pattern"),
+			"amazon",
+		);
+		await user.type(screen.getByLabelText("Matching Rule value"), "6.99");
+
+		// The value narrows the live preview request alongside the pattern.
+		await waitFor(() =>
+			expect(previewRule).toHaveBeenCalledWith(
+				expect.objectContaining({
+					issuerId: 1,
+					pattern: "amazon",
+					matchValue: 6.99,
+				}),
+			),
+		);
+
+		await user.click(screen.getByRole("button", { name: "Create rule" }));
+		await waitFor(() =>
+			expect(createRule).toHaveBeenCalledWith({
+				issuerId: 1,
+				pattern: "amazon",
+				matchCount: 0,
+				matchValue: 6.99,
+			}),
+		);
+	});
+
+	it("keeps a blank value regex-only (no matchValue on preview or create)", async () => {
+		const user = userEvent.setup();
+		renderAt("/issuers/1/rules/new");
+
+		await user.type(
+			await screen.findByLabelText("Matching Rule pattern"),
+			"amazon",
+		);
+
+		await waitFor(() => expect(previewRule).toHaveBeenCalled());
+		// An empty value field is the opt-out: no matchValue in the request.
+		expect(previewRule).toHaveBeenLastCalledWith(
+			expect.not.objectContaining({ matchValue: expect.anything() }),
+		);
+
+		await user.click(screen.getByRole("button", { name: "Create rule" }));
+		await waitFor(() =>
+			expect(createRule).toHaveBeenCalledWith({
+				issuerId: 1,
+				pattern: "amazon",
+				matchCount: 0,
+			}),
+		);
+	});
+
 	it("pre-fills the pattern from defaultPattern (the ?pattern= query param)", async () => {
 		function SeededNewRulePage() {
 			return (
@@ -313,9 +370,51 @@ describe("RuleFormPage — edit", () => {
 		await user.type(input, "amzn");
 		await user.click(screen.getByRole("button", { name: "Save rule" }));
 
+		// A blank value field on a regex-only rule saves as an explicit clear (null).
 		await waitFor(() =>
-			expect(updateRule).toHaveBeenCalledWith(10, { pattern: "amzn" }),
+			expect(updateRule).toHaveBeenCalledWith(10, {
+				pattern: "amzn",
+				matchValue: null,
+			}),
 		);
 		expect(await screen.findByText("Issuer detail page")).toBeInTheDocument();
+	});
+
+	it("pre-fills the value from the rule and clearing it saves a clear (null)", async () => {
+		rulesById = { 10: rule({ matchValue: 6.99 }) };
+		const user = userEvent.setup();
+		renderAt("/issuers/1/rules/10");
+
+		const valueInput = await screen.findByLabelText("Matching Rule value");
+		// Pre-filled from the loaded value-rule.
+		expect(valueInput).toHaveValue(6.99);
+
+		await user.clear(valueInput);
+		await user.click(screen.getByRole("button", { name: "Save rule" }));
+
+		await waitFor(() =>
+			expect(updateRule).toHaveBeenCalledWith(10, {
+				pattern: "amazon",
+				matchValue: null,
+			}),
+		);
+	});
+
+	it("saves an edited value as matchValue", async () => {
+		rulesById = { 10: rule({ matchValue: 6.99 }) };
+		const user = userEvent.setup();
+		renderAt("/issuers/1/rules/10");
+
+		const valueInput = await screen.findByLabelText("Matching Rule value");
+		await user.clear(valueInput);
+		await user.type(valueInput, "12.5");
+		await user.click(screen.getByRole("button", { name: "Save rule" }));
+
+		await waitFor(() =>
+			expect(updateRule).toHaveBeenCalledWith(10, {
+				pattern: "amazon",
+				matchValue: 12.5,
+			}),
+		);
 	});
 });

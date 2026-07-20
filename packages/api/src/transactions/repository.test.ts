@@ -1,3 +1,4 @@
+import { SqlClient } from "@effect/sql";
 import { assert, describe, it } from "@effect/vitest";
 import {
 	AccountId,
@@ -8,14 +9,21 @@ import {
 	Transaction,
 	type TransactionCreate,
 	TransactionId,
+	TransactionUpdate,
 } from "@mamen/shared/contract";
-import { Effect, Layer, Schema } from "effect";
+import { Effect, Either, Layer, Schema } from "effect";
 import { DatabaseTest } from "../db/test";
 import { TransactionFromRow, TransactionRepo } from "./repository";
 
 // The repository over a fresh `:memory:` DB. `TransactionRepo.Default` needs a
 // SqlClient, provided by `DatabaseTest`; built per test for isolation.
 const RepoTest = TransactionRepo.Default.pipe(Layer.provide(DatabaseTest));
+
+// Like `RepoTest`, but keeps the underlying `SqlClient` in the output context so
+// a test can seed raw rows (e.g. an `issuers` row for the join-backed search).
+const RepoAndSqlTest = TransactionRepo.Default.pipe(
+	Layer.provideMerge(DatabaseTest),
+);
 
 const asAccount = Schema.decodeSync(AccountId);
 const asCategory = Schema.decodeSync(CategoryId);
@@ -59,8 +67,6 @@ describe("TransactionFromRow storage codec", () => {
 			rawIssuerString: "ACME",
 			issuerId: asIssuer(3),
 			categoryId: asCategory(4),
-			subcategoryId: asCategory(5),
-			categoryOverride: "Food",
 			manualCategory: true,
 			manualIssuer: true,
 			isRefund: true,
@@ -75,6 +81,7 @@ describe("TransactionFromRow storage codec", () => {
 			],
 			isDuplicateExcluded: true,
 			duplicateNote: "dup",
+			notes: "lunch with the team",
 			importedAt: DATE,
 			importMonth: "2026-03",
 			importBatchId: "batch-9",
@@ -84,6 +91,7 @@ describe("TransactionFromRow storage codec", () => {
 		assert.strictEqual(row.manualCategory, 1);
 		assert.strictEqual(row.manualIssuer, 1);
 		assert.strictEqual(row.issuerId, 3);
+		assert.strictEqual(row.notes, "lunch with the team");
 		assert.strictEqual(typeof row.anomalyFlags, "string");
 		assert.deepStrictEqual(decode(row), full);
 	});
@@ -103,12 +111,41 @@ describe("TransactionFromRow storage codec", () => {
 		assert.strictEqual(row.manualCategory, 0);
 		assert.strictEqual(row.manualIssuer, 0);
 		assert.strictEqual(row.anomalyFlags, null);
+		assert.strictEqual(row.notes, null);
 		assert.strictEqual(row.importBatchId, null);
 		assert.deepStrictEqual(decode(row), bare);
 	});
 });
 
+describe("Transaction notes cap (issue #38)", () => {
+	// The `notes` cap is the one constrained string on the entity: 1000 chars,
+	// enforced at the contract boundary so an over-long note fails decode (400)
+	// rather than reaching the DB. `TransactionUpdate` (a partial of the create)
+	// is the payload the notes editor sends; decode it with only `notes` set.
+	const decode = Schema.decodeEither(TransactionUpdate);
+
+	it("accepts a note at the 1000-char limit", () => {
+		assert.ok(Either.isRight(decode({ notes: "n".repeat(1000) })));
+	});
+
+	it("rejects a note over 1000 chars", () => {
+		assert.ok(Either.isLeft(decode({ notes: "n".repeat(1001) })));
+	});
+});
+
 describe("TransactionRepo", () => {
+	it.effect("the vestigial category columns are dropped from the table", () =>
+		Effect.gen(function* () {
+			const sql = yield* SqlClient.SqlClient;
+			const columns = yield* sql<{
+				name: string;
+			}>`PRAGMA table_info(transactions)`;
+			const names = columns.map((c) => c.name);
+			assert.ok(!names.includes("subcategoryId"));
+			assert.ok(!names.includes("categoryOverride"));
+		}).pipe(Effect.provide(DatabaseTest)),
+	);
+
 	it.effect("create assigns an id, then getById round-trips it", () =>
 		Effect.gen(function* () {
 			const repo = yield* TransactionRepo;
@@ -122,17 +159,19 @@ describe("TransactionRepo", () => {
 		}).pipe(Effect.provide(RepoTest)),
 	);
 
-	it.effect("optional fields absent on create stay absent (null → undefined)", () =>
-		Effect.gen(function* () {
-			const repo = yield* TransactionRepo;
-			const created = yield* repo.create(make());
-			assert.strictEqual(created.issuerId, undefined);
-			assert.strictEqual(created.categoryId, undefined);
-			assert.strictEqual(created.manualIssuer, undefined);
-			assert.strictEqual(created.isRefund, undefined);
-			assert.strictEqual(created.anomalyFlags, undefined);
-			assert.strictEqual(created.importBatchId, undefined);
-		}).pipe(Effect.provide(RepoTest)),
+	it.effect(
+		"optional fields absent on create stay absent (null → undefined)",
+		() =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const created = yield* repo.create(make());
+				assert.strictEqual(created.issuerId, undefined);
+				assert.strictEqual(created.categoryId, undefined);
+				assert.strictEqual(created.manualIssuer, undefined);
+				assert.strictEqual(created.isRefund, undefined);
+				assert.strictEqual(created.anomalyFlags, undefined);
+				assert.strictEqual(created.importBatchId, undefined);
+			}).pipe(Effect.provide(RepoTest)),
 	);
 
 	it.effect("optional fields set on create round-trip through storage", () =>
@@ -142,27 +181,25 @@ describe("TransactionRepo", () => {
 				make({
 					issuerId: asIssuer(7),
 					categoryId: asCategory(3),
-					subcategoryId: asCategory(4),
-					categoryOverride: "Groceries",
 					manualCategory: true,
 					manualIssuer: true,
 					isRefund: true,
 					linkedRefundId: asTx(1),
 					isDuplicateExcluded: true,
 					duplicateNote: "seen before",
+					notes: "reimbursable",
 					importBatchId: "batch-1",
 				}),
 			);
 			assert.strictEqual(created.issuerId, asIssuer(7));
 			assert.strictEqual(created.categoryId, asCategory(3));
-			assert.strictEqual(created.subcategoryId, asCategory(4));
-			assert.strictEqual(created.categoryOverride, "Groceries");
 			assert.strictEqual(created.manualCategory, true);
 			assert.strictEqual(created.manualIssuer, true);
 			assert.strictEqual(created.isRefund, true);
 			assert.strictEqual(created.linkedRefundId, asTx(1));
 			assert.strictEqual(created.isDuplicateExcluded, true);
 			assert.strictEqual(created.duplicateNote, "seen before");
+			assert.strictEqual(created.notes, "reimbursable");
 			assert.strictEqual(created.importBatchId, "batch-1");
 		}).pipe(Effect.provide(RepoTest)),
 	);
@@ -207,6 +244,24 @@ describe("TransactionRepo", () => {
 		}).pipe(Effect.provide(RepoTest)),
 	);
 
+	// Notes are set through the same partial `update` as any field (issue #38),
+	// and — because the write re-writes the whole row from the stored merge base —
+	// a later update to a *different* field must not silently drop the note.
+	it.effect("update sets notes, and a later unrelated update keeps them", () =>
+		Effect.gen(function* () {
+			const repo = yield* TransactionRepo;
+			const created = yield* repo.create(make());
+			assert.strictEqual(created.notes, undefined);
+
+			const noted = yield* repo.update(created.id, { notes: "call the bank" });
+			assert.strictEqual(noted.notes, "call the bank");
+
+			const reamounted = yield* repo.update(created.id, { amount: 42 });
+			assert.strictEqual(reamounted.amount, 42);
+			assert.strictEqual(reamounted.notes, "call the bank");
+		}).pipe(Effect.provide(RepoTest)),
+	);
+
 	it.effect("remove deletes the row", () =>
 		Effect.gen(function* () {
 			const repo = yield* TransactionRepo;
@@ -243,13 +298,17 @@ describe("TransactionRepo", () => {
 
 	describe("composable list/count filters", () => {
 		// Seed a diverse set so every filter has both matching and non-matching
-		// rows. Returns the created transactions in insertion order.
+		// rows. Returns the created transactions in insertion order. The category
+		// filter matches the DERIVED category (ADR 0002), so these `categoryId`
+		// rows carry `manualCategory` (an override) to keep the stored id in force;
+		// the issuer-derived filter path has its own dedicated handler tests.
 		const seed = (repo: TransactionRepo) =>
 			Effect.all([
 				repo.create(
 					make({
 						accountId: asAccount(1),
 						categoryId: asCategory(7),
+						manualCategory: true,
 						issuerId: asIssuer(2),
 						date: new Date("2026-01-10T00:00:00.000Z"),
 						importMonth: "2026-01",
@@ -261,6 +320,7 @@ describe("TransactionRepo", () => {
 					make({
 						accountId: asAccount(1),
 						categoryId: asCategory(8),
+						manualCategory: true,
 						date: new Date("2026-02-10T00:00:00.000Z"),
 						importMonth: "2026-02",
 						importBatchId: "batch-b",
@@ -271,6 +331,7 @@ describe("TransactionRepo", () => {
 					make({
 						accountId: asAccount(2),
 						categoryId: asCategory(7),
+						manualCategory: true,
 						date: new Date("2026-03-10T00:00:00.000Z"),
 						importMonth: "2026-03",
 						linkedRefundId: asTx(1),
@@ -288,20 +349,22 @@ describe("TransactionRepo", () => {
 			}).pipe(Effect.provide(RepoTest)),
 		);
 
-		it.effect("accountId + categoryId + startDate combine (old fan-out could not)", () =>
-			Effect.gen(function* () {
-				const repo = yield* TransactionRepo;
-				yield* seed(repo);
-				// account 1, category 7, on/after 2026-01-01 → only the first row.
-				const page = yield* repo.list({
-					...listAll,
-					accountId: asAccount(1),
-					categoryId: asCategory(7),
-					startDate: new Date("2026-01-01T00:00:00.000Z"),
-				});
-				assert.strictEqual(page.total, 1);
-				assert.strictEqual(page.items[0]?.importMonth, "2026-01");
-			}).pipe(Effect.provide(RepoTest)),
+		it.effect(
+			"accountId + categoryId + startDate combine (old fan-out could not)",
+			() =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* seed(repo);
+					// account 1, category 7, on/after 2026-01-01 → only the first row.
+					const page = yield* repo.list({
+						...listAll,
+						accountId: asAccount(1),
+						categoryId: asCategory(7),
+						startDate: new Date("2026-01-01T00:00:00.000Z"),
+					});
+					assert.strictEqual(page.total, 1);
+					assert.strictEqual(page.items[0]?.importMonth, "2026-01");
+				}).pipe(Effect.provide(RepoTest)),
 		);
 
 		it.effect("importMonth alone works (was ignored without accountId)", () =>
@@ -434,6 +497,159 @@ describe("TransactionRepo", () => {
 				assert.strictEqual(page.items.length, 1);
 			}).pipe(Effect.provide(RepoTest)),
 		);
+
+		describe("free-text search (issue #40)", () => {
+			// A dedicated seed: distinct raw-issuer strings, notes, and amounts so a
+			// term can hit exactly one field at a time. Row 3 also links a real
+			// `issuers` row so the join-backed `i.name` match is exercised.
+			const seedSearch = (repo: TransactionRepo) =>
+				Effect.gen(function* () {
+					const sql = yield* SqlClient.SqlClient;
+					yield* sql`INSERT INTO issuers (id, name, createdAt, firstSeen) VALUES (9, 'Spotify AB', ${DATE.toISOString()}, ${DATE.toISOString()})`;
+					yield* repo.create(
+						make({
+							rawIssuerString: "CARREFOUR MARKET",
+							amount: 42.5,
+							notes: "weekly groceries",
+						}),
+					);
+					yield* repo.create(
+						make({
+							rawIssuerString: "EDF ENERGY",
+							// A debit, stored signed — the search matches its unsigned figure.
+							amount: -6.99,
+						}),
+					);
+					yield* repo.create(
+						make({
+							rawIssuerString: "SPOT-9021",
+							issuerId: asIssuer(9),
+							amount: 9.99,
+							notes: "music",
+						}),
+					);
+				});
+
+			it.effect("matches the raw issuer string, case-insensitively", () =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* seedSearch(repo);
+					const page = yield* repo.list({ ...listAll, search: "carrefour" });
+					assert.strictEqual(page.total, 1);
+					assert.strictEqual(
+						page.items[0]?.rawIssuerString,
+						"CARREFOUR MARKET",
+					);
+				}).pipe(Effect.provide(RepoAndSqlTest)),
+			);
+
+			it.effect("matches the joined issuer name", () =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* seedSearch(repo);
+					// "spotify" is only on the joined issuer, not the raw string.
+					const page = yield* repo.list({ ...listAll, search: "spotify" });
+					assert.strictEqual(page.total, 1);
+					assert.strictEqual(page.items[0]?.rawIssuerString, "SPOT-9021");
+				}).pipe(Effect.provide(RepoAndSqlTest)),
+			);
+
+			it.effect("matches the notes text", () =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* seedSearch(repo);
+					const page = yield* repo.list({ ...listAll, search: "groceries" });
+					assert.strictEqual(page.total, 1);
+					assert.strictEqual(
+						page.items[0]?.rawIssuerString,
+						"CARREFOUR MARKET",
+					);
+				}).pipe(Effect.provide(RepoAndSqlTest)),
+			);
+
+			it.effect("matches the amount, ignoring the debit sign", () =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* seedSearch(repo);
+					// EDF is stored as -6.99; the user types the bare figure they see.
+					const page = yield* repo.list({ ...listAll, search: "6.99" });
+					assert.strictEqual(page.total, 1);
+					assert.strictEqual(page.items[0]?.rawIssuerString, "EDF ENERGY");
+				}).pipe(Effect.provide(RepoAndSqlTest)),
+			);
+
+			it.effect("matches the amount at the displayed 2-decimal precision", () =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* seedSearch(repo);
+					// CARREFOUR is stored as 42.5 but displayed as 42.50 (fr-FR, 2dp).
+					const page = yield* repo.list({ ...listAll, search: "42.50" });
+					assert.strictEqual(page.total, 1);
+					assert.strictEqual(
+						page.items[0]?.rawIssuerString,
+						"CARREFOUR MARKET",
+					);
+				}).pipe(Effect.provide(RepoAndSqlTest)),
+			);
+
+			it.effect("accepts the fr-FR decimal comma in an amount search", () =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* seedSearch(repo);
+					const page = yield* repo.list({ ...listAll, search: "42,50" });
+					assert.strictEqual(page.total, 1);
+					assert.strictEqual(
+						page.items[0]?.rawIssuerString,
+						"CARREFOUR MARKET",
+					);
+				}).pipe(Effect.provide(RepoAndSqlTest)),
+			);
+
+			it.effect("combines with other filters (AND)", () =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* seedSearch(repo);
+					// "e" hits every raw string, but account 2 has none of these rows.
+					const page = yield* repo.list({
+						...listAll,
+						search: "e",
+						accountId: asAccount(2),
+					});
+					assert.strictEqual(page.total, 0);
+				}).pipe(Effect.provide(RepoAndSqlTest)),
+			);
+
+			it.effect("a blank/whitespace term is a no-op (returns all)", () =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* seedSearch(repo);
+					const page = yield* repo.list({ ...listAll, search: "   " });
+					assert.strictEqual(page.total, 3);
+				}).pipe(Effect.provide(RepoAndSqlTest)),
+			);
+
+			it.effect("treats LIKE metachars as literal text", () =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* seedSearch(repo);
+					// "%" would match everything if unescaped; none of the rows contain
+					// a literal percent sign, so the escaped search matches nothing.
+					const page = yield* repo.list({ ...listAll, search: "%" });
+					assert.strictEqual(page.total, 0);
+				}).pipe(Effect.provide(RepoAndSqlTest)),
+			);
+
+			it.effect("count honors the search filter", () =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* seedSearch(repo);
+					assert.strictEqual(
+						(yield* repo.count({ search: "spotify" })).count,
+						1,
+					);
+				}).pipe(Effect.provide(RepoAndSqlTest)),
+			);
+		});
 
 		it.effect("count honors every filter list does", () =>
 			Effect.gen(function* () {

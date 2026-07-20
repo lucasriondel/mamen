@@ -1,4 +1,9 @@
-import type { Account, Issuer, Transaction } from "@mamen/shared/contract";
+import type {
+	Account,
+	Category,
+	Issuer,
+	Transaction,
+} from "@mamen/shared/contract";
 import {
 	createColumnHelper,
 	flexRender,
@@ -17,7 +22,10 @@ import {
 } from "@/components/ui/table";
 import { formatShortDate } from "@/lib/format";
 import { AssignmentPicker } from "./assignment-picker";
-import { AmountCell, IssuerCell } from "./transaction-cells";
+import { CategoryPicker } from "./category-picker";
+import { IssuerPicker } from "./issuer-picker";
+import { NotesPicker } from "./notes-picker";
+import { AmountCell } from "./transaction-cells";
 
 export interface TransactionsTableProps {
 	transactions: readonly Transaction[];
@@ -25,6 +33,8 @@ export interface TransactionsTableProps {
 	accountsById: ReadonlyMap<number, Account>;
 	/** Issuer lookup for the Issuer curation cell. */
 	issuersById: ReadonlyMap<number, Issuer>;
+	/** Category lookup for the derived-category cell. */
+	categoriesById: ReadonlyMap<number, Category>;
 	/** Current date sort order (server-driven). */
 	direction: "asc" | "desc";
 	/** Toggle the date sort order (asc ⇄ desc). */
@@ -34,15 +44,18 @@ export interface TransactionsTableProps {
 const columnHelper = createColumnHelper<Transaction>();
 
 /**
- * The transactions data grid (columns **Date | Account | Issuer | Amount**),
- * rendered with TanStack Table onto the token-styled `Table` primitive. Sorting
- * is server-driven: the Date header toggles `direction` in the URL rather than
- * reordering rows client-side, so the shown page always matches the query.
+ * The transactions data grid (columns **Date | Account | Issuer | Category |
+ * Amount | Notes**), rendered with TanStack Table onto the token-styled `Table`
+ * primitive. Sorting is server-driven: the Date header toggles `direction` in
+ * the URL rather than reordering rows client-side, so the shown page always
+ * matches the query. The Category column reads the row's *derived* `categoryId`
+ * (computed through its issuer by the API) against `categoriesById`.
  */
 export function TransactionsTable({
 	transactions,
 	accountsById,
 	issuersById,
+	categoriesById,
 	direction,
 	onToggleSort,
 }: TransactionsTableProps) {
@@ -64,13 +77,11 @@ export function TransactionsTable({
 						row.original.issuerId != null
 							? issuersById.get(row.original.issuerId)
 							: undefined;
-					// Resolved rows read as plain display; unresolved rows are the
-					// curation surface — clicking opens the assignment picker (PRD).
+					// Both states are curation surfaces: a resolved row opens the
+					// issuer picker (why this issuer, re-pick, go to its page); an
+					// unresolved row opens the assignment picker (PRD).
 					return issuer ? (
-						<IssuerCell
-							rawIssuerString={row.original.rawIssuerString}
-							issuer={issuer}
-						/>
+						<IssuerPicker transaction={row.original} issuer={issuer} />
 					) : (
 						<AssignmentPicker
 							transactionId={row.original.id}
@@ -79,12 +90,34 @@ export function TransactionsTable({
 					);
 				},
 			}),
+			columnHelper.display({
+				id: "category",
+				header: "Category",
+				cell: ({ row }) => {
+					const category =
+						row.original.categoryId != null
+							? categoriesById.get(row.original.categoryId)
+							: undefined;
+					// The cell is the curation surface: clicking opens the override
+					// picker. It writes an override to this one row only (PRD #19).
+					return (
+						<CategoryPicker transaction={row.original} category={category} />
+					);
+				},
+			}),
 			columnHelper.accessor("amount", {
 				header: () => <span className="block text-right">Amount</span>,
 				cell: (info) => <AmountCell amount={info.getValue()} />,
 			}),
+			columnHelper.display({
+				id: "notes",
+				header: "Notes",
+				// The cell is the editing surface: clicking opens the notes editor,
+				// which writes a free-text note to this one row (issue #38).
+				cell: ({ row }) => <NotesPicker transaction={row.original} />,
+			}),
 		],
-		[accountsById, issuersById],
+		[accountsById, issuersById, categoriesById],
 	);
 
 	const table = useReactTable({

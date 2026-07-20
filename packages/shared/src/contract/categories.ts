@@ -5,7 +5,12 @@ import {
 	OpenApi,
 } from "@effect/platform";
 import { Schema } from "effect";
-import { NotFound } from "./errors";
+import {
+	CategoryHoldsMoney,
+	CategoryInUse,
+	CategoryWouldCycle,
+	NotFound,
+} from "./errors";
 import { CategoryId, numFromStr } from "./ids";
 import { Paged, Pagination } from "./pagination";
 
@@ -43,6 +48,22 @@ export const CategoryBulkCreate = Schema.Struct({
 export type CategoryBulkCreate = typeof CategoryBulkCreate.Type;
 
 /**
+ * **Spill** payload — the fields of the new child **Category leaf** the money
+ * lands in; its parent is the path id, so `parentId` is not carried. The user
+ * always names the destination (an auto-named leaf is a guess about intent that
+ * then lives in their tree forever), which is why `name`/`slug` are required
+ * rather than derived server-side. See {@link CategoriesGroup}'s `spill`.
+ */
+export const CategorySpill = Schema.Struct({
+	name: Category.fields.name,
+	slug: Category.fields.slug,
+	color: Category.fields.color,
+	icon: Category.fields.icon,
+	sortOrder: Category.fields.sortOrder,
+});
+export type CategorySpill = typeof CategorySpill.Type;
+
+/**
  * `list` filters (contract §2.3), composable — both optional and `AND`-combined,
  * replacing the old branch-1..4 fan-out (root / by-parent / ordered / both).
  * `parentId` filters to a parent's children; `orderBy: "sortOrder"` orders by
@@ -55,10 +76,30 @@ export const CategoryListFilters = {
 
 /**
  * Categories group (contract §2.3), prefix `/categories`. `slug` has no DB
- * uniqueness constraint (faithful port), so `create`/`bulkCreate`/`update`
- * declare no `Conflict`. `getById`/`getBySlug`/`update`/`remove` 404 on a
- * missing key. Dropped vs today: `GET /categories/root`, `PUT
- * /categories/bulk-put`, `POST /categories/clear` (all client-only).
+ * uniqueness constraint (faithful port), so no endpoint declares `Conflict`.
+ * Categories nest to **any depth** (ADR 0003): any node may be a parent, so
+ * `create`/`bulkCreate` declare no depth guard — a leaf parent is a legal home
+ * now that a child simply turns it into a folder. They do declare
+ * `CategoryHoldsMoney` (422): a **Kind flip** is refused while the would-be
+ * parent still holds money (transactions or an issuer default), so the money is
+ * not stranded off a rollup node. `update` declares the same, plus
+ * `CategoryWouldCycle` (422): a re-parent under the node itself or any of its own
+ * descendants is refused, since unbounded depth removes the accident that once
+ * made cycles impossible. There is no folder-with-children re-parent guard — any
+ * node is a legal home at any depth, so re-parenting a whole subtree is legal.
+ * `remove` declares `CategoryInUse`
+ * (409): the **Guarded delete**, refused while a folder has children or a leaf is
+ * still assigned to transactions or held as an issuer default.
+ *
+ * `spill` (POST `/categories/:id/spill`) answers a refused Kind flip: it creates
+ * a new child **Category leaf** under the node and moves the node's money into it
+ * — *manual* override transactions and issuers holding it as a default — in one
+ * atomic transaction, so the node becomes a folder and its money keeps a home
+ * with no half-done tree. 404s if the node is missing; 201 with the new leaf.
+ *
+ * `getById`/`getBySlug`/`update`/`remove` 404 on a missing key. Dropped vs today:
+ * `GET /categories/root`, `PUT /categories/bulk-put`, `POST /categories/clear`
+ * (all client-only).
  */
 export class CategoriesGroup extends HttpApiGroup.make("categories")
 	.add(
@@ -83,12 +124,14 @@ export class CategoriesGroup extends HttpApiGroup.make("categories")
 	.add(
 		HttpApiEndpoint.post("create")`/categories`
 			.setPayload(CategoryCreate)
-			.addSuccess(Category, { status: 201 }),
+			.addSuccess(Category, { status: 201 })
+			.addError(CategoryHoldsMoney),
 	)
 	.add(
 		HttpApiEndpoint.post("bulkCreate")`/categories/bulk-add`
 			.setPayload(CategoryBulkCreate)
-			.addSuccess(Schema.Array(Category), { status: 201 }),
+			.addSuccess(Schema.Array(Category), { status: 201 })
+			.addError(CategoryHoldsMoney),
 	)
 	.add(
 		HttpApiEndpoint.put(
@@ -96,6 +139,16 @@ export class CategoriesGroup extends HttpApiGroup.make("categories")
 		)`/categories/${HttpApiSchema.param("id", numFromStr(CategoryId))}`
 			.setPayload(CategoryUpdate)
 			.addSuccess(Category)
+			.addError(NotFound)
+			.addError(CategoryHoldsMoney)
+			.addError(CategoryWouldCycle),
+	)
+	.add(
+		HttpApiEndpoint.post(
+			"spill",
+		)`/categories/${HttpApiSchema.param("id", numFromStr(CategoryId))}/spill`
+			.setPayload(CategorySpill)
+			.addSuccess(Category, { status: 201 })
 			.addError(NotFound),
 	)
 	.add(
@@ -103,6 +156,7 @@ export class CategoriesGroup extends HttpApiGroup.make("categories")
 			"remove",
 		)`/categories/${HttpApiSchema.param("id", numFromStr(CategoryId))}`
 			.addSuccess(HttpApiSchema.NoContent)
-			.addError(NotFound),
+			.addError(NotFound)
+			.addError(CategoryInUse),
 	)
 	.annotateContext(OpenApi.annotations({ title: "Categories" })) {}

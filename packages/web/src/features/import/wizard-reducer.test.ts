@@ -1,6 +1,10 @@
 import type { AccountId } from "@mamen/shared/contract";
 import { describe, expect, it } from "vitest";
-import { initialWizardState, wizardReducer } from "./wizard-reducer";
+import {
+	initialWizardState,
+	makeInitialWizardState,
+	wizardReducer,
+} from "./wizard-reducer";
 
 const HEADERS = ["Statut", "Date", "Montant", "Direction", "Intitulé"];
 const ROWS = [{ Statut: "COMPLETE", Date: "2026-01-01T00:00:00Z" }];
@@ -88,5 +92,50 @@ describe("wizardReducer", () => {
 			message: "Could not read that file.",
 		});
 		expect(state.error).toBe("Could not read that file.");
+	});
+});
+
+describe("makeInitialWizardState", () => {
+	it("returns the empty state with no prefill", () => {
+		expect(makeInitialWizardState()).toBe(initialWizardState);
+	});
+
+	it("pre-selects the account from a grid handoff", () => {
+		const state = makeInitialWizardState({ accountId: 7 as AccountId });
+		expect(state.accountId).toBe(7);
+		expect(state.rows).toEqual([]);
+		expect(state.step).toBe("upload");
+	});
+
+	it("pre-loads an already-parsed statement, auto-detected", () => {
+		const state = makeInitialWizardState({
+			accountId: 7 as AccountId,
+			file: {
+				fileName: "statement.csv",
+				headers: HEADERS,
+				rows: ROWS,
+				detectedParserId: "green-got",
+			},
+		});
+
+		expect(state.fileName).toBe("statement.csv");
+		expect(state.rows).toBe(ROWS);
+		expect(state.parserId).toBe("green-got");
+		expect(state.autoDetected).toBe(true);
+		expect(state.importBatchId).toMatch(/.+/);
+	});
+
+	it("leaves the parser unset when the handed-off file is unrecognized", () => {
+		const state = makeInitialWizardState({
+			file: {
+				fileName: "unknown.csv",
+				headers: ["a", "b"],
+				rows: ROWS,
+				detectedParserId: null,
+			},
+		});
+
+		expect(state.parserId).toBeNull();
+		expect(state.autoDetected).toBe(false);
 	});
 });

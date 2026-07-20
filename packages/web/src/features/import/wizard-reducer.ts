@@ -46,6 +46,46 @@ export const initialWizardState: WizardState = {
 	error: null,
 };
 
+/**
+ * Seed values for a wizard opened from the accounts import grid (issue #36): the
+ * target account is pre-picked from the dropped-on cell, and an already-parsed
+ * statement (handed off via {@link module:import-handoff}) drops the user
+ * straight onto the format/preview path instead of the empty dropzone.
+ */
+export type WizardPrefill = {
+	accountId?: AccountId | null;
+	file?: {
+		fileName: string;
+		headers: readonly string[];
+		rows: ReadonlyArray<Record<string, string>>;
+		detectedParserId: string | null;
+	};
+};
+
+/**
+ * Build the wizard's starting state, optionally pre-filling the account and an
+ * already-parsed file. Used as `useReducer`'s lazy initializer so a grid-driven
+ * open lands ready, while a plain `/import` visit starts empty.
+ */
+export function makeInitialWizardState(prefill?: WizardPrefill): WizardState {
+	if (!prefill) return initialWizardState;
+	const { accountId, file } = prefill;
+	return {
+		...initialWizardState,
+		accountId: accountId ?? null,
+		...(file
+			? {
+					fileName: file.fileName,
+					headers: file.headers,
+					rows: file.rows,
+					parserId: file.detectedParserId,
+					autoDetected: file.detectedParserId !== null,
+					importBatchId: crypto.randomUUID(),
+				}
+			: {}),
+	};
+}
+
 /** Whether the upload step has everything it needs to move to the preview. */
 export function canPreview(state: WizardState): boolean {
 	return (

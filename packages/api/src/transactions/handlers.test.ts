@@ -11,6 +11,7 @@ import {
 	AnomalyFlag,
 	Api,
 	CategoryId,
+	CategoryNotLeaf,
 	IssuerId,
 	NotFound,
 	type TransactionCreate,
@@ -110,12 +111,41 @@ describe("transactions endpoints", () => {
 				});
 				const updated = yield* client.transactions.update({
 					path: { id: created.id },
-					payload: { amount: 20, categoryId: asCategory(5) },
+					// A seeded **leaf** (Groceries, id 2) — a folder is now rejected.
+					payload: { amount: 20, categoryId: asCategory(2) },
 				});
 				assert.strictEqual(updated.amount, 20);
-				assert.strictEqual(updated.categoryId, asCategory(5));
+				assert.strictEqual(updated.categoryId, asCategory(2));
 				assert.strictEqual(updated.id, created.id);
 			}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("update sets a free-text note and it round-trips (issue #38)", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const created = yield* client.transactions.create({
+				payload: make({ amount: 10 }),
+			});
+			const noted = yield* client.transactions.update({
+				path: { id: created.id },
+				payload: { notes: "reimbursable — kept the receipt" },
+			});
+			assert.strictEqual(noted.notes, "reimbursable — kept the receipt");
+
+			// The note survives an unrelated later edit (the write re-writes the
+			// whole row from the stored merge base — the load-bearing case).
+			const reamounted = yield* client.transactions.update({
+				path: { id: created.id },
+				payload: { amount: 20 },
+			});
+			assert.strictEqual(reamounted.amount, 20);
+			assert.strictEqual(reamounted.notes, "reimbursable — kept the receipt");
+
+			const fetched = yield* client.transactions.getById({
+				path: { id: created.id },
+			});
+			assert.strictEqual(fetched.notes, "reimbursable — kept the receipt");
+		}).pipe(Effect.provide(HttpLive)),
 	);
 
 	it.effect("remove deletes the transaction (getById then 404s)", () =>
@@ -141,12 +171,18 @@ describe("transactions endpoints", () => {
 	// client shape stays in sync with the contract without hand-writing it.
 	const makeClient = () => HttpApiClient.make(Api);
 	type ApiClient = Effect.Effect.Success<ReturnType<typeof makeClient>>;
+	// The category filter matches the DERIVED category (ADR 0002), so a stored
+	// `categoryId` only counts when the row carries an override (`manualCategory`)
+	// — these seed rows do, so `categoryId=7/8` still selects them. The
+	// issuer-derived path (a non-manual row categorised through its issuer) is
+	// covered by its own dedicated test below.
 	const seed = (client: ApiClient) =>
 		Effect.all([
 			client.transactions.create({
 				payload: make({
 					accountId: asAccount(1),
 					categoryId: asCategory(7),
+					manualCategory: true,
 					issuerId: asIssuer(2),
 					date: new Date("2026-01-10T00:00:00.000Z"),
 					importMonth: "2026-01",
@@ -157,6 +193,7 @@ describe("transactions endpoints", () => {
 				payload: make({
 					accountId: asAccount(1),
 					categoryId: asCategory(8),
+					manualCategory: true,
 					date: new Date("2026-02-10T00:00:00.000Z"),
 					importMonth: "2026-02",
 				}),
@@ -165,6 +202,7 @@ describe("transactions endpoints", () => {
 				payload: make({
 					accountId: asAccount(2),
 					categoryId: asCategory(7),
+					manualCategory: true,
 					date: new Date("2026-03-10T00:00:00.000Z"),
 					importMonth: "2026-03",
 				}),
@@ -853,7 +891,7 @@ describe("derived category through issuer", () => {
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
 			const created = yield* client.transactions.create({
-				payload: make({ categoryId: asCategory(5) }),
+				payload: make({ categoryId: asCategory(2) }),
 			});
 			// Stored categoryId is ignored on read for a non-manual, issuer-less row —
 			// category exists only *through* an issuer (model A).
@@ -862,5 +900,417 @@ describe("derived category through issuer", () => {
 			});
 			assert.strictEqual(fetched.categoryId, undefined);
 		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect(
+		"clearing the issuer default unassigns its non-manual transactions",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const issuer = yield* client.issuers.create({
+					payload: {
+						name: "Amazon",
+						firstSeen: FIRST_SEEN,
+						defaultCategoryId: asCategory(7),
+					},
+				});
+				const created = yield* client.transactions.create({
+					payload: make({ issuerId: issuer.id }),
+				});
+				assert.strictEqual(
+					(yield* client.transactions.getById({ path: { id: created.id } }))
+						.categoryId,
+					asCategory(7),
+				);
+
+				// Clear the issuer default (a `null` update) → the row reads Unassigned.
+				yield* client.issuers.update({
+					path: { id: issuer.id },
+					payload: { defaultCategoryId: null },
+				});
+				assert.strictEqual(
+					(yield* client.transactions.getById({ path: { id: created.id } }))
+						.categoryId,
+					undefined,
+				);
+			}).pipe(Effect.provide(HttpLive)),
+	);
+
+	// The Category override lifecycle (issue #23): an override wins over the
+	// issuer default, and removing it — clearing `manualCategory` — reverts the
+	// row to that default, never to no category.
+	it.effect(
+		"removing an override (manualCategory → false) reverts to the issuer default",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const issuer = yield* client.issuers.create({
+					payload: {
+						name: "Amazon",
+						firstSeen: FIRST_SEEN,
+						defaultCategoryId: asCategory(7),
+					},
+				});
+				// A hand-picked override to a *different* leaf than the issuer default.
+				const tx = yield* client.transactions.create({
+					payload: make({
+						issuerId: issuer.id,
+						categoryId: asCategory(3),
+						manualCategory: true,
+					}),
+				});
+				// The override wins over the issuer's default.
+				assert.strictEqual(
+					(yield* client.transactions.getById({ path: { id: tx.id } }))
+						.categoryId,
+					asCategory(3),
+				);
+
+				// Remove the override: clear the manual flag. The row reverts to the
+				// issuer default (asCategory(7)), never to Unassigned.
+				yield* client.transactions.update({
+					path: { id: tx.id },
+					payload: { manualCategory: false },
+				});
+				assert.strictEqual(
+					(yield* client.transactions.getById({ path: { id: tx.id } }))
+						.categoryId,
+					asCategory(7),
+				);
+			}).pipe(Effect.provide(HttpLive)),
+	);
+});
+
+// The Leaf-assignable invariant (ADR 0003) at the transactions door: a
+// `categoryId` must be an assignable **leaf** (a node with no children), never a
+// **folder** — the same corruption the issuer door already rejects, arriving
+// through a different door. Assignability is childlessness, not root-ness. The
+// seed provides both: folder ids (1 = Food, which has children) and leaf ids
+// (2 = Groceries, childless under Food).
+describe("category leaf-assignable invariant at the transactions door", () => {
+	const FOLDER = asCategory(1); // Food — a seeded node with children.
+	const LEAF = asCategory(2); // Groceries — a seeded childless leaf under Food.
+
+	it.effect("create rejects a folder as categoryId", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const error = yield* client.transactions
+				.create({ payload: make({ categoryId: FOLDER }) })
+				.pipe(Effect.flip);
+			assert.ok(error instanceof CategoryNotLeaf);
+			assert.strictEqual(error.categoryId, FOLDER);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("create accepts a leaf as a manual categoryId", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const created = yield* client.transactions.create({
+				payload: make({ categoryId: LEAF, manualCategory: true }),
+			});
+			assert.strictEqual(
+				(yield* client.transactions.getById({ path: { id: created.id } }))
+					.categoryId,
+				LEAF,
+			);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("update rejects a folder as categoryId", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const created = yield* client.transactions.create({ payload: make() });
+			const error = yield* client.transactions
+				.update({
+					path: { id: created.id },
+					payload: { categoryId: FOLDER, manualCategory: true },
+				})
+				.pipe(Effect.flip);
+			assert.ok(error instanceof CategoryNotLeaf);
+			assert.strictEqual(error.categoryId, FOLDER);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("bulkCreate rejects a folder in any row, writing nothing", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const error = yield* client.transactions
+				.bulkCreate({
+					payload: {
+						records: [
+							make({
+								rawIssuerString: "A",
+								categoryId: LEAF,
+								manualCategory: true,
+							}),
+							make({ rawIssuerString: "B", categoryId: FOLDER }),
+						],
+					},
+				})
+				.pipe(Effect.flip);
+			assert.ok(error instanceof CategoryNotLeaf);
+			assert.strictEqual(error.categoryId, FOLDER);
+			// The batch is rejected up front, before a single row is written.
+			const page = yield* client.transactions.list({
+				urlParams: { limit: 50, offset: 0, direction: "desc" },
+			});
+			assert.strictEqual(page.total, 0);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	// The heart of ADR 0003: a hand-built depth-3 tree. The deepest node is a
+	// childless leaf (assignable at any depth), while its mid-tier parent — which
+	// has both a parent and a child — must be refused. Under the old `parentId ===
+	// null` proxy that mid-tier node would have silently passed as assignable.
+	it.effect("accepts a depth-3 leaf, rejects its mid-tier parent", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const category = (
+				slug: string,
+				parentId: typeof CategoryId.Type | null,
+			) =>
+				client.categories.create({
+					payload: {
+						name: slug,
+						slug,
+						color: "#000000",
+						icon: "📁",
+						parentId,
+						sortOrder: 0,
+					},
+				});
+
+			// Life > Subscriptions > Streaming (three deep, deliberately ragged).
+			const life = yield* category("life-3", null);
+			const subscriptions = yield* category("subs-3", life.id);
+			const streaming = yield* category("streaming-3", subscriptions.id);
+
+			// The depth-3 childless leaf is assignable.
+			const created = yield* client.transactions.create({
+				payload: make({ categoryId: streaming.id, manualCategory: true }),
+			});
+			assert.strictEqual(
+				(yield* client.transactions.getById({ path: { id: created.id } }))
+					.categoryId,
+				streaming.id,
+			);
+
+			// The mid-tier node (Subscriptions) now has a child — refused, even
+			// though it also has a parent (the old proxy would have let it through).
+			const error = yield* client.transactions
+				.create({
+					payload: make({
+						rawIssuerString: "MID",
+						categoryId: subscriptions.id,
+						manualCategory: true,
+					}),
+				})
+				.pipe(Effect.flip);
+			assert.ok(error instanceof CategoryNotLeaf);
+			assert.strictEqual(error.categoryId, subscriptions.id);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+});
+
+// The category page's engine (issue #25, ADR 0002): the transactions filter
+// matches the DERIVED category — the same `CASE` the list returns — not the
+// stored column, and its count response carries a signed net total. The count
+// query gains the issuer join it lacked, so the count and the list can never
+// disagree. `categoryId` also accepts a set, so a folder page fetches its
+// leaves' transactions in one query. Leaf ids 7/8/9 sit under folder 5 (Home).
+describe("category filter matches the derived category (ADR 0002)", () => {
+	const FIRST_SEEN = new Date("2026-01-15T00:00:00.000Z");
+
+	// The regression this whole slice exists to fix, and the highest-value test
+	// in #19: a transaction categorised THROUGH its issuer (no override) must
+	// appear when filtering by that category. Before ADR 0002 the filter matched
+	// the stored column and silently omitted every issuer-categorised row — the
+	// common case — so the page showed a near-empty list while looking fine.
+	it.effect(
+		"an issuer-categorised (non-manual) transaction appears when filtering by its category",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const issuer = yield* client.issuers.create({
+					payload: {
+						name: "EDF",
+						firstSeen: FIRST_SEEN,
+						defaultCategoryId: asCategory(7),
+					},
+				});
+				// Non-manual, no stored categoryId — categorised only through the issuer.
+				const tx = yield* client.transactions.create({
+					payload: make({ issuerId: issuer.id }),
+				});
+				assert.strictEqual(tx.categoryId, undefined);
+
+				const page = yield* client.transactions.list({
+					urlParams: {
+						limit: 50,
+						offset: 0,
+						direction: "desc",
+						categoryId: asCategory(7),
+					},
+				});
+				assert.strictEqual(page.total, 1);
+				assert.strictEqual(page.items[0]?.id, tx.id);
+
+				// The count endpoint shares the same join + derivation, so it agrees.
+				const counted = yield* client.transactions.count({
+					urlParams: { categoryId: asCategory(7) },
+				});
+				assert.strictEqual(counted.count, 1);
+			}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect(
+		"the category filter accepts a set — a folder's leaves in one query",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				// Two issuers defaulting to two different leaves under the same folder,
+				// plus a third leaf that must stay out of the set.
+				const energy = yield* client.issuers.create({
+					payload: {
+						name: "EDF",
+						firstSeen: FIRST_SEEN,
+						defaultCategoryId: asCategory(7),
+					},
+				});
+				const insurer = yield* client.issuers.create({
+					payload: {
+						name: "AXA",
+						firstSeen: FIRST_SEEN,
+						defaultCategoryId: asCategory(8),
+					},
+				});
+				const netco = yield* client.issuers.create({
+					payload: {
+						name: "Free",
+						firstSeen: FIRST_SEEN,
+						defaultCategoryId: asCategory(9),
+					},
+				});
+				yield* client.transactions.create({
+					payload: make({ issuerId: energy.id, rawIssuerString: "A" }),
+				});
+				yield* client.transactions.create({
+					payload: make({ issuerId: insurer.id, rawIssuerString: "B" }),
+				});
+				yield* client.transactions.create({
+					payload: make({ issuerId: netco.id, rawIssuerString: "C" }),
+				});
+
+				const page = yield* client.transactions.list({
+					urlParams: {
+						limit: 50,
+						offset: 0,
+						direction: "desc",
+						categoryId: [asCategory(7), asCategory(8)],
+					},
+				});
+				assert.strictEqual(page.total, 2);
+
+				const counted = yield* client.transactions.count({
+					urlParams: { categoryId: [asCategory(7), asCategory(8)] },
+				});
+				assert.strictEqual(counted.count, 2);
+			}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect(
+		"the count total is signed and net over the whole filtered set",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const issuer = yield* client.issuers.create({
+					payload: {
+						name: "EDF",
+						firstSeen: FIRST_SEEN,
+						defaultCategoryId: asCategory(7),
+					},
+				});
+				// A purchase and its refund under the same category net to zero…
+				yield* client.transactions.create({
+					payload: make({ issuerId: issuer.id, amount: -80 }),
+				});
+				yield* client.transactions.create({
+					payload: make({ issuerId: issuer.id, amount: 80, isRefund: true }),
+				});
+				// …a third, unrefunded purchase leaves a signed net behind.
+				yield* client.transactions.create({
+					payload: make({ issuerId: issuer.id, amount: -30 }),
+				});
+
+				const counted = yield* client.transactions.count({
+					urlParams: { categoryId: asCategory(7) },
+				});
+				assert.strictEqual(counted.count, 3);
+				assert.strictEqual(counted.total, -30);
+			}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect(
+		"the total follows the account filter and covers the whole set, not the page",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const issuer = yield* client.issuers.create({
+					payload: {
+						name: "EDF",
+						firstSeen: FIRST_SEEN,
+						defaultCategoryId: asCategory(7),
+					},
+				});
+				// Three rows in account 1 and one in account 2, all category 7.
+				yield* client.transactions.create({
+					payload: make({
+						accountId: asAccount(1),
+						issuerId: issuer.id,
+						amount: 10,
+					}),
+				});
+				yield* client.transactions.create({
+					payload: make({
+						accountId: asAccount(1),
+						issuerId: issuer.id,
+						amount: 10,
+					}),
+				});
+				yield* client.transactions.create({
+					payload: make({
+						accountId: asAccount(1),
+						issuerId: issuer.id,
+						amount: 10,
+					}),
+				});
+				yield* client.transactions.create({
+					payload: make({
+						accountId: asAccount(2),
+						issuerId: issuer.id,
+						amount: 5,
+					}),
+				});
+
+				// The account filter narrows the total (it follows the view's filters).
+				const acct1 = yield* client.transactions.count({
+					urlParams: { categoryId: asCategory(7), accountId: asAccount(1) },
+				});
+				assert.strictEqual(acct1.count, 3);
+				assert.strictEqual(acct1.total, 30);
+
+				// A one-row page understates nothing: the list pages, the total does not.
+				const page = yield* client.transactions.list({
+					urlParams: {
+						limit: 1,
+						offset: 0,
+						direction: "desc",
+						categoryId: asCategory(7),
+						accountId: asAccount(1),
+					},
+				});
+				assert.strictEqual(page.items.length, 1);
+				assert.strictEqual(page.total, 3);
+			}).pipe(Effect.provide(HttpLive)),
 	);
 });
