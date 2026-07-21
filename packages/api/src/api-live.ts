@@ -6,6 +6,7 @@ import { AppSettingsLive } from "./app-settings/handlers";
 import { CategoriesLive } from "./categories/handlers";
 import { DatabaseLive } from "./database/handlers";
 import { HealthLive } from "./health/handlers";
+import { ImportLive } from "./import/handlers";
 import { IssuersLive } from "./issuers/handlers";
 import { RulesLive } from "./rules/handlers";
 import { SettingsLive } from "./settings/handlers";
@@ -19,9 +20,11 @@ import { TransactionsLive } from "./transactions/handlers";
  * This layer still **requires** `SqlClient.SqlClient` — the caller provides the
  * data layer: `DatabaseLive` (Bun, real file) in prod via `ServerLive`, or
  * `DatabaseTest` (`:memory:`, sqlite-node) in tests. Keeping the DB out of here
- * is what lets the integration tests swap the driver. The issuer image
- * handlers additionally require `FileSystem` / `Path`, satisfied by the platform
- * in the server layer (Bun / Node).
+ * is what lets the integration tests swap the driver. The issuer image and PDF
+ * import handlers additionally require `FileSystem` / `Path`, satisfied by the
+ * platform in the server layer (Bun / Node); the import handler further requires
+ * `ClaudeCode`, provided by `ClaudeCodeProdLive` in `ServerLive` (prod) or the
+ * deep-fake `ClaudeCodeTest` executor under test.
  *
  * The `/uploads/*` static route ({@link StaticUploadsLive}) is NOT part of this
  * layer: it mutates the served `HttpApiBuilder.Router` directly (like
@@ -40,5 +43,6 @@ export const ApiLive = HttpApiBuilder.api(Api).pipe(
 		SettingsLive,
 		AppSettingsLive,
 		DatabaseLive,
+		ImportLive,
 	]),
 );

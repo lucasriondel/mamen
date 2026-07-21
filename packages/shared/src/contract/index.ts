@@ -44,6 +44,15 @@ export {
 	TransactionId,
 } from "./ids";
 export {
+	DeclaredTotals,
+	ExtractedTransaction,
+	ExtractionFailed,
+	ExtractPdfResult,
+	ImportGroup,
+	MAX_PDF_BYTES,
+	PdfUpload,
+} from "./import";
+export {
 	Issuer,
 	IssuerCreate,
 	IssuerImageUpload,

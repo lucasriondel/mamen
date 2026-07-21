@@ -21,6 +21,7 @@
         "@effect/sql": "0.51.1",
         "@effect/sql-sqlite-bun": "0.52.0",
         "@mamen/shared": "workspace:*",
+        "claude-code-effect": "0.1.0",
         "effect": "3.21.4",
       },
       "devDependencies": {
@@ -870,6 +871,8 @@
     "chownr": ["chownr@1.1.4", "", {}, "sha512-jJ0bqzaylmJtVnNgzTeSOs8DPavpbYgEr/b0YL8/2GO3xJEhInFmhKMUnEJQjZumK7KXGFhUy89PrsJWlakBVg=="],
 
     "class-variance-authority": ["class-variance-authority@0.7.1", "", { "dependencies": { "clsx": "^2.1.1" } }, "sha512-Ka+9Trutv7G8M6WT6SeiRWz792K5qEqIGEGzXKhAE6xOWAY6pPH8U+9IY3oCMv6kqTmLsv7Xh/2w2RigkePMsg=="],
+
+    "claude-code-effect": ["claude-code-effect@0.1.0", "", { "peerDependencies": { "@effect/platform": ">=0.90", "effect": ">=3.21", "typescript": "^5" } }, "sha512-A4Q8vBR2DX/Y4+LAcnX+hfodlFer5LtNpkBPi1T7WAtNUZvIlWpGhTRyvv4GY4svUGEPJYh5vrPelX6sB2QPOA=="],
 
     "cli-cursor": ["cli-cursor@5.0.0", "", { "dependencies": { "restore-cursor": "^5.0.0" } }, "sha512-aCj4O5wKyszjMmDT4tZj93kxyydN/K5zPWSCe6/0AV/AA1pqe5ZBIw0a2ZfPQV7lL5/yb5HsUreJ6UFAF1tEQw=="],
 

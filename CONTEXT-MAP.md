@@ -184,3 +184,31 @@ repeated per package.
   Because it has exactly one cause, it is always actionable: set the issuer's
   default, or override this row.
   _Avoid_: Uncategorised (reserve that for a real Category), none, null.
+
+- **Extracted transaction** — one candidate operation lifted from a PDF bank
+  statement by the extraction endpoint, before any account/batch/month is
+  stamped: `{ date, amount, rawIssuerString }`. The field names mirror a
+  transaction's core so the client can thread them straight into a create at
+  commit. `amount` is **one signed number** folding the statement's separate
+  Débit (negative) / Crédit (positive) columns; `date` is the **operation date**
+  (not the value date) with the year inferred from the statement header;
+  `rawIssuerString` is the merged operation label (multi-line descriptions
+  collapse to one string). It is a *candidate*, never a persisted row — see
+  [ADR 0005](./docs/adr/0005-pdf-extraction-runs-server-side.md).
+  _Avoid_: parsed transaction, imported transaction (nothing is imported until
+  the user commits, issue #45).
+
+- **Declared totals** — the statement's own printed `TOTAL DES OPÉRATIONS`
+  figures, echoed back beside the extracted rows (`{ debit, credit }`, both
+  positive magnitudes exactly as printed). Not a sum the server computes — the
+  bank's own total, carried so the review/commit step can reconcile the
+  extracted rows against what the statement declared.
+
+- **Server-side extraction** — PDF import extracts candidates on the API server
+  (via the `claude` CLI through `claude-code-effect`), not in the browser: the
+  OAuth token stays a server secret and the model reads the staged file through
+  its own `Read` tool. The upload lives only in a **transient temp dir** deleted
+  on every exit path — nothing persists, no row is written. The whole extraction
+  failure taxonomy collapses to a single client-visible **`ExtractionFailed`**
+  (real tag logged server-side); `InvalidFileType` is the one other, client-
+  fixable, error. See [ADR 0005](./docs/adr/0005-pdf-extraction-runs-server-side.md).

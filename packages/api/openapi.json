@@ -4445,6 +4445,87 @@
           "required": true
         }
       }
+    },
+    "/api/import/extract-pdf": {
+      "post": {
+        "tags": [
+          "Import"
+        ],
+        "operationId": "import.extractPdf",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "ExtractPdfResult",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtractPdfResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "InvalidFileType",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidFileType"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          },
+          "502": {
+            "description": "ExtractionFailed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtractionFailed"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PersistedFile"
+                    },
+                    "description": "an array of exactly 1 item(s)",
+                    "title": "itemsCount(1)",
+                    "minItems": 1,
+                    "maxItems": 1
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        }
+      }
     }
   },
   "components": {
@@ -5184,6 +5265,76 @@
           }
         },
         "additionalProperties": false
+      },
+      "ExtractPdfResult": {
+        "type": "object",
+        "required": [
+          "transactions",
+          "declaredTotals"
+        ],
+        "properties": {
+          "transactions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExtractedTransaction"
+            }
+          },
+          "declaredTotals": {
+            "$ref": "#/components/schemas/DeclaredTotals"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ExtractedTransaction": {
+        "type": "object",
+        "required": [
+          "date",
+          "amount",
+          "rawIssuerString"
+        ],
+        "properties": {
+          "date": {
+            "$ref": "#/components/schemas/Date"
+          },
+          "amount": {
+            "type": "number"
+          },
+          "rawIssuerString": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeclaredTotals": {
+        "type": "object",
+        "required": [
+          "debit",
+          "credit"
+        ],
+        "properties": {
+          "debit": {
+            "type": "number"
+          },
+          "credit": {
+            "type": "number"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ExtractionFailed": {
+        "type": "object",
+        "required": [
+          "_tag"
+        ],
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "ExtractionFailed"
+            ]
+          }
+        },
+        "additionalProperties": false
       }
     },
     "securitySchemes": {}
@@ -5219,6 +5370,9 @@
     },
     {
       "name": "Database"
+    },
+    {
+      "name": "Import"
     }
   ]
 }

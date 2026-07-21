@@ -4,6 +4,7 @@ import { AppSettingsGroup } from "./app-settings";
 import { CategoriesGroup } from "./categories";
 import { DatabaseGroup } from "./database";
 import { HealthGroup } from "./health";
+import { ImportGroup } from "./import";
 import { IssuersGroup } from "./issuers";
 import { RulesGroup } from "./rules";
 import { SettingsGroup } from "./settings";
@@ -27,6 +28,7 @@ export class Api extends HttpApi.make("mamen")
 	.add(SettingsGroup)
 	.add(AppSettingsGroup)
 	.add(DatabaseGroup)
+	.add(ImportGroup)
 	.addError(HttpApiError.InternalServerError)
 	.prefix("/api")
 	.annotateContext(

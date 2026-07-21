@@ -9,6 +9,7 @@ import { Effect, Layer } from "effect";
 import { ApiLive } from "./api-live";
 import { CorsOrigins, Port } from "./config";
 import { DatabaseLive } from "./db/sql";
+import { ClaudeCodeProdLive } from "./import/claude";
 import { StaticUploadsLive } from "./static/uploads";
 
 /** CORS layer with allowed origins resolved from config at build time. */
@@ -44,6 +45,7 @@ export const ServerLive = HttpApiBuilder.serve(HttpMiddleware.logger).pipe(
 	Layer.provide(StaticUploadsLive),
 	Layer.provide(CorsLive),
 	Layer.provide(ApiLive),
+	Layer.provide(ClaudeCodeProdLive),
 	Layer.provide(DatabaseLive),
 	HttpServer.withLogAddress,
 	Layer.provide(BunServerLive),

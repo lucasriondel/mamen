@@ -5,6 +5,7 @@ import { Api } from "@mamen/shared/contract";
 import { Effect, Layer } from "effect";
 import { ApiLive } from "../api-live";
 import { DatabaseTest } from "../db/test";
+import { ClaudeCodeStub } from "../import/test";
 
 // Full API on a real ephemeral Node server over a fresh `:memory:` sqlite DB,
 // with the derived HttpApiClient wired to it — every assertion round-trips the
@@ -12,6 +13,7 @@ import { DatabaseTest } from "../db/test";
 // migrated database.
 const HttpLive = HttpApiBuilder.serve().pipe(
 	Layer.provide(ApiLive),
+	Layer.provide(ClaudeCodeStub),
 	Layer.provide(DatabaseTest),
 	Layer.provideMerge(NodeHttpServer.layerTest),
 );
