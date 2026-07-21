@@ -37,7 +37,7 @@ export function UploadStep({
 	const [dragging, setDragging] = useState(false);
 
 	const handlePdf = async (file: File) => {
-		dispatch({ type: "extract-start", fileName: file.name });
+		dispatch({ type: "extract-start", file });
 		try {
 			const result = await importMutations.extractPdf(file);
 			dispatch({

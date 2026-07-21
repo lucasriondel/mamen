@@ -223,6 +223,117 @@ describe("ImportWizard", () => {
 		expect(await screen.findByText("Transactions page")).toBeInTheDocument();
 	});
 
+	it("renders the PDF beside editable rows and commits an in-place edit", async () => {
+		const user = userEvent.setup();
+		extractPdf.mockResolvedValue({
+			transactions: [
+				{
+					date: new Date("2026-01-15T10:00:00.000Z"),
+					amount: -10,
+					rawIssuerString: "SHOP A",
+				},
+			],
+			declaredTotals: { debit: 10, credit: 0 },
+		});
+		render(<RouterProvider router={makeRouter()} />);
+
+		await user.upload(
+			await screen.findByLabelText("CSV or PDF statement"),
+			new File(["%PDF-1.7"], "statement.pdf", { type: "application/pdf" }),
+		);
+		await user.selectOptions(
+			await screen.findByLabelText("Target account"),
+			"1",
+		);
+		await user.click(
+			screen.getByRole("button", { name: "Continue to preview" }),
+		);
+
+		// The source PDF renders in a native-viewer iframe beside the rows.
+		expect(await screen.findByTitle("PDF statement")).toBeInTheDocument();
+
+		// Correct the amount in place, then commit — the edit must be committed.
+		const amount = screen.getByLabelText("Amount, row 1");
+		await user.clear(amount);
+		await user.type(amount, "-42");
+
+		await user.click(screen.getByRole("button", { name: "Commit import" }));
+
+		await waitFor(() => expect(bulkCreate).toHaveBeenCalled());
+		expect(bulkCreate.mock.calls[0][0][0]).toMatchObject({
+			amount: -42,
+			rawIssuerString: "SHOP A",
+			importMonth: "2026-01",
+		});
+	});
+
+	it("warns on a reconciliation mismatch but still lets the user commit", async () => {
+		const user = userEvent.setup();
+		// Extracted rows sum to 10 of debits, but the statement declares 50 — a
+		// probable dropped row. The banner appears; commit is never blocked.
+		extractPdf.mockResolvedValue({
+			transactions: [
+				{
+					date: new Date("2026-01-15T10:00:00.000Z"),
+					amount: -10,
+					rawIssuerString: "SHOP A",
+				},
+			],
+			declaredTotals: { debit: 50, credit: 0 },
+		});
+		render(<RouterProvider router={makeRouter()} />);
+
+		await user.upload(
+			await screen.findByLabelText("CSV or PDF statement"),
+			new File(["%PDF-1.7"], "statement.pdf", { type: "application/pdf" }),
+		);
+		await user.selectOptions(
+			await screen.findByLabelText("Target account"),
+			"1",
+		);
+		await user.click(
+			screen.getByRole("button", { name: "Continue to preview" }),
+		);
+
+		expect(
+			await screen.findByText(/Reconciliation mismatch/),
+		).toBeInTheDocument();
+
+		// The warning does not block commit.
+		await user.click(screen.getByRole("button", { name: "Commit import" }));
+		expect(await screen.findByText("Transactions page")).toBeInTheDocument();
+	});
+
+	it("shows no reconciliation banner when the sums reconcile", async () => {
+		const user = userEvent.setup();
+		extractPdf.mockResolvedValue({
+			transactions: [
+				{
+					date: new Date("2026-01-15T10:00:00.000Z"),
+					amount: -10,
+					rawIssuerString: "SHOP A",
+				},
+			],
+			declaredTotals: { debit: 10, credit: 0 },
+		});
+		render(<RouterProvider router={makeRouter()} />);
+
+		await user.upload(
+			await screen.findByLabelText("CSV or PDF statement"),
+			new File(["%PDF-1.7"], "statement.pdf", { type: "application/pdf" }),
+		);
+		await user.selectOptions(
+			await screen.findByLabelText("Target account"),
+			"1",
+		);
+		await user.click(
+			screen.getByRole("button", { name: "Continue to preview" }),
+		);
+
+		expect(await screen.findByTitle("PDF statement")).toBeInTheDocument();
+		expect(screen.queryByText(/Reconciliation mismatch/)).toBeNull();
+	});
+
 	it("surfaces an extraction failure and stays on the upload step", async () => {
 		const user = userEvent.setup();
 		extractPdf.mockRejectedValue({ _tag: "ExtractionFailed" });

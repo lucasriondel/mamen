@@ -15,3 +15,13 @@ if (!("ResizeObserver" in globalThis)) {
 if (!Element.prototype.scrollIntoView) {
 	Element.prototype.scrollIntoView = () => {};
 }
+
+// jsdom implements neither `URL.createObjectURL` nor `revokeObjectURL`, which the
+// PDF side-by-side validation view uses to render the source PDF in a blob-URL
+// iframe. Stub them so those component tests run under jsdom.
+if (!("createObjectURL" in URL)) {
+	URL.createObjectURL = () => "blob:mamen-test";
+}
+if (!("revokeObjectURL" in URL)) {
+	URL.revokeObjectURL = () => {};
+}

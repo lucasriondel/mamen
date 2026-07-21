@@ -1,20 +1,18 @@
 import type { AccountId } from "@mamen/shared/contract";
-import { useQuery } from "@tanstack/react-query";
 import { formatCurrency, formatMonth, formatShortDate } from "@/lib/format";
-import { transactionQueries } from "@/lib/sdk";
 import { distinctMonths } from "./commit";
+import { CommitBar } from "./commit-bar";
 import type { ParsedTransaction } from "./parsers/types";
-import { useImportCommit } from "./use-import-commit";
 
 /** How many parsed rows to show in the preview table (the rest are summarized). */
 const PREVIEW_ROWS = 8;
 
 /**
- * Step 2 — the mandatory, never-skippable preview. Shows the detected format,
- * target account, the month(s) found, and the row count, plus a per-month
- * replacement warning (commit is destructive: it replaces a month rather than
- * appending). Committing runs the delete-then-create per month and navigates to
- * the transactions view on success.
+ * Step 2 (CSV path) — the mandatory, never-skippable preview. Shows the detected
+ * format, target account, the month(s) found, and the row count, then a read-only
+ * table of the first rows, and the shared {@link CommitBar} (per-month replacement
+ * warning + commit). The PDF path uses its own side-by-side validation view; both
+ * converge on the same commit rail.
  */
 export function PreviewStep({
 	records,
@@ -29,7 +27,6 @@ export function PreviewStep({
 	parserLabel: string;
 	onBack: () => void;
 }) {
-	const commit = useImportCommit();
 	const months = distinctMonths(records);
 
 	return (
@@ -41,32 +38,9 @@ export function PreviewStep({
 				<Fact label="Rows" value={String(records.length)} />
 			</dl>
 
-			<div className="flex flex-col gap-2">
-				{months.map((month) => (
-					<MonthReplacement key={month} accountId={accountId} month={month} />
-				))}
-			</div>
-
 			<PreviewTable records={records} />
 
-			<div className="flex items-center gap-3">
-				<button
-					type="button"
-					onClick={() => commit.mutate({ records, accountId })}
-					disabled={commit.isPending}
-					className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-bg disabled:opacity-50"
-				>
-					{commit.isPending ? "Importing…" : "Commit import"}
-				</button>
-				<button
-					type="button"
-					onClick={onBack}
-					disabled={commit.isPending}
-					className="rounded-md border border-line px-3 py-2 text-sm text-ink disabled:opacity-50"
-				>
-					Back
-				</button>
-			</div>
+			<CommitBar records={records} accountId={accountId} onBack={onBack} />
 		</div>
 	);
 }
@@ -78,32 +52,6 @@ function Fact({ label, value }: { label: string; value: string }) {
 			<dt className="text-muted">{label}</dt>
 			<dd className="font-medium text-ink">{value}</dd>
 		</div>
-	);
-}
-
-/**
- * A per-month replacement notice: reads the account's existing row count for the
- * month and, when non-zero, warns that committing will replace those rows.
- */
-function MonthReplacement({
-	accountId,
-	month,
-}: {
-	accountId: AccountId;
-	month: string;
-}) {
-	const countQuery = useQuery(
-		transactionQueries.count({ accountId, importMonth: month }),
-	);
-	const count = countQuery.data?.count ?? 0;
-
-	if (count === 0) return null;
-
-	return (
-		<p role="alert" className="text-sm text-high">
-			This will replace {count} existing row{count === 1 ? "" : "s"} for{" "}
-			{formatMonth(month)}.
-		</p>
 	);
 }
 

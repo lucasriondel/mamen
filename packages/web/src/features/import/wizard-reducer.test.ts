@@ -122,7 +122,7 @@ describe("wizardReducer — PDF extraction path", () => {
 
 		const state = wizardReducer(fromCsv, {
 			type: "extract-start",
-			fileName: "statement.pdf",
+			file: new File([], "statement.pdf", { type: "application/pdf" }),
 		});
 
 		expect(state.source).toBe("pdf");
@@ -137,7 +137,7 @@ describe("wizardReducer — PDF extraction path", () => {
 	it("holds on upload after extraction when no account is chosen yet", () => {
 		const extracting = wizardReducer(initialWizardState, {
 			type: "extract-start",
-			fileName: "statement.pdf",
+			file: new File([], "statement.pdf", { type: "application/pdf" }),
 		});
 		const state = wizardReducer(extracting, {
 			type: "extract-success",
@@ -158,7 +158,7 @@ describe("wizardReducer — PDF extraction path", () => {
 		});
 		state = wizardReducer(state, {
 			type: "extract-start",
-			fileName: "statement.pdf",
+			file: new File([], "statement.pdf", { type: "application/pdf" }),
 		});
 		state = wizardReducer(state, {
 			type: "extract-success",
@@ -173,7 +173,7 @@ describe("wizardReducer — PDF extraction path", () => {
 	it("advances a held PDF to preview once the account is picked and continue fires", () => {
 		let state = wizardReducer(initialWizardState, {
 			type: "extract-start",
-			fileName: "statement.pdf",
+			file: new File([], "statement.pdf", { type: "application/pdf" }),
 		});
 		state = wizardReducer(state, {
 			type: "extract-success",
@@ -190,10 +190,91 @@ describe("wizardReducer — PDF extraction path", () => {
 		expect(state.step).toBe("preview");
 	});
 
+	it("keeps the dropped PDF file for the side-by-side blob-URL preview", () => {
+		const pdf = new File([], "statement.pdf", { type: "application/pdf" });
+		const state = wizardReducer(initialWizardState, {
+			type: "extract-start",
+			file: pdf,
+		});
+		expect(state.file).toBe(pdf);
+		expect(state.fileName).toBe("statement.pdf");
+	});
+
+	it("edits an extracted row in place (date, amount, raw issuer)", () => {
+		const extracted = wizardReducer(
+			wizardReducer(initialWizardState, {
+				type: "extract-start",
+				file: new File([], "statement.pdf", { type: "application/pdf" }),
+			}),
+			{
+				type: "extract-success",
+				transactions: EXTRACTED,
+				declaredTotals: TOTALS,
+			},
+		);
+
+		const state = wizardReducer(extracted, {
+			type: "edit-extracted",
+			index: 0,
+			patch: { amount: -12, rawIssuerString: "CORRECTED" },
+		});
+
+		expect(state.extracted?.[0]).toMatchObject({
+			amount: -12,
+			rawIssuerString: "CORRECTED",
+		});
+		// Other rows are untouched.
+		expect(state.extracted?.[1]).toBe(EXTRACTED[1]);
+	});
+
+	it("deletes a phantom extracted row", () => {
+		const extracted = wizardReducer(
+			wizardReducer(initialWizardState, {
+				type: "extract-start",
+				file: new File([], "statement.pdf", { type: "application/pdf" }),
+			}),
+			{
+				type: "extract-success",
+				transactions: EXTRACTED,
+				declaredTotals: TOTALS,
+			},
+		);
+
+		const state = wizardReducer(extracted, {
+			type: "delete-extracted",
+			index: 0,
+		});
+
+		expect(state.extracted).toHaveLength(1);
+		expect(state.extracted?.[0]).toBe(EXTRACTED[1]);
+	});
+
+	it("adds a blank extracted row for a missed operation", () => {
+		const extracted = wizardReducer(
+			wizardReducer(initialWizardState, {
+				type: "extract-start",
+				file: new File([], "statement.pdf", { type: "application/pdf" }),
+			}),
+			{
+				type: "extract-success",
+				transactions: EXTRACTED,
+				declaredTotals: TOTALS,
+			},
+		);
+
+		const state = wizardReducer(extracted, { type: "add-extracted" });
+
+		expect(state.extracted).toHaveLength(3);
+		expect(state.extracted?.[2]).toMatchObject({
+			amount: 0,
+			rawIssuerString: "",
+		});
+	});
+
 	it("surfaces an extraction failure and stays on upload", () => {
 		const extracting = wizardReducer(initialWizardState, {
 			type: "extract-start",
-			fileName: "statement.pdf",
+			file: new File([], "statement.pdf", { type: "application/pdf" }),
 		});
 		const state = wizardReducer(extracting, {
 			type: "extract-error",
@@ -211,7 +292,7 @@ describe("wizardReducer — PDF extraction path", () => {
 	it("clears a prior successful extraction when a later file drop fails", () => {
 		const extracting = wizardReducer(initialWizardState, {
 			type: "extract-start",
-			fileName: "statement.pdf",
+			file: new File([], "statement.pdf", { type: "application/pdf" }),
 		});
 		const extracted = wizardReducer(extracting, {
 			type: "extract-success",

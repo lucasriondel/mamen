@@ -8,6 +8,7 @@ import { enrichExtracted } from "./enrich-extracted";
 import { takeHandoff } from "./import-handoff";
 import { detectParser, getParserById } from "./parsers/registry";
 import type { ParsedTransaction } from "./parsers/types";
+import { PdfValidationStep } from "./pdf-validation-step";
 import { PreviewStep } from "./preview-step";
 import { UploadStep } from "./upload-step";
 import {
@@ -92,21 +93,37 @@ export function ImportWizard({
 				? (getParserById(state.parserId)?.label ?? state.parserId)
 				: "—";
 
+	const accountName =
+		accounts.find((account) => account.id === state.accountId)?.name ?? "—";
+
 	let stepContent: ReactNode = null;
 	if (state.step === "upload") {
 		stepContent = <UploadStep state={state} dispatch={dispatch} />;
 	} else if (
 		state.accountId !== null &&
-		(state.parserId !== null || state.source === "pdf")
+		state.source === "pdf" &&
+		state.file !== null &&
+		state.extracted !== null &&
+		state.declaredTotals !== null
 	) {
+		// PDF path: the side-by-side validation view (PDF beside editable rows).
+		stepContent = (
+			<PdfValidationStep
+				records={records}
+				extracted={state.extracted}
+				declaredTotals={state.declaredTotals}
+				file={state.file}
+				accountId={state.accountId}
+				onBack={() => dispatch({ type: "back-to-upload" })}
+				dispatch={dispatch}
+			/>
+		);
+	} else if (state.accountId !== null && state.parserId !== null) {
 		stepContent = (
 			<PreviewStep
 				records={records}
 				accountId={state.accountId}
-				accountName={
-					accounts.find((account) => account.id === state.accountId)?.name ??
-					"—"
-				}
+				accountName={accountName}
 				parserLabel={sourceLabel}
 				onBack={() => dispatch({ type: "back-to-upload" })}
 			/>
