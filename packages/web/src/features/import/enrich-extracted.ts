@@ -1,12 +1,6 @@
 import type { ExtractedTransaction } from "@mamen/shared/contract";
+import { importMonthKey } from "./parsers/month";
 import type { ParseContext, ParsedTransaction } from "./parsers/types";
-
-/** Derive a `YYYY-MM` import-month key from a date, in UTC (matches the CSV parsers). */
-function monthKey(date: Date): string {
-	const year = date.getUTCFullYear();
-	const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-	return `${year}-${month}`;
-}
 
 /**
  * Turn the account-agnostic **extracted transactions** returned by
@@ -26,7 +20,7 @@ export function enrichExtracted(
 		date: tx.date,
 		amount: tx.amount,
 		rawIssuerString: tx.rawIssuerString,
-		importMonth: monthKey(tx.date),
+		importMonth: importMonthKey(tx.date),
 		importBatchId: ctx.importBatchId,
 	}));
 }

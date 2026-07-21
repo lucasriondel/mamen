@@ -1,3 +1,4 @@
+import { importMonthKey } from "./month";
 import type { ParseContext, ParsedTransaction, StatementParser } from "./types";
 
 /**
@@ -15,13 +16,6 @@ const REQUIRED_HEADERS = [
 
 /** Only settled rows enter the ledger (pending/cancelled are skipped). */
 const COMPLETE = "COMPLETE";
-
-/** Derive a `YYYY-MM` import-month key from a date, in UTC (the export is UTC). */
-function monthKey(date: Date): string {
-	const year = date.getUTCFullYear();
-	const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-	return `${year}-${month}`;
-}
 
 /**
  * Green-Got statement parser — the first parser in the registry.
@@ -55,7 +49,7 @@ export const greenGotParser: StatementParser = {
 				date,
 				amount,
 				rawIssuerString: row.Intitulé,
-				importMonth: monthKey(date),
+				importMonth: importMonthKey(date),
 				importBatchId: ctx.importBatchId,
 			});
 		}

@@ -1,6 +1,7 @@
 import type { AccountId } from "@mamen/shared/contract";
 import { describe, expect, it } from "vitest";
 import {
+	canPreview,
 	initialWizardState,
 	makeInitialWizardState,
 	wizardReducer,
@@ -205,6 +206,30 @@ describe("wizardReducer — PDF extraction path", () => {
 		expect(state.error).toBe(
 			"Couldn't read that PDF statement. Please try again.",
 		);
+	});
+
+	it("clears a prior successful extraction when a later file drop fails", () => {
+		const extracting = wizardReducer(initialWizardState, {
+			type: "extract-start",
+			fileName: "statement.pdf",
+		});
+		const extracted = wizardReducer(extracting, {
+			type: "extract-success",
+			transactions: EXTRACTED,
+			declaredTotals: TOTALS,
+		});
+
+		const state = wizardReducer(extracted, {
+			type: "file-error",
+			message: "Couldn't read that file. Is it a valid CSV?",
+		});
+
+		// The failed drop leaves nothing previewable behind the error banner.
+		expect(state.error).toBe("Couldn't read that file. Is it a valid CSV?");
+		expect(state.source).toBeNull();
+		expect(state.extracted).toBeNull();
+		expect(state.rows).toEqual([]);
+		expect(canPreview({ ...state, accountId: 5 as AccountId })).toBe(false);
 	});
 });
 

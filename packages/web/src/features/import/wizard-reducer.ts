@@ -157,7 +157,21 @@ export function wizardReducer(
 				declaredTotals: null,
 			};
 		case "file-error":
-			return { ...state, error: action.message };
+			// A failed drop must not leave a prior file previewable behind the error.
+			// Clear both paths' loaded state so the wizard shows only the error and
+			// `canPreview` is false (mirrors the extract-* / file-parsed resets).
+			return {
+				...state,
+				error: action.message,
+				source: null,
+				headers: [],
+				rows: [],
+				parserId: null,
+				autoDetected: false,
+				extracting: false,
+				extracted: null,
+				declaredTotals: null,
+			};
 		case "select-parser":
 			return { ...state, parserId: action.parserId };
 		case "select-account":

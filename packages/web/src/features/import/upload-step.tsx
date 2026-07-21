@@ -2,9 +2,10 @@ import type { AccountId } from "@mamen/shared/contract";
 import { type DragEvent, useState } from "react";
 import { importMutations } from "@/lib/sdk";
 import { toErrorMessage } from "@/lib/sdk-error";
+import { FormatPicker } from "./format-picker";
 import { InlineAccountSelect } from "./inline-account-select";
 import { parseCsvFile } from "./parse-file";
-import { detectParser, PARSERS } from "./parsers/registry";
+import { detectParser } from "./parsers/registry";
 import {
 	canPreview,
 	type WizardAction,
@@ -17,9 +18,6 @@ function isPdf(file: File): boolean {
 		file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")
 	);
 }
-
-const INPUT_CLASS =
-	"rounded-md border border-line bg-bg px-3 py-2 text-sm text-ink outline-none focus:border-accent";
 
 /**
  * Step 1 — file drop, then a fork on file shape. A **CSV** parses in-browser
@@ -135,36 +133,7 @@ export function UploadStep({
 					</p>
 
 					{state.source === "csv" ? (
-						<label className="flex flex-col gap-1 text-sm text-muted">
-							Format
-							<select
-								className={INPUT_CLASS}
-								value={state.parserId ?? ""}
-								onChange={(event) =>
-									dispatch({
-										type: "select-parser",
-										parserId: event.target.value,
-									})
-								}
-								aria-label="Statement format"
-							>
-								<option value="" disabled>
-									Pick the statement format…
-								</option>
-								{PARSERS.map((parser) => (
-									<option key={parser.id} value={parser.id}>
-										{parser.label}
-									</option>
-								))}
-							</select>
-							{state.parserId !== null && state.autoDetected ? (
-								<span className="text-xs text-low">Auto-detected.</span>
-							) : state.parserId === null ? (
-								<span className="text-xs text-muted">
-									Format not recognized — pick it manually.
-								</span>
-							) : null}
-						</label>
+						<FormatPicker state={state} dispatch={dispatch} />
 					) : null}
 
 					<InlineAccountSelect
