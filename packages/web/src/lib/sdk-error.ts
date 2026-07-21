@@ -103,6 +103,8 @@ export function toErrorMessage(error: unknown): string {
 			return "That name is already taken. Pick a different one.";
 		case "InvalidFileType":
 			return "That file type isn't supported.";
+		case "ExtractionFailed":
+			return "Couldn't read that PDF statement. Please try again.";
 		case "CategoryInUse":
 			return categoryInUseMessage(error);
 		case "CategoryHoldsMoney":

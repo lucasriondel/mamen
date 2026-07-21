@@ -1,11 +1,25 @@
-import type { AccountId } from "@mamen/shared/contract";
+import type {
+	AccountId,
+	DeclaredTotals,
+	ExtractedTransaction,
+} from "@mamen/shared/contract";
 
 /** The wizard's two interactive steps (commit is a transient action, not a step). */
 export type WizardStep = "upload" | "preview";
 
+/**
+ * Which file shape the dropped statement is. A **CSV** forks to the synchronous
+ * papaparse + **Parser** path; a **PDF** forks to async **PDF extraction**. The
+ * split is branched on this discriminant, not hidden behind a shared abstraction
+ * (issue #45). `null` until a file is dropped.
+ */
+export type WizardSource = "csv" | "pdf";
+
 /** Local state for the 3-step import wizard (no global store — PRD). */
 export type WizardState = {
 	step: WizardStep;
+	/** The dropped file's shape — which path (CSV parse vs PDF extraction) is live. */
+	source: WizardSource | null;
 	fileName: string | null;
 	headers: readonly string[];
 	rows: ReadonlyArray<Record<string, string>>;
@@ -16,8 +30,14 @@ export type WizardState = {
 	accountId: AccountId | null;
 	/** Groups every row of this import together; regenerated per file. */
 	importBatchId: string;
-	/** A surfaced file-parse error (bad CSV), shown inline on the upload step. */
+	/** A surfaced file error (bad CSV / failed extraction), shown on the upload step. */
 	error: string | null;
+	/** True while a PDF is uploading to `/import/extract-pdf` and awaiting a result. */
+	extracting: boolean;
+	/** The extracted candidate rows once a PDF extraction succeeds; `null` otherwise. */
+	extracted: readonly ExtractedTransaction[] | null;
+	/** The statement's own declared totals, echoed by extraction (reconcile handle). */
+	declaredTotals: DeclaredTotals | null;
 };
 
 export type WizardAction =
@@ -32,10 +52,21 @@ export type WizardAction =
 	| { type: "select-parser"; parserId: string }
 	| { type: "select-account"; accountId: AccountId }
 	| { type: "go-to-preview" }
-	| { type: "back-to-upload" };
+	| { type: "back-to-upload" }
+	/** A PDF was dropped — extraction has started (spinner until it settles). */
+	| { type: "extract-start"; fileName: string }
+	/** Extraction succeeded — candidate rows (+ declared totals) are in hand. */
+	| {
+			type: "extract-success";
+			transactions: readonly ExtractedTransaction[];
+			declaredTotals: DeclaredTotals;
+	  }
+	/** Extraction failed — surface the error and stay on the upload step. */
+	| { type: "extract-error"; message: string };
 
 export const initialWizardState: WizardState = {
 	step: "upload",
+	source: null,
 	fileName: null,
 	headers: [],
 	rows: [],
@@ -44,6 +75,9 @@ export const initialWizardState: WizardState = {
 	accountId: null,
 	importBatchId: "",
 	error: null,
+	extracting: false,
+	extracted: null,
+	declaredTotals: null,
 };
 
 /**
@@ -75,6 +109,7 @@ export function makeInitialWizardState(prefill?: WizardPrefill): WizardState {
 		accountId: accountId ?? null,
 		...(file
 			? {
+					source: "csv" as const,
 					fileName: file.fileName,
 					headers: file.headers,
 					rows: file.rows,
@@ -86,11 +121,17 @@ export function makeInitialWizardState(prefill?: WizardPrefill): WizardState {
 	};
 }
 
-/** Whether the upload step has everything it needs to move to the preview. */
+/**
+ * Whether the upload step has everything it needs to move to the preview. The
+ * account is required either way; a CSV also needs parsed rows + a picked parser,
+ * while a PDF needs a settled extraction (rows in hand, not still extracting).
+ */
 export function canPreview(state: WizardState): boolean {
-	return (
-		state.rows.length > 0 && state.parserId !== null && state.accountId !== null
-	);
+	if (state.accountId === null) return false;
+	if (state.source === "pdf") {
+		return state.extracted !== null && !state.extracting;
+	}
+	return state.rows.length > 0 && state.parserId !== null;
 }
 
 /** Pure state machine for the import wizard. */
@@ -102,6 +143,7 @@ export function wizardReducer(
 		case "file-parsed":
 			return {
 				...state,
+				source: "csv",
 				fileName: action.fileName,
 				headers: action.headers,
 				rows: action.rows,
@@ -109,6 +151,10 @@ export function wizardReducer(
 				autoDetected: action.detectedParserId !== null,
 				importBatchId: crypto.randomUUID(),
 				error: null,
+				// A CSV replacing a prior PDF drop clears the extraction state.
+				extracting: false,
+				extracted: null,
+				declaredTotals: null,
 			};
 		case "file-error":
 			return { ...state, error: action.message };
@@ -120,6 +166,42 @@ export function wizardReducer(
 			return canPreview(state) ? { ...state, step: "preview" } : state;
 		case "back-to-upload":
 			return { ...state, step: "upload" };
+		case "extract-start":
+			return {
+				...state,
+				source: "pdf",
+				fileName: action.fileName,
+				extracting: true,
+				extracted: null,
+				declaredTotals: null,
+				importBatchId: crypto.randomUUID(),
+				error: null,
+				// A PDF replacing a prior CSV drop clears the parser state.
+				headers: [],
+				rows: [],
+				parserId: null,
+				autoDetected: false,
+			};
+		case "extract-success": {
+			const next: WizardState = {
+				...state,
+				extracting: false,
+				extracted: action.transactions,
+				declaredTotals: action.declaredTotals,
+				error: null,
+			};
+			// Auto-land on the preview when the account was already chosen; otherwise
+			// hold on upload so the user can pick one, then continue.
+			return canPreview(next) ? { ...next, step: "preview" } : next;
+		}
+		case "extract-error":
+			return {
+				...state,
+				extracting: false,
+				extracted: null,
+				declaredTotals: null,
+				error: action.message,
+			};
 		default:
 			return state;
 	}

@@ -95,6 +95,119 @@ describe("wizardReducer", () => {
 	});
 });
 
+describe("wizardReducer — PDF extraction path", () => {
+	const EXTRACTED = [
+		{
+			date: new Date("2026-01-15T00:00:00Z"),
+			amount: -10,
+			rawIssuerString: "A",
+		},
+		{
+			date: new Date("2026-02-03T00:00:00Z"),
+			amount: 20,
+			rawIssuerString: "B",
+		},
+	];
+	const TOTALS = { debit: 10, credit: 20 };
+
+	it("enters the extracting state on a PDF drop, clearing any CSV state", () => {
+		const fromCsv = wizardReducer(initialWizardState, {
+			type: "file-parsed",
+			fileName: "statement.csv",
+			headers: HEADERS,
+			rows: ROWS,
+			detectedParserId: "green-got",
+		});
+
+		const state = wizardReducer(fromCsv, {
+			type: "extract-start",
+			fileName: "statement.pdf",
+		});
+
+		expect(state.source).toBe("pdf");
+		expect(state.extracting).toBe(true);
+		expect(state.fileName).toBe("statement.pdf");
+		expect(state.importBatchId).toMatch(/.+/);
+		// The prior CSV parse is wiped so it can't leak into the PDF preview.
+		expect(state.rows).toEqual([]);
+		expect(state.parserId).toBeNull();
+	});
+
+	it("holds on upload after extraction when no account is chosen yet", () => {
+		const extracting = wizardReducer(initialWizardState, {
+			type: "extract-start",
+			fileName: "statement.pdf",
+		});
+		const state = wizardReducer(extracting, {
+			type: "extract-success",
+			transactions: EXTRACTED,
+			declaredTotals: TOTALS,
+		});
+
+		expect(state.extracting).toBe(false);
+		expect(state.extracted).toBe(EXTRACTED);
+		expect(state.declaredTotals).toEqual(TOTALS);
+		expect(state.step).toBe("upload");
+	});
+
+	it("auto-lands on preview after extraction when the account was already chosen", () => {
+		let state = wizardReducer(initialWizardState, {
+			type: "select-account",
+			accountId: 5 as AccountId,
+		});
+		state = wizardReducer(state, {
+			type: "extract-start",
+			fileName: "statement.pdf",
+		});
+		state = wizardReducer(state, {
+			type: "extract-success",
+			transactions: EXTRACTED,
+			declaredTotals: TOTALS,
+		});
+
+		expect(state.step).toBe("preview");
+		expect(state.extracted).toBe(EXTRACTED);
+	});
+
+	it("advances a held PDF to preview once the account is picked and continue fires", () => {
+		let state = wizardReducer(initialWizardState, {
+			type: "extract-start",
+			fileName: "statement.pdf",
+		});
+		state = wizardReducer(state, {
+			type: "extract-success",
+			transactions: EXTRACTED,
+			declaredTotals: TOTALS,
+		});
+		expect(state.step).toBe("upload");
+
+		state = wizardReducer(state, {
+			type: "select-account",
+			accountId: 5 as AccountId,
+		});
+		state = wizardReducer(state, { type: "go-to-preview" });
+		expect(state.step).toBe("preview");
+	});
+
+	it("surfaces an extraction failure and stays on upload", () => {
+		const extracting = wizardReducer(initialWizardState, {
+			type: "extract-start",
+			fileName: "statement.pdf",
+		});
+		const state = wizardReducer(extracting, {
+			type: "extract-error",
+			message: "Couldn't read that PDF statement. Please try again.",
+		});
+
+		expect(state.extracting).toBe(false);
+		expect(state.extracted).toBeNull();
+		expect(state.step).toBe("upload");
+		expect(state.error).toBe(
+			"Couldn't read that PDF statement. Please try again.",
+		);
+	});
+});
+
 describe("makeInitialWizardState", () => {
 	it("returns the empty state with no prefill", () => {
 		expect(makeInitialWizardState()).toBe(initialWizardState);

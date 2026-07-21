@@ -1,5 +1,7 @@
 import type { AccountId } from "@mamen/shared/contract";
 import { type DragEvent, useState } from "react";
+import { importMutations } from "@/lib/sdk";
+import { toErrorMessage } from "@/lib/sdk-error";
 import { InlineAccountSelect } from "./inline-account-select";
 import { parseCsvFile } from "./parse-file";
 import { detectParser, PARSERS } from "./parsers/registry";
@@ -9,14 +11,23 @@ import {
 	type WizardState,
 } from "./wizard-reducer";
 
+/** Whether a dropped file is a PDF (by MIME or extension) — the async fork. */
+function isPdf(file: File): boolean {
+	return (
+		file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")
+	);
+}
+
 const INPUT_CLASS =
 	"rounded-md border border-line bg-bg px-3 py-2 text-sm text-ink outline-none focus:border-accent";
 
 /**
- * Step 1 — file drop, parser auto-detect (with manual fallback), and target
- * account selection (with inline creation). Parses the CSV once on drop/select,
- * fingerprints the headers to pick a parser, and lets the user continue to the
- * mandatory preview once a file, parser, and account are all chosen.
+ * Step 1 — file drop, then a fork on file shape. A **CSV** parses in-browser
+ * (papaparse), auto-detects its **Parser** by header fingerprint, and continues
+ * synchronously. A **PDF** uploads to `/import/extract-pdf` and shows a loading
+ * state while the async extraction runs; on success it holds the extracted rows.
+ * Either way the user picks a target account (with inline creation) and continues
+ * to the mandatory preview once the path is complete.
  */
 export function UploadStep({
 	state,
@@ -27,7 +38,21 @@ export function UploadStep({
 }) {
 	const [dragging, setDragging] = useState(false);
 
-	const handleFile = async (file: File) => {
+	const handlePdf = async (file: File) => {
+		dispatch({ type: "extract-start", fileName: file.name });
+		try {
+			const result = await importMutations.extractPdf(file);
+			dispatch({
+				type: "extract-success",
+				transactions: result.transactions,
+				declaredTotals: result.declaredTotals,
+			});
+		} catch (error) {
+			dispatch({ type: "extract-error", message: toErrorMessage(error) });
+		}
+	};
+
+	const handleCsv = async (file: File) => {
 		try {
 			const { headers, rows } = await parseCsvFile(file);
 			dispatch({
@@ -44,6 +69,9 @@ export function UploadStep({
 			});
 		}
 	};
+
+	const handleFile = (file: File) =>
+		isPdf(file) ? handlePdf(file) : handleCsv(file);
 
 	const onDrop = (event: DragEvent<HTMLElement>) => {
 		event.preventDefault();
@@ -65,13 +93,15 @@ export function UploadStep({
 					dragging ? "border-accent bg-panel" : "border-line"
 				}`}
 			>
-				<span className="font-medium text-ink">Drop a CSV statement here</span>
+				<span className="font-medium text-ink">
+					Drop a CSV or PDF statement here
+				</span>
 				<span className="text-sm text-muted">or click to choose a file</span>
 				<input
 					type="file"
-					accept=".csv,text/csv"
+					accept=".csv,text/csv,.pdf,application/pdf"
 					className="sr-only"
-					aria-label="CSV statement"
+					aria-label="CSV or PDF statement"
 					onChange={(event) => {
 						const file = event.target.files?.[0];
 						if (file) void handleFile(file);
@@ -79,49 +109,63 @@ export function UploadStep({
 				/>
 			</label>
 
+			{state.extracting ? (
+				<p
+					role="status"
+					className="flex items-center gap-2 rounded-md border border-line bg-panel p-4 text-sm text-muted"
+				>
+					<span className="font-medium text-ink">{state.fileName}</span> —
+					extracting transactions from the PDF…
+				</p>
+			) : null}
+
 			{state.error ? (
 				<p role="alert" className="text-sm text-high">
 					{state.error}
 				</p>
 			) : null}
 
-			{state.rows.length > 0 ? (
+			{!state.extracting && (state.rows.length > 0 || state.extracted) ? (
 				<div className="flex flex-col gap-4 rounded-md border border-line bg-panel p-4">
 					<p className="text-sm text-muted">
 						<span className="font-medium text-ink">{state.fileName}</span> —{" "}
-						{state.rows.length} rows
+						{state.source === "pdf"
+							? `${state.extracted?.length ?? 0} transactions extracted`
+							: `${state.rows.length} rows`}
 					</p>
 
-					<label className="flex flex-col gap-1 text-sm text-muted">
-						Format
-						<select
-							className={INPUT_CLASS}
-							value={state.parserId ?? ""}
-							onChange={(event) =>
-								dispatch({
-									type: "select-parser",
-									parserId: event.target.value,
-								})
-							}
-							aria-label="Statement format"
-						>
-							<option value="" disabled>
-								Pick the statement format…
-							</option>
-							{PARSERS.map((parser) => (
-								<option key={parser.id} value={parser.id}>
-									{parser.label}
+					{state.source === "csv" ? (
+						<label className="flex flex-col gap-1 text-sm text-muted">
+							Format
+							<select
+								className={INPUT_CLASS}
+								value={state.parserId ?? ""}
+								onChange={(event) =>
+									dispatch({
+										type: "select-parser",
+										parserId: event.target.value,
+									})
+								}
+								aria-label="Statement format"
+							>
+								<option value="" disabled>
+									Pick the statement format…
 								</option>
-							))}
-						</select>
-						{state.parserId !== null && state.autoDetected ? (
-							<span className="text-xs text-low">Auto-detected.</span>
-						) : state.parserId === null ? (
-							<span className="text-xs text-muted">
-								Format not recognized — pick it manually.
-							</span>
-						) : null}
-					</label>
+								{PARSERS.map((parser) => (
+									<option key={parser.id} value={parser.id}>
+										{parser.label}
+									</option>
+								))}
+							</select>
+							{state.parserId !== null && state.autoDetected ? (
+								<span className="text-xs text-low">Auto-detected.</span>
+							) : state.parserId === null ? (
+								<span className="text-xs text-muted">
+									Format not recognized — pick it manually.
+								</span>
+							) : null}
+						</label>
+					) : null}
 
 					<InlineAccountSelect
 						value={state.accountId}

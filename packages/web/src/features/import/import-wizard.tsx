@@ -4,6 +4,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { type ReactNode, useMemo, useReducer } from "react";
 import { stepPresence } from "@/lib/motion";
 import { accountQueries } from "@/lib/sdk";
+import { enrichExtracted } from "./enrich-extracted";
 import { takeHandoff } from "./import-handoff";
 import { detectParser, getParserById } from "./parsers/registry";
 import type { ParsedTransaction } from "./parsers/types";
@@ -62,18 +63,42 @@ export function ImportWizard({
 	const reducedMotion = useReducedMotion() ?? false;
 
 	const records = useMemo<ParsedTransaction[]>(() => {
-		const parser = state.parserId ? getParserById(state.parserId) : undefined;
-		if (!parser || state.accountId === null) return [];
-		return parser.parse(state.rows, {
+		if (state.accountId === null) return [];
+		const ctx = {
 			accountId: state.accountId,
 			importBatchId: state.importBatchId,
-		});
-	}, [state.parserId, state.accountId, state.rows, state.importBatchId]);
+		};
+		// PDF path: the extracted candidates rejoin the shared commit rail once
+		// enriched with account/batch/month — no parser (the file has no headers).
+		if (state.source === "pdf") {
+			return state.extracted ? enrichExtracted(state.extracted, ctx) : [];
+		}
+		const parser = state.parserId ? getParserById(state.parserId) : undefined;
+		if (!parser) return [];
+		return parser.parse(state.rows, ctx);
+	}, [
+		state.source,
+		state.extracted,
+		state.parserId,
+		state.accountId,
+		state.rows,
+		state.importBatchId,
+	]);
+
+	const sourceLabel =
+		state.source === "pdf"
+			? "PDF extraction"
+			: state.parserId
+				? (getParserById(state.parserId)?.label ?? state.parserId)
+				: "—";
 
 	let stepContent: ReactNode = null;
 	if (state.step === "upload") {
 		stepContent = <UploadStep state={state} dispatch={dispatch} />;
-	} else if (state.accountId !== null && state.parserId !== null) {
+	} else if (
+		state.accountId !== null &&
+		(state.parserId !== null || state.source === "pdf")
+	) {
 		stepContent = (
 			<PreviewStep
 				records={records}
@@ -82,7 +107,7 @@ export function ImportWizard({
 					accounts.find((account) => account.id === state.accountId)?.name ??
 					"—"
 				}
-				parserLabel={getParserById(state.parserId)?.label ?? state.parserId}
+				parserLabel={sourceLabel}
 				onBack={() => dispatch({ type: "back-to-upload" })}
 			/>
 		);
@@ -94,7 +119,7 @@ export function ImportWizard({
 				<h1 className="text-2xl font-semibold text-ink">Import</h1>
 				<p className="mt-1 text-muted">
 					{state.step === "upload"
-						? "Drop a CSV statement, pick its account, and preview before committing."
+						? "Drop a CSV or PDF statement, pick its account, and preview before committing."
 						: "Review what will be written — committing replaces each month."}
 				</p>
 			</header>

@@ -23,6 +23,7 @@ const ACCOUNTS = [{ id: 1, name: "Checking", type: "checking" }];
 // the wizard touches, keeping the rest of the SDK (keys) real for invalidation.
 const deleteByAccountMonth = vi.fn();
 const bulkCreate = vi.fn();
+const extractPdf = vi.fn();
 
 vi.mock("@mamen/sdk", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("@mamen/sdk")>();
@@ -46,6 +47,10 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
 			deleteByAccountMonth: (accountId: unknown, month: unknown) =>
 				deleteByAccountMonth(accountId, month),
 			bulkCreate: (records: unknown) => bulkCreate(records),
+		},
+		importMutations: {
+			...actual.importMutations,
+			extractPdf: (file: unknown) => extractPdf(file),
 		},
 	};
 });
@@ -77,6 +82,7 @@ function makeRouter() {
 beforeEach(() => {
 	deleteByAccountMonth.mockReset().mockResolvedValue({ count: 0 });
 	bulkCreate.mockReset().mockResolvedValue([]);
+	extractPdf.mockReset();
 });
 
 describe("ImportWizard", () => {
@@ -86,7 +92,10 @@ describe("ImportWizard", () => {
 
 		// Step 1 — drop the CSV; the format auto-detects and the config panel opens.
 		const file = new File([CSV], "statement.csv", { type: "text/csv" });
-		await user.upload(await screen.findByLabelText("CSV statement"), file);
+		await user.upload(
+			await screen.findByLabelText("CSV or PDF statement"),
+			file,
+		);
 
 		expect(await screen.findByText("Auto-detected.")).toBeInTheDocument();
 
@@ -150,5 +159,89 @@ describe("ImportWizard", () => {
 			name: "Continue to preview",
 		});
 		expect(continueButton).toBeEnabled();
+	});
+
+	it("drops a PDF, extracts, previews the extracted rows, and commits", async () => {
+		const user = userEvent.setup();
+		// The extraction endpoint is mocked: dropping a PDF returns two candidate
+		// rows (Jan debit + Feb credit) plus the statement's declared totals.
+		extractPdf.mockResolvedValue({
+			transactions: [
+				{
+					date: new Date("2026-01-15T10:00:00.000Z"),
+					amount: -10,
+					rawIssuerString: "SHOP A",
+				},
+				{
+					date: new Date("2026-02-03T10:00:00.000Z"),
+					amount: 20,
+					rawIssuerString: "SHOP B",
+				},
+			],
+			declaredTotals: { debit: 10, credit: 20 },
+		});
+		render(<RouterProvider router={makeRouter()} />);
+
+		// Step 1 — drop the PDF; extraction fires and lands the extracted rows.
+		const file = new File(["%PDF-1.7"], "statement.pdf", {
+			type: "application/pdf",
+		});
+		await user.upload(
+			await screen.findByLabelText("CSV or PDF statement"),
+			file,
+		);
+
+		expect(extractPdf).toHaveBeenCalledTimes(1);
+		expect(
+			await screen.findByText(/2 transactions extracted/),
+		).toBeInTheDocument();
+
+		// Pick the target account (the shared rail), then continue to the preview.
+		await user.selectOptions(screen.getByLabelText("Target account"), "1");
+		await user.click(
+			screen.getByRole("button", { name: "Continue to preview" }),
+		);
+
+		// Step 2 — commit runs the same delete+create per derived month.
+		await user.click(
+			await screen.findByRole("button", { name: "Commit import" }),
+		);
+
+		await waitFor(() =>
+			expect(deleteByAccountMonth).toHaveBeenCalledWith(1, "2026-01"),
+		);
+		expect(deleteByAccountMonth).toHaveBeenCalledWith(1, "2026-02");
+		expect(bulkCreate).toHaveBeenCalledTimes(2);
+		const janRecords = bulkCreate.mock.calls[0][0];
+		expect(janRecords[0]).toMatchObject({
+			accountId: 1,
+			amount: -10,
+			rawIssuerString: "SHOP A",
+			importMonth: "2026-01",
+		});
+
+		expect(await screen.findByText("Transactions page")).toBeInTheDocument();
+	});
+
+	it("surfaces an extraction failure and stays on the upload step", async () => {
+		const user = userEvent.setup();
+		extractPdf.mockRejectedValue({ _tag: "ExtractionFailed" });
+		render(<RouterProvider router={makeRouter()} />);
+
+		const file = new File(["%PDF-1.7"], "statement.pdf", {
+			type: "application/pdf",
+		});
+		await user.upload(
+			await screen.findByLabelText("CSV or PDF statement"),
+			file,
+		);
+
+		// The failure is surfaced as an alert and the user is still on upload.
+		expect(await screen.findByRole("alert")).toHaveTextContent(
+			"Couldn't read that PDF statement. Please try again.",
+		);
+		expect(
+			screen.getByRole("button", { name: "Continue to preview" }),
+		).toBeDisabled();
 	});
 });
