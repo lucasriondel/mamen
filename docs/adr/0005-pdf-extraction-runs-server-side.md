@@ -66,3 +66,12 @@ transient temp dir is the smaller surface.
 client-actionable and some carry upstream detail. Collapsing to one tag, logged
 server-side, is the honest contract — "extraction didn't work, retry" — without
 the leak.
+
+## Operational consequence
+
+Running extraction server-side means the API process needs the `claude` CLI on
+`PATH` and `CLAUDE_CODE_OAUTH_TOKEN` in its environment, in both local dev and
+deploy. The token is validated at **layer build**, so a missing token takes the
+whole API down at startup rather than failing per-upload. The runbook for both
+environments is
+[`docs/operations/claude-cli-dependency.md`](../operations/claude-cli-dependency.md).

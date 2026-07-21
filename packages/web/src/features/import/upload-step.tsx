@@ -1,7 +1,7 @@
 import type { AccountId } from "@mamen/shared/contract";
 import { type DragEvent, useState } from "react";
 import { importMutations } from "@/lib/sdk";
-import { toErrorMessage } from "@/lib/sdk-error";
+import { pdfExtractionErrorMessage } from "@/lib/sdk-error";
 import { FormatPicker } from "./format-picker";
 import { InlineAccountSelect } from "./inline-account-select";
 import { parseCsvFile } from "./parse-file";
@@ -46,7 +46,10 @@ export function UploadStep({
 				declaredTotals: result.declaredTotals,
 			});
 		} catch (error) {
-			dispatch({ type: "extract-error", message: toErrorMessage(error) });
+			dispatch({
+				type: "extract-error",
+				message: pdfExtractionErrorMessage(error),
+			});
 		}
 	};
 

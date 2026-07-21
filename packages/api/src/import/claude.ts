@@ -14,6 +14,9 @@ import { Layer } from "effect";
  *
  * Tests never use this: they provide `ClaudeCode` through `ClaudeCodeTest`'s
  * deep-fake executor instead, so no real binary or token is needed in CI.
+ *
+ * The `claude` CLI + token are a runtime **operational dependency** (local dev
+ * and deploy); see `docs/operations/claude-cli-dependency.md` and ADR 0005.
  */
 export const ClaudeCodeProdLive = ClaudeCodeLive.pipe(
 	Layer.provide(ClaudeConfigLive),

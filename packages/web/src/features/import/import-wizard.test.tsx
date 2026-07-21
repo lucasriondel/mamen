@@ -236,9 +236,33 @@ describe("ImportWizard", () => {
 			file,
 		);
 
-		// The failure is surfaced as an alert and the user is still on upload.
+		// The failure is surfaced as an alert offering a retry / CSV fall-back, and
+		// the user is still on upload. No CLI internals leak into the copy.
 		expect(await screen.findByRole("alert")).toHaveTextContent(
-			"Couldn't read that PDF statement. Please try again.",
+			"We couldn't extract transactions from that PDF. Try dropping it again, or import a CSV export from your bank instead.",
+		);
+		expect(
+			screen.getByRole("button", { name: "Continue to preview" }),
+		).toBeDisabled();
+	});
+
+	it("surfaces a distinct message when the PDF is rejected as an invalid file type", async () => {
+		const user = userEvent.setup();
+		extractPdf.mockRejectedValue({ _tag: "InvalidFileType" });
+		render(<RouterProvider router={makeRouter()} />);
+
+		const file = new File(["%PDF-1.7"], "statement.pdf", {
+			type: "application/pdf",
+		});
+		await user.upload(
+			await screen.findByLabelText("CSV or PDF statement"),
+			file,
+		);
+
+		// A wrong-MIME / oversize rejection gets its own actionable line naming the
+		// size cap and the CSV alternative — not the generic retry wording.
+		expect(await screen.findByRole("alert")).toHaveTextContent(
+			"That file isn't a supported PDF. Upload a PDF bank statement under 10 MB, or import a CSV export instead.",
 		);
 		expect(
 			screen.getByRole("button", { name: "Continue to preview" }),

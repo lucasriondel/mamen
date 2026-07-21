@@ -117,3 +117,28 @@ export function toErrorMessage(error: unknown): string {
 			return "Something went wrong. Please try again.";
 	}
 }
+
+/**
+ * PDF-import-specific wording for the two extraction errors, shown as the upload
+ * step's inline alert (not the generic toast). Both give a path forward and leak
+ * no CLI internals — the server collapses its whole failure taxonomy to a single
+ * `ExtractionFailed` (see ADR 0005), so the user only ever learns "it didn't
+ * work, here's what to do", never an upstream tag or stderr.
+ *
+ * - `ExtractionFailed`: the collapsed Claude failure — retry, or fall back to a
+ *   CSV export from the bank.
+ * - `InvalidFileType`: wrong MIME or over the 10 MB cap — a distinct, actionable
+ *   line (the generic {@link toErrorMessage} "type isn't supported" is too terse
+ *   here and is shared with the issuer-image path, so it stays untouched).
+ *
+ * Any other throwable (network failure, unknown tag) falls back to the retry
+ * wording — from the user's seat it's the same "extraction didn't complete".
+ */
+export function pdfExtractionErrorMessage(error: unknown): string {
+	switch (tagOf(error)) {
+		case "InvalidFileType":
+			return "That file isn't a supported PDF. Upload a PDF bank statement under 10 MB, or import a CSV export instead.";
+		default:
+			return "We couldn't extract transactions from that PDF. Try dropping it again, or import a CSV export from your bank instead.";
+	}
+}
