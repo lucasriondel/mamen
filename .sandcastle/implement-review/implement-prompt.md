@@ -1,12 +1,12 @@
 # TASK
 
-Fix issue {{TASK_ID}}: {{ISSUE_TITLE}}
+Implement issue {{TASK_ID}}: {{ISSUE_TITLE}}
 
 Pull in the issue using `gh issue view <ID>`. If it has a parent PRD, pull that in too.
 
 Only work on the issue specified.
 
-Work on branch {{BRANCH}}. Make commits and run tests.
+Work on branch {{BRANCH}}.
 
 # CONTEXT
 
@@ -26,16 +26,7 @@ Pay extra attention to test files that touch the relevant parts of the code.
 
 # EXECUTION
 
-If applicable, use RGR to complete the task.
-
-1. RED: write one test
-2. GREEN: write the implementation to pass that test
-3. REPEAT until done
-4. REFACTOR the code
-
-# FEEDBACK LOOPS
-
-Before committing, run `npm run typecheck` and `npm run test` to ensure the tests pass.
+Use the `/implement` skill to implement the issue.
 
 # COMMIT
 
