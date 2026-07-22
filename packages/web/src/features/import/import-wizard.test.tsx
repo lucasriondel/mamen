@@ -268,4 +268,30 @@ describe("ImportWizard", () => {
 			screen.getByRole("button", { name: "Continue to preview" }),
 		).toBeDisabled();
 	});
+
+	it("rejects an oversize PDF client-side without attempting extraction", async () => {
+		const user = userEvent.setup();
+		render(<RouterProvider router={makeRouter()} />);
+
+		const file = new File(["%PDF-1.7"], "statement.pdf", {
+			type: "application/pdf",
+		});
+		// Oversize is caught by the multipart parser as a framework error (not
+		// InvalidFileType), so it's pre-checked client-side; force the size past
+		// the 10 MB cap without allocating a real 10 MB buffer.
+		Object.defineProperty(file, "size", { value: 10 * 1024 * 1024 + 1 });
+		await user.upload(
+			await screen.findByLabelText("CSV or PDF statement"),
+			file,
+		);
+
+		expect(await screen.findByRole("alert")).toHaveTextContent(
+			"That file isn't a supported PDF. Upload a PDF bank statement under 10 MB, or import a CSV export instead.",
+		);
+		// The doomed upload is never attempted.
+		expect(extractPdf).not.toHaveBeenCalled();
+		expect(
+			screen.getByRole("button", { name: "Continue to preview" }),
+		).toBeDisabled();
+	});
 });

@@ -1,4 +1,4 @@
-import type { AccountId } from "@mamen/shared/contract";
+import { type AccountId, MAX_PDF_BYTES } from "@mamen/shared/contract";
 import { type DragEvent, useState } from "react";
 import { importMutations } from "@/lib/sdk";
 import { pdfExtractionErrorMessage } from "@/lib/sdk-error";
@@ -37,6 +37,18 @@ export function UploadStep({
 	const [dragging, setDragging] = useState(false);
 
 	const handlePdf = async (file: File) => {
+		// Oversize is rejected upstream by the multipart parser as a framework
+		// error, not `InvalidFileType`, so it would otherwise fall through to the
+		// generic retry copy. Pre-check the cap client-side — as the issuer image
+		// upload does — so the user gets the distinct, actionable message and we
+		// skip a doomed upload.
+		if (file.size > MAX_PDF_BYTES) {
+			dispatch({
+				type: "extract-error",
+				message: pdfExtractionErrorMessage({ _tag: "InvalidFileType" }),
+			});
+			return;
+		}
 		dispatch({ type: "extract-start", fileName: file.name });
 		try {
 			const result = await importMutations.extractPdf(file);
