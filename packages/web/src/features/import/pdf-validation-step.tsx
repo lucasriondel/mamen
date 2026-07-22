@@ -52,7 +52,7 @@ export function PdfValidationStep({
 		<div className="flex flex-col gap-6">
 			{recon.ok ? null : <ReconciliationBanner recon={recon} />}
 
-			<div className="grid gap-4 lg:grid-cols-2">
+			<div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
 				<PdfPane file={file} />
 				<ExtractedRows extracted={extracted} dispatch={dispatch} />
 			</div>
@@ -76,7 +76,7 @@ function PdfPane({ file }: { file: File }) {
 		<iframe
 			title="PDF statement"
 			src={url ?? undefined}
-			className="h-[70vh] w-full rounded-md border border-line bg-panel"
+			className="h-[85vh] w-full rounded-md border border-line bg-panel"
 		/>
 	);
 }
@@ -91,7 +91,7 @@ function ExtractedRows({
 }) {
 	return (
 		<div className="flex flex-col gap-3 overflow-hidden rounded-md border border-line">
-			<div className="max-h-[70vh] overflow-y-auto">
+			<div className="max-h-[85vh] overflow-y-auto">
 				<table className="w-full text-sm">
 					<thead className="sticky top-0 bg-panel text-muted">
 						<tr>

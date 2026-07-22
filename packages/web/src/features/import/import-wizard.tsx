@@ -96,6 +96,11 @@ export function ImportWizard({
 	const accountName =
 		accounts.find((account) => account.id === state.accountId)?.name ?? "—";
 
+	// The PDF validation step is a side-by-side (PDF beside editable rows) and
+	// needs the full width to show the statement clearly; every other step is a
+	// single narrow column and reads better capped. Widen only for that step.
+	let wide = false;
+
 	let stepContent: ReactNode = null;
 	if (state.step === "upload") {
 		stepContent = <UploadStep state={state} dispatch={dispatch} />;
@@ -107,6 +112,7 @@ export function ImportWizard({
 		state.declaredTotals !== null
 	) {
 		// PDF path: the side-by-side validation view (PDF beside editable rows).
+		wide = true;
 		stepContent = (
 			<PdfValidationStep
 				records={records}
@@ -131,7 +137,9 @@ export function ImportWizard({
 	}
 
 	return (
-		<section className="mx-auto flex max-w-3xl flex-col gap-6">
+		<section
+			className={`mx-auto flex flex-col gap-6 ${wide ? "w-full" : "max-w-3xl"}`}
+		>
 			<header>
 				<h1 className="text-2xl font-semibold text-ink">Import</h1>
 				<p className="mt-1 text-muted">
