@@ -41,10 +41,13 @@ export function UploadStep({
 		// error, not `InvalidFileType`, so it would otherwise fall through to the
 		// generic retry copy. Pre-check the cap client-side — as the issuer image
 		// upload does — so the user gets the distinct, actionable message and we
-		// skip a doomed upload.
+		// skip a doomed upload. This runs *before* `extract-start`, so it must use
+		// `file-error` (which clears any prior CSV/PDF loaded state); `extract-error`
+		// relies on `extract-start` having reset that first, and would otherwise
+		// leave a stale, still-previewable file behind the rejection alert.
 		if (file.size > MAX_PDF_BYTES) {
 			dispatch({
-				type: "extract-error",
+				type: "file-error",
 				message: pdfExtractionErrorMessage({ _tag: "InvalidFileType" }),
 			});
 			return;

@@ -294,4 +294,43 @@ describe("ImportWizard", () => {
 			screen.getByRole("button", { name: "Continue to preview" }),
 		).toBeDisabled();
 	});
+
+	it("clears a prior loaded CSV when a later oversize PDF is rejected", async () => {
+		const user = userEvent.setup();
+		render(<RouterProvider router={makeRouter()} />);
+
+		// A valid CSV is loaded first and an account chosen — the wizard is now one
+		// click from previewing it.
+		await user.upload(
+			await screen.findByLabelText("CSV or PDF statement"),
+			new File([CSV], "statement.csv", { type: "text/csv" }),
+		);
+		expect(await screen.findByText("Auto-detected.")).toBeInTheDocument();
+		await user.selectOptions(screen.getByLabelText("Target account"), "1");
+		expect(
+			screen.getByRole("button", { name: "Continue to preview" }),
+		).toBeEnabled();
+
+		// Dropping an oversize PDF is rejected client-side. The rejection must not
+		// leave the earlier CSV previewable behind the alert — the user must not be
+		// able to continue with the stale file they just replaced.
+		const pdf = new File(["%PDF-1.7"], "statement.pdf", {
+			type: "application/pdf",
+		});
+		Object.defineProperty(pdf, "size", { value: 10 * 1024 * 1024 + 1 });
+		await user.upload(
+			await screen.findByLabelText("CSV or PDF statement"),
+			pdf,
+		);
+
+		expect(await screen.findByRole("alert")).toHaveTextContent(
+			"That file isn't a supported PDF. Upload a PDF bank statement under 10 MB, or import a CSV export instead.",
+		);
+		expect(extractPdf).not.toHaveBeenCalled();
+		// The stale CSV's config panel is gone and preview is unreachable.
+		expect(screen.queryByText("Auto-detected.")).not.toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Continue to preview" }),
+		).toBeDisabled();
+	});
 });
