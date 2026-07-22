@@ -17,6 +17,7 @@ import { Route as AccountsRouteImport } from './routes/accounts'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as IssuersIndexRouteImport } from './routes/issuers.index'
 import { Route as CategoriesIndexRouteImport } from './routes/categories.index'
+import { Route as TransactionsTransactionIdRouteImport } from './routes/transactions_.$transactionId'
 import { Route as IssuersNewRouteImport } from './routes/issuers.new'
 import { Route as IssuersIssuerIdRouteImport } from './routes/issuers.$issuerId'
 import { Route as CategoriesCategoryIdRouteImport } from './routes/categories.$categoryId'
@@ -64,6 +65,12 @@ const CategoriesIndexRoute = CategoriesIndexRouteImport.update({
   path: '/',
   getParentRoute: () => CategoriesRoute,
 } as any)
+const TransactionsTransactionIdRoute =
+  TransactionsTransactionIdRouteImport.update({
+    id: '/transactions_/$transactionId',
+    path: '/transactions/$transactionId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const IssuersNewRoute = IssuersNewRouteImport.update({
   id: '/issuers/new',
   path: '/issuers/new',
@@ -106,6 +113,7 @@ export interface FileRoutesByFullPath {
   '/categories/$categoryId': typeof CategoriesCategoryIdRoute
   '/issuers/$issuerId': typeof IssuersIssuerIdRouteWithChildren
   '/issuers/new': typeof IssuersNewRoute
+  '/transactions/$transactionId': typeof TransactionsTransactionIdRoute
   '/categories/': typeof CategoriesIndexRoute
   '/issuers/': typeof IssuersIndexRoute
   '/issuers/$issuerId/': typeof IssuersIssuerIdIndexRoute
@@ -120,6 +128,7 @@ export interface FileRoutesByTo {
   '/transactions': typeof TransactionsRoute
   '/categories/$categoryId': typeof CategoriesCategoryIdRoute
   '/issuers/new': typeof IssuersNewRoute
+  '/transactions/$transactionId': typeof TransactionsTransactionIdRoute
   '/categories': typeof CategoriesIndexRoute
   '/issuers': typeof IssuersIndexRoute
   '/issuers/$issuerId': typeof IssuersIssuerIdIndexRoute
@@ -137,6 +146,7 @@ export interface FileRoutesById {
   '/categories/$categoryId': typeof CategoriesCategoryIdRoute
   '/issuers/$issuerId': typeof IssuersIssuerIdRouteWithChildren
   '/issuers/new': typeof IssuersNewRoute
+  '/transactions_/$transactionId': typeof TransactionsTransactionIdRoute
   '/categories/': typeof CategoriesIndexRoute
   '/issuers/': typeof IssuersIndexRoute
   '/issuers/$issuerId/': typeof IssuersIssuerIdIndexRoute
@@ -155,6 +165,7 @@ export interface FileRouteTypes {
     | '/categories/$categoryId'
     | '/issuers/$issuerId'
     | '/issuers/new'
+    | '/transactions/$transactionId'
     | '/categories/'
     | '/issuers/'
     | '/issuers/$issuerId/'
@@ -169,6 +180,7 @@ export interface FileRouteTypes {
     | '/transactions'
     | '/categories/$categoryId'
     | '/issuers/new'
+    | '/transactions/$transactionId'
     | '/categories'
     | '/issuers'
     | '/issuers/$issuerId'
@@ -185,6 +197,7 @@ export interface FileRouteTypes {
     | '/categories/$categoryId'
     | '/issuers/$issuerId'
     | '/issuers/new'
+    | '/transactions_/$transactionId'
     | '/categories/'
     | '/issuers/'
     | '/issuers/$issuerId/'
@@ -201,6 +214,7 @@ export interface RootRouteChildren {
   TransactionsRoute: typeof TransactionsRoute
   IssuersIssuerIdRoute: typeof IssuersIssuerIdRouteWithChildren
   IssuersNewRoute: typeof IssuersNewRoute
+  TransactionsTransactionIdRoute: typeof TransactionsTransactionIdRoute
   IssuersIndexRoute: typeof IssuersIndexRoute
 }
 
@@ -261,6 +275,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/categories/'
       preLoaderRoute: typeof CategoriesIndexRouteImport
       parentRoute: typeof CategoriesRoute
+    }
+    '/transactions_/$transactionId': {
+      id: '/transactions_/$transactionId'
+      path: '/transactions/$transactionId'
+      fullPath: '/transactions/$transactionId'
+      preLoaderRoute: typeof TransactionsTransactionIdRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/issuers/new': {
       id: '/issuers/new'
@@ -346,6 +367,7 @@ const rootRouteChildren: RootRouteChildren = {
   TransactionsRoute: TransactionsRoute,
   IssuersIssuerIdRoute: IssuersIssuerIdRouteWithChildren,
   IssuersNewRoute: IssuersNewRoute,
+  TransactionsTransactionIdRoute: TransactionsTransactionIdRoute,
   IssuersIndexRoute: IssuersIndexRoute,
 }
 export const routeTree = rootRouteImport

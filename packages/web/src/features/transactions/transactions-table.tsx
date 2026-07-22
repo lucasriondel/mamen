@@ -4,6 +4,7 @@ import type {
 	Issuer,
 	Transaction,
 } from "@mamen/shared/contract";
+import { useNavigate } from "@tanstack/react-router";
 import {
 	createColumnHelper,
 	flexRender,
@@ -63,7 +64,11 @@ export function TransactionsTable({
 		() => [
 			columnHelper.accessor("date", {
 				header: "Date",
-				cell: (info) => formatShortDate(info.getValue()),
+				cell: (info) => (
+					<span className="tabular-nums">
+						{formatShortDate(info.getValue())}
+					</span>
+				),
 			}),
 			columnHelper.accessor("accountId", {
 				header: "Account",
@@ -126,10 +131,11 @@ export function TransactionsTable({
 		getCoreRowModel: getCoreRowModel(),
 	});
 
+	const navigate = useNavigate();
 	const SortIcon = direction === "asc" ? ArrowUp : ArrowDown;
 
 	return (
-		<div className="rounded-lg border border-line">
+		<div className="overflow-hidden rounded-lg border border-line">
 			<Table>
 				<TableHeader>
 					{table.getHeaderGroups().map((headerGroup) => (
@@ -141,7 +147,7 @@ export function TransactionsTable({
 											type="button"
 											onClick={onToggleSort}
 											aria-label={`Sort by date, currently ${direction}ending`}
-											className="flex items-center gap-1 font-medium text-muted transition-colors hover:text-ink"
+											className="flex items-center gap-1 rounded-sm font-medium text-muted outline-none transition-colors hover:text-ink focus-visible:ring-2 focus-visible:ring-accent"
 										>
 											{flexRender(
 												header.column.columnDef.header,
@@ -161,15 +167,55 @@ export function TransactionsTable({
 					))}
 				</TableHeader>
 				<TableBody>
-					{table.getRowModel().rows.map((row) => (
-						<TableRow key={row.id}>
-							{row.getVisibleCells().map((cell) => (
-								<TableCell key={cell.id}>
-									{flexRender(cell.column.columnDef.cell, cell.getContext())}
-								</TableCell>
-							))}
-						</TableRow>
-					))}
+					{table.getRowModel().rows.map((row) => {
+						const openDetail = () =>
+							navigate({
+								to: "/transactions/$transactionId",
+								params: { transactionId: String(row.original.id) },
+							});
+						return (
+							<TableRow
+								key={row.id}
+								onClick={openDetail}
+								onKeyDown={(event) => {
+									if (event.key === "Enter" || event.key === " ") {
+										event.preventDefault();
+										openDetail();
+									}
+								}}
+								tabIndex={0}
+								role="link"
+								aria-label={`View transaction ${row.original.rawIssuerString}`}
+								className="cursor-pointer focus:outline-none focus-visible:bg-bg"
+							>
+								{row.getVisibleCells().map((cell) => {
+									// The issuer/category/notes cells are inline curation surfaces
+									// (their own click targets); a click there edits the row, it
+									// must not also navigate to the detail page. Stop the event
+									// before it bubbles to the row's navigation handler.
+									const isCurationCell =
+										cell.column.id === "issuer" ||
+										cell.column.id === "category" ||
+										cell.column.id === "notes";
+									return (
+										<TableCell
+											key={cell.id}
+											onClick={
+												isCurationCell
+													? (event) => event.stopPropagation()
+													: undefined
+											}
+										>
+											{flexRender(
+												cell.column.columnDef.cell,
+												cell.getContext(),
+											)}
+										</TableCell>
+									);
+								})}
+							</TableRow>
+						);
+					})}
 				</TableBody>
 			</Table>
 		</div>

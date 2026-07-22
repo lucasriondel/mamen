@@ -98,8 +98,15 @@ function makeRouter(initialEntry = "/transactions") {
 		validateSearch: validateTransactionsSearch,
 		component: TransactionsView,
 	});
+	// A stub for the detail route so row-click navigation has somewhere to land;
+	// the real page's queries aren't exercised here — only that the URL changes.
+	const detailRoute = createRoute({
+		getParentRoute: () => rootRoute,
+		path: "/transactions/$transactionId",
+		component: () => <div>Detail stub</div>,
+	});
 	return createRouter({
-		routeTree: rootRoute.addChildren([txRoute]),
+		routeTree: rootRoute.addChildren([txRoute, detailRoute]),
 		history: createMemoryHistory({ initialEntries: [initialEntry] }),
 	});
 }
@@ -238,5 +245,36 @@ describe("TransactionsView", () => {
 		expect(listMock).toHaveBeenCalledWith(
 			expect.objectContaining({ accountId: 2, importMonth: "2026-02" }),
 		);
+	});
+
+	it("navigates to the transaction detail page when a row is clicked", async () => {
+		const router = await renderView();
+		const user = userEvent.setup();
+
+		// Click the row's Date cell (a non-curation cell) — the whole row is the
+		// navigation surface. "01 Feb 2026" is the date of TXN 101.
+		await user.click(screen.getByText("01 Feb 2026"));
+
+		await waitFor(() => {
+			expect(router.state.location.pathname).toBe("/transactions/101");
+		});
+	});
+
+	it("does not navigate when a curation cell (issuer/category/notes) is clicked", async () => {
+		const router = await renderView();
+		const user = userEvent.setup();
+
+		// The Category cell opens the override picker; its click must not bubble to
+		// the row's navigation handler, so the URL stays on the list.
+		await user.click(screen.getByText("Subscriptions"));
+		expect(router.state.location.pathname).toBe("/transactions");
+
+		// Same for the Issuer cell.
+		await user.click(screen.getByText("Spotify"));
+		expect(router.state.location.pathname).toBe("/transactions");
+
+		// And the empty Notes cell ("Add note").
+		await user.click(screen.getAllByText("Add note")[0]);
+		expect(router.state.location.pathname).toBe("/transactions");
 	});
 });
