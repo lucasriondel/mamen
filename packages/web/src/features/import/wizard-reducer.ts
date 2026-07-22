@@ -21,6 +21,12 @@ export type WizardState = {
 	/** The dropped file's shape — which path (CSV parse vs PDF extraction) is live. */
 	source: WizardSource | null;
 	fileName: string | null;
+	/**
+	 * The dropped **PDF** File, kept so the **side-by-side validation** view can
+	 * render it in a blob-URL iframe (`URL.createObjectURL`). `null` for a CSV (no
+	 * side-by-side) and until a PDF is dropped.
+	 */
+	file: File | null;
 	headers: readonly string[];
 	rows: ReadonlyArray<Record<string, string>>;
 	/** The chosen parser id — auto-detected or manually picked; `null` until set. */
@@ -54,7 +60,7 @@ export type WizardAction =
 	| { type: "go-to-preview" }
 	| { type: "back-to-upload" }
 	/** A PDF was dropped — extraction has started (spinner until it settles). */
-	| { type: "extract-start"; fileName: string }
+	| { type: "extract-start"; file: File }
 	/** Extraction succeeded — candidate rows (+ declared totals) are in hand. */
 	| {
 			type: "extract-success";
@@ -62,12 +68,27 @@ export type WizardAction =
 			declaredTotals: DeclaredTotals;
 	  }
 	/** Extraction failed — surface the error and stay on the upload step. */
-	| { type: "extract-error"; message: string };
+	| { type: "extract-error"; message: string }
+	/**
+	 * Edit one **extracted transaction** in place (side-by-side validation): patch
+	 * any of its date / amount / raw issuer. Whatever the table holds at commit is
+	 * what commits.
+	 */
+	| {
+			type: "edit-extracted";
+			index: number;
+			patch: Partial<ExtractedTransaction>;
+	  }
+	/** Delete one extracted row (the phantom-row case) — dropped from the commit. */
+	| { type: "delete-extracted"; index: number }
+	/** Append a blank extracted row (a missed operation the model didn't read). */
+	| { type: "add-extracted" };
 
 export const initialWizardState: WizardState = {
 	step: "upload",
 	source: null,
 	fileName: null,
+	file: null,
 	headers: [],
 	rows: [],
 	parserId: null,
@@ -145,6 +166,7 @@ export function wizardReducer(
 				...state,
 				source: "csv",
 				fileName: action.fileName,
+				file: null,
 				headers: action.headers,
 				rows: action.rows,
 				parserId: action.detectedParserId,
@@ -164,6 +186,7 @@ export function wizardReducer(
 				...state,
 				error: action.message,
 				source: null,
+				file: null,
 				headers: [],
 				rows: [],
 				parserId: null,
@@ -184,7 +207,8 @@ export function wizardReducer(
 			return {
 				...state,
 				source: "pdf",
-				fileName: action.fileName,
+				fileName: action.file.name,
+				file: action.file,
 				extracting: true,
 				extracted: null,
 				declaredTotals: null,
@@ -216,6 +240,30 @@ export function wizardReducer(
 				declaredTotals: null,
 				error: action.message,
 			};
+		case "edit-extracted": {
+			if (state.extracted === null) return state;
+			return {
+				...state,
+				extracted: state.extracted.map((tx, index) =>
+					index === action.index ? { ...tx, ...action.patch } : tx,
+				),
+			};
+		}
+		case "delete-extracted": {
+			if (state.extracted === null) return state;
+			return {
+				...state,
+				extracted: state.extracted.filter((_, index) => index !== action.index),
+			};
+		}
+		case "add-extracted": {
+			const blank: ExtractedTransaction = {
+				date: new Date(),
+				amount: 0,
+				rawIssuerString: "",
+			};
+			return { ...state, extracted: [...(state.extracted ?? []), blank] };
+		}
 		default:
 			return state;
 	}
