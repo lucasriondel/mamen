@@ -17,7 +17,18 @@ export interface SpendRow {
 	spent: number;
 	/** How many spending transactions fell in the bucket. */
 	count: number;
+	/** Issuer image URL (root-relative `/uploads/issuers/…`), for the by-issuer section. */
+	imageUrl?: string;
+	/** Category icon (an emoji), for the by-category section. */
+	icon?: string;
 }
+
+/** The visual identity a bucket resolves to: its name plus an optional avatar. */
+type BucketIdentity = {
+	name: string;
+	imageUrl?: string;
+	icon?: string;
+};
 
 /** The two spend breakdowns the recap page shows, each already summed per bucket. */
 export interface RecapSpend {
@@ -46,14 +57,14 @@ type Bucket = { id: number | null; spent: number; count: number };
 
 /**
  * Fold spending transactions into buckets keyed by `keyOf`, resolving each
- * bucket's display name once via `nameOf`. Debits are summed as positive
+ * bucket's visual identity once via `identityOf`. Debits are summed as positive
  * magnitudes so the rows read as "money out". A `Map` preserves nothing about
  * order — the caller sorts — but dedupes ids in one pass.
  */
 function bucketBy(
 	transactions: readonly Transaction[],
 	keyOf: (txn: Transaction) => number | null,
-	nameOf: (key: number | null) => string,
+	identityOf: (key: number | null) => BucketIdentity,
 ): SpendRow[] {
 	const buckets = new Map<number | null, Bucket>();
 
@@ -66,12 +77,17 @@ function bucketBy(
 		buckets.set(key, bucket);
 	}
 
-	return [...buckets.values()].map((bucket) => ({
-		id: bucket.id,
-		name: nameOf(bucket.id),
-		spent: bucket.spent,
-		count: bucket.count,
-	}));
+	return [...buckets.values()].map((bucket) => {
+		const identity = identityOf(bucket.id);
+		return {
+			id: bucket.id,
+			name: identity.name,
+			imageUrl: identity.imageUrl,
+			icon: identity.icon,
+			spent: bucket.spent,
+			count: bucket.count,
+		};
+	});
 }
 
 /**
@@ -99,19 +115,25 @@ export function aggregateSpend(
 	const byIssuer = bucketBy(
 		transactions,
 		(txn) => txn.issuerId ?? null,
-		(key) =>
-			key == null
-				? UNASSIGNED_LABEL
-				: (issuersById.get(key)?.name ?? UNASSIGNED_LABEL),
+		(key) => {
+			const issuer = key == null ? undefined : issuersById.get(key);
+			return {
+				name: issuer?.name ?? UNASSIGNED_LABEL,
+				imageUrl: issuer?.imageUrl,
+			};
+		},
 	);
 
 	const byCategory = bucketBy(
 		transactions,
 		(txn) => txn.categoryId ?? null,
-		(key) =>
-			key == null
-				? UNASSIGNED_LABEL
-				: (categoriesById.get(key)?.name ?? UNASSIGNED_LABEL),
+		(key) => {
+			const category = key == null ? undefined : categoriesById.get(key);
+			return {
+				name: category?.name ?? UNASSIGNED_LABEL,
+				icon: category?.icon,
+			};
+		},
 	);
 
 	return { byIssuer, byCategory };

@@ -27,21 +27,21 @@ function txn(partial: {
 	} as unknown as Transaction;
 }
 
-function issuer(id: number, name: string): Issuer {
-	return { id, name } as unknown as Issuer;
+function issuer(id: number, name: string, imageUrl?: string): Issuer {
+	return { id, name, imageUrl } as unknown as Issuer;
 }
 
-function category(id: number, name: string): Category {
-	return { id, name } as unknown as Category;
+function category(id: number, name: string, icon?: string): Category {
+	return { id, name, icon } as unknown as Category;
 }
 
 const lookups = {
 	issuersById: new Map([
-		[1, issuer(1, "Amazon")],
+		[1, issuer(1, "Amazon", "/uploads/issuers/amazon.png")],
 		[2, issuer(2, "Netflix")],
 	]),
 	categoriesById: new Map([
-		[10, category(10, "Groceries")],
+		[10, category(10, "Groceries", "🛒")],
 		[20, category(20, "Streaming")],
 	]),
 };
@@ -125,6 +125,25 @@ describe("aggregateSpend", () => {
 		);
 		expect(byIssuer).toHaveLength(1);
 		expect(byIssuer[0]).toMatchObject({ id: 999, name: UNASSIGNED_LABEL });
+	});
+
+	it("carries the issuer image and category icon onto their rows", () => {
+		const { byIssuer, byCategory } = aggregateSpend(
+			[
+				txn({ amount: -10, issuerId: 1 }),
+				txn({ amount: -5, issuerId: 2 }),
+				txn({ amount: -8, categoryId: 10 }),
+				txn({ amount: -3, categoryId: 20 }),
+			],
+			lookups,
+		);
+		const issuers = byName(byIssuer);
+		expect(issuers.Amazon.imageUrl).toBe("/uploads/issuers/amazon.png");
+		expect(issuers.Netflix.imageUrl).toBeUndefined();
+
+		const categories = byName(byCategory);
+		expect(categories.Groceries.icon).toBe("🛒");
+		expect(categories.Streaming.icon).toBeUndefined();
 	});
 
 	it("returns empty sections when there is no spend", () => {
