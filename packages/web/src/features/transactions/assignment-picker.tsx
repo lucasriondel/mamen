@@ -138,7 +138,7 @@ export function AssignmentPicker({
 			<PopoverTrigger asChild>
 				<button
 					type="button"
-					className="flex items-center gap-1.5 text-muted italic transition-colors hover:text-ink"
+					className="flex items-center gap-1.5 rounded-sm px-1 py-0.5 text-muted italic outline-none transition-colors hover:text-ink focus-visible:ring-2 focus-visible:ring-accent"
 					title="Assign an issuer"
 					data-unresolved="true"
 				>

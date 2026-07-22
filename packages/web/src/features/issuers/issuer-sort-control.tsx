@@ -40,7 +40,7 @@ export function IssuerSortControl({ sort, onChange }: IssuerSortControlProps) {
 						aria-pressed={active}
 						onClick={() => onChange(nextIssuerSort(sort, key))}
 						className={cn(
-							"flex items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+							"flex items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium outline-none transition-[transform,color] focus-visible:ring-2 focus-visible:ring-accent active:scale-[0.97]",
 							active ? "bg-accent/10 text-accent" : "text-muted hover:text-ink",
 						)}
 					>

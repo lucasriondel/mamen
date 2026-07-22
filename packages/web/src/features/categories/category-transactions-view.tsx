@@ -195,7 +195,7 @@ export function CategoryTransactionsView() {
 					← Categories
 				</Link>
 				<div className="flex items-baseline justify-between gap-4">
-					<h1 className="flex items-center gap-2 font-semibold text-2xl text-ink">
+					<h1 className="flex items-center gap-2 text-balance font-semibold text-2xl text-ink">
 						{category?.icon ? <span aria-hidden>{category.icon}</span> : null}
 						<span>{category?.name ?? "Category"}</span>
 					</h1>

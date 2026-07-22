@@ -140,7 +140,7 @@ export function CategoryPicker({ transaction, category }: CategoryPickerProps) {
 			<PopoverTrigger asChild>
 				<button
 					type="button"
-					className="block text-left"
+					className="block rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-accent"
 					title="Set a category for this transaction"
 				>
 					<CategoryCell category={category} isOverride={isOverride} />

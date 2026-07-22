@@ -1,6 +1,7 @@
 import type { Account } from "@mamen/shared/contract";
 import { Check, ChevronDown } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export interface AccountMultiSelectProps {
@@ -58,19 +59,16 @@ export function AccountMultiSelect({
 
 	return (
 		<div ref={rootRef} className="relative">
-			<button
-				type="button"
+			<Button
+				variant="secondary"
 				aria-haspopup="true"
 				aria-expanded={open}
 				onClick={() => setOpen((v) => !v)}
-				className={cn(
-					"flex h-9 items-center gap-2 rounded-md border border-line bg-panel px-3 text-sm text-ink",
-					"transition-colors hover:bg-bg focus:outline-none focus:ring-2 focus:ring-accent",
-				)}
+				className="h-9 gap-2 bg-panel px-3"
 			>
 				<span>{triggerLabel(accounts, selectedSet)}</span>
 				<ChevronDown size={14} className="text-muted" aria-hidden />
-			</button>
+			</Button>
 
 			{open ? (
 				<fieldset className="absolute z-10 mt-1 flex min-w-52 flex-col gap-0.5 rounded-md border border-line bg-panel p-1 shadow-lg">

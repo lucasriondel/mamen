@@ -17,6 +17,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "@/components/ui/popover";
+import { Button } from "@/components/ui/button";
 import { searchTree } from "@/lib/category-tree";
 import { categoryQueries } from "@/lib/sdk";
 
@@ -84,9 +85,10 @@ export function CategoryLeafPicker({
 	return (
 		<Popover open={open} onOpenChange={handleOpenChange}>
 			<PopoverTrigger asChild>
-				<button
-					type="button"
-					className="flex items-center gap-2 self-start rounded-md border border-line px-3 py-1.5 text-sm text-ink disabled:opacity-50"
+				<Button
+					variant="secondary"
+					size="sm"
+					className="self-start"
 					title={title}
 					disabled={disabled}
 				>
@@ -96,7 +98,7 @@ export function CategoryLeafPicker({
 					) : (
 						<span className="text-muted italic">No category</span>
 					)}
-				</button>
+				</Button>
 			</PopoverTrigger>
 			<PopoverContent className="p-0">
 				<Command shouldFilter={false} label="Set default category">

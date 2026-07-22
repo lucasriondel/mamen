@@ -5,6 +5,7 @@ import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { type FormEvent, useRef, useState } from "react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { Empty } from "@/components/ui/empty";
 import { RulesSection } from "@/features/rules/rules-section";
 import { formatCurrency, formatShortDate } from "@/lib/format";
@@ -144,11 +145,11 @@ function IssuerDetailContent({
 			<header className="flex items-center gap-4">
 				<IssuerAvatar name={issuer.name} imageUrl={issuer.imageUrl} size="lg" />
 				<div className="flex min-w-0 flex-col">
-					<h1 className="truncate text-2xl font-semibold text-ink">
+					<h1 className="truncate text-balance text-2xl font-semibold text-ink">
 						{issuer.name}
 					</h1>
 					<div className="flex items-baseline gap-2 text-sm">
-						<span className="text-muted">
+						<span className="text-muted tabular-nums">
 							{count} transaction{count === 1 ? "" : "s"}
 						</span>
 						<span
@@ -165,22 +166,22 @@ function IssuerDetailContent({
 			</header>
 
 			<div className="flex flex-wrap gap-2">
-				<button
-					type="button"
-					className={BUTTON_CLASS}
+				<Button
+					variant="secondary"
+					size="sm"
 					onClick={() => fileInputRef.current?.click()}
 					disabled={uploadImage.isPending}
 				>
 					Upload image
-				</button>
-				<button
-					type="button"
-					className={BUTTON_CLASS}
+				</Button>
+				<Button
+					variant="secondary"
+					size="sm"
 					onClick={() => deleteImage.mutate(issuer.id)}
 					disabled={issuer.imageUrl == null || deleteImage.isPending}
 				>
 					Remove image
-				</button>
+				</Button>
 				<input
 					ref={fileInputRef}
 					type="file"
@@ -201,19 +202,20 @@ function IssuerDetailContent({
 						aria-label="Issuer name"
 					/>
 				</label>
-				<button
+				<Button
 					type="submit"
-					className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-bg disabled:opacity-50"
 					disabled={rename.isPending || draftName.trim().length === 0}
 				>
 					Save
-				</button>
+				</Button>
 			</form>
 
 			<IssuerDefaultCategoryPicker issuer={issuer} />
 
 			<div className="flex flex-col gap-3">
-				<h2 className="text-lg font-semibold text-ink">Transactions</h2>
+				<h2 className="text-balance text-lg font-semibold text-ink">
+					Transactions
+				</h2>
 				{transactions.length === 0 ? (
 					<p className="text-sm text-muted italic">
 						No transactions reference this issuer yet.
@@ -251,9 +253,10 @@ function IssuerDetailContent({
 			</div>
 
 			<div className="flex flex-col gap-1 border-t border-line pt-6">
-				<button
-					type="button"
-					className="self-start rounded-md border border-high px-3 py-1.5 text-sm text-high disabled:opacity-50"
+				<Button
+					variant="danger"
+					size="sm"
+					className="self-start"
 					onClick={handleDelete}
 					disabled={hasTransactions || remove.isPending}
 					title={
@@ -263,9 +266,9 @@ function IssuerDetailContent({
 					}
 				>
 					Delete issuer
-				</button>
+				</Button>
 				{hasTransactions ? (
-					<span className="text-xs text-muted">
+					<span className="text-xs text-muted tabular-nums">
 						{count} transaction{count === 1 ? "" : "s"} reference this issuer —
 						reassign them to delete.
 					</span>

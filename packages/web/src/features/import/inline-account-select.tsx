@@ -6,6 +6,7 @@ import {
 	type AccountType,
 } from "@/features/accounts/account-type";
 import { useAccountMutations } from "@/features/accounts/use-account-mutations";
+import { Button } from "@/components/ui/button";
 import { accountQueries } from "@/lib/sdk";
 
 const INPUT_CLASS =
@@ -102,26 +103,27 @@ export function InlineAccountSelect({
 							))}
 						</select>
 					</label>
-					<button
+					<Button
 						type="submit"
+						variant="primary"
+						size="md"
 						disabled={create.isPending || name.trim().length === 0}
-						className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-bg disabled:opacity-50"
 					>
 						Create
-					</button>
-					<button
-						type="button"
+					</Button>
+					<Button
+						variant="secondary"
+						size="md"
 						onClick={() => setCreating(false)}
-						className="rounded-md border border-line px-3 py-2 text-sm text-ink"
 					>
 						Cancel
-					</button>
+					</Button>
 				</form>
 			) : (
 				<button
 					type="button"
 					onClick={() => setCreating(true)}
-					className="self-start text-sm text-accent underline-offset-2 hover:underline"
+					className="self-start text-sm text-accent underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-accent rounded-sm outline-none"
 				>
 					+ Create a new account
 				</button>

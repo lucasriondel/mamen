@@ -89,7 +89,7 @@ export function IssuerPicker({ transaction, issuer }: IssuerPickerProps) {
 			<PopoverTrigger asChild>
 				<button
 					type="button"
-					className="block text-left"
+					className="block rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-accent"
 					title="Change the issuer for this transaction"
 				>
 					<IssuerCell

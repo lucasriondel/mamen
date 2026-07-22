@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Plus, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { issuerQueries, ruleQueries } from "@/lib/sdk";
 import { indexById } from "@/lib/utils";
 import { RuleDeleteConfirm } from "./rule-delete-confirm";
@@ -44,7 +45,9 @@ export function RulesSection({ issuer }: RulesSectionProps) {
 	return (
 		<div className="flex flex-col gap-2">
 			<div className="flex items-center justify-between">
-				<h3 className="text-sm font-semibold text-ink">Matching Rules</h3>
+				<h3 className="text-balance text-sm font-semibold text-ink">
+					Matching Rules
+				</h3>
 				<Link
 					to="/issuers/$issuerId/rules/new"
 					params={{ issuerId: String(issuer.id) }}
@@ -86,14 +89,15 @@ export function RulesSection({ issuer }: RulesSectionProps) {
 										{rule.matchCount} match{rule.matchCount === 1 ? "" : "es"}
 									</span>
 								</Link>
-								<button
-									type="button"
-									className="shrink-0 rounded p-1 text-muted transition-colors hover:text-high"
+								<Button
+									variant="ghost"
+									size="icon"
+									className="shrink-0"
 									aria-label={`Delete rule ${rule.pattern}`}
 									onClick={() => setDeletingId(rule.id)}
 								>
 									<Trash2 size={14} aria-hidden />
-								</button>
+								</Button>
 							</div>
 							{deletingId === rule.id ? (
 								<div className="border-t border-line px-3 py-3">

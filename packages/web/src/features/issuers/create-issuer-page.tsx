@@ -4,6 +4,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { issuerQueries } from "@/lib/sdk";
 import { CategoryLeafPicker } from "./category-leaf-picker";
 import { INPUT_CLASS } from "./field-styles";
@@ -75,7 +76,9 @@ export function CreateIssuerPage() {
 			</Link>
 
 			<header>
-				<h1 className="text-2xl font-semibold text-ink">Create issuer</h1>
+				<h1 className="text-balance text-2xl font-semibold text-ink">
+					Create issuer
+				</h1>
 				<p className="mt-1 text-muted">
 					Give it a default category and future matching transactions will file
 					themselves.
@@ -112,13 +115,9 @@ export function CreateIssuerPage() {
 					/>
 				</div>
 
-				<button
-					type="submit"
-					disabled={!canSubmit}
-					className="self-start rounded-md bg-accent px-4 py-2 text-sm font-medium text-bg disabled:opacity-50"
-				>
+				<Button type="submit" disabled={!canSubmit} className="self-start">
 					Create issuer
-				</button>
+				</Button>
 			</form>
 		</section>
 	);

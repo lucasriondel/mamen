@@ -67,7 +67,7 @@ export function TransactionPreviewList({
 }: TransactionPreviewListProps) {
 	return (
 		<section className="flex flex-col gap-1">
-			<h4 className="text-sm font-medium text-ink">
+			<h4 className="text-balance text-sm font-medium text-ink">
 				{title}{" "}
 				<span className="font-normal text-muted">({transactions.length})</span>
 			</h4>

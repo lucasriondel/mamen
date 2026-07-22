@@ -1,5 +1,6 @@
 import type { Account } from "@mamen/shared/contract";
 import { type UseQueryResult, useQuery } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
 import { accountQueries } from "@/lib/sdk";
 import { AccountRow } from "./account-row";
 import { CreateAccountForm } from "./create-account-form";
@@ -19,7 +20,9 @@ export function AccountsView() {
 	return (
 		<section className="mx-auto flex max-w-4xl flex-col gap-8">
 			<header>
-				<h1 className="text-2xl font-semibold text-ink">Accounts</h1>
+				<h1 className="text-balance text-2xl font-semibold text-ink">
+					Accounts
+				</h1>
 				<p className="mt-1 text-muted">
 					The accounts your statements belong to.
 				</p>
@@ -48,13 +51,14 @@ function AccountsList({
 		return (
 			<div className="rounded-md border border-line bg-panel p-6 text-center">
 				<p className="font-medium text-ink">Couldn't load your accounts.</p>
-				<button
-					type="button"
+				<Button
+					variant="secondary"
+					size="sm"
+					className="mt-3"
 					onClick={() => query.refetch()}
-					className="mt-3 rounded-md border border-line px-3 py-1.5 text-sm text-ink"
 				>
 					Try again
-				</button>
+				</Button>
 			</div>
 		);
 	}

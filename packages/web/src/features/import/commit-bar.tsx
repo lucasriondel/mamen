@@ -1,5 +1,6 @@
 import type { AccountId } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
 import { formatMonth } from "@/lib/format";
 import { transactionQueries } from "@/lib/sdk";
 import { distinctMonths } from "./commit";
@@ -34,22 +35,22 @@ export function CommitBar({
 			</div>
 
 			<div className="flex items-center gap-3">
-				<button
-					type="button"
+				<Button
+					variant="primary"
+					size="md"
 					onClick={() => commit.mutate({ records, accountId })}
 					disabled={commit.isPending}
-					className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-bg disabled:opacity-50"
 				>
 					{commit.isPending ? "Importing…" : "Commit import"}
-				</button>
-				<button
-					type="button"
+				</Button>
+				<Button
+					variant="secondary"
+					size="md"
 					onClick={onBack}
 					disabled={commit.isPending}
-					className="rounded-md border border-line px-3 py-2 text-sm text-ink disabled:opacity-50"
 				>
 					Back
-				</button>
+				</Button>
 			</div>
 		</div>
 	);

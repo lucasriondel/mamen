@@ -1,6 +1,7 @@
 import type { Account } from "@mamen/shared/contract";
 import { Search, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { formatMonth } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -105,8 +106,9 @@ export function TransactionsFilters({
 			</label>
 
 			{hasFilters ? (
-				<button
-					type="button"
+				<Button
+					variant="ghost"
+					size="sm"
 					onClick={() =>
 						onChange({
 							accountId: undefined,
@@ -114,11 +116,10 @@ export function TransactionsFilters({
 							search: undefined,
 						})
 					}
-					className="flex items-center gap-1 rounded-md px-2 py-1.5 text-sm text-muted transition-colors hover:bg-panel hover:text-ink"
 				>
 					<X size={14} />
 					Clear
-				</button>
+				</Button>
 			) : null}
 		</div>
 	);

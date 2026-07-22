@@ -84,7 +84,7 @@ export function RecapView() {
 	return (
 		<section className="flex flex-col gap-6">
 			<header>
-				<h1 className="text-2xl font-semibold text-ink">Recap</h1>
+				<h1 className="text-2xl font-semibold text-ink text-balance">Recap</h1>
 				<p className="mt-1 text-muted">
 					Where your money went, by issuer and by category.
 				</p>

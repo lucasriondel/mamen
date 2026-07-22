@@ -1,4 +1,5 @@
 import { type FormEvent, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { ACCOUNT_TYPE_OPTIONS, type AccountType } from "./account-type";
 import { useAccountMutations } from "./use-account-mutations";
 
@@ -65,13 +66,13 @@ export function CreateAccountForm() {
 					))}
 				</select>
 			</label>
-			<button
+			<Button
 				type="submit"
+				variant="primary"
 				disabled={create.isPending || name.trim().length === 0}
-				className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-bg disabled:opacity-50"
 			>
 				Add account
-			</button>
+			</Button>
 		</form>
 	);
 }

@@ -1,5 +1,6 @@
 import { NOTES_MAX_LENGTH, type Transaction } from "@mamen/shared/contract";
 import { useId, useState } from "react";
+import { Button } from "@/components/ui/button";
 import {
 	Popover,
 	PopoverContent,
@@ -60,7 +61,7 @@ export function NotesPicker({ transaction }: NotesPickerProps) {
 			<PopoverTrigger asChild>
 				<button
 					type="button"
-					className="block text-left"
+					className="block rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-accent"
 					title="Add a note to this transaction"
 				>
 					<NotesCell notes={transaction.notes} />
@@ -96,14 +97,14 @@ export function NotesPicker({ transaction }: NotesPickerProps) {
 					>
 						{draft.length}/{NOTES_MAX_LENGTH}
 					</span>
-					<button
-						type="button"
+					<Button
+						variant="primary"
+						size="sm"
 						onClick={save}
 						disabled={setNotes.isPending}
-						className="rounded-md bg-accent px-3 py-1 font-medium text-bg text-sm disabled:opacity-50"
 					>
 						Save
-					</button>
+					</Button>
 				</div>
 			</PopoverContent>
 		</Popover>

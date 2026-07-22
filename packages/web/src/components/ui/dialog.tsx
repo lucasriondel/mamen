@@ -20,7 +20,11 @@ function DialogOverlay({
 }: React.ComponentProps<typeof DialogPrimitive.Overlay>) {
 	return (
 		<DialogPrimitive.Overlay
-			className={cn("fixed inset-0 z-50 bg-black/50", className)}
+			className={cn(
+				"fixed inset-0 z-50 bg-black/50",
+				"data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0",
+				className,
+			)}
 			{...props}
 		/>
 	);
@@ -38,13 +42,18 @@ export function DialogContent({
 			<DialogPrimitive.Content
 				className={cn(
 					"fixed left-1/2 top-1/2 z-50 grid w-full max-w-md -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg border border-line bg-panel p-6 text-ink shadow-lg outline-none",
+					// A modal isn't anchored to a trigger, so it scales from centre
+					// (emil-design-eng: the transform-origin exception). Enter uses a
+					// gentle scale+fade under the ~300ms budget; exit is quicker.
+					"duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-150",
+					"data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95",
 					className,
 				)}
 				{...props}
 			>
 				{children}
 				<DialogPrimitive.Close
-					className="absolute right-4 top-4 rounded-sm text-muted outline-none transition-colors hover:text-ink"
+					className="absolute right-3 top-3 inline-flex size-9 items-center justify-center rounded-md text-muted outline-none transition-colors hover:bg-bg hover:text-ink focus-visible:ring-2 focus-visible:ring-accent"
 					aria-label="Close"
 				>
 					<X size={18} />
@@ -84,7 +93,7 @@ export function DialogTitle({
 }: React.ComponentProps<typeof DialogPrimitive.Title>) {
 	return (
 		<DialogPrimitive.Title
-			className={cn("text-lg font-semibold text-ink", className)}
+			className={cn("text-lg font-semibold text-balance text-ink", className)}
 			{...props}
 		/>
 	);

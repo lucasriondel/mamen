@@ -6,6 +6,7 @@ import type {
 } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
 import { type FormEvent, useMemo, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { ruleKeys, ruleMutations } from "@/lib/sdk";
 import { RulePreviewLists } from "./rule-preview-lists";
 import { useDebouncedValue } from "./use-debounced-value";
@@ -290,7 +291,7 @@ export function RuleForm({
 						<button
 							key={tok.token}
 							type="button"
-							className="rounded border border-line px-2 py-0.5 font-mono text-xs text-ink transition-colors hover:border-accent"
+							className="rounded border border-line px-2 py-0.5 font-mono text-xs text-ink outline-none transition-[transform,border-color] hover:border-accent focus-visible:ring-2 focus-visible:ring-accent active:scale-[0.97]"
 							aria-label={`Insert ${tok.hint}`}
 							title={tok.hint}
 							onClick={() => insertToken(tok.token)}
@@ -315,36 +316,33 @@ export function RuleForm({
 						preview={previewQuery.data}
 						issuersById={issuersById}
 						renderManualAction={(transaction) => (
-							<button
-								type="button"
-								className="shrink-0 rounded-md border border-line px-2 py-0.5 text-xs text-ink disabled:opacity-50"
+							<Button
+								variant="secondary"
+								size="sm"
+								className="shrink-0"
 								onClick={() => removeManual(transaction)}
 								disabled={removeManualIssuer.isPending}
 							>
 								Remove manual issuer
-							</button>
+							</Button>
 						)}
 					/>
 				) : null}
 			</div>
 
 			<div className="flex justify-end gap-2">
-				<button
-					type="button"
-					className="rounded-md border border-line px-3 py-1.5 text-sm text-ink"
-					onClick={onCancel}
-				>
+				<Button variant="secondary" size="sm" onClick={onCancel}>
 					Cancel
-				</button>
-				<button
+				</Button>
+				<Button
 					type="submit"
-					className="rounded-md bg-accent px-4 py-1.5 text-sm font-medium text-bg disabled:opacity-50"
+					size="sm"
 					disabled={
 						saving || pattern.trim().length === 0 || valueError !== null
 					}
 				>
 					{rule ? "Save rule" : "Create rule"}
-				</button>
+				</Button>
 			</div>
 		</form>
 	);

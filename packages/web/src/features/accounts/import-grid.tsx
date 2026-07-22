@@ -75,7 +75,9 @@ export function ImportGrid({
 		<section className="flex flex-col gap-4">
 			<header className="flex items-center justify-between gap-3">
 				<div>
-					<h2 className="text-lg font-semibold text-ink">Import statements</h2>
+					<h2 className="text-balance text-lg font-semibold text-ink">
+						Import statements
+					</h2>
 					<p className="mt-0.5 text-sm text-muted">
 						Drop a CSV on a month to import it. Committed months show as
 						imported; the current and future months aren't ready yet.

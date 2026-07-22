@@ -1,5 +1,6 @@
 import type { Issuer, Rule } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
 import { ruleQueries } from "@/lib/sdk";
 import { TransactionPreviewList } from "./transaction-preview-list";
 import { useRuleMutations } from "./use-rule-mutations";
@@ -71,21 +72,17 @@ export function RuleDeleteConfirm({
 			</div>
 
 			<div className="flex justify-end gap-2">
-				<button
-					type="button"
-					className="rounded-md border border-line px-3 py-1.5 text-sm text-ink"
-					onClick={onCancel}
-				>
+				<Button variant="secondary" size="sm" onClick={onCancel}>
 					Cancel
-				</button>
-				<button
-					type="button"
-					className="rounded-md border border-high px-4 py-1.5 text-sm font-medium text-high disabled:opacity-50"
+				</Button>
+				<Button
+					variant="danger"
+					size="sm"
 					onClick={handleDelete}
 					disabled={remove.isPending}
 				>
 					Delete rule
-				</button>
+				</Button>
 			</div>
 		</div>
 	);

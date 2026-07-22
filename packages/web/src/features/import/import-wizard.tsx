@@ -141,7 +141,7 @@ export function ImportWizard({
 			className={`mx-auto flex flex-col gap-6 ${wide ? "w-full" : "max-w-3xl"}`}
 		>
 			<header>
-				<h1 className="text-2xl font-semibold text-ink">Import</h1>
+				<h1 className="text-2xl font-semibold text-ink text-balance">Import</h1>
 				<p className="mt-1 text-muted">
 					{state.step === "upload"
 						? "Drop a CSV or PDF statement, pick its account, and preview before committing."

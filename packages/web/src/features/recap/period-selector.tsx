@@ -68,7 +68,7 @@ export function PeriodSelector({
 						aria-pressed={period.kind === kind}
 						onClick={() => selectKind(kind)}
 						className={cn(
-							"rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+							"rounded-md px-3 py-1.5 text-sm font-medium transition-colors transition-transform active:scale-[0.97]",
 							period.kind === kind
 								? "bg-accent/10 text-accent"
 								: "text-muted hover:text-ink",

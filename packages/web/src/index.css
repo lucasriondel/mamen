@@ -14,6 +14,7 @@
  */
 
 @import "tailwindcss";
+@import "tw-animate-css";
 @import "./styles/gousse-tokens.css";
 
 /* Bridge the semantic `--gousse-*` slots onto Tailwind color utilities so
@@ -39,4 +40,7 @@ body {
 	color: var(--gousse-ink);
 	font-family:
 		system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+	/* Crisper glyph rendering on macOS/WebKit (make-interfaces-feel-better #8). */
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
 }

@@ -76,7 +76,9 @@ function PreviewTable({ records }: { records: readonly ParsedTransaction[] }) {
 							className="border-line border-t"
 						>
 							<td className="px-3 py-2 text-ink">
-								{formatShortDate(record.date)}
+								<span className="tabular-nums">
+									{formatShortDate(record.date)}
+								</span>
 							</td>
 							<td className="px-3 py-2 text-ink">{record.rawIssuerString}</td>
 							<td
@@ -91,7 +93,7 @@ function PreviewTable({ records }: { records: readonly ParsedTransaction[] }) {
 				</tbody>
 			</table>
 			{records.length > shown.length ? (
-				<p className="bg-panel px-3 py-2 text-muted text-xs">
+				<p className="bg-panel px-3 py-2 text-muted text-xs tabular-nums">
 					+ {records.length - shown.length} more rows
 				</p>
 			) : null}

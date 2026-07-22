@@ -79,7 +79,7 @@ export function MonthCell({
 			onDragLeave={() => setDragging(false)}
 			onDrop={onDrop}
 			aria-label={`Import ${monthLabel} — ${imported ? "already imported, drop to replace" : "available"}`}
-			className={`flex cursor-pointer flex-col items-center justify-center gap-0.5 rounded-md border px-2 py-3 text-center text-xs transition-colors ${
+			className={`flex cursor-pointer flex-col items-center justify-center gap-0.5 rounded-md border px-2 py-3 text-center text-xs outline-none transition-[transform,background-color,border-color,color] active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-accent ${
 				dragging
 					? "border-accent bg-panel"
 					: imported

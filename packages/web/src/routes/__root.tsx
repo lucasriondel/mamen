@@ -23,7 +23,7 @@ function RootLayout() {
 						<Outlet />
 					</main>
 				</div>
-				<Toaster position="bottom-right" richColors />
+				<Toaster position="bottom-right" richColors closeButton />
 				<ReactQueryDevtools initialIsOpen={false} />
 			</ThemeProvider>
 		</QueryClientProvider>

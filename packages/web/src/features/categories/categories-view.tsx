@@ -3,6 +3,7 @@ import type { Category, CategoryId } from "@mamen/shared/contract";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { type FormEvent, useState } from "react";
+import { Button } from "@/components/ui/button";
 import {
 	Dialog,
 	DialogContent,
@@ -40,12 +41,8 @@ type Editor =
 	| { kind: "move"; node: Category }
 	| { kind: "spill"; node: Category; transactions: number; issuers: number };
 
-const BUTTON_CLASS =
-	"rounded-md border border-line px-2 py-1 text-muted text-xs transition-colors hover:border-accent hover:text-ink disabled:opacity-50";
 const INPUT_CLASS =
 	"rounded-md border border-line bg-bg px-3 py-2 text-ink text-sm outline-none focus:border-accent";
-const PRIMARY_CLASS =
-	"rounded-md bg-accent px-4 py-2 font-medium text-bg text-sm disabled:opacity-50";
 
 /** The per-node curation actions, threaded down the recursive render unchanged. */
 interface NodeActions {
@@ -119,18 +116,19 @@ export function CategoriesView() {
 		<section className="flex flex-col gap-6">
 			<header className="flex items-start justify-between gap-4">
 				<div>
-					<h1 className="font-semibold text-2xl text-ink">Categories</h1>
+					<h1 className="text-balance font-semibold text-2xl text-ink">
+						Categories
+					</h1>
 					<p className="mt-1 text-muted">
 						The shape of your spending, nested to any depth.
 					</p>
 				</div>
-				<button
-					type="button"
-					className={PRIMARY_CLASS}
+				<Button
+					variant="primary"
 					onClick={() => setEditor({ kind: "create", parent: null })}
 				>
 					New category
-				</button>
+				</Button>
 			</header>
 
 			{categoriesQuery.isError ? (
@@ -179,39 +177,39 @@ function NodeControls({
 			{/* Adding a child under a childless leaf is a **Kind flip**: it turns the
 			    leaf into a folder. Refused while the leaf holds money — the view
 			    answers with the Spill dialog (issue #30). */}
-			<button
-				type="button"
-				className={BUTTON_CLASS}
+			<Button
+				variant="secondary"
+				size="sm"
 				onClick={() => actions.onAdd(node)}
 				aria-label={`Add category in ${node.name}`}
 			>
 				Add category
-			</button>
-			<button
-				type="button"
-				className={BUTTON_CLASS}
+			</Button>
+			<Button
+				variant="secondary"
+				size="sm"
 				onClick={() => actions.onRename(node)}
 				aria-label={`Rename ${node.name}`}
 			>
 				Rename
-			</button>
-			<button
-				type="button"
-				className={BUTTON_CLASS}
+			</Button>
+			<Button
+				variant="secondary"
+				size="sm"
 				onClick={() => actions.onMove(node)}
 				aria-label={`Move ${node.name}`}
 			>
 				Move
-			</button>
-			<button
-				type="button"
-				className={BUTTON_CLASS}
+			</Button>
+			<Button
+				variant="secondary"
+				size="sm"
 				onClick={() => actions.onDelete(node.id)}
 				disabled={actions.deleting}
 				aria-label={`Delete ${node.name}`}
 			>
 				Delete
-			</button>
+			</Button>
 		</div>
 	);
 }
@@ -434,13 +432,13 @@ function NameForm({
 				/>
 			</label>
 			<DialogFooter>
-				<button
+				<Button
+					variant="primary"
 					type="submit"
-					className={PRIMARY_CLASS}
 					disabled={pending || trimmed.length === 0}
 				>
 					{submitLabel}
-				</button>
+				</Button>
 			</DialogFooter>
 		</form>
 	);
@@ -508,13 +506,13 @@ function SpillForm({
 				/>
 			</label>
 			<DialogFooter>
-				<button
+				<Button
+					variant="primary"
 					type="submit"
-					className={PRIMARY_CLASS}
 					disabled={pending || trimmed.length === 0}
 				>
 					Spill
-				</button>
+				</Button>
 			</DialogFooter>
 		</form>
 	);
@@ -574,9 +572,9 @@ function MoveForm({
 				</select>
 			</label>
 			<DialogFooter>
-				<button type="submit" className={PRIMARY_CLASS} disabled={pending}>
+				<Button variant="primary" type="submit" disabled={pending}>
 					Move
-				</button>
+				</Button>
 			</DialogFooter>
 		</form>
 	);

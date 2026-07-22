@@ -87,7 +87,9 @@ export function IssuersView() {
 		<section className="flex flex-col gap-6">
 			<header className="flex flex-wrap items-start justify-between gap-4">
 				<div>
-					<h1 className="text-2xl font-semibold text-ink">Issuers</h1>
+					<h1 className="text-balance text-2xl font-semibold text-ink">
+						Issuers
+					</h1>
 					<p className="mt-1 text-muted">
 						The places your money comes from and goes to.
 					</p>

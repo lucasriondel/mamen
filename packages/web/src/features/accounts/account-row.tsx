@@ -1,14 +1,13 @@
 import type { Account } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { transactionQueries } from "@/lib/sdk";
 import { accountTypeLabel } from "./account-type";
 import { useAccountMutations } from "./use-account-mutations";
 
 const INPUT_CLASS =
 	"rounded-md border border-line bg-bg px-3 py-2 text-sm text-ink outline-none focus:border-accent";
-const BUTTON_CLASS =
-	"rounded-md border border-line px-3 py-1.5 text-sm text-ink disabled:opacity-50";
 
 interface AccountRowProps {
 	account: Account;
@@ -68,23 +67,24 @@ export function AccountRow({ account }: AccountRowProps) {
 						// biome-ignore lint/a11y/noAutofocus: focus the field the user just opened
 						autoFocus
 					/>
-					<button
+					<Button
 						type="submit"
+						variant="secondary"
+						size="sm"
 						disabled={rename.isPending}
-						className={BUTTON_CLASS}
 					>
 						Save
-					</button>
-					<button
-						type="button"
-						className={BUTTON_CLASS}
+					</Button>
+					<Button
+						variant="secondary"
+						size="sm"
 						onClick={() => {
 							setDraftName(account.name);
 							setEditing(false);
 						}}
 					>
 						Cancel
-					</button>
+					</Button>
 				</form>
 			) : (
 				<div className="flex items-baseline gap-3">
@@ -103,19 +103,19 @@ export function AccountRow({ account }: AccountRowProps) {
 							{transactionCount === 1 ? "" : "s"} — clear them to delete
 						</span>
 					)}
-					<button
-						type="button"
-						className={BUTTON_CLASS}
+					<Button
+						variant="secondary"
+						size="sm"
 						onClick={() => {
 							setDraftName(account.name);
 							setEditing(true);
 						}}
 					>
 						Rename
-					</button>
-					<button
-						type="button"
-						className={BUTTON_CLASS}
+					</Button>
+					<Button
+						variant="secondary"
+						size="sm"
 						onClick={handleDelete}
 						disabled={hasTransactions || remove.isPending}
 						title={
@@ -125,7 +125,7 @@ export function AccountRow({ account }: AccountRowProps) {
 						}
 					>
 						Delete
-					</button>
+					</Button>
 				</div>
 			)}
 		</li>

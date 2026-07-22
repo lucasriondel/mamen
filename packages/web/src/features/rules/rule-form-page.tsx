@@ -90,7 +90,7 @@ export function RuleFormPage({
 	return (
 		<section className="flex max-w-2xl flex-col gap-6">
 			{backLink}
-			<h1 className="text-2xl font-semibold text-ink">
+			<h1 className="text-balance text-2xl font-semibold text-ink">
 				{isEditing ? "Edit Matching Rule" : "New Matching Rule"}
 			</h1>
 			<RuleForm

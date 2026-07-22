@@ -111,7 +111,9 @@ export function TransactionsView() {
 	return (
 		<section className="flex flex-col gap-6">
 			<header>
-				<h1 className="text-2xl font-semibold text-ink">Transactions</h1>
+				<h1 className="text-balance text-2xl font-semibold text-ink">
+					Transactions
+				</h1>
 			</header>
 
 			<TransactionsFilters

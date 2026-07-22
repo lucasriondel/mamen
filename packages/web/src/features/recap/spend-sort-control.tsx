@@ -41,7 +41,7 @@ export function SpendSortControl({
 						aria-pressed={active}
 						onClick={() => onChange(nextSpendSort(sort, key))}
 						className={cn(
-							"flex items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+							"flex items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors active:scale-[0.97] transition-transform focus-visible:ring-2 focus-visible:ring-accent rounded-md outline-none",
 							active ? "bg-accent/10 text-accent" : "text-muted hover:text-ink",
 						)}
 					>

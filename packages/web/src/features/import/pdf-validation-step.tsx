@@ -4,6 +4,7 @@ import type {
 	ExtractedTransaction,
 } from "@mamen/shared/contract";
 import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/format";
 import { CommitBar } from "./commit-bar";
 import type { ParsedTransaction } from "./parsers/types";
@@ -149,16 +150,16 @@ function ExtractedRows({
 									/>
 								</td>
 								<td className="px-2 py-1 text-right">
-									<button
-										type="button"
+									<Button
+										variant="ghost"
+										size="icon"
 										aria-label={`Delete row ${index + 1}`}
 										onClick={() =>
 											dispatch({ type: "delete-extracted", index })
 										}
-										className="rounded px-2 py-1 text-muted hover:text-high"
 									>
 										✕
-									</button>
+									</Button>
 								</td>
 							</tr>
 						))}
@@ -167,13 +168,13 @@ function ExtractedRows({
 			</div>
 
 			<div className="px-2 pb-2">
-				<button
-					type="button"
+				<Button
+					variant="secondary"
+					size="sm"
 					onClick={() => dispatch({ type: "add-extracted" })}
-					className="rounded-md border border-line px-3 py-1.5 text-sm text-ink"
 				>
 					Add row
-				</button>
+				</Button>
 			</div>
 		</div>
 	);

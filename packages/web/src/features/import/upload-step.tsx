@@ -1,5 +1,6 @@
 import { type AccountId, MAX_PDF_BYTES } from "@mamen/shared/contract";
 import { type DragEvent, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { importMutations } from "@/lib/sdk";
 import { pdfExtractionErrorMessage } from "@/lib/sdk-error";
 import { FormatPicker } from "./format-picker";
@@ -164,14 +165,14 @@ export function UploadStep({
 			) : null}
 
 			<div>
-				<button
-					type="button"
+				<Button
+					variant="primary"
+					size="md"
 					disabled={!canPreview(state)}
 					onClick={() => dispatch({ type: "go-to-preview" })}
-					className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-bg disabled:opacity-50"
 				>
 					Continue to preview
-				</button>
+				</Button>
 			</div>
 		</div>
 	);

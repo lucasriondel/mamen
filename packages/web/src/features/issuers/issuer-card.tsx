@@ -28,7 +28,7 @@ export function IssuerCard({ issuer, count, net }: IssuerCardProps) {
 		<Link
 			to="/issuers/$issuerId"
 			params={{ issuerId: String(issuer.id) }}
-			className="flex flex-col items-start gap-3 rounded-lg border border-line bg-panel p-4 text-left transition-transform hover:border-accent active:scale-[0.98]"
+			className="flex flex-col items-start gap-3 rounded-lg border border-line bg-panel p-4 text-left outline-none transition-[transform,border-color] duration-150 hover:border-accent focus-visible:ring-2 focus-visible:ring-accent active:scale-[0.98]"
 		>
 			<div className="flex w-full items-center gap-3">
 				<IssuerAvatar name={issuer.name} imageUrl={issuer.imageUrl} size="lg" />
@@ -37,7 +37,7 @@ export function IssuerCard({ issuer, count, net }: IssuerCardProps) {
 				</span>
 			</div>
 			<div className="flex w-full items-baseline justify-between">
-				<span className="text-sm text-muted">
+				<span className="text-sm text-muted tabular-nums">
 					{count} transaction{count === 1 ? "" : "s"}
 				</span>
 				<span
