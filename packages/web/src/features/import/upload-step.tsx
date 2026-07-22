@@ -20,6 +20,11 @@ function isPdf(file: File): boolean {
 	);
 }
 
+/** Human-readable extraction duration — sub-second in `ms`, otherwise `s`. */
+function formatExtractionTime(ms: number): string {
+	return ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(1)}s`;
+}
+
 /**
  * Step 1 — file drop, then a fork on file shape. A **CSV** parses in-browser
  * (papaparse), auto-detects its **Parser** by header fingerprint, and continues
@@ -54,12 +59,14 @@ export function UploadStep({
 			return;
 		}
 		dispatch({ type: "extract-start", file });
+		const startedAt = performance.now();
 		try {
 			const result = await importMutations.extractPdf(file);
 			dispatch({
 				type: "extract-success",
 				transactions: result.transactions,
 				declaredTotals: result.declaredTotals,
+				extractionMs: performance.now() - startedAt,
 			});
 		} catch (error) {
 			dispatch({
@@ -149,6 +156,12 @@ export function UploadStep({
 						{state.source === "pdf"
 							? `${state.extracted?.length ?? 0} transactions extracted`
 							: `${state.rows.length} rows`}
+						{state.source === "pdf" && state.extractionMs !== null ? (
+							<span className="text-muted">
+								{" "}
+								in {formatExtractionTime(state.extractionMs)}
+							</span>
+						) : null}
 					</p>
 
 					{state.source === "csv" ? (

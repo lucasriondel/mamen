@@ -44,6 +44,12 @@ export type WizardState = {
 	extracted: readonly ExtractedTransaction[] | null;
 	/** The statement's own declared totals, echoed by extraction (reconcile handle). */
 	declaredTotals: DeclaredTotals | null;
+	/**
+	 * Wall-clock time the PDF extraction took, in milliseconds — measured
+	 * client-side around the `/import/extract-pdf` round-trip. `null` for a CSV and
+	 * until a PDF extraction settles successfully.
+	 */
+	extractionMs: number | null;
 };
 
 export type WizardAction =
@@ -66,6 +72,8 @@ export type WizardAction =
 			type: "extract-success";
 			transactions: readonly ExtractedTransaction[];
 			declaredTotals: DeclaredTotals;
+			/** Wall-clock extraction time in ms, measured around the round-trip. */
+			extractionMs: number;
 	  }
 	/** Extraction failed — surface the error and stay on the upload step. */
 	| { type: "extract-error"; message: string }
@@ -99,6 +107,7 @@ export const initialWizardState: WizardState = {
 	extracting: false,
 	extracted: null,
 	declaredTotals: null,
+	extractionMs: null,
 };
 
 /**
@@ -177,6 +186,7 @@ export function wizardReducer(
 				extracting: false,
 				extracted: null,
 				declaredTotals: null,
+				extractionMs: null,
 			};
 		case "file-error":
 			// A failed drop must not leave a prior file previewable behind the error.
@@ -194,6 +204,7 @@ export function wizardReducer(
 				extracting: false,
 				extracted: null,
 				declaredTotals: null,
+				extractionMs: null,
 			};
 		case "select-parser":
 			return { ...state, parserId: action.parserId };
@@ -212,6 +223,7 @@ export function wizardReducer(
 				extracting: true,
 				extracted: null,
 				declaredTotals: null,
+				extractionMs: null,
 				importBatchId: crypto.randomUUID(),
 				error: null,
 				// A PDF replacing a prior CSV drop clears the parser state.
@@ -226,6 +238,7 @@ export function wizardReducer(
 				extracting: false,
 				extracted: action.transactions,
 				declaredTotals: action.declaredTotals,
+				extractionMs: action.extractionMs,
 				error: null,
 			};
 			// Auto-land on the preview when the account was already chosen; otherwise
@@ -238,6 +251,7 @@ export function wizardReducer(
 				extracting: false,
 				extracted: null,
 				declaredTotals: null,
+				extractionMs: null,
 				error: action.message,
 			};
 		case "edit-extracted": {

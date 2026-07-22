@@ -143,12 +143,35 @@ describe("wizardReducer — PDF extraction path", () => {
 			type: "extract-success",
 			transactions: EXTRACTED,
 			declaredTotals: TOTALS,
+			extractionMs: 0,
 		});
 
 		expect(state.extracting).toBe(false);
 		expect(state.extracted).toBe(EXTRACTED);
 		expect(state.declaredTotals).toEqual(TOTALS);
 		expect(state.step).toBe("upload");
+	});
+
+	it("records the extraction duration on success and clears it on a later error", () => {
+		const extracting = wizardReducer(initialWizardState, {
+			type: "extract-start",
+			file: new File([], "statement.pdf", { type: "application/pdf" }),
+		});
+		expect(extracting.extractionMs).toBeNull();
+
+		const extracted = wizardReducer(extracting, {
+			type: "extract-success",
+			transactions: EXTRACTED,
+			declaredTotals: TOTALS,
+			extractionMs: 8421,
+		});
+		expect(extracted.extractionMs).toBe(8421);
+
+		const failed = wizardReducer(extracted, {
+			type: "extract-error",
+			message: "nope",
+		});
+		expect(failed.extractionMs).toBeNull();
 	});
 
 	it("auto-lands on preview after extraction when the account was already chosen", () => {
@@ -164,6 +187,7 @@ describe("wizardReducer — PDF extraction path", () => {
 			type: "extract-success",
 			transactions: EXTRACTED,
 			declaredTotals: TOTALS,
+			extractionMs: 0,
 		});
 
 		expect(state.step).toBe("preview");
@@ -179,6 +203,7 @@ describe("wizardReducer — PDF extraction path", () => {
 			type: "extract-success",
 			transactions: EXTRACTED,
 			declaredTotals: TOTALS,
+			extractionMs: 0,
 		});
 		expect(state.step).toBe("upload");
 
@@ -210,6 +235,7 @@ describe("wizardReducer — PDF extraction path", () => {
 				type: "extract-success",
 				transactions: EXTRACTED,
 				declaredTotals: TOTALS,
+				extractionMs: 0,
 			},
 		);
 
@@ -237,6 +263,7 @@ describe("wizardReducer — PDF extraction path", () => {
 				type: "extract-success",
 				transactions: EXTRACTED,
 				declaredTotals: TOTALS,
+				extractionMs: 0,
 			},
 		);
 
@@ -259,6 +286,7 @@ describe("wizardReducer — PDF extraction path", () => {
 				type: "extract-success",
 				transactions: EXTRACTED,
 				declaredTotals: TOTALS,
+				extractionMs: 0,
 			},
 		);
 
@@ -298,6 +326,7 @@ describe("wizardReducer — PDF extraction path", () => {
 			type: "extract-success",
 			transactions: EXTRACTED,
 			declaredTotals: TOTALS,
+			extractionMs: 0,
 		});
 
 		const state = wizardReducer(extracted, {
