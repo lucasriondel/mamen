@@ -9,12 +9,19 @@ provided; both start with a mandatory plan phase and end with a merge phase.
 2. **Execute** — each issue gets its own sandbox/branch. An implementer runs (up to
    100 iterations) and invokes the `/implement` skill. In the `implement-review` flow,
    a reviewer then runs the `/code-review` skill on the branch. All issue pipelines run
-   concurrently.
+   concurrently. If the implementer produces **no new commits**, the entrypoint closes
+   the issue itself (citing the commits already on the branch or merged to base) so the
+   planner stops re-picking a done-but-still-open issue every iteration.
 3. **Merge** — one agent merges every completed branch into the current branch,
    resolving conflicts and closing the issues.
 
 The outer loop repeats (up to `MAX_ITERATIONS`) so newly-unblocked issues get picked
 up after each round of merges.
+
+> Why close on zero commits: if the merge phase crashes after merging but before
+> `gh issue close` (e.g. a stream-idle timeout when the Mac sleeps), the issue stays
+> open, the planner re-selects it, the implementer finds nothing to do, and the loop
+> spins forever. Closing on zero commits breaks that cycle.
 
 ## Layout
 
@@ -40,6 +47,8 @@ Shared at the root:
 | --------------------- | ------------------------------------------------------------ |
 | `CODING_STANDARDS.md` | Loaded by the reviewer; customize per project.               |
 | `Dockerfile`          | Sandbox image (Bun 1.3 + git + gh + Claude Code CLI).        |
+| `close-issue.ts`      | Shared close-on-zero-commits logic (`closeCompletedIssue`); imported by both entrypoints. |
+| `notify.ts`           | Fires a macOS notification when a flow ends (success or crash); imported by each entrypoint. |
 | `setup.sh`            | Installs deps, builds the image, creates the label + scripts.|
 
 ## Setup
@@ -61,7 +70,9 @@ bun run sandcastle:implement          # plan → implement → merge
 bun run sandcastle:implement-review   # plan → implement → code-review → merge
 ```
 
-Both scripts are registered by `setup.sh`.
+Both scripts are registered by `setup.sh`. Each entrypoint imports `notify.ts` and
+fires a macOS notification (via `osascript`) when the flow ends — on clean completion
+*and* on a mid-loop crash. On non-macOS hosts it is a no-op.
 
 ## Customize per project
 
