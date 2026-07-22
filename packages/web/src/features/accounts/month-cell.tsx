@@ -84,11 +84,13 @@ export function MonthCell({
 					? "border-accent bg-panel"
 					: imported
 						? "border-accent/40 bg-panel text-ink"
-						: "border-line border-dashed text-muted hover:border-accent hover:text-ink"
+						: "border-medium/40 border-dashed text-medium hover:border-medium hover:bg-medium/5"
 			}`}
 		>
 			<span className="font-medium">{monthLabel}</span>
-			<span className="text-[10px] text-low">
+			<span
+				className={`text-[10px] ${imported ? "text-low" : "text-medium"}`}
+			>
 				{imported ? "Imported" : "Drop CSV"}
 			</span>
 		</button>
