@@ -212,3 +212,60 @@ repeated per package.
   failure taxonomy collapses to a single client-visible **`ExtractionFailed`**
   (real tag logged server-side); `InvalidFileType` is the one other, client-
   fixable, error. See [ADR 0005](./docs/adr/0005-pdf-extraction-runs-server-side.md).
+
+- **Inherited colour** — a Category whose `color` is **null**, meaning *I never
+  chose one*: the colour it paints is its nearest ancestor's, found by walking
+  `parentId` up to the first non-null value (a neutral constant if the walk
+  reaches a null root). Null is a *reference*, not a missing value — recolouring
+  a **Category folder** recolours every descendant that never opted out, in one
+  write. A Category that stores its own colour stops inheriting. Every leaf in the
+  **seeded categories** is null after the migration, since each merely held a copy
+  of its folder's colour. See
+  [ADR 0006](./docs/adr/0006-category-colour-is-inherited-icons-are-lucide-names.md).
+  _Avoid_: no colour, default colour (the colour is neither absent nor a default —
+  it is the ancestor's).
+
+- **Resolved colour** — the colour actually painted for a Category: its own
+  `color`, or the result of the **inherited colour** walk. Every read site must
+  resolve rather than read the field, which is why resolution takes the whole tree
+  and not one row.
+
+- **Icon name** — a Category's `icon`, holding a **Lucide** icon id in kebab-case
+  (`shopping-cart`), not an emoji and not the PascalCase React export. The id is
+  Lucide's own canonical key, so it survives export renames and matches what the
+  picker searches. An unresolvable name renders a fallback glyph rather than
+  nothing. Icons are assigned **only to categories** — never directly to an
+  Issuer, which gets its icon through its **issuer default category**. See
+  [ADR 0006](./docs/adr/0006-category-colour-is-inherited-icons-are-lucide-names.md).
+  _Avoid_: emoji, icon key, icon component.
+
+- **Avatar fallback chain** — what an issuer avatar paints, in priority order: its
+  `imageUrl`; else the **icon name** of its **issuer default category** on that
+  category's **resolved colour**; else a neutral grey `?`. The grey state is
+  purely presentational — it is *not* the seeded *Uncategorised* Category, and an
+  issuer with no category renders it without any lookup. See
+  [ADR 0007](./docs/adr/0007-issuer-images-are-normalised-search-is-server-side.md).
+  _Avoid_: uncategorised avatar (that name implies the real Category), initial
+  fallback (the letter is gone).
+
+- **Normalised issuer image** — the single stored form of every issuer image,
+  whichever path it arrived by: **128×128 WebP, cover-cropped**, original
+  discarded. Sized for a 48px avatar at 2×; cover-cropped because the avatar is a
+  circle. Both the manual upload and the **Logo search** run the same pipeline, so
+  there is exactly one class of image on disk. The 2 MiB upload cap survives as a
+  *pre-resize* guard bounding what sharp is asked to decode. See
+  [ADR 0007](./docs/adr/0007-issuer-images-are-normalised-search-is-server-side.md).
+
+- **Logo search** — picking an issuer image from Google Programmable Search
+  results instead of uploading a file. The query runs **server-side** (the API key
+  is a server secret) and is pre-filled with `<issuer name> logo`; it fires only on
+  **explicit submit**, never per keystroke and not on a debounce, because the free
+  tier is 100 queries/day and a debounce bounds rate but not total spend. Quota
+  exhaustion is reported as itself, since retrying cannot help. The download step
+  is an **SSRF sink** — it fetches a URL from inside the API's network — and is
+  guarded by HTTPS-only, private/loopback/link-local IP rejection at every redirect
+  hop, a byte cap and a timeout. Auth and rate-limiting are **deferred** and must
+  land before public deployment. See
+  [ADR 0007](./docs/adr/0007-issuer-images-are-normalised-search-is-server-side.md).
+  _Avoid_: image search (the intent is a logo), Google Images (no such API — it is
+  Programmable Search with `searchType=image`).
