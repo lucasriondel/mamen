@@ -1,5 +1,5 @@
 import type { VisibilityState } from "@tanstack/react-table";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 /** Where the transactions table's column visibility preference is persisted. */
 const STORAGE_KEY = "mamen:transactions:column-visibility";
@@ -79,15 +79,21 @@ export interface UseColumnVisibilityResult {
 export function useColumnVisibility(): UseColumnVisibilityResult {
 	const [columnVisibility, setState] = useState<VisibilityState>(readStored);
 
+	// Persist as an effect rather than from inside the `setState` updater. React
+	// treats updaters as pure and may run one twice (StrictMode) or on a render it
+	// then discards — writing storage there can persist a preference the committed
+	// UI never adopted, leaving the table and the next page load disagreeing.
+	useEffect(() => {
+		writeStored(columnVisibility);
+	}, [columnVisibility]);
+
 	const setColumnVisibility = useCallback(
 		(
 			updater: VisibilityState | ((old: VisibilityState) => VisibilityState),
 		) => {
-			setState((old) => {
-				const next = typeof updater === "function" ? updater(old) : updater;
-				writeStored(next);
-				return next;
-			});
+			setState((old) =>
+				typeof updater === "function" ? updater(old) : updater,
+			);
 		},
 		[],
 	);
