@@ -1,13 +1,12 @@
 import type { Transaction } from "@mamen/shared/contract";
 
-/**
- * The date window, in days, either side of a leg's date within which a
- * counterpart is considered "around the same time" (PRD #48, story 3). Kept
- * small so a suggestion reads as an obvious match rather than a coincidence; the
- * server re-validates the confirmed pairing, so a generous window would only
- * dilute the suggestions, never corrupt state.
- */
-export const TRANSFER_DATE_WINDOW_DAYS = 5;
+// Re-export the single source of truth (the contract owns the constant, so the
+// server's suggestion self-join and this client util can never drift). Kept as a
+// named export here so existing importers of `./transfer-suggestions` are
+// unaffected.
+export { TRANSFER_DATE_WINDOW_DAYS } from "@mamen/shared/contract";
+
+import { TRANSFER_DATE_WINDOW_DAYS } from "@mamen/shared/contract";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 

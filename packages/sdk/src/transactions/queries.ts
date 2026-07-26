@@ -66,6 +66,10 @@ export const transactionKeys = {
 		[...transactionKeys.counts(), params] as const,
 	details: () => [...transactionKeys.all, "detail"] as const,
 	detail: (id: TransactionId) => [...transactionKeys.details(), id] as const,
+	transferSuggestions: (id: TransactionId) =>
+		[...transactionKeys.detail(id), "transfer-suggestions"] as const,
+	transferCandidates: () =>
+		[...transactionKeys.all, "transfer-candidates"] as const,
 	bulkGet: (ids: ReadonlyArray<TransactionId>) =>
 		[...transactionKeys.all, "bulk-get", ids] as const,
 };
@@ -112,6 +116,44 @@ export const transactionQueries = {
 				runQuery(
 					Effect.flatMap(Client, (client) =>
 						client.transactions.getById({ path: { id } }),
+					),
+					signal,
+				),
+		}),
+
+	/**
+	 * The internal-transfer counterpart suggestions for one row (PRD #48),
+	 * computed server-side over the whole dataset. Returns the candidate legs
+	 * (opposite sign, equal magnitude to the cent, a different account, within
+	 * `TRANSFER_DATE_WINDOW_DAYS`), nearest-date first — an empty array for an
+	 * ineligible row (already grouped, a refund). Linking a suggestion mutates
+	 * every affected row's group, so invalidate `transactionKeys.all` after.
+	 */
+	transferSuggestions: (id: TransactionId) =>
+		queryOptions({
+			queryKey: transactionKeys.transferSuggestions(id),
+			queryFn: ({ signal }) =>
+				runQuery(
+					Effect.flatMap(Client, (client) =>
+						client.transactions.transferSuggestions({ path: { id } }),
+					),
+					signal,
+				),
+		}),
+
+	/**
+	 * Every detected internal-transfer pair across the whole dataset (PRD #48) —
+	 * the Transfers page's data source. Each pair comes back once, oriented
+	 * `from` = debit / `to` = credit, closest-date first, with a `daysApart`.
+	 * Linking a pair regroups its legs, so invalidate `transactionKeys.all` after.
+	 */
+	transferCandidates: () =>
+		queryOptions({
+			queryKey: transactionKeys.transferCandidates(),
+			queryFn: ({ signal }) =>
+				runQuery(
+					Effect.flatMap(Client, (client) =>
+						client.transactions.transferCandidates(),
 					),
 					signal,
 				),

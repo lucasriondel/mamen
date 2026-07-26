@@ -79,6 +79,67 @@ describe("transactions endpoints", () => {
 	);
 
 	it.effect(
+		"transferSuggestions returns the counterpart leg over the wire",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const target = yield* client.transactions.create({
+					payload: make({ amount: -30 }),
+				});
+				const match = yield* client.transactions.create({
+					payload: make({ amount: 30, accountId: asAccount(2) }),
+				});
+				// A non-counterpart (same sign) that must not be suggested.
+				yield* client.transactions.create({
+					payload: make({ amount: -30, accountId: asAccount(3) }),
+				});
+
+				const out = yield* client.transactions.transferSuggestions({
+					path: { id: target.id },
+				});
+				assert.deepStrictEqual(
+					out.map((t) => t.id),
+					[match.id],
+				);
+			}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("transferCandidates returns detected pairs over the wire", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const debit = yield* client.transactions.create({
+				payload: make({ amount: -30, accountId: asAccount(1) }),
+			});
+			const credit = yield* client.transactions.create({
+				payload: make({ amount: 30, accountId: asAccount(2) }),
+			});
+			// Noise: a same-account row that must not pair.
+			yield* client.transactions.create({
+				payload: make({ amount: 30, accountId: asAccount(1) }),
+			});
+
+			const out = yield* client.transactions.transferCandidates();
+			assert.strictEqual(out.length, 1);
+			assert.strictEqual(out[0].from.id, debit.id);
+			assert.strictEqual(out[0].to.id, credit.id);
+			assert.strictEqual(out[0].daysApart, 0);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("transferSuggestions 404s an unknown id", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const error = yield* client.transactions
+				.transferSuggestions({ path: { id: asTx(9999) } })
+				.pipe(Effect.flip);
+			assert.deepStrictEqual(
+				error,
+				new NotFound({ resource: "transaction", id: 9999 }),
+			);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect(
 		"anomalyFlags round-trip over the wire through the SDK client",
 		() =>
 			Effect.gen(function* () {

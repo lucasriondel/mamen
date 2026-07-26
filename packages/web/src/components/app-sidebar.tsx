@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import {
 	ArrowLeftRight,
+	ArrowRightLeft,
 	Building2,
 	FolderTree,
 	type LucideIcon,
@@ -25,6 +26,7 @@ interface NavLink {
 /** The primary navigation surfaces, in sidebar order. */
 const NAV_LINKS: readonly NavLink[] = [
 	{ to: "/transactions", label: "Transactions", icon: ArrowLeftRight },
+	{ to: "/transfers", label: "Transfers", icon: ArrowRightLeft },
 	{ to: "/recap", label: "Recap", icon: PieChart },
 	{ to: "/import", label: "Import", icon: Upload },
 	{ to: "/accounts", label: "Accounts", icon: Wallet },

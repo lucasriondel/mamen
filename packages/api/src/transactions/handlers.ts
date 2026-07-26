@@ -27,6 +27,8 @@ export const TransactionsLive = HttpApiBuilder.group(
 				.handle("list", (_) => repo.list(_.urlParams))
 				.handle("count", (_) => repo.count(_.urlParams))
 				.handle("getById", (_) => repo.getById(_.path.id))
+				.handle("transferCandidates", () => repo.transferCandidates())
+				.handle("transferSuggestions", (_) => repo.suggestTransfers(_.path.id))
 				.handle("create", (_) => repo.create(_.payload))
 				.handle("bulkCreate", (_) =>
 					repo

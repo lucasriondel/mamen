@@ -6,10 +6,12 @@ import {
 	CategoryNotLeaf,
 	NotFound,
 	Paged,
+	TRANSFER_DATE_WINDOW_DAYS,
 	Transaction,
 	type TransactionCreate,
 	TransactionId,
 	type TransactionUpdate,
+	TransferCandidate,
 	TransferInvalid,
 } from "@mamen/shared/contract";
 import { Effect, Option, Schema } from "effect";
@@ -125,6 +127,102 @@ export const TransactionFromRow = Schema.transform(
 );
 
 const PagedTransaction = Paged(Transaction);
+
+/** Decoder for a single stored row into the wire `Transaction`, reused per leg. */
+const decodeTransactionRow = Schema.decodeSync(TransactionFromRow);
+
+/**
+ * The flat row shape returned by the transfer-candidates self-join: every column
+ * of the debit leg aliased `f_*`, every column of the credit leg aliased `t_*`,
+ * plus the integer `daysApart`. A pragmatic mirror of {@link TransactionRow}
+ * twice over — the transform below splits it back into two nested `Transaction`s.
+ */
+const TransferCandidateRow = Schema.Struct({
+	f_id: Schema.Number,
+	f_accountId: Schema.Number,
+	f_date: Schema.String,
+	f_amount: Schema.Number,
+	f_rawIssuerString: Schema.String,
+	f_issuerId: Schema.NullOr(Schema.Number),
+	f_categoryId: Schema.NullOr(Schema.Number),
+	f_manualCategory: Schema.Number,
+	f_manualIssuer: Schema.Number,
+	f_isRefund: Schema.Number,
+	f_linkedRefundId: Schema.NullOr(Schema.Number),
+	f_transferGroupId: Schema.NullOr(Schema.Number),
+	f_anomalyFlags: Schema.NullOr(Schema.String),
+	f_isDuplicateExcluded: Schema.Number,
+	f_duplicateNote: Schema.NullOr(Schema.String),
+	f_notes: Schema.NullOr(Schema.String),
+	f_importedAt: Schema.String,
+	f_importMonth: Schema.String,
+	f_importBatchId: Schema.NullOr(Schema.String),
+	t_id: Schema.Number,
+	t_accountId: Schema.Number,
+	t_date: Schema.String,
+	t_amount: Schema.Number,
+	t_rawIssuerString: Schema.String,
+	t_issuerId: Schema.NullOr(Schema.Number),
+	t_categoryId: Schema.NullOr(Schema.Number),
+	t_manualCategory: Schema.Number,
+	t_manualIssuer: Schema.Number,
+	t_isRefund: Schema.Number,
+	t_linkedRefundId: Schema.NullOr(Schema.Number),
+	t_transferGroupId: Schema.NullOr(Schema.Number),
+	t_anomalyFlags: Schema.NullOr(Schema.String),
+	t_isDuplicateExcluded: Schema.Number,
+	t_duplicateNote: Schema.NullOr(Schema.String),
+	t_notes: Schema.NullOr(Schema.String),
+	t_importedAt: Schema.String,
+	t_importMonth: Schema.String,
+	t_importBatchId: Schema.NullOr(Schema.String),
+	daysApart: Schema.Number,
+});
+
+/**
+ * Fold one aliased half of a candidate join row (the `f_*` or `t_*` columns)
+ * into the wire {@link Transaction}, reusing {@link TransactionFromRow}'s
+ * null→absent / 0-1→boolean / JSON folds. `pick` strips the prefix; the result
+ * is a fully-decoded `Transaction` for one leg of the pair.
+ */
+const legFromRow = (
+	row: typeof TransferCandidateRow.Type,
+	prefix: "f" | "t",
+): Transaction => {
+	const pick = (col: string) =>
+		row[`${prefix}_${col}` as keyof typeof row] as never;
+	return decodeTransactionRow({
+		id: pick("id"),
+		accountId: pick("accountId"),
+		date: pick("date"),
+		amount: pick("amount"),
+		rawIssuerString: pick("rawIssuerString"),
+		issuerId: pick("issuerId"),
+		categoryId: pick("categoryId"),
+		manualCategory: pick("manualCategory"),
+		manualIssuer: pick("manualIssuer"),
+		isRefund: pick("isRefund"),
+		linkedRefundId: pick("linkedRefundId"),
+		transferGroupId: pick("transferGroupId"),
+		anomalyFlags: pick("anomalyFlags"),
+		isDuplicateExcluded: pick("isDuplicateExcluded"),
+		duplicateNote: pick("duplicateNote"),
+		notes: pick("notes"),
+		importedAt: pick("importedAt"),
+		importMonth: pick("importMonth"),
+		importBatchId: pick("importBatchId"),
+	});
+};
+
+/** Assemble a wire {@link TransferCandidate} from one aliased join row. */
+const candidateFromRow = (
+	row: typeof TransferCandidateRow.Type,
+): TransferCandidate =>
+	new TransferCandidate({
+		from: legFromRow(row, "f"),
+		to: legFromRow(row, "t"),
+		daysApart: row.daysApart,
+	});
 
 /**
  * A `count` result: the filtered row `count` and the signed net `total` (the
@@ -390,6 +488,85 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 					sql`INSERT OR REPLACE INTO transactions ${sql.insert(row)} RETURNING id`,
 			});
 
+			// Internal-transfer counterpart suggestions (PRD #48), computed in SQL so
+			// they see the WHOLE dataset — not just a loaded page, the limit of the
+			// client-side scan. A self-join against the target row `t`: a candidate
+			// `c` is a counterpart when it is a **different row in a different
+			// account**, its amount is the **exact negation** of the target's to the
+			// cent (`ROUND(amount*100)` — floats are never compared directly, the same
+			// discipline the value-matcher and `link-transfer` use; equality against
+			// the negated value bakes in "opposite sign, equal magnitude" in one
+			// predicate), it is **eligible** (not already grouped, not a refund and not
+			// refund-paired), and its `date` is within `TRANSFER_DATE_WINDOW_DAYS` of
+			// the target's (`julianday` parses the ISO TEXT `date`; `ABS(Δ) <= N`
+			// windows both directions). The projection mirrors `readColumns` but reads
+			// the CANDIDATE's columns and its OWN issuer's derived category (LEFT JOIN
+			// `issuers ci`). Ordered nearest-date first, then id, so the closest match
+			// leads. The target's own eligibility is checked in the method, not here —
+			// an ineligible target simply never runs this query.
+			const suggestTransfersQuery = SqlSchema.findAll({
+				Request: TransactionId,
+				Result: TransactionFromRow,
+				execute: (id) =>
+					sql`SELECT c.id, c.accountId, c.date, c.amount, c.rawIssuerString, c.issuerId, CASE WHEN c.manualCategory = 1 THEN c.categoryId ELSE ci.defaultCategoryId END AS categoryId, c.manualCategory, c.manualIssuer, c.isRefund, c.linkedRefundId, c.transferGroupId, c.anomalyFlags, c.isDuplicateExcluded, c.duplicateNote, c.notes, c.importedAt, c.importMonth, c.importBatchId
+						FROM transactions t
+						JOIN transactions c
+							ON c.id <> t.id
+							AND c.accountId <> t.accountId
+							AND ROUND(c.amount * 100) = -ROUND(t.amount * 100)
+							AND c.transferGroupId IS NULL
+							AND c.isRefund = 0
+							AND c.linkedRefundId IS NULL
+							AND ABS(julianday(c.date) - julianday(t.date)) <= ${TRANSFER_DATE_WINDOW_DAYS}
+						LEFT JOIN issuers ci ON c.issuerId = ci.id
+						WHERE t.id = ${id}
+						ORDER BY ABS(julianday(c.date) - julianday(t.date)), c.id`,
+			});
+
+			// Every DETECTED (not-yet-confirmed) internal-transfer pair across the
+			// WHOLE dataset (PRD #48) — the Transfers page's data source, computed in
+			// one SQL self-join rather than N per-row calls. The debit leg `f`
+			// (amount < 0) is joined to its credit leg `c` (amount > 0) of the exact
+			// negated magnitude to the cent, a **different account**, both **eligible**
+			// (ungrouped, non-refund), and dated within `TRANSFER_DATE_WINDOW_DAYS`.
+			// Orienting by sign — `f` is always the debit, `c` always the credit — is
+			// what makes each real pair surface **exactly once** (the mirror row, with
+			// the credit as `f`, fails `f.amount < 0`), so no client-side dedup is
+			// needed. `daysApart` is the whole-day gap (`CAST(... AS INTEGER)` truncates
+			// the julian delta). Each leg reads its OWN issuer's derived category (two
+			// LEFT JOINs, `fi`/`ci`). Ordered closest-date first, then by the leg ids
+			// for a stable page. The projection aliases every column `f_*` / `t_*` so
+			// the flat row decodes into the two nested `Transaction`s below.
+			const candidateColumns = (
+				a: "f" | "c",
+				issuerAlias: "fi" | "ci",
+				prefix: "f" | "t",
+			) =>
+				sql`${sql.literal(a)}.id AS ${sql.literal(prefix)}_id, ${sql.literal(a)}.accountId AS ${sql.literal(prefix)}_accountId, ${sql.literal(a)}.date AS ${sql.literal(prefix)}_date, ${sql.literal(a)}.amount AS ${sql.literal(prefix)}_amount, ${sql.literal(a)}.rawIssuerString AS ${sql.literal(prefix)}_rawIssuerString, ${sql.literal(a)}.issuerId AS ${sql.literal(prefix)}_issuerId, CASE WHEN ${sql.literal(a)}.manualCategory = 1 THEN ${sql.literal(a)}.categoryId ELSE ${sql.literal(issuerAlias)}.defaultCategoryId END AS ${sql.literal(prefix)}_categoryId, ${sql.literal(a)}.manualCategory AS ${sql.literal(prefix)}_manualCategory, ${sql.literal(a)}.manualIssuer AS ${sql.literal(prefix)}_manualIssuer, ${sql.literal(a)}.isRefund AS ${sql.literal(prefix)}_isRefund, ${sql.literal(a)}.linkedRefundId AS ${sql.literal(prefix)}_linkedRefundId, ${sql.literal(a)}.transferGroupId AS ${sql.literal(prefix)}_transferGroupId, ${sql.literal(a)}.anomalyFlags AS ${sql.literal(prefix)}_anomalyFlags, ${sql.literal(a)}.isDuplicateExcluded AS ${sql.literal(prefix)}_isDuplicateExcluded, ${sql.literal(a)}.duplicateNote AS ${sql.literal(prefix)}_duplicateNote, ${sql.literal(a)}.notes AS ${sql.literal(prefix)}_notes, ${sql.literal(a)}.importedAt AS ${sql.literal(prefix)}_importedAt, ${sql.literal(a)}.importMonth AS ${sql.literal(prefix)}_importMonth, ${sql.literal(a)}.importBatchId AS ${sql.literal(prefix)}_importBatchId`;
+
+			const transferCandidatesQuery = SqlSchema.findAll({
+				Request: Schema.Void,
+				Result: TransferCandidateRow,
+				execute: () =>
+					sql`SELECT ${candidateColumns("f", "fi", "f")}, ${candidateColumns("c", "ci", "t")}, CAST(ABS(julianday(c.date) - julianday(f.date)) AS INTEGER) AS daysApart
+						FROM transactions f
+						JOIN transactions c
+							ON f.amount < 0
+							AND c.amount > 0
+							AND ROUND(c.amount * 100) = -ROUND(f.amount * 100)
+							AND c.accountId <> f.accountId
+							AND f.transferGroupId IS NULL
+							AND f.isRefund = 0
+							AND f.linkedRefundId IS NULL
+							AND c.transferGroupId IS NULL
+							AND c.isRefund = 0
+							AND c.linkedRefundId IS NULL
+							AND ABS(julianday(c.date) - julianday(f.date)) <= ${TRANSFER_DATE_WINDOW_DAYS}
+						LEFT JOIN issuers fi ON f.issuerId = fi.id
+						LEFT JOIN issuers ci ON c.issuerId = ci.id
+						ORDER BY ABS(julianday(c.date) - julianday(f.date)), f.id, c.id`,
+			});
+
 			// Reads a set of ids in one statement (partial existence allowed — the
 			// result holds only the ids that exist, order is arbitrary).
 			const bulkGetQuery = SqlSchema.findAll({
@@ -584,6 +761,46 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				byIdQuery(id).pipe(
 					orDieSql,
 					Effect.flatMap((found) => requireOne(found, id)),
+				);
+
+			/**
+			 * Suggest the counterpart legs of an internal transfer for one row
+			 * (PRD #48). 404s an unknown id (via `getStoredById`). An **ineligible**
+			 * target — already grouped, a refund, refund-paired, or zero-amount —
+			 * yields an empty array without touching the suggestion query: there is
+			 * nothing to net against, and the client shows the group's legs (or
+			 * nothing) instead. The eligibility gate mirrors the web util's
+			 * `isTransferEligible` + the `amount !== 0` guard, and the SQL enforces the
+			 * *candidate* side of the same rule — so the pairing the user confirms will
+			 * pass `link-transfer`'s re-validation.
+			 */
+			const suggestTransfers = (
+				id: typeof TransactionId.Type,
+			): Effect.Effect<ReadonlyArray<Transaction>, NotFound> =>
+				getStoredById(id).pipe(
+					Effect.flatMap((target) =>
+						target.transferGroupId !== undefined ||
+						target.isRefund === true ||
+						target.linkedRefundId !== undefined ||
+						target.amount === 0
+							? Effect.succeed([] as ReadonlyArray<Transaction>)
+							: suggestTransfersQuery(id).pipe(orDieSql),
+					),
+				);
+
+			/**
+			 * Every detected internal-transfer pair across the whole dataset (PRD
+			 * #48) — the Transfers page's data source. Runs the one self-join and maps
+			 * each flat row into a {@link TransferCandidate} (two nested `Transaction`s
+			 * + the whole-day gap). Read-only and side-effect-free: a pair is a
+			 * *suggestion*, confirmed only when the user links it.
+			 */
+			const transferCandidates = (): Effect.Effect<
+				ReadonlyArray<TransferCandidate>
+			> =>
+				transferCandidatesQuery().pipe(
+					Effect.map((rows) => rows.map(candidateFromRow)),
+					orDieSql,
 				);
 
 			// The raw stored row (no derivation) — merge base + existence check for the
@@ -789,6 +1006,8 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				list,
 				count,
 				getById,
+				suggestTransfers,
+				transferCandidates,
 				create,
 				update,
 				remove,

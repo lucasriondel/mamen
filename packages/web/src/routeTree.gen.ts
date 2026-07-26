@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TransfersRouteImport } from './routes/transfers'
 import { Route as TransactionsRouteImport } from './routes/transactions'
 import { Route as RecapRouteImport } from './routes/recap'
 import { Route as ImportRouteImport } from './routes/import'
@@ -25,6 +26,11 @@ import { Route as IssuersIssuerIdIndexRouteImport } from './routes/issuers.$issu
 import { Route as IssuersIssuerIdRulesNewRouteImport } from './routes/issuers.$issuerId.rules.new'
 import { Route as IssuersIssuerIdRulesRuleIdRouteImport } from './routes/issuers.$issuerId.rules.$ruleId'
 
+const TransfersRoute = TransfersRouteImport.update({
+  id: '/transfers',
+  path: '/transfers',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TransactionsRoute = TransactionsRouteImport.update({
   id: '/transactions',
   path: '/transactions',
@@ -110,6 +116,7 @@ export interface FileRoutesByFullPath {
   '/import': typeof ImportRoute
   '/recap': typeof RecapRoute
   '/transactions': typeof TransactionsRoute
+  '/transfers': typeof TransfersRoute
   '/categories/$categoryId': typeof CategoriesCategoryIdRoute
   '/issuers/$issuerId': typeof IssuersIssuerIdRouteWithChildren
   '/issuers/new': typeof IssuersNewRoute
@@ -126,6 +133,7 @@ export interface FileRoutesByTo {
   '/import': typeof ImportRoute
   '/recap': typeof RecapRoute
   '/transactions': typeof TransactionsRoute
+  '/transfers': typeof TransfersRoute
   '/categories/$categoryId': typeof CategoriesCategoryIdRoute
   '/issuers/new': typeof IssuersNewRoute
   '/transactions/$transactionId': typeof TransactionsTransactionIdRoute
@@ -143,6 +151,7 @@ export interface FileRoutesById {
   '/import': typeof ImportRoute
   '/recap': typeof RecapRoute
   '/transactions': typeof TransactionsRoute
+  '/transfers': typeof TransfersRoute
   '/categories/$categoryId': typeof CategoriesCategoryIdRoute
   '/issuers/$issuerId': typeof IssuersIssuerIdRouteWithChildren
   '/issuers/new': typeof IssuersNewRoute
@@ -162,6 +171,7 @@ export interface FileRouteTypes {
     | '/import'
     | '/recap'
     | '/transactions'
+    | '/transfers'
     | '/categories/$categoryId'
     | '/issuers/$issuerId'
     | '/issuers/new'
@@ -178,6 +188,7 @@ export interface FileRouteTypes {
     | '/import'
     | '/recap'
     | '/transactions'
+    | '/transfers'
     | '/categories/$categoryId'
     | '/issuers/new'
     | '/transactions/$transactionId'
@@ -194,6 +205,7 @@ export interface FileRouteTypes {
     | '/import'
     | '/recap'
     | '/transactions'
+    | '/transfers'
     | '/categories/$categoryId'
     | '/issuers/$issuerId'
     | '/issuers/new'
@@ -212,6 +224,7 @@ export interface RootRouteChildren {
   ImportRoute: typeof ImportRoute
   RecapRoute: typeof RecapRoute
   TransactionsRoute: typeof TransactionsRoute
+  TransfersRoute: typeof TransfersRoute
   IssuersIssuerIdRoute: typeof IssuersIssuerIdRouteWithChildren
   IssuersNewRoute: typeof IssuersNewRoute
   TransactionsTransactionIdRoute: typeof TransactionsTransactionIdRoute
@@ -220,6 +233,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/transfers': {
+      id: '/transfers'
+      path: '/transfers'
+      fullPath: '/transfers'
+      preLoaderRoute: typeof TransfersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/transactions': {
       id: '/transactions'
       path: '/transactions'
@@ -365,6 +385,7 @@ const rootRouteChildren: RootRouteChildren = {
   ImportRoute: ImportRoute,
   RecapRoute: RecapRoute,
   TransactionsRoute: TransactionsRoute,
+  TransfersRoute: TransfersRoute,
   IssuersIssuerIdRoute: IssuersIssuerIdRouteWithChildren,
   IssuersNewRoute: IssuersNewRoute,
   TransactionsTransactionIdRoute: TransactionsTransactionIdRoute,

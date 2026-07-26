@@ -29,6 +29,18 @@ import { Paged, Pagination } from "./pagination";
  */
 export const NOTES_MAX_LENGTH = 1000;
 
+/**
+ * The date window, in days, either side of a leg's date within which a
+ * counterpart is considered "around the same time" for internal-transfer
+ * suggestion (PRD #48). The **single source of truth** — the server's
+ * `transfer-suggestions` self-join and the web suggestion util both read this
+ * one constant, so their notions of "the surrounding days" can never drift.
+ * Kept small so a suggestion reads as an obvious match rather than a
+ * coincidence; the confirmed pairing is re-validated at `link-transfer`, so a
+ * generous window would only dilute suggestions, never corrupt state.
+ */
+export const TRANSFER_DATE_WINDOW_DAYS = 5;
+
 /** Transaction entity — the wire shape returned by every transactions endpoint. */
 export class Transaction extends Schema.Class<Transaction>("Transaction")({
 	id: TransactionId,
@@ -229,6 +241,24 @@ export const TransferUnlink = Schema.Struct({
 export type TransferUnlink = typeof TransferUnlink.Type;
 
 /**
+ * One **detected** (not yet confirmed) internal-transfer pair (PRD #48) — the
+ * row shape of the Transfers page. `from` is always the debit leg (the money
+ * leaving, a negative amount) and `to` the credit leg (the money arriving, a
+ * positive amount) — the server orients them by sign so each real pair is
+ * surfaced **exactly once** (never both A→B and B→A). `daysApart` is the whole
+ * number of days between the two dates, so the UI can show "2 days apart" and
+ * rank the closest matches first. Both legs are eligible and ungrouped by
+ * construction; confirming a pair calls `link-transfer`, which re-validates it.
+ */
+export class TransferCandidate extends Schema.Class<TransferCandidate>(
+	"TransferCandidate",
+)({
+	from: Transaction,
+	to: Transaction,
+	daysApart: Schema.Number,
+}) {}
+
+/**
  * `deleteByAccountMonth` query params — both **required** (a targeted bulk
  * delete, not a filtered list): `accountId` decodes a branded id from the query
  * string, `importMonth` is the `"YYYY-MM"` string. A missing param fails decode
@@ -274,11 +304,41 @@ export class TransactionsGroup extends HttpApiGroup.make("transactions")
 			.setUrlParams(Schema.Struct(TransactionFilters))
 			.addSuccess(TransactionCount),
 	)
+	// Every DETECTED (not yet confirmed) internal-transfer pair across the whole
+	// dataset (PRD #48) — the Transfers page's data source. One SQL self-join
+	// pairs each ungrouped, non-refund debit with its ungrouped, non-refund
+	// credit of equal magnitude (to the cent), a different account, and a date
+	// within `TRANSFER_DATE_WINDOW_DAYS`. Oriented by sign (`from` = debit, `to`
+	// = credit) so each real pair is returned exactly once, never both ways.
+	// Ordered closest-date first. A literal sub-path, declared before the `:id`
+	// route so it is never shadowed by it.
+	.add(
+		HttpApiEndpoint.get(
+			"transferCandidates",
+		)`/transactions/transfer-candidates`.addSuccess(
+			Schema.Array(TransferCandidate),
+		),
+	)
 	.add(
 		HttpApiEndpoint.get(
 			"getById",
 		)`/transactions/${HttpApiSchema.param("id", numFromStr(TransactionId))}`
 			.addSuccess(Transaction)
+			.addError(NotFound),
+	)
+	// Suggest the counterpart legs of an internal transfer for one row (PRD
+	// #48): the server scans the DB for rows with the opposite sign, an equal
+	// magnitude to the cent, a different account, no existing transfer group, no
+	// refund involvement, and a date within `TRANSFER_DATE_WINDOW_DAYS` of this
+	// row's — the same rule the web suggestion util applies, run in SQL so it
+	// sees the whole dataset (not just a loaded page). 404s an unknown id; an
+	// **ineligible** row (already grouped, or a refund) yields an empty array —
+	// there is nothing to suggest, which is not an error. Nearest-date first.
+	.add(
+		HttpApiEndpoint.get(
+			"transferSuggestions",
+		)`/transactions/${HttpApiSchema.param("id", numFromStr(TransactionId))}/transfer-suggestions`
+			.addSuccess(Schema.Array(Transaction))
 			.addError(NotFound),
 	)
 	.add(

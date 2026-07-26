@@ -1098,4 +1098,333 @@ describe("TransactionRepo", () => {
 				}).pipe(Effect.provide(RepoTest)),
 		);
 	});
+
+	describe("suggestTransfers (internal-transfer counterparts)", () => {
+		// A target debit and a set of candidates seeded around it; the target is
+		// always -30 on account 1, so a counterpart is +30 on another account
+		// within the window. `DATE` is 2026-03-01.
+		const day = (n: number) =>
+			new Date(`2026-03-${String(n).padStart(2, "0")}T00:00:00.000Z`);
+
+		it.effect(
+			"suggests an opposite-sign, equal-magnitude, cross-account leg",
+			() =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					const target = yield* repo.create(make({ amount: -30 }));
+					const match = yield* repo.create(
+						make({ amount: 30, accountId: asAccount(2) }),
+					);
+
+					const out = yield* repo.suggestTransfers(target.id);
+					assert.deepStrictEqual(
+						out.map((t) => t.id),
+						[match.id],
+					);
+				}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("excludes a same-sign row (no debit⇄credit repayment)", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const target = yield* repo.create(make({ amount: -30 }));
+				yield* repo.create(make({ amount: -30, accountId: asAccount(2) }));
+
+				const out = yield* repo.suggestTransfers(target.id);
+				assert.deepStrictEqual(out, []);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect(
+			"excludes a different magnitude (cent-exact match required)",
+			() =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					const target = yield* repo.create(make({ amount: -30 }));
+					yield* repo.create(make({ amount: 30.01, accountId: asAccount(2) }));
+
+					const out = yield* repo.suggestTransfers(target.id);
+					assert.deepStrictEqual(out, []);
+				}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("matches magnitude in integer cents (-10.10 ⇄ +10.10)", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const target = yield* repo.create(make({ amount: -10.1 }));
+				const match = yield* repo.create(
+					make({ amount: 10.1, accountId: asAccount(2) }),
+				);
+
+				const out = yield* repo.suggestTransfers(target.id);
+				assert.deepStrictEqual(
+					out.map((t) => t.id),
+					[match.id],
+				);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect(
+			"excludes a same-account leg (a transfer moves between accounts)",
+			() =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					const target = yield* repo.create(make({ amount: -30 }));
+					yield* repo.create(make({ amount: 30, accountId: asAccount(1) }));
+
+					const out = yield* repo.suggestTransfers(target.id);
+					assert.deepStrictEqual(out, []);
+				}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect(
+			"includes a leg exactly TRANSFER_DATE_WINDOW_DAYS away, excludes one past it",
+			() =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					// Target on the 6th so the window (±5) spans the 1st..11th.
+					const target = yield* repo.create(
+						make({ amount: -30, date: day(6) }),
+					);
+					const justInside = yield* repo.create(
+						make({ amount: 30, accountId: asAccount(2), date: day(11) }),
+					);
+					// The 12th is 6 days out — one past the window.
+					yield* repo.create(
+						make({ amount: 30, accountId: asAccount(3), date: day(12) }),
+					);
+
+					const out = yield* repo.suggestTransfers(target.id);
+					assert.deepStrictEqual(
+						out.map((t) => t.id),
+						[justInside.id],
+					);
+				}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("excludes a candidate already in a transfer group", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const target = yield* repo.create(make({ amount: -30 }));
+				const grouped = yield* repo.create(
+					make({ amount: 30, accountId: asAccount(2) }),
+				);
+				const other = yield* repo.create(
+					make({ amount: -30, accountId: asAccount(3) }),
+				);
+				// `grouped` now carries a transferGroupId, so it can't be re-suggested.
+				yield* repo.linkTransfer([grouped.id, other.id]);
+
+				const out = yield* repo.suggestTransfers(target.id);
+				assert.deepStrictEqual(out, []);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("excludes a refund candidate", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const target = yield* repo.create(make({ amount: -30 }));
+				yield* repo.create(
+					make({ amount: 30, accountId: asAccount(2), isRefund: true }),
+				);
+
+				const out = yield* repo.suggestTransfers(target.id);
+				assert.deepStrictEqual(out, []);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("returns [] for an already-grouped target (ineligible)", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -30 }));
+				const b = yield* repo.create(
+					make({ amount: 30, accountId: asAccount(2) }),
+				);
+				yield* repo.linkTransfer([a.id, b.id]);
+				// A would-be counterpart exists, but `a` is grouped → nothing to suggest.
+				yield* repo.create(make({ amount: 30, accountId: asAccount(3) }));
+
+				const out = yield* repo.suggestTransfers(a.id);
+				assert.deepStrictEqual(out, []);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("returns [] for a refund target (ineligible)", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const target = yield* repo.create(
+					make({ amount: -30, isRefund: true }),
+				);
+				yield* repo.create(make({ amount: 30, accountId: asAccount(2) }));
+
+				const out = yield* repo.suggestTransfers(target.id);
+				assert.deepStrictEqual(out, []);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("returns [] for a zero-amount target (nothing to net)", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const target = yield* repo.create(make({ amount: 0 }));
+				yield* repo.create(make({ amount: 0, accountId: asAccount(2) }));
+
+				const out = yield* repo.suggestTransfers(target.id);
+				assert.deepStrictEqual(out, []);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("404s an unknown id", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const error = yield* repo
+					.suggestTransfers(asTx(9999))
+					.pipe(Effect.flip);
+				assert.strictEqual(error._tag, "NotFound");
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("orders candidates nearest-date first", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const target = yield* repo.create(make({ amount: -30, date: day(6) }));
+				// Two counterparts, one 3 days out, one 1 day out — nearest leads.
+				const far = yield* repo.create(
+					make({ amount: 30, accountId: asAccount(2), date: day(9) }),
+				);
+				const near = yield* repo.create(
+					make({ amount: 30, accountId: asAccount(3), date: day(7) }),
+				);
+
+				const out = yield* repo.suggestTransfers(target.id);
+				assert.deepStrictEqual(
+					out.map((t) => t.id),
+					[near.id, far.id],
+				);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+	});
+
+	describe("transferCandidates (all detected pairs)", () => {
+		const day = (n: number) =>
+			new Date(`2026-03-${String(n).padStart(2, "0")}T00:00:00.000Z`);
+
+		it.effect(
+			"returns each debit⇄credit pair once, oriented from=debit / to=credit",
+			() =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					const debit = yield* repo.create(
+						make({ amount: -30, accountId: asAccount(1) }),
+					);
+					const credit = yield* repo.create(
+						make({ amount: 30, accountId: asAccount(2) }),
+					);
+
+					const out = yield* repo.transferCandidates();
+					assert.strictEqual(out.length, 1);
+					assert.strictEqual(out[0].from.id, debit.id);
+					assert.strictEqual(out[0].to.id, credit.id);
+					assert.ok(out[0].from.amount < 0);
+					assert.ok(out[0].to.amount > 0);
+					assert.strictEqual(out[0].daysApart, 0);
+				}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("reports the whole-day gap between the legs", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				yield* repo.create(make({ amount: -30, date: day(1) }));
+				yield* repo.create(
+					make({ amount: 30, accountId: asAccount(2), date: day(4) }),
+				);
+
+				const out = yield* repo.transferCandidates();
+				assert.strictEqual(out.length, 1);
+				assert.strictEqual(out[0].daysApart, 3);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect(
+			"excludes same-account, wrong-magnitude, and out-of-window rows",
+			() =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					const debit = yield* repo.create(
+						make({ amount: -30, accountId: asAccount(1), date: day(6) }),
+					);
+					const match = yield* repo.create(
+						make({ amount: 30, accountId: asAccount(2), date: day(7) }),
+					);
+					// Same account — not a transfer.
+					yield* repo.create(make({ amount: 30, accountId: asAccount(1) }));
+					// Different magnitude.
+					yield* repo.create(make({ amount: 31, accountId: asAccount(3) }));
+					// Out of the ±5-day window (target on the 6th, this on the 12th).
+					yield* repo.create(
+						make({ amount: 30, accountId: asAccount(4), date: day(12) }),
+					);
+
+					const out = yield* repo.transferCandidates();
+					assert.strictEqual(out.length, 1);
+					assert.strictEqual(out[0].from.id, debit.id);
+					assert.strictEqual(out[0].to.id, match.id);
+				}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("excludes already-grouped and refund legs", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				// A grouped pair — must not resurface as a candidate.
+				const g1 = yield* repo.create(make({ amount: -30 }));
+				const g2 = yield* repo.create(
+					make({ amount: 30, accountId: asAccount(2) }),
+				);
+				yield* repo.linkTransfer([g1.id, g2.id]);
+				// A refund debit with a would-be credit counterpart.
+				yield* repo.create(make({ amount: -40, isRefund: true }));
+				yield* repo.create(make({ amount: 40, accountId: asAccount(3) }));
+
+				const out = yield* repo.transferCandidates();
+				assert.deepStrictEqual(out, []);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("orders candidates closest-date first", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				// Pair A: 1 day apart. Pair B: 4 days apart.
+				const aDebit = yield* repo.create(
+					make({ amount: -30, accountId: asAccount(1), date: day(10) }),
+				);
+				const aCredit = yield* repo.create(
+					make({ amount: 30, accountId: asAccount(2), date: day(11) }),
+				);
+				const bDebit = yield* repo.create(
+					make({ amount: -50, accountId: asAccount(1), date: day(1) }),
+				);
+				const bCredit = yield* repo.create(
+					make({ amount: 50, accountId: asAccount(2), date: day(5) }),
+				);
+
+				const out = yield* repo.transferCandidates();
+				assert.strictEqual(out.length, 2);
+				assert.deepStrictEqual(
+					out.map((c) => [c.from.id, c.to.id]),
+					[
+						[aDebit.id, aCredit.id],
+						[bDebit.id, bCredit.id],
+					],
+				);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("returns [] when nothing matches", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				yield* repo.create(make({ amount: -30 }));
+				const out = yield* repo.transferCandidates();
+				assert.deepStrictEqual(out, []);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+	});
 });
