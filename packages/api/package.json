@@ -24,7 +24,8 @@
 		"@effect/sql-sqlite-bun": "0.52.0",
 		"@mamen/shared": "workspace:*",
 		"claude-code-effect": "0.1.0",
-		"effect": "3.21.4"
+		"effect": "3.21.4",
+		"sharp": "0.35.3"
 	},
 	"devDependencies": {
 		"@effect/platform-node": "0.107.0",

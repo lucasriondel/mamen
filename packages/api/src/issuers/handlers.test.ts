@@ -1,9 +1,10 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
 	HttpApiBuilder,
 	HttpApiClient,
+	HttpApiSchema,
 	HttpClient,
 } from "@effect/platform";
 import { NodeHttpServer } from "@effect/platform-node";
@@ -15,9 +16,12 @@ import {
 	InvalidFileType,
 	type IssuerCreate,
 	IssuerId,
+	IssuerImageUpload,
+	MAX_IMAGE_BYTES,
 	NotFound,
 } from "@mamen/shared/contract";
-import { Effect, Layer, Schema, TestClock } from "effect";
+import { Effect, Layer, Option, Schema, TestClock } from "effect";
+import sharp from "sharp";
 import { ApiLive } from "../api-live";
 import { DatabaseTest } from "../db/test";
 import { ClaudeCodeStub } from "../import/test";
@@ -71,18 +75,59 @@ const makeCategory = (over: Partial<CategoryCreate> = {}): CategoryCreate => ({
 	...over,
 });
 
-/** A tiny valid file body under one of the allowed MIME types. */
+// Real encoded images, built once — the upload path decodes what it is given
+// now, so a handful of arbitrary bytes is no longer a valid fixture. `WIDE_PNG`
+// is deliberately not square, so the stored file proves the cover-crop.
+// `Uint8Array<ArrayBuffer>`, not `Buffer`: `File` only takes a view over a plain
+// ArrayBuffer, which is what the `new Uint8Array(...)` copy guarantees.
+let SQUARE_PNG: Uint8Array<ArrayBuffer>;
+let WIDE_PNG: Uint8Array<ArrayBuffer>;
+let TALL_JPEG: Uint8Array<ArrayBuffer>;
+
+beforeAll(async () => {
+	const solid = (width: number, height: number) =>
+		sharp({
+			create: {
+				width,
+				height,
+				channels: 3,
+				background: { r: 10, g: 120, b: 220 },
+			},
+		});
+	SQUARE_PNG = new Uint8Array(await solid(200, 200).png().toBuffer());
+	WIDE_PNG = new Uint8Array(await solid(600, 100).png().toBuffer());
+	TALL_JPEG = new Uint8Array(await solid(120, 480).jpeg().toBuffer());
+});
+
+/** A valid image body under one of the allowed MIME types. */
 const imageFormData = (
 	mime = "image/png",
 	filename = "logo.png",
+	bytes: Uint8Array<ArrayBuffer> = SQUARE_PNG,
 ): FormData => {
 	const fd = new FormData();
-	fd.append(
-		"file",
-		new File([new Uint8Array([1, 2, 3, 4])], filename, { type: mime }),
-	);
+	fd.append("file", new File([bytes], filename, { type: mime }));
 	return fd;
 };
+
+/** Read a stored image back through the static route and probe it with sharp. */
+const storedImageMetadata = (imageUrl: string) =>
+	Effect.gen(function* () {
+		const http = yield* HttpClient.HttpClient;
+		const res = yield* http.get(imageUrl);
+		assert.strictEqual(res.status, 200);
+		const bytes = yield* res.arrayBuffer;
+		return yield* Effect.promise(() => sharp(Buffer.from(bytes)).metadata());
+	});
+
+/**
+ * The on-disk issuers upload directory, filtered to one issuer's files — the
+ * directory is shared by the whole suite, so a bare listing would couple tests.
+ */
+const issuerFiles = (prefix: string) =>
+	readdirSync(join(uploadsDir, "issuers")).filter((name) =>
+		name.startsWith(prefix),
+	);
 
 describe("issuers endpoints", () => {
 	it.effect("list is empty initially", () =>
@@ -333,30 +378,83 @@ describe("issuers endpoints", () => {
 		}).pipe(Effect.provide(HttpLive)),
 	);
 
-	it.effect("uploadImage stores the file and returns the updated issuer", () =>
+	it.effect(
+		"uploadImage normalises a wide PNG to a 128x128 WebP and stores only that",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const created = yield* client.issuers.create({ payload: make() });
+
+				const updated = yield* client.issuers.uploadImage({
+					path: { id: created.id },
+					payload: imageFormData("image/png", "logo.png", WIDE_PNG),
+				});
+
+				// imageUrl is a root-relative /uploads/issuers/... path, and the
+				// extension is WebP regardless of what was sent.
+				assert.ok(updated.imageUrl?.startsWith("/uploads/issuers/issuer-"));
+				assert.ok(updated.imageUrl?.endsWith(".webp"));
+
+				// The file the static route serves is the normalised form: a 600x100
+				// PNG went in, a 128x128 WebP came out (cover-cropped, not squashed).
+				const meta = yield* storedImageMetadata(updated.imageUrl as string);
+				assert.strictEqual(meta.format, "webp");
+				assert.strictEqual(meta.width, 128);
+				assert.strictEqual(meta.height, 128);
+
+				// The original was never retained: this issuer's one upload left
+				// exactly one file on disk, the normalised one.
+				assert.deepStrictEqual(issuerFiles(`issuer-${created.id}-`), [
+					(updated.imageUrl as string).replace("/uploads/issuers/", ""),
+				]);
+			}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("uploadImage normalises a tall JPEG the same way", () =>
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
-			const http = yield* HttpClient.HttpClient;
 			const created = yield* client.issuers.create({ payload: make() });
 
 			const updated = yield* client.issuers.uploadImage({
 				path: { id: created.id },
-				payload: imageFormData("image/png", "logo.png"),
+				payload: imageFormData("image/jpeg", "logo.jpg", TALL_JPEG),
 			});
 
-			// imageUrl is a root-relative /uploads/issuers/... path.
-			assert.ok(updated.imageUrl?.startsWith("/uploads/issuers/issuer-"));
-			assert.ok(updated.imageUrl?.endsWith(".png"));
-
-			// The file is actually served by the static route.
-			const res = yield* http.get(updated.imageUrl as string);
-			assert.strictEqual(res.status, 200);
-			const bytes = yield* res.arrayBuffer;
-			assert.deepStrictEqual(
-				new Uint8Array(bytes),
-				new Uint8Array([1, 2, 3, 4]),
-			);
+			assert.ok(updated.imageUrl?.endsWith(".webp"));
+			const meta = yield* storedImageMetadata(updated.imageUrl as string);
+			assert.strictEqual(meta.format, "webp");
+			assert.strictEqual(meta.width, 128);
+			assert.strictEqual(meta.height, 128);
 		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect(
+		"uploadImage refuses an allow-listed MIME whose body isn't an image (415)",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const created = yield* client.issuers.create({ payload: make() });
+
+				// A lying Content-Type: accepted by the allow-list, rejected on decode.
+				const error = yield* client.issuers
+					.uploadImage({
+						path: { id: created.id },
+						payload: imageFormData(
+							"image/png",
+							"not-really.png",
+							new Uint8Array([1, 2, 3, 4]),
+						),
+					})
+					.pipe(Effect.flip);
+
+				assert.ok(error instanceof InvalidFileType);
+
+				// Nothing was written and the column is untouched.
+				const fetched = yield* client.issuers.getById({
+					path: { id: created.id },
+				});
+				assert.strictEqual(fetched.imageUrl, undefined);
+			}).pipe(Effect.provide(HttpLive)),
 	);
 
 	it.effect("re-uploading replaces the image and removes the old file", () =>
@@ -376,18 +474,24 @@ describe("issuers endpoints", () => {
 
 			const second = yield* client.issuers.uploadImage({
 				path: { id: created.id },
-				payload: imageFormData("image/jpeg", "second.jpg"),
+				payload: imageFormData("image/jpeg", "second.jpg", TALL_JPEG),
 			});
 			const secondUrl = second.imageUrl as string;
 
 			assert.notStrictEqual(firstUrl, secondUrl);
-			assert.ok(secondUrl.endsWith(".jpg"));
+			// A JPEG went in; the stored extension is WebP either way.
+			assert.ok(secondUrl.endsWith(".webp"));
 
 			// The new image serves; the old one is gone.
 			const newRes = yield* http.get(secondUrl);
 			assert.strictEqual(newRes.status, 200);
 			const oldRes = yield* http.get(firstUrl);
 			assert.strictEqual(oldRes.status, 404);
+
+			// And the replaced file is really off the disk, not just unserved.
+			assert.deepStrictEqual(issuerFiles(`issuer-${created.id}-`), [
+				secondUrl.replace("/uploads/issuers/", ""),
+			]);
 		}).pipe(Effect.provide(HttpLive)),
 	);
 
@@ -431,6 +535,30 @@ describe("issuers endpoints", () => {
 			assert.strictEqual(fetched.imageUrl, undefined);
 		}).pipe(Effect.provide(HttpLive)),
 	);
+
+	// The 2 MiB cap is the *pre-decode* guard: it rides the multipart schema, so
+	// the parser refuses an oversized part before the handler — and therefore
+	// before sharp — is ever reached. It can't be exercised over the wire from
+	// here: an over-cap body makes the test server abort mid-request and the
+	// in-process client then never settles (it hangs through `Effect.timeout`),
+	// and even a large *under*-cap body 500s under `layerTest` — both true before
+	// this change. Verified by hand against the real Bun server instead: a 16 MiB
+	// PNG is refused with `MultipartError(ReachedLimit: MaxPartSize)` and nothing
+	// lands in the uploads dir. What is assertable here — and what a regression
+	// would break — is that the declaration is still there, still upstream.
+	it("declares the 2 MiB cap on the upload schema, ahead of any decode", () => {
+		const limits = (
+			IssuerImageUpload.ast.annotations as Record<symbol, unknown>
+		)[HttpApiSchema.AnnotationMultipart] as
+			| { readonly maxFileSize: Option.Option<number> }
+			| undefined;
+
+		assert.strictEqual(MAX_IMAGE_BYTES, 2 * 1024 * 1024);
+		assert.strictEqual(
+			Option.getOrNull(limits?.maxFileSize ?? Option.none()),
+			MAX_IMAGE_BYTES,
+		);
+	});
 
 	it.effect("uploadImage 404s on a missing issuer", () =>
 		Effect.gen(function* () {
