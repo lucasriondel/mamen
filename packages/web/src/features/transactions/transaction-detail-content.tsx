@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { AnomalyFlags } from "./anomaly-flags";
 import { DetailField } from "./detail-field";
 import { CategoryCell, IssuerCell } from "./transaction-cells";
+import { TransferSection } from "./transfer-section";
 
 /** Full date-time for the audit fields, where the day alone loses information. */
 const DATE_TIME = new Intl.DateTimeFormat("en-GB", {
@@ -162,6 +163,8 @@ export function TransactionDetailContent({
 					</DetailField>
 				</dl>
 			</div>
+
+			<TransferSection transaction={txn} />
 
 			<div className="flex flex-col gap-3 border-t border-line pt-6">
 				<h2 className="text-lg font-semibold text-ink">Anomaly flags</h2>

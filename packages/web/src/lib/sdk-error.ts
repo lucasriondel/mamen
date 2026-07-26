@@ -113,8 +113,33 @@ export function toErrorMessage(error: unknown): string {
 			return "A category can't be moved under itself or one of its own sub-categories.";
 		case "CategoryNotLeaf":
 			return "Pick a category, not a folder.";
+		case "TransferInvalid":
+			return transferInvalidMessage(error);
 		default:
 			return "Something went wrong. Please try again.";
+	}
+}
+
+/**
+ * Wording for a refused transfer grouping (`TransferInvalid`, PRD #48), keyed
+ * off the error's machine-readable `reason`. Each line names why the set can't
+ * form one internal transfer so the user knows what to change before retrying.
+ */
+function transferInvalidMessage(error: unknown): string {
+	const reason = (error as { reason?: string }).reason;
+	switch (reason) {
+		case "too-few-legs":
+			return "A transfer needs at least two transactions.";
+		case "unbalanced":
+			return "Those amounts don't cancel out — a transfer's legs must sum to zero.";
+		case "unknown-id":
+			return "One of those transactions no longer exists.";
+		case "already-grouped":
+			return "One of those transactions is already part of another transfer.";
+		case "is-refund":
+			return "A refund can't be grouped as a transfer.";
+		default:
+			return "Those transactions can't be grouped as a transfer.";
 	}
 }
 
