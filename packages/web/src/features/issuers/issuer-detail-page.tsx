@@ -7,11 +7,12 @@ import { type FormEvent, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Empty } from "@/components/ui/empty";
+import { Input } from "@/components/ui/input";
 import { RulesSection } from "@/features/rules/rules-section";
 import { formatCurrency, formatShortDate } from "@/lib/format";
 import { issuerQueries, transactionQueries } from "@/lib/sdk";
 import { cn } from "@/lib/utils";
-import { BUTTON_CLASS, INPUT_CLASS } from "./field-styles";
+import { BUTTON_CLASS } from "./field-styles";
 import { IssuerAvatar } from "./issuer-avatar";
 import { IssuerDefaultCategoryPicker } from "./issuer-default-category-picker";
 import { useIssuerMutations } from "./use-issuer-mutations";
@@ -195,8 +196,7 @@ function IssuerDetailContent({
 			<form onSubmit={handleRename} className="flex max-w-md items-end gap-2">
 				<label className="flex flex-1 flex-col gap-1 text-sm text-muted">
 					Name
-					<input
-						className={INPUT_CLASS}
+					<Input
 						value={draftName}
 						onChange={(event) => setDraftName(event.target.value)}
 						aria-label="Issuer name"

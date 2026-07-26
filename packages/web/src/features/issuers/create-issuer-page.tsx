@@ -5,9 +5,9 @@ import { ArrowLeft } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { issuerQueries } from "@/lib/sdk";
 import { CategoryLeafPicker } from "./category-leaf-picker";
-import { INPUT_CLASS } from "./field-styles";
 import { hasExactIssuerName } from "./issuer-name";
 import { useIssuerMutations } from "./use-issuer-mutations";
 
@@ -88,12 +88,15 @@ export function CreateIssuerPage() {
 			<form onSubmit={handleSubmit} className="flex max-w-md flex-col gap-6">
 				<label className="flex flex-col gap-1 text-sm text-muted">
 					Name
-					<input
-						className={INPUT_CLASS}
+					<Input
 						value={name}
 						onChange={(event) => setName(event.target.value)}
 						placeholder="e.g. Spotify"
 						aria-label="Issuer name"
+						// The duplicate-name guard already blocks Save and prints the note
+						// below; marking the field invalid is what paints it, now that the
+						// primitive has an `aria-invalid` state.
+						aria-invalid={isDuplicate}
 					/>
 					{isDuplicate ? (
 						<span className="text-xs text-high">
