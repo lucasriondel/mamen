@@ -136,6 +136,32 @@ describe("CreateIssuerPage", () => {
 		);
 	});
 
+	// The duplicate guard is what drives the Input primitive's `aria-invalid`
+	// state, so the field paints itself wrong rather than only the Save button
+	// going quiet. Asserted here because it's the wiring that's easy to drop:
+	// the primitive's own unit test passes `aria-invalid` by hand, so without
+	// this the prop could be deleted from the form with every test still green.
+	it("marks the name field invalid while it duplicates, and clears it once it doesn't", async () => {
+		const user = userEvent.setup();
+		renderPage();
+
+		const input = await screen.findByLabelText("Issuer name");
+		await user.type(input, "  spotify ");
+
+		await waitFor(() => expect(input).toHaveAttribute("aria-invalid", "true"));
+		expect(
+			screen.getByText("An issuer with this name already exists."),
+		).toBeInTheDocument();
+
+		// One more character and it's no longer a collision — the field recovers.
+		await user.type(input, "x");
+
+		await waitFor(() => expect(input).toHaveAttribute("aria-invalid", "false"));
+		expect(
+			screen.queryByText("An issuer with this name already exists."),
+		).not.toBeInTheDocument();
+	});
+
 	it("creates an issuer with name only, then lands on its detail page", async () => {
 		const user = userEvent.setup();
 		renderPage();
