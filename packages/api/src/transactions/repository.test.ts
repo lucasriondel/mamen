@@ -71,6 +71,7 @@ describe("TransactionFromRow storage codec", () => {
 			manualIssuer: true,
 			isRefund: true,
 			linkedRefundId: asTx(6),
+			transferGroupId: asTx(1),
 			anomalyFlags: [
 				new AnomalyFlag({
 					type: "high-amount",
@@ -108,6 +109,7 @@ describe("TransactionFromRow storage codec", () => {
 		});
 		const row = encode(bare);
 		assert.strictEqual(row.issuerId, null);
+		assert.strictEqual(row.transferGroupId, null);
 		assert.strictEqual(row.manualCategory, 0);
 		assert.strictEqual(row.manualIssuer, 0);
 		assert.strictEqual(row.anomalyFlags, null);
@@ -169,6 +171,7 @@ describe("TransactionRepo", () => {
 				assert.strictEqual(created.categoryId, undefined);
 				assert.strictEqual(created.manualIssuer, undefined);
 				assert.strictEqual(created.isRefund, undefined);
+				assert.strictEqual(created.transferGroupId, undefined);
 				assert.strictEqual(created.anomalyFlags, undefined);
 				assert.strictEqual(created.importBatchId, undefined);
 			}).pipe(Effect.provide(RepoTest)),
@@ -185,6 +188,7 @@ describe("TransactionRepo", () => {
 					manualIssuer: true,
 					isRefund: true,
 					linkedRefundId: asTx(1),
+					transferGroupId: asTx(2),
 					isDuplicateExcluded: true,
 					duplicateNote: "seen before",
 					notes: "reimbursable",
@@ -197,6 +201,7 @@ describe("TransactionRepo", () => {
 			assert.strictEqual(created.manualIssuer, true);
 			assert.strictEqual(created.isRefund, true);
 			assert.strictEqual(created.linkedRefundId, asTx(1));
+			assert.strictEqual(created.transferGroupId, asTx(2));
 			assert.strictEqual(created.isDuplicateExcluded, true);
 			assert.strictEqual(created.duplicateNote, "seen before");
 			assert.strictEqual(created.notes, "reimbursable");
@@ -259,6 +264,32 @@ describe("TransactionRepo", () => {
 			const reamounted = yield* repo.update(created.id, { amount: 42 });
 			assert.strictEqual(reamounted.amount, 42);
 			assert.strictEqual(reamounted.notes, "call the bank");
+		}).pipe(Effect.provide(RepoTest)),
+	);
+
+	// The foundation for Internal transfers (PRD #48, issue #49): the flat
+	// `transferGroupId` is set through the generic update path (no link/unlink
+	// endpoint yet), so it must persist and read back on `getById` — the
+	// end-to-end round-trip the later link/recap slices build on. A later
+	// unrelated update must not silently drop it (whole-row re-write from the
+	// stored merge base), exactly like `notes`.
+	it.effect("update sets transferGroupId, and it round-trips on getById", () =>
+		Effect.gen(function* () {
+			const repo = yield* TransactionRepo;
+			const created = yield* repo.create(make());
+			assert.strictEqual(created.transferGroupId, undefined);
+
+			const grouped = yield* repo.update(created.id, {
+				transferGroupId: created.id,
+			});
+			assert.strictEqual(grouped.transferGroupId, created.id);
+
+			const fetched = yield* repo.getById(created.id);
+			assert.strictEqual(fetched.transferGroupId, created.id);
+
+			const reamounted = yield* repo.update(created.id, { amount: 7 });
+			assert.strictEqual(reamounted.amount, 7);
+			assert.strictEqual(reamounted.transferGroupId, created.id);
 		}).pipe(Effect.provide(RepoTest)),
 	);
 
@@ -335,6 +366,7 @@ describe("TransactionRepo", () => {
 						date: new Date("2026-03-10T00:00:00.000Z"),
 						importMonth: "2026-03",
 						linkedRefundId: asTx(1),
+						transferGroupId: asTx(2),
 					}),
 				),
 			]);
@@ -420,6 +452,12 @@ describe("TransactionRepo", () => {
 					linkedRefundId: asTx(1),
 				});
 				assert.strictEqual(byLinked.total, 1);
+
+				const byTransferGroup = yield* repo.list({
+					...listAll,
+					transferGroupId: asTx(2),
+				});
+				assert.strictEqual(byTransferGroup.total, 1);
 
 				const byBatch = yield* repo.list({
 					...listAll,

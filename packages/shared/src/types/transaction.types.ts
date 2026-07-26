@@ -12,6 +12,7 @@ export type Transaction = {
 	manualIssuer?: boolean;
 	isRefund?: boolean;
 	linkedRefundId?: number;
+	transferGroupId?: number;
 	anomalyFlags?: AnomalyFlag[];
 	isDuplicateExcluded?: boolean;
 	duplicateNote?: string;

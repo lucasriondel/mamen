@@ -1715,6 +1715,14 @@
             "required": false
           },
           {
+            "name": "transferGroupId",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/NumberFromString"
+            },
+            "required": false
+          },
+          {
             "name": "importMonth",
             "in": "query",
             "schema": {
@@ -1939,6 +1947,11 @@
                     "description": "an integer",
                     "title": "int"
                   },
+                  "transferGroupId": {
+                    "type": "integer",
+                    "description": "an integer",
+                    "title": "int"
+                  },
                   "anomalyFlags": {
                     "type": "array",
                     "items": {
@@ -2018,6 +2031,14 @@
           },
           {
             "name": "linkedRefundId",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/NumberFromString"
+            },
+            "required": false
+          },
+          {
+            "name": "transferGroupId",
             "in": "query",
             "schema": {
               "$ref": "#/components/schemas/NumberFromString"
@@ -2289,6 +2310,11 @@
                     "description": "an integer",
                     "title": "int"
                   },
+                  "transferGroupId": {
+                    "type": "integer",
+                    "description": "an integer",
+                    "title": "int"
+                  },
                   "anomalyFlags": {
                     "type": "array",
                     "items": {
@@ -2472,6 +2498,11 @@
                           "type": "boolean"
                         },
                         "linkedRefundId": {
+                          "type": "integer",
+                          "description": "an integer",
+                          "title": "int"
+                        },
+                        "transferGroupId": {
                           "type": "integer",
                           "description": "an integer",
                           "title": "int"
@@ -4979,6 +5010,11 @@
             "type": "boolean"
           },
           "linkedRefundId": {
+            "type": "integer",
+            "description": "an integer",
+            "title": "int"
+          },
+          "transferGroupId": {
             "type": "integer",
             "description": "an integer",
             "title": "int"

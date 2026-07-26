@@ -31,6 +31,12 @@ export type TransactionListParams = {
 	 */
 	categoryId?: CategoryId | ReadonlyArray<CategoryId>;
 	linkedRefundId?: TransactionId;
+	/**
+	 * Transfer-group membership (PRD #48) — narrows to the legs of one internal
+	 * transfer, so a caller can query "the legs of group X". Mirrors
+	 * `linkedRefundId`; the group id is one of the legs' `TransactionId`s.
+	 */
+	transferGroupId?: TransactionId;
 	importMonth?: string;
 	importBatchId?: string;
 	startDate?: Date;

@@ -37,6 +37,16 @@ export class Transaction extends Schema.Class<Transaction>("Transaction")({
 	manualIssuer: Schema.optional(Schema.Boolean),
 	isRefund: Schema.optional(Schema.Boolean),
 	linkedRefundId: Schema.optional(TransactionId),
+	/**
+	 * Transfer-group membership (Internal transfers, PRD #48). Optional; absent
+	 * means the row belongs to no internal transfer. When set, it is the group's
+	 * id — the smallest transaction id among the legs — so every leg of one
+	 * transfer carries the same value (the anchor leg's own id equals it). A
+	 * `TransactionId`-branded value because the id *is* one of the legs' ids.
+	 * Stored flat and FK-free, mirroring `linkedRefundId`; the link/unlink logic
+	 * lands in a later slice — this only persists and reads the membership.
+	 */
+	transferGroupId: Schema.optional(TransactionId),
 	anomalyFlags: Schema.optional(Schema.Array(AnomalyFlag)),
 	isDuplicateExcluded: Schema.optional(Schema.Boolean),
 	duplicateNote: Schema.optional(Schema.String),
@@ -71,6 +81,7 @@ export const TransactionCreate = Schema.Struct({
 	manualIssuer: Transaction.fields.manualIssuer,
 	isRefund: Transaction.fields.isRefund,
 	linkedRefundId: Transaction.fields.linkedRefundId,
+	transferGroupId: Transaction.fields.transferGroupId,
 	anomalyFlags: Transaction.fields.anomalyFlags,
 	isDuplicateExcluded: Transaction.fields.isDuplicateExcluded,
 	duplicateNote: Transaction.fields.duplicateNote,
@@ -113,6 +124,10 @@ export const TransactionFilters = {
 	issuerId: Schema.optional(numFromStr(IssuerId)),
 	categoryId: Schema.optional(CategoryIdFilter),
 	linkedRefundId: Schema.optional(numFromStr(TransactionId)),
+	// Transfer-group membership (PRD #48): returns only the legs of one internal
+	// transfer, so the detail page can list a group's other legs and the table
+	// can badge legs without client-side scanning. Mirrors `linkedRefundId`.
+	transferGroupId: Schema.optional(numFromStr(TransactionId)),
 	importMonth: Schema.optional(Schema.String), // "YYYY-MM"
 	importBatchId: Schema.optional(Schema.String),
 	startDate: Schema.optional(Schema.Date), // inclusive lower bound on `date`

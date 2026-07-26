@@ -34,6 +34,7 @@ const TransactionRow = Schema.Struct({
 	manualIssuer: Schema.Number,
 	isRefund: Schema.Number,
 	linkedRefundId: Schema.NullOr(Schema.Number),
+	transferGroupId: Schema.NullOr(Schema.Number),
 	anomalyFlags: Schema.NullOr(Schema.String),
 	isDuplicateExcluded: Schema.Number,
 	duplicateNote: Schema.NullOr(Schema.String),
@@ -76,6 +77,9 @@ export const TransactionFromRow = Schema.transform(
 			...(row.linkedRefundId !== null
 				? { linkedRefundId: row.linkedRefundId }
 				: {}),
+			...(row.transferGroupId !== null
+				? { transferGroupId: row.transferGroupId }
+				: {}),
 			...(row.anomalyFlags !== null
 				? {
 						anomalyFlags: Schema.decodeSync(AnomalyFlagsJson)(row.anomalyFlags),
@@ -104,6 +108,7 @@ export const TransactionFromRow = Schema.transform(
 			manualIssuer: t.manualIssuer ? 1 : 0,
 			isRefund: t.isRefund ? 1 : 0,
 			linkedRefundId: t.linkedRefundId ?? null,
+			transferGroupId: t.transferGroupId ?? null,
 			anomalyFlags:
 				t.anomalyFlags !== undefined
 					? Schema.encodeSync(AnomalyFlagsJson)(t.anomalyFlags)
@@ -140,6 +145,7 @@ type Filters = {
 	issuerId?: number;
 	categoryId?: number | ReadonlyArray<number>;
 	linkedRefundId?: number;
+	transferGroupId?: number;
 	importMonth?: string;
 	importBatchId?: string;
 	startDate?: Date;
@@ -169,6 +175,7 @@ type WriteRow = {
 	manualIssuer: number;
 	isRefund: number;
 	linkedRefundId: number | null;
+	transferGroupId: number | null;
 	anomalyFlags: string | null;
 	isDuplicateExcluded: number;
 	duplicateNote: string | null;
@@ -232,6 +239,10 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				}
 				if (f.linkedRefundId !== undefined)
 					conditions.push(sql`t.linkedRefundId = ${f.linkedRefundId}`);
+				// Transfer-group membership (PRD #48): narrows to the legs of one
+				// internal transfer. Mirrors `linkedRefundId`, rides its own index.
+				if (f.transferGroupId !== undefined)
+					conditions.push(sql`t.transferGroupId = ${f.transferGroupId}`);
 				if (f.importMonth !== undefined)
 					conditions.push(sql`t.importMonth = ${f.importMonth}`);
 				if (f.importBatchId !== undefined)
@@ -304,7 +315,7 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 			// history at once. Reads go through this; writes (`RETURNING *`) echo the
 			// stored row verbatim, and the internal `storedByIdQuery` reads the raw
 			// row so an update's merge never persists a derived value.
-			const readColumns = sql`t.id, t.accountId, t.date, t.amount, t.rawIssuerString, t.issuerId, ${derivedCategory} AS categoryId, t.manualCategory, t.manualIssuer, t.isRefund, t.linkedRefundId, t.anomalyFlags, t.isDuplicateExcluded, t.duplicateNote, t.notes, t.importedAt, t.importMonth, t.importBatchId`;
+			const readColumns = sql`t.id, t.accountId, t.date, t.amount, t.rawIssuerString, t.issuerId, ${derivedCategory} AS categoryId, t.manualCategory, t.manualIssuer, t.isRefund, t.linkedRefundId, t.transferGroupId, t.anomalyFlags, t.isDuplicateExcluded, t.duplicateNote, t.notes, t.importedAt, t.importMonth, t.importBatchId`;
 			const readFrom = sql`FROM transactions t LEFT JOIN issuers i ON t.issuerId = i.id`;
 
 			// `Request: Schema.Any` skips a redundant re-decode: filters are already
@@ -488,6 +499,7 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				manualIssuer: t.manualIssuer ? 1 : 0,
 				isRefund: t.isRefund ? 1 : 0,
 				linkedRefundId: t.linkedRefundId ?? null,
+				transferGroupId: t.transferGroupId ?? null,
 				anomalyFlags:
 					t.anomalyFlags !== undefined
 						? Schema.encodeSync(AnomalyFlagsJson)(t.anomalyFlags)
