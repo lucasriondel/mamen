@@ -1,8 +1,26 @@
 import type { Category, Issuer } from "@mamen/shared/contract";
-import { CircleHelp, StickyNote } from "lucide-react";
+import { ArrowLeftRight, CircleHelp, StickyNote } from "lucide-react";
 import { IssuerAvatar } from "@/features/issuers/issuer-avatar";
 import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
+
+/**
+ * The **internal-transfer badge** (PRD #48) — a small chip marking a row as a
+ * leg of an internal transfer, so grouped rows are recognisable at a glance in
+ * the grid without opening the detail page. Rendered only for legs (the caller
+ * checks `transferGroupId`); its legs are netted out of the recap.
+ */
+export function TransferBadge() {
+	return (
+		<span
+			className="inline-flex items-center gap-1 rounded bg-bg px-1.5 py-0.5 text-muted text-xs"
+			title="Part of an internal transfer — excluded from your recap spend"
+		>
+			<ArrowLeftRight size={12} aria-hidden />
+			Transfer
+		</span>
+	);
+}
 
 /**
  * The **override marker** — a small accent dot marking the *exception* a manual

@@ -165,6 +165,8 @@ describe("TransactionsView", () => {
 			"Issuer",
 			"Category",
 			"Amount",
+			// Screen-reader-only header for the transfer-badge column (PRD #48).
+			"Transfer",
 			"Notes",
 		]);
 

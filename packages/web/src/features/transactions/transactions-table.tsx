@@ -26,7 +26,7 @@ import { AssignmentPicker } from "./assignment-picker";
 import { CategoryPicker } from "./category-picker";
 import { IssuerPicker } from "./issuer-picker";
 import { NotesPicker } from "./notes-picker";
-import { AmountCell } from "./transaction-cells";
+import { AmountCell, TransferBadge } from "./transaction-cells";
 
 export interface TransactionsTableProps {
 	transactions: readonly Transaction[];
@@ -113,6 +113,14 @@ export function TransactionsTable({
 			columnHelper.accessor("amount", {
 				header: () => <span className="block text-right">Amount</span>,
 				cell: (info) => <AmountCell amount={info.getValue()} />,
+			}),
+			columnHelper.display({
+				id: "transfer",
+				// Header intentionally blank (screen-reader only) — the badge is a
+				// per-row marker, not a sortable/labelled dimension.
+				header: () => <span className="sr-only">Transfer</span>,
+				cell: ({ row }) =>
+					row.original.transferGroupId != null ? <TransferBadge /> : null,
 			}),
 			columnHelper.display({
 				id: "notes",
