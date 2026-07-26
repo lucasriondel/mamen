@@ -120,6 +120,41 @@ export class CategoryInUse extends Schema.TaggedError<CategoryInUse>()(
 	HttpApiSchema.annotations({ status: 409 }),
 ) {}
 
+/**
+ * A set of transactions could not be grouped as one **internal transfer**
+ * (PRD #48). Raised only by `link-transfer`, which validates the set atomically
+ * server-side — the multi-row invariants the generic single-row update
+ * structurally cannot enforce. A dedicated error rather than an overloaded
+ * `NotFound`, so the client can tell "a leg is missing" from "the legs don't
+ * balance". `reason` is the machine-readable cause:
+ *
+ * - `too-few-legs` — a transfer needs ≥2 distinct legs.
+ * - `unbalanced` — the legs' signed amounts don't sum to zero (compared in
+ *   integer cents — amounts are float euros, never compared as floats).
+ * - `unknown-id` — some id in the set doesn't exist.
+ * - `already-grouped` — some leg already carries a `transferGroupId` (a leg can
+ *   belong to at most one transfer).
+ * - `is-refund` — some leg is a refund (`isRefund` or `linkedRefundId` set); a
+ *   refund credit must not be netted out twice.
+ *
+ * The "≥2 distinct accounts" property is deliberately NOT enforced here — it is
+ * a suggestion-only heuristic (a same-account zero-sum group the user confirmed
+ * is harmless to net out).
+ */
+export class TransferInvalid extends Schema.TaggedError<TransferInvalid>()(
+	"TransferInvalid",
+	{
+		reason: Schema.Literal(
+			"too-few-legs",
+			"unbalanced",
+			"unknown-id",
+			"already-grouped",
+			"is-refund",
+		),
+	},
+	HttpApiSchema.annotations({ status: 422 }),
+) {}
+
 /** An upload's MIME type is not in the image allow-list. */
 export class InvalidFileType extends Schema.TaggedError<InvalidFileType>()(
 	"InvalidFileType",

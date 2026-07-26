@@ -31,6 +31,7 @@ export {
 	Conflict,
 	InvalidFileType,
 	NotFound,
+	TransferInvalid,
 } from "./errors";
 export { Health, HealthGroup } from "./health";
 export {
@@ -98,4 +99,6 @@ export {
 	TransactionListOrder,
 	TransactionsGroup,
 	TransactionUpdate,
+	TransferLink,
+	TransferUnlink,
 } from "./transactions";

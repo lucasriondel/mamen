@@ -10,6 +10,7 @@ import {
 	type TransactionCreate,
 	TransactionId,
 	type TransactionUpdate,
+	TransferInvalid,
 } from "@mamen/shared/contract";
 import { Effect, Option, Schema } from "effect";
 import { orDieSql } from "../db/errors";
@@ -647,6 +648,87 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 					sql`DELETE FROM transactions WHERE importBatchId = ${batchId} RETURNING id`,
 				);
 
+			/**
+			 * Group a set of transactions as one **internal transfer** (PRD #48), the
+			 * atomic multi-row operation the generic single-row `update` cannot
+			 * express. Validates the set server-side and, on success, stamps every leg
+			 * with `min(ids)` as the `transferGroupId` (the group id *is* one of the
+			 * legs' ids). Fails `TransferInvalid` — never a partial write — on any of:
+			 *
+			 * - `too-few-legs` — fewer than 2 **distinct** legs (a set, so duplicate
+			 *   ids collapse first; a lone id can't form a transfer).
+			 * - `unknown-id` — some id doesn't exist (checked by count, since only real
+			 *   rows come back from the read).
+			 * - `already-grouped` — some leg already carries a `transferGroupId`.
+			 * - `is-refund` — some leg is a refund (`isRefund` or `linkedRefundId`).
+			 * - `unbalanced` — the legs' amounts don't sum to zero, compared in integer
+			 *   cents (`Σ round(amount·100) === 0`) — amounts are float euros, never
+			 *   compared as floats (the same discipline the value-matcher uses).
+			 *
+			 * The "≥2 distinct accounts" property is deliberately NOT enforced (a
+			 * suggestion-only heuristic — a same-account zero-sum group the user
+			 * confirmed is harmless to net out).
+			 */
+			const linkTransfer = (
+				rawIds: ReadonlyArray<typeof TransactionId.Type>,
+			): Effect.Effect<{ count: number }, TransferInvalid> =>
+				Effect.gen(function* () {
+					const ids = [...new Set(rawIds)];
+					if (ids.length < 2)
+						return yield* Effect.fail(
+							new TransferInvalid({ reason: "too-few-legs" }),
+						);
+
+					const legs = yield* bulkGetQuery(ids).pipe(orDieSql);
+					if (legs.length !== ids.length)
+						return yield* Effect.fail(
+							new TransferInvalid({ reason: "unknown-id" }),
+						);
+					if (legs.some((l) => l.transferGroupId !== undefined))
+						return yield* Effect.fail(
+							new TransferInvalid({ reason: "already-grouped" }),
+						);
+					if (legs.some((l) => l.isRefund || l.linkedRefundId !== undefined))
+						return yield* Effect.fail(
+							new TransferInvalid({ reason: "is-refund" }),
+						);
+
+					// Sum in integer cents — amounts are float euros, never compared as
+					// floats (round to the cent first, exactly like the value-matcher).
+					const cents = legs.reduce(
+						(sum, l) => sum + Math.round(l.amount * 100),
+						0,
+					);
+					if (cents !== 0)
+						return yield* Effect.fail(
+							new TransferInvalid({ reason: "unbalanced" }),
+						);
+
+					// The group id is the smallest leg id — deterministic, no counter
+					// infrastructure needed. Every leg (the anchor included) gets it.
+					const groupId = Math.min(...ids);
+					const rows = yield* sql<{
+						id: number;
+					}>`UPDATE transactions SET transferGroupId = ${groupId} WHERE ${sql.in("id", ids)} RETURNING id`.pipe(
+						orDieSql,
+					);
+					return { count: rows.length };
+				});
+
+			/**
+			 * Dissolve a transfer group (PRD #48): clear `transferGroupId` on every leg
+			 * carrying the given group id, reverting them to normal transactions (they
+			 * count as spend again). Returns the count cleared — 0 for an unknown group
+			 * id (idempotent, no error; there is nothing to fail on).
+			 */
+			const unlinkTransfer = (groupId: typeof TransactionId.Type) =>
+				sql<{
+					id: number;
+				}>`UPDATE transactions SET transferGroupId = NULL WHERE transferGroupId = ${groupId} RETURNING id`.pipe(
+					Effect.map((rows) => ({ count: rows.length })),
+					orDieSql,
+				);
+
 			return {
 				list,
 				count,
@@ -660,6 +742,8 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				bulkGet,
 				deleteByAccountMonth,
 				deleteByImportBatch,
+				linkTransfer,
+				unlinkTransfer,
 			} as const;
 		}),
 	},

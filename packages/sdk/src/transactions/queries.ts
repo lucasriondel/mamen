@@ -216,4 +216,29 @@ export const transactionMutations = {
 				client.transactions.deleteByImportBatch({ path: { batchId } }),
 			),
 		),
+
+	/**
+	 * Group a set of transactions as one internal transfer (PRD #48) → `{ count }`
+	 * legs stamped. The server validates the set atomically (≥2 legs, real ids,
+	 * none already grouped, none a refund, amounts summing to zero in cents) and
+	 * fails `TransferInvalid` (422) otherwise; it computes `min(ids)` as the group
+	 * id. Invalidate `transactionKeys.all` after — every leg's row changed.
+	 */
+	linkTransfer: (ids: ReadonlyArray<TransactionId>) =>
+		runQuery(
+			Effect.flatMap(Client, (client) =>
+				client.transactions.linkTransfer({ payload: { ids } }),
+			),
+		),
+
+	/**
+	 * Dissolve a transfer group (PRD #48) → `{ count }` legs cleared. The legs
+	 * revert to normal transactions. Invalidate `transactionKeys.all` after.
+	 */
+	unlinkTransfer: (transferGroupId: TransactionId) =>
+		runQuery(
+			Effect.flatMap(Client, (client) =>
+				client.transactions.unlinkTransfer({ payload: { transferGroupId } }),
+			),
+		),
 };

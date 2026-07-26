@@ -6,7 +6,12 @@ import {
 } from "@effect/platform";
 import { Schema } from "effect";
 import { AnomalyFlag } from "./anomaly";
-import { BooleanFromString, CategoryNotLeaf, NotFound } from "./errors";
+import {
+	BooleanFromString,
+	CategoryNotLeaf,
+	NotFound,
+	TransferInvalid,
+} from "./errors";
 import {
 	AccountId,
 	CategoryId,
@@ -200,6 +205,30 @@ export type TransactionBulkIds = typeof TransactionBulkIds.Type;
 export const TransactionAffected = Schema.Struct({ count: Schema.Number });
 
 /**
+ * `link-transfer` payload — the set of transaction ids to group as one internal
+ * transfer (PRD #48). Reuses the `{ ids }` shape of {@link TransactionBulkIds},
+ * but is its own type so the two surfaces can evolve independently: the server
+ * validates this set atomically (≥2 legs, all ids real, none already grouped,
+ * none a refund, amounts summing to zero in cents), computes `min(ids)` as the
+ * group id, and stamps every leg — the multi-row operation the generic
+ * single-row update cannot express.
+ */
+export const TransferLink = Schema.Struct({
+	ids: Schema.Array(TransactionId),
+});
+export type TransferLink = typeof TransferLink.Type;
+
+/**
+ * `unlink-transfer` payload — the group id (one of the legs' ids, the smallest)
+ * whose membership is being dissolved. Clearing `transferGroupId` on every leg
+ * of the group reverts them to normal transactions (they count as spend again).
+ */
+export const TransferUnlink = Schema.Struct({
+	transferGroupId: TransactionId,
+});
+export type TransferUnlink = typeof TransferUnlink.Type;
+
+/**
  * `deleteByAccountMonth` query params — both **required** (a targeted bulk
  * delete, not a filtered list): `accountId` decodes a branded id from the query
  * string, `importMonth` is the `"YYYY-MM"` string. A missing param fails decode
@@ -319,5 +348,22 @@ export class TransactionsGroup extends HttpApiGroup.make("transactions")
 		)`/transactions/by-import-batch/${HttpApiSchema.param("batchId", Schema.String)}`.addSuccess(
 			TransactionAffected,
 		),
+	)
+	// Link/unlink internal transfers (PRD #48), the atomic multi-row operations
+	// the generic single-row `update` cannot express. `linkTransfer` validates
+	// the set server-side and fails `TransferInvalid` (422) — a dedicated error,
+	// not an overloaded `NotFound` — on any of: <2 legs, a non-zero cent sum, an
+	// unknown id, a leg already grouped, or a refund leg. Both return the count
+	// of legs stamped/cleared.
+	.add(
+		HttpApiEndpoint.post("linkTransfer")`/transactions/link-transfer`
+			.setPayload(TransferLink)
+			.addSuccess(TransactionAffected)
+			.addError(TransferInvalid),
+	)
+	.add(
+		HttpApiEndpoint.post("unlinkTransfer")`/transactions/unlink-transfer`
+			.setPayload(TransferUnlink)
+			.addSuccess(TransactionAffected),
 	)
 	.annotateContext(OpenApi.annotations({ title: "Transactions" })) {}

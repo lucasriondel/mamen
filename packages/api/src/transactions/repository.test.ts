@@ -10,6 +10,7 @@ import {
 	type TransactionCreate,
 	TransactionId,
 	TransactionUpdate,
+	TransferInvalid,
 } from "@mamen/shared/contract";
 import { Effect, Either, Layer, Schema } from "effect";
 import { DatabaseTest } from "../db/test";
@@ -711,6 +712,236 @@ describe("TransactionRepo", () => {
 					})).count,
 					1,
 				);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+	});
+
+	// Link/unlink internal transfers (PRD #48, issue #50). The atomic multi-row
+	// operations validated entirely server-side — tested at the repository seam
+	// over the in-memory SQLite layer, the same boundary the handler tests use.
+	describe("link/unlink transfer", () => {
+		it.effect(
+			"links a valid pair and stamps min(id) on every leg as the group id",
+			() =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					const a = yield* repo.create(make({ amount: -30 }));
+					const b = yield* repo.create(
+						make({ amount: 30, accountId: asAccount(2) }),
+					);
+
+					const result = yield* repo.linkTransfer([b.id, a.id]);
+					assert.strictEqual(result.count, 2);
+
+					// min(ids) is `a.id` (created first), stamped on both legs.
+					const groupId = Math.min(a.id, b.id);
+					assert.strictEqual(
+						(yield* repo.getById(a.id)).transferGroupId,
+						groupId,
+					);
+					assert.strictEqual(
+						(yield* repo.getById(b.id)).transferGroupId,
+						groupId,
+					);
+				}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("links an N-leg group (-100 repaid by +60 and +40)", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const debit = yield* repo.create(make({ amount: -100 }));
+				const c1 = yield* repo.create(
+					make({ amount: 60, accountId: asAccount(2) }),
+				);
+				const c2 = yield* repo.create(
+					make({ amount: 40, accountId: asAccount(3) }),
+				);
+
+				const result = yield* repo.linkTransfer([debit.id, c1.id, c2.id]);
+				assert.strictEqual(result.count, 3);
+
+				const groupId = Math.min(debit.id, c1.id, c2.id);
+				for (const id of [debit.id, c1.id, c2.id]) {
+					assert.strictEqual(
+						(yield* repo.getById(id)).transferGroupId,
+						groupId,
+					);
+				}
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("balances in integer cents, not as floats (-10.10 + 10.10)", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -10.1 }));
+				const b = yield* repo.create(
+					make({ amount: 10.1, accountId: asAccount(2) }),
+				);
+				const result = yield* repo.linkTransfer([a.id, b.id]);
+				assert.strictEqual(result.count, 2);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		// A same-account zero-sum group is accepted: the "≥2 distinct accounts"
+		// property is a suggestion-only heuristic, never enforced server-side.
+		it.effect("does not enforce ≥2 distinct accounts", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(
+					make({ amount: -30, accountId: asAccount(1) }),
+				);
+				const b = yield* repo.create(
+					make({ amount: 30, accountId: asAccount(1) }),
+				);
+				const result = yield* repo.linkTransfer([a.id, b.id]);
+				assert.strictEqual(result.count, 2);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("rejects fewer than 2 legs (a set, so dupes collapse)", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -30 }));
+				// One distinct id (even passed twice) can't form a transfer.
+				const error = yield* repo.linkTransfer([a.id, a.id]).pipe(Effect.flip);
+				assert.deepStrictEqual(
+					error,
+					new TransferInvalid({ reason: "too-few-legs" }),
+				);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("rejects a non-zero sum", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -30 }));
+				const b = yield* repo.create(
+					make({ amount: 25, accountId: asAccount(2) }),
+				);
+				const error = yield* repo.linkTransfer([a.id, b.id]).pipe(Effect.flip);
+				assert.deepStrictEqual(
+					error,
+					new TransferInvalid({ reason: "unbalanced" }),
+				);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("rejects an unknown (non-existent) id", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -30 }));
+				const error = yield* repo
+					.linkTransfer([a.id, asTx(9999)])
+					.pipe(Effect.flip);
+				assert.deepStrictEqual(
+					error,
+					new TransferInvalid({ reason: "unknown-id" }),
+				);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("rejects a leg already carrying a transferGroupId", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -30 }));
+				const b = yield* repo.create(
+					make({ amount: 30, accountId: asAccount(2) }),
+				);
+				yield* repo.linkTransfer([a.id, b.id]);
+				// A third balanced set dragging in an already-grouped leg.
+				const c = yield* repo.create(
+					make({ amount: -30, accountId: asAccount(3) }),
+				);
+				const error = yield* repo.linkTransfer([a.id, c.id]).pipe(Effect.flip);
+				assert.deepStrictEqual(
+					error,
+					new TransferInvalid({ reason: "already-grouped" }),
+				);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("rejects a leg that is a refund (isRefund set)", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -30, isRefund: true }));
+				const b = yield* repo.create(
+					make({ amount: 30, accountId: asAccount(2) }),
+				);
+				const error = yield* repo.linkTransfer([a.id, b.id]).pipe(Effect.flip);
+				assert.deepStrictEqual(
+					error,
+					new TransferInvalid({ reason: "is-refund" }),
+				);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("rejects a leg that is refund-paired (linkedRefundId set)", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -30 }));
+				const b = yield* repo.create(
+					make({
+						amount: 30,
+						accountId: asAccount(2),
+						linkedRefundId: a.id,
+					}),
+				);
+				const error = yield* repo.linkTransfer([a.id, b.id]).pipe(Effect.flip);
+				assert.deepStrictEqual(
+					error,
+					new TransferInvalid({ reason: "is-refund" }),
+				);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("a rejected link writes nothing (no partial stamping)", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -30 }));
+				const b = yield* repo.create(
+					make({ amount: 25, accountId: asAccount(2) }),
+				);
+				yield* repo.linkTransfer([a.id, b.id]).pipe(Effect.flip);
+				assert.strictEqual(
+					(yield* repo.getById(a.id)).transferGroupId,
+					undefined,
+				);
+				assert.strictEqual(
+					(yield* repo.getById(b.id)).transferGroupId,
+					undefined,
+				);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("unlink clears transferGroupId on every leg of the group", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const debit = yield* repo.create(make({ amount: -100 }));
+				const c1 = yield* repo.create(
+					make({ amount: 60, accountId: asAccount(2) }),
+				);
+				const c2 = yield* repo.create(
+					make({ amount: 40, accountId: asAccount(3) }),
+				);
+				yield* repo.linkTransfer([debit.id, c1.id, c2.id]);
+				const groupId = Math.min(debit.id, c1.id, c2.id);
+
+				const result = yield* repo.unlinkTransfer(asTx(groupId));
+				assert.strictEqual(result.count, 3);
+				for (const id of [debit.id, c1.id, c2.id]) {
+					assert.strictEqual(
+						(yield* repo.getById(id)).transferGroupId,
+						undefined,
+					);
+				}
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("unlink of an unknown group id clears nothing (count 0)", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const result = yield* repo.unlinkTransfer(asTx(9999));
+				assert.strictEqual(result.count, 0);
 			}).pipe(Effect.provide(RepoTest)),
 		);
 	});

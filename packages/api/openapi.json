@@ -2911,6 +2911,149 @@
         }
       }
     },
+    "/api/transactions/link-transfer": {
+      "post": {
+        "tags": [
+          "Transactions"
+        ],
+        "operationId": "transactions.linkTransfer",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "count"
+                  ],
+                  "properties": {
+                    "count": {
+                      "type": "number"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "TransferInvalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferInvalid"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "ids"
+                ],
+                "properties": {
+                  "ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "description": "an integer",
+                      "title": "int"
+                    }
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/transactions/unlink-transfer": {
+      "post": {
+        "tags": [
+          "Transactions"
+        ],
+        "operationId": "transactions.unlinkTransfer",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "count"
+                  ],
+                  "properties": {
+                    "count": {
+                      "type": "number"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "transferGroupId"
+                ],
+                "properties": {
+                  "transferGroupId": {
+                    "type": "integer",
+                    "description": "an integer",
+                    "title": "int"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
     "/api/rules": {
       "get": {
         "tags": [
@@ -5080,6 +5223,32 @@
           },
           "linkedTransactionId": {
             "type": "number"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TransferInvalid": {
+        "type": "object",
+        "required": [
+          "reason",
+          "_tag"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string",
+            "enum": [
+              "too-few-legs",
+              "unbalanced",
+              "unknown-id",
+              "already-grouped",
+              "is-refund"
+            ]
+          },
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "TransferInvalid"
+            ]
           }
         },
         "additionalProperties": false
