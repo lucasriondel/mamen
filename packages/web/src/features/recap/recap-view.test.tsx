@@ -91,6 +91,7 @@ function txn(partial: {
 	accountId?: number;
 	issuerId?: number;
 	categoryId?: number;
+	transferGroupId?: number;
 	importMonth?: string;
 }): Transaction {
 	return {
@@ -101,6 +102,7 @@ function txn(partial: {
 		rawIssuerString: "RAW",
 		issuerId: partial.issuerId,
 		categoryId: partial.categoryId,
+		transferGroupId: partial.transferGroupId,
 		importedAt: new Date("2026-07-01"),
 		importMonth: partial.importMonth ?? "2026-07",
 	} as unknown as Transaction;
@@ -217,6 +219,44 @@ describe("RecapView", () => {
 		renderRecap();
 		await findSection("By issuer");
 		expect(screen.queryByText(/totals are\s+partial/i)).not.toBeInTheDocument();
+	});
+
+	it("shows an Internal transfers line, excluded from spend, when legs are present", async () => {
+		listFor = () => [
+			txn({ amount: -30, issuerId: 10, categoryId: 100, transferGroupId: 1 }),
+			txn({ amount: 30, issuerId: 20, categoryId: 200, transferGroupId: 1 }),
+			txn({ amount: -10, issuerId: 10, categoryId: 100 }),
+		];
+
+		renderRecap();
+
+		const line = await screen.findByText("Internal transfers");
+		const row = line.closest("div")?.parentElement as HTMLElement;
+		expect(
+			within(row).getByText(/excluded from the total/i),
+		).toBeInTheDocument();
+		// The moved money = the debit leg's magnitude (30), not the net or double.
+		expect(within(row).getByText(/30,00/)).toBeInTheDocument();
+
+		// The transfer legs stay out of the breakdown: Amazon shows only its real
+		// -10 spend (its -30 transfer leg excluded), and the +30 credit's issuer
+		// (Netflix) never appears at all.
+		const issuerSection = await findSection("By issuer");
+		expect(within(issuerSection).getByText("Amazon")).toBeInTheDocument();
+		expect(
+			within(issuerSection).getByText("1 transaction"),
+		).toBeInTheDocument();
+		expect(
+			within(issuerSection).queryByText("Netflix"),
+		).not.toBeInTheDocument();
+		expect(within(issuerSection).queryByText(/40,00/)).not.toBeInTheDocument();
+	});
+
+	it("hides the Internal transfers line when no legs are present", async () => {
+		listFor = () => [txn({ amount: -10, issuerId: 10 })];
+		renderRecap();
+		await findSection("By issuer");
+		expect(screen.queryByText("Internal transfers")).not.toBeInTheDocument();
 	});
 
 	it("shows an empty message when there is no spend in the period", async () => {
