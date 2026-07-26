@@ -12,6 +12,7 @@ import { formatCurrency, formatShortDate } from "@/lib/format";
 import { accountQueries, transactionQueries } from "@/lib/sdk";
 import { cn, indexById } from "@/lib/utils";
 import {
+	isTransferEligible,
 	suggestTransferCounterparts,
 	TRANSFER_DATE_WINDOW_DAYS,
 } from "./transfer-suggestions";
@@ -92,11 +93,10 @@ export function TransferSection({
 }) {
 	const { link, unlink } = useTransfer();
 	const isGrouped = txn.transferGroupId != null;
-	const isEligible =
-		!isGrouped &&
-		!txn.isRefund &&
-		txn.linkedRefundId == null &&
-		txn.amount !== 0;
+	// Reuse the pure suggestion util's eligibility rule so the section's gating can
+	// never drift from what actually gets suggested; a zero-amount row has no
+	// counterpart to net against, so it is never offered a link.
+	const isEligible = isTransferEligible(txn) && txn.amount !== 0;
 
 	const accountsQuery = useQuery(accountQueries.list());
 	const accountsById = useMemo(

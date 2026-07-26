@@ -27,7 +27,7 @@ function time(date: Date | string): number {
  * twice — PRD story 19). The server enforces this too; the suggestion filter
  * applies it up front so an ineligible row is never offered.
  */
-function isTransferEligible(txn: Transaction): boolean {
+export function isTransferEligible(txn: Transaction): boolean {
 	return (
 		txn.transferGroupId == null && !txn.isRefund && txn.linkedRefundId == null
 	);

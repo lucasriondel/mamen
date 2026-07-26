@@ -29,6 +29,169 @@ function BoolField({ value }: { value: boolean }) {
 	);
 }
 
+/** The amount headline plus issuer/date, at the top of the page. */
+function DetailHeader({
+	txn,
+	issuer,
+}: {
+	txn: Transaction;
+	issuer?: Issuer;
+}) {
+	return (
+		<header className="flex flex-col gap-1">
+			<span
+				className={cn(
+					"text-3xl font-semibold tabular-nums",
+					txn.amount < 0 && "text-high",
+					txn.amount > 0 && "text-low",
+					txn.amount === 0 && "text-ink",
+				)}
+			>
+				{formatCurrency(txn.amount)}
+			</span>
+			<h1 className="text-lg font-medium text-ink">
+				{issuer ? issuer.name : txn.rawIssuerString}
+			</h1>
+			<span className="text-sm text-muted">{formatShortDate(txn.date)}</span>
+		</header>
+	);
+}
+
+/** The core field list — id, date, amount, account, issuer/category, notes. */
+function CoreFields({
+	txn,
+	account,
+	issuer,
+	category,
+}: {
+	txn: Transaction;
+	account?: Account;
+	issuer?: Issuer;
+	category?: Category;
+}) {
+	return (
+		<dl className="rounded-lg border border-line px-4">
+			<DetailField label="Transaction ID">
+				<span className="tabular-nums">{txn.id}</span>
+			</DetailField>
+			<DetailField label="Date">{formatShortDate(txn.date)}</DetailField>
+			<DetailField label="Amount">
+				<span
+					className={cn(
+						"font-medium tabular-nums",
+						txn.amount < 0 && "text-high",
+						txn.amount > 0 && "text-low",
+					)}
+				>
+					{formatCurrency(txn.amount)}
+				</span>
+			</DetailField>
+			<DetailField label="Account">
+				{account?.name ?? (
+					<span className="text-muted italic">Unknown (#{txn.accountId})</span>
+				)}
+			</DetailField>
+			<DetailField label="Raw issuer text">
+				<span className="break-words">{txn.rawIssuerString}</span>
+			</DetailField>
+			<DetailField label="Issuer">
+				<IssuerCell
+					rawIssuerString={txn.rawIssuerString}
+					issuer={issuer}
+					isManual={txn.manualIssuer ?? false}
+				/>
+			</DetailField>
+			<DetailField label="Category">
+				<CategoryCell
+					category={category}
+					isOverride={txn.manualCategory ?? false}
+				/>
+			</DetailField>
+			<DetailField label="Notes">
+				{txn.notes?.trim() ? (
+					<span className="break-words whitespace-pre-wrap">{txn.notes}</span>
+				) : null}
+			</DetailField>
+		</dl>
+	);
+}
+
+/** The refund + duplicate-exclusion fields for the row. */
+function RefundDuplicateSection({
+	txn,
+	linkedRefund,
+}: {
+	txn: Transaction;
+	linkedRefund?: Transaction;
+}) {
+	return (
+		<div className="flex flex-col gap-3 border-t border-line pt-6">
+			<h2 className="text-lg font-semibold text-ink">Refund &amp; duplicate</h2>
+			<dl className="rounded-lg border border-line px-4">
+				<DetailField label="Is a refund">
+					<BoolField value={txn.isRefund ?? false} />
+				</DetailField>
+				<DetailField label="Linked refund">
+					{txn.linkedRefundId != null ? (
+						<Link
+							to="/transactions/$transactionId"
+							params={{ transactionId: String(txn.linkedRefundId) }}
+							className="text-accent hover:underline"
+						>
+							{linkedRefund
+								? `${formatShortDate(linkedRefund.date)} · ${formatCurrency(linkedRefund.amount)}`
+								: `Transaction #${txn.linkedRefundId}`}
+						</Link>
+					) : null}
+				</DetailField>
+				<DetailField label="Excluded as duplicate">
+					<BoolField value={txn.isDuplicateExcluded ?? false} />
+				</DetailField>
+				<DetailField label="Duplicate note">
+					{txn.duplicateNote?.trim() ? txn.duplicateNote : null}
+				</DetailField>
+			</dl>
+		</div>
+	);
+}
+
+/** The anomaly-flags section — a placeholder line when there are none. */
+function AnomalyFlagsSection({ flags }: { flags: Transaction["anomalyFlags"] }) {
+	const list = flags ?? [];
+	return (
+		<div className="flex flex-col gap-3 border-t border-line pt-6">
+			<h2 className="text-lg font-semibold text-ink">Anomaly flags</h2>
+			{list.length === 0 ? (
+				<p className="text-sm text-muted italic">No anomaly flags.</p>
+			) : (
+				<AnomalyFlags flags={list} />
+			)}
+		</div>
+	);
+}
+
+/** The import provenance fields — month, timestamp, batch id. */
+function ImportSection({ txn }: { txn: Transaction }) {
+	return (
+		<div className="flex flex-col gap-3 border-t border-line pt-6">
+			<h2 className="text-lg font-semibold text-ink">Import</h2>
+			<dl className="rounded-lg border border-line px-4">
+				<DetailField label="Import month">
+					{formatMonth(txn.importMonth)}
+				</DetailField>
+				<DetailField label="Imported at">
+					{DATE_TIME.format(txn.importedAt)}
+				</DetailField>
+				<DetailField label="Import batch">
+					{txn.importBatchId ? (
+						<span className="break-all tabular-nums">{txn.importBatchId}</span>
+					) : null}
+				</DetailField>
+			</dl>
+		</div>
+	);
+}
+
 interface TransactionDetailContentProps {
 	transaction: Transaction;
 	/** Resolved account for `accountId` (name lookup). */
@@ -59,8 +222,6 @@ export function TransactionDetailContent({
 	category,
 	linkedRefund,
 }: TransactionDetailContentProps) {
-	const flags = txn.anomalyFlags ?? [];
-
 	return (
 		<section className="flex flex-col gap-8">
 			<Link
@@ -71,128 +232,17 @@ export function TransactionDetailContent({
 				Transactions
 			</Link>
 
-			<header className="flex flex-col gap-1">
-				<span
-					className={cn(
-						"text-3xl font-semibold tabular-nums",
-						txn.amount < 0 && "text-high",
-						txn.amount > 0 && "text-low",
-						txn.amount === 0 && "text-ink",
-					)}
-				>
-					{formatCurrency(txn.amount)}
-				</span>
-				<h1 className="text-lg font-medium text-ink">
-					{issuer ? issuer.name : txn.rawIssuerString}
-				</h1>
-				<span className="text-sm text-muted">{formatShortDate(txn.date)}</span>
-			</header>
-
-			<dl className="rounded-lg border border-line px-4">
-				<DetailField label="Transaction ID">
-					<span className="tabular-nums">{txn.id}</span>
-				</DetailField>
-				<DetailField label="Date">{formatShortDate(txn.date)}</DetailField>
-				<DetailField label="Amount">
-					<span
-						className={cn(
-							"font-medium tabular-nums",
-							txn.amount < 0 && "text-high",
-							txn.amount > 0 && "text-low",
-						)}
-					>
-						{formatCurrency(txn.amount)}
-					</span>
-				</DetailField>
-				<DetailField label="Account">
-					{account?.name ?? (
-						<span className="text-muted italic">
-							Unknown (#{txn.accountId})
-						</span>
-					)}
-				</DetailField>
-				<DetailField label="Raw issuer text">
-					<span className="break-words">{txn.rawIssuerString}</span>
-				</DetailField>
-				<DetailField label="Issuer">
-					<IssuerCell
-						rawIssuerString={txn.rawIssuerString}
-						issuer={issuer}
-						isManual={txn.manualIssuer ?? false}
-					/>
-				</DetailField>
-				<DetailField label="Category">
-					<CategoryCell
-						category={category}
-						isOverride={txn.manualCategory ?? false}
-					/>
-				</DetailField>
-				<DetailField label="Notes">
-					{txn.notes?.trim() ? (
-						<span className="break-words whitespace-pre-wrap">{txn.notes}</span>
-					) : null}
-				</DetailField>
-			</dl>
-
-			<div className="flex flex-col gap-3 border-t border-line pt-6">
-				<h2 className="text-lg font-semibold text-ink">
-					Refund &amp; duplicate
-				</h2>
-				<dl className="rounded-lg border border-line px-4">
-					<DetailField label="Is a refund">
-						<BoolField value={txn.isRefund ?? false} />
-					</DetailField>
-					<DetailField label="Linked refund">
-						{txn.linkedRefundId != null ? (
-							<Link
-								to="/transactions/$transactionId"
-								params={{ transactionId: String(txn.linkedRefundId) }}
-								className="text-accent hover:underline"
-							>
-								{linkedRefund
-									? `${formatShortDate(linkedRefund.date)} · ${formatCurrency(linkedRefund.amount)}`
-									: `Transaction #${txn.linkedRefundId}`}
-							</Link>
-						) : null}
-					</DetailField>
-					<DetailField label="Excluded as duplicate">
-						<BoolField value={txn.isDuplicateExcluded ?? false} />
-					</DetailField>
-					<DetailField label="Duplicate note">
-						{txn.duplicateNote?.trim() ? txn.duplicateNote : null}
-					</DetailField>
-				</dl>
-			</div>
-
+			<DetailHeader txn={txn} issuer={issuer} />
+			<CoreFields
+				txn={txn}
+				account={account}
+				issuer={issuer}
+				category={category}
+			/>
+			<RefundDuplicateSection txn={txn} linkedRefund={linkedRefund} />
 			<TransferSection transaction={txn} />
-
-			<div className="flex flex-col gap-3 border-t border-line pt-6">
-				<h2 className="text-lg font-semibold text-ink">Anomaly flags</h2>
-				{flags.length === 0 ? (
-					<p className="text-sm text-muted italic">No anomaly flags.</p>
-				) : (
-					<AnomalyFlags flags={flags} />
-				)}
-			</div>
-
-			<div className="flex flex-col gap-3 border-t border-line pt-6">
-				<h2 className="text-lg font-semibold text-ink">Import</h2>
-				<dl className="rounded-lg border border-line px-4">
-					<DetailField label="Import month">
-						{formatMonth(txn.importMonth)}
-					</DetailField>
-					<DetailField label="Imported at">
-						{DATE_TIME.format(txn.importedAt)}
-					</DetailField>
-					<DetailField label="Import batch">
-						{txn.importBatchId ? (
-							<span className="break-all tabular-nums">
-								{txn.importBatchId}
-							</span>
-						) : null}
-					</DetailField>
-				</dl>
-			</div>
+			<AnomalyFlagsSection flags={txn.anomalyFlags} />
+			<ImportSection txn={txn} />
 		</section>
 	);
 }
