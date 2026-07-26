@@ -521,16 +521,52 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				...toWriteRow(t),
 			});
 
-			// A count of rows deleted by a `DELETE ... RETURNING id`. sqlite's
+			/**
+			 * Auto-dissolve undersized transfer groups (PRD #48, issue #52). Given the
+			 * `transferGroupId`s of just-deleted legs, clear the column on every group
+			 * that now holds **fewer than 2** surviving legs — the survivor reverts to a
+			 * normal transaction (counting as spend again), never left dangling as a
+			 * one-sided "transfer". A single sub-select `UPDATE` covers all affected
+			 * groups; the deduped id set feeds it, and an empty set touches no DB
+			 * (`sql.in([])` would render an invalid `IN ()`). Idempotent: a group whose
+			 * every leg was deleted (0 survivors, `< 2`) simply matches no rows.
+			 */
+			const dissolveUndersizedGroups = (
+				groupIds: ReadonlyArray<number>,
+			): Effect.Effect<void> => {
+				const groups = [...new Set(groupIds)];
+				return groups.length === 0
+					? Effect.void
+					: sql`UPDATE transactions SET transferGroupId = NULL WHERE transferGroupId IN (
+							SELECT transferGroupId FROM transactions
+							WHERE ${sql.in("transferGroupId", groups)}
+							GROUP BY transferGroupId HAVING COUNT(*) < 2
+						)`.pipe(orDieSql, Effect.asVoid);
+			};
+
+			// A delete that also auto-dissolves transfer groups (PRD #48, issue #52):
+			// the statement must `DELETE ... RETURNING id, transferGroupId`, so every
+			// deleted leg's group is checked and any that drops below 2 legs has its
+			// survivor(s) cleared — one shared cleanup no delete path can skip. sqlite's
 			// `RETURNING` yields one row per deleted row, so its length is the exact
-			// affected count — the useful result a bulk delete returns (taxonomy §5).
-			// The `SqlError` isn't client-actionable → dies as a 500 ({@link orDieSql}).
-			const deleteReturningCount = <E, R>(
-				statement: Effect.Effect<ReadonlyArray<unknown>, E, R>,
+			// affected count (taxonomy §5). The `SqlError` isn't client-actionable →
+			// dies as a 500 ({@link orDieSql}).
+			const deleteAndDissolve = <E, R>(
+				statement: Effect.Effect<
+					ReadonlyArray<{ id: number; transferGroupId: number | null }>,
+					E,
+					R
+				>,
 			) =>
 				statement.pipe(
-					Effect.map((rows) => ({ count: rows.length })),
 					orDieSql,
+					Effect.flatMap((rows) =>
+						dissolveUndersizedGroups(
+							rows.flatMap((r) =>
+								r.transferGroupId !== null ? [r.transferGroupId] : [],
+							),
+						).pipe(Effect.as({ count: rows.length })),
+					),
 				);
 
 			const list = (filter: ListFilter) =>
@@ -584,10 +620,21 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 					),
 				);
 
+			// Single delete: 404 if missing (via `getStoredById`), then delete and
+			// auto-dissolve the deleted leg's transfer group if it drops below 2 legs
+			// (PRD #48, issue #52) — the survivor of a two-leg group reverts to spend.
 			const remove = (id: typeof TransactionId.Type) =>
 				getStoredById(id).pipe(
-					Effect.flatMap(() =>
-						orDieSql(sql`DELETE FROM transactions WHERE id = ${id}`),
+					Effect.flatMap((current) =>
+						orDieSql(sql`DELETE FROM transactions WHERE id = ${id}`).pipe(
+							Effect.andThen(
+								dissolveUndersizedGroups(
+									current.transferGroupId !== undefined
+										? [current.transferGroupId]
+										: [],
+								),
+							),
+						),
 					),
 					Effect.asVoid,
 				);
@@ -622,8 +669,11 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 			const bulkDelete = (ids: ReadonlyArray<typeof TransactionId.Type>) =>
 				ids.length === 0
 					? Effect.succeed({ count: 0 })
-					: deleteReturningCount(
-							sql`DELETE FROM transactions WHERE ${sql.in("id", ids)} RETURNING id`,
+					: deleteAndDissolve(
+							sql<{
+								id: number;
+								transferGroupId: number | null;
+							}>`DELETE FROM transactions WHERE ${sql.in("id", ids)} RETURNING id, transferGroupId`,
 						);
 
 			// Read the given ids; only existing rows come back (partial existence),
@@ -639,13 +689,19 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				accountId: typeof AccountId.Type,
 				importMonth: string,
 			) =>
-				deleteReturningCount(
-					sql`DELETE FROM transactions WHERE accountId = ${accountId} AND importMonth = ${importMonth} RETURNING id`,
+				deleteAndDissolve(
+					sql<{
+						id: number;
+						transferGroupId: number | null;
+					}>`DELETE FROM transactions WHERE accountId = ${accountId} AND importMonth = ${importMonth} RETURNING id, transferGroupId`,
 				);
 
 			const deleteByImportBatch = (batchId: string) =>
-				deleteReturningCount(
-					sql`DELETE FROM transactions WHERE importBatchId = ${batchId} RETURNING id`,
+				deleteAndDissolve(
+					sql<{
+						id: number;
+						transferGroupId: number | null;
+					}>`DELETE FROM transactions WHERE importBatchId = ${batchId} RETURNING id, transferGroupId`,
 				);
 
 			/**

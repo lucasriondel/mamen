@@ -945,4 +945,157 @@ describe("TransactionRepo", () => {
 			}).pipe(Effect.provide(RepoTest)),
 		);
 	});
+
+	// Auto-dissolve undersized transfer groups on leg deletion (PRD #48, issue
+	// #52). The grouping invariant (≥2 legs) must survive every delete path: a
+	// leg whose removal drops its group below 2 legs leaves the survivor(s)
+	// reverting to normal transactions — never a dangling one-sided "transfer".
+	// One shared cleanup covers the single-delete and every bulk-delete path.
+	describe("auto-dissolve transfer groups on delete", () => {
+		it.effect(
+			"single delete of one leg of a two-leg group clears the survivor",
+			() =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					const a = yield* repo.create(make({ amount: -30 }));
+					const b = yield* repo.create(
+						make({ amount: 30, accountId: asAccount(2) }),
+					);
+					yield* repo.linkTransfer([a.id, b.id]);
+
+					yield* repo.remove(a.id);
+					assert.strictEqual(
+						(yield* repo.getById(b.id)).transferGroupId,
+						undefined,
+					);
+				}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect(
+			"single delete of one leg of an N-leg group (N > 2) keeps the rest grouped",
+			() =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					const debit = yield* repo.create(make({ amount: -100 }));
+					const c1 = yield* repo.create(
+						make({ amount: 60, accountId: asAccount(2) }),
+					);
+					const c2 = yield* repo.create(
+						make({ amount: 40, accountId: asAccount(3) }),
+					);
+					yield* repo.linkTransfer([debit.id, c1.id, c2.id]);
+					const groupId = Math.min(debit.id, c1.id, c2.id);
+
+					// Drop one credit — two legs remain, so the group stays intact.
+					yield* repo.remove(c2.id);
+					assert.strictEqual(
+						(yield* repo.getById(debit.id)).transferGroupId,
+						groupId,
+					);
+					assert.strictEqual(
+						(yield* repo.getById(c1.id)).transferGroupId,
+						groupId,
+					);
+				}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("bulkDelete auto-dissolves a group dropped below 2 legs", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -30 }));
+				const b = yield* repo.create(
+					make({ amount: 30, accountId: asAccount(2) }),
+				);
+				yield* repo.linkTransfer([a.id, b.id]);
+
+				const result = yield* repo.bulkDelete([a.id]);
+				assert.strictEqual(result.count, 1);
+				assert.strictEqual(
+					(yield* repo.getById(b.id)).transferGroupId,
+					undefined,
+				);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect(
+			"deleteByAccountMonth auto-dissolves a group whose survivor is elsewhere",
+			() =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					// Legs in different accounts/months so deleting one account+month
+					// removes exactly one leg, leaving the cross-account survivor.
+					const a = yield* repo.create(
+						make({ amount: -30, importMonth: "2026-03" }),
+					);
+					const b = yield* repo.create(
+						make({
+							amount: 30,
+							accountId: asAccount(2),
+							importMonth: "2026-04",
+						}),
+					);
+					yield* repo.linkTransfer([a.id, b.id]);
+
+					const result = yield* repo.deleteByAccountMonth(
+						asAccount(1),
+						"2026-03",
+					);
+					assert.strictEqual(result.count, 1);
+					assert.strictEqual(
+						(yield* repo.getById(b.id)).transferGroupId,
+						undefined,
+					);
+				}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect(
+			"deleteByImportBatch auto-dissolves a group whose survivor is elsewhere",
+			() =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					const a = yield* repo.create(
+						make({ amount: -30, importBatchId: "batch-1" }),
+					);
+					const b = yield* repo.create(
+						make({
+							amount: 30,
+							accountId: asAccount(2),
+							importBatchId: "batch-2",
+						}),
+					);
+					yield* repo.linkTransfer([a.id, b.id]);
+
+					const result = yield* repo.deleteByImportBatch("batch-1");
+					assert.strictEqual(result.count, 1);
+					assert.strictEqual(
+						(yield* repo.getById(b.id)).transferGroupId,
+						undefined,
+					);
+				}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect(
+			"a bulk delete of an entire N-leg group leaves nothing dangling",
+			() =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					const debit = yield* repo.create(make({ amount: -100 }));
+					const c1 = yield* repo.create(
+						make({ amount: 60, accountId: asAccount(2) }),
+					);
+					const c2 = yield* repo.create(
+						make({ amount: 40, accountId: asAccount(3) }),
+					);
+					yield* repo.linkTransfer([debit.id, c1.id, c2.id]);
+
+					// Delete two of three legs: the lone survivor drops below 2 → cleared.
+					const result = yield* repo.bulkDelete([debit.id, c1.id]);
+					assert.strictEqual(result.count, 2);
+					assert.strictEqual(
+						(yield* repo.getById(c2.id)).transferGroupId,
+						undefined,
+					);
+				}).pipe(Effect.provide(RepoTest)),
+		);
+	});
 });
