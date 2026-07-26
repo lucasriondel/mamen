@@ -1,5 +1,5 @@
-import { FileSystem, Path } from "@effect/platform";
 import type { Multipart } from "@effect/platform";
+import { FileSystem, Path } from "@effect/platform";
 import { InvalidFileType, type IssuerId } from "@mamen/shared/contract";
 import { Clock, Effect } from "effect";
 import { UploadsDir } from "../config";
@@ -53,11 +53,7 @@ export const persistIssuerImage = (
 	id: typeof IssuerId.Type,
 	file: Multipart.PersistedFile,
 	previousImageUrl: string | undefined,
-): Effect.Effect<
-	string,
-	InvalidFileType,
-	FileSystem.FileSystem | Path.Path
-> =>
+): Effect.Effect<string, InvalidFileType, FileSystem.FileSystem | Path.Path> =>
 	Effect.gen(function* () {
 		const invalidFileType = new InvalidFileType({
 			allowed: ALLOWED_MIME_TYPES,
@@ -130,7 +126,5 @@ const deletePreviousImage = (
 ) => {
 	const relative = imageUrl.replace(/^\/uploads\//, "");
 	const target = path.join(uploadsDir, relative);
-	return fs.remove(target).pipe(
-		Effect.catchAll(() => Effect.void),
-	);
+	return fs.remove(target).pipe(Effect.catchAll(() => Effect.void));
 };

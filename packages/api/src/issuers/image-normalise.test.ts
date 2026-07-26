@@ -26,6 +26,57 @@ const makeImage = (
 
 const metadataOf = (bytes: Uint8Array) => sharp(bytes).metadata();
 
+const RED = [255, 0, 0] as const;
+const GREEN = [0, 255, 0] as const;
+const BLUE = [0, 0, 255] as const;
+
+/**
+ * A raster split into three equal bands of solid red / green / blue, laid out
+ * left-to-right (`"horizontal"`) or top-to-bottom (`"vertical"`).
+ *
+ * A solid-colour fixture cannot tell a cover-crop from a squash — both come out
+ * 128×128 — so the geometry assertions below need an image whose regions are
+ * distinguishable.
+ */
+const makeBandedImage = (
+	width: number,
+	height: number,
+	orientation: "horizontal" | "vertical",
+) => {
+	const bands = [RED, GREEN, BLUE];
+	const data = Buffer.alloc(width * height * 3);
+	for (let y = 0; y < height; y++) {
+		for (let x = 0; x < width; x++) {
+			const along = orientation === "horizontal" ? x / width : y / height;
+			const [r, g, b] = bands[Math.min(2, Math.floor(along * 3))];
+			const offset = (y * width + x) * 3;
+			data[offset] = r;
+			data[offset + 1] = g;
+			data[offset + 2] = b;
+		}
+	}
+	return sharp(data, { raw: { width, height, channels: 3 } })
+		.png()
+		.toBuffer();
+};
+
+/** Decode to raw RGB and read the pixel at (x, y). */
+const pixelAt = async (bytes: Uint8Array, x: number, y: number) => {
+	const { data, info } = await sharp(bytes)
+		.raw()
+		.toBuffer({ resolveWithObject: true });
+	const offset = (y * info.width + x) * info.channels;
+	return [data[offset], data[offset + 1], data[offset + 2]] as const;
+};
+
+/**
+ * WebP is lossy by default, so an exact equality check on a decoded pixel is
+ * too strict; "which channel dominates" is the property under test and survives
+ * the round-trip intact.
+ */
+const dominantChannel = (pixel: readonly [number, number, number]) =>
+	(["r", "g", "b"] as const)[pixel.indexOf(Math.max(...pixel))];
+
 describe("normaliseIssuerImage", () => {
 	it.effect("cover-crops a wide image to a 128x128 square", () =>
 		Effect.gen(function* () {
@@ -49,6 +100,54 @@ describe("normaliseIssuerImage", () => {
 			assert.strictEqual(meta.width, IMAGE_SIZE);
 			assert.strictEqual(meta.height, IMAGE_SIZE);
 		}),
+	);
+
+	// The tests above pin the output *size*; these pin the output *content*. A
+	// distorting resize (`fit: "fill"`) would satisfy every 128×128 assertion
+	// while squashing the whole logo into frame, so the crop geometry needs an
+	// assertion of its own.
+	it.effect("keeps the centre of a wide image and discards the sides", () =>
+		Effect.gen(function* () {
+			// Cover-scaling 600×100 to fill 128² is a 1.28× zoom (768×128), and the
+			// centred 128-wide window then spans x 250–350 of the original — wholly
+			// inside the green middle band. A squash would keep red at the left edge
+			// and blue at the right.
+			const wide = yield* Effect.promise(() =>
+				makeBandedImage(600, 100, "horizontal"),
+			);
+
+			const out = yield* normaliseIssuerImage(wide);
+
+			for (const x of [0, 64, 127]) {
+				const pixel = yield* Effect.promise(() => pixelAt(out, x, 64));
+				assert.strictEqual(
+					dominantChannel(pixel),
+					"g",
+					`x=${x} should be inside the green band, got ${pixel.join(",")}`,
+				);
+			}
+		}),
+	);
+
+	it.effect(
+		"keeps the centre of a tall image and discards top and bottom",
+		() =>
+			Effect.gen(function* () {
+				const tall = yield* Effect.promise(() =>
+					makeBandedImage(100, 600, "vertical"),
+				);
+
+				const out = yield* normaliseIssuerImage(tall);
+
+				for (const y of [0, 64, 127]) {
+					const pixel = yield* Effect.promise(() => pixelAt(out, 64, y));
+					assert.strictEqual(
+						dominantChannel(pixel),
+						"g",
+						`y=${y} should be inside the green band, got ${pixel.join(",")}`,
+					);
+				}
+			}),
 	);
 
 	it.effect("upsizes a small image rather than leaving it under 128", () =>

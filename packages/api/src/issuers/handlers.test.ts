@@ -77,7 +77,8 @@ const makeCategory = (over: Partial<CategoryCreate> = {}): CategoryCreate => ({
 
 // Real encoded images, built once — the upload path decodes what it is given
 // now, so a handful of arbitrary bytes is no longer a valid fixture. `WIDE_PNG`
-// is deliberately not square, so the stored file proves the cover-crop.
+// and `TALL_JPEG` are deliberately not square, so the stored file proves the
+// handler squares off a non-square input whatever its aspect ratio.
 // `Uint8Array<ArrayBuffer>`, not `Buffer`: `File` only takes a view over a plain
 // ArrayBuffer, which is what the `new Uint8Array(...)` copy guarantees.
 let SQUARE_PNG: Uint8Array<ArrayBuffer>;
@@ -396,7 +397,10 @@ describe("issuers endpoints", () => {
 				assert.ok(updated.imageUrl?.endsWith(".webp"));
 
 				// The file the static route serves is the normalised form: a 600x100
-				// PNG went in, a 128x128 WebP came out (cover-cropped, not squashed).
+				// PNG went in, a 128x128 WebP came out. These fixtures are solid
+				// colour, so this pins the size and format only; that the square is a
+				// centre crop rather than a squash is pinned on the pipeline itself,
+				// in image-normalise.test.ts.
 				const meta = yield* storedImageMetadata(updated.imageUrl as string);
 				assert.strictEqual(meta.format, "webp");
 				assert.strictEqual(meta.width, 128);
@@ -523,10 +527,12 @@ describe("issuers endpoints", () => {
 
 			assert.ok(error instanceof InvalidFileType);
 			assert.strictEqual(error.received, "application/pdf");
-			assert.deepStrictEqual(
-				[...error.allowed].sort(),
-				["image/gif", "image/jpeg", "image/png", "image/webp"],
-			);
+			assert.deepStrictEqual([...error.allowed].sort(), [
+				"image/gif",
+				"image/jpeg",
+				"image/png",
+				"image/webp",
+			]);
 
 			// A rejected upload leaves imageUrl unset.
 			const fetched = yield* client.issuers.getById({
@@ -576,26 +582,28 @@ describe("issuers endpoints", () => {
 		}).pipe(Effect.provide(HttpLive)),
 	);
 
-	it.effect("deleteImage removes the file, clears imageUrl, returns issuer", () =>
-		Effect.gen(function* () {
-			const client = yield* HttpApiClient.make(Api);
-			const http = yield* HttpClient.HttpClient;
-			const created = yield* client.issuers.create({ payload: make() });
-			const uploaded = yield* client.issuers.uploadImage({
-				path: { id: created.id },
-				payload: imageFormData(),
-			});
-			const url = uploaded.imageUrl as string;
+	it.effect(
+		"deleteImage removes the file, clears imageUrl, returns issuer",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const http = yield* HttpClient.HttpClient;
+				const created = yield* client.issuers.create({ payload: make() });
+				const uploaded = yield* client.issuers.uploadImage({
+					path: { id: created.id },
+					payload: imageFormData(),
+				});
+				const url = uploaded.imageUrl as string;
 
-			const cleared = yield* client.issuers.deleteImage({
-				path: { id: created.id },
-			});
-			assert.strictEqual(cleared.imageUrl, undefined);
+				const cleared = yield* client.issuers.deleteImage({
+					path: { id: created.id },
+				});
+				assert.strictEqual(cleared.imageUrl, undefined);
 
-			// The file is gone — the static route now 404s.
-			const res = yield* http.get(url);
-			assert.strictEqual(res.status, 404);
-		}).pipe(Effect.provide(HttpLive)),
+				// The file is gone — the static route now 404s.
+				const res = yield* http.get(url);
+				assert.strictEqual(res.status, 404);
+			}).pipe(Effect.provide(HttpLive)),
 	);
 
 	it.effect("deleteImage 404s on a missing issuer", () =>
