@@ -13,6 +13,7 @@ function txn(partial: {
 	amount: number;
 	issuerId?: number;
 	categoryId?: number;
+	transferGroupId?: number;
 }): Transaction {
 	return {
 		id: nextId++,
@@ -22,6 +23,7 @@ function txn(partial: {
 		rawIssuerString: "raw",
 		issuerId: partial.issuerId,
 		categoryId: partial.categoryId,
+		transferGroupId: partial.transferGroupId,
 		importedAt: new Date("2026-07-01"),
 		importMonth: "2026-07",
 	} as unknown as Transaction;
@@ -150,5 +152,63 @@ describe("aggregateSpend", () => {
 		const { byIssuer, byCategory } = aggregateSpend([], lookups);
 		expect(byIssuer).toEqual([]);
 		expect(byCategory).toEqual([]);
+	});
+
+	it("reports no transfers when nothing is grouped", () => {
+		const { transfers } = aggregateSpend(
+			[txn({ amount: -10, issuerId: 1 })],
+			lookups,
+		);
+		expect(transfers).toEqual({ total: 0, count: 0 });
+	});
+
+	it("excludes transfer legs from both breakdowns and the grand total", () => {
+		// A -30 debit leg and a +30 credit leg of the same transfer group, plus a
+		// real -10 spend. Only the -10 should reach the buckets.
+		const { byIssuer, byCategory, transfers } = aggregateSpend(
+			[
+				txn({ amount: -30, issuerId: 1, categoryId: 10, transferGroupId: 1 }),
+				txn({ amount: 30, issuerId: 1, categoryId: 10, transferGroupId: 1 }),
+				txn({ amount: -10, issuerId: 2, categoryId: 20 }),
+			],
+			lookups,
+		);
+		// The transfer issuer/category never appear; only the real spend does.
+		expect(byName(byIssuer).Amazon).toBeUndefined();
+		expect(byName(byCategory).Groceries).toBeUndefined();
+		expect(byName(byIssuer).Netflix).toMatchObject({ spent: 10, count: 1 });
+
+		// Grand total = sum of the (transfer-free) breakdown rows.
+		const grand = byIssuer.reduce((s, r) => s + r.spent, 0);
+		expect(grand).toBe(10);
+
+		// The transfers figure = the debit leg's magnitude, not the net (~0) nor
+		// the doubled all-legs sum (60). Count is both legs present in the view.
+		expect(transfers).toEqual({ total: 30, count: 2 });
+	});
+
+	it("still excludes and summarises a lone leg (only one side in view)", () => {
+		// Under a single-account filter only the debit side may be present; it is
+		// still netted out of spend and still counted as a transfer.
+		const { byIssuer, transfers } = aggregateSpend(
+			[txn({ amount: -30, issuerId: 1, transferGroupId: 1 })],
+			lookups,
+		);
+		expect(byIssuer).toEqual([]);
+		expect(transfers).toEqual({ total: 30, count: 1 });
+	});
+
+	it("summarises only the debit legs' magnitudes across multiple groups", () => {
+		// Two groups: a clean -30/+30 pair and a lone +20 credit leg. Only the -30
+		// debit contributes to the moved total; all three legs are counted.
+		const { transfers } = aggregateSpend(
+			[
+				txn({ amount: -30, transferGroupId: 1 }),
+				txn({ amount: 30, transferGroupId: 1 }),
+				txn({ amount: 20, transferGroupId: 5 }),
+			],
+			lookups,
+		);
+		expect(transfers).toEqual({ total: 30, count: 3 });
 	});
 });

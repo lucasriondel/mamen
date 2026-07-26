@@ -9,6 +9,7 @@ import type { SpendSort } from "./recap-sort";
 import { sortSpendRows } from "./recap-sort";
 import { type RecapSearch, toPeriod, toSpendSort } from "./search";
 import { SpendSection } from "./spend-section";
+import { TransferSummaryLine } from "./transfer-summary-line";
 import { TruncationNotice } from "./truncation-notice";
 import { useRecapSpend } from "./use-recap-spend";
 
@@ -114,6 +115,9 @@ export function RecapView() {
 			) : (
 				<>
 					{truncated ? <TruncationNotice /> : null}
+					{spend.transfers.count > 0 ? (
+						<TransferSummaryLine transfers={spend.transfers} />
+					) : null}
 					<div className="grid gap-6 lg:grid-cols-2">
 						<SpendSection
 							title="By issuer"

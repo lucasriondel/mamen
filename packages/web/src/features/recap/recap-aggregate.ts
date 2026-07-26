@@ -30,10 +30,26 @@ type BucketIdentity = {
 	icon?: string;
 };
 
+/**
+ * The internal-transfer movement excluded from the spend breakdowns (PRD #48).
+ * `total` is the money that moved between the user's own accounts — the sum of
+ * the magnitudes of the **debit** legs (see {@link aggregateSpend}), so a clean
+ * -30/+30 pair reads as 30, not a net ~0 nor a doubled 60. `count` is how many
+ * transfer legs fell in the current view.
+ */
+export interface TransferSummary {
+	/** Money moved between accounts — sum of the debit legs' magnitudes, in euros. */
+	total: number;
+	/** How many transfer legs are present in the current view. */
+	count: number;
+}
+
 /** The two spend breakdowns the recap page shows, each already summed per bucket. */
 export interface RecapSpend {
 	byIssuer: SpendRow[];
 	byCategory: SpendRow[];
+	/** The internal-transfer legs netted out of the breakdowns, summarised. */
+	transfers: TransferSummary;
 }
 
 /** The label a spend row carries when a transaction has no issuer / category. */
@@ -47,6 +63,17 @@ export const UNASSIGNED_LABEL = "Unassigned";
  */
 function isSpend(txn: Transaction): boolean {
 	return txn.amount < 0;
+}
+
+/**
+ * Is this transaction a leg of an internal transfer (PRD #48)? Legs carry a
+ * `transferGroupId` (set once the user groups them); they are money moving
+ * between the user's own accounts, not spending, so the aggregation nets them
+ * out **before** bucketing rather than muddying the pure {@link isSpend} sign
+ * check. A lone leg (only one side of a pair present in the view) still matches.
+ */
+function isTransferLeg(txn: Transaction): boolean {
+	return txn.transferGroupId != null;
 }
 
 /**
@@ -102,6 +129,11 @@ function bucketBy(
  * derivation. A row with no issuer / no category lands in a single `Unassigned`
  * bucket keyed by `null`. Amounts are summed as positive magnitudes; only
  * spending (negative) rows are counted.
+ *
+ * Internal-transfer legs (PRD #48) are partitioned out **before** bucketing, so
+ * they never enter either breakdown nor the grand total (which only ever sums
+ * the breakdowns). The netted-out legs are summarised separately as
+ * {@link RecapSpend.transfers}.
  */
 export function aggregateSpend(
 	transactions: readonly Transaction[],
@@ -112,8 +144,21 @@ export function aggregateSpend(
 ): RecapSpend {
 	const { issuersById, categoriesById } = lookups;
 
+	const spendRows: Transaction[] = [];
+	const transfers: TransferSummary = { total: 0, count: 0 };
+	for (const txn of transactions) {
+		if (isTransferLeg(txn)) {
+			transfers.count += 1;
+			// The moved amount = the debit legs' magnitudes; a clean pair's credit
+			// leg is skipped so the figure reads as "money moved", not doubled.
+			if (txn.amount < 0) transfers.total += Math.abs(txn.amount);
+			continue;
+		}
+		spendRows.push(txn);
+	}
+
 	const byIssuer = bucketBy(
-		transactions,
+		spendRows,
 		(txn) => txn.issuerId ?? null,
 		(key) => {
 			const issuer = key == null ? undefined : issuersById.get(key);
@@ -125,7 +170,7 @@ export function aggregateSpend(
 	);
 
 	const byCategory = bucketBy(
-		transactions,
+		spendRows,
 		(txn) => txn.categoryId ?? null,
 		(key) => {
 			const category = key == null ? undefined : categoriesById.get(key);
@@ -136,5 +181,5 @@ export function aggregateSpend(
 		},
 	);
 
-	return { byIssuer, byCategory };
+	return { byIssuer, byCategory, transfers };
 }
