@@ -79,8 +79,8 @@ describe("suggestTransferCounterparts", () => {
 		const farOut = txn({
 			amount: 30,
 			accountId: 2,
-			// One day past the window on either side.
-			date: "2026-07-30",
+			// One day past the window (6 days out; the window is 5).
+			date: "2026-07-16",
 		});
 		expect(suggestTransferCounterparts(target, [farOut])).toEqual([]);
 
@@ -112,8 +112,10 @@ describe("suggestTransferCounterparts", () => {
 		const match = txn({ amount: 30, accountId: 2 });
 		const grouped = txn({ amount: -30, accountId: 1, transferGroupId: 3 });
 		const refund = txn({ amount: -30, accountId: 1, isRefund: true });
+		const refundPaired = txn({ amount: -30, accountId: 1, linkedRefundId: 99 });
 		expect(suggestTransferCounterparts(grouped, [match])).toEqual([]);
 		expect(suggestTransferCounterparts(refund, [match])).toEqual([]);
+		expect(suggestTransferCounterparts(refundPaired, [match])).toEqual([]);
 	});
 
 	it("never offers the target itself", () => {
