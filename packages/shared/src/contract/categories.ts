@@ -14,12 +14,27 @@ import {
 import { CategoryId, numFromStr } from "./ids";
 import { Paged, Pagination } from "./pagination";
 
-/** Category entity — the wire shape returned by every categories endpoint. */
+/**
+ * Category entity — the wire shape returned by every categories endpoint.
+ *
+ * `color` is nullable and null means **inherit**, not *absent*: the colour a
+ * category actually paints (its **Resolved colour**) is found by walking
+ * `parentId` up to the first non-null ancestor, falling back to a neutral
+ * constant at a null root. Null is a *reference*, so recolouring a **Category
+ * folder** recolours every descendant that never opted out, in one write — no
+ * client may read this field directly (ADR 0006).
+ *
+ * `icon` is an **Icon name**: a Lucide icon id in kebab-case (`shopping-cart`),
+ * not an emoji and not the PascalCase React export. It keeps its column and its
+ * `Schema.String` type — the string's *interpretation* changed globally, with no
+ * tagged union and no second column (ADR 0006). A name that does not resolve
+ * renders a fallback glyph, so a bad value degrades instead of breaking.
+ */
 export class Category extends Schema.Class<Category>("Category")({
 	id: CategoryId,
 	name: Schema.String,
 	slug: Schema.String,
-	color: Schema.String,
+	color: Schema.NullOr(Schema.String), // null = inherit from the nearest ancestor
 	icon: Schema.String,
 	parentId: Schema.NullOr(CategoryId), // null = root
 	sortOrder: Schema.Number,

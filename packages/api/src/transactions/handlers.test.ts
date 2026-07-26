@@ -1137,7 +1137,7 @@ describe("category leaf-assignable invariant at the transactions door", () => {
 						name: slug,
 						slug,
 						color: "#000000",
-						icon: "📁",
+						icon: "folder",
 						parentId,
 						sortOrder: 0,
 					},

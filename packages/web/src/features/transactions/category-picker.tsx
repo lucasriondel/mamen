@@ -2,6 +2,7 @@ import type { Category, Transaction } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Plus, X } from "lucide-react";
 import { useState } from "react";
+import { CategoryIcon } from "@/components/category-icon";
 import { CategoryTreeItems } from "@/components/category-tree-items";
 import {
 	Command,
@@ -21,6 +22,7 @@ import {
 	categoryPath,
 	isFolder,
 	isLeaf,
+	resolveCategoryColor,
 	searchTree,
 } from "@/lib/category-tree";
 import { categoryQueries } from "@/lib/sdk";
@@ -173,7 +175,11 @@ export function CategoryPicker({ transaction, category }: CategoryPickerProps) {
 											onSelect={() => createInFolder(folder.id)}
 											disabled={pending}
 										>
-											<span aria-hidden>{folder.icon}</span>
+											<CategoryIcon
+												name={folder.icon}
+												color={resolveCategoryColor(categories, folder)}
+												size={14}
+											/>
 											<span className="truncate">
 												{categoryPath(categories, folder)}
 											</span>
@@ -203,6 +209,7 @@ export function CategoryPicker({ transaction, category }: CategoryPickerProps) {
 								) : null}
 
 								<CategoryTreeItems
+									categories={categories}
 									nodes={nodes}
 									selectedId={category?.id}
 									onSelect={apply}

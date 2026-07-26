@@ -9,8 +9,13 @@ import type {
 import { useQuery } from "@tanstack/react-query";
 import { getRouteApi, Link } from "@tanstack/react-router";
 import { useMemo } from "react";
+import { CategoryIcon } from "@/components/category-icon";
 import { Empty } from "@/components/ui/empty";
-import { descendantIds, isFolder } from "@/lib/category-tree";
+import {
+	descendantIds,
+	isFolder,
+	resolveCategoryColor,
+} from "@/lib/category-tree";
 import { formatCurrency } from "@/lib/format";
 import {
 	accountQueries,
@@ -196,7 +201,13 @@ export function CategoryTransactionsView() {
 				</Link>
 				<div className="flex items-baseline justify-between gap-4">
 					<h1 className="flex items-center gap-2 text-balance font-semibold text-2xl text-ink">
-						{category?.icon ? <span aria-hidden>{category.icon}</span> : null}
+						{category ? (
+							<CategoryIcon
+								name={category.icon}
+								color={resolveCategoryColor(categories, category)}
+								size={22}
+							/>
+						) : null}
 						<span>{category?.name ?? "Category"}</span>
 					</h1>
 					{/* `<output>` (an implicit live region) both carries the label a

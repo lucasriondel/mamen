@@ -6,6 +6,8 @@ import {
 	descendantIds,
 	isFolder,
 	isLeaf,
+	NEUTRAL_CATEGORY_COLOR,
+	resolveCategoryColor,
 	searchTree,
 	subtreeIds,
 } from "./category-tree";
@@ -17,7 +19,7 @@ function category(over: Partial<Category> = {}): Category {
 		name: "Food",
 		slug: "food",
 		color: "#ef4444",
-		icon: "🍔",
+		icon: "utensils-crossed",
 		parentId: null,
 		sortOrder: 0,
 		createdAt: new Date("2026-01-01"),
@@ -266,6 +268,86 @@ describe("category-tree", () => {
 		it("joins the chain from root to node for a nested leaf", () => {
 			const { groceries, categories } = seed();
 			expect(categoryPath(categories, groceries)).toBe("Food › Groceries");
+		});
+	});
+
+	describe("resolveCategoryColor", () => {
+		it("returns a category's own colour when it stored one", () => {
+			const own = category({ color: "#111111", parentId: null });
+			const parent = category({ color: "#222222" });
+			const child = category({ color: "#333333", parentId: parent.id });
+			// A stored colour stops the walk dead — a leaf that opted out of
+			// inheriting is not overruled by the folder it happens to sit in.
+			expect(resolveCategoryColor([own], own)).toBe("#111111");
+			expect(resolveCategoryColor([parent, child], child)).toBe("#333333");
+		});
+
+		it("walks up to the nearest ancestor that stored one", () => {
+			const food = category({ name: "Food", color: "#ef4444" });
+			const subs = category({
+				name: "Subscriptions",
+				color: null,
+				parentId: food.id,
+			});
+			const netflix = category({
+				name: "Netflix",
+				color: null,
+				parentId: subs.id,
+			});
+			const categories = [food, subs, netflix];
+			// Two hops up, past an intermediate folder that inherits as well — the
+			// walk finds the first non-null, not the root.
+			expect(resolveCategoryColor(categories, netflix)).toBe("#ef4444");
+			expect(resolveCategoryColor(categories, subs)).toBe("#ef4444");
+		});
+
+		it("recolouring a folder recolours every inheriting descendant", () => {
+			const food = category({ name: "Food", color: "#ef4444" });
+			const groceries = category({
+				name: "Groceries",
+				color: null,
+				parentId: food.id,
+			});
+			const cafes = category({
+				name: "Cafés",
+				color: "#000000",
+				parentId: food.id,
+			});
+			expect(resolveCategoryColor([food, groceries, cafes], groceries)).toBe(
+				"#ef4444",
+			);
+			// One write on the folder — no descendant row is touched.
+			const recoloured = { ...food, color: "#0ea5e9" };
+			const after = [recoloured, groceries, cafes];
+			expect(resolveCategoryColor(after, groceries)).toBe("#0ea5e9");
+			// …and the sibling that stored its own colour is unmoved.
+			expect(resolveCategoryColor(after, cafes)).toBe("#000000");
+		});
+
+		it("falls back to the neutral constant when the walk reaches a null root", () => {
+			const root = category({ color: null, parentId: null });
+			const leaf = category({ color: null, parentId: root.id });
+			expect(resolveCategoryColor([root, leaf], leaf)).toBe(
+				NEUTRAL_CATEGORY_COLOR,
+			);
+			expect(resolveCategoryColor([root, leaf], root)).toBe(
+				NEUTRAL_CATEGORY_COLOR,
+			);
+		});
+
+		it("terminates on a detached node and on a cycle", () => {
+			// A parent absent from the list: the walk stops rather than inventing
+			// structure, mirroring how `buildTree` drops orphans.
+			const detached = category({ color: null, parentId: 999 });
+			expect(resolveCategoryColor([detached], detached)).toBe(
+				NEUTRAL_CATEGORY_COLOR,
+			);
+
+			// The API refuses cycles, but a corrupt list must not hang a render.
+			const a = category({ color: null });
+			const b = category({ color: null, parentId: a.id });
+			const cyclic = [{ ...a, parentId: b.id }, b];
+			expect(resolveCategoryColor(cyclic, b)).toBe(NEUTRAL_CATEGORY_COLOR);
 		});
 	});
 });

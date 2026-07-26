@@ -3,6 +3,7 @@ import type { Category, CategoryId } from "@mamen/shared/contract";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { type FormEvent, useState } from "react";
+import { CategoryIcon } from "@/components/category-icon";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -16,6 +17,8 @@ import {
 	buildTree,
 	categoryPath,
 	descendantIds,
+	NEUTRAL_CATEGORY_COLOR,
+	resolveCategoryColor,
 	subtreeIds,
 } from "@/lib/category-tree";
 import { formatCurrency } from "@/lib/format";
@@ -53,6 +56,12 @@ interface NodeActions {
 	deleting: boolean;
 	/** A folder's rolled-up **Category total** (whole subtree), by node id. */
 	totalById: Map<CategoryId, number>;
+	/**
+	 * Every node's **Resolved colour**, by node id. Resolved once against the flat
+	 * list rather than per row: the walk needs the whole tree, and the recursive
+	 * render only ever holds a subtree.
+	 */
+	colorById: Map<CategoryId, string>;
 }
 
 /**
@@ -103,6 +112,14 @@ export function CategoriesView() {
 		folders.map((folder, i) => [folder.id, totals[i]?.data?.total ?? 0]),
 	);
 
+	// The **Resolved colour** of every node, folder and leaf alike. This is the
+	// surface where inheritance is visible: recolour a folder and every descendant
+	// that never stored a colour of its own repaints, because nothing here reads
+	// `color` — it resolves (ADR 0006).
+	const colorById = new Map<CategoryId, string>(
+		categories.map((cat) => [cat.id, resolveCategoryColor(categories, cat)]),
+	);
+
 	const actions: NodeActions = {
 		onAdd: (parent) => setEditor({ kind: "create", parent }),
 		onRename: (node) => setEditor({ kind: "rename", node }),
@@ -110,6 +127,7 @@ export function CategoriesView() {
 		onDelete: (id) => mutations.remove.mutate(id),
 		deleting: mutations.remove.isPending,
 		totalById,
+		colorById,
 	};
 
 	return (
@@ -214,15 +232,27 @@ function NodeControls({
 	);
 }
 
-/** A link to a node's transactions page — its icon + name (issue #25). */
-function NodeLink({ node, className }: { node: Category; className?: string }) {
+/**
+ * A link to a node's transactions page — its icon + name (issue #25). The icon is
+ * a Lucide **Icon name** drawn in the node's **Resolved colour**, so an
+ * inheriting leaf visibly tracks the folder above it.
+ */
+function NodeLink({
+	node,
+	color,
+	className,
+}: {
+	node: Category;
+	color: string;
+	className?: string;
+}) {
 	return (
 		<Link
 			to="/categories/$categoryId"
 			params={{ categoryId: String(node.id) }}
 			className={cn("flex min-w-0 items-center gap-1.5", className)}
 		>
-			<span aria-hidden>{node.icon}</span>
+			<CategoryIcon name={node.icon} color={color} />
 			<span className="truncate">{node.name}</span>
 		</Link>
 	);
@@ -242,10 +272,16 @@ function CategoryNode({
 	node: CategoryTreeNode;
 	actions: NodeActions;
 }) {
+	const color = actions.colorById.get(node.id) ?? NEUTRAL_CATEGORY_COLOR;
+
 	if (node.children.length === 0) {
 		return (
 			<div className="flex items-center justify-between gap-2 rounded-lg border border-line bg-panel px-4 py-2">
-				<NodeLink node={node} className="text-ink text-sm hover:text-accent" />
+				<NodeLink
+					node={node}
+					color={color}
+					className="text-ink text-sm hover:text-accent"
+				/>
 				<NodeControls node={node} actions={actions} />
 			</div>
 		);
@@ -259,6 +295,7 @@ function CategoryNode({
 			<legend className="flex w-full items-center justify-between gap-2">
 				<NodeLink
 					node={node}
+					color={color}
 					className="font-medium text-ink hover:text-accent"
 				/>
 				<output

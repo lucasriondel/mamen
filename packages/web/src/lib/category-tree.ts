@@ -174,6 +174,54 @@ export function subtreeIds(
 }
 
 /**
+ * The colour painted when the **inherited colour** walk finds nobody who ever
+ * chose one: a null root, or a detached node whose parent is missing from the
+ * list. Neutral slate — the grey `use-category-mutations` used to stamp onto
+ * every new category, now the terminator of a walk instead of a stored value, so
+ * a category that inherits nothing looks exactly as it did before (ADR 0006).
+ */
+export const NEUTRAL_CATEGORY_COLOR = "#94a3b8";
+
+/**
+ * A category's **Resolved colour** — the colour actually painted for it. Its own
+ * `color` if it stored one; otherwise its nearest ancestor's, found by walking
+ * `parentId` up to the first non-null value; otherwise
+ * {@link NEUTRAL_CATEGORY_COLOR}.
+ *
+ * `color: null` is **inherited colour**: a *reference* to the ancestor, not a
+ * missing value (ADR 0006). That is what makes one write on a **Category folder**
+ * recolour every descendant that never opted out — so no read site may read the
+ * field, and resolution needs the whole tree rather than one row. Lives here
+ * beside {@link categoryPath}, the other `parentId` walk, so the tree is still
+ * read one way in one place.
+ *
+ * Total for every tree shape. The walk stops at a root, at a parent absent from
+ * the list (a detached node — never invents structure, exactly as
+ * {@link buildTree} drops orphans), and at a revisited id, so a cycle the API
+ * would refuse cannot hang a render.
+ */
+export function resolveCategoryColor(
+	categories: readonly Category[],
+	category: Category,
+): string {
+	// `!= null` rather than `!== null`: the field is `string | null` on the wire,
+	// but this is the boundary between stored data and paint, and an absent value
+	// must terminate the walk the same way an explicit null does.
+	if (category.color != null) return category.color;
+	const byId = new Map(categories.map((cat) => [cat.id, cat]));
+	const seen = new Set<number>([category.id]);
+	let parentId = category.parentId;
+	while (parentId != null && !seen.has(parentId)) {
+		seen.add(parentId);
+		const parent = byId.get(parentId);
+		if (parent === undefined) break;
+		if (parent.color != null) return parent.color;
+		parentId = parent.parentId;
+	}
+	return NEUTRAL_CATEGORY_COLOR;
+}
+
+/**
  * The label for a node in a parent picker — its path from the root, joined with
  * a separator (e.g. `Food › Groceries`). A root's path is a bare name; a nested
  * node's path spells out its ancestry, disambiguating same-named nodes across

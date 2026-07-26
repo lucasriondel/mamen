@@ -1,4 +1,5 @@
 import type { Category, Issuer, Transaction } from "@mamen/shared/contract";
+import { resolveCategoryColor } from "@/lib/category-tree";
 
 /**
  * One row of a recap spend section (issue #35): a named bucket — an issuer or a
@@ -19,8 +20,15 @@ export interface SpendRow {
 	count: number;
 	/** Issuer image URL (root-relative `/uploads/issuers/…`), for the by-issuer section. */
 	imageUrl?: string;
-	/** Category icon (an emoji), for the by-category section. */
+	/** The category's **Icon name** (a Lucide id), for the by-category section. */
 	icon?: string;
+	/**
+	 * The category's **Resolved colour** — resolved here, where the whole tree is
+	 * in hand, because `color` may be null and mean *inherit* (ADR 0006). Carried
+	 * on the row so the section renders a colour it is handed rather than
+	 * re-deriving one from a lookup it does not have.
+	 */
+	color?: string;
 }
 
 /** The visual identity a bucket resolves to: its name plus an optional avatar. */
@@ -28,6 +36,7 @@ type BucketIdentity = {
 	name: string;
 	imageUrl?: string;
 	icon?: string;
+	color?: string;
 };
 
 /**
@@ -111,6 +120,7 @@ function bucketBy(
 			name: identity.name,
 			imageUrl: identity.imageUrl,
 			icon: identity.icon,
+			color: identity.color,
 			spent: bucket.spent,
 			count: bucket.count,
 		};
@@ -169,6 +179,9 @@ export function aggregateSpend(
 		},
 	);
 
+	// The **Resolved colour** walk takes the whole tree, so flatten the lookup once
+	// rather than per bucket.
+	const categoryTree = [...categoriesById.values()];
 	const byCategory = bucketBy(
 		spendRows,
 		(txn) => txn.categoryId ?? null,
@@ -177,6 +190,12 @@ export function aggregateSpend(
 			return {
 				name: category?.name ?? UNASSIGNED_LABEL,
 				icon: category?.icon,
+				// Resolved against the whole tree, not read off the row: an inheriting
+				// leaf's colour lives on an ancestor (ADR 0006).
+				color:
+					category === undefined
+						? undefined
+						: resolveCategoryColor(categoryTree, category),
 			};
 		},
 	);

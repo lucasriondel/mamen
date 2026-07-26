@@ -14,12 +14,16 @@ import {
 import { Clock, Effect, Option, Schema } from "effect";
 import { orDieSql } from "../db/errors";
 
-/** Row shape as stored in sqlite — `createdAt` is ISO-8601 TEXT. */
+/**
+ * Row shape as stored in sqlite — `createdAt` is ISO-8601 TEXT. `color` is
+ * nullable (migration 0015): NULL means **inherited colour**, resolved by the
+ * reader against the whole tree, never substituted here (ADR 0006).
+ */
 const CategoryRow = Schema.Struct({
 	id: Schema.Number,
 	name: Schema.String,
 	slug: Schema.String,
-	color: Schema.String,
+	color: Schema.NullOr(Schema.String),
 	icon: Schema.String,
 	parentId: Schema.NullOr(Schema.Number),
 	sortOrder: Schema.Number,

@@ -102,7 +102,7 @@ function category(over: Partial<Category> = {}): Category {
 		name: "Food",
 		slug: "food",
 		color: "#ef4444",
-		icon: "🍔",
+		icon: "utensils-crossed",
 		parentId: null,
 		sortOrder: 0,
 		createdAt: new Date("2026-01-01"),
@@ -114,15 +114,21 @@ function category(over: Partial<Category> = {}): Category {
 function seedTree() {
 	const food = category({ name: "Food", slug: "food", sortOrder: 0 });
 	const home = category({ name: "Home", slug: "home", sortOrder: 1 });
+	// The leaves **inherit**: `color: null` is a reference to Food's colour, which
+	// is what the seed migration leaves behind (ADR 0006).
 	const groceries = category({
 		name: "Groceries",
 		slug: "groceries",
+		color: null,
+		icon: "shopping-cart",
 		parentId: food.id,
 		sortOrder: 0,
 	});
 	const restaurants = category({
 		name: "Restaurants",
 		slug: "restaurants",
+		color: null,
+		icon: "utensils",
 		parentId: food.id,
 		sortOrder: 1,
 	});
@@ -264,6 +270,54 @@ describe("CategoriesView", () => {
 				parentId: null,
 			}),
 		);
+	});
+
+	// The hardcoded `#94a3b8` is gone (ADR 0006 / issue #55): a new category is
+	// born **inheriting**, so creating one inside a folder picks up that folder's
+	// colour and a later folder recolour keeps reaching it.
+	it("creates a category with an inherited colour and a Lucide icon name", async () => {
+		const user = userEvent.setup();
+		const { food } = seedTree();
+		renderView();
+
+		const foodGroup = await screen.findByRole("group", { name: /food/i });
+		await user.click(
+			within(foodGroup).getByRole("button", { name: /add category in food/i }),
+		);
+		await user.type(screen.getByLabelText(/category name/i), "Cafés");
+		await user.click(screen.getByRole("button", { name: /create category/i }));
+
+		await waitFor(() => expect(createCategory).toHaveBeenCalledTimes(1));
+		expect(createCategory).toHaveBeenCalledWith(
+			expect.objectContaining({ color: null, icon: "tag", parentId: food.id }),
+		);
+	});
+
+	// The **Resolved colour** on the surface that shows it. The page never reads
+	// `color` — it resolves — which is what makes a folder recolour visible on
+	// every descendant that never opted out (the walk itself is covered at the
+	// `resolveCategoryColor` seam).
+	it("paints an inheriting leaf in its folder's colour, and a leaf with its own colour in that", async () => {
+		const { food, restaurants } = seedTree();
+		// One leaf opts out; its sibling keeps inheriting.
+		categoriesList = categoriesList.map((cat) =>
+			cat.id === restaurants.id ? { ...cat, color: "#000000" } : cat,
+		);
+		renderView();
+
+		const iconIn = async (name: RegExp) =>
+			(await screen.findByRole("link", { name })).querySelector(
+				"[data-category-icon]",
+			);
+
+		// Groceries stores no colour, so it paints Food's — with its *own* icon:
+		// depth adds navigation, not identity.
+		await waitFor(async () => {
+			const groceries = await iconIn(/groceries/i);
+			expect(groceries).toHaveAttribute("stroke", food.color);
+			expect(groceries).toHaveAttribute("data-category-icon", "shopping-cart");
+		});
+		expect(await iconIn(/restaurants/i)).toHaveAttribute("stroke", "#000000");
 	});
 
 	it("creates a leaf inside a chosen folder", async () => {

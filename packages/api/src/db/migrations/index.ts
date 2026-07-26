@@ -12,6 +12,7 @@ import dropTransactionsCategoryColumns from "./0011_drop_transactions_category_c
 import addTransactionsNotes from "./0012_add_transactions_notes";
 import addRulesMatchValue from "./0013_add_rules_match_value";
 import addTransactionsTransferGroup from "./0014_add_transactions_transfer_group";
+import categoryColourInheritLucideIcons from "./0015_category_colour_inherit_lucide_icons";
 
 /**
  * The migration set, keyed `NNNN_name` (the Migrator parses the numeric prefix
@@ -34,4 +35,5 @@ export const migrations = {
 	"0012_add_transactions_notes": addTransactionsNotes,
 	"0013_add_rules_match_value": addRulesMatchValue,
 	"0014_add_transactions_transfer_group": addTransactionsTransferGroup,
+	"0015_category_colour_inherit_lucide_icons": categoryColourInheritLucideIcons,
 } as const;

@@ -5,12 +5,21 @@ import { categoryKeys, categoryMutations } from "@/lib/sdk";
 import { categoryHoldsMoney, toErrorMessage } from "@/lib/sdk-error";
 import { slugify } from "@/lib/utils";
 
-/** Neutral colour/icon defaults a new category gets; refined later if wanted. */
-const NEW_COLOR = "#94a3b8";
+/**
+ * A new category **inherits** its colour: `null`, not a colour of its own (ADR
+ * 0006 / issue #55). This replaces a hardcoded `#94a3b8`, which was a live bug —
+ * every user-created category came out grey regardless of the folder it was
+ * created in, and a later folder recolour could never reach it. A category that
+ * genuinely wants its own colour stores one and stops inheriting; a root, with no
+ * ancestor to inherit from, resolves to the neutral constant, which is the grey
+ * this used to hardcode.
+ */
+const NEW_COLOR = null;
 // One icon for every new node: under ADR 0003 a category is born childless (a
 // leaf) and *becomes* a folder only if something is later nested beneath it, so
-// there is no folder-vs-leaf variant to pre-decide at creation (issue #32).
-const NEW_CATEGORY_ICON = "🏷️";
+// there is no folder-vs-leaf variant to pre-decide at creation (issue #32). An
+// **Icon name** now — the Lucide id whose glyph the emoji `🏷️` used to stand for.
+const NEW_CATEGORY_ICON = "tag";
 
 /**
  * The taxonomy-curation write mutations for the categories page (PRD #19, issues

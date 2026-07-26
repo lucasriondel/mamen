@@ -1,5 +1,6 @@
 import type { Category, Issuer, Transaction } from "@mamen/shared/contract";
 import { describe, expect, it } from "vitest";
+import { NEUTRAL_CATEGORY_COLOR } from "@/lib/category-tree";
 import {
 	aggregateSpend,
 	type SpendRow,
@@ -33,17 +34,33 @@ function issuer(id: number, name: string, imageUrl?: string): Issuer {
 	return { id, name, imageUrl } as unknown as Issuer;
 }
 
-function category(id: number, name: string, icon?: string): Category {
-	return { id, name, icon } as unknown as Category;
+function category(
+	id: number,
+	name: string,
+	icon?: string,
+	over: Partial<Category> = {},
+): Category {
+	return {
+		id,
+		name,
+		icon,
+		color: null,
+		parentId: null,
+		...over,
+	} as unknown as Category;
 }
 
+// Food is a folder that stored a colour; Groceries is a leaf that **inherits** it
+// (ADR 0006). Streaming stores neither icon nor colour and inherits nothing, so
+// it exercises the neutral terminator.
 const lookups = {
 	issuersById: new Map([
 		[1, issuer(1, "Amazon", "/uploads/issuers/amazon.png")],
 		[2, issuer(2, "Netflix")],
 	]),
 	categoriesById: new Map([
-		[10, category(10, "Groceries", "🛒")],
+		[1, category(1, "Food", "utensils-crossed", { color: "#ef4444" })],
+		[10, category(10, "Groceries", "shopping-cart", { parentId: 1 })],
 		[20, category(20, "Streaming")],
 	]),
 };
@@ -129,7 +146,7 @@ describe("aggregateSpend", () => {
 		expect(byIssuer[0]).toMatchObject({ id: 999, name: UNASSIGNED_LABEL });
 	});
 
-	it("carries the issuer image and category icon onto their rows", () => {
+	it("carries the issuer image, category icon and resolved colour onto their rows", () => {
 		const { byIssuer, byCategory } = aggregateSpend(
 			[
 				txn({ amount: -10, issuerId: 1 }),
@@ -144,8 +161,16 @@ describe("aggregateSpend", () => {
 		expect(issuers.Netflix.imageUrl).toBeUndefined();
 
 		const categories = byName(byCategory);
-		expect(categories.Groceries.icon).toBe("🛒");
+		expect(categories.Groceries.icon).toBe("shopping-cart");
 		expect(categories.Streaming.icon).toBeUndefined();
+		// The colour is *resolved* here, where the whole lookup is in hand: an
+		// inheriting leaf carries its folder's, and a row inheriting from nobody
+		// carries the neutral constant (ADR 0006).
+		expect(categories.Groceries.color).toBe("#ef4444");
+		expect(categories.Streaming.color).toBe(NEUTRAL_CATEGORY_COLOR);
+		// The Unassigned bucket has no category at all, so there is nothing to
+		// resolve — it must not borrow the neutral constant and read as a category.
+		expect(categories.Unassigned.color).toBeUndefined();
 	});
 
 	it("returns empty sections when there is no spend", () => {

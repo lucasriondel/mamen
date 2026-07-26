@@ -1,3 +1,4 @@
+import { CategoryIcon } from "@/components/category-icon";
 import { formatCurrency } from "@/lib/format";
 import { IssuerAvatar } from "@/features/issuers/issuer-avatar";
 import type { SpendRow } from "./recap-aggregate";
@@ -84,18 +85,16 @@ function SpendRowItem({ row }: { row: SpendRow }) {
 }
 
 /**
- * The row's leading glyph: a category emoji when the row carries an `icon`, an
- * issuer avatar (uploaded image, else the name's initial) otherwise. The
- * emoji sits in the same round chip as the avatar so both sections align.
+ * The row's leading glyph: the category's Lucide icon, in its **Resolved colour**,
+ * when the row carries an `icon`; an issuer avatar (uploaded image, else the
+ * name's initial) otherwise. The icon sits in the same round chip as the avatar so
+ * both sections align.
  */
 function SpendRowAvatar({ row }: { row: SpendRow }) {
 	if (row.icon) {
 		return (
-			<span
-				aria-hidden
-				className="flex size-6 shrink-0 items-center justify-center rounded-full bg-bg text-xs"
-			>
-				{row.icon}
+			<span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-bg">
+				<CategoryIcon name={row.icon} color={row.color} size={14} />
 			</span>
 		);
 	}

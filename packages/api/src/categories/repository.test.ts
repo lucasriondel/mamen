@@ -23,7 +23,7 @@ const make = (over: Partial<CategoryCreate> = {}): CategoryCreate => ({
 	name: "Food",
 	slug: "food",
 	color: "#ff0000",
-	icon: "🍔",
+	icon: "utensils-crossed",
 	parentId: null,
 	sortOrder: 0,
 	...over,
@@ -207,6 +207,22 @@ describe("CategoryRepo", () => {
 				updated.createdAt.getTime(),
 				created.createdAt.getTime(),
 			);
+		}).pipe(Effect.provide(RepoTest)),
+	);
+
+	// A null colour is **inherited colour**, not a missing value (ADR 0006): it
+	// must survive a create and be reachable from a stored colour, since clearing
+	// a leaf's own colour is how the user hands it back to its folder.
+	it.effect("stores a null colour on create and on update", () =>
+		Effect.gen(function* () {
+			const repo = yield* CategoryRepo;
+			const inheriting = yield* repo.create(make({ color: null }));
+			assert.isNull(inheriting.color);
+			assert.isNull((yield* repo.getById(inheriting.id)).color);
+
+			const own = yield* repo.create(make({ color: "#123456" }));
+			const cleared = yield* repo.update(own.id, { color: null });
+			assert.isNull(cleared.color);
 		}).pipe(Effect.provide(RepoTest)),
 	);
 

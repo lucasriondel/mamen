@@ -1,7 +1,8 @@
 import type { Category } from "@mamen/shared/contract";
 import { Check } from "lucide-react";
+import { CategoryIcon } from "@/components/category-icon";
 import { CommandItem } from "@/components/ui/command";
-import type { PickerNode } from "@/lib/category-tree";
+import { type PickerNode, resolveCategoryColor } from "@/lib/category-tree";
 
 /**
  * The category tree rendered as picker rows, nested to arbitrary depth (issue
@@ -17,12 +18,19 @@ import type { PickerNode } from "@/lib/category-tree";
  * categories page; this component only ever selects a leaf.
  */
 export function CategoryTreeItems({
+	categories,
 	nodes,
 	selectedId,
 	onSelect,
 	disabled,
 	selectedLabel,
 }: {
+	/**
+	 * The whole flat list `nodes` was derived from. Needed because a **Resolved
+	 * colour** is a walk up `parentId`, not a field — an inheriting leaf's colour
+	 * lives on an ancestor that may not be among the filtered `nodes` at all.
+	 */
+	categories: readonly Category[];
 	nodes: PickerNode[];
 	/** The currently-assigned leaf, marked with a check. */
 	selectedId?: Category["id"] | null;
@@ -34,6 +42,7 @@ export function CategoryTreeItems({
 	return nodes.map(({ category, depth, isLeaf }) => {
 		// Indent by depth so the tree reads; leaves and headings align per level.
 		const indent = { paddingLeft: `${8 + depth * 14}px` };
+		const color = resolveCategoryColor(categories, category);
 		if (!isLeaf) {
 			return (
 				<div
@@ -42,7 +51,7 @@ export function CategoryTreeItems({
 					className="flex items-center gap-2 px-2 py-1.5 text-xs font-medium text-muted"
 					style={indent}
 				>
-					<span aria-hidden>{category.icon}</span>
+					<CategoryIcon name={category.icon} color={color} size={14} />
 					<span className="truncate">{category.name}</span>
 				</div>
 			);
@@ -55,7 +64,7 @@ export function CategoryTreeItems({
 				disabled={disabled}
 				style={indent}
 			>
-				<span aria-hidden>{category.icon}</span>
+				<CategoryIcon name={category.icon} color={color} size={14} />
 				<span className="truncate">{category.name}</span>
 				{category.id === selectedId ? (
 					<Check

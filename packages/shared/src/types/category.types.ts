@@ -4,7 +4,8 @@ export type Category = {
 	id?: number;
 	name: string;
 	slug: string;
-	color: string;
+	/** null = **inherited colour** — see the contract {@link ContractCategory}. */
+	color: string | null;
 	icon: string;
 	parentId: number | null;
 	sortOrder: number;

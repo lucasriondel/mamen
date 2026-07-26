@@ -72,7 +72,7 @@ const category: Category = {
 	name: "Groceries",
 	slug: "groceries",
 	color: "#0f0",
-	icon: "cart",
+	icon: "shopping-cart",
 	parentId: 1 as Category["id"],
 	sortOrder: 0,
 	createdAt: new Date(),

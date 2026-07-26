@@ -11,8 +11,11 @@ import { slugify } from "@/lib/utils";
  * parent, so the caller supplies the folder it belongs under; folders are
  * structural and created deliberately on the categories page, never while
  * triaging. The name is pre-filled from the picker's search query, so the search
- * already done is not wasted, and a slug is derived from it. Colour/icon get
- * neutral defaults the user can refine later on the categories page.
+ * already done is not wasted, and a slug is derived from it. The leaf is born
+ * **inheriting** its colour (`color: null`) — it is created *inside* a folder, so
+ * taking that folder's colour is the only sensible default and a later folder
+ * recolour keeps reaching it (ADR 0006 / issue #55) — with a neutral **Icon
+ * name** the user can refine later on the categories page.
  *
  * On a rejected write a `sonner` toast reports it. Success invalidates the
  * categories key family so the new leaf shows in the picker.
@@ -31,8 +34,8 @@ export function useCreateCategoryLeaf() {
 			categoryMutations.create({
 				name,
 				slug: slugify(name),
-				color: "#94a3b8",
-				icon: "🏷️",
+				color: null,
+				icon: "tag",
 				parentId,
 				sortOrder: 0,
 			}),

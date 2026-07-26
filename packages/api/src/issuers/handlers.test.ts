@@ -65,7 +65,7 @@ const makeCategory = (over: Partial<CategoryCreate> = {}): CategoryCreate => ({
 	name: "Food",
 	slug: "food",
 	color: "#ff0000",
-	icon: "🍔",
+	icon: "utensils-crossed",
 	parentId: null,
 	sortOrder: 0,
 	...over,

@@ -36,7 +36,7 @@ const make = (over: Partial<CategoryCreate> = {}): CategoryCreate => ({
 	name: "Food",
 	slug: "food",
 	color: "#ff0000",
-	icon: "🍔",
+	icon: "utensils-crossed",
 	parentId: null,
 	sortOrder: 0,
 	...over,
@@ -111,6 +111,39 @@ describe("categories endpoints", () => {
 			});
 			assert.strictEqual(page.total, SEEDED_COUNT);
 			assert.strictEqual(page.items.length, SEEDED_COUNT);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	// The wire, not just the repo: `color` is `NullOr(String)` in the contract, so
+	// a null must survive encode/decode in both directions (ADR 0006). Nothing
+	// substitutes a colour server-side — resolution is the reader's job, and it
+	// takes the whole tree.
+	it.effect("accepts and returns a null colour over the wire", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const created = yield* client.categories.create({
+				payload: make({ name: "Inheriting", slug: "inheriting", color: null }),
+			});
+			assert.strictEqual(created.color, null);
+
+			const fetched = yield* client.categories.getById({
+				path: { id: created.id },
+			});
+			assert.strictEqual(fetched.color, null);
+
+			// A category may store its own colour and stop inheriting…
+			const recoloured = yield* client.categories.update({
+				path: { id: created.id },
+				payload: { color: "#0ea5e9" },
+			});
+			assert.strictEqual(recoloured.color, "#0ea5e9");
+
+			// …and be handed back to its ancestor by clearing it again.
+			const cleared = yield* client.categories.update({
+				path: { id: created.id },
+				payload: { color: null },
+			});
+			assert.strictEqual(cleared.color, null);
 		}).pipe(Effect.provide(HttpLive)),
 	);
 
@@ -792,7 +825,7 @@ describe("categories endpoints", () => {
 							name: "Streaming services",
 							slug: "streaming-services",
 							color: "#94a3b8",
-							icon: "🏷️",
+							icon: "tag",
 							sortOrder: 0,
 						},
 					});
@@ -831,7 +864,7 @@ describe("categories endpoints", () => {
 							name: "Nope",
 							slug: "nope",
 							color: "#94a3b8",
-							icon: "🏷️",
+							icon: "tag",
 							sortOrder: 0,
 						},
 					})

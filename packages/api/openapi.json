@@ -551,7 +551,14 @@
                     "type": "string"
                   },
                   "color": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "icon": {
                     "type": "string"
@@ -715,7 +722,14 @@
                     "type": "string"
                   },
                   "color": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "icon": {
                     "type": "string"
@@ -928,7 +942,14 @@
                           "type": "string"
                         },
                         "color": {
-                          "type": "string"
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         },
                         "icon": {
                           "type": "string"
@@ -1033,7 +1054,14 @@
                     "type": "string"
                   },
                   "color": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "icon": {
                     "type": "string"
@@ -2151,6 +2179,44 @@
         }
       }
     },
+    "/api/transactions/transfer-candidates": {
+      "get": {
+        "tags": [
+          "Transactions"
+        ],
+        "operationId": "transactions.transferCandidates",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TransferCandidate"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        }
+      }
+    },
     "/api/transactions/{id}": {
       "get": {
         "tags": [
@@ -2369,6 +2435,63 @@
         "responses": {
           "204": {
             "description": "Success"
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NotFound",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFound"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/transactions/{id}/transfer-suggestions": {
+      "get": {
+        "tags": [
+          "Transactions"
+        ],
+        "operationId": "transactions.transferSuggestions",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": {
+              "$ref": "#/components/schemas/NumberFromString"
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Transaction"
+                  }
+                }
+              }
+            }
           },
           "400": {
             "description": "The request did not match the expected schema",
@@ -4912,7 +5035,14 @@
             "type": "string"
           },
           "color": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "icon": {
             "type": "string"
@@ -5222,6 +5352,26 @@
             "type": "string"
           },
           "linkedTransactionId": {
+            "type": "number"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TransferCandidate": {
+        "type": "object",
+        "required": [
+          "from",
+          "to",
+          "daysApart"
+        ],
+        "properties": {
+          "from": {
+            "$ref": "#/components/schemas/Transaction"
+          },
+          "to": {
+            "$ref": "#/components/schemas/Transaction"
+          },
+          "daysApart": {
             "type": "number"
           }
         },

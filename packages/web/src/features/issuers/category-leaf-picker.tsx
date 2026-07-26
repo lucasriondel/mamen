@@ -114,6 +114,7 @@ export function CategoryLeafPicker({
 						) : null}
 
 						<CategoryTreeItems
+							categories={categories}
 							nodes={nodes}
 							selectedId={value}
 							onSelect={choose}
