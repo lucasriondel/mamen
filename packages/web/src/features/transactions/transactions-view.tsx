@@ -17,6 +17,7 @@ import {
 	transactionQueries,
 } from "@/lib/sdk";
 import { indexById } from "@/lib/utils";
+import { ColumnsToggle } from "./columns-toggle";
 import { TRANSACTIONS_PAGE_SIZE, type TransactionsSearch } from "./search";
 import {
 	type TransactionFilterValues,
@@ -24,6 +25,7 @@ import {
 } from "./transactions-filters";
 import { TransactionsPagination } from "./transactions-pagination";
 import { TransactionsTable } from "./transactions-table";
+import { useColumnVisibility } from "./use-column-visibility";
 
 const routeApi = getRouteApi("/transactions");
 
@@ -59,6 +61,12 @@ export function TransactionsView() {
 	const navigate = routeApi.useNavigate();
 
 	const listParams = useMemo(() => toListParams(search), [search]);
+
+	const {
+		columnVisibility,
+		setColumnVisibility,
+		reset: showAllColumns,
+	} = useColumnVisibility();
 
 	const transactionsQuery = useQuery(transactionQueries.list(listParams));
 	const accountsQuery = useQuery(accountQueries.list());
@@ -116,16 +124,25 @@ export function TransactionsView() {
 				</h1>
 			</header>
 
-			<TransactionsFilters
-				accounts={accounts}
-				months={months}
-				value={{
-					accountId: search.accountId,
-					importMonth: search.importMonth,
-					search: search.search,
-				}}
-				onChange={applyFilters}
-			/>
+			<div className="flex flex-wrap items-center justify-between gap-3">
+				<TransactionsFilters
+					accounts={accounts}
+					months={months}
+					value={{
+						accountId: search.accountId,
+						importMonth: search.importMonth,
+						search: search.search,
+					}}
+					onChange={applyFilters}
+				/>
+				<ColumnsToggle
+					columnVisibility={columnVisibility}
+					onToggle={(columnId, visible) =>
+						setColumnVisibility((prev) => ({ ...prev, [columnId]: visible }))
+					}
+					onReset={showAllColumns}
+				/>
+			</div>
 
 			{transactionsQuery.isError ? (
 				<Empty
@@ -154,6 +171,8 @@ export function TransactionsView() {
 						categoriesById={categoriesById}
 						direction={search.direction ?? "desc"}
 						onToggleSort={toggleSort}
+						columnVisibility={columnVisibility}
+						onColumnVisibilityChange={setColumnVisibility}
 					/>
 					<TransactionsPagination
 						offset={search.offset ?? 0}

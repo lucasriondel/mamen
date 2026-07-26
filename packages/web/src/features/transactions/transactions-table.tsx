@@ -10,6 +10,7 @@ import {
 	flexRender,
 	getCoreRowModel,
 	useReactTable,
+	type VisibilityState,
 } from "@tanstack/react-table";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { useMemo } from "react";
@@ -40,9 +41,23 @@ export interface TransactionsTableProps {
 	direction: "asc" | "desc";
 	/** Toggle the date sort order (asc ⇄ desc). */
 	onToggleSort: () => void;
+	/**
+	 * Which columns are hidden; a missing id means visible. Optional — a caller
+	 * that offers no columns menu (the category drill-down) omits both this and
+	 * `onColumnVisibilityChange` and always shows every column.
+	 */
+	columnVisibility?: VisibilityState;
+	/** TanStack's `onColumnVisibilityChange` handler (owner persists it). */
+	onColumnVisibilityChange?: (
+		updater: VisibilityState | ((old: VisibilityState) => VisibilityState),
+	) => void;
 }
 
 const columnHelper = createColumnHelper<Transaction>();
+
+/** Stable "everything visible" default, so an uncontrolled caller's table state
+ * doesn't get a fresh object identity on every render. */
+const ALL_COLUMNS_VISIBLE: VisibilityState = {};
 
 /**
  * The transactions data grid (columns **Date | Account | Issuer | Category |
@@ -51,6 +66,10 @@ const columnHelper = createColumnHelper<Transaction>();
  * the URL rather than reordering rows client-side, so the shown page always
  * matches the query. The Category column reads the row's *derived* `categoryId`
  * (computed through its issuer by the API) against `categoriesById`.
+ *
+ * Column visibility is controlled: the owner holds the state (persisted across
+ * sessions) and passes it in, so the toggle menu can live outside the table in
+ * the filter bar.
  */
 export function TransactionsTable({
 	transactions,
@@ -59,6 +78,8 @@ export function TransactionsTable({
 	categoriesById,
 	direction,
 	onToggleSort,
+	columnVisibility = ALL_COLUMNS_VISIBLE,
+	onColumnVisibilityChange,
 }: TransactionsTableProps) {
 	const columns = useMemo(
 		() => [
@@ -71,6 +92,8 @@ export function TransactionsTable({
 				),
 			}),
 			columnHelper.accessor("accountId", {
+				// Explicit id so the columns toggle can address it as "account".
+				id: "account",
 				header: "Account",
 				cell: (info) => accountsById.get(info.getValue())?.name ?? "—",
 			}),
@@ -136,6 +159,8 @@ export function TransactionsTable({
 	const table = useReactTable({
 		data: transactions as Transaction[],
 		columns,
+		state: { columnVisibility },
+		onColumnVisibilityChange,
 		getCoreRowModel: getCoreRowModel(),
 	});
 
