@@ -8,7 +8,16 @@ import {
 } from "@tanstack/react-router";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+
+// The row's icon picker windows ~1,600 candidates, and jsdom lays nothing out,
+// so give the grid a real viewport or it measures 0 and renders no cells.
+beforeAll(() => {
+	Object.defineProperty(HTMLElement.prototype, "offsetHeight", {
+		configurable: true,
+		value: 240,
+	});
+});
 
 // Mock the SDK boundary (PRD "Seam 2"): the categories page reads the categories
 // `list`, sums each folder through `transactionQueries.count`, and curates the
@@ -135,6 +144,19 @@ function seedTree() {
 	categoriesList = [food, home, groceries, restaurants];
 	return { food, home, groceries, restaurants };
 }
+
+// The icon and the swatch are the *editors* for what they show (issue #58), so
+// each is a button on the row rather than a decoration inside the navigation
+// link — which is also how a test reaches the glyph and the colour it paints.
+const iconIn = async (name: string) =>
+	(
+		await screen.findByRole("button", { name: `Change ${name} icon` })
+	).querySelector("[data-category-icon]");
+
+const swatchIn = async (name: string) =>
+	(
+		await screen.findByRole("button", { name: `Change ${name} colour` })
+	).querySelector("[data-color-swatch]");
 
 describe("CategoriesView", () => {
 	beforeEach(() => {
@@ -305,19 +327,184 @@ describe("CategoriesView", () => {
 		);
 		renderView();
 
-		const iconIn = async (name: RegExp) =>
-			(await screen.findByRole("link", { name })).querySelector(
-				"[data-category-icon]",
-			);
-
 		// Groceries stores no colour, so it paints Food's — with its *own* icon:
 		// depth adds navigation, not identity.
 		await waitFor(async () => {
-			const groceries = await iconIn(/groceries/i);
+			const groceries = await iconIn("Groceries");
 			expect(groceries).toHaveAttribute("stroke", food.color);
 			expect(groceries).toHaveAttribute("data-category-icon", "shopping-cart");
 		});
-		expect(await iconIn(/restaurants/i)).toHaveAttribute("stroke", "#000000");
+		expect(await iconIn("Restaurants")).toHaveAttribute("stroke", "#000000");
+	});
+
+	// The row's swatch is the **Resolved colour** made visible, which is what makes
+	// a folder recolour demoable: the inheriting leaf tracks the folder above it
+	// without storing anything of its own (ADR 0006 / issue #58).
+	it("shows the resolved colour on each row's swatch, inherited or chosen", async () => {
+		const { food, restaurants } = seedTree();
+		categoriesList = categoriesList.map((cat) =>
+			cat.id === restaurants.id ? { ...cat, color: "#000000" } : cat,
+		);
+		renderView();
+
+		expect(await swatchIn("Food")).toHaveAttribute(
+			"data-color-swatch",
+			food.color,
+		);
+		// Groceries stores nothing, yet its swatch is Food's colour, not a blank.
+		expect(await swatchIn("Groceries")).toHaveAttribute(
+			"data-color-swatch",
+			food.color,
+		);
+		expect(await swatchIn("Restaurants")).toHaveAttribute(
+			"data-color-swatch",
+			"#000000",
+		);
+	});
+
+	// The whole reason the swatch shows the *resolved* colour rather than the
+	// stored one (issue #58): recolour the folder and the leaf that never opted
+	// out repaints with it. Every other case here asserts one row in isolation, so
+	// none of them can tell inheritance apart from a colour copied onto each row —
+	// only observing a descendant move on someone else's write can.
+	it("propagates a folder recolour to its inheriting descendants", async () => {
+		const user = userEvent.setup();
+		const { food, restaurants } = seedTree();
+		// Let the mocked write land in the list the refetch reads back, so this
+		// watches the row repaint rather than re-asserting the request.
+		updateCategory.mockImplementation((id: unknown, patch: object) => {
+			categoriesList = categoriesList.map((cat) =>
+				cat.id === id ? { ...cat, ...patch } : cat,
+			);
+			return Promise.resolve(categoriesList.find((cat) => cat.id === id));
+		});
+		// One sibling opts out, so the propagation has to be selective rather than
+		// "repaint the subtree".
+		categoriesList = categoriesList.map((cat) =>
+			cat.id === restaurants.id ? { ...cat, color: "#000000" } : cat,
+		);
+		renderView();
+
+		expect(await swatchIn("Groceries")).toHaveAttribute(
+			"data-color-swatch",
+			food.color,
+		);
+
+		await user.click(
+			await screen.findByRole("button", { name: /change food colour/i }),
+		);
+		const field = screen.getByLabelText(/hex colour/i);
+		await user.clear(field);
+		await user.type(field, "#123abc");
+		await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+		// One write, on Food alone — Groceries follows because it *refers* to its
+		// ancestor, and nothing was written to it.
+		await waitFor(async () =>
+			expect(await swatchIn("Groceries")).toHaveAttribute(
+				"data-color-swatch",
+				"#123abc",
+			),
+		);
+		expect(updateCategory).toHaveBeenCalledTimes(1);
+		expect(updateCategory).toHaveBeenCalledWith(food.id, { color: "#123abc" });
+		// The icon chip is tinted from the same resolution, so it moves too.
+		expect(await iconIn("Groceries")).toHaveAttribute("stroke", "#123abc");
+		// Restaurants chose its own colour, so the recolour stops at it.
+		expect(await swatchIn("Restaurants")).toHaveAttribute(
+			"data-color-swatch",
+			"#000000",
+		);
+	});
+
+	it("changes a category's icon from the tree row", async () => {
+		const user = userEvent.setup();
+		const { groceries } = seedTree();
+		renderView();
+
+		await user.click(
+			await screen.findByRole("button", { name: /change groceries icon/i }),
+		);
+		await user.type(screen.getByLabelText(/search icons/i), "shopping-bag");
+		await user.click(
+			await screen.findByRole("button", { name: "shopping-bag" }),
+		);
+
+		await waitFor(() => expect(updateCategory).toHaveBeenCalledTimes(1));
+		// Only the icon — the row's other fields are not rewritten in passing.
+		expect(updateCategory).toHaveBeenCalledWith(groceries.id, {
+			icon: "shopping-bag",
+		});
+	});
+
+	it("stores a hex typed on the row's colour swatch", async () => {
+		const user = userEvent.setup();
+		const { groceries } = seedTree();
+		renderView();
+
+		await user.click(
+			await screen.findByRole("button", { name: /change groceries colour/i }),
+		);
+		await user.type(screen.getByLabelText(/hex colour/i), "#123abc");
+		await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+		await waitFor(() => expect(updateCategory).toHaveBeenCalledTimes(1));
+		expect(updateCategory).toHaveBeenCalledWith(groceries.id, {
+			color: "#123abc",
+		});
+	});
+
+	it("clears a leaf's own colour back to null, so it inherits again", async () => {
+		const user = userEvent.setup();
+		const { restaurants } = seedTree();
+		categoriesList = categoriesList.map((cat) =>
+			cat.id === restaurants.id ? { ...cat, color: "#000000" } : cat,
+		);
+		renderView();
+
+		await user.click(
+			await screen.findByRole("button", { name: /change restaurants colour/i }),
+		);
+		await user.click(screen.getByRole("button", { name: /inherit/i }));
+
+		// `null`, not a colour copied from the parent: the leaf resumes *referring*
+		// to its ancestor, so a later folder recolour keeps reaching it.
+		await waitFor(() =>
+			expect(updateCategory).toHaveBeenCalledWith(restaurants.id, {
+				color: null,
+			}),
+		);
+	});
+
+	it("refuses an invalid hex from the row without writing", async () => {
+		const user = userEvent.setup();
+		seedTree();
+		renderView();
+
+		await user.click(
+			await screen.findByRole("button", { name: /change groceries colour/i }),
+		);
+		await user.type(screen.getByLabelText(/hex colour/i), "nope");
+		await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+		expect(updateCategory).not.toHaveBeenCalled();
+	});
+
+	// The pickers are inline on the row precisely so the dialogs stay
+	// single-purpose (issue #58) — a rename asks for a name and nothing else.
+	it("leaves the rename dialog single-purpose", async () => {
+		const user = userEvent.setup();
+		seedTree();
+		renderView();
+
+		await user.click(
+			await screen.findByRole("button", { name: /rename groceries/i }),
+		);
+		const dialog = screen.getByRole("dialog");
+
+		expect(within(dialog).getByLabelText(/category name/i)).toBeInTheDocument();
+		expect(within(dialog).queryByLabelText(/hex colour/i)).toBeNull();
+		expect(within(dialog).queryByLabelText(/search icons/i)).toBeNull();
 	});
 
 	it("creates a leaf inside a chosen folder", async () => {
