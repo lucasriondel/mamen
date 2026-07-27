@@ -28,6 +28,7 @@ import { z } from "zod";
 import { closeCompletedIssue, type Completion } from "../close-issue.ts";
 import { notify } from "../notify.ts";
 import { bold, cyan, dim, green, red, yellow } from "../colors.ts";
+import { durationTag, startTimer, timed } from "../timing.ts";
 
 // ---------------------------------------------------------------------------
 // Logging helpers
@@ -108,8 +109,14 @@ const copyToWorktree = ["node_modules"];
 // ---------------------------------------------------------------------------
 
 // Wrap the whole run so a macOS notification fires on completion or crash.
+const runTimer = startTimer();
+
 try {
   for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
+    // Times the whole plan→execute→merge cycle, reported at the end of the
+    // iteration alongside the per-phase timings.
+    const iterationTimer = startTimer();
+
     console.log(
       bold(cyan(`\n=== Iteration ${iteration}/${MAX_ITERATIONS} ===\n`)),
     );
@@ -123,21 +130,23 @@ try {
     //
     // It outputs a <plan> JSON block — Output.object parses and validates it.
     // -------------------------------------------------------------------------
-    const plan = await sandcastle.run({
-      hooks,
-      sandbox: docker(),
-      name: "planner",
-      // One iteration is enough: the planner just needs to read and reason,
-      // not write code. (Structured output requires maxIterations: 1.)
-      maxIterations: 1,
-      // Opus for planning: dependency analysis benefits from deeper reasoning.
-      agent: sandcastle.claudeCode("claude-opus-4-8"),
-      promptFile: "./.sandcastle/implement/plan-prompt.md",
-      // Extract and validate the <plan> JSON into a typed object. Throws
-      // StructuredOutputError if the tag is missing, the JSON is malformed, or
-      // validation fails — which aborts the loop.
-      output: sandcastle.Output.object({ tag: "plan", schema: planSchema }),
-    });
+    const plan = await timed("Plan phase", () =>
+      sandcastle.run({
+        hooks,
+        sandbox: docker(),
+        name: "planner",
+        // One iteration is enough: the planner just needs to read and reason,
+        // not write code. (Structured output requires maxIterations: 1.)
+        maxIterations: 1,
+        // Opus for planning: dependency analysis benefits from deeper reasoning.
+        agent: sandcastle.claudeCode("claude-opus-5"),
+        promptFile: "./.sandcastle/implement/plan-prompt.md",
+        // Extract and validate the <plan> JSON into a typed object. Throws
+        // StructuredOutputError if the tag is missing, the JSON is malformed, or
+        // validation fails — which aborts the loop.
+        output: sandcastle.Output.object({ tag: "plan", schema: planSchema }),
+      }),
+    );
 
     const issues = plan.output.issues;
 
@@ -170,8 +179,14 @@ try {
       await Bun.$`git rev-parse --abbrev-ref HEAD`.text()
     ).trim();
 
+    const executeTimer = startTimer();
+
     const settled = await Promise.allSettled(
       issues.map(async (issue) => {
+        // Per-issue stopwatch: the pipelines run concurrently, so each one
+        // reports its own wall-clock time on its outcome line.
+        const issueTimer = startTimer();
+
         const sandbox = await sandcastle.createSandbox({
           branch: issue.branch,
           sandbox: docker(),
@@ -184,7 +199,7 @@ try {
           const implement = await sandbox.run({
             name: "implementer",
             maxIterations: 100,
-            agent: sandcastle.claudeCode("claude-opus-4-8"),
+            agent: sandcastle.claudeCode("claude-opus-5"),
             promptFile: "./.sandcastle/implement/implement-prompt.md",
             promptArgs: {
               TASK_ID: issue.id,
@@ -197,7 +212,7 @@ try {
             console.log(
               green(
                 `  ✓ ${issue.id} (${issue.branch}) — implementer made ${implement.commits.length} commit(s).`,
-              ),
+              ) + ` ${issueTimer.tag()}`,
             );
             return { issue, closed: false as const, commits: implement.commits };
           }
@@ -214,7 +229,7 @@ try {
           console.log(
             yellow(
               `  … ${issue.id} (${issue.branch}) — implementer produced no new commits; resolving why and closing.`,
-            ),
+            ) + ` ${issueTimer.tag()}`,
           );
           const completion = await closeCompletedIssue(
             sandbox,
@@ -230,6 +245,8 @@ try {
         }
       }),
     );
+
+    console.log(`${dim("  Execute phase")} ${durationTag(executeTimer.elapsed())}`);
 
     // Log any agents that threw (network error, sandbox crash, etc.).
     for (const [i, outcome] of settled.entries()) {
@@ -272,6 +289,10 @@ try {
     if (completedBranches.length === 0) {
       // All agents ran but none made commits — nothing to merge this cycle.
       console.log(yellow("No commits produced. Nothing to merge."));
+      console.log(
+        bold(cyan(`Iteration ${iteration}`)) +
+          ` ${durationTag(iterationTimer.elapsed())}`,
+      );
       continue;
     }
 
@@ -284,28 +305,39 @@ try {
     // The {{BRANCHES}} and {{ISSUES}} prompt arguments are lists that the agent
     // uses to know which branches to merge and which issues to close.
     // -------------------------------------------------------------------------
-    await sandcastle.run({
-      hooks,
-      sandbox: docker(),
-      name: "merger",
-      maxIterations: 1,
-      agent: sandcastle.claudeCode("claude-opus-4-8"),
-      promptFile: "./.sandcastle/implement/merge-prompt.md",
-      promptArgs: {
-        // A markdown list of branch names, one per line.
-        BRANCHES: completedBranches.map((b) => `- ${b}`).join("\n"),
-        // A markdown list of issue IDs and titles, one per line.
-        ISSUES: completedIssues.map((i) => `- ${i.id}: ${i.title}`).join("\n"),
-      },
-    });
+    await timed("Merge phase", () =>
+      sandcastle.run({
+        hooks,
+        sandbox: docker(),
+        name: "merger",
+        maxIterations: 1,
+        agent: sandcastle.claudeCode("claude-opus-5"),
+        promptFile: "./.sandcastle/implement/merge-prompt.md",
+        promptArgs: {
+          // A markdown list of branch names, one per line.
+          BRANCHES: completedBranches.map((b) => `- ${b}`).join("\n"),
+          // A markdown list of issue IDs and titles, one per line.
+          ISSUES: completedIssues.map((i) => `- ${i.id}: ${i.title}`).join("\n"),
+        },
+      }),
+    );
 
     console.log(green("\nBranches merged."));
+    console.log(
+      bold(cyan(`Iteration ${iteration}`)) +
+        ` ${durationTag(iterationTimer.elapsed())}`,
+    );
   }
 
-  console.log(bold(green("\nAll done.")));
+  console.log(
+    bold(green("\nAll done.")) + ` ${durationTag(runTimer.elapsed())}`,
+  );
   await notify("implement", true);
 } catch (err) {
-  console.error(bold(red("\nRun failed:")), err);
+  console.error(
+    bold(red("\nRun failed:")) + ` ${durationTag(runTimer.elapsed())}`,
+    err,
+  );
   await notify("implement", false);
   process.exitCode = 1;
 }

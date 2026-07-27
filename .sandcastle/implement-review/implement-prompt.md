@@ -24,9 +24,19 @@ Explore the repo and fill your context window with relevant information that wil
 
 Pay extra attention to test files that touch the relevant parts of the code.
 
+
 # EXECUTION
 
-Use the `/implement` skill to implement the issue.
+If applicable, use RGR to complete the task.
+
+1. RED: write one test
+2. GREEN: write the implementation to pass that test
+3. REPEAT until done
+4. REFACTOR the code
+
+# FEEDBACK LOOPS
+
+Before committing, run `bun run typecheck` and `bun run test` to ensure the tests pass.
 
 # COMMIT
 

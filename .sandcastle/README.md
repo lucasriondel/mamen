@@ -82,7 +82,7 @@ fires a macOS notification (via `osascript`) when the flow ends — on clean com
 - **`CODING_STANDARDS.md`** — the reviewer enforces these without spending
   implementer tokens.
 - **`MAX_ITERATIONS`** — plan→execute→merge cycles before stopping.
-- **Model** — templates use `claude-opus-4-8`; bump as needed.
+- **Model** — templates use `claude-opus-5`; bump as needed.
 
 ## Notes
 
