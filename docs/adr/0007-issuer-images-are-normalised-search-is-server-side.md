@@ -70,8 +70,31 @@ addition next to search, not instead of it.
 it, and it reintroduces the unbounded uploads directory the normalisation exists
 to prevent.
 
-**A letter fallback for issuers with no category** was kept, but only as the last
-resort — see below.
+**A letter fallback for issuers with no category** was rejected outright, not kept
+as a last resort. It contradicted the whole point of the chain: a screen of
+imageless issuers should be scannable by category, and a wall of initials is not —
+worse, an `S` and a `Sp` read as related when nothing about them is. The last
+resort is a single neutral grey `?`, identical for every issuer that reaches it,
+which says "nothing is known here" rather than restating the name beside it.
+
+**Stroking the category glyph in the resolved colour**, over the avatar's usual
+neutral chip, was rejected in favour of filling the chip with that colour and
+drawing the glyph in a contrasting ink. Filling groups an issuer with its folder
+siblings at a distance, which stroking a 14px outline does not; and it makes
+legibility theme-independent, because both sides of the contrast pair are then
+fixed colours. Stroked, the pair would be the category colour against a theme
+token — a check that has to be re-run per theme, and that the seeded yellow fails
+in light mode.
+
+**Treating the grey `?` as the chain's default**, reached whenever no category
+identity resolves, was rejected in favour of holding a fourth, drawn-empty state
+while the category read is in flight. The `?` is an assertion — "nothing is known
+about this issuer" — and a pending tree is not that; it is the same missing id as
+a deleted category, distinguishable only by query status. Collapsing the two made
+a grid of imageless issuers pop from a wall of `?` to a wall of colour on every
+load, having been wrong about each one. The avatar therefore owns the grey rung,
+not the resolver: it reserves the chip and draws nothing until the answer lands,
+the same call `CategoryIcon` already makes for an icon chunk still loading.
 
 ## Consequences
 

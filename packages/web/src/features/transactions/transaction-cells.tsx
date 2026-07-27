@@ -88,7 +88,10 @@ export function IssuerCell({
 					title="Issuer set manually on this transaction"
 					data-manual="true"
 				>
-					<IssuerAvatar name={issuer.name} imageUrl={issuer.imageUrl} />
+					<IssuerAvatar
+						imageUrl={issuer.imageUrl}
+						defaultCategoryId={issuer.defaultCategoryId}
+					/>
 					<span className="flex items-center gap-1.5 font-medium text-gousse-ink">
 						<OverrideDot />
 						<span>{issuer.name}</span>
@@ -98,7 +101,10 @@ export function IssuerCell({
 		}
 		return (
 			<span className="flex items-center gap-2">
-				<IssuerAvatar name={issuer.name} imageUrl={issuer.imageUrl} />
+				<IssuerAvatar
+					imageUrl={issuer.imageUrl}
+					defaultCategoryId={issuer.defaultCategoryId}
+				/>
 				<span className="text-gousse-ink">{issuer.name}</span>
 			</span>
 		);

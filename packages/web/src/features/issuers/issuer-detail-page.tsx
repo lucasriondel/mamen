@@ -146,7 +146,11 @@ function IssuerDetailContent({
 			</Link>
 
 			<header className="flex items-center gap-4">
-				<IssuerAvatar name={issuer.name} imageUrl={issuer.imageUrl} size="lg" />
+				<IssuerAvatar
+					imageUrl={issuer.imageUrl}
+					defaultCategoryId={issuer.defaultCategoryId}
+					size="lg"
+				/>
 				<div className="flex min-w-0 flex-col">
 					<h1 className="truncate text-balance text-2xl font-semibold text-gousse-ink">
 						{issuer.name}

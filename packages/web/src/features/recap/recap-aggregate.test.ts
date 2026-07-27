@@ -30,8 +30,13 @@ function txn(partial: {
 	} as unknown as Transaction;
 }
 
-function issuer(id: number, name: string, imageUrl?: string): Issuer {
-	return { id, name, imageUrl } as unknown as Issuer;
+function issuer(
+	id: number,
+	name: string,
+	imageUrl?: string,
+	defaultCategoryId?: number,
+): Issuer {
+	return { id, name, imageUrl, defaultCategoryId } as unknown as Issuer;
 }
 
 function category(
@@ -56,7 +61,7 @@ function category(
 const lookups = {
 	issuersById: new Map([
 		[1, issuer(1, "Amazon", "/uploads/issuers/amazon.png")],
-		[2, issuer(2, "Netflix")],
+		[2, issuer(2, "Netflix", undefined, 20)],
 	]),
 	categoriesById: new Map([
 		[1, category(1, "Food", "utensils-crossed", { color: "#ef4444" })],
@@ -171,6 +176,27 @@ describe("aggregateSpend", () => {
 		// The Unassigned bucket has no category at all, so there is nothing to
 		// resolve — it must not borrow the neutral constant and read as a category.
 		expect(categories.Unassigned.color).toBeUndefined();
+	});
+
+	it("carries the issuer's default category onto its row, for the avatar fallback", () => {
+		// The **Avatar fallback chain** (issue #59) needs the issuer's default
+		// category id to paint its second rung, and the row is all the section
+		// hands the avatar. Resolving the icon and colour stays in the avatar; this
+		// only has to not drop the id on the way through.
+		const { byIssuer } = aggregateSpend(
+			[
+				txn({ amount: -10, issuerId: 1 }),
+				txn({ amount: -5, issuerId: 2 }),
+				txn({ amount: -2 }),
+			],
+			lookups,
+		);
+		const issuers = byName(byIssuer);
+		expect(issuers.Netflix.defaultCategoryId).toBe(20);
+		expect(issuers.Amazon.defaultCategoryId).toBeUndefined();
+		// The Unassigned bucket has no issuer, so it has no category to fall back
+		// to and must reach the avatar's neutral grey rung.
+		expect(issuers.Unassigned.defaultCategoryId).toBeUndefined();
 	});
 
 	it("returns empty sections when there is no spend", () => {

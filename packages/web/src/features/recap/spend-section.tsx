@@ -88,9 +88,13 @@ function SpendRowItem({ row }: { row: SpendRow }) {
 
 /**
  * The row's leading glyph: the category's Lucide icon, in its **Resolved colour**,
- * when the row carries an `icon`; an issuer avatar (uploaded image, else the
- * name's initial) otherwise. The icon sits in the same round chip as the avatar so
- * both sections align.
+ * when the row carries an `icon` (the by-category section); an issuer avatar
+ * painting the **Avatar fallback chain** otherwise (the by-issuer section). The
+ * icon sits in the same round chip as the avatar so both sections align.
+ *
+ * The `icon` field is what tells the two sections apart, and only category rows
+ * carry one — an issuer row carries its **issuer default category** as an *id*
+ * and lets the avatar resolve it (issue #59), so the branch stays unambiguous.
  */
 function SpendRowAvatar({ row }: { row: SpendRow }) {
 	if (row.icon) {
@@ -100,5 +104,11 @@ function SpendRowAvatar({ row }: { row: SpendRow }) {
 			</span>
 		);
 	}
-	return <IssuerAvatar name={row.name} imageUrl={row.imageUrl} size="sm" />;
+	return (
+		<IssuerAvatar
+			imageUrl={row.imageUrl}
+			defaultCategoryId={row.defaultCategoryId}
+			size="sm"
+		/>
+	);
 }
