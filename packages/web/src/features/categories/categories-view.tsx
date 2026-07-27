@@ -3,7 +3,8 @@ import type { Category, CategoryId } from "@mamen/shared/contract";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { type FormEvent, useState } from "react";
-import { CategoryIcon } from "@/components/category-icon";
+import { ColorPicker } from "@/components/color-picker";
+import { IconPicker } from "@/components/icon-picker";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -53,7 +54,12 @@ interface NodeActions {
 	onRename: (node: Category) => void;
 	onMove: (node: Category) => void;
 	onDelete: (id: CategoryId) => void;
+	/** Store a new **Icon name** on a node (issue #58). */
+	onIcon: (id: CategoryId, icon: string) => void;
+	/** Store a colour, or `null` to resume inheriting (issue #58). */
+	onColor: (id: CategoryId, color: string | null) => void;
 	deleting: boolean;
+	styling: boolean;
 	/** A folder's rolled-up **Category total** (whole subtree), by node id. */
 	totalById: Map<CategoryId, number>;
 	/**
@@ -125,7 +131,10 @@ export function CategoriesView() {
 		onRename: (node) => setEditor({ kind: "rename", node }),
 		onMove: (node) => setEditor({ kind: "move", node }),
 		onDelete: (id) => mutations.remove.mutate(id),
+		onIcon: (id, icon) => mutations.setIcon.mutate({ id, icon }),
+		onColor: (id, color) => mutations.setColor.mutate({ id, color }),
 		deleting: mutations.remove.isPending,
+		styling: mutations.setIcon.isPending || mutations.setColor.isPending,
 		totalById,
 		colorById,
 	};
@@ -235,28 +244,55 @@ function NodeControls({
 }
 
 /**
- * A link to a node's transactions page — its icon + name (issue #25). The icon is
- * a Lucide **Icon name** drawn in the node's **Resolved colour**, so an
- * inheriting leaf visibly tracks the folder above it.
+ * A node's identity on the row: its icon chip, its colour swatch, and a link to
+ * its transactions page (issue #25).
+ *
+ * The chip and the swatch are the **editors** for what they show (issue #58) —
+ * click the icon to change the icon, click the swatch to change the colour —
+ * rather than fields folded into the rename/move dialogs, which stay
+ * single-purpose. That is also why they sit *outside* the link: nesting a button
+ * inside an anchor is invalid, and one gesture can't mean both "navigate" and
+ * "edit".
+ *
+ * Both are drawn in the node's **Resolved colour**, never its stored `color`, so
+ * a leaf that inherits visibly tracks the folder above it and a folder recolour
+ * repaints its whole subtree on the next read (ADR 0006).
  */
-function NodeLink({
+function NodeIdentity({
 	node,
 	color,
+	actions,
 	className,
 }: {
 	node: Category;
 	color: string;
+	actions: NodeActions;
 	className?: string;
 }) {
 	return (
-		<Link
-			to="/categories/$categoryId"
-			params={{ categoryId: String(node.id) }}
-			className={cn("flex min-w-0 items-center gap-1.5", className)}
-		>
-			<CategoryIcon name={node.icon} color={color} />
-			<span className="truncate">{node.name}</span>
-		</Link>
+		<span className="flex min-w-0 items-center gap-1.5">
+			<IconPicker
+				label={node.name}
+				value={node.icon}
+				color={color}
+				pending={actions.styling}
+				onSelect={(icon) => actions.onIcon(node.id, icon)}
+			/>
+			<ColorPicker
+				label={node.name}
+				value={node.color}
+				resolved={color}
+				pending={actions.styling}
+				onSubmit={(next) => actions.onColor(node.id, next)}
+			/>
+			<Link
+				to="/categories/$categoryId"
+				params={{ categoryId: String(node.id) }}
+				className={cn("min-w-0 truncate", className)}
+			>
+				{node.name}
+			</Link>
+		</span>
 	);
 }
 
@@ -279,9 +315,10 @@ function CategoryNode({
 	if (node.children.length === 0) {
 		return (
 			<div className="flex items-center justify-between gap-2 rounded-lg border border-gousse-line bg-gousse-panel px-4 py-2">
-				<NodeLink
+				<NodeIdentity
 					node={node}
 					color={color}
+					actions={actions}
 					className="text-gousse-ink text-sm hover:text-gousse-accent"
 				/>
 				<NodeControls node={node} actions={actions} />
@@ -295,9 +332,10 @@ function CategoryNode({
 		// `legend` — the folder heading — so each folder reads as a labelled group.
 		<fieldset className="rounded-lg border border-gousse-line bg-gousse-panel p-4">
 			<legend className="flex w-full items-center justify-between gap-2">
-				<NodeLink
+				<NodeIdentity
 					node={node}
 					color={color}
+					actions={actions}
 					className="font-medium text-gousse-ink hover:text-gousse-accent"
 				/>
 				<output

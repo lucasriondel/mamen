@@ -29,6 +29,15 @@ const KNOWN_ICON_NAMES: ReadonlySet<string> = new Set<string>(
 	Object.keys(dynamicIconImports),
 );
 
+/**
+ * Every id the registry knows, sorted — the picker's candidate list (issue #58).
+ * Sorted once here rather than per keystroke: the array is ~1,600 entries and the
+ * filter re-runs on every character typed.
+ */
+export const ICON_NAMES: readonly IconName[] = Object.keys(dynamicIconImports)
+	.sort()
+	.map((name) => name as IconName);
+
 /** Is this string an id the registry can resolve? */
 export function isIconName(name: string): name is IconName {
 	return KNOWN_ICON_NAMES.has(name);

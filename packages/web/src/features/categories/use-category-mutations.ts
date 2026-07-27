@@ -84,6 +84,30 @@ export function useCategoryMutations() {
 		onError,
 	});
 
+	// Set a node's **Icon name** — the Lucide id the picker chose (ADR 0006 /
+	// issue #58). A single-field patch, deliberately: it rides the same update
+	// endpoint as rename and move but never sends the other fields, so two people
+	// editing different facets of one category can't clobber each other.
+	const setIcon = useMutation({
+		mutationFn: ({ id, icon }: { id: CategoryId; icon: string }) =>
+			categoryMutations.update(id, { icon }),
+		onSuccess: invalidate,
+		onError,
+	});
+
+	// Set — or **clear** — a node's colour. `null` is the whole point: it stores a
+	// *reference* to the nearest coloured ancestor rather than a colour, so the
+	// node resumes inheriting and a later folder recolour reaches it again (ADR
+	// 0006). Invalidating refetches the tree, which is what repaints every
+	// descendant that never opted out — the propagation is a re-resolve, not a
+	// cascade of writes.
+	const setColor = useMutation({
+		mutationFn: ({ id, color }: { id: CategoryId; color: string | null }) =>
+			categoryMutations.update(id, { color }),
+		onSuccess: invalidate,
+		onError,
+	});
+
 	// Move any node to a different parent (`parentId: null` promotes it to a
 	// root); its id is unchanged, so its transactions and its whole subtree follow
 	// for free. Any node is a legal parent now (ADR 0003); the API refuses a move
@@ -132,5 +156,5 @@ export function useCategoryMutations() {
 		onError,
 	});
 
-	return { create, rename, move, spill, remove };
+	return { create, rename, setIcon, setColor, move, spill, remove };
 }
