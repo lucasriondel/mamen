@@ -64,6 +64,18 @@ export function useIssuerMutations() {
 		onError,
 	});
 
+	// Store a picked **Logo search** result (issue #61). Invalidates exactly like
+	// the upload — the avatar is a read of the issuer, so one invalidation
+	// repaints every render site without a reload. No `onError` toast: the only
+	// failure is a refused fetch, and the answer to it is "pick another of the
+	// results still on screen", so that message belongs *in* the popover beside
+	// them rather than in a toast that outlives the surface it refers to.
+	const setImageFromUrl = useMutation({
+		mutationFn: ({ id, url }: { id: IssuerId; url: string }) =>
+			issuerMutations.setImageFromUrl(id, url),
+		onSuccess: invalidate,
+	});
+
 	const remove = useMutation({
 		mutationFn: (id: IssuerId) => issuerMutations.remove(id),
 		onSuccess: invalidate,
@@ -91,6 +103,7 @@ export function useIssuerMutations() {
 		rename,
 		uploadImage,
 		deleteImage,
+		setImageFromUrl,
 		remove,
 		setDefaultCategory,
 	};

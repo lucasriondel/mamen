@@ -113,6 +113,8 @@ export function toErrorMessage(error: unknown): string {
 			return "A category can't be moved under itself or one of its own sub-categories.";
 		case "CategoryNotLeaf":
 			return "Pick a category, not a folder.";
+		case "ImageFetchRefused":
+			return imageFetchRefusedMessage(error);
 		case "TransferInvalid":
 			return transferInvalidMessage(error);
 		default:
@@ -165,5 +167,60 @@ export function pdfExtractionErrorMessage(error: unknown): string {
 			return "That file isn't a supported PDF. Upload a PDF bank statement under 10 MB, or import a CSV export instead.";
 		default:
 			return "We couldn't extract transactions from that PDF. Try dropping it again, or import a CSV export from your bank instead.";
+	}
+}
+
+/**
+ * A refused **Logo search** download (`ImageFetchRefused`), worded from the
+ * machine-readable `reason` the server sends. The refusals are grouped by what
+ * the user can *do*, not by the guard that fired: "that host isn't allowed" and
+ * "the scheme isn't https" are one sentence here because the answer to both is
+ * *pick a different result* — and naming the SSRF guard that tripped would only
+ * describe the API's network to whoever asked about it (ADR 0007).
+ *
+ * Every line ends in the same place — the results are still on screen, pick
+ * another — because that is what the popover leaves the user holding.
+ */
+export function imageFetchRefusedMessage(error: unknown): string {
+	switch ((error as { reason?: string }).reason) {
+		case "too-large":
+			return "That image is too big to store. Pick another result.";
+		case "timeout":
+			return "That image's host didn't answer in time. Pick another result.";
+		case "not-an-image":
+			return "That file isn't an image we can read. Pick another result.";
+		default:
+			return "That image couldn't be fetched. Pick another result.";
+	}
+}
+
+/**
+ * The three **Logo search** read failures, narrowed to what the popover has to
+ * render *differently* — not just different copy, but different affordances
+ * (ADR 0007):
+ *
+ * - `unconfigured` — nothing was attempted and nothing the user does in the app
+ *   will change that, so it carries the variable names to set instead.
+ * - `quota` — the daily allowance is spent. Offers no retry: a retry cannot
+ *   succeed today, and a button that says otherwise is a lie the free tier
+ *   charges nothing for and the user pays in confusion.
+ * - `failed` — anything else, including a network error with no `_tag` at all.
+ *   A retry may well work, so this is the one state that offers one.
+ */
+export type LogoSearchFailure =
+	| { kind: "unconfigured"; missing: readonly string[] }
+	| { kind: "quota" }
+	| { kind: "failed" };
+
+export function logoSearchFailure(error: unknown): LogoSearchFailure {
+	switch (tagOf(error)) {
+		case "LogoSearchUnconfigured": {
+			const missing = (error as { missing?: readonly string[] }).missing;
+			return { kind: "unconfigured", missing: missing ?? [] };
+		}
+		case "LogoSearchQuotaExceeded":
+			return { kind: "quota" };
+		default:
+			return { kind: "failed" };
 	}
 }

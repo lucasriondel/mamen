@@ -19,14 +19,31 @@ export type IssuerListParams = {
 export const issuerKeys = {
 	all: ["issuers"] as const,
 	lists: () => [...issuerKeys.all, "list"] as const,
-	list: (params: IssuerListParams) =>
-		[...issuerKeys.lists(), params] as const,
+	list: (params: IssuerListParams) => [...issuerKeys.lists(), params] as const,
 	details: () => [...issuerKeys.all, "detail"] as const,
 	detail: (id: IssuerId) => [...issuerKeys.details(), id] as const,
 	byName: (name: string) => [...issuerKeys.all, "by-name", name] as const,
-	byNameCi: (name: string) =>
-		[...issuerKeys.all, "by-name-ci", name] as const,
+	byNameCi: (name: string) => [...issuerKeys.all, "by-name-ci", name] as const,
+	/**
+	 * **Logo search** results, keyed by the exact query text.
+	 *
+	 * Deliberately **not** under {@link issuerKeys.all}: every issuer write
+	 * invalidates that whole family, and picking a search result *is* a write.
+	 * Folded in, choosing a logo would immediately re-run the search it was
+	 * chosen from — spending a second of the 100 daily queries to re-fetch an
+	 * answer already on screen (ADR 0007).
+	 */
+	logoSearch: (q: string) => ["logo-search", q] as const,
 };
+
+/**
+ * How long a **Logo search** answer stays usable. The free tier allows 100
+ * queries a *day* and then refuses, so this window is sized to the quota window
+ * rather than to freshness: results for one query are held for a day and never
+ * go stale on their own, so re-submitting the same text — or re-opening the
+ * popover on the same issuer — costs nothing (ADR 0007).
+ */
+const LOGO_SEARCH_CACHE_MS = 24 * 60 * 60 * 1000;
 
 /** tanstack-query read options for the issuers resource. */
 export const issuerQueries = {
@@ -79,6 +96,37 @@ export const issuerQueries = {
 					signal,
 				),
 		}),
+
+	/**
+	 * **Logo search** (ADR 0007): proxy one Programmable Search image query.
+	 * `q` is the whole query, verbatim — the client composes `<issuer name>
+	 * logo`, the server does not.
+	 *
+	 * The caller owns *when* this runs (`enabled`), because a query costs one of
+	 * 100 a day and only an explicit submit may spend one. The two options set
+	 * here are the same budget seen from the other side:
+	 *
+	 * - `staleTime`/`gcTime` — a held answer is never re-fetched on its own, so
+	 *   re-asking the same question is free.
+	 * - `retry: false` — the app's default retries once, which on a spent quota
+	 *   or a missing key would buy a second identical refusal at the price of a
+	 *   query. `LogoSearchFailed` is the only retryable state and offers the
+	 *   user a button instead.
+	 */
+	logoSearch: (q: string) =>
+		queryOptions({
+			queryKey: issuerKeys.logoSearch(q),
+			queryFn: ({ signal }) =>
+				runQuery(
+					Effect.flatMap(Client, (client) =>
+						client.issuers.searchLogos({ urlParams: { q } }),
+					),
+					signal,
+				),
+			staleTime: Number.POSITIVE_INFINITY,
+			gcTime: LOGO_SEARCH_CACHE_MS,
+			retry: false,
+		}),
 };
 
 /**
@@ -124,6 +172,19 @@ export const issuerMutations = {
 		runQuery(
 			Effect.flatMap(Client, (client) =>
 				client.issuers.deleteImage({ path: { id } }),
+			),
+		),
+
+	/**
+	 * Store a **Logo search** result as the issuer's image: the server downloads
+	 * `url` through the SSRF guards and runs the same normalisation pipeline as
+	 * an upload, so a searched image and an uploaded one are the same thing on
+	 * disk (ADR 0007). Refusals surface as `ImageFetchRefused`.
+	 */
+	setImageFromUrl: (id: IssuerId, url: string) =>
+		runQuery(
+			Effect.flatMap(Client, (client) =>
+				client.issuers.setImageFromUrl({ path: { id }, payload: { url } }),
 			),
 		),
 };

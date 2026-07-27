@@ -23,6 +23,8 @@ const updateIssuer = vi.fn();
 const removeIssuer = vi.fn();
 const uploadImage = vi.fn();
 const deleteImage = vi.fn();
+const searchLogos = vi.fn();
+const setImageFromUrl = vi.fn();
 
 let issuersById: Record<number, Issuer>;
 let issuersList: Issuer[];
@@ -108,6 +110,12 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
 					total: issuersList.length,
 				}),
 			}),
+			logoSearch: (q: string) => ({
+				queryKey: ["logo-search", q],
+				queryFn: () => searchLogos(q),
+				staleTime: Number.POSITIVE_INFINITY,
+				retry: false,
+			}),
 		},
 		transactionQueries: {
 			list: (params: { issuerId?: number }) => ({
@@ -141,6 +149,7 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
 			remove: (id: unknown) => removeIssuer(id),
 			uploadImage: (id: unknown, file: unknown) => uploadImage(id, file),
 			deleteImage: (id: unknown) => deleteImage(id),
+			setImageFromUrl: (id: unknown, url: unknown) => setImageFromUrl(id, url),
 		},
 	};
 });
@@ -211,6 +220,22 @@ beforeEach(() => {
 	removeIssuer.mockReset().mockResolvedValue(undefined);
 	uploadImage.mockReset().mockResolvedValue(issuer());
 	deleteImage.mockReset().mockResolvedValue(issuer());
+	searchLogos.mockReset().mockResolvedValue({
+		results: [
+			{
+				title: "Spotify logo",
+				imageUrl: "https://cdn.example.com/spotify.png",
+				thumbnailUrl: "https://thumbs.example.com/spotify.png",
+			},
+		],
+	});
+	// A store writes the issuer's row, exactly as the API does — so what the
+	// avatar shows afterwards depends on the read being invalidated, not on the
+	// mutation's own return value.
+	setImageFromUrl.mockReset().mockImplementation(async (id: number) => {
+		issuersById[id] = issuer({ imageUrl: "/uploads/issuers/issuer-1-0.webp" });
+		return issuersById[id];
+	});
 	issuersById = { 1: issuer() };
 	issuersList = [issuer()];
 	transactionsByIssuer = {
@@ -369,6 +394,57 @@ describe("IssuerDetailPage", () => {
 		await waitFor(() =>
 			expect(updateIssuer).toHaveBeenCalledWith(1, { defaultCategoryId: null }),
 		);
+	});
+
+	it("opens Logo search from beside the upload control", async () => {
+		const user = userEvent.setup();
+		renderAt("/issuers/1");
+
+		const search = await screen.findByRole("button", { name: /Search logo/ });
+		// Beside, not somewhere else on the page: same row as Upload image.
+		expect(search.parentElement).toBe(
+			screen.getByRole("button", { name: "Upload image" }).parentElement,
+		);
+
+		await user.click(search);
+		expect(await screen.findByLabelText("Logo search query")).toHaveValue(
+			"Spotify logo",
+		);
+	});
+
+	it("picking a searched logo updates the avatar without a reload", async () => {
+		const user = userEvent.setup();
+		renderAt("/issuers/1");
+
+		await user.click(
+			await screen.findByRole("button", { name: /Search logo/ }),
+		);
+		await user.click(screen.getByRole("button", { name: "Search" }));
+		await user.click(
+			await screen.findByRole("button", { name: "Spotify logo" }),
+		);
+
+		// The header avatar is a read of the issuer: it repaints because the write
+		// invalidated that read, with no navigation in between. (The `<img>` is
+		// `alt=""` by design — decorative — so it is found by testid, not by role.)
+		await waitFor(() =>
+			expect(
+				screen
+					.getAllByTestId("issuer-avatar")[0]
+					?.querySelector("img")
+					?.getAttribute("src"),
+			).toBe("/uploads/issuers/issuer-1-0.webp"),
+		);
+	});
+
+	it("still uploads an image from a file, now that search sits beside it", async () => {
+		const user = userEvent.setup();
+		renderAt("/issuers/1");
+
+		const file = new File(["png-bytes"], "spotify.png", { type: "image/png" });
+		await user.upload(await screen.findByLabelText("Issuer image"), file);
+
+		await waitFor(() => expect(uploadImage).toHaveBeenCalledWith(1, file));
 	});
 
 	it("rejects an avatar image over the 2 MiB cap without uploading", async () => {

@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { BUTTON_CLASS } from "./field-styles";
 import { IssuerAvatar } from "./issuer-avatar";
 import { IssuerDefaultCategoryPicker } from "./issuer-default-category-picker";
+import { LogoSearchPopover } from "./logo-search-popover";
 import { useIssuerMutations } from "./use-issuer-mutations";
 
 /**
@@ -181,6 +182,11 @@ function IssuerDetailContent({
 				>
 					Upload image
 				</Button>
+				{/* The second way in: search rather than a file (issue #61). Beside
+				    the upload because they answer the same question — the two paths
+				    store byte-identical images (ADR 0007), so neither is the
+				    fallback for the other. */}
+				<LogoSearchPopover issuer={issuer} />
 				<Button
 					variant="secondary"
 					size="sm"
