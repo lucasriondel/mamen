@@ -7,6 +7,7 @@ import type { SpawnHandler } from "claude-code-effect";
 import { Effect, Layer } from "effect";
 import { ApiLive } from "../api-live";
 import { DatabaseTest } from "../db/test";
+import { OutboundStub } from "../net/test";
 import { claudeCodeTestLayer } from "./test";
 
 // The canned extraction the deep-fake `claude` returns for the CCF fixture: 6
@@ -50,6 +51,7 @@ const httpLiveWith = (handler: SpawnHandler) =>
 	HttpApiBuilder.serve().pipe(
 		Layer.provide(ApiLive),
 		Layer.provide(claudeCodeTestLayer(handler)),
+		Layer.provide(OutboundStub),
 		Layer.provide(DatabaseTest),
 		Layer.provideMerge(NodeHttpServer.layerTest),
 	);

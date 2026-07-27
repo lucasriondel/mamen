@@ -15,6 +15,7 @@ import { Effect, Layer, Schema } from "effect";
 import { ApiLive } from "../api-live";
 import { DatabaseTest } from "../db/test";
 import { ClaudeCodeStub } from "../import/test";
+import { OutboundStub } from "../net/test";
 
 // Full API on a real ephemeral Node server over a fresh `:memory:` sqlite DB,
 // with the derived HttpApiClient wired to it — every assertion round-trips the
@@ -22,6 +23,7 @@ import { ClaudeCodeStub } from "../import/test";
 const HttpLive = HttpApiBuilder.serve().pipe(
 	Layer.provide(ApiLive),
 	Layer.provide(ClaudeCodeStub),
+	Layer.provide(OutboundStub),
 	Layer.provide(DatabaseTest),
 	Layer.provideMerge(NodeHttpServer.layerTest),
 );
@@ -565,67 +567,71 @@ describe("categories endpoints", () => {
 	// and names what depends on the node — transactions *and* issuer defaults —
 	// mirroring the guarded-delete ergonomics.
 	describe("kind flip that would strand money", () => {
-		it.effect("refuses creating a child under a leaf holding a transaction", () =>
-			Effect.gen(function* () {
-				const client = yield* HttpApiClient.make(Api);
-				const folder = yield* client.categories.create({
-					payload: make({ slug: "life" }),
-				});
-				const subs = yield* client.categories.create({
-					payload: make({ slug: "subscriptions", parentId: folder.id }),
-				});
-				yield* client.transactions.create({
-					payload: {
-						accountId: asAccount(1),
-						date: TX_DATE,
-						amount: 9.99,
-						rawIssuerString: "NETFLIX",
-						importedAt: TX_DATE,
-						importMonth: "2026-03",
-						categoryId: subs.id,
-						manualCategory: true,
-					},
-				});
+		it.effect(
+			"refuses creating a child under a leaf holding a transaction",
+			() =>
+				Effect.gen(function* () {
+					const client = yield* HttpApiClient.make(Api);
+					const folder = yield* client.categories.create({
+						payload: make({ slug: "life" }),
+					});
+					const subs = yield* client.categories.create({
+						payload: make({ slug: "subscriptions", parentId: folder.id }),
+					});
+					yield* client.transactions.create({
+						payload: {
+							accountId: asAccount(1),
+							date: TX_DATE,
+							amount: 9.99,
+							rawIssuerString: "NETFLIX",
+							importedAt: TX_DATE,
+							importMonth: "2026-03",
+							categoryId: subs.id,
+							manualCategory: true,
+						},
+					});
 
-				const error = yield* client.categories
-					.create({
-						payload: make({ slug: "streaming", parentId: subs.id }),
-					})
-					.pipe(Effect.flip);
-				assert.ok(error instanceof CategoryHoldsMoney);
-				assert.strictEqual(error.categoryId, subs.id);
-				assert.strictEqual(error.transactions, 1);
-				assert.strictEqual(error.issuers, 0);
-			}).pipe(Effect.provide(HttpLive)),
+					const error = yield* client.categories
+						.create({
+							payload: make({ slug: "streaming", parentId: subs.id }),
+						})
+						.pipe(Effect.flip);
+					assert.ok(error instanceof CategoryHoldsMoney);
+					assert.strictEqual(error.categoryId, subs.id);
+					assert.strictEqual(error.transactions, 1);
+					assert.strictEqual(error.issuers, 0);
+				}).pipe(Effect.provide(HttpLive)),
 		);
 
-		it.effect("refuses creating a child under a leaf held as issuer default", () =>
-			Effect.gen(function* () {
-				const client = yield* HttpApiClient.make(Api);
-				const folder = yield* client.categories.create({
-					payload: make({ slug: "life" }),
-				});
-				const subs = yield* client.categories.create({
-					payload: make({ slug: "subscriptions", parentId: folder.id }),
-				});
-				yield* client.issuers.create({
-					payload: {
-						name: "Netflix",
-						firstSeen: TX_DATE,
-						defaultCategoryId: subs.id,
-					},
-				});
+		it.effect(
+			"refuses creating a child under a leaf held as issuer default",
+			() =>
+				Effect.gen(function* () {
+					const client = yield* HttpApiClient.make(Api);
+					const folder = yield* client.categories.create({
+						payload: make({ slug: "life" }),
+					});
+					const subs = yield* client.categories.create({
+						payload: make({ slug: "subscriptions", parentId: folder.id }),
+					});
+					yield* client.issuers.create({
+						payload: {
+							name: "Netflix",
+							firstSeen: TX_DATE,
+							defaultCategoryId: subs.id,
+						},
+					});
 
-				const error = yield* client.categories
-					.create({
-						payload: make({ slug: "streaming", parentId: subs.id }),
-					})
-					.pipe(Effect.flip);
-				assert.ok(error instanceof CategoryHoldsMoney);
-				assert.strictEqual(error.categoryId, subs.id);
-				assert.strictEqual(error.transactions, 0);
-				assert.strictEqual(error.issuers, 1);
-			}).pipe(Effect.provide(HttpLive)),
+					const error = yield* client.categories
+						.create({
+							payload: make({ slug: "streaming", parentId: subs.id }),
+						})
+						.pipe(Effect.flip);
+					assert.ok(error instanceof CategoryHoldsMoney);
+					assert.strictEqual(error.categoryId, subs.id);
+					assert.strictEqual(error.transactions, 0);
+					assert.strictEqual(error.issuers, 1);
+				}).pipe(Effect.provide(HttpLive)),
 		);
 
 		it.effect("counts both transactions and issuer defaults on the node", () =>

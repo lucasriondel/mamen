@@ -12,6 +12,7 @@ import { vi } from "vitest";
 import { ApiLive } from "../api-live";
 import { DatabaseTest } from "../db/test";
 import { ClaudeCodeStub } from "../import/test";
+import { OutboundStub } from "../net/test";
 import { normaliseIssuerImage } from "./image-normalise";
 
 // The whole point of this file is *when* the decode runs, so the pipeline is
@@ -45,6 +46,7 @@ const decodeSpy = vi.mocked(normaliseIssuerImage);
 const ServerLive = HttpApiBuilder.serve().pipe(
 	Layer.provide(ApiLive),
 	Layer.provide(ClaudeCodeStub),
+	Layer.provide(OutboundStub),
 	Layer.provide(DatabaseTest),
 	Layer.provideMerge(NodeHttpServer.layer(() => createServer(), { port: 0 })),
 );

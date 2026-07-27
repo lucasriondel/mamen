@@ -1677,6 +1677,175 @@
         }
       }
     },
+    "/api/issuers/logo-search": {
+      "get": {
+        "tags": [
+          "Issuers"
+        ],
+        "operationId": "issuers.searchLogos",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/NonEmptyTrimmedString"
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "results"
+                  ],
+                  "properties": {
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/LogoSearchResult"
+                      }
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "LogoSearchQuotaExceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogoSearchQuotaExceeded"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          },
+          "501": {
+            "description": "LogoSearchUnconfigured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogoSearchUnconfigured"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "LogoSearchFailed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogoSearchFailed"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/issuers/{id}/image/from-url": {
+      "post": {
+        "tags": [
+          "Issuers"
+        ],
+        "operationId": "issuers.setImageFromUrl",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": {
+              "$ref": "#/components/schemas/NumberFromString"
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Issuer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Issuer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NotFound",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFound"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "ImageFetchRefused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageFetchRefused"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "url"
+                ],
+                "properties": {
+                  "url": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
     "/api/transactions": {
       "get": {
         "tags": [
@@ -5227,6 +5396,128 @@
             "type": "string",
             "enum": [
               "InvalidFileType"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "NonEmptyTrimmedString": {
+        "type": "string",
+        "description": "a non empty string",
+        "title": "nonEmptyString",
+        "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+        "minLength": 1
+      },
+      "LogoSearchResult": {
+        "type": "object",
+        "required": [
+          "title",
+          "imageUrl",
+          "thumbnailUrl"
+        ],
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "imageUrl": {
+            "type": "string"
+          },
+          "thumbnailUrl": {
+            "type": "string"
+          },
+          "contextUrl": {
+            "type": "string"
+          },
+          "width": {
+            "type": "number"
+          },
+          "height": {
+            "type": "number"
+          }
+        },
+        "additionalProperties": false
+      },
+      "LogoSearchUnconfigured": {
+        "type": "object",
+        "required": [
+          "missing",
+          "_tag"
+        ],
+        "properties": {
+          "missing": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "LogoSearchUnconfigured"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "LogoSearchQuotaExceeded": {
+        "type": "object",
+        "required": [
+          "_tag"
+        ],
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "LogoSearchQuotaExceeded"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "LogoSearchFailed": {
+        "type": "object",
+        "required": [
+          "message",
+          "_tag"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "LogoSearchFailed"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "ImageFetchRefused": {
+        "type": "object",
+        "required": [
+          "reason",
+          "_tag"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string",
+            "enum": [
+              "invalid-url",
+              "not-https",
+              "private-address",
+              "unresolvable",
+              "too-many-redirects",
+              "too-large",
+              "timeout",
+              "unreachable",
+              "not-an-image"
+            ]
+          },
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "ImageFetchRefused"
             ]
           }
         },

@@ -6,6 +6,7 @@ import { Effect, Layer } from "effect";
 import { ApiLive } from "../api-live";
 import { DatabaseTest } from "../db/test";
 import { ClaudeCodeStub } from "../import/test";
+import { OutboundStub } from "../net/test";
 
 // Full API on a real ephemeral Node server over a fresh `:memory:` sqlite DB,
 // with the derived HttpApiClient wired to it — every assertion round-trips the
@@ -13,6 +14,7 @@ import { ClaudeCodeStub } from "../import/test";
 const HttpLive = HttpApiBuilder.serve().pipe(
 	Layer.provide(ApiLive),
 	Layer.provide(ClaudeCodeStub),
+	Layer.provide(OutboundStub),
 	Layer.provide(DatabaseTest),
 	Layer.provideMerge(NodeHttpServer.layerTest),
 );
@@ -58,7 +60,11 @@ describe("app-settings endpoints", () => {
 			const client = yield* HttpApiClient.make(Api);
 			yield* client.appSettings.put({ payload: make({ provider: "ollama" }) });
 			const second = yield* client.appSettings.put({
-				payload: make({ provider: "openai", modelName: "gpt-4", apiKey: "sk-x" }),
+				payload: make({
+					provider: "openai",
+					modelName: "gpt-4",
+					apiKey: "sk-x",
+				}),
 			});
 			assert.strictEqual(second.llm.provider, "openai");
 			assert.strictEqual(second.llm.apiKey, "sk-x");
@@ -68,16 +74,18 @@ describe("app-settings endpoints", () => {
 		}).pipe(Effect.provide(HttpLive)),
 	);
 
-	it.effect("put round-trips the optional lastTestedAt Date over the wire", () =>
-		Effect.gen(function* () {
-			const client = yield* HttpApiClient.make(Api);
-			const when = new Date("2026-07-01T12:00:00.000Z");
-			yield* client.appSettings.put({
-				payload: make({ lastTestedAt: when, lastTestSuccess: true }),
-			});
-			const fetched = yield* client.appSettings.get();
-			assert.deepStrictEqual(fetched.llm.lastTestedAt, when);
-			assert.strictEqual(fetched.llm.lastTestSuccess, true);
-		}).pipe(Effect.provide(HttpLive)),
+	it.effect(
+		"put round-trips the optional lastTestedAt Date over the wire",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const when = new Date("2026-07-01T12:00:00.000Z");
+				yield* client.appSettings.put({
+					payload: make({ lastTestedAt: when, lastTestSuccess: true }),
+				});
+				const fetched = yield* client.appSettings.get();
+				assert.deepStrictEqual(fetched.llm.lastTestedAt, when);
+				assert.strictEqual(fetched.llm.lastTestSuccess, true);
+			}).pipe(Effect.provide(HttpLive)),
 	);
 });

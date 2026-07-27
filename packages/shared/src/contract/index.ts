@@ -29,7 +29,11 @@ export {
 	CategoryNotLeaf,
 	CategoryWouldCycle,
 	Conflict,
+	ImageFetchRefused,
 	InvalidFileType,
+	LogoSearchFailed,
+	LogoSearchQuotaExceeded,
+	LogoSearchUnconfigured,
 	NotFound,
 	TransferInvalid,
 } from "./errors";
@@ -56,10 +60,14 @@ export {
 export {
 	Issuer,
 	IssuerCreate,
+	IssuerImageFromUrl,
 	IssuerImageUpload,
 	IssuerListFilters,
 	IssuersGroup,
 	IssuerUpdate,
+	LogoSearchQuery,
+	LogoSearchResult,
+	LogoSearchResults,
 	MAX_IMAGE_BYTES,
 } from "./issuers";
 export { Paged, Pagination, PaginationDefaults } from "./pagination";

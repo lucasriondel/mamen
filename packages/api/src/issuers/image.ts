@@ -1,6 +1,10 @@
 import type { Multipart } from "@effect/platform";
 import { FileSystem, Path } from "@effect/platform";
-import { InvalidFileType, type IssuerId } from "@mamen/shared/contract";
+import {
+	ImageFetchRefused,
+	InvalidFileType,
+	type IssuerId,
+} from "@mamen/shared/contract";
 import { Clock, Effect } from "effect";
 import { UploadsDir } from "../config";
 import { IMAGE_EXT, normaliseIssuerImage } from "./image-normalise";
@@ -69,11 +73,76 @@ export const persistIssuerImage = (
 			Effect.mapError(() => invalidFileType),
 		);
 
+		return yield* storeNormalisedImage(id, normalised, previousImageUrl);
+	});
+
+/**
+ * Persist an already-downloaded image as a **Normalised issuer image** and
+ * return its root-relative `imageUrl`. The **Logo search** half of the pair
+ * above (ADR 0007): same normalisation, same filename scheme, same on-disk
+ * result, so a searched image and an uploaded one are indistinguishable once
+ * stored.
+ *
+ * There is no MIME allow-list here, and deliberately so. A `Content-Type` on
+ * the upload path is a claim the client makes about a body it is sending; on
+ * this path it would be a claim a *third-party host* makes about a body chosen
+ * by the caller, which is worth nothing either way. What actually decides the
+ * question is whether the bytes decode, and that is checked — so the guard is
+ * strictly stronger than the header check it replaces.
+ *
+ * Fails `ImageFetchRefused({ reason: "not-an-image" })` when they don't. This
+ * module names that error rather than leaving the mapping to the handler for
+ * the same reason the upload path names `InvalidFileType` here: the caller
+ * cannot tell the two failures apart from the outside, and splitting the
+ * mapping across files is how a decode failure ends up reported as a
+ * transport one.
+ *
+ * The bytes are bounded *before* they arrive — `fetchGuarded` enforces
+ * `MAX_FETCH_BYTES` while streaming — which is where a pre-decode cap has to
+ * live to be one.
+ */
+export const persistIssuerImageFromBytes = (
+	id: typeof IssuerId.Type,
+	bytes: Uint8Array,
+	previousImageUrl: string | undefined,
+): Effect.Effect<
+	string,
+	ImageFetchRefused,
+	FileSystem.FileSystem | Path.Path
+> =>
+	Effect.gen(function* () {
+		// Decode + re-encode before touching the uploads dir, so a body that
+		// isn't really an image leaves nothing behind.
+		const normalised = yield* normaliseIssuerImage(bytes).pipe(
+			Effect.mapError(() => new ImageFetchRefused({ reason: "not-an-image" })),
+		);
+		return yield* storeNormalisedImage(id, normalised, previousImageUrl);
+	});
+
+/**
+ * Write normalised bytes to `uploads/issuers/issuer-{id}-{ts}.webp` (creating
+ * the directory if needed), drop the issuer's previous image, and yield the new
+ * root-relative `imageUrl`.
+ *
+ * Shared by both acquisition paths, which is the point: the filename scheme,
+ * the replace-then-unlink order and the "exactly one file per issuer" property
+ * are decided once. The `id`/timestamp scheme matches the old server so
+ * existing on-disk files keep their shape; only the extension is fixed.
+ *
+ * Every failure here is an infrastructure defect (dies → 500), never
+ * client-facing — which is what lets both callers keep their own error channel
+ * to the one domain error they can actually explain.
+ */
+const storeNormalisedImage = (
+	id: typeof IssuerId.Type,
+	normalised: Uint8Array,
+	previousImageUrl: string | undefined,
+): Effect.Effect<string, never, FileSystem.FileSystem | Path.Path> =>
+	Effect.gen(function* () {
 		const fs = yield* FileSystem.FileSystem;
 		const path = yield* Path.Path;
 		// The config is default-backed, so a read failure is a misconfiguration
-		// defect (dies → 500), never a client-facing error — keeps this Effect's
-		// error channel to the domain `InvalidFileType`.
+		// defect (dies → 500), never a client-facing error.
 		const uploadsDir = yield* Effect.orDie(UploadsDir);
 
 		const issuersDir = path.join(uploadsDir, "issuers");
@@ -83,8 +152,9 @@ export const persistIssuerImage = (
 		const filename = `issuer-${id}-${now}.${IMAGE_EXT}`;
 		const dest = path.join(issuersDir, filename);
 
-		// The normalised bytes are what lands on disk — the temp upload is never
-		// moved or copied, so nothing keeps the original.
+		// The normalised bytes are what lands on disk — the source (a temp upload
+		// or a downloaded body) is never moved or copied, so nothing keeps the
+		// original.
 		yield* fs.writeFile(dest, normalised).pipe(Effect.orDie);
 
 		// Delete the previous image if the stored path resolves under this dir.

@@ -18,6 +18,22 @@ export const UploadsDir = Config.string("UPLOADS_DIR").pipe(
 	Config.withDefault("uploads"),
 );
 
+/**
+ * The Google Programmable Search credentials that back **Logo search** (ADR
+ * 0007): an API key and a search-engine id. Both are `Config.option` and
+ * **neither has a default** — unlike everything else in this file, there is no
+ * harmless guess. Absent, the feature reports itself *unconfigured* and refuses
+ * before spending anything; see `docs/operations/logo-search-setup.md`.
+ *
+ * The key is `Config.redacted` so it cannot be logged by accident. Keeping it
+ * out of the browser is the entire reason the search is proxied server-side
+ * rather than queried from the client.
+ */
+export const GoogleCseKey = Config.option(Config.redacted("GOOGLE_CSE_KEY"));
+
+/** The Programmable Search engine id (`cx`) — not secret, but equally required. */
+export const GoogleCseCx = Config.option(Config.string("GOOGLE_CSE_CX"));
+
 /** Comma-separated allowed CORS origins; defaults to the Vite dev server. */
 export const CorsOrigins = Config.string("CORS_ORIGINS").pipe(
 	Config.withDefault("http://localhost:5070"),
