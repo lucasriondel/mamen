@@ -1,12 +1,7 @@
 import { mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-	HttpApiBuilder,
-	HttpApiClient,
-	HttpApiSchema,
-	HttpClient,
-} from "@effect/platform";
+import { HttpApiBuilder, HttpApiClient, HttpClient } from "@effect/platform";
 import { NodeHttpServer } from "@effect/platform-node";
 import { afterAll, assert, beforeAll, describe, it } from "@effect/vitest";
 import {
@@ -16,11 +11,9 @@ import {
 	InvalidFileType,
 	type IssuerCreate,
 	IssuerId,
-	IssuerImageUpload,
-	MAX_IMAGE_BYTES,
 	NotFound,
 } from "@mamen/shared/contract";
-import { Effect, Layer, Option, Schema, TestClock } from "effect";
+import { Effect, Layer, Schema, TestClock } from "effect";
 import sharp from "sharp";
 import { ApiLive } from "../api-live";
 import { DatabaseTest } from "../db/test";
@@ -542,29 +535,10 @@ describe("issuers endpoints", () => {
 		}).pipe(Effect.provide(HttpLive)),
 	);
 
-	// The 2 MiB cap is the *pre-decode* guard: it rides the multipart schema, so
-	// the parser refuses an oversized part before the handler — and therefore
-	// before sharp — is ever reached. It can't be exercised over the wire from
-	// here: an over-cap body makes the test server abort mid-request and the
-	// in-process client then never settles (it hangs through `Effect.timeout`),
-	// and even a large *under*-cap body 500s under `layerTest` — both true before
-	// this change. Verified by hand against the real Bun server instead: a 16 MiB
-	// PNG is refused with `MultipartError(ReachedLimit: MaxPartSize)` and nothing
-	// lands in the uploads dir. What is assertable here — and what a regression
-	// would break — is that the declaration is still there, still upstream.
-	it("declares the 2 MiB cap on the upload schema, ahead of any decode", () => {
-		const limits = (
-			IssuerImageUpload.ast.annotations as Record<symbol, unknown>
-		)[HttpApiSchema.AnnotationMultipart] as
-			| { readonly maxFileSize: Option.Option<number> }
-			| undefined;
-
-		assert.strictEqual(MAX_IMAGE_BYTES, 2 * 1024 * 1024);
-		assert.strictEqual(
-			Option.getOrNull(limits?.maxFileSize ?? Option.none()),
-			MAX_IMAGE_BYTES,
-		);
-	});
+	// The 2 MiB cap is not tested here. It rides the multipart schema and is
+	// enforced by the parser as the body arrives, so it never fires under
+	// `layerTest`, whose in-process client hands the request over whole. It has
+	// its own suite over a real socket instead: image-cap.test.ts.
 
 	it.effect("uploadImage 404s on a missing issuer", () =>
 		Effect.gen(function* () {
