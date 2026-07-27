@@ -42,7 +42,15 @@ const NAV_LINKS: readonly NavLink[] = [
 export function AppSidebar() {
 	return (
 		<Sidebar>
-			<SidebarHeader>mamen</SidebarHeader>
+			<SidebarHeader className="flex items-center gap-2">
+				<img
+					src="/icon-192x192.png"
+					alt=""
+					aria-hidden
+					className="size-6 rounded-md"
+				/>
+				<span>mamen</span>
+			</SidebarHeader>
 			<SidebarNav>
 				{NAV_LINKS.map(({ to, label, icon: Icon }) => (
 					<SidebarNavItem key={to}>
