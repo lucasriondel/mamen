@@ -25,19 +25,19 @@ function TransactionRow({
 
 	return (
 		<li className="flex items-center gap-2 py-1.5 text-sm">
-			<span className="shrink-0 text-muted tabular-nums">
+			<span className="shrink-0 text-gousse-muted tabular-nums">
 				{formatShortDate(transaction.date)}
 			</span>
-			<span className="min-w-0 flex-1 truncate text-ink">
+			<span className="min-w-0 flex-1 truncate text-gousse-ink">
 				{transaction.rawIssuerString}
 			</span>
 			{currentIssuer ? (
-				<span className="shrink-0 truncate text-muted">
+				<span className="shrink-0 truncate text-gousse-muted">
 					{issuerPrefix}
 					{currentIssuer.name}
 				</span>
 			) : null}
-			<span className="shrink-0 tabular-nums text-muted">
+			<span className="shrink-0 tabular-nums text-gousse-muted">
 				{formatCurrency(transaction.amount)}
 			</span>
 			{action}
@@ -67,15 +67,17 @@ export function TransactionPreviewList({
 }: TransactionPreviewListProps) {
 	return (
 		<section className="flex flex-col gap-1">
-			<h4 className="text-balance text-sm font-medium text-ink">
+			<h4 className="text-balance text-sm font-medium text-gousse-ink">
 				{title}{" "}
-				<span className="font-normal text-muted">({transactions.length})</span>
+				<span className="font-normal text-gousse-muted">
+					({transactions.length})
+				</span>
 			</h4>
-			<p className="text-xs text-muted">{description}</p>
+			<p className="text-xs text-gousse-muted">{description}</p>
 			{transactions.length === 0 ? (
-				<p className="py-1 text-sm text-muted italic">None.</p>
+				<p className="py-1 text-sm text-gousse-muted italic">None.</p>
 			) : (
-				<ul className="divide-y divide-line">
+				<ul className="divide-y divide-gousse-line">
 					{transactions.map((transaction) => (
 						<TransactionRow
 							key={transaction.id}

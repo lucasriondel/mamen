@@ -66,15 +66,17 @@ describe("Input", () => {
 
 		const input = screen.getByRole("textbox", { name: "Issuer name" });
 		expect(input).toHaveAttribute("aria-invalid", "true");
-		expect(input.className).toContain("aria-invalid:border-high");
+		expect(input.className).toContain("aria-invalid:border-gousse-high");
 	});
 
 	it("lets a call-site class win over the default it conflicts with", () => {
-		render(<Input aria-label="Issuer name" className="w-full bg-panel" />);
+		render(
+			<Input aria-label="Issuer name" className="w-full bg-gousse-panel" />,
+		);
 
 		const input = screen.getByRole("textbox", { name: "Issuer name" });
-		expect(input.className).toContain("bg-panel");
-		expect(input.className).not.toContain("bg-bg");
+		expect(input.className).toContain("bg-gousse-panel");
+		expect(input.className).not.toContain("bg-gousse-bg");
 		expect(input.className).toContain("w-full");
 	});
 });

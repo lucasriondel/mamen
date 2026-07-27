@@ -64,24 +64,24 @@ export function AccountMultiSelect({
 				aria-haspopup="true"
 				aria-expanded={open}
 				onClick={() => setOpen((v) => !v)}
-				className="h-9 gap-2 bg-panel px-3"
+				className="h-9 gap-2 bg-gousse-panel px-3"
 			>
 				<span>{triggerLabel(accounts, selectedSet)}</span>
-				<ChevronDown size={14} className="text-muted" aria-hidden />
+				<ChevronDown size={14} className="text-gousse-muted" aria-hidden />
 			</Button>
 
 			{open ? (
-				<fieldset className="absolute z-10 mt-1 flex min-w-52 flex-col gap-0.5 rounded-md border border-line bg-panel p-1 shadow-lg">
+				<fieldset className="absolute z-10 mt-1 flex min-w-52 flex-col gap-0.5 rounded-md border border-gousse-line bg-gousse-panel p-1 shadow-lg">
 					<legend className="sr-only">Filter by account</legend>
 					{accounts.length === 0 ? (
-						<p className="px-2 py-1.5 text-sm text-muted">No accounts</p>
+						<p className="px-2 py-1.5 text-sm text-gousse-muted">No accounts</p>
 					) : (
 						accounts.map((account) => {
 							const checked = selectedSet.has(account.id);
 							return (
 								<label
 									key={account.id}
-									className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm text-ink hover:bg-bg"
+									className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm text-gousse-ink hover:bg-gousse-bg"
 								>
 									<input
 										type="checkbox"
@@ -94,8 +94,8 @@ export function AccountMultiSelect({
 										className={cn(
 											"flex h-4 w-4 items-center justify-center rounded border",
 											checked
-												? "border-accent bg-accent text-white"
-												: "border-line",
+												? "border-gousse-accent bg-gousse-accent text-white"
+												: "border-gousse-line",
 										)}
 									>
 										{checked ? <Check size={12} /> : null}

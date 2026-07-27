@@ -58,7 +58,7 @@ export function MonthCell({
 	if (!droppable) {
 		return (
 			<div
-				className="flex flex-col items-center justify-center rounded-md border border-line border-dashed px-2 py-3 text-center text-low opacity-50"
+				className="flex flex-col items-center justify-center rounded-md border border-gousse-line border-dashed px-2 py-3 text-center text-gousse-low opacity-50"
 				aria-disabled="true"
 			>
 				<span className="text-xs">{monthLabel}</span>
@@ -79,17 +79,17 @@ export function MonthCell({
 			onDragLeave={() => setDragging(false)}
 			onDrop={onDrop}
 			aria-label={`Import ${monthLabel} — ${imported ? "already imported, drop to replace" : "available"}`}
-			className={`flex cursor-pointer flex-col items-center justify-center gap-0.5 rounded-md border px-2 py-3 text-center text-xs outline-none transition-[transform,background-color,border-color,color] active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-accent ${
+			className={`flex cursor-pointer flex-col items-center justify-center gap-0.5 rounded-md border px-2 py-3 text-center text-xs outline-none transition-[transform,background-color,border-color,color] active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-gousse-accent ${
 				dragging
-					? "border-accent bg-panel"
+					? "border-gousse-accent bg-gousse-panel"
 					: imported
-						? "border-accent/40 bg-panel text-ink"
-						: "border-medium/40 border-dashed text-medium hover:border-medium hover:bg-medium/5"
+						? "border-gousse-accent/40 bg-gousse-panel text-gousse-ink"
+						: "border-gousse-medium/40 border-dashed text-gousse-medium hover:border-gousse-medium hover:bg-gousse-medium/5"
 			}`}
 		>
 			<span className="font-medium">{monthLabel}</span>
 			<span
-				className={`text-[10px] ${imported ? "text-low" : "text-medium"}`}
+				className={`text-[10px] ${imported ? "text-gousse-low" : "text-gousse-medium"}`}
 			>
 				{imported ? "Imported" : "Drop CSV"}
 			</span>

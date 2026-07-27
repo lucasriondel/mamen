@@ -1,68 +1,72 @@
+import { Button as GousseButton } from "@lucasriondel/gousse-ui";
 import { cva, type VariantProps } from "class-variance-authority";
 import type * as React from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * The shared button primitive. Before this existed the app had ~50 inline
- * `<button>`s repeating the same `rounded-md bg-accent px-4 py-2 …` strings, none
- * of which had press feedback or a visible focus ring. Centralising them here
- * gives every button, in one place:
+ * The shared button — a thin adapter over gousse's `Button` primitive (ADR
+ * 0002). gousse owns the chassis and the per-variant colour/disabled treatment
+ * (`primary` ink-filled, `secondary` line-bordered, `ghost`, `danger`), so
+ * mamen's buttons press and hover exactly like miel's.
  *
- * - `active:scale-[0.97]` press feedback over `transition-transform` — the tactile
- *   "the UI heard you" cue (emil-design-eng: buttons must feel responsive);
- * - a `focus-visible` ring (keyboard-only, so a mouse click stays quiet) —
- *   the app previously stripped the native outline with `outline-none` and never
- *   replaced it, leaving keyboard focus invisible;
- * - a ≥40px hit area on the default size (make-interfaces-feel-better #16).
+ * Two things gousse does not model, layered on here:
  *
- * Variants map onto the pre-existing visual language (accent primary, line-bordered
- * secondary, `--high` destructive) so swapping call-sites is a like-for-like change.
+ * - **`size`.** gousse's button is one fixed height (`px-3 py-1.5`); mamen has
+ *   a three-step scale used at ~36 call-sites (`sm` for table toolbars and
+ *   inline actions, `md` for the 40px hit-area floor, `icon` for square
+ *   icon-only buttons). These override the primitive's own padding via cn().
+ * - **a `focus-visible` ring.** Keyboard-only, so a mouse click stays quiet
+ *   (the ring is what makes keyboard focus visible at all).
+ *
+ * `defaultVariants` keeps mamen's `primary` default rather than gousse's
+ * `secondary`, so existing call-sites that pass no `variant` are unchanged.
  */
 const buttonVariants = cva(
 	cn(
-		"inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md text-sm font-medium",
-		"transition-[transform,background-color,border-color,color] duration-150",
-		"outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg",
-		"active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50",
+		"justify-center",
+		"outline-none focus-visible:ring-2 focus-visible:ring-gousse-accent focus-visible:ring-offset-1 focus-visible:ring-offset-gousse-bg",
+		"disabled:pointer-events-none",
 	),
 	{
 		variants: {
-			variant: {
-				primary: "bg-accent text-bg hover:bg-accent/90",
-				secondary: "border border-line text-ink hover:bg-panel",
-				ghost: "text-muted hover:bg-panel hover:text-ink",
-				danger: "border border-high text-high hover:bg-high/10",
-			},
 			size: {
 				// Comfortable default — reaches the 40px hit-area floor.
 				md: "h-10 px-4",
 				// Denser controls (table toolbars, inline actions).
 				sm: "h-8 px-3 text-xs",
 				// Icon-only: square so the hit area stays ≥ its height.
-				icon: "size-9",
+				icon: "size-9 px-0",
 			},
 		},
-		defaultVariants: { variant: "primary", size: "md" },
+		defaultVariants: { size: "md" },
 	},
 );
 
-export type ButtonProps = React.ComponentProps<"button"> &
-	VariantProps<typeof buttonVariants>;
+type GousseVariant = "primary" | "secondary" | "ghost" | "danger";
 
-/** A token-styled button with built-in press feedback and focus-visible ring. */
+export type ButtonProps = React.ComponentProps<"button"> &
+	VariantProps<typeof buttonVariants> & {
+		variant?: GousseVariant;
+	};
+
+/** A gousse-styled button with mamen's size scale and focus-visible ring. */
 export function Button({
 	className,
-	variant,
+	variant = "primary",
 	size,
 	type = "button",
+	children,
 	...props
 }: ButtonProps) {
 	return (
-		<button
+		<GousseButton
 			type={type}
-			className={cn(buttonVariants({ variant, size }), className)}
+			variant={variant}
+			className={cn(buttonVariants({ size }), className)}
 			{...props}
-		/>
+		>
+			{children}
+		</GousseButton>
 	);
 }
 

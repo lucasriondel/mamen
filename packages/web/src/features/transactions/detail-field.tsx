@@ -14,10 +14,10 @@ export function DetailField({
 	children: ReactNode;
 }) {
 	return (
-		<div className="flex flex-col gap-1 border-b border-line py-3 last:border-0 sm:flex-row sm:items-baseline sm:gap-4">
-			<dt className="w-40 shrink-0 text-sm text-muted">{label}</dt>
-			<dd className="min-w-0 flex-1 text-sm text-ink">
-				{children ?? <span className="text-muted italic">—</span>}
+		<div className="flex flex-col gap-1 border-b border-gousse-line py-3 last:border-0 sm:flex-row sm:items-baseline sm:gap-4">
+			<dt className="w-40 shrink-0 text-sm text-gousse-muted">{label}</dt>
+			<dd className="min-w-0 flex-1 text-sm text-gousse-ink">
+				{children ?? <span className="text-gousse-muted italic">—</span>}
 			</dd>
 		</div>
 	);

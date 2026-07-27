@@ -29,7 +29,7 @@ export function TransactionsPagination({
 	const hasNext = offset + pageSize < total;
 
 	return (
-		<div className="flex items-center justify-between text-sm text-muted">
+		<div className="flex items-center justify-between text-sm text-gousse-muted">
 			<output aria-label="Pagination range" className="tabular-nums">
 				{start}–{end} of {total}
 			</output>

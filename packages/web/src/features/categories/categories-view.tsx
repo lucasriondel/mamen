@@ -45,7 +45,7 @@ type Editor =
 	| { kind: "spill"; node: Category; transactions: number; issuers: number };
 
 const INPUT_CLASS =
-	"rounded-md border border-line bg-bg px-3 py-2 text-ink text-sm outline-none focus:border-accent";
+	"rounded-md border border-gousse-line bg-gousse-bg px-3 py-2 text-gousse-ink text-sm outline-none focus:border-gousse-accent";
 
 /** The per-node curation actions, threaded down the recursive render unchanged. */
 interface NodeActions {
@@ -134,10 +134,10 @@ export function CategoriesView() {
 		<section className="flex flex-col gap-6">
 			<header className="flex items-start justify-between gap-4">
 				<div>
-					<h1 className="text-balance font-semibold text-2xl text-ink">
+					<h1 className="text-balance font-semibold text-2xl text-gousse-ink">
 						Categories
 					</h1>
-					<p className="mt-1 text-muted">
+					<p className="mt-1 text-gousse-muted">
 						The shape of your spending, nested to any depth.
 					</p>
 				</div>
@@ -155,7 +155,9 @@ export function CategoriesView() {
 					description="Something went wrong reading your categories. Try again in a moment."
 				/>
 			) : categoriesQuery.isPending ? (
-				<p className="py-16 text-center text-muted">Loading categories…</p>
+				<p className="py-16 text-center text-gousse-muted">
+					Loading categories…
+				</p>
 			) : tree.length === 0 ? (
 				<Empty
 					title="No categories yet"
@@ -276,11 +278,11 @@ function CategoryNode({
 
 	if (node.children.length === 0) {
 		return (
-			<div className="flex items-center justify-between gap-2 rounded-lg border border-line bg-panel px-4 py-2">
+			<div className="flex items-center justify-between gap-2 rounded-lg border border-gousse-line bg-gousse-panel px-4 py-2">
 				<NodeLink
 					node={node}
 					color={color}
-					className="text-ink text-sm hover:text-accent"
+					className="text-gousse-ink text-sm hover:text-gousse-accent"
 				/>
 				<NodeControls node={node} actions={actions} />
 			</div>
@@ -291,19 +293,19 @@ function CategoryNode({
 	return (
 		// A `fieldset` carries the implicit ARIA `group` role, named by its
 		// `legend` — the folder heading — so each folder reads as a labelled group.
-		<fieldset className="rounded-lg border border-line bg-panel p-4">
+		<fieldset className="rounded-lg border border-gousse-line bg-gousse-panel p-4">
 			<legend className="flex w-full items-center justify-between gap-2">
 				<NodeLink
 					node={node}
 					color={color}
-					className="font-medium text-ink hover:text-accent"
+					className="font-medium text-gousse-ink hover:text-gousse-accent"
 				/>
 				<output
 					aria-label={`${node.name} total`}
 					className={cn(
 						"font-medium text-sm tabular-nums",
-						total < 0 && "text-high",
-						total > 0 && "text-low",
+						total < 0 && "text-gousse-high",
+						total > 0 && "text-gousse-low",
 					)}
 				>
 					{formatCurrency(total)}
@@ -314,7 +316,7 @@ function CategoryNode({
 				<NodeControls node={node} actions={actions} />
 			</div>
 
-			<ul className="mt-3 flex flex-col gap-2 border-line border-l pl-3">
+			<ul className="mt-3 flex flex-col gap-2 border-gousse-line border-l pl-3">
 				{node.children.map((child) => (
 					<li key={child.id}>
 						<CategoryNode node={child} actions={actions} />
@@ -459,7 +461,7 @@ function NameForm({
 			<DialogHeader>
 				<DialogTitle>{title}</DialogTitle>
 			</DialogHeader>
-			<label className="flex flex-col gap-1 text-muted text-sm">
+			<label className="flex flex-col gap-1 text-gousse-muted text-sm">
 				Name
 				<input
 					className={INPUT_CLASS}
@@ -528,12 +530,12 @@ function SpillForm({
 			<DialogHeader>
 				<DialogTitle>Spill {node.name}</DialogTitle>
 			</DialogHeader>
-			<p className="text-muted text-sm">
+			<p className="text-gousse-muted text-sm">
 				{node.name} holds {describeDependents(transactions, issuers)}, so it
 				can't take a child yet. Name a new category to move it into —{" "}
 				{node.name} becomes a folder and nothing is stranded.
 			</p>
-			<label className="flex flex-col gap-1 text-muted text-sm">
+			<label className="flex flex-col gap-1 text-gousse-muted text-sm">
 				New category name
 				<input
 					className={INPUT_CLASS}
@@ -592,7 +594,7 @@ function MoveForm({
 			<DialogHeader>
 				<DialogTitle>Move {node.name}</DialogTitle>
 			</DialogHeader>
-			<label className="flex flex-col gap-1 text-muted text-sm">
+			<label className="flex flex-col gap-1 text-gousse-muted text-sm">
 				Parent
 				<select
 					className={INPUT_CLASS}

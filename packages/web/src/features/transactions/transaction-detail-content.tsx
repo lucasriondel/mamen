@@ -25,34 +25,32 @@ const DATE_TIME = new Intl.DateTimeFormat("en-GB", {
 /** A yes/no flag, rendered as a plain word (muted when false). */
 function BoolField({ value }: { value: boolean }) {
 	return (
-		<span className={cn(!value && "text-muted")}>{value ? "Yes" : "No"}</span>
+		<span className={cn(!value && "text-gousse-muted")}>
+			{value ? "Yes" : "No"}
+		</span>
 	);
 }
 
 /** The amount headline plus issuer/date, at the top of the page. */
-function DetailHeader({
-	txn,
-	issuer,
-}: {
-	txn: Transaction;
-	issuer?: Issuer;
-}) {
+function DetailHeader({ txn, issuer }: { txn: Transaction; issuer?: Issuer }) {
 	return (
 		<header className="flex flex-col gap-1">
 			<span
 				className={cn(
 					"text-3xl font-semibold tabular-nums",
-					txn.amount < 0 && "text-high",
-					txn.amount > 0 && "text-low",
-					txn.amount === 0 && "text-ink",
+					txn.amount < 0 && "text-gousse-high",
+					txn.amount > 0 && "text-gousse-low",
+					txn.amount === 0 && "text-gousse-ink",
 				)}
 			>
 				{formatCurrency(txn.amount)}
 			</span>
-			<h1 className="text-lg font-medium text-ink">
+			<h1 className="text-lg font-medium text-gousse-ink">
 				{issuer ? issuer.name : txn.rawIssuerString}
 			</h1>
-			<span className="text-sm text-muted">{formatShortDate(txn.date)}</span>
+			<span className="text-sm text-gousse-muted">
+				{formatShortDate(txn.date)}
+			</span>
 		</header>
 	);
 }
@@ -70,7 +68,7 @@ function CoreFields({
 	category?: Category;
 }) {
 	return (
-		<dl className="rounded-lg border border-line px-4">
+		<dl className="rounded-lg border border-gousse-line px-4">
 			<DetailField label="Transaction ID">
 				<span className="tabular-nums">{txn.id}</span>
 			</DetailField>
@@ -79,8 +77,8 @@ function CoreFields({
 				<span
 					className={cn(
 						"font-medium tabular-nums",
-						txn.amount < 0 && "text-high",
-						txn.amount > 0 && "text-low",
+						txn.amount < 0 && "text-gousse-high",
+						txn.amount > 0 && "text-gousse-low",
 					)}
 				>
 					{formatCurrency(txn.amount)}
@@ -88,7 +86,9 @@ function CoreFields({
 			</DetailField>
 			<DetailField label="Account">
 				{account?.name ?? (
-					<span className="text-muted italic">Unknown (#{txn.accountId})</span>
+					<span className="text-gousse-muted italic">
+						Unknown (#{txn.accountId})
+					</span>
 				)}
 			</DetailField>
 			<DetailField label="Raw issuer text">
@@ -125,9 +125,11 @@ function RefundDuplicateSection({
 	linkedRefund?: Transaction;
 }) {
 	return (
-		<div className="flex flex-col gap-3 border-t border-line pt-6">
-			<h2 className="text-lg font-semibold text-ink">Refund &amp; duplicate</h2>
-			<dl className="rounded-lg border border-line px-4">
+		<div className="flex flex-col gap-3 border-t border-gousse-line pt-6">
+			<h2 className="text-lg font-semibold text-gousse-ink">
+				Refund &amp; duplicate
+			</h2>
+			<dl className="rounded-lg border border-gousse-line px-4">
 				<DetailField label="Is a refund">
 					<BoolField value={txn.isRefund ?? false} />
 				</DetailField>
@@ -136,7 +138,7 @@ function RefundDuplicateSection({
 						<Link
 							to="/transactions/$transactionId"
 							params={{ transactionId: String(txn.linkedRefundId) }}
-							className="text-accent hover:underline"
+							className="text-gousse-accent hover:underline"
 						>
 							{linkedRefund
 								? `${formatShortDate(linkedRefund.date)} · ${formatCurrency(linkedRefund.amount)}`
@@ -156,13 +158,17 @@ function RefundDuplicateSection({
 }
 
 /** The anomaly-flags section — a placeholder line when there are none. */
-function AnomalyFlagsSection({ flags }: { flags: Transaction["anomalyFlags"] }) {
+function AnomalyFlagsSection({
+	flags,
+}: {
+	flags: Transaction["anomalyFlags"];
+}) {
 	const list = flags ?? [];
 	return (
-		<div className="flex flex-col gap-3 border-t border-line pt-6">
-			<h2 className="text-lg font-semibold text-ink">Anomaly flags</h2>
+		<div className="flex flex-col gap-3 border-t border-gousse-line pt-6">
+			<h2 className="text-lg font-semibold text-gousse-ink">Anomaly flags</h2>
 			{list.length === 0 ? (
-				<p className="text-sm text-muted italic">No anomaly flags.</p>
+				<p className="text-sm text-gousse-muted italic">No anomaly flags.</p>
 			) : (
 				<AnomalyFlags flags={list} />
 			)}
@@ -173,9 +179,9 @@ function AnomalyFlagsSection({ flags }: { flags: Transaction["anomalyFlags"] }) 
 /** The import provenance fields — month, timestamp, batch id. */
 function ImportSection({ txn }: { txn: Transaction }) {
 	return (
-		<div className="flex flex-col gap-3 border-t border-line pt-6">
-			<h2 className="text-lg font-semibold text-ink">Import</h2>
-			<dl className="rounded-lg border border-line px-4">
+		<div className="flex flex-col gap-3 border-t border-gousse-line pt-6">
+			<h2 className="text-lg font-semibold text-gousse-ink">Import</h2>
+			<dl className="rounded-lg border border-gousse-line px-4">
 				<DetailField label="Import month">
 					{formatMonth(txn.importMonth)}
 				</DetailField>
@@ -226,7 +232,7 @@ export function TransactionDetailContent({
 		<section className="flex flex-col gap-8">
 			<Link
 				to="/transactions"
-				className="flex items-center gap-1 self-start text-sm text-muted transition-colors hover:text-ink"
+				className="flex items-center gap-1 self-start text-sm text-gousse-muted transition-colors hover:text-gousse-ink"
 			>
 				<ArrowLeft size={16} aria-hidden />
 				Transactions

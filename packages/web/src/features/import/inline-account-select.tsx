@@ -1,16 +1,16 @@
 import type { Account, AccountId } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
+import { Button } from "@/components/ui/button";
 import {
 	ACCOUNT_TYPE_OPTIONS,
 	type AccountType,
 } from "@/features/accounts/account-type";
 import { useAccountMutations } from "@/features/accounts/use-account-mutations";
-import { Button } from "@/components/ui/button";
 import { accountQueries } from "@/lib/sdk";
 
 const INPUT_CLASS =
-	"rounded-md border border-line bg-bg px-3 py-2 text-sm text-ink outline-none focus:border-accent";
+	"rounded-md border border-gousse-line bg-gousse-bg px-3 py-2 text-sm text-gousse-ink outline-none focus:border-gousse-accent";
 
 /**
  * Target-account chooser for the import wizard: a `<select>` of existing accounts
@@ -51,7 +51,7 @@ export function InlineAccountSelect({
 
 	return (
 		<div className="flex flex-col gap-3">
-			<label className="flex flex-col gap-1 text-sm text-muted">
+			<label className="flex flex-col gap-1 text-sm text-gousse-muted">
 				Target account
 				<select
 					className={INPUT_CLASS}
@@ -75,10 +75,10 @@ export function InlineAccountSelect({
 			{creating ? (
 				<form
 					onSubmit={handleCreate}
-					className="flex flex-wrap items-end gap-3 rounded-md border border-line bg-panel p-3"
+					className="flex flex-wrap items-end gap-3 rounded-md border border-gousse-line bg-gousse-panel p-3"
 					aria-label="Create account"
 				>
-					<label className="flex flex-col gap-1 text-sm text-muted">
+					<label className="flex flex-col gap-1 text-sm text-gousse-muted">
 						Name
 						<input
 							className={INPUT_CLASS}
@@ -88,7 +88,7 @@ export function InlineAccountSelect({
 							aria-label="New account name"
 						/>
 					</label>
-					<label className="flex flex-col gap-1 text-sm text-muted">
+					<label className="flex flex-col gap-1 text-sm text-gousse-muted">
 						Type
 						<select
 							className={INPUT_CLASS}
@@ -123,7 +123,7 @@ export function InlineAccountSelect({
 				<button
 					type="button"
 					onClick={() => setCreating(true)}
-					className="self-start text-sm text-accent underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-accent rounded-sm outline-none"
+					className="self-start text-sm text-gousse-accent underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-gousse-accent rounded-sm outline-none"
 				>
 					+ Create a new account
 				</button>

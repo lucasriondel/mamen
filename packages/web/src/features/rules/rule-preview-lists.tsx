@@ -31,7 +31,7 @@ export function RulePreviewLists({
 }: RulePreviewListsProps) {
 	if (preview.skipped) {
 		return (
-			<output className="text-sm text-high">
+			<output className="text-sm text-gousse-high">
 				That pattern isn’t a valid regular expression — it will be skipped and
 				match nothing.
 			</output>

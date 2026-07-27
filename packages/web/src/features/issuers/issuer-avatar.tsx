@@ -34,7 +34,7 @@ export function IssuerAvatar({
 				// Subtle inset ring keeps a light logo/initial legible against a light
 				// panel — pure black/white at low alpha so it never tints the edge
 				// (make-interfaces-feel-better #11).
-				"flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-bg font-medium text-muted ring-1 ring-black/10 ring-inset dark:ring-white/10",
+				"flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-gousse-bg font-medium text-gousse-muted ring-1 ring-black/10 ring-inset dark:ring-white/10",
 				SIZE_CLASS[size],
 				className,
 			)}

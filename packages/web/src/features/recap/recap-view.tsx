@@ -85,8 +85,10 @@ export function RecapView() {
 	return (
 		<section className="flex flex-col gap-6">
 			<header>
-				<h1 className="text-2xl font-semibold text-ink text-balance">Recap</h1>
-				<p className="mt-1 text-muted">
+				<h1 className="text-2xl font-semibold text-gousse-ink text-balance">
+					Recap
+				</h1>
+				<p className="mt-1 text-gousse-muted">
 					Where your money went, by issuer and by category.
 				</p>
 			</header>
@@ -111,7 +113,7 @@ export function RecapView() {
 					description="Something went wrong reading your spending. Try again in a moment."
 				/>
 			) : isPending ? (
-				<p className="py-16 text-center text-muted">Loading recap…</p>
+				<p className="py-16 text-center text-gousse-muted">Loading recap…</p>
 			) : (
 				<>
 					{truncated ? <TruncationNotice /> : null}

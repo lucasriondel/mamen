@@ -138,7 +138,7 @@ export function AssignmentPicker({
 			<PopoverTrigger asChild>
 				<button
 					type="button"
-					className="flex items-center gap-1.5 rounded-sm px-1 py-0.5 text-muted italic outline-none transition-colors hover:text-ink focus-visible:ring-2 focus-visible:ring-accent"
+					className="flex items-center gap-1.5 rounded-sm px-1 py-0.5 text-gousse-muted italic outline-none transition-colors hover:text-gousse-ink focus-visible:ring-2 focus-visible:ring-gousse-accent"
 					title="Assign an issuer"
 					data-unresolved="true"
 				>
@@ -196,7 +196,7 @@ export function AssignmentPicker({
 									<CommandItem value="__back__" onSelect={backToMatch}>
 										<ArrowLeft
 											size={16}
-											className="shrink-0 text-muted"
+											className="shrink-0 text-gousse-muted"
 											aria-hidden
 										/>
 										<span className="truncate">Back</span>
@@ -214,7 +214,7 @@ export function AssignmentPicker({
 									>
 										<SquarePen
 											size={16}
-											className="shrink-0 text-muted"
+											className="shrink-0 text-gousse-muted"
 											aria-hidden
 										/>
 										<span className="truncate">
@@ -229,7 +229,7 @@ export function AssignmentPicker({
 										>
 											<Plus
 												size={16}
-												className="shrink-0 text-muted"
+												className="shrink-0 text-gousse-muted"
 												aria-hidden
 											/>
 											<span className="truncate">

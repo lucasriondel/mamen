@@ -4,7 +4,7 @@ import { ACCOUNT_TYPE_OPTIONS, type AccountType } from "./account-type";
 import { useAccountMutations } from "./use-account-mutations";
 
 const INPUT_CLASS =
-	"rounded-md border border-line bg-bg px-3 py-2 text-sm text-ink outline-none focus:border-accent";
+	"rounded-md border border-gousse-line bg-gousse-bg px-3 py-2 text-sm text-gousse-ink outline-none focus:border-gousse-accent";
 
 /**
  * The "add account" form: a name field, a type `<select>`, and a submit button.
@@ -41,7 +41,7 @@ export function CreateAccountForm() {
 			className="flex flex-wrap items-end gap-3"
 			aria-label="Add account"
 		>
-			<label className="flex flex-col gap-1 text-sm text-muted">
+			<label className="flex flex-col gap-1 text-sm text-gousse-muted">
 				Name
 				<input
 					className={INPUT_CLASS}
@@ -51,7 +51,7 @@ export function CreateAccountForm() {
 					aria-label="Account name"
 				/>
 			</label>
-			<label className="flex flex-col gap-1 text-sm text-muted">
+			<label className="flex flex-col gap-1 text-sm text-gousse-muted">
 				Type
 				<select
 					className={INPUT_CLASS}

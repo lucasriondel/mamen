@@ -27,8 +27,8 @@ export interface TransactionsFiltersProps {
 }
 
 const inputClass = cn(
-	"h-9 rounded-md border border-line bg-panel px-2 text-sm text-ink",
-	"focus:outline-none focus:ring-2 focus:ring-accent",
+	"h-9 rounded-md border border-gousse-line bg-gousse-panel px-2 text-sm text-gousse-ink",
+	"focus:outline-none focus:ring-2 focus:ring-gousse-accent",
 );
 
 /** How long typing pauses before a search term is written to the URL/query. */
@@ -62,7 +62,7 @@ export function TransactionsFilters({
 				onChange={(search) => onChange({ search })}
 			/>
 
-			<label className="flex items-center gap-2 text-sm text-muted">
+			<label className="flex items-center gap-2 text-sm text-gousse-muted">
 				Account
 				<select
 					aria-label="Filter by account"
@@ -84,7 +84,7 @@ export function TransactionsFilters({
 				</select>
 			</label>
 
-			<label className="flex items-center gap-2 text-sm text-muted">
+			<label className="flex items-center gap-2 text-sm text-gousse-muted">
 				Month
 				<select
 					aria-label="Filter by month"
@@ -171,7 +171,7 @@ function TransactionsSearchInput({
 		<div className="relative flex items-center">
 			<Search
 				size={14}
-				className="pointer-events-none absolute left-2 text-muted"
+				className="pointer-events-none absolute left-2 text-gousse-muted"
 			/>
 			<input
 				type="search"

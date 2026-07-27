@@ -13,6 +13,7 @@
 	},
 	"dependencies": {
 		"@hookform/resolvers": "^5.2.2",
+		"@lucasriondel/gousse-ui": "^0.4.0",
 		"@mamen/sdk": "workspace:*",
 		"@mamen/shared": "workspace:*",
 		"@tailwindcss/vite": "^4.1.18",

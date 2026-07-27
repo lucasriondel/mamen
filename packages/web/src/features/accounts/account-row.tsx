@@ -7,7 +7,7 @@ import { accountTypeLabel } from "./account-type";
 import { useAccountMutations } from "./use-account-mutations";
 
 const INPUT_CLASS =
-	"rounded-md border border-line bg-bg px-3 py-2 text-sm text-ink outline-none focus:border-accent";
+	"rounded-md border border-gousse-line bg-gousse-bg px-3 py-2 text-sm text-gousse-ink outline-none focus:border-gousse-accent";
 
 interface AccountRowProps {
 	account: Account;
@@ -56,7 +56,7 @@ export function AccountRow({ account }: AccountRowProps) {
 	};
 
 	return (
-		<li className="flex flex-wrap items-center justify-between gap-3 border-b border-line py-3">
+		<li className="flex flex-wrap items-center justify-between gap-3 border-b border-gousse-line py-3">
 			{editing ? (
 				<form onSubmit={handleRename} className="flex items-center gap-2">
 					<input
@@ -88,8 +88,8 @@ export function AccountRow({ account }: AccountRowProps) {
 				</form>
 			) : (
 				<div className="flex items-baseline gap-3">
-					<span className="font-medium text-ink">{account.name}</span>
-					<span className="text-sm text-muted">
+					<span className="font-medium text-gousse-ink">{account.name}</span>
+					<span className="text-sm text-gousse-muted">
 						{accountTypeLabel(account.type)}
 					</span>
 				</div>
@@ -98,7 +98,7 @@ export function AccountRow({ account }: AccountRowProps) {
 			{!editing && (
 				<div className="flex items-center gap-3">
 					{hasTransactions && (
-						<span className="text-xs text-muted">
+						<span className="text-xs text-gousse-muted">
 							{transactionCount} transaction
 							{transactionCount === 1 ? "" : "s"} — clear them to delete
 						</span>

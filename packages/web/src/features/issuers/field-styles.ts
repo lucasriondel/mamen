@@ -9,4 +9,4 @@
  * for what remains to migrate.
  */
 export const BUTTON_CLASS =
-	"rounded-md border border-line px-3 py-1.5 text-sm text-ink disabled:opacity-50";
+	"rounded-md border border-gousse-line px-3 py-1.5 text-sm text-gousse-ink disabled:opacity-50";

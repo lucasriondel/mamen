@@ -1,43 +1,42 @@
 /**
  * Global stylesheet.
  *
- * Tailwind v4 first, then the gousse theme layers. Per ADR 0002 the real
- * imports are:
+ * Tailwind v4 first, then the real gousse theme layers (ADR 0002). gousse owns
+ * the token contract end to end:
  *
- *   @import "@lucasriondel/gousse-ui/theme.css";
- *   @import "@lucasriondel/gousse-ui/tokens.css";
- *   @import "@lucasriondel/gousse-ui/effects.css";
+ * - `tokens.css`  — the `--gousse-*` channel triples + `.dark` ramp
+ * - `theme.css`   — the v4 `@theme` mapping onto `--color-gousse-*`,
+ *                   `shadow-gousse-{sm,md,lg,xl}` and the animation utilities.
+ *                   It also declares the `dark` custom variant, so this file
+ *                   must not declare a second (conflicting) one.
+ * - `effects.css` — RainbowGlow / Sheen keyframes and classes
  *
- * They are stubbed by the local `styles/gousse-tokens.css` placeholder while the
- * private package is un-installable here — see that file's header. The
- * `--gousse-*` tokens are the single source of truth either way.
+ * Colour utilities are therefore namespaced `*-gousse-*` (`bg-gousse-panel`,
+ * `text-gousse-ink`, …), matching miel. There is no local token stub and no
+ * hand-rolled `@theme inline` bridge any more.
  */
 
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "./styles/gousse-tokens.css";
+@import "@lucasriondel/gousse-ui/tokens.css";
+@import "@lucasriondel/gousse-ui/theme.css";
+@import "@lucasriondel/gousse-ui/effects.css";
 
-/* Bridge the semantic `--gousse-*` slots onto Tailwind color utilities so
- * `bg-bg`, `bg-panel`, `text-ink`, `text-muted`, `border-line`, `text-accent`,
- * `text-high`/`text-medium`/`text-low` resolve to the token values. */
-@theme inline {
-	--color-bg: var(--gousse-bg);
-	--color-panel: var(--gousse-panel);
-	--color-ink: var(--gousse-ink);
-	--color-muted: var(--gousse-muted);
-	--color-line: var(--gousse-line);
-	--color-accent: var(--gousse-accent);
-	--color-high: var(--gousse-high);
-	--color-medium: var(--gousse-medium);
-	--color-low: var(--gousse-low);
+/* mamen's accent tint. gousse ships a warm orange default; we track miel's blue
+ * so the two apps read as one design language. Bare channel triples — the
+ * `rgb(var(--gousse-*))` wrapping lives in gousse's theme.css. */
+:root {
+	--gousse-accent: 37 99 235;
 }
 
-@custom-variant dark (&:is(.dark *));
+.dark {
+	--gousse-accent: 96 165 250;
+}
 
 body {
 	margin: 0;
-	background-color: var(--gousse-bg);
-	color: var(--gousse-ink);
+	background-color: rgb(var(--gousse-bg));
+	color: rgb(var(--gousse-ink));
 	font-family:
 		system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 	/* Crisper glyph rendering on macOS/WebKit (make-interfaces-feel-better #8). */

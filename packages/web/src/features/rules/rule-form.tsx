@@ -13,7 +13,7 @@ import { useDebouncedValue } from "./use-debounced-value";
 import { useRuleMutations } from "./use-rule-mutations";
 
 const INPUT_CLASS =
-	"w-full rounded-md border border-line bg-bg px-3 py-2 font-mono text-sm text-ink outline-none focus:border-accent";
+	"w-full rounded-md border border-gousse-line bg-gousse-bg px-3 py-2 font-mono text-sm text-gousse-ink outline-none focus:border-gousse-accent";
 
 /** How long the pattern field must be idle before the live preview refetches. */
 const PREVIEW_DEBOUNCE_MS = 300;
@@ -68,12 +68,12 @@ function PatternValidity({
 	if (pattern.length === 0) return null;
 	if (error !== null) {
 		return (
-			<span role="alert" className="text-xs text-high">
+			<span role="alert" className="text-xs text-gousse-high">
 				Invalid regular expression — {error}
 			</span>
 		);
 	}
-	return <span className="text-xs text-low">✓ Valid pattern</span>;
+	return <span className="text-xs text-gousse-low">✓ Valid pattern</span>;
 }
 
 /**
@@ -92,7 +92,7 @@ function ValueMatcherField({
 	error: string | null;
 }) {
 	return (
-		<label className="flex flex-col gap-1 text-sm text-muted">
+		<label className="flex flex-col gap-1 text-sm text-gousse-muted">
 			Value
 			<input
 				className={INPUT_CLASS}
@@ -107,11 +107,11 @@ function ValueMatcherField({
 				aria-invalid={error !== null}
 			/>
 			{error !== null ? (
-				<span role="alert" className="text-xs text-high">
+				<span role="alert" className="text-xs text-gousse-high">
 					{error}
 				</span>
 			) : (
-				<span className="text-xs text-muted">
+				<span className="text-xs text-gousse-muted">
 					Optional — also require the transaction's amount to equal this
 					magnitude (sign-agnostic).
 				</span>
@@ -252,7 +252,7 @@ export function RuleForm({
 
 	return (
 		<form onSubmit={handleSubmit} className="flex flex-col gap-4">
-			<label className="flex flex-col gap-1 text-sm text-muted">
+			<label className="flex flex-col gap-1 text-sm text-gousse-muted">
 				Pattern
 				<input
 					ref={inputRef}
@@ -265,7 +265,7 @@ export function RuleForm({
 					// biome-ignore lint/a11y/noAutofocus: focus the sole field on open
 					autoFocus
 				/>
-				<span className="text-xs text-muted">
+				<span className="text-xs text-gousse-muted">
 					A case-insensitive regular expression matched against the raw issuer
 					string.
 				</span>
@@ -276,8 +276,8 @@ export function RuleForm({
 			{/* Readable rendering of the regex the matcher will actually run, plus
 			    live validity feedback so a broken pattern is caught before save. */}
 			<div className="flex flex-wrap items-center gap-2 text-sm">
-				<span className="text-xs text-muted">Runs as</span>
-				<code className="rounded bg-panel px-2 py-1 font-mono text-ink">
+				<span className="text-xs text-gousse-muted">Runs as</span>
+				<code className="rounded bg-gousse-panel px-2 py-1 font-mono text-gousse-ink">
 					/{trimmedPattern || "…"}/i
 				</code>
 				<PatternValidity pattern={trimmedPattern} error={patternError} />
@@ -285,13 +285,13 @@ export function RuleForm({
 
 			{/* One-click authoring aids: splice a common regex fragment at the caret. */}
 			<div className="flex flex-col gap-1">
-				<span className="text-xs text-muted">Insert:</span>
+				<span className="text-xs text-gousse-muted">Insert:</span>
 				<div className="flex flex-wrap gap-1.5">
 					{REGEX_TOKENS.map((tok) => (
 						<button
 							key={tok.token}
 							type="button"
-							className="rounded border border-line px-2 py-0.5 font-mono text-xs text-ink outline-none transition-[transform,border-color] hover:border-accent focus-visible:ring-2 focus-visible:ring-accent active:scale-[0.97]"
+							className="rounded border border-gousse-line px-2 py-0.5 font-mono text-xs text-gousse-ink outline-none transition-[transform,border-color] hover:border-gousse-accent focus-visible:ring-2 focus-visible:ring-gousse-accent active:scale-[0.97]"
 							aria-label={`Insert ${tok.hint}`}
 							title={tok.hint}
 							onClick={() => insertToken(tok.token)}
@@ -302,15 +302,15 @@ export function RuleForm({
 				</div>
 			</div>
 
-			<div className="max-h-72 overflow-y-auto rounded-md border border-line p-3">
+			<div className="max-h-72 overflow-y-auto rounded-md border border-gousse-line p-3">
 				{debouncedPattern.length === 0 ? (
-					<p className="text-sm text-muted italic">
+					<p className="text-sm text-gousse-muted italic">
 						Type a pattern to preview its effect.
 					</p>
 				) : previewQuery.isPending ? (
-					<p className="text-sm text-muted">Previewing…</p>
+					<p className="text-sm text-gousse-muted">Previewing…</p>
 				) : previewQuery.isError ? (
-					<p className="text-sm text-high">Couldn’t load the preview.</p>
+					<p className="text-sm text-gousse-high">Couldn’t load the preview.</p>
 				) : previewQuery.data ? (
 					<RulePreviewLists
 						preview={previewQuery.data}

@@ -26,13 +26,13 @@ function CandidateLeg({
 			<span
 				className={cn(
 					"font-medium tabular-nums",
-					leg.amount < 0 && "text-high",
-					leg.amount > 0 && "text-low",
+					leg.amount < 0 && "text-gousse-high",
+					leg.amount > 0 && "text-gousse-low",
 				)}
 			>
 				{formatCurrency(leg.amount)}
 			</span>
-			<span className="truncate text-muted text-xs">
+			<span className="truncate text-gousse-muted text-xs">
 				{formatShortDate(leg.date)} ·{" "}
 				{accountsById.get(leg.accountId)?.name ?? `Account #${leg.accountId}`}
 			</span>
@@ -60,10 +60,10 @@ export function TransferCandidateRow({
 	isLinking: boolean;
 }) {
 	return (
-		<li className="flex items-center gap-4 rounded-lg border border-line px-4 py-3">
+		<li className="flex items-center gap-4 rounded-lg border border-gousse-line px-4 py-3">
 			<CandidateLeg leg={candidate.from} accountsById={accountsById} />
 
-			<div className="flex shrink-0 flex-col items-center text-muted">
+			<div className="flex shrink-0 flex-col items-center text-gousse-muted">
 				<ArrowRight size={16} aria-hidden />
 				<span className="text-xs">
 					{candidate.daysApart === 0

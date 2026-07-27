@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 export function TransferBadge() {
 	return (
 		<span
-			className="inline-flex items-center gap-1 rounded bg-bg px-1.5 py-0.5 text-muted text-xs"
+			className="inline-flex items-center gap-1 rounded bg-gousse-bg px-1.5 py-0.5 text-gousse-muted text-xs"
 			title="Part of an internal transfer — excluded from your recap spend"
 		>
 			<ArrowLeftRight size={12} aria-hidden />
@@ -31,7 +31,10 @@ export function TransferBadge() {
  */
 function OverrideDot() {
 	return (
-		<span className="size-1.5 shrink-0 rounded-full bg-accent" aria-hidden />
+		<span
+			className="size-1.5 shrink-0 rounded-full bg-gousse-accent"
+			aria-hidden
+		/>
 	);
 }
 
@@ -45,8 +48,8 @@ export function AmountCell({ amount }: { amount: number }) {
 		<span
 			className={cn(
 				"block text-right font-medium tabular-nums",
-				amount < 0 && "text-high",
-				amount > 0 && "text-low",
+				amount < 0 && "text-gousse-high",
+				amount > 0 && "text-gousse-low",
 			)}
 		>
 			{formatCurrency(amount)}
@@ -86,7 +89,7 @@ export function IssuerCell({
 					data-manual="true"
 				>
 					<IssuerAvatar name={issuer.name} imageUrl={issuer.imageUrl} />
-					<span className="flex items-center gap-1.5 font-medium text-ink">
+					<span className="flex items-center gap-1.5 font-medium text-gousse-ink">
 						<OverrideDot />
 						<span>{issuer.name}</span>
 					</span>
@@ -96,14 +99,14 @@ export function IssuerCell({
 		return (
 			<span className="flex items-center gap-2">
 				<IssuerAvatar name={issuer.name} imageUrl={issuer.imageUrl} />
-				<span className="text-ink">{issuer.name}</span>
+				<span className="text-gousse-ink">{issuer.name}</span>
 			</span>
 		);
 	}
 
 	return (
 		<span
-			className="flex items-center gap-1.5 text-muted italic"
+			className="flex items-center gap-1.5 text-gousse-muted italic"
 			title="Needs an issuer"
 			data-unresolved="true"
 		>
@@ -141,7 +144,7 @@ export function CategoryCell({
 		if (isOverride) {
 			return (
 				<span
-					className="flex items-center gap-1.5 font-medium text-ink"
+					className="flex items-center gap-1.5 font-medium text-gousse-ink"
 					title="Category override — set on this transaction only"
 					data-override="true"
 				>
@@ -151,7 +154,7 @@ export function CategoryCell({
 			);
 		}
 		return (
-			<span className="text-ink" data-inherited="true">
+			<span className="text-gousse-ink" data-inherited="true">
 				{category.name}
 			</span>
 		);
@@ -159,7 +162,7 @@ export function CategoryCell({
 
 	return (
 		<span
-			className="text-muted italic"
+			className="text-gousse-muted italic"
 			title="No category yet"
 			data-unassigned="true"
 		>
@@ -185,7 +188,10 @@ export function NotesCell({ notes }: { notes?: string }) {
 	const trimmed = notes?.trim();
 	if (trimmed) {
 		return (
-			<span className="block max-w-[16rem] truncate text-ink" title={trimmed}>
+			<span
+				className="block max-w-[16rem] truncate text-gousse-ink"
+				title={trimmed}
+			>
 				{trimmed}
 			</span>
 		);
@@ -193,7 +199,7 @@ export function NotesCell({ notes }: { notes?: string }) {
 
 	return (
 		<span
-			className="flex items-center gap-1.5 text-muted italic"
+			className="flex items-center gap-1.5 text-gousse-muted italic"
 			title="Add a note"
 			data-empty="true"
 		>

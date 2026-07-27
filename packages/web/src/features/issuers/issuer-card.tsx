@@ -28,23 +28,23 @@ export function IssuerCard({ issuer, count, net }: IssuerCardProps) {
 		<Link
 			to="/issuers/$issuerId"
 			params={{ issuerId: String(issuer.id) }}
-			className="flex flex-col items-start gap-3 rounded-lg border border-line bg-panel p-4 text-left outline-none transition-[transform,border-color] duration-150 hover:border-accent focus-visible:ring-2 focus-visible:ring-accent active:scale-[0.98]"
+			className="flex flex-col items-start gap-3 rounded-lg border border-gousse-line bg-gousse-panel p-4 text-left outline-none transition-[transform,border-color] duration-150 hover:border-gousse-accent focus-visible:ring-2 focus-visible:ring-gousse-accent active:scale-[0.98]"
 		>
 			<div className="flex w-full items-center gap-3">
 				<IssuerAvatar name={issuer.name} imageUrl={issuer.imageUrl} size="lg" />
-				<span className="min-w-0 flex-1 truncate font-medium text-ink">
+				<span className="min-w-0 flex-1 truncate font-medium text-gousse-ink">
 					{issuer.name}
 				</span>
 			</div>
 			<div className="flex w-full items-baseline justify-between">
-				<span className="text-sm text-muted tabular-nums">
+				<span className="text-sm text-gousse-muted tabular-nums">
 					{count} transaction{count === 1 ? "" : "s"}
 				</span>
 				<span
 					className={cn(
 						"text-sm font-medium tabular-nums",
-						net < 0 && "text-high",
-						net > 0 && "text-low",
+						net < 0 && "text-gousse-high",
+						net > 0 && "text-gousse-low",
 					)}
 				>
 					{formatCurrency(net)}

@@ -75,18 +75,18 @@ export function ImportGrid({
 		<section className="flex flex-col gap-4">
 			<header className="flex items-center justify-between gap-3">
 				<div>
-					<h2 className="text-balance text-lg font-semibold text-ink">
+					<h2 className="text-balance text-lg font-semibold text-gousse-ink">
 						Import statements
 					</h2>
-					<p className="mt-0.5 text-sm text-muted">
+					<p className="mt-0.5 text-sm text-gousse-muted">
 						Drop a CSV on a month to import it. Committed months show as
 						imported; the current and future months aren't ready yet.
 					</p>
 				</div>
-				<label className="flex items-center gap-2 text-sm text-muted">
+				<label className="flex items-center gap-2 text-sm text-gousse-muted">
 					Year
 					<select
-						className="rounded-md border border-line bg-bg px-3 py-1.5 text-sm text-ink outline-none focus:border-accent"
+						className="rounded-md border border-gousse-line bg-gousse-bg px-3 py-1.5 text-sm text-gousse-ink outline-none focus:border-gousse-accent"
 						value={year}
 						onChange={(event) => setYear(Number(event.target.value))}
 						aria-label="Grid year"
@@ -101,7 +101,7 @@ export function ImportGrid({
 			</header>
 
 			{imported.isError ? (
-				<p role="alert" className="text-sm text-high">
+				<p role="alert" className="text-sm text-gousse-high">
 					Couldn't load your import history — imported months may not be marked.
 				</p>
 			) : null}
@@ -113,7 +113,7 @@ export function ImportGrid({
 						{MONTH_LABELS.map((label) => (
 							<div
 								key={label}
-								className="pb-1 text-center text-xs font-medium text-muted"
+								className="pb-1 text-center text-xs font-medium text-gousse-muted"
 							>
 								{label}
 							</div>
@@ -146,7 +146,7 @@ function AccountRowCells({
 }) {
 	return (
 		<>
-			<div className="flex items-center truncate pr-2 text-sm font-medium text-ink">
+			<div className="flex items-center truncate pr-2 text-sm font-medium text-gousse-ink">
 				{account.name}
 			</div>
 			{months.map((month, index) => (

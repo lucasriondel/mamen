@@ -2,7 +2,7 @@ import { PARSERS } from "./parsers/registry";
 import type { WizardAction, WizardState } from "./wizard-reducer";
 
 const INPUT_CLASS =
-	"rounded-md border border-line bg-bg px-3 py-2 text-sm text-ink outline-none focus:border-accent";
+	"rounded-md border border-gousse-line bg-gousse-bg px-3 py-2 text-sm text-gousse-ink outline-none focus:border-gousse-accent";
 
 /**
  * The CSV-only statement-format `<select>` (with the auto-detect / manual-pick
@@ -17,7 +17,7 @@ export function FormatPicker({
 	dispatch: (action: WizardAction) => void;
 }) {
 	return (
-		<label className="flex flex-col gap-1 text-sm text-muted">
+		<label className="flex flex-col gap-1 text-sm text-gousse-muted">
 			Format
 			<select
 				className={INPUT_CLASS}
@@ -37,9 +37,9 @@ export function FormatPicker({
 				))}
 			</select>
 			{state.parserId !== null && state.autoDetected ? (
-				<span className="text-xs text-low">Auto-detected.</span>
+				<span className="text-xs text-gousse-low">Auto-detected.</span>
 			) : state.parserId === null ? (
-				<span className="text-xs text-muted">
+				<span className="text-xs text-gousse-muted">
 					Format not recognized — pick it manually.
 				</span>
 			) : null}

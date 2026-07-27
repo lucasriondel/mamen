@@ -8,9 +8,13 @@ import { TriangleAlert } from "lucide-react";
  */
 export function TruncationNotice() {
 	return (
-		<output className="flex items-center gap-2 rounded-md border border-line bg-panel px-3 py-2 text-sm text-muted">
+		<output className="flex items-center gap-2 rounded-md border border-gousse-line bg-gousse-panel px-3 py-2 text-sm text-gousse-muted">
 			<span className="sr-only">Warning: </span>
-			<TriangleAlert size={16} className="shrink-0 text-accent" aria-hidden />
+			<TriangleAlert
+				size={16}
+				className="shrink-0 text-gousse-accent"
+				aria-hidden
+			/>
 			This period has more transactions than we sum at once, so these totals are
 			partial. Narrow the period or accounts for exact figures.
 		</output>

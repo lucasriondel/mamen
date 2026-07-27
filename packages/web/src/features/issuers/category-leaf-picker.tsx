@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Tag, X } from "lucide-react";
 import { useState } from "react";
 import { CategoryTreeItems } from "@/components/category-tree-items";
+import { Button } from "@/components/ui/button";
 import {
 	Command,
 	CommandEmpty,
@@ -17,7 +18,6 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "@/components/ui/popover";
-import { Button } from "@/components/ui/button";
 import { searchTree } from "@/lib/category-tree";
 import { categoryQueries } from "@/lib/sdk";
 
@@ -92,11 +92,11 @@ export function CategoryLeafPicker({
 					title={title}
 					disabled={disabled}
 				>
-					<Tag size={14} className="shrink-0 text-muted" aria-hidden />
+					<Tag size={14} className="shrink-0 text-gousse-muted" aria-hidden />
 					{current ? (
 						<span>{current.name}</span>
 					) : (
-						<span className="text-muted italic">No category</span>
+						<span className="text-gousse-muted italic">No category</span>
 					)}
 				</Button>
 			</PopoverTrigger>
@@ -131,7 +131,11 @@ export function CategoryLeafPicker({
 										onSelect={() => choose(null)}
 										disabled={disabled}
 									>
-										<X size={16} className="shrink-0 text-muted" aria-hidden />
+										<X
+											size={16}
+											className="shrink-0 text-gousse-muted"
+											aria-hidden
+										/>
 										<span className="truncate">{clearLabel}</span>
 									</CommandItem>
 								</CommandGroup>

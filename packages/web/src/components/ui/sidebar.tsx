@@ -21,7 +21,7 @@ export function Sidebar({
 	return (
 		<aside
 			className={cn(
-				"flex w-60 shrink-0 flex-col gap-4 border-r border-line bg-panel p-4",
+				"flex w-60 shrink-0 flex-col gap-4 border-r border-gousse-line bg-gousse-panel p-4",
 				className,
 			)}
 			{...props}
@@ -39,7 +39,10 @@ export function SidebarHeader({
 }: React.ComponentPropsWithoutRef<"div">) {
 	return (
 		<div
-			className={cn("px-2 py-1 text-lg font-semibold text-ink", className)}
+			className={cn(
+				"px-2 py-1 text-lg font-semibold text-gousse-ink",
+				className,
+			)}
 			{...props}
 		>
 			{children}

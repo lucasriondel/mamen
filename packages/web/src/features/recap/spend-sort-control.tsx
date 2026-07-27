@@ -29,7 +29,7 @@ export function SpendSortControl({
 		<div
 			role="toolbar"
 			aria-label={label}
-			className="inline-flex items-center gap-1 rounded-lg border border-line bg-panel p-1"
+			className="inline-flex items-center gap-1 rounded-lg border border-gousse-line bg-gousse-panel p-1"
 		>
 			{OPTIONS.map(({ key, label: optionLabel }) => {
 				const active = sort.key === key;
@@ -41,8 +41,10 @@ export function SpendSortControl({
 						aria-pressed={active}
 						onClick={() => onChange(nextSpendSort(sort, key))}
 						className={cn(
-							"flex items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors active:scale-[0.97] transition-transform focus-visible:ring-2 focus-visible:ring-accent rounded-md outline-none",
-							active ? "bg-accent/10 text-accent" : "text-muted hover:text-ink",
+							"flex items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors active:scale-[0.97] transition-transform focus-visible:ring-2 focus-visible:ring-gousse-accent rounded-md outline-none",
+							active
+								? "bg-gousse-accent/10 text-gousse-accent"
+								: "text-gousse-muted hover:text-gousse-ink",
 						)}
 					>
 						{optionLabel}

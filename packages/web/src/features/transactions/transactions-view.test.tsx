@@ -138,9 +138,9 @@ describe("TransactionsView", () => {
 
 		// Debit is red (high) and negative; credit is green (low) and positive.
 		const debit = screen.getByText(/9,99/);
-		expect(debit).toHaveClass("text-high");
+		expect(debit).toHaveClass("text-gousse-high");
 		const credit = screen.getByText(/2\s?500/);
-		expect(credit).toHaveClass("text-low");
+		expect(credit).toHaveClass("text-gousse-low");
 
 		// Default sort is desc, so `list` is called with orderBy date / desc.
 		expect(listMock).toHaveBeenCalledWith(

@@ -31,7 +31,7 @@ export function TableHeader({
 }: React.ComponentPropsWithoutRef<"thead">) {
 	return (
 		<thead
-			className={cn("[&_tr]:border-b [&_tr]:border-line", className)}
+			className={cn("[&_tr]:border-b [&_tr]:border-gousse-line", className)}
 			{...props}
 		/>
 	);
@@ -55,7 +55,7 @@ export function TableRow({
 	return (
 		<tr
 			className={cn(
-				"border-b border-line transition-colors hover:bg-bg data-[state=selected]:bg-bg",
+				"border-b border-gousse-line transition-colors hover:bg-gousse-bg data-[state=selected]:bg-gousse-bg",
 				className,
 			)}
 			{...props}
@@ -71,7 +71,7 @@ export function TableHead({
 	return (
 		<th
 			className={cn(
-				"h-10 px-3 text-left align-middle font-medium text-muted",
+				"h-10 px-3 text-left align-middle font-medium text-gousse-muted",
 				className,
 			)}
 			{...props}
@@ -86,7 +86,7 @@ export function TableCell({
 }: React.ComponentPropsWithoutRef<"td">) {
 	return (
 		<td
-			className={cn("px-3 py-2.5 align-middle text-ink", className)}
+			className={cn("px-3 py-2.5 align-middle text-gousse-ink", className)}
 			{...props}
 		/>
 	);

@@ -48,9 +48,9 @@ export function AppSidebar() {
 					<SidebarNavItem key={to}>
 						<Link
 							to={to}
-							className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-muted transition-colors hover:bg-bg hover:text-ink"
+							className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-gousse-muted transition-colors hover:bg-gousse-bg hover:text-gousse-ink"
 							activeProps={{
-								className: "bg-bg font-medium text-ink",
+								className: "bg-gousse-bg font-medium text-gousse-ink",
 							}}
 						>
 							<Icon size={16} />

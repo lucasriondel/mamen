@@ -87,10 +87,10 @@ export function IssuersView() {
 		<section className="flex flex-col gap-6">
 			<header className="flex flex-wrap items-start justify-between gap-4">
 				<div>
-					<h1 className="text-balance text-2xl font-semibold text-ink">
+					<h1 className="text-balance text-2xl font-semibold text-gousse-ink">
 						Issuers
 					</h1>
-					<p className="mt-1 text-muted">
+					<p className="mt-1 text-gousse-muted">
 						The places your money comes from and goes to.
 					</p>
 				</div>
@@ -100,7 +100,7 @@ export function IssuersView() {
 					) : null}
 					<Link
 						to="/issuers/new"
-						className="flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-bg"
+						className="flex items-center gap-1.5 rounded-md bg-gousse-accent px-3 py-1.5 text-sm font-medium text-gousse-bg"
 					>
 						<Plus size={16} aria-hidden />
 						Create issuer
@@ -114,7 +114,7 @@ export function IssuersView() {
 					description="Something went wrong reading your issuers. Try again in a moment."
 				/>
 			) : issuersQuery.isPending ? (
-				<p className="py-16 text-center text-muted">Loading issuers…</p>
+				<p className="py-16 text-center text-gousse-muted">Loading issuers…</p>
 			) : issuers.length === 0 ? (
 				<Empty
 					title="No issuers yet"
@@ -122,7 +122,7 @@ export function IssuersView() {
 				>
 					<Link
 						to="/issuers/new"
-						className="mt-2 flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-bg"
+						className="mt-2 flex items-center gap-1.5 rounded-md bg-gousse-accent px-3 py-1.5 text-sm font-medium text-gousse-bg"
 					>
 						<Plus size={16} aria-hidden />
 						Create your first issuer

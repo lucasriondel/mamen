@@ -41,7 +41,7 @@ export function DialogContent({
 			<DialogOverlay />
 			<DialogPrimitive.Content
 				className={cn(
-					"fixed left-1/2 top-1/2 z-50 grid w-full max-w-md -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg border border-line bg-panel p-6 text-ink shadow-lg outline-none",
+					"fixed left-1/2 top-1/2 z-50 grid w-full max-w-md -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg border border-gousse-line bg-gousse-panel p-6 text-gousse-ink shadow-lg outline-none",
 					// A modal isn't anchored to a trigger, so it scales from centre
 					// (emil-design-eng: the transform-origin exception). Enter uses a
 					// gentle scale+fade under the ~300ms budget; exit is quicker.
@@ -53,7 +53,7 @@ export function DialogContent({
 			>
 				{children}
 				<DialogPrimitive.Close
-					className="absolute right-3 top-3 inline-flex size-9 items-center justify-center rounded-md text-muted outline-none transition-colors hover:bg-bg hover:text-ink focus-visible:ring-2 focus-visible:ring-accent"
+					className="absolute right-3 top-3 inline-flex size-9 items-center justify-center rounded-md text-gousse-muted outline-none transition-colors hover:bg-gousse-bg hover:text-gousse-ink focus-visible:ring-2 focus-visible:ring-gousse-accent"
 					aria-label="Close"
 				>
 					<X size={18} />
@@ -93,7 +93,10 @@ export function DialogTitle({
 }: React.ComponentProps<typeof DialogPrimitive.Title>) {
 	return (
 		<DialogPrimitive.Title
-			className={cn("text-lg font-semibold text-balance text-ink", className)}
+			className={cn(
+				"text-lg font-semibold text-balance text-gousse-ink",
+				className,
+			)}
 			{...props}
 		/>
 	);
@@ -105,7 +108,7 @@ export function DialogDescription({
 }: React.ComponentProps<typeof DialogPrimitive.Description>) {
 	return (
 		<DialogPrimitive.Description
-			className={cn("text-sm text-muted", className)}
+			className={cn("text-sm text-gousse-muted", className)}
 			{...props}
 		/>
 	);

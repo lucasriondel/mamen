@@ -45,13 +45,13 @@ export function RulesSection({ issuer }: RulesSectionProps) {
 	return (
 		<div className="flex flex-col gap-2">
 			<div className="flex items-center justify-between">
-				<h3 className="text-balance text-sm font-semibold text-ink">
+				<h3 className="text-balance text-sm font-semibold text-gousse-ink">
 					Matching Rules
 				</h3>
 				<Link
 					to="/issuers/$issuerId/rules/new"
 					params={{ issuerId: String(issuer.id) }}
-					className="flex items-center gap-1 rounded-md border border-line px-2 py-1 text-xs text-ink"
+					className="flex items-center gap-1 rounded-md border border-gousse-line px-2 py-1 text-xs text-gousse-ink"
 				>
 					<Plus size={14} aria-hidden />
 					Add rule
@@ -59,17 +59,17 @@ export function RulesSection({ issuer }: RulesSectionProps) {
 			</div>
 
 			{rulesQuery.isPending ? (
-				<p className="py-2 text-sm text-muted">Loading rules…</p>
+				<p className="py-2 text-sm text-gousse-muted">Loading rules…</p>
 			) : rulesQuery.isError ? (
-				<p className="py-2 text-sm text-high">
+				<p className="py-2 text-sm text-gousse-high">
 					Couldn’t load this issuer’s rules.
 				</p>
 			) : rules.length === 0 ? (
-				<p className="py-2 text-sm text-muted italic">
+				<p className="py-2 text-sm text-gousse-muted italic">
 					No Matching Rules yet — add one to auto-assign this issuer.
 				</p>
 			) : (
-				<ul className="divide-y divide-line rounded-md border border-line">
+				<ul className="divide-y divide-gousse-line rounded-md border border-gousse-line">
 					{rules.map((rule) => (
 						<li key={rule.id} className="flex flex-col">
 							<div className="flex items-center gap-2 px-3 py-2 text-sm">
@@ -79,13 +79,13 @@ export function RulesSection({ issuer }: RulesSectionProps) {
 										issuerId: String(issuer.id),
 										ruleId: String(rule.id),
 									}}
-									className="flex min-w-0 flex-1 items-center gap-2 rounded transition-colors hover:text-ink"
+									className="flex min-w-0 flex-1 items-center gap-2 rounded transition-colors hover:text-gousse-ink"
 									aria-label={`Edit rule ${rule.pattern}`}
 								>
-									<code className="min-w-0 flex-1 truncate font-mono text-ink">
+									<code className="min-w-0 flex-1 truncate font-mono text-gousse-ink">
 										{rule.pattern}
 									</code>
-									<span className="shrink-0 text-xs text-muted">
+									<span className="shrink-0 text-xs text-gousse-muted">
 										{rule.matchCount} match{rule.matchCount === 1 ? "" : "es"}
 									</span>
 								</Link>
@@ -100,7 +100,7 @@ export function RulesSection({ issuer }: RulesSectionProps) {
 								</Button>
 							</div>
 							{deletingId === rule.id ? (
-								<div className="border-t border-line px-3 py-3">
+								<div className="border-t border-gousse-line px-3 py-3">
 									<RuleDeleteConfirm
 										rule={rule}
 										issuersById={issuersById}

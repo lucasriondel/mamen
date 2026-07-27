@@ -182,7 +182,10 @@ export function CategoryTransactionsView() {
 	if (!categoriesQuery.isPending && (category === undefined || !hasSet)) {
 		return (
 			<section className="flex flex-col gap-6">
-				<Link to="/categories" className="text-muted text-sm hover:text-ink">
+				<Link
+					to="/categories"
+					className="text-gousse-muted text-sm hover:text-gousse-ink"
+				>
 					← Categories
 				</Link>
 				<Empty
@@ -196,11 +199,14 @@ export function CategoryTransactionsView() {
 	return (
 		<section className="flex flex-col gap-6">
 			<header className="flex flex-col gap-2">
-				<Link to="/categories" className="text-muted text-sm hover:text-ink">
+				<Link
+					to="/categories"
+					className="text-gousse-muted text-sm hover:text-gousse-ink"
+				>
 					← Categories
 				</Link>
 				<div className="flex items-baseline justify-between gap-4">
-					<h1 className="flex items-center gap-2 text-balance font-semibold text-2xl text-ink">
+					<h1 className="flex items-center gap-2 text-balance font-semibold text-2xl text-gousse-ink">
 						{category ? (
 							<CategoryIcon
 								name={category.icon}
@@ -217,8 +223,8 @@ export function CategoryTransactionsView() {
 						aria-label="Category total"
 						className={cn(
 							"font-medium text-xl tabular-nums",
-							categoryTotal < 0 && "text-high",
-							categoryTotal > 0 && "text-low",
+							categoryTotal < 0 && "text-gousse-high",
+							categoryTotal > 0 && "text-gousse-low",
 						)}
 					>
 						{formatCurrency(categoryTotal)}
@@ -239,7 +245,9 @@ export function CategoryTransactionsView() {
 					description="Something went wrong reading this category's transactions. Try again in a moment."
 				/>
 			) : transactionsQuery.isPending ? (
-				<p className="py-16 text-center text-muted">Loading transactions…</p>
+				<p className="py-16 text-center text-gousse-muted">
+					Loading transactions…
+				</p>
 			) : transactions.length === 0 ? (
 				<Empty
 					title="No transactions"

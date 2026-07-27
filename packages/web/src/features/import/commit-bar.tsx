@@ -75,7 +75,7 @@ function MonthReplacement({
 	if (count === 0) return null;
 
 	return (
-		<p role="alert" className="text-sm text-high">
+		<p role="alert" className="text-sm text-gousse-high">
 			This will replace {count} existing row{count === 1 ? "" : "s"} for{" "}
 			{formatMonth(month)}.
 		</p>

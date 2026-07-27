@@ -25,7 +25,7 @@ export function PopoverContent({
 				align={align}
 				sideOffset={sideOffset}
 				className={cn(
-					"z-50 w-72 rounded-md border border-line bg-panel text-ink shadow-lg outline-none",
+					"z-50 w-72 rounded-md border border-gousse-line bg-gousse-panel text-gousse-ink shadow-lg outline-none",
 					// Origin-aware entrance: scale in from the trigger, not the centre
 					// (emil-design-eng). Radix sets the transform-origin var per side.
 					"origin-(--radix-popover-content-transform-origin)",

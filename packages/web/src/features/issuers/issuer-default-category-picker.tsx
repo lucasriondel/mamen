@@ -19,7 +19,7 @@ export function IssuerDefaultCategoryPicker({ issuer }: { issuer: Issuer }) {
 
 	return (
 		<div className="flex flex-col gap-1">
-			<span className="text-sm text-muted">Default category</span>
+			<span className="text-sm text-gousse-muted">Default category</span>
 			<CategoryLeafPicker
 				value={issuer.defaultCategoryId}
 				onChange={(categoryId) =>

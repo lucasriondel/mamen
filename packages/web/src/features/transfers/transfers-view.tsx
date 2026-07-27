@@ -32,10 +32,10 @@ export function TransfersView() {
 	return (
 		<section className="mx-auto flex max-w-3xl flex-col gap-8">
 			<header>
-				<h1 className="text-balance text-2xl font-semibold text-ink">
+				<h1 className="text-balance text-2xl font-semibold text-gousse-ink">
 					Transfers
 				</h1>
-				<p className="mt-1 text-muted">
+				<p className="mt-1 text-gousse-muted">
 					Money you moved between your own accounts, detected automatically.
 					Confirm a pair to net it out of your recap.
 				</p>
@@ -64,13 +64,15 @@ function TransfersList({
 	linkingIds: readonly number[] | undefined;
 }) {
 	if (query.isPending) {
-		return <p className="text-muted">Looking for transfers…</p>;
+		return <p className="text-gousse-muted">Looking for transfers…</p>;
 	}
 
 	if (query.isError) {
 		return (
-			<div className="rounded-md border border-line bg-panel p-6 text-center">
-				<p className="font-medium text-ink">Couldn't detect transfers.</p>
+			<div className="rounded-md border border-gousse-line bg-gousse-panel p-6 text-center">
+				<p className="font-medium text-gousse-ink">
+					Couldn't detect transfers.
+				</p>
 				<Button
 					variant="secondary"
 					size="sm"

@@ -17,7 +17,7 @@ function RootLayout() {
 	return (
 		<QueryClientProvider client={queryClient}>
 			<ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
-				<div className="flex h-screen w-full bg-bg text-ink">
+				<div className="flex h-screen w-full bg-gousse-bg text-gousse-ink">
 					<AppSidebar />
 					<main className="flex-1 overflow-auto p-8">
 						<Outlet />

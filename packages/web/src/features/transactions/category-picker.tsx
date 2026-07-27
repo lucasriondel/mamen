@@ -146,7 +146,7 @@ export function CategoryPicker({ transaction, category }: CategoryPickerProps) {
 			<PopoverTrigger asChild>
 				<button
 					type="button"
-					className="block rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-accent"
+					className="block rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-gousse-accent"
 					title="Set a category for this transaction"
 				>
 					<CategoryCell category={category} isOverride={isOverride} />
@@ -201,7 +201,7 @@ export function CategoryPicker({ transaction, category }: CategoryPickerProps) {
 									>
 										<ArrowLeft
 											size={16}
-											className="shrink-0 text-muted"
+											className="shrink-0 text-gousse-muted"
 											aria-hidden
 										/>
 										<span className="truncate">Back</span>
@@ -234,7 +234,7 @@ export function CategoryPicker({ transaction, category }: CategoryPickerProps) {
 											>
 												<Plus
 													size={16}
-													className="shrink-0 text-muted"
+													className="shrink-0 text-gousse-muted"
 													aria-hidden
 												/>
 												<span className="truncate">
@@ -256,7 +256,7 @@ export function CategoryPicker({ transaction, category }: CategoryPickerProps) {
 											>
 												<X
 													size={16}
-													className="shrink-0 text-muted"
+													className="shrink-0 text-gousse-muted"
 													aria-hidden
 												/>
 												<span className="truncate">Remove override</span>

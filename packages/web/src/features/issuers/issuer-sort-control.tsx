@@ -28,7 +28,7 @@ export function IssuerSortControl({ sort, onChange }: IssuerSortControlProps) {
 		<div
 			role="toolbar"
 			aria-label="Sort issuers"
-			className="inline-flex items-center gap-1 rounded-lg border border-line bg-panel p-1"
+			className="inline-flex items-center gap-1 rounded-lg border border-gousse-line bg-gousse-panel p-1"
 		>
 			{OPTIONS.map(({ key, label }) => {
 				const active = sort.key === key;
@@ -40,8 +40,10 @@ export function IssuerSortControl({ sort, onChange }: IssuerSortControlProps) {
 						aria-pressed={active}
 						onClick={() => onChange(nextIssuerSort(sort, key))}
 						className={cn(
-							"flex items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium outline-none transition-[transform,color] focus-visible:ring-2 focus-visible:ring-accent active:scale-[0.97]",
-							active ? "bg-accent/10 text-accent" : "text-muted hover:text-ink",
+							"flex items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium outline-none transition-[transform,color] focus-visible:ring-2 focus-visible:ring-gousse-accent active:scale-[0.97]",
+							active
+								? "bg-gousse-accent/10 text-gousse-accent"
+								: "text-gousse-muted hover:text-gousse-ink",
 						)}
 					>
 						{label}

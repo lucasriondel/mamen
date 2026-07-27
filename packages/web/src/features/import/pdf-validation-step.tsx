@@ -77,7 +77,7 @@ function PdfPane({ file }: { file: File }) {
 		<iframe
 			title="PDF statement"
 			src={url ?? undefined}
-			className="h-[85vh] w-full rounded-md border border-line bg-panel"
+			className="h-[85vh] w-full rounded-md border border-gousse-line bg-gousse-panel"
 		/>
 	);
 }
@@ -91,10 +91,10 @@ function ExtractedRows({
 	dispatch: (action: WizardAction) => void;
 }) {
 	return (
-		<div className="flex flex-col gap-3 overflow-hidden rounded-md border border-line">
+		<div className="flex flex-col gap-3 overflow-hidden rounded-md border border-gousse-line">
 			<div className="max-h-[85vh] overflow-y-auto">
 				<table className="w-full text-sm">
-					<thead className="sticky top-0 bg-panel text-muted">
+					<thead className="sticky top-0 bg-gousse-panel text-gousse-muted">
 						<tr>
 							<th className="px-2 py-2 text-left font-medium">Date</th>
 							<th className="px-2 py-2 text-left font-medium">Raw issuer</th>
@@ -105,7 +105,7 @@ function ExtractedRows({
 					<tbody>
 						{extracted.map((tx, index) => (
 							// biome-ignore lint/suspicious/noArrayIndexKey: rows are edited in place by index; there is no stable id
-							<tr key={index} className="border-line border-t">
+							<tr key={index} className="border-gousse-line border-t">
 								<td className="px-2 py-1">
 									<input
 										type="date"
@@ -118,7 +118,7 @@ function ExtractedRows({
 												patch: { date: fromDateInputValue(event.target.value) },
 											})
 										}
-										className="w-full rounded border border-line bg-bg px-2 py-1 text-ink"
+										className="w-full rounded border border-gousse-line bg-gousse-bg px-2 py-1 text-gousse-ink"
 									/>
 								</td>
 								<td className="px-2 py-1">
@@ -133,7 +133,7 @@ function ExtractedRows({
 												patch: { rawIssuerString: event.target.value },
 											})
 										}
-										className="w-full rounded border border-line bg-bg px-2 py-1 text-ink"
+										className="w-full rounded border border-gousse-line bg-gousse-bg px-2 py-1 text-gousse-ink"
 									/>
 								</td>
 								<td className="px-2 py-1">
@@ -211,7 +211,7 @@ function AmountInput({
 				if (Number.isFinite(n)) onChange(n);
 			}}
 			onBlur={() => setDraft(null)}
-			className="w-24 rounded border border-line bg-bg px-2 py-1 text-right text-ink tabular-nums"
+			className="w-24 rounded border border-gousse-line bg-gousse-bg px-2 py-1 text-right text-gousse-ink tabular-nums"
 		/>
 	);
 }
@@ -229,22 +229,22 @@ function ReconciliationBanner({
 	return (
 		<div
 			role="alert"
-			className="flex flex-col gap-2 rounded-md border border-high bg-panel p-4 text-sm"
+			className="flex flex-col gap-2 rounded-md border border-gousse-high bg-gousse-panel p-4 text-sm"
 		>
-			<p className="font-medium text-high">
+			<p className="font-medium text-gousse-high">
 				Reconciliation mismatch — the extracted rows don't match the statement's
 				declared totals.
 			</p>
-			<p className="text-muted">
+			<p className="text-gousse-muted">
 				A row may have been dropped, or a balance/summary line read as an
 				operation. Review the rows against the PDF — you can still commit.
 			</p>
-			<dl className="grid grid-cols-3 gap-x-4 gap-y-1 pt-1 text-ink">
-				<dt className="text-muted" />
-				<dt className="text-right text-muted">Extracted</dt>
-				<dt className="text-right text-muted">Declared</dt>
+			<dl className="grid grid-cols-3 gap-x-4 gap-y-1 pt-1 text-gousse-ink">
+				<dt className="text-gousse-muted" />
+				<dt className="text-right text-gousse-muted">Extracted</dt>
+				<dt className="text-right text-gousse-muted">Declared</dt>
 
-				<dd className={recon.debitOk ? "" : "text-high"}>Debits</dd>
+				<dd className={recon.debitOk ? "" : "text-gousse-high"}>Debits</dd>
 				<dd className="text-right tabular-nums">
 					{formatCurrency(recon.extractedDebit, { signDisplay: false })}
 				</dd>
@@ -252,7 +252,7 @@ function ReconciliationBanner({
 					{formatCurrency(recon.declaredDebit, { signDisplay: false })}
 				</dd>
 
-				<dd className={recon.creditOk ? "" : "text-high"}>Credits</dd>
+				<dd className={recon.creditOk ? "" : "text-gousse-high"}>Credits</dd>
 				<dd className="text-right tabular-nums">
 					{formatCurrency(recon.extractedCredit, { signDisplay: false })}
 				</dd>

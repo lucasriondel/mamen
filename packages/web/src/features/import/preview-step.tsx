@@ -31,7 +31,7 @@ export function PreviewStep({
 
 	return (
 		<div className="flex flex-col gap-6">
-			<dl className="grid grid-cols-2 gap-x-6 gap-y-3 rounded-md border border-line bg-panel p-4 text-sm sm:grid-cols-4">
+			<dl className="grid grid-cols-2 gap-x-6 gap-y-3 rounded-md border border-gousse-line bg-gousse-panel p-4 text-sm sm:grid-cols-4">
 				<Fact label="Format" value={parserLabel} />
 				<Fact label="Account" value={accountName} />
 				<Fact label="Months" value={months.map(formatMonth).join(", ")} />
@@ -49,8 +49,8 @@ export function PreviewStep({
 function Fact({ label, value }: { label: string; value: string }) {
 	return (
 		<div className="flex flex-col gap-0.5">
-			<dt className="text-muted">{label}</dt>
-			<dd className="font-medium text-ink">{value}</dd>
+			<dt className="text-gousse-muted">{label}</dt>
+			<dd className="font-medium text-gousse-ink">{value}</dd>
 		</div>
 	);
 }
@@ -60,9 +60,9 @@ function PreviewTable({ records }: { records: readonly ParsedTransaction[] }) {
 	const shown = records.slice(0, PREVIEW_ROWS);
 
 	return (
-		<div className="overflow-hidden rounded-md border border-line">
+		<div className="overflow-hidden rounded-md border border-gousse-line">
 			<table className="w-full text-sm">
-				<thead className="bg-panel text-muted">
+				<thead className="bg-gousse-panel text-gousse-muted">
 					<tr>
 						<th className="px-3 py-2 text-left font-medium">Date</th>
 						<th className="px-3 py-2 text-left font-medium">Raw issuer</th>
@@ -73,17 +73,19 @@ function PreviewTable({ records }: { records: readonly ParsedTransaction[] }) {
 					{shown.map((record, index) => (
 						<tr
 							key={`${record.importBatchId}-${index}`}
-							className="border-line border-t"
+							className="border-gousse-line border-t"
 						>
-							<td className="px-3 py-2 text-ink">
+							<td className="px-3 py-2 text-gousse-ink">
 								<span className="tabular-nums">
 									{formatShortDate(record.date)}
 								</span>
 							</td>
-							<td className="px-3 py-2 text-ink">{record.rawIssuerString}</td>
+							<td className="px-3 py-2 text-gousse-ink">
+								{record.rawIssuerString}
+							</td>
 							<td
 								className={`px-3 py-2 text-right tabular-nums ${
-									record.amount < 0 ? "text-high" : "text-low"
+									record.amount < 0 ? "text-gousse-high" : "text-gousse-low"
 								}`}
 							>
 								{formatCurrency(record.amount)}
@@ -93,7 +95,7 @@ function PreviewTable({ records }: { records: readonly ParsedTransaction[] }) {
 				</tbody>
 			</table>
 			{records.length > shown.length ? (
-				<p className="bg-panel px-3 py-2 text-muted text-xs tabular-nums">
+				<p className="bg-gousse-panel px-3 py-2 text-gousse-muted text-xs tabular-nums">
 					+ {records.length - shown.length} more rows
 				</p>
 			) : null}

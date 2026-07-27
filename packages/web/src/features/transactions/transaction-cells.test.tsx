@@ -12,7 +12,7 @@ describe("AmountCell", () => {
 	it("colors a debit (negative) with the gousse high token and keeps the sign", () => {
 		render(<AmountCell amount={-42} />);
 		const el = screen.getByText(/42/);
-		expect(el).toHaveClass("text-high");
+		expect(el).toHaveClass("text-gousse-high");
 		expect(el).toHaveClass("tabular-nums");
 		expect(el.textContent).toMatch(/^-/);
 	});
@@ -20,7 +20,7 @@ describe("AmountCell", () => {
 	it("colors a credit (positive) with the gousse low token and shows a +", () => {
 		render(<AmountCell amount={100} />);
 		const el = screen.getByText(/100/);
-		expect(el).toHaveClass("text-low");
+		expect(el).toHaveClass("text-gousse-low");
 		expect(el.textContent).toMatch(/^\+/);
 	});
 });
@@ -45,7 +45,7 @@ describe("IssuerCell", () => {
 		expect(screen.getByText("SPOTIFY P2A34")).toBeInTheDocument();
 		const cell = screen.getByText("SPOTIFY P2A34").closest("[data-unresolved]");
 		expect(cell).toHaveAttribute("data-unresolved", "true");
-		expect(cell).toHaveClass("text-muted");
+		expect(cell).toHaveClass("text-gousse-muted");
 	});
 
 	it("manual: marks a hand-picked issuer, mirroring an overridden category", () => {

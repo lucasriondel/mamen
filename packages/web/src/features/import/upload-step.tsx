@@ -114,13 +114,17 @@ export function UploadStep({
 				onDragLeave={() => setDragging(false)}
 				onDrop={onDrop}
 				className={`flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed p-10 text-center transition-colors ${
-					dragging ? "border-accent bg-panel" : "border-line"
+					dragging
+						? "border-gousse-accent bg-gousse-panel"
+						: "border-gousse-line"
 				}`}
 			>
-				<span className="font-medium text-ink">
+				<span className="font-medium text-gousse-ink">
 					Drop a CSV or PDF statement here
 				</span>
-				<span className="text-sm text-muted">or click to choose a file</span>
+				<span className="text-sm text-gousse-muted">
+					or click to choose a file
+				</span>
 				<input
 					type="file"
 					accept=".csv,text/csv,.pdf,application/pdf"
@@ -136,28 +140,31 @@ export function UploadStep({
 			{state.extracting ? (
 				<p
 					role="status"
-					className="flex items-center gap-2 rounded-md border border-line bg-panel p-4 text-sm text-muted"
+					className="flex items-center gap-2 rounded-md border border-gousse-line bg-gousse-panel p-4 text-sm text-gousse-muted"
 				>
-					<span className="font-medium text-ink">{state.fileName}</span> —
-					extracting transactions from the PDF…
+					<span className="font-medium text-gousse-ink">{state.fileName}</span>{" "}
+					— extracting transactions from the PDF…
 				</p>
 			) : null}
 
 			{state.error ? (
-				<p role="alert" className="text-sm text-high">
+				<p role="alert" className="text-sm text-gousse-high">
 					{state.error}
 				</p>
 			) : null}
 
 			{!state.extracting && (state.rows.length > 0 || state.extracted) ? (
-				<div className="flex flex-col gap-4 rounded-md border border-line bg-panel p-4">
-					<p className="text-sm text-muted">
-						<span className="font-medium text-ink">{state.fileName}</span> —{" "}
+				<div className="flex flex-col gap-4 rounded-md border border-gousse-line bg-gousse-panel p-4">
+					<p className="text-sm text-gousse-muted">
+						<span className="font-medium text-gousse-ink">
+							{state.fileName}
+						</span>{" "}
+						—{" "}
 						{state.source === "pdf"
 							? `${state.extracted?.length ?? 0} transactions extracted`
 							: `${state.rows.length} rows`}
 						{state.source === "pdf" && state.extractionMs !== null ? (
-							<span className="text-muted">
+							<span className="text-gousse-muted">
 								{" "}
 								in {formatExtractionTime(state.extractionMs)}
 							</span>

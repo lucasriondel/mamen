@@ -55,7 +55,7 @@ export function CategoryTreeItems({
 				<div
 					key={`folder-${category.id}`}
 					role="presentation"
-					className="flex items-center gap-2 px-2 py-1.5 text-xs font-medium text-muted"
+					className="flex items-center gap-2 px-2 py-1.5 text-xs font-medium text-gousse-muted"
 					style={indent}
 				>
 					<CategoryIcon name={category.icon} color={color} size={14} />
@@ -76,7 +76,7 @@ export function CategoryTreeItems({
 				{category.id === selectedId ? (
 					<Check
 						size={14}
-						className="ml-auto shrink-0 text-accent"
+						className="ml-auto shrink-0 text-gousse-accent"
 						aria-label={selectedLabel}
 					/>
 				) : null}

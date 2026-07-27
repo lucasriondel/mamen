@@ -46,7 +46,9 @@ export function IssuerDetailPage() {
 	);
 
 	if (issuerQuery.isPending) {
-		return <p className="py-16 text-center text-muted">Loading issuer…</p>;
+		return (
+			<p className="py-16 text-center text-gousse-muted">Loading issuer…</p>
+		);
 	}
 
 	const issuer = issuerQuery.data as Issuer | undefined;
@@ -137,7 +139,7 @@ function IssuerDetailContent({
 		<section className="flex flex-col gap-8">
 			<Link
 				to="/issuers"
-				className="flex items-center gap-1 self-start text-sm text-muted transition-colors hover:text-ink"
+				className="flex items-center gap-1 self-start text-sm text-gousse-muted transition-colors hover:text-gousse-ink"
 			>
 				<ArrowLeft size={16} aria-hidden />
 				Issuers
@@ -146,18 +148,18 @@ function IssuerDetailContent({
 			<header className="flex items-center gap-4">
 				<IssuerAvatar name={issuer.name} imageUrl={issuer.imageUrl} size="lg" />
 				<div className="flex min-w-0 flex-col">
-					<h1 className="truncate text-balance text-2xl font-semibold text-ink">
+					<h1 className="truncate text-balance text-2xl font-semibold text-gousse-ink">
 						{issuer.name}
 					</h1>
 					<div className="flex items-baseline gap-2 text-sm">
-						<span className="text-muted tabular-nums">
+						<span className="text-gousse-muted tabular-nums">
 							{count} transaction{count === 1 ? "" : "s"}
 						</span>
 						<span
 							className={cn(
 								"font-medium tabular-nums",
-								net < 0 && "text-high",
-								net > 0 && "text-low",
+								net < 0 && "text-gousse-high",
+								net > 0 && "text-gousse-low",
 							)}
 						>
 							{formatCurrency(net)}
@@ -194,7 +196,7 @@ function IssuerDetailContent({
 			</div>
 
 			<form onSubmit={handleRename} className="flex max-w-md items-end gap-2">
-				<label className="flex flex-1 flex-col gap-1 text-sm text-muted">
+				<label className="flex flex-1 flex-col gap-1 text-sm text-gousse-muted">
 					Name
 					<Input
 						value={draftName}
@@ -213,31 +215,31 @@ function IssuerDetailContent({
 			<IssuerDefaultCategoryPicker issuer={issuer} />
 
 			<div className="flex flex-col gap-3">
-				<h2 className="text-balance text-lg font-semibold text-ink">
+				<h2 className="text-balance text-lg font-semibold text-gousse-ink">
 					Transactions
 				</h2>
 				{transactions.length === 0 ? (
-					<p className="text-sm text-muted italic">
+					<p className="text-sm text-gousse-muted italic">
 						No transactions reference this issuer yet.
 					</p>
 				) : (
-					<ul className="divide-y divide-line rounded-md border border-line">
+					<ul className="divide-y divide-gousse-line rounded-md border border-gousse-line">
 						{transactions.map((txn) => (
 							<li
 								key={txn.id}
 								className="flex items-center gap-3 px-3 py-2 text-sm"
 							>
-								<span className="shrink-0 text-muted tabular-nums">
+								<span className="shrink-0 text-gousse-muted tabular-nums">
 									{formatShortDate(txn.date)}
 								</span>
-								<span className="min-w-0 flex-1 truncate text-ink">
+								<span className="min-w-0 flex-1 truncate text-gousse-ink">
 									{txn.rawIssuerString}
 								</span>
 								<span
 									className={cn(
 										"shrink-0 font-medium tabular-nums",
-										txn.amount < 0 && "text-high",
-										txn.amount > 0 && "text-low",
+										txn.amount < 0 && "text-gousse-high",
+										txn.amount > 0 && "text-gousse-low",
 									)}
 								>
 									{formatCurrency(txn.amount)}
@@ -248,11 +250,11 @@ function IssuerDetailContent({
 				)}
 			</div>
 
-			<div className="border-t border-line pt-6">
+			<div className="border-t border-gousse-line pt-6">
 				<RulesSection issuer={issuer} />
 			</div>
 
-			<div className="flex flex-col gap-1 border-t border-line pt-6">
+			<div className="flex flex-col gap-1 border-t border-gousse-line pt-6">
 				<Button
 					variant="danger"
 					size="sm"
@@ -268,7 +270,7 @@ function IssuerDetailContent({
 					Delete issuer
 				</Button>
 				{hasTransactions ? (
-					<span className="text-xs text-muted tabular-nums">
+					<span className="text-xs text-gousse-muted tabular-nums">
 						{count} transaction{count === 1 ? "" : "s"} reference this issuer —
 						reassign them to delete.
 					</span>

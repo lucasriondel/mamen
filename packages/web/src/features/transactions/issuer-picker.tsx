@@ -89,7 +89,7 @@ export function IssuerPicker({ transaction, issuer }: IssuerPickerProps) {
 			<PopoverTrigger asChild>
 				<button
 					type="button"
-					className="block rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-accent"
+					className="block rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-gousse-accent"
 					title="Change the issuer for this transaction"
 				>
 					<IssuerCell
@@ -113,7 +113,7 @@ export function IssuerPicker({ transaction, issuer }: IssuerPickerProps) {
 						    mounted, so cmdk never sees an empty list and would never
 						    render it. A plain node states the miss regardless. */}
 						{filtered.length === 0 ? (
-							<p className="px-3 py-4 text-center text-muted text-sm">
+							<p className="px-3 py-4 text-center text-gousse-muted text-sm">
 								No issuers found.
 							</p>
 						) : null}
@@ -135,7 +135,7 @@ export function IssuerPicker({ transaction, issuer }: IssuerPickerProps) {
 										{candidate.id === issuer.id ? (
 											<Check
 												size={14}
-												className="ml-auto shrink-0 text-accent"
+												className="ml-auto shrink-0 text-gousse-accent"
 												aria-label="Current issuer"
 											/>
 										) : null}
@@ -149,7 +149,7 @@ export function IssuerPicker({ transaction, issuer }: IssuerPickerProps) {
 							<CommandItem value="__go_to_issuer__" onSelect={goToIssuer}>
 								<ExternalLink
 									size={16}
-									className="shrink-0 text-muted"
+									className="shrink-0 text-gousse-muted"
 									aria-hidden
 								/>
 								<span className="truncate">Go to {issuer.name}</span>
@@ -169,7 +169,7 @@ export function IssuerPicker({ transaction, issuer }: IssuerPickerProps) {
 function ProvenanceLine({ isManual }: { isManual: boolean }) {
 	const Icon = isManual ? Hand : Wand;
 	return (
-		<p className="flex items-center gap-1.5 border-line border-b px-3 py-2 text-muted text-xs">
+		<p className="flex items-center gap-1.5 border-gousse-line border-b px-3 py-2 text-gousse-muted text-xs">
 			<Icon size={13} className="shrink-0" aria-hidden />
 			<span>
 				{isManual

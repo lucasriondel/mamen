@@ -168,7 +168,7 @@ export function TransactionsTable({
 	const SortIcon = direction === "asc" ? ArrowUp : ArrowDown;
 
 	return (
-		<div className="overflow-hidden rounded-lg border border-line">
+		<div className="overflow-hidden rounded-lg border border-gousse-line">
 			<Table>
 				<TableHeader>
 					{table.getHeaderGroups().map((headerGroup) => (
@@ -180,7 +180,7 @@ export function TransactionsTable({
 											type="button"
 											onClick={onToggleSort}
 											aria-label={`Sort by date, currently ${direction}ending`}
-											className="flex items-center gap-1 rounded-sm font-medium text-muted outline-none transition-colors hover:text-ink focus-visible:ring-2 focus-visible:ring-accent"
+											className="flex items-center gap-1 rounded-sm font-medium text-gousse-muted outline-none transition-colors hover:text-gousse-ink focus-visible:ring-2 focus-visible:ring-gousse-accent"
 										>
 											{flexRender(
 												header.column.columnDef.header,
@@ -226,7 +226,7 @@ export function TransactionsTable({
 								tabIndex={0}
 								role="link"
 								aria-label={`View transaction ${row.original.rawIssuerString}`}
-								className="cursor-pointer focus:outline-none focus-visible:bg-bg"
+								className="cursor-pointer focus:outline-none focus-visible:bg-gousse-bg"
 							>
 								{row.getVisibleCells().map((cell) => {
 									// The issuer/category/notes cells are inline curation surfaces

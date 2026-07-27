@@ -40,19 +40,21 @@ export function RuleDeleteConfirm({
 
 	return (
 		<div className="flex flex-col gap-4">
-			<p className="text-sm text-muted">
+			<p className="text-sm text-gousse-muted">
 				Deleting the rule{" "}
-				<code className="rounded bg-panel px-1 py-0.5 font-mono text-ink">
+				<code className="rounded bg-gousse-panel px-1 py-0.5 font-mono text-gousse-ink">
 					{rule.pattern}
 				</code>{" "}
 				will change these transactions:
 			</p>
 
-			<div className="max-h-72 overflow-y-auto rounded-md border border-line p-3">
+			<div className="max-h-72 overflow-y-auto rounded-md border border-gousse-line p-3">
 				{previewQuery.isPending ? (
-					<p className="text-sm text-muted">Loading consequences…</p>
+					<p className="text-sm text-gousse-muted">Loading consequences…</p>
 				) : previewQuery.isError ? (
-					<p className="text-sm text-high">Couldn’t load the delete preview.</p>
+					<p className="text-sm text-gousse-high">
+						Couldn’t load the delete preview.
+					</p>
 				) : previewQuery.data ? (
 					<div className="flex flex-col gap-4">
 						<TransactionPreviewList

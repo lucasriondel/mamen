@@ -1,6 +1,6 @@
 import { CategoryIcon } from "@/components/category-icon";
-import { formatCurrency } from "@/lib/format";
 import { IssuerAvatar } from "@/features/issuers/issuer-avatar";
+import { formatCurrency } from "@/lib/format";
 import type { SpendRow } from "./recap-aggregate";
 import type { SpendSort } from "./recap-sort";
 import { SpendSortControl } from "./spend-sort-control";
@@ -33,11 +33,13 @@ export function SpendSection({
 	onSortChange,
 }: SpendSectionProps) {
 	return (
-		<section className="flex flex-col gap-3 rounded-lg border border-line bg-panel p-5">
+		<section className="flex flex-col gap-3 rounded-lg border border-gousse-line bg-gousse-panel p-5">
 			<header className="flex flex-wrap items-center justify-between gap-3">
 				<div>
-					<h2 className="text-lg font-semibold text-ink text-balance">{title}</h2>
-					<p className="text-sm text-muted tabular-nums">
+					<h2 className="text-lg font-semibold text-gousse-ink text-balance">
+						{title}
+					</h2>
+					<p className="text-sm text-gousse-muted tabular-nums">
 						{formatCurrency(-total, { signDisplay: false })} across{" "}
 						{rows.length} {rows.length === 1 ? "entry" : "entries"}
 					</p>
@@ -50,11 +52,11 @@ export function SpendSection({
 			</header>
 
 			{rows.length === 0 ? (
-				<p className="py-6 text-center text-sm text-muted">
+				<p className="py-6 text-center text-sm text-gousse-muted">
 					No spending in this period.
 				</p>
 			) : (
-				<ul className="flex flex-col divide-y divide-line">
+				<ul className="flex flex-col divide-y divide-gousse-line">
 					{rows.map((row) => (
 						<SpendRowItem key={row.id ?? "unassigned"} row={row} />
 					))}
@@ -71,13 +73,13 @@ function SpendRowItem({ row }: { row: SpendRow }) {
 			<div className="flex min-w-0 items-center gap-3">
 				<SpendRowAvatar row={row} />
 				<div className="min-w-0">
-					<p className="truncate text-sm text-ink">{row.name}</p>
-					<p className="text-xs text-muted tabular-nums">
+					<p className="truncate text-sm text-gousse-ink">{row.name}</p>
+					<p className="text-xs text-gousse-muted tabular-nums">
 						{row.count} {row.count === 1 ? "transaction" : "transactions"}
 					</p>
 				</div>
 			</div>
-			<span className="shrink-0 font-medium tabular-nums text-ink">
+			<span className="shrink-0 font-medium tabular-nums text-gousse-ink">
 				{formatCurrency(-row.spent, { signDisplay: false })}
 			</span>
 		</li>
@@ -93,7 +95,7 @@ function SpendRowItem({ row }: { row: SpendRow }) {
 function SpendRowAvatar({ row }: { row: SpendRow }) {
 	if (row.icon) {
 		return (
-			<span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-bg">
+			<span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-gousse-bg">
 				<CategoryIcon name={row.icon} color={row.color} size={14} />
 			</span>
 		);

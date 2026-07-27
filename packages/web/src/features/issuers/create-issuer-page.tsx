@@ -70,24 +70,24 @@ export function CreateIssuerPage() {
 		<section className="flex flex-col gap-8">
 			<Link
 				to="/issuers"
-				className="flex items-center gap-1 self-start text-sm text-muted transition-colors hover:text-ink"
+				className="flex items-center gap-1 self-start text-sm text-gousse-muted transition-colors hover:text-gousse-ink"
 			>
 				<ArrowLeft size={16} aria-hidden />
 				Issuers
 			</Link>
 
 			<header>
-				<h1 className="text-balance text-2xl font-semibold text-ink">
+				<h1 className="text-balance text-2xl font-semibold text-gousse-ink">
 					Create issuer
 				</h1>
-				<p className="mt-1 text-muted">
+				<p className="mt-1 text-gousse-muted">
 					Give it a default category and future matching transactions will file
 					themselves.
 				</p>
 			</header>
 
 			<form onSubmit={handleSubmit} className="flex max-w-md flex-col gap-6">
-				<label className="flex flex-col gap-1 text-sm text-muted">
+				<label className="flex flex-col gap-1 text-sm text-gousse-muted">
 					Name
 					<Input
 						value={name}
@@ -106,14 +106,14 @@ export function CreateIssuerPage() {
 						aria-describedby={isDuplicate ? duplicateNoteId : undefined}
 					/>
 					{isDuplicate ? (
-						<span id={duplicateNoteId} className="text-xs text-high">
+						<span id={duplicateNoteId} className="text-xs text-gousse-high">
 							An issuer with this name already exists.
 						</span>
 					) : null}
 				</label>
 
 				<div className="flex flex-col gap-1">
-					<span className="text-sm text-muted">
+					<span className="text-sm text-gousse-muted">
 						Default category (optional)
 					</span>
 					<CategoryLeafPicker

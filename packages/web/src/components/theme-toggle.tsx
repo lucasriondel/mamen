@@ -17,7 +17,7 @@ export function ThemeToggle({ className }: { className?: string }) {
 			variant="secondary"
 			aria-label={isDark ? "Switch to light theme" : "Switch to dark theme"}
 			onClick={() => setTheme(isDark ? "light" : "dark")}
-			className={cn("gap-2 bg-bg", className)}
+			className={cn("gap-2 bg-gousse-bg", className)}
 		>
 			{/* Both icons stay mounted and cross-fade so the swap has enter AND exit
 			 * animation without a motion lib (make-interfaces-feel-better #7). The
@@ -27,14 +27,18 @@ export function ThemeToggle({ className }: { className?: string }) {
 					size={16}
 					className={cn(
 						"absolute transition-[opacity,transform,filter] duration-200 ease-[cubic-bezier(0.2,0,0,1)]",
-						isDark ? "scale-100 opacity-100 blur-0" : "scale-25 opacity-0 blur-[4px]",
+						isDark
+							? "scale-100 opacity-100 blur-0"
+							: "scale-25 opacity-0 blur-[4px]",
 					)}
 				/>
 				<Moon
 					size={16}
 					className={cn(
 						"absolute transition-[opacity,transform,filter] duration-200 ease-[cubic-bezier(0.2,0,0,1)]",
-						isDark ? "scale-25 opacity-0 blur-[4px]" : "scale-100 opacity-100 blur-0",
+						isDark
+							? "scale-25 opacity-0 blur-[4px]"
+							: "scale-100 opacity-100 blur-0",
 					)}
 				/>
 			</span>

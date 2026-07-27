@@ -42,7 +42,7 @@ function LegRow({
 	action?: ReactNode;
 }) {
 	return (
-		<li className="flex items-center justify-between gap-3 rounded-md border border-line px-3 py-2">
+		<li className="flex items-center justify-between gap-3 rounded-md border border-gousse-line px-3 py-2">
 			<Link
 				to="/transactions/$transactionId"
 				params={{ transactionId: String(leg.id) }}
@@ -51,13 +51,13 @@ function LegRow({
 				<span
 					className={cn(
 						"font-medium tabular-nums",
-						leg.amount < 0 && "text-high",
-						leg.amount > 0 && "text-low",
+						leg.amount < 0 && "text-gousse-high",
+						leg.amount > 0 && "text-gousse-low",
 					)}
 				>
 					{formatCurrency(leg.amount)}
 				</span>
-				<span className="truncate text-muted text-xs">
+				<span className="truncate text-gousse-muted text-xs">
 					{formatShortDate(leg.date)} ·{" "}
 					{accountsById.get(leg.accountId)?.name ?? `Account #${leg.accountId}`}
 				</span>
@@ -141,22 +141,24 @@ export function TransferSection({
 	);
 
 	return (
-		<div className="flex flex-col gap-3 border-t border-line pt-6">
-			<h2 className="flex items-center gap-2 text-lg font-semibold text-ink">
-				<ArrowLeftRight size={18} aria-hidden className="text-muted" />
+		<div className="flex flex-col gap-3 border-t border-gousse-line pt-6">
+			<h2 className="flex items-center gap-2 text-lg font-semibold text-gousse-ink">
+				<ArrowLeftRight size={18} aria-hidden className="text-gousse-muted" />
 				Transfer
 			</h2>
 
 			{isGrouped ? (
 				<div className="flex flex-col gap-3">
-					<p className="text-sm text-muted">
+					<p className="text-sm text-gousse-muted">
 						This transaction is part of an internal transfer — its legs are
 						excluded from your recap spend.
 					</p>
 					{groupQuery.isPending ? (
-						<p className="text-sm text-muted italic">Loading the other legs…</p>
+						<p className="text-sm text-gousse-muted italic">
+							Loading the other legs…
+						</p>
 					) : groupQuery.isError ? (
-						<p className="text-sm text-high italic">
+						<p className="text-sm text-gousse-high italic">
 							Couldn't load the other legs. Retry in a moment.
 						</p>
 					) : otherLegs.length > 0 ? (
@@ -166,7 +168,7 @@ export function TransferSection({
 							))}
 						</ul>
 					) : (
-						<p className="text-sm text-muted italic">
+						<p className="text-sm text-gousse-muted italic">
 							No other legs are loaded in this view.
 						</p>
 					)}
@@ -181,23 +183,25 @@ export function TransferSection({
 					</Button>
 				</div>
 			) : !isEligible ? (
-				<p className="text-sm text-muted italic">
+				<p className="text-sm text-gousse-muted italic">
 					{txn.isRefund || txn.linkedRefundId != null
 						? "A refund can't be grouped as an internal transfer."
 						: "This transaction can't be part of a transfer."}
 				</p>
 			) : candidatesQuery.isPending ? (
-				<p className="text-sm text-muted italic">Looking for counterparts…</p>
+				<p className="text-sm text-gousse-muted italic">
+					Looking for counterparts…
+				</p>
 			) : candidatesQuery.isError ? (
 				// Without this the failed fetch falls through to the empty-state copy
 				// below, reporting "no counterpart exists" — a definitive negative
 				// answer — when the truth is that we never got to look.
-				<p className="text-sm text-high italic">
+				<p className="text-sm text-gousse-high italic">
 					Couldn't look for counterparts. Retry in a moment.
 				</p>
 			) : suggestions.length > 0 ? (
 				<div className="flex flex-col gap-3">
-					<p className="text-sm text-muted">
+					<p className="text-sm text-gousse-muted">
 						These look like the other side of this money movement. Link them to
 						net the transfer out of your recap.
 					</p>
@@ -224,7 +228,7 @@ export function TransferSection({
 					</ul>
 				</div>
 			) : (
-				<p className="text-sm text-muted italic">
+				<p className="text-sm text-gousse-muted italic">
 					No matching counterpart found in the surrounding days.
 				</p>
 			)}

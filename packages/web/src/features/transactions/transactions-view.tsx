@@ -119,7 +119,7 @@ export function TransactionsView() {
 	return (
 		<section className="flex flex-col gap-6">
 			<header>
-				<h1 className="text-balance text-2xl font-semibold text-ink">
+				<h1 className="text-balance text-2xl font-semibold text-gousse-ink">
 					Transactions
 				</h1>
 			</header>
@@ -150,7 +150,9 @@ export function TransactionsView() {
 					description="Something went wrong reading your transactions. Try again in a moment."
 				/>
 			) : transactionsQuery.isPending ? (
-				<p className="py-16 text-center text-muted">Loading transactions…</p>
+				<p className="py-16 text-center text-gousse-muted">
+					Loading transactions…
+				</p>
 			) : transactions.length === 0 ? (
 				<Empty
 					title="No transactions"

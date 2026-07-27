@@ -22,7 +22,7 @@ export function Command({
 	return (
 		<CommandPrimitive
 			className={cn(
-				"flex h-full w-full flex-col overflow-hidden rounded-md bg-panel text-ink",
+				"flex h-full w-full flex-col overflow-hidden rounded-md bg-gousse-panel text-gousse-ink",
 				className,
 			)}
 			{...props}
@@ -36,11 +36,11 @@ export function CommandInput({
 	...props
 }: React.ComponentProps<typeof CommandPrimitive.Input>) {
 	return (
-		<div className="flex items-center gap-2 border-b border-line px-3">
-			<Search size={16} className="shrink-0 text-muted" aria-hidden />
+		<div className="flex items-center gap-2 border-b border-gousse-line px-3">
+			<Search size={16} className="shrink-0 text-gousse-muted" aria-hidden />
 			<CommandPrimitive.Input
 				className={cn(
-					"flex h-10 w-full bg-transparent py-3 text-sm text-ink outline-none placeholder:text-muted disabled:opacity-50",
+					"flex h-10 w-full bg-transparent py-3 text-sm text-gousse-ink outline-none placeholder:text-gousse-muted disabled:opacity-50",
 					className,
 				)}
 				{...props}
@@ -71,7 +71,7 @@ export function CommandEmpty(
 ) {
 	return (
 		<CommandPrimitive.Empty
-			className="py-6 text-center text-sm text-muted"
+			className="py-6 text-center text-sm text-gousse-muted"
 			{...props}
 		/>
 	);
@@ -85,7 +85,7 @@ export function CommandGroup({
 	return (
 		<CommandPrimitive.Group
 			className={cn(
-				"overflow-hidden p-1 text-ink [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted",
+				"overflow-hidden p-1 text-gousse-ink [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-gousse-muted",
 				className,
 			)}
 			{...props}
@@ -101,7 +101,7 @@ export function CommandItem({
 	return (
 		<CommandPrimitive.Item
 			className={cn(
-				"relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-2 text-sm text-ink outline-none data-[selected=true]:bg-bg data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50",
+				"relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-2 text-sm text-gousse-ink outline-none data-[selected=true]:bg-gousse-bg data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50",
 				className,
 			)}
 			{...props}
@@ -116,7 +116,7 @@ export function CommandSeparator({
 }: React.ComponentProps<typeof CommandPrimitive.Separator>) {
 	return (
 		<CommandPrimitive.Separator
-			className={cn("-mx-1 my-1 h-px bg-line", className)}
+			className={cn("-mx-1 my-1 h-px bg-gousse-line", className)}
 			{...props}
 		/>
 	);

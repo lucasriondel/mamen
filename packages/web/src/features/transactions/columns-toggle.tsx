@@ -47,7 +47,7 @@ export function ColumnsToggle({
 					<Columns3 size={14} />
 					Columns
 					{hiddenCount > 0 ? (
-						<span className="tabular-nums text-muted">
+						<span className="tabular-nums text-gousse-muted">
 							({hiddenCount} hidden)
 						</span>
 					) : null}
@@ -66,13 +66,13 @@ export function ColumnsToggle({
 								aria-checked={visible}
 								onClick={() => onToggle(column.id, !visible)}
 								className={cn(
-									"flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-ink",
-									"outline-none transition-colors hover:bg-bg focus-visible:bg-bg",
+									"flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-gousse-ink",
+									"outline-none transition-colors hover:bg-gousse-bg focus-visible:bg-gousse-bg",
 								)}
 							>
 								<Check
 									size={14}
-									className={cn("text-accent", !visible && "invisible")}
+									className={cn("text-gousse-accent", !visible && "invisible")}
 								/>
 								{column.label}
 							</button>
@@ -80,7 +80,7 @@ export function ColumnsToggle({
 					})}
 				</div>
 				{hiddenCount > 0 ? (
-					<div className="mt-1 border-t border-line pt-1">
+					<div className="mt-1 border-t border-gousse-line pt-1">
 						<Button
 							variant="ghost"
 							size="sm"

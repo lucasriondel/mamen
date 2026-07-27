@@ -52,7 +52,11 @@ export function TransactionDetailPage() {
 	});
 
 	if (txnQuery.isPending) {
-		return <p className="py-16 text-center text-muted">Loading transaction…</p>;
+		return (
+			<p className="py-16 text-center text-gousse-muted">
+				Loading transaction…
+			</p>
+		);
 	}
 
 	const txn = txnQuery.data as Transaction | undefined;

@@ -11,7 +11,7 @@ import { RuleForm } from "./rule-form";
 const ISSUER_SCAN_LIMIT = 1000;
 
 const BACK_LINK_CLASS =
-	"flex items-center gap-1 self-start text-sm text-muted transition-colors hover:text-ink";
+	"flex items-center gap-1 self-start text-sm text-gousse-muted transition-colors hover:text-gousse-ink";
 
 export interface RuleFormPageProps {
 	issuerId: IssuerId;
@@ -72,7 +72,7 @@ export function RuleFormPage({
 	);
 
 	if (isEditing && ruleQuery.isPending) {
-		return <p className="py-16 text-center text-muted">Loading rule…</p>;
+		return <p className="py-16 text-center text-gousse-muted">Loading rule…</p>;
 	}
 
 	const rule = isEditing ? (ruleQuery.data as Rule | undefined) : undefined;
@@ -80,7 +80,7 @@ export function RuleFormPage({
 		return (
 			<section className="flex flex-col gap-6">
 				{backLink}
-				<p className="text-sm text-high">
+				<p className="text-sm text-gousse-high">
 					Couldn't load this Matching Rule — it may have been deleted.
 				</p>
 			</section>
@@ -90,7 +90,7 @@ export function RuleFormPage({
 	return (
 		<section className="flex max-w-2xl flex-col gap-6">
 			{backLink}
-			<h1 className="text-balance text-2xl font-semibold text-ink">
+			<h1 className="text-balance text-2xl font-semibold text-gousse-ink">
 				{isEditing ? "Edit Matching Rule" : "New Matching Rule"}
 			</h1>
 			<RuleForm

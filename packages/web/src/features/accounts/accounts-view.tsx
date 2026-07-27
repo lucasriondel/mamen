@@ -20,10 +20,10 @@ export function AccountsView() {
 	return (
 		<section className="mx-auto flex max-w-4xl flex-col gap-8">
 			<header>
-				<h1 className="text-balance text-2xl font-semibold text-ink">
+				<h1 className="text-balance text-2xl font-semibold text-gousse-ink">
 					Accounts
 				</h1>
-				<p className="mt-1 text-muted">
+				<p className="mt-1 text-gousse-muted">
 					The accounts your statements belong to.
 				</p>
 			</header>
@@ -44,13 +44,15 @@ function AccountsList({
 	query: UseQueryResult<{ items: readonly Account[]; total: number }>;
 }) {
 	if (query.isPending) {
-		return <p className="text-muted">Loading accounts…</p>;
+		return <p className="text-gousse-muted">Loading accounts…</p>;
 	}
 
 	if (query.isError) {
 		return (
-			<div className="rounded-md border border-line bg-panel p-6 text-center">
-				<p className="font-medium text-ink">Couldn't load your accounts.</p>
+			<div className="rounded-md border border-gousse-line bg-gousse-panel p-6 text-center">
+				<p className="font-medium text-gousse-ink">
+					Couldn't load your accounts.
+				</p>
 				<Button
 					variant="secondary"
 					size="sm"
@@ -65,7 +67,7 @@ function AccountsList({
 
 	if (query.data.items.length === 0) {
 		return (
-			<div className="rounded-md border border-line bg-panel p-6 text-center text-muted">
+			<div className="rounded-md border border-gousse-line bg-gousse-panel p-6 text-center text-gousse-muted">
 				No accounts yet. Add one above to start importing statements.
 			</div>
 		);
