@@ -47,9 +47,23 @@ Shared at the root:
 | --------------------- | ------------------------------------------------------------ |
 | `CODING_STANDARDS.md` | Loaded by the reviewer; customize per project.               |
 | `Dockerfile`          | Sandbox image (Bun 1.3 + git + gh + Claude Code CLI).        |
-| `close-issue.ts`      | Shared close-on-zero-commits logic (`closeCompletedIssue`); imported by both entrypoints. |
-| `notify.ts`           | Fires a macOS notification when a flow ends (success or crash); imported by each entrypoint. |
 | `setup.sh`            | Installs deps, builds the image, creates the label + scripts.|
+
+Everything both entrypoints share lives in `helpers/`, so the two `index.ts`
+files stay pure orchestration:
+
+| File                    | Role                                                          |
+| ----------------------- | ------------------------------------------------------------ |
+| `run-config.ts`         | `MAX_ITERATIONS`, sandbox `hooks`, `copyToWorktree`, `MODEL`. |
+| `plan.ts`               | `<plan>` JSON schema and the `PlannedIssue` type.             |
+| `execution-results.ts`  | Reads the base branch, filters settled pipelines down to the issues with commits, builds the merge prompt args. |
+| `log-phases.ts`         | Every log line the loop prints — iteration headers, planned issues, no-commit closes, failed pipelines, merged branches, rtk totals. |
+| `close-issue.ts`        | Close-on-zero-commits logic (`closeCompletedIssue`).          |
+| `check-freshness.ts`    | Warns when this config checkout is behind its origin.         |
+| `rtk-gain.ts`           | Reads rtk token savings per sandbox and totals them per run.  |
+| `timing.ts`             | Stopwatches and `[1m 23s]` duration tags.                     |
+| `colors.ts`             | ANSI color helpers (auto-disabled off a TTY / under `NO_COLOR`). |
+| `notify.ts`             | Fires a macOS notification when a flow ends (success or crash). |
 
 ## Setup
 
@@ -70,19 +84,24 @@ bun run sandcastle:implement          # plan → implement → merge
 bun run sandcastle:implement-review   # plan → implement → code-review → merge
 ```
 
-Both scripts are registered by `setup.sh`. Each entrypoint imports `notify.ts` and
+Both scripts are registered by `setup.sh`. Each entrypoint imports `helpers/notify.ts` and
 fires a macOS notification (via `osascript`) when the flow ends — on clean completion
 *and* on a mid-loop crash. On non-macOS hosts it is a no-op.
 
 ## Customize per project
 
-- **`copyToWorktree`** (in each entrypoint `.ts`) — list every `node_modules` to seed
-  into the worktree. For a monorepo, add each package's path.
+All four knobs below live in `helpers/run-config.ts` and apply to both flows:
+
+- **`copyToWorktree`** — list every `node_modules` to seed into the worktree. For a
+  monorepo, add each package's path.
 - **`hooks.sandbox.onSandboxReady`** — the `bun install` step; swap if you need extras.
+- **`MAX_ITERATIONS`** — plan→execute→merge cycles before stopping.
+- **`MODEL`** — templates use `claude-opus-5`; bump as needed.
+
+Plus, at the root:
+
 - **`CODING_STANDARDS.md`** — the reviewer enforces these without spending
   implementer tokens.
-- **`MAX_ITERATIONS`** — plan→execute→merge cycles before stopping.
-- **Model** — templates use `claude-opus-5`; bump as needed.
 
 ## Notes
 

@@ -31,6 +31,15 @@ RUN curl -fsSL https://claude.ai/install.sh | bash
 # Add Claude to PATH
 ENV PATH="/home/agent/.local/bin:$PATH"
 
+# Install rtk (Rust Token Killer) and initialize its global config.
+# `rtk init --global` can't patch settings.json non-interactively, so the
+# PreToolUse hook it prints as a manual step is written here instead.
+RUN curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh \
+  && rtk init --global \
+  && mkdir -p /home/agent/.claude \
+  && jq -n '{hooks:{PreToolUse:[{matcher:"Bash",hooks:[{type:"command",command:"rtk hook claude"}]}]}}' \
+    > /home/agent/.claude/settings.json
+
 WORKDIR /home/agent
 
 # In worktree sandbox mode, Sandcastle bind-mounts the git worktree at /home/agent/workspace

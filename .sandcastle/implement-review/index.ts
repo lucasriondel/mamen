@@ -23,92 +23,48 @@
 
 import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
-import { z } from "zod";
-import { closeCompletedIssue, type Completion } from "../close-issue.ts";
-import { notify } from "../notify.ts";
-import { bold, cyan, dim, green, red, yellow } from "../colors.ts";
-import { durationTag, startTimer, timed } from "../timing.ts";
-
-// ---------------------------------------------------------------------------
-// Logging helpers
-// ---------------------------------------------------------------------------
-
-/**
- * Explain why an issue was closed despite the implementer making no new commits.
- * resolveCompletion() has already worked out what actually finished the issue;
- * this surfaces that reasoning in the log so a no-commit close is never silent.
- */
-function logNoCommitOutcome(
-  id: string,
-  branch: string,
-  completion: Completion,
-): void {
-  const tag = dim(`${id} (${branch})`);
-  switch (completion.kind) {
-    case "unmerged":
-      console.log(
-        yellow(
-          `  ⊘ ${tag} closed — ${completion.commits.length} commit(s) from an earlier run still pending merge:`,
-        ),
-      );
-      for (const c of completion.commits) {
-        console.log(dim(`      ${c.sha.slice(0, 12)} ${c.subject}`));
-      }
-      break;
-    case "merged":
-      console.log(
-        green(
-          `  ⊘ ${tag} closed — already merged into base (${completion.commits.length} commit(s)); issue was just never closed.`,
-        ),
-      );
-      break;
-    case "empty":
-      console.log(
-        yellow(
-          `  ⊘ ${tag} closed — branch carries no work; nothing was done on this issue.`,
-        ),
-      );
-      break;
-  }
-}
-
-// The planner emits its plan as JSON inside <plan> tags; Output.object extracts
-// and validates it against this schema. We use Zod here, but any Standard
-// Schema validator works just as well — Valibot, ArkType, etc. See
-// https://standardschema.dev.
-const planSchema = z.object({
-  issues: z.array(
-    z.object({ id: z.string(), title: z.string(), branch: z.string() }),
-  ),
-});
-
-// ---------------------------------------------------------------------------
-// Configuration
-// ---------------------------------------------------------------------------
-
-// Maximum number of plan→execute→merge cycles before stopping.
-// Raise this if your backlog is large; lower it for a quick smoke-test run.
-const MAX_ITERATIONS = 10;
-
-// Hooks run inside the sandbox before the agent starts each iteration.
-// bun install ensures the sandbox always has fresh dependencies.
-const hooks = {
-  sandbox: { onSandboxReady: [{ command: "bun install" }] },
-};
-
-// Copy node_modules from the host into the worktree before each sandbox
-// starts. Avoids a full bun install from scratch; the hook above handles
-// platform-specific binaries and any packages added since the last copy.
-// In a monorepo, add each package's node_modules too, e.g.
-//   ["node_modules", "./packages/api/node_modules", "./packages/web/node_modules"]
-const copyToWorktree = ["node_modules"];
+import { checkConfigFreshness } from "../helpers/check-freshness.ts";
+import { closeCompletedIssue } from "../helpers/close-issue.ts";
+import { bold, dim, green, red, yellow } from "../helpers/colors.ts";
+import {
+  completedIssues,
+  currentBranch,
+  mergePromptArgs,
+} from "../helpers/execution-results.ts";
+import {
+  logCompletedBranches,
+  logFailedPipelines,
+  logIterationDone,
+  logIterationHeader,
+  logNoCommitOutcome,
+  logPlannedIssues,
+  logRtkTotals,
+} from "../helpers/log-phases.ts";
+import { notify } from "../helpers/notify.ts";
+import { planSchema } from "../helpers/plan.ts";
+import { createRtkTotals, readRtkGain } from "../helpers/rtk-gain.ts";
+import {
+  MAX_ITERATIONS,
+  MODEL,
+  copyToWorktree,
+  hooks,
+} from "../helpers/run-config.ts";
+import { durationTag, startTimer, timed } from "../helpers/timing.ts";
 
 // ---------------------------------------------------------------------------
 // Main loop
 // ---------------------------------------------------------------------------
 
+// Warn up front if this .sandcastle/ checkout has drifted from its origin, so a
+// long run against stale prompts is caught before it starts rather than after.
+await checkConfigFreshness();
+
 // Wrap the whole run so a macOS notification fires on completion or crash.
 const runTimer = startTimer();
+
+// Accumulates rtk token savings from every sandbox across every iteration.
+// Reported once at the end of the run.
+const rtkTotals = createRtkTotals();
 
 try {
   for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
@@ -116,9 +72,7 @@ try {
     // iteration alongside the per-phase timings.
     const iterationTimer = startTimer();
 
-    console.log(
-      bold(cyan(`\n=== Iteration ${iteration}/${MAX_ITERATIONS} ===\n`)),
-    );
+    logIterationHeader(iteration, MAX_ITERATIONS);
 
     // -------------------------------------------------------------------------
     // Phase 1: Plan
@@ -137,8 +91,7 @@ try {
         // One iteration is enough: the planner just needs to read and reason,
         // not write code. (Structured output requires maxIterations: 1.)
         maxIterations: 1,
-        // Opus for planning: dependency analysis benefits from deeper reasoning.
-        agent: sandcastle.claudeCode("claude-opus-5"),
+        agent: sandcastle.claudeCode(MODEL),
         promptFile: "./.sandcastle/implement-review/plan-prompt.md",
         // Extract and validate the <plan> JSON into a typed object. Throws
         // StructuredOutputError if the tag is missing, the JSON is malformed, or
@@ -155,12 +108,7 @@ try {
       break;
     }
 
-    console.log(
-      green(`Planning complete. ${issues.length} issue(s) to work in parallel:`),
-    );
-    for (const issue of issues) {
-      console.log(`  ${cyan(issue.id)}: ${issue.title} → ${dim(issue.branch)}`);
-    }
+    logPlannedIssues(issues);
 
     // -------------------------------------------------------------------------
     // Phase 2: Execute + Review
@@ -171,13 +119,7 @@ try {
     //
     // Promise.allSettled means one failing pipeline doesn't cancel the others.
     // -------------------------------------------------------------------------
-
-    // The base branch every issue branch diverges from — the branch this loop
-    // runs on. Used below to find the commits already sitting on an issue branch
-    // from earlier runs when the current implementer produces nothing new.
-    const baseBranch = (
-      await Bun.$`git rev-parse --abbrev-ref HEAD`.text()
-    ).trim();
+    const baseBranch = await currentBranch();
 
     const executeTimer = startTimer();
 
@@ -201,7 +143,7 @@ try {
           const implement = await sandbox.run({
             name: "implementer",
             maxIterations: 100,
-            agent: sandcastle.claudeCode("claude-opus-5"),
+            agent: sandcastle.claudeCode(MODEL),
             promptFile: "./.sandcastle/implement-review/implement-prompt.md",
             promptArgs: {
               TASK_ID: issue.id,
@@ -223,7 +165,7 @@ try {
             const review = await sandbox.run({
               name: "reviewer",
               maxIterations: 1,
-              agent: sandcastle.claudeCode("claude-opus-5"),
+              agent: sandcastle.claudeCode(MODEL),
               promptFile: "./.sandcastle/implement-review/review-prompt.md",
               promptArgs: {
                 TASK_ID: issue.id,
@@ -274,60 +216,38 @@ try {
 
           return { issue, closed: true as const, commits: [] };
         } finally {
+          // Read rtk's savings before teardown — the stats live in the
+          // container's data dir and vanish with it. Done in `finally` so a
+          // sandbox whose agent threw still reports the tokens it saved.
+          rtkTotals.add(await readRtkGain(sandbox));
           await sandbox.close();
         }
       }),
     );
 
-    console.log(`${dim("  Execute phase")} ${durationTag(executeTimer.elapsed())}`);
+    console.log(
+      `${dim("  Execute phase")} ${durationTag(executeTimer.elapsed())}`,
+    );
 
     // Log any agents that threw (network error, sandbox crash, etc.).
-    for (const [i, outcome] of settled.entries()) {
-      if (outcome.status === "rejected") {
-        console.error(
-          red(
-            `  ✗ ${issues[i]!.id} (${issues[i]!.branch}) failed: ${
-              outcome.reason
-            }`,
-          ),
-        );
-      }
-    }
+    logFailedPipelines(settled, issues);
 
     // The per-issue no-commit closes were already logged inline by
     // logNoCommitOutcome() as each pipeline resolved.
 
     // Only pass branches that actually produced commits to the merge phase.
     // An agent that ran successfully but made no commits has nothing to merge.
-    const completedIssues = settled
-      .map((outcome, i) => ({ outcome, issue: issues[i]! }))
-      .filter(
-        (entry) =>
-          entry.outcome.status === "fulfilled" &&
-          entry.outcome.value.commits.length > 0,
-      )
-      .map((entry) => entry.issue);
+    const completed = completedIssues(settled, issues);
+    const completedBranches = completed.map((i) => i.branch);
 
-    const completedBranches = completedIssues.map((i) => i.branch);
-
-    console.log(
-      green(
-        `\nExecution complete. ${completedBranches.length} branch(es) with commits:`,
-      ),
-    );
-    for (const branch of completedBranches) {
-      console.log(`  ${cyan(branch)}`);
-    }
+    logCompletedBranches(completedBranches);
 
     if (completedBranches.length === 0) {
       // All agents ran but none made commits — nothing to merge this cycle.
       // Any no-commit issues were already closed above, so the planner won't
       // re-pick them; the next iteration works on whatever remains.
       console.log(yellow("No commits produced. Nothing to merge."));
-      console.log(
-        bold(cyan(`Iteration ${iteration}`)) +
-          ` ${durationTag(iterationTimer.elapsed())}`,
-      );
+      logIterationDone(iteration, iterationTimer.elapsed());
       continue;
     }
 
@@ -346,33 +266,29 @@ try {
         sandbox: docker(),
         name: "merger",
         maxIterations: 1,
-        agent: sandcastle.claudeCode("claude-opus-5"),
+        agent: sandcastle.claudeCode(MODEL),
         promptFile: "./.sandcastle/implement-review/merge-prompt.md",
-        promptArgs: {
-          // A markdown list of branch names, one per line.
-          BRANCHES: completedBranches.map((b) => `- ${b}`).join("\n"),
-          // A markdown list of issue IDs and titles, one per line.
-          ISSUES: completedIssues.map((i) => `- ${i.id}: ${i.title}`).join("\n"),
-        },
+        promptArgs: mergePromptArgs(completed),
       }),
     );
 
     console.log(green("\nBranches merged."));
-    console.log(
-      bold(cyan(`Iteration ${iteration}`)) +
-        ` ${durationTag(iterationTimer.elapsed())}`,
-    );
+    logIterationDone(iteration, iterationTimer.elapsed());
   }
 
   console.log(
     bold(green("\nAll done.")) + ` ${durationTag(runTimer.elapsed())}`,
   );
+  logRtkTotals(rtkTotals);
   await notify("implement-review", true);
 } catch (err) {
   console.error(
     bold(red("\nRun failed:")) + ` ${durationTag(runTimer.elapsed())}`,
     err,
   );
+  // Still worth reporting: sandboxes that completed before the crash saved
+  // tokens, and that figure is otherwise lost.
+  logRtkTotals(rtkTotals);
   await notify("implement-review", false);
   process.exitCode = 1;
 }

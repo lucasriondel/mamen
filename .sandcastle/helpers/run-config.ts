@@ -1,0 +1,34 @@
+// Settings shared by every orchestration entrypoint.
+//
+// Both flows (implement/, implement-review/) run the same plan→execute→merge
+// shape and so want the same loop bound, sandbox hooks and worktree copy list.
+// Keeping them here means a change applies to every flow at once rather than
+// drifting between near-identical entrypoints.
+
+/**
+ * Maximum number of plan→execute→merge cycles before stopping.
+ * Raise this if your backlog is large; lower it for a quick smoke-test run.
+ */
+export const MAX_ITERATIONS = 10;
+
+/**
+ * Hooks run inside the sandbox before the agent starts each iteration.
+ * `bun install` ensures the sandbox always has fresh dependencies.
+ */
+export const hooks = {
+  sandbox: { onSandboxReady: [{ command: "bun install" }] },
+};
+
+/**
+ * Directories copied from the host into the worktree before each sandbox
+ * starts. Avoids a full bun install from scratch; the `bun install` hook above
+ * handles platform-specific binaries and any packages added since the last copy.
+ *
+ * In a monorepo, add each package's node_modules too, e.g.
+ *   ["node_modules", "./packages/api/node_modules", "./packages/web/node_modules"]
+ */
+export const copyToWorktree = ["node_modules"];
+
+/** The model every phase runs on: dependency analysis and code both benefit
+ * from deeper reasoning, so all agents use opus. */
+export const MODEL = "claude-opus-5";
