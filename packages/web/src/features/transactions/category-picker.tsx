@@ -22,7 +22,8 @@ import {
 	categoryPath,
 	isFolder,
 	isLeaf,
-	resolveCategoryColor,
+	NEUTRAL_CATEGORY_COLOR,
+	resolveCategoryColors,
 	searchTree,
 } from "@/lib/category-tree";
 import { categoryQueries } from "@/lib/sdk";
@@ -84,6 +85,9 @@ export function CategoryPicker({ transaction, category }: CategoryPickerProps) {
 	const isOverride = transaction.manualCategory === true && category != null;
 	const nodes = searchTree(categories, query);
 	const folders = categories.filter((c) => isFolder(categories, c));
+	// Resolved for the whole list in one pass rather than per folder row: this
+	// body re-runs on every keystroke in the search box.
+	const colorById = resolveCategoryColors(categories);
 	const trimmed = query.trim();
 	// Offer to create only when the search finds no leaf by that exact name — a
 	// folder is structural and never created here, so it doesn't block a create.
@@ -177,7 +181,9 @@ export function CategoryPicker({ transaction, category }: CategoryPickerProps) {
 										>
 											<CategoryIcon
 												name={folder.icon}
-												color={resolveCategoryColor(categories, folder)}
+												color={
+													colorById.get(folder.id) ?? NEUTRAL_CATEGORY_COLOR
+												}
 												size={14}
 											/>
 											<span className="truncate">

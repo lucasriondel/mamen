@@ -2,7 +2,11 @@ import type { Category } from "@mamen/shared/contract";
 import { Check } from "lucide-react";
 import { CategoryIcon } from "@/components/category-icon";
 import { CommandItem } from "@/components/ui/command";
-import { type PickerNode, resolveCategoryColor } from "@/lib/category-tree";
+import {
+	NEUTRAL_CATEGORY_COLOR,
+	type PickerNode,
+	resolveCategoryColors,
+} from "@/lib/category-tree";
 
 /**
  * The category tree rendered as picker rows, nested to arbitrary depth (issue
@@ -39,10 +43,13 @@ export function CategoryTreeItems({
 	/** aria-label for the current-selection check (e.g. "Current category"). */
 	selectedLabel: string;
 }) {
+	// Resolved for the whole list in one pass, not per row: the picker re-renders
+	// on every keystroke, and a per-row walk would re-index the tree each time.
+	const colorById = resolveCategoryColors(categories);
 	return nodes.map(({ category, depth, isLeaf }) => {
 		// Indent by depth so the tree reads; leaves and headings align per level.
 		const indent = { paddingLeft: `${8 + depth * 14}px` };
-		const color = resolveCategoryColor(categories, category);
+		const color = colorById.get(category.id) ?? NEUTRAL_CATEGORY_COLOR;
 		if (!isLeaf) {
 			return (
 				<div

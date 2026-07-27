@@ -1,5 +1,5 @@
 import type { Category, Issuer, Transaction } from "@mamen/shared/contract";
-import { resolveCategoryColor } from "@/lib/category-tree";
+import { resolveCategoryColors } from "@/lib/category-tree";
 
 /**
  * One row of a recap spend section (issue #35): a named bucket — an issuer or a
@@ -179,9 +179,9 @@ export function aggregateSpend(
 		},
 	);
 
-	// The **Resolved colour** walk takes the whole tree, so flatten the lookup once
-	// rather than per bucket.
-	const categoryTree = [...categoriesById.values()];
+	// The **Resolved colour** walk takes the whole tree, so resolve every category
+	// once up front rather than re-walking it per bucket.
+	const colorById = resolveCategoryColors([...categoriesById.values()]);
 	const byCategory = bucketBy(
 		spendRows,
 		(txn) => txn.categoryId ?? null,
@@ -192,10 +192,7 @@ export function aggregateSpend(
 				icon: category?.icon,
 				// Resolved against the whole tree, not read off the row: an inheriting
 				// leaf's colour lives on an ancestor (ADR 0006).
-				color:
-					category === undefined
-						? undefined
-						: resolveCategoryColor(categoryTree, category),
+				color: category === undefined ? undefined : colorById.get(category.id),
 			};
 		},
 	);

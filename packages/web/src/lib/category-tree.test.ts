@@ -8,6 +8,7 @@ import {
 	isLeaf,
 	NEUTRAL_CATEGORY_COLOR,
 	resolveCategoryColor,
+	resolveCategoryColors,
 	searchTree,
 	subtreeIds,
 } from "./category-tree";
@@ -348,6 +349,79 @@ describe("category-tree", () => {
 			const b = category({ color: null, parentId: a.id });
 			const cyclic = [{ ...a, parentId: b.id }, b];
 			expect(resolveCategoryColor(cyclic, b)).toBe(NEUTRAL_CATEGORY_COLOR);
+		});
+
+		it("treats a blank stored colour as inheriting, not as a choice", () => {
+			// Nothing constrains the string, and `""` would otherwise terminate the
+			// walk and reach the svg as `stroke=""`, blanking the glyph — and, from a
+			// folder, every descendant inheriting from it. Blank is not a choice.
+			const food = category({ name: "Food", color: "#ef4444" });
+			const blank = category({ name: "Blank", color: "", parentId: food.id });
+			const spaces = category({
+				name: "Spaces",
+				color: "  ",
+				parentId: food.id,
+			});
+			expect(resolveCategoryColor([food, blank], blank)).toBe("#ef4444");
+			expect(resolveCategoryColor([food, spaces], spaces)).toBe("#ef4444");
+		});
+	});
+
+	describe("resolveCategoryColors", () => {
+		it("agrees with the single-node resolver for every shape in a list", () => {
+			// The batch form exists to build the parent index once; it must not be a
+			// second, drifting implementation of the rule.
+			const food = category({ name: "Food", color: "#ef4444" });
+			const groceries = category({
+				name: "Groceries",
+				color: null,
+				parentId: food.id,
+			});
+			const cafes = category({
+				name: "Cafés",
+				color: "#000000",
+				parentId: food.id,
+			});
+			const nullRoot = category({ name: "Loose", color: null, parentId: null });
+			const detached = category({ name: "Gone", color: null, parentId: 999 });
+			const categories = [food, groceries, cafes, nullRoot, detached];
+
+			const colorById = resolveCategoryColors(categories);
+			for (const cat of categories) {
+				expect(colorById.get(cat.id)).toBe(
+					resolveCategoryColor(categories, cat),
+				);
+			}
+			// …and spells the answers out, so agreement with a broken resolver fails.
+			expect(colorById.get(food.id)).toBe("#ef4444");
+			expect(colorById.get(groceries.id)).toBe("#ef4444");
+			expect(colorById.get(cafes.id)).toBe("#000000");
+			expect(colorById.get(nullRoot.id)).toBe(NEUTRAL_CATEGORY_COLOR);
+			expect(colorById.get(detached.id)).toBe(NEUTRAL_CATEGORY_COLOR);
+		});
+
+		it("keys every category passed in, and only those", () => {
+			// Callers index by id straight off this map, so a missing key would read
+			// as "no colour" on a row that has one.
+			const { categories } = seed();
+			const colorById = resolveCategoryColors(categories);
+			expect([...colorById.keys()].sort()).toEqual(
+				categories.map((c) => c.id).sort(),
+			);
+		});
+
+		it("resolves through an ancestor the caller filtered out of the result", () => {
+			// A picker resolves over the whole list but paints only some rows; the
+			// colour of an inheriting leaf lives on an ancestor that may not be
+			// painted at all, so the *input* has to stay whole.
+			const food = category({ name: "Food", color: "#ef4444" });
+			const groceries = category({
+				name: "Groceries",
+				color: null,
+				parentId: food.id,
+			});
+			const colorById = resolveCategoryColors([food, groceries]);
+			expect(colorById.get(groceries.id)).toBe("#ef4444");
 		});
 	});
 });

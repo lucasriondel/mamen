@@ -15,12 +15,26 @@ import { Effect } from "effect";
  * table. The schema has zero foreign keys, so no `PRAGMA foreign_keys` dance is
  * needed.
  *
- * Then every **Category leaf** (a row nothing points at) is nulled. Unconditional
- * rather than "null it only if it equals its parent's": as seeded every leaf's
- * colour *is* a byte-identical copy, so nothing is lost, and a leaf that wants
- * its own colour can store one afterwards. A childless *root* is nulled too and
- * resolves to the neutral constant — which is exactly the hardcoded grey every
- * user-created category already carried.
+ * On the way across, every row whose stored colour is a *copy* rather than a
+ * choice starts inheriting. Two shapes qualify, and the predicate names both
+ * rather than proxying them by position in the tree:
+ *
+ * - the colour equals its parent's — what the seed wrote onto every leaf, and
+ *   what a re-parented leaf still carries from the folder it came from;
+ * - the colour is the old hardcoded `#94a3b8` that `use-category-mutations`
+ *   stamped onto every user-created category, which was never a choice either
+ *   (it is the live bug ADR 0006 names) and which now resolves to the identical
+ *   neutral constant when inherited.
+ *
+ * Deliberately *not* "null every childless row". Childlessness is the
+ * folder/leaf test (ADR 0003), not a test for copied data, and using it here
+ * gets both ends wrong: a seeded folder whose children were all deleted or moved
+ * away would lose the brand colour it genuinely chose, while an intermediate
+ * folder — a user-created node with children under it, holding the grey — would
+ * *keep* its copy and permanently block a recolour of the root above it from
+ * reaching the subtree beneath it, which is the whole feature. Comparing the
+ * value is the direct test, and it leaves a root's colour and any genuinely
+ * distinct colour alone.
  *
  * **Icons.** The emoji→Lucide table below rewrites the icons in place: no tagged
  * `emoji:`/`lucide:` union and no second column, because that is permanent
@@ -31,6 +45,13 @@ import { Effect } from "effect";
  * A hand-typed emoji outside this table survives as an unresolvable name and
  * renders the fallback glyph, the accepted degradation.
  */
+
+/**
+ * The grey `use-category-mutations` hardcoded onto every category created
+ * through the UI, and the neutral constant an inheriting row now resolves to.
+ * Nulling it is therefore invisible to a reader and un-blocks the subtree.
+ */
+const OLD_HARDCODED_GREY = "#94a3b8";
 
 /**
  * Old emoji → Lucide icon id (kebab-case, Lucide's own canonical key — not the
@@ -79,8 +100,9 @@ const ICON_TRANSLATION: ReadonlyArray<
 
 export default Effect.flatMap(SqlClient.SqlClient, (sql) =>
 	Effect.gen(function* () {
-		// 1. Rebuild the table with a nullable `color`, carrying every row over
-		//    unchanged, then restore the indexes the drop took with it.
+		// 1. Rebuild the table with a nullable `color`, carrying every row over —
+		//    the colour of a row that only ever held a copy becoming NULL on the
+		//    way — then restore the indexes the drop took with it.
 		yield* sql`
 			CREATE TABLE categories_new (
 				id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -93,9 +115,22 @@ export default Effect.flatMap(SqlClient.SqlClient, (sql) =>
 				createdAt TEXT NOT NULL
 			)
 		`;
+		// The copy is also where a copied colour becomes an inherited one, so the
+		// predicate reads the *old* table: both the row and its parent are still
+		// pristine there. Doing it as an UPDATE afterwards would let a parent
+		// already nulled by the same statement change what its child compares
+		// against, making the result depend on row order.
 		yield* sql`
 			INSERT INTO categories_new (id, name, slug, color, icon, parentId, sortOrder, createdAt)
-			SELECT id, name, slug, color, icon, parentId, sortOrder, createdAt FROM categories
+			SELECT
+				id, name, slug,
+				CASE
+					WHEN color = ${OLD_HARDCODED_GREY} THEN NULL
+					WHEN color = (SELECT p.color FROM categories p WHERE p.id = c.parentId) THEN NULL
+					ELSE color
+				END,
+				icon, parentId, sortOrder, createdAt
+			FROM categories c
 		`;
 		yield* sql`DROP TABLE categories`;
 		yield* sql`ALTER TABLE categories_new RENAME TO categories`;
@@ -103,15 +138,7 @@ export default Effect.flatMap(SqlClient.SqlClient, (sql) =>
 		yield* sql`CREATE INDEX IF NOT EXISTS idx_categories_slug ON categories(slug)`;
 		yield* sql`CREATE INDEX IF NOT EXISTS idx_categories_sortOrder ON categories(sortOrder)`;
 
-		// 2. Every leaf — a row no other row names as its parent — starts
-		//    inheriting. Folders keep the colour they chose, and are now the only
-		//    rows that store one.
-		yield* sql`
-			UPDATE categories SET color = NULL
-			WHERE id NOT IN (SELECT parentId FROM categories WHERE parentId IS NOT NULL)
-		`;
-
-		// 3. Reinterpret the icon column: emoji in, Lucide id out.
+		// 2. Reinterpret the icon column: emoji in, Lucide id out.
 		for (const [emoji, lucide] of ICON_TRANSLATION) {
 			yield* sql`UPDATE categories SET icon = ${lucide} WHERE icon = ${emoji}`;
 		}

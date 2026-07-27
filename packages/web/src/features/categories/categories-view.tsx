@@ -18,7 +18,7 @@ import {
 	categoryPath,
 	descendantIds,
 	NEUTRAL_CATEGORY_COLOR,
-	resolveCategoryColor,
+	resolveCategoryColors,
 	subtreeIds,
 } from "@/lib/category-tree";
 import { formatCurrency } from "@/lib/format";
@@ -115,10 +115,10 @@ export function CategoriesView() {
 	// The **Resolved colour** of every node, folder and leaf alike. This is the
 	// surface where inheritance is visible: recolour a folder and every descendant
 	// that never stored a colour of its own repaints, because nothing here reads
-	// `color` — it resolves (ADR 0006).
-	const colorById = new Map<CategoryId, string>(
-		categories.map((cat) => [cat.id, resolveCategoryColor(categories, cat)]),
-	);
+	// `color` — it resolves (ADR 0006). Resolved for the whole flat list in one
+	// pass, not per row: the walk needs the whole tree and the recursive render
+	// only ever holds a subtree.
+	const colorById = resolveCategoryColors(categories);
 
 	const actions: NodeActions = {
 		onAdd: (parent) => setEditor({ kind: "create", parent }),

@@ -2,6 +2,7 @@ import { SqlClient } from "@effect/sql";
 import { assert, describe, it } from "@effect/vitest";
 import { Effect } from "effect";
 import { DatabaseTest } from "../test";
+import migration0015 from "./0015_category_colour_inherit_lucide_icons";
 
 /**
  * The post-migration shape of the seeded tree (ADR 0006, issue #55). Asserted
@@ -91,6 +92,111 @@ describe("0015 category colour inheritance + Lucide icon names", () => {
 			]) {
 				assert.include(names, index);
 			}
+		}).pipe(Effect.provide(DatabaseTest)),
+	);
+
+	/**
+	 * The colour predicate over shapes the seed does not contain — a user's
+	 * database is not the seed, and these are exactly the rows the rejected
+	 * "null every childless row" rule would have got wrong.
+	 *
+	 * Run by *re-applying* 0015 to an already-migrated database with the rows
+	 * planted first, which is sound because the migration is idempotent over its
+	 * own output: a nulled colour matches neither arm of the predicate, and the
+	 * emoji→Lucide table has no entry keyed by a Lucide id. That beats standing up
+	 * a second, partial migrator layer to reach the 0014 state.
+	 */
+	const plant = (row: {
+		name: string;
+		color: string | null;
+		parentId: number | null;
+	}) =>
+		Effect.gen(function* () {
+			const sql = yield* SqlClient.SqlClient;
+			const inserted = yield* sql`INSERT INTO categories ${sql.insert({
+				name: row.name,
+				slug: row.name.toLowerCase(),
+				color: row.color,
+				icon: "tag",
+				parentId: row.parentId,
+				sortOrder: 0,
+				createdAt: "2026-07-27T00:00:00.000Z",
+			})} RETURNING id`;
+			return (inserted[0] as { id: number }).id;
+		});
+
+	const colorOf = (id: number) =>
+		Effect.gen(function* () {
+			const sql = yield* SqlClient.SqlClient;
+			const rows = yield* sql`SELECT color FROM categories WHERE id = ${id}`;
+			return (rows[0] as { color: string | null }).color;
+		});
+
+	it.effect("keeps the colour a childless folder genuinely chose", () =>
+		Effect.gen(function* () {
+			// A seeded folder whose leaves the user deleted or moved away is now
+			// childless, but its brand colour was a *choice*, not a copy. Nulling it
+			// by childlessness would silently discard it.
+			const emptied = yield* plant({
+				name: "Emptied",
+				color: "#3b82f6",
+				parentId: null,
+			});
+			yield* migration0015;
+			assert.strictEqual(yield* colorOf(emptied), "#3b82f6");
+		}).pipe(Effect.provide(DatabaseTest)),
+	);
+
+	it.effect(
+		"nulls the old hardcoded grey, even on a folder with children",
+		() =>
+			Effect.gen(function* () {
+				// The live bug's residue: a category created through the UI carried
+				// `#94a3b8` regardless of where it sat. Left on an *intermediate* folder
+				// it would permanently block a recolour of the root above from reaching
+				// the subtree below — so it inherits, and resolves to the identical
+				// neutral constant meanwhile.
+				const root = yield* plant({
+					name: "Root",
+					color: "#ef4444",
+					parentId: null,
+				});
+				const middle = yield* plant({
+					name: "Middle",
+					color: "#94a3b8",
+					parentId: root,
+				});
+				yield* plant({ name: "Deep", color: null, parentId: middle });
+
+				yield* migration0015;
+				assert.strictEqual(yield* colorOf(root), "#ef4444");
+				assert.isNull(yield* colorOf(middle));
+			}).pipe(Effect.provide(DatabaseTest)),
+	);
+
+	it.effect("nulls a copy of the parent's colour but not a distinct one", () =>
+		Effect.gen(function* () {
+			const parent = yield* plant({
+				name: "Parent",
+				color: "#ef4444",
+				parentId: null,
+			});
+			// Carried down from the folder it was created in — a copy, so it inherits.
+			const copied = yield* plant({
+				name: "Copied",
+				color: "#ef4444",
+				parentId: parent,
+			});
+			// Opted out, so it keeps its own colour and stops inheriting.
+			const distinct = yield* plant({
+				name: "Distinct",
+				color: "#000000",
+				parentId: parent,
+			});
+
+			yield* migration0015;
+			assert.isNull(yield* colorOf(copied));
+			assert.strictEqual(yield* colorOf(distinct), "#000000");
 		}).pipe(Effect.provide(DatabaseTest)),
 	);
 });

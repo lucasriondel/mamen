@@ -1,5 +1,6 @@
 import type { CategoryTreeNode } from "@mamen/shared";
 import type { Category, CategoryId } from "@mamen/shared/contract";
+import { indexById } from "@/lib/utils";
 
 /**
  * The category tree, owned in one place.
@@ -183,61 +184,120 @@ export function subtreeIds(
 export const NEUTRAL_CATEGORY_COLOR = "#94a3b8";
 
 /**
- * A category's **Resolved colour** — the colour actually painted for it. Its own
- * `color` if it stored one; otherwise its nearest ancestor's, found by walking
- * `parentId` up to the first non-null value; otherwise
- * {@link NEUTRAL_CATEGORY_COLOR}.
+ * The one `parentId` walk both colour resolution and {@link categoryPath} read
+ * the tree through: a category's ancestors, nearest first.
  *
- * `color: null` is **inherited colour**: a *reference* to the ancestor, not a
- * missing value (ADR 0006). That is what makes one write on a **Category folder**
- * recolour every descendant that never opted out — so no read site may read the
- * field, and resolution needs the whole tree rather than one row. Lives here
- * beside {@link categoryPath}, the other `parentId` walk, so the tree is still
- * read one way in one place.
- *
- * Total for every tree shape. The walk stops at a root, at a parent absent from
- * the list (a detached node — never invents structure, exactly as
- * {@link buildTree} drops orphans), and at a revisited id, so a cycle the API
- * would refuse cannot hang a render.
+ * Total for every tree shape. It stops at a root, at a parent absent from the
+ * list (a detached node — never invents structure, exactly as {@link buildTree}
+ * drops orphans), and at a revisited id, so a cycle the API would refuse
+ * (`CategoryWouldCycle`) cannot hang a render. One walk rather than two is the
+ * point: two copies of a termination rule is how one of them ends up missing a
+ * guard the other has.
  */
-export function resolveCategoryColor(
-	categories: readonly Category[],
+function* ancestorsOf(
+	byId: ReadonlyMap<number, Category>,
 	category: Category,
-): string {
-	// `!= null` rather than `!== null`: the field is `string | null` on the wire,
-	// but this is the boundary between stored data and paint, and an absent value
-	// must terminate the walk the same way an explicit null does.
-	if (category.color != null) return category.color;
-	const byId = new Map(categories.map((cat) => [cat.id, cat]));
+): Generator<Category> {
 	const seen = new Set<number>([category.id]);
 	let parentId = category.parentId;
 	while (parentId != null && !seen.has(parentId)) {
 		seen.add(parentId);
 		const parent = byId.get(parentId);
-		if (parent === undefined) break;
-		if (parent.color != null) return parent.color;
+		if (parent === undefined) return;
+		yield parent;
 		parentId = parent.parentId;
 	}
+}
+
+/**
+ * The colour a row actually *chose*, or `null` if it never did and therefore
+ * **inherits**.
+ *
+ * Neither the contract (`Schema.NullOr(Schema.String)`) nor the column
+ * constrains the string, so "stored a colour" cannot be read as "is not null":
+ * `""` is storable and would otherwise terminate the walk and reach the svg as
+ * `stroke=""`, blanking the glyph — and, on a folder, every descendant
+ * inheriting from it. Blank is not a choice, so it inherits like the null it
+ * effectively is.
+ */
+function chosenColor(category: Category): string | null {
+	const color = category.color?.trim();
+	return color === undefined || color === "" ? null : color;
+}
+
+/** The first colour anybody in the ancestry chose, else the neutral constant. */
+function inheritedColor(
+	byId: ReadonlyMap<number, Category>,
+	category: Category,
+): string {
+	for (const ancestor of ancestorsOf(byId, category)) {
+		const chosen = chosenColor(ancestor);
+		if (chosen !== null) return chosen;
+	}
 	return NEUTRAL_CATEGORY_COLOR;
+}
+
+/**
+ * A category's **Resolved colour** — the colour actually painted for it. Its own
+ * `color` if it stored one; otherwise its nearest ancestor's, found by walking
+ * `parentId` up to the first stored value; otherwise
+ * {@link NEUTRAL_CATEGORY_COLOR}.
+ *
+ * `color: null` is **inherited colour**: a *reference* to the ancestor, not a
+ * missing value (ADR 0006). That is what makes one write on a **Category folder**
+ * recolour every descendant that never opted out — so no read site may read the
+ * field, and resolution needs the whole tree rather than one row.
+ *
+ * Resolving *one* category costs an index over the whole list, so a caller with
+ * a list of them wants {@link resolveCategoryColors}, which builds that index
+ * once. This single-node form is for the surfaces that paint exactly one.
+ */
+export function resolveCategoryColor(
+	categories: readonly Category[],
+	category: Category,
+): string {
+	return (
+		chosenColor(category) ?? inheritedColor(indexById(categories), category)
+	);
+}
+
+/**
+ * Every category's **Resolved colour**, keyed by id — the batch form of
+ * {@link resolveCategoryColor}, and what every surface that paints a *list* of
+ * categories should call.
+ *
+ * The index the walk needs is built once for the whole list rather than once per
+ * category, so this is a single pass where a `map` of the single-node resolver
+ * would be quadratic. Rows the pickers filter out still have to be *passed in*:
+ * an inheriting leaf's colour lives on an ancestor that the filter may well have
+ * dropped.
+ */
+export function resolveCategoryColors(
+	categories: readonly Category[],
+): Map<CategoryId, string> {
+	const byId = indexById(categories);
+	return new Map(
+		categories.map((cat) => [
+			cat.id,
+			chosenColor(cat) ?? inheritedColor(byId, cat),
+		]),
+	);
 }
 
 /**
  * The label for a node in a parent picker — its path from the root, joined with
  * a separator (e.g. `Food › Groceries`). A root's path is a bare name; a nested
  * node's path spells out its ancestry, disambiguating same-named nodes across
- * folders (issue #32). Walks up the `parentId` chain, stopping at a root or a
- * missing link.
+ * folders (issue #32). Reads the tree through {@link ancestorsOf}, so it stops
+ * at a root, a missing link, or a cycle.
  */
 export function categoryPath(
 	categories: readonly Category[],
 	category: Category,
 ): string {
-	const byId = new Map(categories.map((cat) => [cat.id, cat]));
-	const names: string[] = [];
-	let node: Category | undefined = category;
-	while (node !== undefined) {
-		names.unshift(node.name);
-		node = node.parentId === null ? undefined : byId.get(node.parentId);
+	const names = [category.name];
+	for (const ancestor of ancestorsOf(indexById(categories), category)) {
+		names.unshift(ancestor.name);
 	}
 	return names.join(" › ");
 }
