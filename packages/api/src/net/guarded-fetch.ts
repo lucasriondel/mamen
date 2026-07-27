@@ -71,9 +71,23 @@ const discard = (response: Response) =>
  */
 const readCapped = (response: Response) =>
 	Effect.tryPromise({
-		try: async () => {
+		try: async (signal) => {
 			if (response.body === null) return new Uint8Array();
 			const reader = response.body.getReader();
+			// Release the body when this effect is interrupted — which is how the
+			// timeout arrives once headers have been received. Interrupting an
+			// Effect abandons the *promise*, it does not stop it: without this the
+			// loop goes on pulling from a socket the caller has already been told
+			// timed out, buffering toward the cap and holding the descriptor for as
+			// long as the sender cares to drip. The connect's own signal cannot do
+			// this job, having already succeeded by the time we get here.
+			//
+			// `response.body.cancel()` is not the way to spell it: the body is
+			// locked to this reader, so it would only throw.
+			signal.addEventListener(
+				"abort",
+				() => void reader.cancel().catch(() => {}),
+			);
 			const chunks: Uint8Array[] = [];
 			let total = 0;
 			while (true) {

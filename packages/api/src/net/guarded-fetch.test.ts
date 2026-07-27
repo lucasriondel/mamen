@@ -369,6 +369,7 @@ describe("fetchGuarded", () => {
 
 	it.effect("abandons a body that stalls mid-stream", () =>
 		Effect.gen(function* () {
+			let cancelled = false;
 			const net = stubNet({
 				addresses: PUBLIC,
 				routes: {
@@ -384,6 +385,9 @@ describe("fetchGuarded", () => {
 								pull() {
 									return new Promise<void>(() => {});
 								},
+								cancel() {
+									cancelled = true;
+								},
 							}),
 						),
 				},
@@ -393,6 +397,15 @@ describe("fetchGuarded", () => {
 			);
 			yield* TestClock.adjust(FETCH_TIMEOUT);
 			assert.strictEqual(yield* Fiber.join(fiber), "timeout");
+			// And the *server* let go too, not just the caller. Interrupting an
+			// Effect does not stop the promise underneath it, so without an explicit
+			// release the read loop keeps pulling on a socket the client has already
+			// been told timed out — buffering toward the cap, holding a file
+			// descriptor, for as long as the sender cares to drip. Same property the
+			// never-answers case asserts through its abort signal; that signal
+			// belongs to the connect, which by here has already succeeded.
+			yield* Effect.yieldNow();
+			assert.isTrue(cancelled);
 		}),
 	);
 
