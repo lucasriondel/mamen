@@ -155,6 +155,10 @@ export function TransferSection({
 					</p>
 					{groupQuery.isPending ? (
 						<p className="text-sm text-muted italic">Loading the other legs…</p>
+					) : groupQuery.isError ? (
+						<p className="text-sm text-high italic">
+							Couldn't load the other legs. Retry in a moment.
+						</p>
 					) : otherLegs.length > 0 ? (
 						<ul className="flex flex-col gap-2">
 							{otherLegs.map((leg) => (
@@ -184,6 +188,13 @@ export function TransferSection({
 				</p>
 			) : candidatesQuery.isPending ? (
 				<p className="text-sm text-muted italic">Looking for counterparts…</p>
+			) : candidatesQuery.isError ? (
+				// Without this the failed fetch falls through to the empty-state copy
+				// below, reporting "no counterpart exists" — a definitive negative
+				// answer — when the truth is that we never got to look.
+				<p className="text-sm text-high italic">
+					Couldn't look for counterparts. Retry in a moment.
+				</p>
 			) : suggestions.length > 0 ? (
 				<div className="flex flex-col gap-3">
 					<p className="text-sm text-muted">

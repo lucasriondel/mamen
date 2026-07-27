@@ -2,12 +2,12 @@ import type { CategoryId, Issuer } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useId, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { issuerQueries } from "@/lib/sdk";
 import { CategoryLeafPicker } from "./category-leaf-picker";
-import { INPUT_CLASS } from "./field-styles";
 import { hasExactIssuerName } from "./issuer-name";
 import { useIssuerMutations } from "./use-issuer-mutations";
 
@@ -35,6 +35,7 @@ export function CreateIssuerPage() {
 	const { create } = useIssuerMutations();
 	const [name, setName] = useState("");
 	const [categoryId, setCategoryId] = useState<CategoryId | null>(null);
+	const duplicateNoteId = useId();
 
 	// Loaded so the duplicate-name guard has something to check against; the guard
 	// only covers the names the client has in hand (the contract allows dupes).
@@ -88,15 +89,24 @@ export function CreateIssuerPage() {
 			<form onSubmit={handleSubmit} className="flex max-w-md flex-col gap-6">
 				<label className="flex flex-col gap-1 text-sm text-muted">
 					Name
-					<input
-						className={INPUT_CLASS}
+					<Input
 						value={name}
 						onChange={(event) => setName(event.target.value)}
 						placeholder="e.g. Spotify"
 						aria-label="Issuer name"
+						// The duplicate-name guard already blocks Save and prints the note
+						// below; marking the field invalid is what paints it, now that the
+						// primitive has an `aria-invalid` state.
+						aria-invalid={isDuplicate}
+						// `aria-invalid` alone announces "invalid entry" and nothing else.
+						// The reason is on screen, but the `aria-label` above overrides this
+						// `<label>`'s text as the accessible name, so the note is otherwise
+						// unreachable — point at it explicitly (WCAG 3.3.1). Only while it
+						// renders: a dangling id describes nothing.
+						aria-describedby={isDuplicate ? duplicateNoteId : undefined}
 					/>
 					{isDuplicate ? (
-						<span className="text-xs text-high">
+						<span id={duplicateNoteId} className="text-xs text-high">
 							An issuer with this name already exists.
 						</span>
 					) : null}

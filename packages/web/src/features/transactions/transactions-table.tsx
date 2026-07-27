@@ -211,6 +211,13 @@ export function TransactionsTable({
 								key={row.id}
 								onClick={openDetail}
 								onKeyDown={(event) => {
+									// Only the row itself activates. React synthetic events
+									// bubble through the React tree, so a keystroke inside a
+									// curation cell's portalled popover (the notes textarea, a
+									// picker's search box) still reaches this handler — without
+									// this guard, typing a space there would be swallowed by
+									// `preventDefault` and navigate away mid-edit.
+									if (event.target !== event.currentTarget) return;
 									if (event.key === "Enter" || event.key === " ") {
 										event.preventDefault();
 										openDetail();

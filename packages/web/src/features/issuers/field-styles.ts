@@ -1,10 +1,12 @@
 /**
- * Shared Tailwind class strings for the issuer surfaces' form controls, so the
- * detail page and the create form dress their inputs and secondary buttons
- * identically from one source (checklist step 3: mutualize the class constants).
+ * Shared Tailwind class string for the secondary "back" link the issuer and
+ * transaction detail pages dress as a button, from one source.
+ *
+ * The matching `INPUT_CLASS` is gone *from this file*: the issuer text fields it
+ * dressed now use the `Input` primitive (`@/components/ui/input`), which owns
+ * that visual plus the focus/disabled/invalid states this constant never had.
+ * Other features still declare their own copy — see the primitive's docstring
+ * for what remains to migrate.
  */
-export const INPUT_CLASS =
-	"rounded-md border border-line bg-bg px-3 py-2 text-sm text-ink outline-none focus:border-accent";
-
 export const BUTTON_CLASS =
 	"rounded-md border border-line px-3 py-1.5 text-sm text-ink disabled:opacity-50";

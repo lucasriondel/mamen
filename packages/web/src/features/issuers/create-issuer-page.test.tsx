@@ -136,6 +136,58 @@ describe("CreateIssuerPage", () => {
 		);
 	});
 
+	// The duplicate guard is what drives the Input primitive's `aria-invalid`
+	// state, so the field paints itself wrong rather than only the Save button
+	// going quiet. Asserted here because it's the wiring that's easy to drop:
+	// the primitive's own unit test passes `aria-invalid` by hand, so without
+	// this the prop could be deleted from the form with every test still green.
+	it("marks the name field invalid while it duplicates, and clears it once it doesn't", async () => {
+		const user = userEvent.setup();
+		renderPage();
+
+		const input = await screen.findByLabelText("Issuer name");
+		await user.type(input, "  spotify ");
+
+		await waitFor(() => expect(input).toHaveAttribute("aria-invalid", "true"));
+		expect(
+			screen.getByText("An issuer with this name already exists."),
+		).toBeInTheDocument();
+
+		// One more character and it's no longer a collision — the field recovers.
+		await user.type(input, "x");
+
+		await waitFor(() => expect(input).toHaveAttribute("aria-invalid", "false"));
+		expect(
+			screen.queryByText("An issuer with this name already exists."),
+		).not.toBeInTheDocument();
+	});
+
+	// `aria-invalid` on its own announces "invalid entry" with no reason. The
+	// reason is on screen, but the field's `aria-label` overrides the wrapping
+	// `<label>`'s text as its accessible name, so the note is only reachable via
+	// an explicit `aria-describedby`. Asserted through the *accessible
+	// description* rather than the raw attribute, so this fails if the id ever
+	// stops resolving to the note — the failure mode a bare attribute check misses.
+	it("describes why the name field is invalid, not just that it is", async () => {
+		const user = userEvent.setup();
+		renderPage();
+
+		const input = await screen.findByLabelText("Issuer name");
+		expect(input).not.toHaveAccessibleDescription();
+
+		await user.type(input, "  spotify ");
+
+		await waitFor(() =>
+			expect(input).toHaveAccessibleDescription(
+				"An issuer with this name already exists.",
+			),
+		);
+
+		// Recovering drops the description along with the note.
+		await user.type(input, "x");
+		await waitFor(() => expect(input).not.toHaveAccessibleDescription());
+	});
+
 	it("creates an issuer with name only, then lands on its detail page", async () => {
 		const user = userEvent.setup();
 		renderPage();
