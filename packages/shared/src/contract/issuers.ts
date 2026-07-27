@@ -15,6 +15,12 @@ import { Paged, Pagination } from "./pagination";
  * `{ fileSize: 2_097_152 }`. There is no `PersistedFile.size` field, so the
  * ceiling is enforced by the multipart parser via `maxFileSize` (a breach yields
  * a framework `MultipartError`), not by the handler.
+ *
+ * Since every accepted upload is resized server-side (ADR 0007) the cap no
+ * longer bounds what is *stored* — a stored image is 128×128 WebP, a few KB
+ * whatever arrived. It survives as the **pre-decode** guard: it bounds what
+ * sharp is asked to open, which is the real denial-of-service concern, and only
+ * a limit enforced by the parser can run before the decode does.
  */
 export const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 
@@ -68,7 +74,9 @@ export const IssuerListFilters = {
  * The multipart upload payload for `uploadImage`. One file under the key
  * `file`; `maxFileSize` caps it at {@link MAX_IMAGE_BYTES} and `maxParts` at 1
  * (matching the old `{ fileSize, files: 1 }`). The jpeg/png/webp/gif allow-list
- * is NOT expressible here — the handler enforces it and fails `InvalidFileType`.
+ * is NOT expressible here — the handler enforces it and fails `InvalidFileType`,
+ * as it does for a body that doesn't decode as an image at all. The declared
+ * format only gates acceptance; what lands on disk is always WebP (ADR 0007).
  * The derived client types this as `FormData`.
  */
 export const IssuerImageUpload = HttpApiSchema.Multipart(
