@@ -166,6 +166,96 @@ export class InvalidFileType extends Schema.TaggedError<InvalidFileType>()(
 ) {}
 
 /**
+ * **Logo search** is not set up: `GOOGLE_CSE_KEY` and/or `GOOGLE_CSE_CX` are
+ * absent from the API's environment (ADR 0007). A *distinct, client-readable
+ * state* rather than a generic failure — the UI answers it by explaining what
+ * to set, which it cannot do from a 500. `missing` names the absent variables
+ * so the explanation is specific.
+ *
+ * 501 rather than 503: the feature is genuinely not implemented in this
+ * deployment, and 503 would imply the client should come back later. Nothing
+ * about waiting helps here; someone has to add configuration.
+ */
+export class LogoSearchUnconfigured extends Schema.TaggedError<LogoSearchUnconfigured>()(
+	"LogoSearchUnconfigured",
+	{
+		missing: Schema.Array(Schema.String),
+	},
+	HttpApiSchema.annotations({ status: 501 }),
+) {}
+
+/**
+ * The Programmable Search daily quota is spent — 100 queries/day on the free
+ * tier, after which Google refuses for the rest of the day (ADR 0007).
+ *
+ * Its own error, never folded into {@link LogoSearchFailed}: the fix is *wait
+ * or pay*, so a UI that showed this as a transport failure would invite a
+ * retry that cannot succeed and would not even cost anything to attempt.
+ */
+export class LogoSearchQuotaExceeded extends Schema.TaggedError<LogoSearchQuotaExceeded>()(
+	"LogoSearchQuotaExceeded",
+	{},
+	HttpApiSchema.annotations({ status: 429 }),
+) {}
+
+/**
+ * The call to Programmable Search failed for any reason that is *not* missing
+ * configuration and *not* the daily quota: the request never completed, or the
+ * response was a status / body this server can't read. A retry may well work,
+ * which is exactly what distinguishes it from {@link LogoSearchQuotaExceeded}.
+ * `message` is diagnostic text, not a wire contract.
+ */
+export class LogoSearchFailed extends Schema.TaggedError<LogoSearchFailed>()(
+	"LogoSearchFailed",
+	{
+		message: Schema.String,
+	},
+	HttpApiSchema.annotations({ status: 502 }),
+) {}
+
+/**
+ * The server declined to fetch, or could not use, a remote image URL. Raised by
+ * the **Logo search** download step, which is an **SSRF sink** — it fetches a
+ * caller-supplied URL from inside the API's own network — so most of these
+ * reasons are refusals by policy, not failures (ADR 0007).
+ *
+ * - `invalid-url` — not a parseable absolute URL.
+ * - `not-https` — the scheme is not `https:`. Plain HTTP is refused outright
+ *   rather than upgraded; `http://` also reaches hosts TLS never would.
+ * - `private-address` — the URL resolves to a private, loopback, link-local or
+ *   unique-local address. Checked **before connecting**, and again at every
+ *   redirect hop, since a permitted host can redirect to an internal one.
+ * - `unresolvable` — DNS returned no address for the host.
+ * - `too-many-redirects` — the hop cap was reached.
+ * - `too-large` — the response exceeded the byte cap. Enforced *while*
+ *   streaming, so an endless body is abandoned rather than buffered.
+ * - `timeout` — the host was slow or hanging and was abandoned.
+ * - `unreachable` — the transport failed, or the host answered with a status
+ *   this server can't use.
+ * - `not-an-image` — the bytes arrived but do not decode as an image.
+ *
+ * 422 for all of them: the request was well-formed, the URL in it was not
+ * something this server will (or can) turn into an issuer image.
+ */
+export class ImageFetchRefused extends Schema.TaggedError<ImageFetchRefused>()(
+	"ImageFetchRefused",
+	{
+		reason: Schema.Literal(
+			"invalid-url",
+			"not-https",
+			"private-address",
+			"unresolvable",
+			"too-many-redirects",
+			"too-large",
+			"timeout",
+			"unreachable",
+			"not-an-image",
+		),
+	},
+	HttpApiSchema.annotations({ status: 422 }),
+) {}
+
+/**
  * Decodes a query-string boolean ("true" / "false") into a real boolean. Query
  * params are always strings, so boolean list filters (e.g. `isRefund`) use this.
  */

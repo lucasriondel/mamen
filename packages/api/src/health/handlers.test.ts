@@ -6,6 +6,7 @@ import { Effect, Layer } from "effect";
 import { ApiLive } from "../api-live";
 import { DatabaseTest } from "../db/test";
 import { ClaudeCodeStub } from "../import/test";
+import { OutboundStub } from "../net/test";
 
 // The full API served on a real ephemeral Node server with a wired HttpClient —
 // the derived client's requests hit the live server, no URL plumbing. Uses the
@@ -13,6 +14,7 @@ import { ClaudeCodeStub } from "../import/test";
 const HttpLive = HttpApiBuilder.serve().pipe(
 	Layer.provide(ApiLive),
 	Layer.provide(ClaudeCodeStub),
+	Layer.provide(OutboundStub),
 	Layer.provide(DatabaseTest),
 	Layer.provideMerge(NodeHttpServer.layerTest),
 );

@@ -21,6 +21,7 @@ import { Effect, Layer, Schema } from "effect";
 import { ApiLive } from "../api-live";
 import { DatabaseTest } from "../db/test";
 import { ClaudeCodeStub } from "../import/test";
+import { OutboundStub } from "../net/test";
 
 // Full API on a real ephemeral Node server over a fresh `:memory:` sqlite DB.
 // Exercises the transactions group end-to-end through the derived typed client —
@@ -29,6 +30,7 @@ import { ClaudeCodeStub } from "../import/test";
 const HttpLive = HttpApiBuilder.serve().pipe(
 	Layer.provide(ApiLive),
 	Layer.provide(ClaudeCodeStub),
+	Layer.provide(OutboundStub),
 	Layer.provide(DatabaseTest),
 	Layer.provideMerge(NodeHttpServer.layerTest),
 );

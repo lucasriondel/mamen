@@ -18,6 +18,7 @@ import sharp from "sharp";
 import { ApiLive } from "../api-live";
 import { DatabaseTest } from "../db/test";
 import { ClaudeCodeStub } from "../import/test";
+import { OutboundStub } from "../net/test";
 import { StaticUploadsLive } from "../static/uploads";
 
 // A dedicated uploads dir per test file, wired through the `UPLOADS_DIR` config
@@ -43,6 +44,7 @@ const HttpLive = HttpApiBuilder.serve().pipe(
 	Layer.provide(StaticUploadsLive),
 	Layer.provide(ApiLive),
 	Layer.provide(ClaudeCodeStub),
+	Layer.provide(OutboundStub),
 	Layer.provide(DatabaseTest),
 	Layer.provideMerge(NodeHttpServer.layerTest),
 );

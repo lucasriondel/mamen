@@ -6,7 +6,15 @@ import {
 	OpenApi,
 } from "@effect/platform";
 import { Option, Schema } from "effect";
-import { CategoryNotLeaf, InvalidFileType, NotFound } from "./errors";
+import {
+	CategoryNotLeaf,
+	ImageFetchRefused,
+	InvalidFileType,
+	LogoSearchFailed,
+	LogoSearchQuotaExceeded,
+	LogoSearchUnconfigured,
+	NotFound,
+} from "./errors";
 import { CategoryId, IssuerId, numFromStr } from "./ids";
 import { Paged, Pagination } from "./pagination";
 
@@ -88,6 +96,57 @@ export const IssuerImageUpload = HttpApiSchema.Multipart(
 );
 
 /**
+ * One **Logo search** hit: a Programmable Search image result, reduced to what
+ * the picker needs. `thumbnailUrl` is what the grid renders (small, served by
+ * Google); `imageUrl` is the full-size original on its own host and is the URL
+ * handed back to `setImageFromUrl`. `contextUrl` is the page the image sits on,
+ * shown as provenance.
+ *
+ * Both URLs are echoed from Google unvalidated — the server does not trust them
+ * either, because `setImageFromUrl` is reachable independently of any search
+ * and so must guard the URL it is given whatever its provenance (ADR 0007).
+ */
+export class LogoSearchResult extends Schema.Class<LogoSearchResult>(
+	"LogoSearchResult",
+)({
+	title: Schema.String,
+	imageUrl: Schema.String,
+	thumbnailUrl: Schema.String,
+	contextUrl: Schema.optional(Schema.String),
+	width: Schema.optional(Schema.Number),
+	height: Schema.optional(Schema.Number),
+}) {}
+
+/** The `searchLogos` success body. A struct, so extra facets can be added later
+ * without a breaking change to a bare array. */
+export const LogoSearchResults = Schema.Struct({
+	results: Schema.Array(LogoSearchResult),
+});
+
+/**
+ * `searchLogos` url params. `q` is the whole query — the client pre-fills it
+ * with `<issuer name> logo` (ADR 0007), but the server takes it verbatim rather
+ * than composing it, so a user who edits the box gets what they typed.
+ * `Schema.NonEmptyTrimmedString` refuses a blank query at the boundary: it
+ * would spend one of the 100 daily calls to get nothing back.
+ */
+export const LogoSearchQuery = Schema.Struct({
+	q: Schema.NonEmptyTrimmedString,
+});
+
+/**
+ * `setImageFromUrl` payload — the chosen result's full-size URL. Deliberately a
+ * bare `Schema.String`: every meaningful constraint on it (https-only, not a
+ * private address, at any redirect hop) needs DNS and cannot be a schema, so
+ * pretending otherwise here would only split the guard across two places. The
+ * server refuses with {@link ImageFetchRefused}.
+ */
+export const IssuerImageFromUrl = Schema.Struct({
+	url: Schema.String,
+});
+export type IssuerImageFromUrl = typeof IssuerImageFromUrl.Type;
+
+/**
  * Issuers group (contract §2.4), prefix `/issuers`. Includes the image
  * upload + delete. No issuer-name uniqueness constraint today (faithful port),
  * so `create`/`update` declare no `Conflict`. `getById`/`getByName`/`getByNameCi`
@@ -99,6 +158,21 @@ export const IssuerImageUpload = HttpApiSchema.Multipart(
  * `uploadImage` additionally declares `InvalidFileType`. Dropped vs today: `PUT
  * /issuers/bulk-put` (client-only). The `/uploads/*` static route is a
  * separate wildcard route, not part of this contract.
+ *
+ * The two **Logo search** endpoints (ADR 0007) sit alongside the upload:
+ * `searchLogos` proxies Google Programmable Search (the API key is a server
+ * secret, so the query cannot run in the browser), and `setImageFromUrl`
+ * downloads a chosen result through the same normalisation pipeline as the
+ * upload, so a searched image and an uploaded one are byte-identical in form.
+ * `GET /issuers/logo-search` is a static sibling of `GET /issuers/:id` — the
+ * router prefers the literal segment, as it already does for
+ * `/transactions/count`.
+ *
+ * **Neither is authenticated**, like the rest of the API. `setImageFromUrl` is
+ * therefore an open fetch proxy and `searchLogos` spends the owner's 100
+ * queries/day for anyone who asks. Auth and rate-limiting are deferred and must
+ * land before public deployment — see
+ * `docs/operations/logo-search-setup.md`.
  */
 export class IssuersGroup extends HttpApiGroup.make("issuers")
 	.add(
@@ -164,5 +238,22 @@ export class IssuersGroup extends HttpApiGroup.make("issuers")
 		)`/issuers/${HttpApiSchema.param("id", numFromStr(IssuerId))}/image`
 			.addSuccess(Issuer)
 			.addError(NotFound),
+	)
+	.add(
+		HttpApiEndpoint.get("searchLogos")`/issuers/logo-search`
+			.setUrlParams(LogoSearchQuery)
+			.addSuccess(LogoSearchResults)
+			.addError(LogoSearchUnconfigured)
+			.addError(LogoSearchQuotaExceeded)
+			.addError(LogoSearchFailed),
+	)
+	.add(
+		HttpApiEndpoint.post(
+			"setImageFromUrl",
+		)`/issuers/${HttpApiSchema.param("id", numFromStr(IssuerId))}/image/from-url`
+			.setPayload(IssuerImageFromUrl)
+			.addSuccess(Issuer)
+			.addError(NotFound)
+			.addError(ImageFetchRefused),
 	)
 	.annotateContext(OpenApi.annotations({ title: "Issuers" })) {}
