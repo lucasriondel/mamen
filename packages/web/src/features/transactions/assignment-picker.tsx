@@ -180,8 +180,8 @@ export function AssignmentPicker({
 										disabled={pending}
 									>
 										<IssuerAvatar
-											name={issuer.name}
 											imageUrl={issuer.imageUrl}
+											defaultCategoryId={issuer.defaultCategoryId}
 										/>
 										<span className="truncate">{issuer.name}</span>
 									</CommandItem>

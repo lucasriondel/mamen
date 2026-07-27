@@ -128,8 +128,8 @@ export function IssuerPicker({ transaction, issuer }: IssuerPickerProps) {
 										disabled={pending}
 									>
 										<IssuerAvatar
-											name={candidate.name}
 											imageUrl={candidate.imageUrl}
+											defaultCategoryId={candidate.defaultCategoryId}
 										/>
 										<span className="truncate">{candidate.name}</span>
 										{candidate.id === issuer.id ? (

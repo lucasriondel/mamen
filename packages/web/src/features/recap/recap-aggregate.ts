@@ -20,6 +20,14 @@ export interface SpendRow {
 	count: number;
 	/** Issuer image URL (root-relative `/uploads/issuers/…`), for the by-issuer section. */
 	imageUrl?: string;
+	/**
+	 * The issuer's **issuer default category** id, for the by-issuer section — the
+	 * second rung of the **Avatar fallback chain** (issue #59). Carried as an *id*
+	 * rather than a resolved icon/colour pair, unlike the category rows below: the
+	 * avatar owns that resolution, so handing it a pre-resolved pair would put a
+	 * second copy of the chain here.
+	 */
+	defaultCategoryId?: number;
 	/** The category's **Icon name** (a Lucide id), for the by-category section. */
 	icon?: string;
 	/**
@@ -35,6 +43,7 @@ export interface SpendRow {
 type BucketIdentity = {
 	name: string;
 	imageUrl?: string;
+	defaultCategoryId?: number;
 	icon?: string;
 	color?: string;
 };
@@ -119,6 +128,7 @@ function bucketBy(
 			id: bucket.id,
 			name: identity.name,
 			imageUrl: identity.imageUrl,
+			defaultCategoryId: identity.defaultCategoryId,
 			icon: identity.icon,
 			color: identity.color,
 			spent: bucket.spent,
@@ -175,6 +185,7 @@ export function aggregateSpend(
 			return {
 				name: issuer?.name ?? UNASSIGNED_LABEL,
 				imageUrl: issuer?.imageUrl,
+				defaultCategoryId: issuer?.defaultCategoryId,
 			};
 		},
 	);

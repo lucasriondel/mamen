@@ -33,11 +33,18 @@ const issuer: Issuer = {
 };
 
 describe("IssuerCell", () => {
-	it("resolved: shows the issuer name and an avatar fallback initial", () => {
+	it("resolved: shows the issuer name and an avatar, never its initial", () => {
 		render(<IssuerCell rawIssuerString="SPOTIFY P2A34" issuer={issuer} />);
 		expect(screen.getByText("Spotify")).toBeInTheDocument();
-		expect(screen.getByText("S")).toBeInTheDocument();
 		expect(screen.queryByText("SPOTIFY P2A34")).not.toBeInTheDocument();
+		// The letter fallback is gone (issue #59). This issuer has neither an image
+		// nor a default category, so its avatar is the chain's neutral grey rung —
+		// a `?`, not an `S`.
+		expect(screen.queryByText("S")).not.toBeInTheDocument();
+		expect(screen.getByTestId("issuer-avatar")).toHaveAttribute(
+			"data-avatar",
+			"none",
+		);
 	});
 
 	it("unresolved: shows the muted raw text with a needs-issuer affordance", () => {

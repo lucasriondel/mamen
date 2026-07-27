@@ -31,7 +31,11 @@ export function IssuerCard({ issuer, count, net }: IssuerCardProps) {
 			className="flex flex-col items-start gap-3 rounded-lg border border-gousse-line bg-gousse-panel p-4 text-left outline-none transition-[transform,border-color] duration-150 hover:border-gousse-accent focus-visible:ring-2 focus-visible:ring-gousse-accent active:scale-[0.98]"
 		>
 			<div className="flex w-full items-center gap-3">
-				<IssuerAvatar name={issuer.name} imageUrl={issuer.imageUrl} size="lg" />
+				<IssuerAvatar
+					imageUrl={issuer.imageUrl}
+					defaultCategoryId={issuer.defaultCategoryId}
+					size="lg"
+				/>
 				<span className="min-w-0 flex-1 truncate font-medium text-gousse-ink">
 					{issuer.name}
 				</span>
