@@ -20,6 +20,6 @@ export const UploadsDir = Config.string("UPLOADS_DIR").pipe(
 
 /** Comma-separated allowed CORS origins; defaults to the Vite dev server. */
 export const CorsOrigins = Config.string("CORS_ORIGINS").pipe(
-	Config.withDefault("http://localhost:5000"),
+	Config.withDefault("http://localhost:5070"),
 	Config.map((raw) => raw.split(",").map((s) => s.trim())),
 );
