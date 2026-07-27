@@ -162,6 +162,32 @@ describe("CreateIssuerPage", () => {
 		).not.toBeInTheDocument();
 	});
 
+	// `aria-invalid` on its own announces "invalid entry" with no reason. The
+	// reason is on screen, but the field's `aria-label` overrides the wrapping
+	// `<label>`'s text as its accessible name, so the note is only reachable via
+	// an explicit `aria-describedby`. Asserted through the *accessible
+	// description* rather than the raw attribute, so this fails if the id ever
+	// stops resolving to the note — the failure mode a bare attribute check misses.
+	it("describes why the name field is invalid, not just that it is", async () => {
+		const user = userEvent.setup();
+		renderPage();
+
+		const input = await screen.findByLabelText("Issuer name");
+		expect(input).not.toHaveAccessibleDescription();
+
+		await user.type(input, "  spotify ");
+
+		await waitFor(() =>
+			expect(input).toHaveAccessibleDescription(
+				"An issuer with this name already exists.",
+			),
+		);
+
+		// Recovering drops the description along with the note.
+		await user.type(input, "x");
+		await waitFor(() => expect(input).not.toHaveAccessibleDescription());
+	});
+
 	it("creates an issuer with name only, then lands on its detail page", async () => {
 		const user = userEvent.setup();
 		renderPage();
