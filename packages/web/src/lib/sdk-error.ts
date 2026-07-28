@@ -201,9 +201,9 @@ export function imageFetchRefusedMessage(error: unknown): string {
  *
  * - `unconfigured` — nothing was attempted and nothing the user does in the app
  *   will change that, so it carries the variable names to set instead.
- * - `quota` — the daily allowance is spent. Offers no retry: a retry cannot
- *   succeed today, and a button that says otherwise is a lie the free tier
- *   charges nothing for and the user pays in confusion.
+ * - `quota` — the provider's rate limit is spent. Offers no retry: a retry
+ *   cannot succeed until the window resets, and a button that says otherwise
+ *   is a lie the user pays for in confusion.
  * - `failed` — anything else, including a network error with no `_tag` at all.
  *   A retry may well work, so this is the one state that offers one.
  */

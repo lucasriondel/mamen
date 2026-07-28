@@ -408,7 +408,7 @@ describe("IssuerDetailPage", () => {
 
 		await user.click(search);
 		expect(await screen.findByLabelText("Logo search query")).toHaveValue(
-			"Spotify logo",
+			"Spotify",
 		);
 	});
 

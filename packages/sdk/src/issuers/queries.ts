@@ -98,13 +98,13 @@ export const issuerQueries = {
 		}),
 
 	/**
-	 * **Logo search** (ADR 0007): proxy one Programmable Search image query.
-	 * `q` is the whole query, verbatim — the client composes `<issuer name>
-	 * logo`, the server does not.
+	 * **Logo search** (ADR 0007, amended): proxy one logo.dev name lookup.
+	 * `q` is the whole query, verbatim — the client pre-fills the issuer's
+	 * name, the server does not compose anything.
 	 *
-	 * The caller owns *when* this runs (`enabled`), because a query costs one of
-	 * 100 a day and only an explicit submit may spend one. The two options set
-	 * here are the same budget seen from the other side:
+	 * The caller owns *when* this runs (`enabled`), because a query spends a
+	 * rate-limited upstream call and only an explicit submit may spend one. The
+	 * two options set here are the same budget seen from the other side:
 	 *
 	 * - `staleTime`/`gcTime` — a held answer is never re-fetched on its own, so
 	 *   re-asking the same question is free.

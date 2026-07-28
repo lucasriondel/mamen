@@ -80,15 +80,14 @@ beforeEach(() => {
 });
 
 describe("LogoSearchPopover", () => {
-	it("pre-fills the query with `<issuer name> logo` and focuses the search button", async () => {
+	it("pre-fills the query with the issuer's name and focuses the search button", async () => {
 		const user = userEvent.setup();
 		render(<LogoSearchPopover issuer={issuer()} />);
 
 		const searchButton = await open(user);
 
-		expect(screen.getByLabelText("Logo search query")).toHaveValue(
-			"Spotify logo",
-		);
+		// The bare name, no "logo" suffix: logo.dev resolves brand names.
+		expect(screen.getByLabelText("Logo search query")).toHaveValue("Spotify");
 		await waitFor(() => expect(searchButton).toHaveFocus());
 	});
 
@@ -178,7 +177,7 @@ describe("LogoSearchPopover", () => {
 
 	it("explains the unconfigured state and names what to set", async () => {
 		searchLogos.mockRejectedValue(
-			tagged("LogoSearchUnconfigured", { missing: ["GOOGLE_CSE_CX"] }),
+			tagged("LogoSearchUnconfigured", { missing: ["LOGODEV_TOKEN"] }),
 		);
 		const user = userEvent.setup();
 		render(<LogoSearchPopover issuer={issuer()} />);
@@ -186,7 +185,7 @@ describe("LogoSearchPopover", () => {
 
 		const alert = await screen.findByRole("alert");
 		expect(alert).toHaveTextContent(/isn't set up/i);
-		expect(alert).toHaveTextContent("GOOGLE_CSE_CX");
+		expect(alert).toHaveTextContent("LOGODEV_TOKEN");
 		expect(alert).toHaveTextContent("docs/operations/logo-search-setup.md");
 		// Nothing to retry: a key is missing, and no button in this app adds one.
 		expect(
@@ -201,7 +200,7 @@ describe("LogoSearchPopover", () => {
 		await user.click(await open(user));
 
 		const alert = await screen.findByRole("alert");
-		expect(alert).toHaveTextContent(/daily limit reached/i);
+		expect(alert).toHaveTextContent(/rate limit reached/i);
 		expect(
 			screen.queryByRole("button", { name: /try again/i }),
 		).not.toBeInTheDocument();

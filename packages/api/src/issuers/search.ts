@@ -4,104 +4,81 @@ import {
 	type LogoSearchResult,
 	LogoSearchUnconfigured,
 } from "@mamen/shared/contract";
-import { Effect, Option, Redacted, Schema } from "effect";
-import { GoogleCseCx, GoogleCseKey } from "../config";
+import { Effect, Option } from "effect";
+import { LogodevToken } from "../config";
 import { FETCH_TIMEOUT } from "../net/guarded-fetch";
 import { Outbound } from "../net/outbound";
 
 /**
- * The **Logo search** query proxy (ADR 0007): Google Programmable Search's JSON
- * API with `searchType=image`, run server-side.
+ * The **Logo search** query proxy (ADR 0007, amended): logo.dev's Logo API,
+ * looked up **by name**, run server-side.
  *
- * Server-side because the API key is a server secret — the browser cannot make
- * this call without being handed the key, and a key in a bundle is a public
- * key. That is the whole job: everything else here is turning Google's three
- * failure modes into three the client can act on differently.
+ * logo.dev is not a search engine — `img.logo.dev/name/<query>` resolves a
+ * brand name to *one* logo image, served from a CDN. So "search" here means:
+ * ask logo.dev whether it knows this name at all, and if it does, offer the
+ * same logo on the three backgrounds the API can render (`theme=auto`, `light`,
+ * `dark`) as the mosaic to pick from. One upstream request answers for all
+ * three — the variants are the same asset re-rendered, so existence is shared.
  *
- * - **unconfigured** — the key or the engine id is absent. Not a failure at
- *   all: nothing was attempted, and the answer is "go and set this up".
- * - **quota exceeded** — the free tier's 100 queries/day are spent. Retrying
- *   cannot help until tomorrow, so it must never look like the third case.
+ * Server-side even though the token is *publishable* (logo.dev designs it to
+ * sit in `<img>` tags): the client contract stays provider-agnostic, the
+ * unconfigured state stays a server answer rather than a missing Vite env, and
+ * there is exactly one place to configure. The failure taxonomy survives:
+ *
+ * - **unconfigured** — the token is absent. Not a failure at all: nothing was
+ *   attempted, and the answer is "go and set this up".
+ * - **quota exceeded** — logo.dev answered 429; its rate limit is spent.
+ *   Retrying immediately cannot help, so it must never look like the third
+ *   case.
  * - **failed** — anything else. A retry may well work.
  *
- * Unlike the download path this URL is a constant, so it does not go through
- * the SSRF guard: there is no caller-supplied host to check. The caller's input
- * reaches it only as a query-string value.
+ * Unlike the download path this URL's host is a constant, so it does not go
+ * through the SSRF guard: there is no caller-supplied host to check. The
+ * caller's input reaches it only as an encoded path segment.
  */
 
-/** Google's endpoint. Fixed — the only caller-supplied part is `q`. */
-const ENDPOINT = "https://www.googleapis.com/customsearch/v1";
+/** logo.dev's image CDN. Fixed — the only caller-supplied part is the name. */
+const ENDPOINT = "https://img.logo.dev";
 
 /**
- * How many hits to ask for. Ten is the API's per-request maximum and one
- * "page"; asking for fewer would not save quota (billing is per query, not per
- * result) and asking again for more would.
+ * The three backgrounds logo.dev can render a transparent logo onto. The same
+ * logo on each is what the mosaic offers: the stored image is a flattened
+ * 128×128 WebP (ADR 0007), so the background baked in at download time is the
+ * one the user keeps.
  */
-const RESULT_COUNT = 10;
+const THEMES = ["auto", "light", "dark"] as const;
+
+/** Full-size request: 256px at 2× — comfortably above the stored 128×128. */
+const IMAGE_SIZE = 256;
+
+/** What the mosaic tile loads. */
+const THUMB_SIZE = 128;
 
 /**
- * The slice of Programmable Search's response this reads. Effect's decoder
- * ignores properties we don't name, so the many facets Google also returns cost
- * nothing.
- *
- * `link` is required, everything else optional: a hit with no URL is not a hit,
- * while a hit with no thumbnail or dimensions still renders. A response that
- * misses the required shape fails the whole search rather than silently
- * dropping items — that shape moving is worth an error, not a short list.
+ * One lookup URL. `fallback=404` on every URL, not just the probe: without it
+ * logo.dev answers an unknown name with a monogram placeholder and `200 OK`,
+ * which would make "no logos found" unrepresentable — and would let a picked
+ * result silently store a monogram if the logo vanished upstream.
  */
-const GoogleImageItem = Schema.Struct({
-	title: Schema.optional(Schema.String),
-	link: Schema.String,
-	image: Schema.optional(
-		Schema.Struct({
-			thumbnailLink: Schema.optional(Schema.String),
-			contextLink: Schema.optional(Schema.String),
-			width: Schema.optional(Schema.Number),
-			height: Schema.optional(Schema.Number),
-		}),
-	),
-});
-
-/** `items` is absent, not empty, when a query matches nothing. */
-const GoogleSearchResponse = Schema.Struct({
-	items: Schema.optional(Schema.Array(GoogleImageItem)),
-});
-
-/**
- * The `reason` codes Google uses when the quota is the problem. The free tier
- * answers a spent daily allowance with **403**, not 429, so the status alone
- * cannot tell "come back tomorrow" from "your key is wrong".
- */
-const QUOTA_REASONS = new Set([
-	"dailyLimitExceeded",
-	"quotaExceeded",
-	"rateLimitExceeded",
-	"userRateLimitExceeded",
-]);
-
-/** Google's error envelope, read only far enough to classify the failure. */
-const GoogleErrorBody = Schema.Struct({
-	error: Schema.optional(
-		Schema.Struct({
-			errors: Schema.optional(
-				Schema.Array(Schema.Struct({ reason: Schema.optional(Schema.String) })),
-			),
-		}),
-	),
-});
-
-/** Does this error body blame the quota? */
-const blamesQuota = (body: unknown): boolean => {
-	const decoded = Schema.decodeUnknownOption(GoogleErrorBody)(body);
-	if (Option.isNone(decoded)) return false;
-	return (decoded.value.error?.errors ?? []).some(
-		(e) => e.reason !== undefined && QUOTA_REASONS.has(e.reason),
-	);
+const variantUrl = (
+	query: string,
+	token: string,
+	theme: (typeof THEMES)[number],
+	size: number,
+): string => {
+	const url = new URL(`/name/${encodeURIComponent(query)}`, ENDPOINT);
+	url.searchParams.set("token", token);
+	url.searchParams.set("size", String(size));
+	url.searchParams.set("format", "png");
+	url.searchParams.set("theme", theme);
+	url.searchParams.set("retina", "true");
+	url.searchParams.set("fallback", "404");
+	return url.href;
 };
 
 /** A configured value counts as absent when it is blank — `FOO=` in an env
- * file is a value nothing downstream can use, and sending it to Google only
- * converts a clear "unconfigured" into a confusing 403. */
+ * file is a value nothing downstream can use, and sending it to logo.dev only
+ * converts a clear "unconfigured" into a confusing 401. */
 const isBlank = (value: string) => value.trim() === "";
 
 export const searchLogos = (
@@ -112,97 +89,60 @@ export const searchLogos = (
 	Outbound
 > =>
 	Effect.gen(function* () {
-		// Both are `Config.option`, so absence is a value rather than an error;
-		// anything that *does* fail here is a broken ConfigProvider, which is an
+		// `Config.option`, so absence is a value rather than an error; anything
+		// that *does* fail here is a broken ConfigProvider, which is an
 		// infrastructure defect and not this endpoint's to describe.
-		const key = yield* Effect.orDie(GoogleCseKey);
-		const cx = yield* Effect.orDie(GoogleCseCx);
+		const token = yield* Effect.orDie(LogodevToken);
 
-		const missing: string[] = [];
-		if (Option.isNone(key) || isBlank(Redacted.value(key.value))) {
-			missing.push("GOOGLE_CSE_KEY");
+		if (Option.isNone(token) || isBlank(token.value)) {
+			return yield* Effect.fail(
+				new LogoSearchUnconfigured({ missing: ["LOGODEV_TOKEN"] }),
+			);
 		}
-		if (Option.isNone(cx) || isBlank(cx.value)) missing.push("GOOGLE_CSE_CX");
-		if (missing.length > 0) {
-			return yield* Effect.fail(new LogoSearchUnconfigured({ missing }));
-		}
-		// Narrowed by the checks above; `missing` being empty is what proves it.
-		const secret = Redacted.value(Option.getOrThrow(key));
-		const engine = Option.getOrThrow(cx);
+		const pk = token.value;
 
-		const url = new URL(ENDPOINT);
-		url.searchParams.set("key", secret);
-		url.searchParams.set("cx", engine);
-		url.searchParams.set("q", query);
-		url.searchParams.set("searchType", "image");
-		url.searchParams.set("num", String(RESULT_COUNT));
-		url.searchParams.set("safe", "active");
+		// The probe doubles as the first result's URL: one request decides
+		// whether logo.dev knows this name, and its answer is cached by the CDN
+		// for when the mosaic actually renders it.
+		const probe = variantUrl(query, pk, "auto", IMAGE_SIZE);
 
 		const outbound = yield* Outbound;
 		const response = yield* Effect.tryPromise({
-			try: (signal) =>
-				outbound.fetch(url.href, {
-					signal,
-					headers: { accept: "application/json" },
-				}),
-			// Never quote the URL: it carries the key, and this message is sent to
-			// the browser.
+			try: (signal) => outbound.fetch(probe, { signal }),
+			// Never quote the URL: it carries the token, and this message is sent
+			// to the browser. The token is publishable, but the habit is not.
 			catch: (cause) =>
 				new LogoSearchFailed({
-					message: `could not reach Programmable Search: ${cause}`,
+					message: `could not reach logo.dev: ${cause}`,
 				}),
 		});
 
-		const body = yield* Effect.tryPromise({
-			try: () => response.json() as Promise<unknown>,
-			catch: () =>
-				new LogoSearchFailed({
-					message: `Programmable Search answered ${response.status} with a body that is not JSON`,
-				}),
-		});
-
+		// `fallback=404` turns "no logo for this name" into a plain 404 — an
+		// empty result set, not a failure.
+		if (response.status === 404) {
+			return { results: [] };
+		}
+		if (response.status === 429) {
+			return yield* Effect.fail(new LogoSearchQuotaExceeded());
+		}
 		if (!response.ok) {
-			// 429 is unambiguous; a 403 has to be read, because a spent daily
-			// allowance and a rejected key share the status.
-			if (response.status === 429 || blamesQuota(body)) {
-				return yield* Effect.fail(new LogoSearchQuotaExceeded());
-			}
 			return yield* Effect.fail(
-				new LogoSearchFailed({
-					message: `Programmable Search answered ${response.status}`,
-				}),
+				new LogoSearchFailed({ message: `logo.dev answered ${response.status}` }),
 			);
 		}
 
-		const decoded = yield* Schema.decodeUnknown(GoogleSearchResponse)(
-			body,
-		).pipe(
-			Effect.mapError(
-				() =>
-					new LogoSearchFailed({
-						message: "Programmable Search answered in an unexpected shape",
-					}),
-			),
-		);
-
 		return {
-			results: (decoded.items ?? []).map((hit) => ({
-				title: hit.title ?? "",
-				imageUrl: hit.link,
-				// A hit with no thumbnail is still usable — render the original
-				// rather than dropping the result or painting an empty tile.
-				thumbnailUrl: hit.image?.thumbnailLink ?? hit.link,
-				contextUrl: hit.image?.contextLink,
-				width: hit.image?.width,
-				height: hit.image?.height,
+			results: THEMES.map((theme) => ({
+				title: theme === "auto" ? query : `${query} — ${theme} background`,
+				imageUrl: variantUrl(query, pk, theme, IMAGE_SIZE),
+				thumbnailUrl: variantUrl(query, pk, theme, THUMB_SIZE),
 			})),
 		};
 	}).pipe(
-		// A hanging Google is a transport failure, not a quota one: retrying is
+		// A hanging logo.dev is a transport failure, not a quota one: retrying is
 		// exactly the right advice, which is the distinction being preserved.
 		Effect.timeoutFail({
 			duration: FETCH_TIMEOUT,
-			onTimeout: () =>
-				new LogoSearchFailed({ message: "Programmable Search timed out" }),
+			onTimeout: () => new LogoSearchFailed({ message: "logo.dev timed out" }),
 		}),
 	);

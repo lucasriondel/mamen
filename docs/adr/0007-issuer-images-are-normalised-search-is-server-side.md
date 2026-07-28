@@ -1,5 +1,18 @@
 # Issuer images are normalised, search is server-side
 
+> [!NOTE]
+> **Amended 2026-07-28.** Google Programmable Search retired the
+> "search the entire web" option for newly created engines on 2026-01-20,
+> which removed the provider this ADR was written against. **Logo search** now
+> uses [logo.dev](https://logo.dev)'s Logo API instead: the server resolves
+> the issuer *name* via `img.logo.dev/name/<query>` (one probe with
+> `fallback=404`, so an unknown name is "no results" rather than a monogram)
+> and offers the logo on three backgrounds as the mosaic. Everything below
+> about normalisation, the server-side proxy, the SSRF-guarded download, and
+> the three-way failure taxonomy (unconfigured / quota / failed) stands
+> unchanged; only the upstream and its credential (`LOGODEV_TOKEN`, a
+> publishable key) moved. See `docs/operations/logo-search-setup.md`.
+
 An **Issuer** gets two new ways to acquire an image and one new guarantee about
 what is stored. The guarantee: every image, however it arrives, is normalised to
 **128×128 WebP, cover-cropped**, and the original is discarded. The two ways:

@@ -19,16 +19,17 @@ import { useIssuerMutations } from "./use-issuer-mutations";
 const SETUP_GUIDE = "docs/operations/logo-search-setup.md";
 
 /** The variables the API wants, named when the server doesn't say which. */
-const CONFIG_VARS = ["GOOGLE_CSE_KEY", "GOOGLE_CSE_CX"] as const;
+const CONFIG_VARS = ["LOGODEV_TOKEN"] as const;
 
 /**
- * The query a freshly-opened popover carries: the issuer's name plus the word
- * that turns an image search into a logo search (ADR 0007). Composed on the
- * client, not the server — the server takes `q` verbatim, so what the user sees
- * in the field is exactly what will be asked.
+ * The query a freshly-opened popover carries: the issuer's name, verbatim.
+ * logo.dev resolves brand *names* (ADR 0007, amended), so no "logo" suffix —
+ * "Acme logo" is a brand it has never heard of. Composed on the client, not
+ * the server — the server takes `q` verbatim, so what the user sees in the
+ * field is exactly what will be asked.
  */
 export function defaultLogoQuery(name: string): string {
-	return `${name.trim()} logo`;
+	return name.trim();
 }
 
 export interface LogoSearchPopoverProps {
@@ -40,7 +41,8 @@ export interface LogoSearchPopoverProps {
  * **Logo search** (issue #61, ADR 0007): find an issuer's image by search
  * instead of by file, and pick it out of a mosaic of thumbnails.
  *
- * The whole interaction is shaped by a budget of 100 queries a day:
+ * The whole interaction is shaped to spend as few upstream lookups as
+ * possible — the provider is rate-limited:
  *
  * - It opens with the query already filled in and **focus on the search
  *   button**, not the field. The pre-filled query is usually right, so the
@@ -55,8 +57,9 @@ export interface LogoSearchPopoverProps {
  *
  * The three read failures are three different answers, not three wordings of
  * one (see {@link logoSearchFailure}): *unconfigured* names the variables to
- * set and points at the setup guide; *quota exhausted* offers no retry, because
- * retrying cannot work today; only a transport failure gets a Try again button.
+ * set and points at the setup guide; *rate limit spent* offers no retry,
+ * because retrying now cannot work; only a transport failure gets a Try again
+ * button.
  *
  * A **refused download** is different again — it is about one result, not the
  * search — so it is reported under a mosaic that stays on screen. The point of
@@ -242,14 +245,14 @@ function SearchFailure({
 	}
 
 	if (failure.kind === "quota") {
-		// No retry button, on purpose: the allowance is spent until tomorrow, and
-		// a button here would only invite spending nothing to learn that again.
+		// No retry button, on purpose: the limit stays spent until the window
+		// resets, and a button here would only invite learning that again.
 		return (
 			<div role="alert" className="flex flex-col gap-1 text-xs">
-				<p className="font-medium text-gousse-ink">Daily limit reached.</p>
+				<p className="font-medium text-gousse-ink">Rate limit reached.</p>
 				<p className="text-gousse-muted">
-					Logo search allows 100 searches a day and today's are used up. It
-					resets tomorrow — upload a file in the meantime.
+					Logo search's provider is refusing further lookups for now. Wait a
+					while and search again — or upload a file in the meantime.
 				</p>
 			</div>
 		);

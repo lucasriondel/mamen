@@ -3,7 +3,7 @@ import { Context, Layer } from "effect";
 
 /**
  * Everything this server does that leaves its own process and touches the
- * network *on a caller's behalf* — the Programmable Search proxy and the
+ * network *on a caller's behalf* — the logo.dev lookup proxy and the
  * **Logo search** image download (ADR 0007).
  *
  * It exists as a service, rather than the two call sites reaching for

@@ -96,15 +96,17 @@ export const IssuerImageUpload = HttpApiSchema.Multipart(
 );
 
 /**
- * One **Logo search** hit: a Programmable Search image result, reduced to what
- * the picker needs. `thumbnailUrl` is what the grid renders (small, served by
- * Google); `imageUrl` is the full-size original on its own host and is the URL
- * handed back to `setImageFromUrl`. `contextUrl` is the page the image sits on,
- * shown as provenance.
+ * One **Logo search** hit, reduced to what the picker needs. `thumbnailUrl` is
+ * what the grid renders (small); `imageUrl` is the full-size version and is
+ * the URL handed back to `setImageFromUrl`. `contextUrl`, `width` and `height`
+ * are optional provenance/metadata a provider may or may not supply — with
+ * logo.dev (ADR 0007, amended) both URLs point at its image CDN and the
+ * optional fields are absent.
  *
- * Both URLs are echoed from Google unvalidated — the server does not trust them
- * either, because `setImageFromUrl` is reachable independently of any search
- * and so must guard the URL it is given whatever its provenance (ADR 0007).
+ * The URLs are provider-supplied and unvalidated — the server does not trust
+ * them either, because `setImageFromUrl` is reachable independently of any
+ * search and so must guard the URL it is given whatever its provenance (ADR
+ * 0007).
  */
 export class LogoSearchResult extends Schema.Class<LogoSearchResult>(
 	"LogoSearchResult",
@@ -125,10 +127,11 @@ export const LogoSearchResults = Schema.Struct({
 
 /**
  * `searchLogos` url params. `q` is the whole query — the client pre-fills it
- * with `<issuer name> logo` (ADR 0007), but the server takes it verbatim rather
- * than composing it, so a user who edits the box gets what they typed.
+ * with the issuer's name (logo.dev resolves brand *names*, so no "logo"
+ * suffix), but the server takes it verbatim rather than composing it, so a
+ * user who edits the box gets what they typed.
  * `Schema.NonEmptyTrimmedString` refuses a blank query at the boundary: it
- * would spend one of the 100 daily calls to get nothing back.
+ * would spend an upstream call to get nothing back.
  */
 export const LogoSearchQuery = Schema.Struct({
 	q: Schema.NonEmptyTrimmedString,
@@ -159,18 +162,19 @@ export type IssuerImageFromUrl = typeof IssuerImageFromUrl.Type;
  * /issuers/bulk-put` (client-only). The `/uploads/*` static route is a
  * separate wildcard route, not part of this contract.
  *
- * The two **Logo search** endpoints (ADR 0007) sit alongside the upload:
- * `searchLogos` proxies Google Programmable Search (the API key is a server
- * secret, so the query cannot run in the browser), and `setImageFromUrl`
- * downloads a chosen result through the same normalisation pipeline as the
- * upload, so a searched image and an uploaded one are byte-identical in form.
+ * The two **Logo search** endpoints (ADR 0007, amended) sit alongside the
+ * upload: `searchLogos` proxies logo.dev's Logo API (server-side so the
+ * contract stays provider-agnostic and configuration lives in one place), and
+ * `setImageFromUrl` downloads a chosen result through the same normalisation
+ * pipeline as the upload, so a searched image and an uploaded one are
+ * byte-identical in form.
  * `GET /issuers/logo-search` is a static sibling of `GET /issuers/:id` — the
  * router prefers the literal segment, as it already does for
  * `/transactions/count`.
  *
  * **Neither is authenticated**, like the rest of the API. `setImageFromUrl` is
- * therefore an open fetch proxy and `searchLogos` spends the owner's 100
- * queries/day for anyone who asks. Auth and rate-limiting are deferred and must
+ * therefore an open fetch proxy and `searchLogos` spends the owner's logo.dev
+ * rate budget for anyone who asks. Auth and rate-limiting are deferred and must
  * land before public deployment — see
  * `docs/operations/logo-search-setup.md`.
  */

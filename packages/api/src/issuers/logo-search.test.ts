@@ -61,27 +61,24 @@ afterAll(() => {
 	configure(false);
 });
 
-const KEY = "test-cse-key";
-const CX = "test-cse-cx";
+const TOKEN = "pk_test_token";
 
 /**
  * Config reaches the handler through the *server's* fiber, not the client's, so
- * `Effect.withConfigProvider` around the request would never be seen. Both
- * values are read per-request rather than at layer build, so setting the
+ * `Effect.withConfigProvider` around the request would never be seen. The
+ * value is read per-request rather than at layer build, so setting the
  * environment per test is enough — and is what lets one suite cover both the
  * configured and the unconfigured case.
  */
 const configure = (configured: boolean) => {
 	if (configured) {
-		process.env.GOOGLE_CSE_KEY = KEY;
-		process.env.GOOGLE_CSE_CX = CX;
+		process.env.LOGODEV_TOKEN = TOKEN;
 	} else {
 		// `delete`, not `= undefined`: the latter leaves the key *present* with an
 		// undefined value, which the env `ConfigProvider` reads as set-but-invalid
 		// and turns into a 500 — the exact generic failure the unconfigured state
 		// exists to replace. Absent has to mean absent.
-		delete process.env.GOOGLE_CSE_KEY;
-		delete process.env.GOOGLE_CSE_CX;
+		delete process.env.LOGODEV_TOKEN;
 	}
 };
 
@@ -111,29 +108,7 @@ beforeAll(async () => {
 	);
 });
 
-const json = (body: unknown, status = 200) =>
-	new Response(JSON.stringify(body), {
-		status,
-		headers: { "content-type": "application/json" },
-	});
-
 const LOGO_URL = "https://cdn.example/acme.png";
-
-/** Google's own response shape, one image hit. */
-const googleHit = {
-	items: [
-		{
-			title: "Acme logo",
-			link: LOGO_URL,
-			image: {
-				thumbnailLink: "https://encrypted.google.example/thumb.png",
-				contextLink: "https://acme.example/about",
-				width: 600,
-				height: 100,
-			},
-		},
-	],
-};
 
 /**
  * The whole server over a fake network, on its own uploads directory. `net` is
@@ -155,15 +130,13 @@ const serverWith = (opts: Parameters<typeof stubOutbound>[0]) => {
 	return { net, layer, uploads };
 };
 
-/** A network that answers Google and serves one real PNG from a public host. */
+/** A network that answers logo.dev and serves one real PNG from a public host. */
 const happyNet = () => ({
 	addresses: { "cdn.example": ["93.184.216.34"] },
 	respond: (url: string) =>
-		url.startsWith("https://www.googleapis.com/")
-			? json(googleHit)
-			: url === LOGO_URL
-				? new Response(WIDE_PNG)
-				: new Response(null, { status: 404 }),
+		url.startsWith("https://img.logo.dev/") || url === LOGO_URL
+			? new Response(WIDE_PNG)
+			: new Response(null, { status: 404 }),
 });
 
 /**
@@ -186,27 +159,25 @@ describe("searchLogos endpoint", () => {
 		return Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
 			const { results } = yield* client.issuers.searchLogos({
-				urlParams: { q: "acme logo" },
+				urlParams: { q: "acme" },
 			});
 
-			assert.deepStrictEqual(results, [
-				{
-					title: "Acme logo",
-					imageUrl: LOGO_URL,
-					thumbnailUrl: "https://encrypted.google.example/thumb.png",
-					contextUrl: "https://acme.example/about",
-					width: 600,
-					height: 100,
-				},
-			]);
+			// One logo on three backgrounds — the mosaic logo.dev can offer.
+			assert.strictEqual(results.length, 3);
+			for (const result of results) {
+				const url = new URL(result.imageUrl);
+				assert.strictEqual(url.origin, "https://img.logo.dev");
+				assert.strictEqual(url.pathname, "/name/acme");
+				assert.strictEqual(url.searchParams.get("token"), TOKEN);
+			}
 
-			// The query really went to Programmable Search's image search, with the
-			// server's own credentials attached — the reason the proxy exists.
+			// The probe really went to logo.dev's name lookup, once, with the
+			// server's own token attached — the reason the proxy exists.
 			assert.strictEqual(net.fetched.length, 1);
 			const asked = new URL(net.fetched[0]!);
-			assert.strictEqual(asked.searchParams.get("q"), "acme logo");
-			assert.strictEqual(asked.searchParams.get("searchType"), "image");
-			assert.strictEqual(asked.searchParams.get("key"), KEY);
+			assert.strictEqual(asked.pathname, "/name/acme");
+			assert.strictEqual(asked.searchParams.get("token"), TOKEN);
+			assert.strictEqual(asked.searchParams.get("fallback"), "404");
 		}).pipe(Effect.provide(layer));
 	});
 
@@ -216,16 +187,13 @@ describe("searchLogos endpoint", () => {
 		return Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
 			const error = yield* client.issuers
-				.searchLogos({ urlParams: { q: "acme logo" } })
+				.searchLogos({ urlParams: { q: "acme" } })
 				.pipe(Effect.flip);
 
 			// A distinct, client-readable state that survives the wire: the UI can
 			// only explain what to set up if the tag and `missing` arrive intact.
 			assert.instanceOf(error, LogoSearchUnconfigured);
-			assert.deepStrictEqual([...error.missing].sort(), [
-				"GOOGLE_CSE_CX",
-				"GOOGLE_CSE_KEY",
-			]);
+			assert.deepStrictEqual([...error.missing], ["LOGODEV_TOKEN"]);
 			assert.deepStrictEqual(net.fetched, []);
 		}).pipe(Effect.provide(layer));
 	});
@@ -233,16 +201,12 @@ describe("searchLogos endpoint", () => {
 	it.effect("reports quota exhaustion as its own error", () => {
 		configure(true);
 		const { layer } = serverWith({
-			respond: () =>
-				json(
-					{ error: { code: 403, errors: [{ reason: "dailyLimitExceeded" }] } },
-					403,
-				),
+			respond: () => new Response(null, { status: 429 }),
 		});
 		return Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
 			const error = yield* client.issuers
-				.searchLogos({ urlParams: { q: "acme logo" } })
+				.searchLogos({ urlParams: { q: "acme" } })
 				.pipe(Effect.flip);
 			// Distinguishable from a transport failure at the client, not just in
 			// the server's own log: the fix is wait-or-pay and the UI must not

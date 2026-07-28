@@ -166,8 +166,8 @@ export class InvalidFileType extends Schema.TaggedError<InvalidFileType>()(
 ) {}
 
 /**
- * **Logo search** is not set up: `GOOGLE_CSE_KEY` and/or `GOOGLE_CSE_CX` are
- * absent from the API's environment (ADR 0007). A *distinct, client-readable
+ * **Logo search** is not set up: `LOGODEV_TOKEN` is absent from the API's
+ * environment (ADR 0007, amended). A *distinct, client-readable
  * state* rather than a generic failure — the UI answers it by explaining what
  * to set, which it cannot do from a 500. `missing` names the absent variables
  * so the explanation is specific.
@@ -185,8 +185,8 @@ export class LogoSearchUnconfigured extends Schema.TaggedError<LogoSearchUnconfi
 ) {}
 
 /**
- * The Programmable Search daily quota is spent — 100 queries/day on the free
- * tier, after which Google refuses for the rest of the day (ADR 0007).
+ * logo.dev's rate limit is spent — it answered 429, and will keep refusing
+ * until the window resets (ADR 0007, amended).
  *
  * Its own error, never folded into {@link LogoSearchFailed}: the fix is *wait
  * or pay*, so a UI that showed this as a transport failure would invite a
@@ -199,8 +199,8 @@ export class LogoSearchQuotaExceeded extends Schema.TaggedError<LogoSearchQuotaE
 ) {}
 
 /**
- * The call to Programmable Search failed for any reason that is *not* missing
- * configuration and *not* the daily quota: the request never completed, or the
+ * The call to logo.dev failed for any reason that is *not* missing
+ * configuration and *not* the rate limit: the request never completed, or the
  * response was a status / body this server can't read. A retry may well work,
  * which is exactly what distinguishes it from {@link LogoSearchQuotaExceeded}.
  * `message` is diagnostic text, not a wire contract.

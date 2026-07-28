@@ -19,20 +19,18 @@ export const UploadsDir = Config.string("UPLOADS_DIR").pipe(
 );
 
 /**
- * The Google Programmable Search credentials that back **Logo search** (ADR
- * 0007): an API key and a search-engine id. Both are `Config.option` and
- * **neither has a default** — unlike everything else in this file, there is no
- * harmless guess. Absent, the feature reports itself *unconfigured* and refuses
- * before spending anything; see `docs/operations/logo-search-setup.md`.
+ * The logo.dev publishable token (`pk_…`) that backs **Logo search** (ADR
+ * 0007, amended): every `img.logo.dev` lookup carries it as `token`. It is
+ * `Config.option` and **has no default** — unlike everything else in this
+ * file, there is no harmless guess. Absent, the feature reports itself
+ * *unconfigured* and refuses before spending anything; see
+ * `docs/operations/logo-search-setup.md`.
  *
- * The key is `Config.redacted` so it cannot be logged by accident. Keeping it
- * out of the browser is the entire reason the search is proxied server-side
- * rather than queried from the client.
+ * "Publishable" means it is not a secret — logo.dev designs it to appear in
+ * `<img>` tags. It still lives server-side only, so the client contract stays
+ * provider-agnostic and there is exactly one place to configure.
  */
-export const GoogleCseKey = Config.option(Config.redacted("GOOGLE_CSE_KEY"));
-
-/** The Programmable Search engine id (`cx`) — not secret, but equally required. */
-export const GoogleCseCx = Config.option(Config.string("GOOGLE_CSE_CX"));
+export const LogodevToken = Config.option(Config.string("LOGODEV_TOKEN"));
 
 /** Comma-separated allowed CORS origins; defaults to the Vite dev server. */
 export const CorsOrigins = Config.string("CORS_ORIGINS").pipe(
