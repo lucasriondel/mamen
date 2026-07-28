@@ -1,4 +1,5 @@
 import type {
+	Account,
 	Category,
 	Issuer,
 	Rule,
@@ -14,6 +15,7 @@ import {
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { validateTransactionsSearch } from "@/features/transactions/search";
 
 // Mock the SDK seam (PRD): the page reads the issuer (`issuerQueries.getById`),
 // its transactions (`transactionQueries.list`) and its rules (`ruleQueries.list`
@@ -25,6 +27,8 @@ const uploadImage = vi.fn();
 const deleteImage = vi.fn();
 const searchLogos = vi.fn();
 const setImageFromUrl = vi.fn();
+/** Records the `list` filter object, so a test can assert what was queried. */
+const listSpy = vi.fn();
 
 let issuersById: Record<number, Issuer>;
 let issuersList: Issuer[];
@@ -94,6 +98,9 @@ const CATEGORIES = [
 	},
 ] as unknown as Category[];
 
+/** One account, so the transactions section's account filter has an option. */
+const ACCOUNTS = [{ id: 1, name: "Checking" }] as unknown as Account[];
+
 vi.mock("@mamen/sdk", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("@mamen/sdk")>();
 	return {
@@ -118,12 +125,33 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
 			}),
 		},
 		transactionQueries: {
-			list: (params: { issuerId?: number }) => ({
-				queryKey: ["transactions", "list", params],
+			list: (params: { issuerId?: number }) => {
+				listSpy(params);
+				return {
+					queryKey: ["transactions", "list", params],
+					queryFn: async () => {
+						const items = transactionsByIssuer[params.issuerId ?? -1] ?? [];
+						return { items, total: items.length };
+					},
+				};
+			},
+			// The header's reference count + net both read `count`; it answers with
+			// the same fixture the list does, so the two can't disagree.
+			count: (params: { issuerId?: number }) => ({
+				queryKey: ["transactions", "count", params],
 				queryFn: async () => {
 					const items = transactionsByIssuer[params.issuerId ?? -1] ?? [];
-					return { items, total: items.length };
+					return {
+						count: items.length,
+						total: items.reduce((sum, t) => sum + t.amount, 0),
+					};
 				},
+			}),
+		},
+		accountQueries: {
+			list: () => ({
+				queryKey: ["accounts", "list"],
+				queryFn: async () => ({ items: ACCOUNTS, total: ACCOUNTS.length }),
 			}),
 		},
 		ruleQueries: {
@@ -200,9 +228,13 @@ function makeRouter(initialEntry: string) {
 		path: "/issuers/",
 		component: IssuersView,
 	});
+	// Mirrors the real route: the trailing slash (the `/` index route the page's
+	// `getRouteApi` addresses) and the transactions search schema its embedded
+	// transactions section reads its filters/sort/offset from.
 	const detailRoute = createRoute({
 		getParentRoute: () => rootRoute,
-		path: "/issuers/$issuerId",
+		path: "/issuers/$issuerId/",
+		validateSearch: validateTransactionsSearch,
 		component: IssuerDetailPage,
 	});
 	return createRouter({
@@ -216,6 +248,7 @@ function renderAt(initialEntry: string) {
 }
 
 beforeEach(() => {
+	listSpy.mockReset();
 	updateIssuer.mockReset().mockResolvedValue(issuer());
 	removeIssuer.mockReset().mockResolvedValue(undefined);
 	uploadImage.mockReset().mockResolvedValue(issuer());
@@ -252,22 +285,48 @@ describe("IssuerDetailPage", () => {
 		await user.click(await screen.findByRole("link", { name: /Spotify/ }));
 
 		// The detail page shows the transactions section (unique to the detail
-		// surface) and the issuer's raw transaction strings.
+		// surface) and the issuer's rows. Each row is labelled by its raw string;
+		// the Issuer column shows the *resolved* issuer, so the raw text lives in
+		// the row's accessible name rather than in a cell.
 		expect(
 			await screen.findByRole("heading", { name: "Transactions" }),
 		).toBeInTheDocument();
-		expect(screen.getByText("SPOTIFY P2A34")).toBeInTheDocument();
+		expect(
+			await screen.findByRole("link", { name: /SPOTIFY P2A34/ }),
+		).toBeInTheDocument();
 	});
 
 	it("lists the issuer's transactions with count and net total", async () => {
 		renderAt("/issuers/1");
 
-		expect(await screen.findByText("SPOTIFY P2A34")).toBeInTheDocument();
-		expect(screen.getByText("SPOTIFY AB")).toBeInTheDocument();
+		expect(
+			await screen.findByRole("link", { name: /SPOTIFY P2A34/ }),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("link", { name: /SPOTIFY AB/ }),
+		).toBeInTheDocument();
 		// Two transactions summing to -15 € (count appears in the header and the
 		// delete-guard note, so match at least one).
 		expect(screen.getAllByText(/2 transactions/).length).toBeGreaterThan(0);
 		expect(screen.getByText(/15/)).toBeInTheDocument();
+	});
+
+	it("searches within the issuer's transactions", async () => {
+		const user = userEvent.setup();
+		renderAt("/issuers/1");
+
+		await user.type(
+			await screen.findByLabelText("Search transactions"),
+			"p2a34",
+		);
+
+		// The term rides alongside the issuer scope, so the search narrows *this
+		// issuer's* rows rather than escaping to the whole table.
+		await waitFor(() => {
+			expect(listSpy).toHaveBeenCalledWith(
+				expect.objectContaining({ issuerId: 1, search: "p2a34" }),
+			);
+		});
 	});
 
 	it("lists the issuer's Matching Rules", async () => {
