@@ -60,8 +60,8 @@ const columnHelper = createColumnHelper<Transaction>();
 const ALL_COLUMNS_VISIBLE: VisibilityState = {};
 
 /**
- * The transactions data grid (columns **Date | Account | Issuer | Category |
- * Amount | Notes**), rendered with TanStack Table onto the token-styled `Table`
+ * The transactions data grid (columns **Date | Account | Issuer | Raw issuer |
+ * Category | Amount | Notes**), rendered with TanStack Table onto the token-styled `Table`
  * primitive. Sorting is server-driven: the Date header toggles `direction` in
  * the URL rather than reordering rows client-side, so the shown page always
  * matches the query. The Category column reads the row's *derived* `categoryId`
@@ -117,6 +117,18 @@ export function TransactionsTable({
 						/>
 					);
 				},
+			}),
+			columnHelper.accessor("rawIssuerString", {
+				// Explicit id so the columns toggle can address it as "rawIssuer".
+				id: "rawIssuer",
+				header: "Raw issuer",
+				// The unparsed bank label, shown verbatim: it's the evidence behind the
+				// resolved issuer, so it must not be normalised or truncated here.
+				cell: (info) => (
+					<span className="whitespace-pre-wrap break-words font-mono text-gousse-muted text-xs">
+						{info.getValue()}
+					</span>
+				),
 			}),
 			columnHelper.display({
 				id: "category",

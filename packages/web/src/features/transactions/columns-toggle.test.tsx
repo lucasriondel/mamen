@@ -36,6 +36,7 @@ describe("ColumnsToggle", () => {
 		expect(items.map((item) => item.textContent)).toEqual([
 			"Account",
 			"Issuer",
+			"Raw issuer",
 			"Category",
 			"Notes",
 		]);

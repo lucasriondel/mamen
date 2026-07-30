@@ -13,6 +13,7 @@ const STORAGE_KEY = "mamen:transactions:column-visibility";
 export const TOGGLEABLE_COLUMNS = [
 	{ id: "account", label: "Account" },
 	{ id: "issuer", label: "Issuer" },
+	{ id: "rawIssuer", label: "Raw issuer" },
 	{ id: "category", label: "Category" },
 	{ id: "notes", label: "Notes" },
 ] as const;
