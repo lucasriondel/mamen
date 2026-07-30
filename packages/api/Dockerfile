@@ -1,0 +1,71 @@
+# @mamen/api — Bun HTTP server (Effect HttpApi) over sqlite.
+#
+# Single-stage on the Debian-based `oven/bun` image, not alpine: `sharp` ships
+# glibc prebuilt binaries, and the sqlite migrator shells out to the `sqlite3`
+# binary for its schema dump. Both would break on musl.
+#
+# Build context is the REPO ROOT (Dokploy: dockerContextPath `.`), because the
+# workspace install needs the root `package.json` + `bun.lock` and every
+# workspace package that `@mamen/api` resolves.
+FROM oven/bun:1.3.4
+
+# - sqlite3: shelled out to by SqliteMigrator's schema dump (db/sql.ts)
+# - ca-certificates: outbound TLS for logo.dev lookups (net/outbound.ts)
+# - nodejs/npm: the `claude` CLI is a Node package and spawns under Node
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends \
+		sqlite3 \
+		ca-certificates \
+		nodejs \
+		npm \
+	&& rm -rf /var/lib/apt/lists/*
+
+# The `claude` CLI must be on PATH: PDF import spawns it (ADR 0005, and
+# docs/operations/claude-cli-dependency.md). Paired with CLAUDE_CODE_OAUTH_TOKEN
+# in the runtime env — without that token the API fails at layer build, i.e. the
+# container will not start at all.
+RUN npm install -g @anthropic-ai/claude-code && claude --version
+
+WORKDIR /app
+
+# Manifests first so the install layer caches independently of source edits.
+# Every workspace package is copied, not just `api`: the lockfile is resolved
+# for the whole workspace, so a missing member fails `--frozen-lockfile`.
+COPY package.json bun.lock ./
+COPY packages/api/package.json ./packages/api/
+COPY packages/web/package.json ./packages/web/
+COPY packages/sdk/package.json ./packages/sdk/
+COPY packages/shared/package.json ./packages/shared/
+
+# `--filter @mamen/api` installs only this package's subgraph. Without it the
+# frozen lockfile resolves every workspace — including web's private
+# `@lucasriondel/gousse-ui` — and the install 401s on GitHub Packages. Filtering
+# means the API image needs no registry token at all, so unlike the web build
+# there is no NODE_AUTH_TOKEN / .npmrc here.
+#
+# `--production` skips devDependencies, which matters beyond image size here:
+# `@effect/sql-sqlite-node` (the `:memory:` test layer's driver) pulls
+# `better-sqlite3`, a node-gyp build that fails in this image. Production runs
+# on `@effect/sql-sqlite-bun` and never loads it.
+RUN --mount=type=cache,target=/root/.bun/install/cache \
+	bun install --frozen-lockfile --production --filter @mamen/api
+
+# Source. `@mamen/api` runs straight off TypeScript under Bun (its `start`
+# script is `bun src/index.ts`), so there is no build step to run here.
+COPY packages/shared ./packages/shared
+COPY packages/api ./packages/api
+COPY tsconfig.base.json tsconfig.json ./
+
+# Defaults matching the volume layout in docs/operations/deploy.md. Both live
+# under /data so a single mount covers the database and the uploaded issuer
+# images; Dokploy env can override either.
+ENV NODE_ENV=production \
+	PORT=5500 \
+	DB_PATH=/data/mamen.db \
+	UPLOADS_DIR=/data/uploads
+
+RUN mkdir -p /data/uploads
+
+EXPOSE 5500
+
+CMD ["bun", "packages/api/src/index.ts"]
