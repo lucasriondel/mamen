@@ -1,5 +1,5 @@
 import type { Category, Issuer } from "@mamen/shared/contract";
-import { ArrowLeftRight, CircleHelp, StickyNote } from "lucide-react";
+import { ArrowLeftRight, CircleHelp, Pin, StickyNote } from "lucide-react";
 import { IssuerAvatar } from "@/features/issuers/issuer-avatar";
 import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
