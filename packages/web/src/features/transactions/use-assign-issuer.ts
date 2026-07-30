@@ -22,11 +22,17 @@ import { toErrorMessage } from "@/lib/sdk-error";
  *   (`firstSeen` stamped now, as the contract requires). Returns the created
  *   issuer so the picker can navigate to its rule-create page. It does **not**
  *   assign the transaction — that's the rule's job once written.
+ * - `removeManualIssuer` — drop a *hand pick* from a row, re-deriving its issuer
+ *   from the current rules server-side (the row falls back to whichever rule
+ *   claims it, or to unmatched when none does). Deliberately **not** a plain
+ *   `issuerId: undefined` update: the contract's partial update cannot express a
+ *   null, and an absent key is a silent no-op on the server's merge — so the
+ *   dedicated endpoint is the only way to actually clear the column.
  *
- * (The third action — "add a rule to an existing issuer" — is pure navigation,
- * no mutation.) Both mutations own their invalidation: the transactions **and**
- * issuers key families (a new issuer changes the grid; an assignment changes
- * the table). Failures raise a `sonner` toast.
+ * ("Add a rule to an existing issuer" is pure navigation, no mutation.) Each
+ * mutation owns its invalidation: the transactions **and** issuers key families
+ * (a new issuer changes the grid; an assignment changes the table). Failures
+ * raise a `sonner` toast.
  */
 export function useAssignIssuer() {
 	const queryClient = useQueryClient();
@@ -63,5 +69,12 @@ export function useAssignIssuer() {
 		onError,
 	});
 
-	return { assignExisting, createIssuer };
+	const removeManualIssuer = useMutation({
+		mutationFn: ({ transactionId }: { transactionId: TransactionId }) =>
+			transactionMutations.removeManualIssuer(transactionId),
+		onSuccess: invalidate,
+		onError,
+	});
+
+	return { assignExisting, createIssuer, removeManualIssuer };
 }

@@ -30,13 +30,26 @@ export function Command({
 	);
 }
 
-/** The search field, with a leading magnifier icon. */
+/**
+ * The search field, with a leading magnifier icon. `wrapperClassName` styles the
+ * icon+input row — needed to hide the whole field (border and icon included)
+ * while keeping the input mounted, since cmdk drives keyboard navigation from
+ * it even on a step with nothing to search.
+ */
 export function CommandInput({
 	className,
+	wrapperClassName,
 	...props
-}: React.ComponentProps<typeof CommandPrimitive.Input>) {
+}: React.ComponentProps<typeof CommandPrimitive.Input> & {
+	wrapperClassName?: string;
+}) {
 	return (
-		<div className="flex items-center gap-2 border-b border-gousse-line px-3">
+		<div
+			className={cn(
+				"flex items-center gap-2 border-b border-gousse-line px-3",
+				wrapperClassName,
+			)}
+		>
 			<Search size={16} className="shrink-0 text-gousse-muted" aria-hidden />
 			<CommandPrimitive.Input
 				className={cn(
