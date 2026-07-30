@@ -1,6 +1,8 @@
 import type { Category, Issuer } from "@mamen/shared/contract";
 import { ArrowLeftRight, CircleHelp, Pin, StickyNote } from "lucide-react";
+import { CategoryIcon } from "@/components/category-icon";
 import { IssuerAvatar } from "@/features/issuers/issuer-avatar";
+import { NEUTRAL_CATEGORY_COLOR } from "@/lib/category-tree";
 import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -146,32 +148,51 @@ export function IssuerCell({
  *   data-completeness signal with exactly one cause, never a user's decision,
  *   so it is always actionable and rendered muted.
  *
+ * A resolved category — inherited or override — is painted in its **Resolved
+ * colour**: its icon *and* its name, the colour set on the wrapper so the glyph
+ * picks it up through `currentColor` and the two can never drift apart. It is
+ * the same icon + colour pair the categories tree and the recap use, so a row is
+ * recognisable before its name is read. The colour must be resolved against the
+ * whole tree (an inheriting leaf's colour lives on an ancestor), so the caller
+ * passes it in rather than this cell reading `category.color`; omitted, it falls
+ * back to {@link NEUTRAL_CATEGORY_COLOR}.
+ *
  * This cell only renders the read states; the click-to-pick interaction wraps it
  * in {@link CategoryPicker}.
  */
 export function CategoryCell({
 	category,
 	isOverride = false,
+	color = NEUTRAL_CATEGORY_COLOR,
 }: {
 	category?: Category;
 	isOverride?: boolean;
+	/** The category's **Resolved colour** — resolved by the caller against the tree. */
+	color?: string;
 }) {
 	if (category) {
 		if (isOverride) {
 			return (
 				<span
-					className="flex items-center gap-1.5 font-medium text-gousse-ink"
+					className="flex items-center gap-1.5 font-medium"
+					style={{ color }}
 					title="Category override — set on this transaction only"
 					data-override="true"
 				>
+					<CategoryIcon name={category.icon} size={14} />
 					<span>{category.name}</span>
 					<OverrideMarker />
 				</span>
 			);
 		}
 		return (
-			<span className="text-gousse-ink" data-inherited="true">
-				{category.name}
+			<span
+				className="flex items-center gap-1.5"
+				style={{ color }}
+				data-inherited="true"
+			>
+				<CategoryIcon name={category.icon} size={14} />
+				<span>{category.name}</span>
 			</span>
 		);
 	}

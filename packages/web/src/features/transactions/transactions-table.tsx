@@ -22,6 +22,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { resolveCategoryColors } from "@/lib/category-tree";
 import { formatShortDate } from "@/lib/format";
 import { AssignmentPicker } from "./assignment-picker";
 import { CategoryPicker } from "./category-picker";
@@ -81,6 +82,14 @@ export function TransactionsTable({
 	columnVisibility = ALL_COLUMNS_VISIBLE,
 	onColumnVisibilityChange,
 }: TransactionsTableProps) {
+	// Every category's **Resolved colour**, in one pass over the tree: an
+	// inheriting leaf's colour lives on an ancestor, so a row cannot resolve its
+	// own. `categoriesById` is the whole (small) tree, ancestors included.
+	const categoryColorById = useMemo(
+		() => resolveCategoryColors([...categoriesById.values()]),
+		[categoriesById],
+	);
+
 	const columns = useMemo(
 		() => [
 			columnHelper.accessor("date", {
@@ -141,7 +150,15 @@ export function TransactionsTable({
 					// The cell is the curation surface: clicking opens the override
 					// picker. It writes an override to this one row only (PRD #19).
 					return (
-						<CategoryPicker transaction={row.original} category={category} />
+						<CategoryPicker
+							transaction={row.original}
+							category={category}
+							color={
+								category != null
+									? categoryColorById.get(category.id)
+									: undefined
+							}
+						/>
 					);
 				},
 			}),
@@ -165,7 +182,7 @@ export function TransactionsTable({
 				cell: ({ row }) => <NotesPicker transaction={row.original} />,
 			}),
 		],
-		[accountsById, issuersById, categoriesById],
+		[accountsById, issuersById, categoriesById, categoryColorById],
 	);
 
 	const table = useReactTable({
