@@ -61,11 +61,13 @@ function CoreFields({
 	account,
 	issuer,
 	category,
+	categoryColor,
 }: {
 	txn: Transaction;
 	account?: Account;
 	issuer?: Issuer;
 	category?: Category;
+	categoryColor?: string;
 }) {
 	return (
 		<dl className="rounded-lg border border-gousse-line px-4">
@@ -105,6 +107,7 @@ function CoreFields({
 				<CategoryCell
 					category={category}
 					isOverride={txn.manualCategory ?? false}
+					color={categoryColor}
 				/>
 			</DetailField>
 			<DetailField label="Notes">
@@ -206,6 +209,8 @@ interface TransactionDetailContentProps {
 	issuer?: Issuer;
 	/** Resolved derived category for `categoryId`, if any. */
 	category?: Category;
+	/** That category's **Resolved colour** (resolved against the whole tree). */
+	categoryColor?: string;
 	/** Resolved counterpart for `linkedRefundId`, if the row links a refund. */
 	linkedRefund?: Transaction;
 }
@@ -226,6 +231,7 @@ export function TransactionDetailContent({
 	account,
 	issuer,
 	category,
+	categoryColor,
 	linkedRefund,
 }: TransactionDetailContentProps) {
 	return (
@@ -244,6 +250,7 @@ export function TransactionDetailContent({
 				account={account}
 				issuer={issuer}
 				category={category}
+				categoryColor={categoryColor}
 			/>
 			<RefundDuplicateSection txn={txn} linkedRefund={linkedRefund} />
 			<TransferSection transaction={txn} />

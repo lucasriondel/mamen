@@ -61,8 +61,8 @@ describe("IssuerCell", () => {
 		);
 		const el = screen.getByText("Spotify");
 		expect(el).toBeInTheDocument();
-		// Same marker the Category override carries: a data hook + a dot, so a
-		// hand-picked issuer reads as the exception it is.
+		// Same marker the Category override carries: a data hook + a pin glyph, so
+		// a hand-picked issuer reads as the exception it is.
 		const marked = el.closest("[data-manual]");
 		expect(marked).toHaveAttribute("data-manual", "true");
 	});

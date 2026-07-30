@@ -39,6 +39,12 @@ export interface CategoryPickerProps {
 	transaction: Transaction;
 	/** The row's *derived* category (through its issuer, or its own override). */
 	category?: Category;
+	/**
+	 * That category's **Resolved colour**, resolved by the caller against the whole
+	 * tree — this component's own list is fetched only on open, so the closed
+	 * trigger could not resolve it itself.
+	 */
+	color?: string;
 }
 
 /**
@@ -65,7 +71,11 @@ export interface CategoryPickerProps {
  * in one gesture. Only *leaves* can be created here; folders are structural and
  * live on the categories page. The transaction never leaves the screen.
  */
-export function CategoryPicker({ transaction, category }: CategoryPickerProps) {
+export function CategoryPicker({
+	transaction,
+	category,
+	color,
+}: CategoryPickerProps) {
 	const [open, setOpen] = useState(false);
 	const [query, setQuery] = useState("");
 	const [mode, setMode] = useState<Mode>("pick");
@@ -149,7 +159,11 @@ export function CategoryPicker({ transaction, category }: CategoryPickerProps) {
 					className="block rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-gousse-accent"
 					title="Set a category for this transaction"
 				>
-					<CategoryCell category={category} isOverride={isOverride} />
+					<CategoryCell
+						category={category}
+						isOverride={isOverride}
+						color={color}
+					/>
 				</button>
 			</PopoverTrigger>
 			<PopoverContent className="p-0">

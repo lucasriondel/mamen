@@ -1,16 +1,26 @@
-import type { Issuer, IssuerId, Transaction } from "@mamen/shared/contract";
+import type { Issuer, IssuerId } from "@mamen/shared/contract";
 import { MAX_IMAGE_BYTES } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
-import { type FormEvent, useRef, useState } from "react";
+import { type FormEvent, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Empty } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
 import { RulesSection } from "@/features/rules/rules-section";
-import { formatCurrency, formatShortDate } from "@/lib/format";
-import { issuerQueries, transactionQueries } from "@/lib/sdk";
+import type { TransactionsSearch } from "@/features/transactions/search";
+import type { TransactionFilterValues } from "@/features/transactions/transactions-filters";
+import {
+	composeTransactionFilters,
+	TransactionsSection,
+} from "@/features/transactions/transactions-section";
+import { formatCurrency } from "@/lib/format";
+import {
+	issuerQueries,
+	type TransactionCountParams,
+	transactionQueries,
+} from "@/lib/sdk";
 import { cn } from "@/lib/utils";
 import { BUTTON_CLASS } from "./field-styles";
 import { IssuerAvatar } from "./issuer-avatar";
@@ -18,14 +28,7 @@ import { IssuerDefaultCategoryPicker } from "./issuer-default-category-picker";
 import { LogoSearchPopover } from "./logo-search-popover";
 import { useIssuerMutations } from "./use-issuer-mutations";
 
-/**
- * How many of an issuer's transactions to scan for the count + net total and the
- * list below. The contract has no per-issuer sum endpoint, so both are derived
- * client-side; per-issuer counts are small (PRD), so one wide page is enough.
- */
-const ISSUER_TXN_SCAN_LIMIT = 1000;
-
-const routeApi = getRouteApi("/issuers/$issuerId");
+const routeApi = getRouteApi("/issuers/$issuerId/");
 
 /**
  * The issuer **detail page** (PRD #8: single issuer surface) at
@@ -33,18 +36,15 @@ const routeApi = getRouteApi("/issuers/$issuerId");
  * header with avatar upload/remove, rename, and the guarded delete — and adds
  * the issuer's transactions list (count + net €) and its Matching Rules.
  *
- * This outer component owns the async reads (issuer + transactions) and the
- * loading / not-found states; once the issuer resolves it renders
- * {@link IssuerDetailContent}, which seeds the rename field from the loaded name.
+ * This outer component owns the async read of the issuer and the loading /
+ * not-found states; once it resolves it renders {@link IssuerDetailContent},
+ * which seeds the rename field from the loaded name.
  */
 export function IssuerDetailPage() {
 	const { issuerId } = routeApi.useParams();
 	const id = Number(issuerId) as IssuerId;
 
 	const issuerQuery = useQuery(issuerQueries.getById(id));
-	const txnsQuery = useQuery(
-		transactionQueries.list({ issuerId: id, limit: ISSUER_TXN_SCAN_LIMIT }),
-	);
 
 	if (issuerQuery.isPending) {
 		return (
@@ -66,23 +66,11 @@ export function IssuerDetailPage() {
 		);
 	}
 
-	const transactions = (txnsQuery.data?.items ?? []) as readonly Transaction[];
-	const count = txnsQuery.data?.total ?? 0;
-
-	return (
-		<IssuerDetailContent
-			issuer={issuer}
-			transactions={transactions}
-			count={count}
-		/>
-	);
+	return <IssuerDetailContent issuer={issuer} />;
 }
 
 interface IssuerDetailContentProps {
 	issuer: Issuer;
-	transactions: readonly Transaction[];
-	/** How many transactions reference this issuer — deletion is blocked when > 0. */
-	count: number;
 }
 
 /**
@@ -95,18 +83,53 @@ interface IssuerDetailContentProps {
  * 2 MiB image cap is pre-checked here for an instant message (the contract's
  * multipart parser also enforces it server-side).
  */
-function IssuerDetailContent({
-	issuer,
-	transactions,
-	count,
-}: IssuerDetailContentProps) {
+function IssuerDetailContent({ issuer }: IssuerDetailContentProps) {
 	const navigate = useNavigate();
+	const search = routeApi.useSearch();
+	const routeNavigate = routeApi.useNavigate();
 	const { rename, uploadImage, deleteImage, remove } = useIssuerMutations();
 	const [draftName, setDraftName] = useState(issuer.name);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 
-	const net = transactions.reduce((sum, txn) => sum + txn.amount, 0);
+	const scope = useMemo<TransactionCountParams>(
+		() => ({ issuerId: issuer.id }),
+		[issuer.id],
+	);
+
+	// The unfiltered reference count — the delete guard asks "does *any* row
+	// point here", which the user's account/month/search filters must not narrow.
+	const referenceCountQuery = useQuery(transactionQueries.count(scope));
+	const count = referenceCountQuery.data?.count ?? 0;
 	const hasTransactions = count > 0;
+
+	// The net over the *filtered* set, so the header total always describes the
+	// rows shown beneath it (matching the category page's behaviour).
+	const netQuery = useQuery(
+		transactionQueries.count(composeTransactionFilters(scope, search)),
+	);
+	const net = netQuery.data?.total ?? 0;
+
+	const applyFilters = (patch: TransactionFilterValues) => {
+		routeNavigate({
+			search: (prev: TransactionsSearch) => ({ ...prev, ...patch, offset: 0 }),
+		});
+	};
+
+	const toggleSort = () => {
+		routeNavigate({
+			search: (prev: TransactionsSearch) => ({
+				...prev,
+				direction: prev.direction === "asc" ? "desc" : "asc",
+				offset: 0,
+			}),
+		});
+	};
+
+	const goToOffset = (offset: number) => {
+		routeNavigate({
+			search: (prev: TransactionsSearch) => ({ ...prev, offset }),
+		});
+	};
 
 	const handleRename = (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
@@ -224,40 +247,21 @@ function IssuerDetailContent({
 
 			<IssuerDefaultCategoryPicker issuer={issuer} />
 
-			<div className="flex flex-col gap-3">
-				<h2 className="text-balance text-lg font-semibold text-gousse-ink">
-					Transactions
-				</h2>
-				{transactions.length === 0 ? (
-					<p className="text-sm text-gousse-muted italic">
-						No transactions reference this issuer yet.
-					</p>
-				) : (
-					<ul className="divide-y divide-gousse-line rounded-md border border-gousse-line">
-						{transactions.map((txn) => (
-							<li
-								key={txn.id}
-								className="flex items-center gap-3 px-3 py-2 text-sm"
-							>
-								<span className="shrink-0 text-gousse-muted tabular-nums">
-									{formatShortDate(txn.date)}
-								</span>
-								<span className="min-w-0 flex-1 truncate text-gousse-ink">
-									{txn.rawIssuerString}
-								</span>
-								<span
-									className={cn(
-										"shrink-0 font-medium tabular-nums",
-										txn.amount < 0 && "text-gousse-high",
-										txn.amount > 0 && "text-gousse-low",
-									)}
-								>
-									{formatCurrency(txn.amount)}
-								</span>
-							</li>
-						))}
-					</ul>
-				)}
+			{/* The same table, filters, sort, and pagination as the transactions and
+			    category pages — scoped to this issuer (issue #62). */}
+			<div className="flex flex-col gap-6">
+				<TransactionsSection
+					scope={scope}
+					search={search}
+					onFiltersChange={applyFilters}
+					onToggleSort={toggleSort}
+					onOffsetChange={goToOffset}
+					emptyDescription="No transactions reference this issuer yet."
+				>
+					<h2 className="text-balance text-lg font-semibold text-gousse-ink">
+						Transactions
+					</h2>
+				</TransactionsSection>
 			</div>
 
 			<div className="border-t border-gousse-line pt-6">

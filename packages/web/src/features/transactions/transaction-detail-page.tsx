@@ -9,6 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getRouteApi, Link } from "@tanstack/react-router";
 import { Empty } from "@/components/ui/empty";
 import { BUTTON_CLASS } from "@/features/issuers/field-styles";
+import { resolveCategoryColor } from "@/lib/category-tree";
 import {
 	accountQueries,
 	categoryQueries,
@@ -79,17 +80,21 @@ export function TransactionDetailPage() {
 	const issuersById = indexById(
 		(issuersQuery.data?.items ?? []) as readonly Issuer[],
 	);
-	const categoriesById = indexById(
-		(categoriesQuery.data?.items ?? []) as readonly Category[],
-	);
+	const categories = (categoriesQuery.data?.items ?? []) as readonly Category[];
+	const categoriesById = indexById(categories);
+	const category =
+		txn.categoryId != null ? categoriesById.get(txn.categoryId) : undefined;
 
 	return (
 		<TransactionDetailContent
 			transaction={txn}
 			account={accountsById.get(txn.accountId)}
 			issuer={txn.issuerId != null ? issuersById.get(txn.issuerId) : undefined}
-			category={
-				txn.categoryId != null ? categoriesById.get(txn.categoryId) : undefined
+			category={category}
+			categoryColor={
+				category != null
+					? resolveCategoryColor(categories, category)
+					: undefined
 			}
 			linkedRefund={
 				(linkedRefundQuery.data as Transaction | undefined) ?? undefined

@@ -114,9 +114,10 @@ function makeRouter(initialEntry = "/transactions") {
 async function renderView(initialEntry = "/transactions") {
 	const router = makeRouter(initialEntry);
 	render(<RouterProvider router={router} />);
-	// Wait for the table to render (a known unresolved row) so the sort header and
-	// rows exist before a test interacts with them.
-	await screen.findByText("ACME PAYROLL");
+	// Wait for the table to render (the unresolved row's assignment button) so the
+	// sort header and rows exist before a test interacts with them. Scoped by role
+	// because the raw string also appears verbatim in the Raw issuer column.
+	await screen.findByRole("button", { name: /ACME PAYROLL/ });
 	return router;
 }
 
@@ -128,11 +129,19 @@ describe("TransactionsView", () => {
 	it("renders the table with newest-first data and signed, colored amounts", async () => {
 		await renderView();
 
-		// Resolved row (issuerId 10) → issuer name, not the raw string;
-		// unresolved row (no issuerId) → raw counterparty text.
-		expect(screen.getByText("Spotify")).toBeInTheDocument();
-		expect(screen.queryByText("SPOTIFY P2A34")).not.toBeInTheDocument();
-		expect(screen.getByText("ACME PAYROLL")).toBeInTheDocument();
+		// Resolved row (issuerId 10) → the Issuer cell shows the issuer name, not the
+		// raw string; unresolved row (no issuerId) → raw counterparty text. Both are
+		// buttons (the curation surfaces), which is what distinguishes them from the
+		// Raw issuer column, where every row's raw string is shown verbatim as text.
+		expect(screen.getByRole("button", { name: /Spotify/ })).toBeInTheDocument();
+		expect(
+			screen.queryByRole("button", { name: /SPOTIFY P2A34/ }),
+		).not.toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: /ACME PAYROLL/ }),
+		).toBeInTheDocument();
+		// Raw issuer column: the unparsed bank label for every row, resolved or not.
+		expect(screen.getByText("SPOTIFY P2A34")).toBeInTheDocument();
 		// Account column resolves the id to a name.
 		expect(screen.getAllByText("Checking").length).toBeGreaterThan(0);
 
@@ -163,6 +172,7 @@ describe("TransactionsView", () => {
 			"Date",
 			"Account",
 			"Issuer",
+			"Raw issuer",
 			"Category",
 			"Amount",
 			// Screen-reader-only header for the transfer-badge column (PRD #48).

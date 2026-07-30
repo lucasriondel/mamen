@@ -6,6 +6,7 @@ import {
 	RouterProvider,
 } from "@tanstack/react-router";
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { validateTransactionsSearch } from "../transactions/search";
 import { CategoryTransactionsView } from "./category-transactions-view";
@@ -207,6 +208,36 @@ describe("CategoryTransactionsView", () => {
 		expect(countMock).toHaveBeenCalledWith(
 			expect.objectContaining({ categoryId: [5], accountId: 1 }),
 		);
+	});
+
+	it("carries the search term from the URL into both queries", async () => {
+		await renderView("/categories/5?search=carrefour");
+
+		expect(await screen.findByText("Carrefour")).toBeInTheDocument();
+		// The term narrows the rows *and* the header total, so the number can't
+		// describe a wider set than the list beneath it.
+		expect(listMock).toHaveBeenCalledWith(
+			expect.objectContaining({ categoryId: [5], search: "carrefour" }),
+		);
+		expect(countMock).toHaveBeenCalledWith(
+			expect.objectContaining({ categoryId: [5], search: "carrefour" }),
+		);
+	});
+
+	it("typing in the search box writes the term to the URL", async () => {
+		const user = userEvent.setup();
+		const router = await renderView("/categories/5");
+
+		await user.type(
+			await screen.findByLabelText("Search transactions"),
+			"carrefour",
+		);
+
+		await waitFor(() => {
+			expect(router.state.location.search).toMatchObject({
+				search: "carrefour",
+			});
+		});
 	});
 
 	it("shows a not-found state for an unknown category id", async () => {
