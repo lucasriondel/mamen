@@ -23,18 +23,28 @@ export function TransferBadge() {
 }
 
 /**
- * The **override marker** — a small accent dot marking the *exception* a manual
- * curation is: a Category override, or a hand-picked (manual) issuer (issue #37).
- * Shared by {@link CategoryCell} and {@link IssuerCell} so the two exceptions
- * read identically and can never drift apart — the whole point of the issue was
- * that they match.
+ * The **override marker** — a pin glyph in a tinted accent square, marking the
+ * *exception* a manual curation is: a Category override, or a hand-picked
+ * (manual) issuer (issue #37). Shared by {@link CategoryCell} and
+ * {@link IssuerCell} so the two exceptions read identically and can never drift
+ * apart — the whole point of the issue was that they match.
+ *
+ * A pin rather than the bare accent dot it replaced: a dot is a status the
+ * reader has to *learn*, while a pin says "pinned by hand, a rule won't
+ * overwrite it" on sight. The tint block carries the contrast the 6px dot
+ * lacked against the dark surface.
+ *
+ * Rendered **after** the cell's text, never before it, so the marked and
+ * unmarked rows keep a common left edge and the column still scans as one.
  */
-function OverrideDot() {
+function OverrideMarker() {
 	return (
 		<span
-			className="size-1.5 shrink-0 rounded-full bg-gousse-accent"
+			className="grid size-4 shrink-0 place-items-center rounded-[5px] bg-gousse-accent/15 text-gousse-accent"
 			aria-hidden
-		/>
+		>
+			<Pin size={10} className="fill-current" />
+		</span>
 	);
 }
 
@@ -61,8 +71,8 @@ export function AmountCell({ amount }: { amount: number }) {
  * The **Issuer** cell — the row's curation surface (PRD).
  *
  * - Resolved (an issuer is found for `issuerId`) → the issuer's name + avatar.
- *   A **manual assignment** (`isManual`) is *marked* with the same accent dot the
- *   {@link CategoryCell} override carries (issue #37): a hand pick is the sticky
+ *   A **manual assignment** (`isManual`) carries the same {@link OverrideMarker}
+ *   the {@link CategoryCell} override does (issue #37): a hand pick is the sticky
  *   exception a rule can't overwrite, so it earns the same ink as a Category
  *   override rather than reading like an ordinary rule-matched row.
  * - Unresolved → the raw counterparty text, muted, with an affordance marking
@@ -93,8 +103,8 @@ export function IssuerCell({
 						defaultCategoryId={issuer.defaultCategoryId}
 					/>
 					<span className="flex items-center gap-1.5 font-medium text-gousse-ink">
-						<OverrideDot />
 						<span>{issuer.name}</span>
+						<OverrideMarker />
 					</span>
 				</span>
 			);
@@ -154,8 +164,8 @@ export function CategoryCell({
 					title="Category override — set on this transaction only"
 					data-override="true"
 				>
-					<OverrideDot />
 					<span>{category.name}</span>
+					<OverrideMarker />
 				</span>
 			);
 		}
