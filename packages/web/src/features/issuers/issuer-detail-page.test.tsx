@@ -338,17 +338,34 @@ describe("IssuerDetailPage", () => {
 		).toBeInTheDocument();
 	});
 
-	it("renames the issuer", async () => {
+	it("renames the issuer inline, autosaving once typing settles", async () => {
 		const user = userEvent.setup();
 		renderAt("/issuers/1");
+
+		// The heading *is* the field: no separate rename form, no Save button.
+		await user.click(await screen.findByRole("button", { name: /Spotify/ }));
 
 		const input = await screen.findByLabelText("Issuer name");
 		await user.clear(input);
 		await user.type(input, "Spotify Premium");
-		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() =>
 			expect(updateIssuer).toHaveBeenCalledWith(1, { name: "Spotify Premium" }),
+		);
+	});
+
+	it("closes the inline name field on blur", async () => {
+		const user = userEvent.setup();
+		renderAt("/issuers/1");
+
+		await user.click(await screen.findByRole("button", { name: /Spotify/ }));
+		await screen.findByLabelText("Issuer name");
+
+		// Tabbing away blurs the field, which is what closes it.
+		await user.tab();
+
+		await waitFor(() =>
+			expect(screen.queryByLabelText("Issuer name")).not.toBeInTheDocument(),
 		);
 	});
 

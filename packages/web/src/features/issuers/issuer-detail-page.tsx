@@ -3,11 +3,10 @@ import { MAX_IMAGE_BYTES } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
-import { type FormEvent, useMemo, useRef, useState } from "react";
+import { useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Empty } from "@/components/ui/empty";
-import { Input } from "@/components/ui/input";
 import { RulesSection } from "@/features/rules/rules-section";
 import type { TransactionsSearch } from "@/features/transactions/search";
 import type { TransactionFilterValues } from "@/features/transactions/transactions-filters";
@@ -25,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { BUTTON_CLASS } from "./field-styles";
 import { IssuerAvatar } from "./issuer-avatar";
 import { IssuerDefaultCategoryPicker } from "./issuer-default-category-picker";
+import { IssuerNameField } from "./issuer-name-field";
 import { LogoSearchPopover } from "./logo-search-popover";
 import { useIssuerMutations } from "./use-issuer-mutations";
 
@@ -37,8 +37,9 @@ const routeApi = getRouteApi("/issuers/$issuerId/");
  * the issuer's transactions list (count + net €) and its Matching Rules.
  *
  * This outer component owns the async read of the issuer and the loading /
- * not-found states; once it resolves it renders {@link IssuerDetailContent},
- * which seeds the rename field from the loaded name.
+ * not-found states; once it resolves it renders {@link IssuerDetailContent}.
+ * Renaming lives in the header itself ({@link IssuerNameField}) — the heading is
+ * the field.
  */
 export function IssuerDetailPage() {
 	const { issuerId } = routeApi.useParams();
@@ -74,8 +75,7 @@ interface IssuerDetailContentProps {
 }
 
 /**
- * The resolved detail surface. Split out so the rename field can seed its state
- * from the loaded issuer name (`useState(issuer.name)`).
+ * The resolved detail surface — everything that needs a loaded issuer.
  *
  * Deletion stays blocked while transactions reference the issuer (the button is
  * disabled with the existing explanation), so no row is ever left pointing at a
@@ -87,8 +87,7 @@ function IssuerDetailContent({ issuer }: IssuerDetailContentProps) {
 	const navigate = useNavigate();
 	const search = routeApi.useSearch();
 	const routeNavigate = routeApi.useNavigate();
-	const { rename, uploadImage, deleteImage, remove } = useIssuerMutations();
-	const [draftName, setDraftName] = useState(issuer.name);
+	const { uploadImage, deleteImage, remove } = useIssuerMutations();
 	const fileInputRef = useRef<HTMLInputElement>(null);
 
 	const scope = useMemo<TransactionCountParams>(
@@ -131,15 +130,6 @@ function IssuerDetailContent({ issuer }: IssuerDetailContentProps) {
 		});
 	};
 
-	const handleRename = (event: FormEvent<HTMLFormElement>) => {
-		event.preventDefault();
-		const trimmed = draftName.trim();
-		if (trimmed.length === 0 || trimmed === issuer.name || rename.isPending) {
-			return;
-		}
-		rename.mutate({ id: issuer.id, patch: { name: trimmed } });
-	};
-
 	const handleFile = (event: React.ChangeEvent<HTMLInputElement>) => {
 		const file = event.target.files?.[0];
 		event.target.value = ""; // allow re-selecting the same file later
@@ -176,9 +166,9 @@ function IssuerDetailContent({ issuer }: IssuerDetailContentProps) {
 					size="lg"
 				/>
 				<div className="flex min-w-0 flex-col">
-					<h1 className="truncate text-balance text-2xl font-semibold text-gousse-ink">
-						{issuer.name}
-					</h1>
+					{/* The name *is* the heading — click it to edit in place (no separate
+					    rename form; edits autosave once typing settles). */}
+					<IssuerNameField issuer={issuer} />
 					<div className="flex items-baseline gap-2 text-sm">
 						<span className="text-gousse-muted tabular-nums">
 							{count} transaction{count === 1 ? "" : "s"}
@@ -227,23 +217,6 @@ function IssuerDetailContent({ issuer }: IssuerDetailContentProps) {
 					onChange={handleFile}
 				/>
 			</div>
-
-			<form onSubmit={handleRename} className="flex max-w-md items-end gap-2">
-				<label className="flex flex-1 flex-col gap-1 text-sm text-gousse-muted">
-					Name
-					<Input
-						value={draftName}
-						onChange={(event) => setDraftName(event.target.value)}
-						aria-label="Issuer name"
-					/>
-				</label>
-				<Button
-					type="submit"
-					disabled={rename.isPending || draftName.trim().length === 0}
-				>
-					Save
-				</Button>
-			</form>
 
 			<IssuerDefaultCategoryPicker issuer={issuer} />
 
