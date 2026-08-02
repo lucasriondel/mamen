@@ -1,0 +1,62 @@
+# Template rendered by nginx's own `/docker-entrypoint.d/20-envsubst-on-templates.sh`
+# at container start, substituting ${API_UPSTREAM} from the environment. Set it
+# to the API service's internal `<appName>:<port>` — the API is NOT publicly
+# routed, so this proxy is the only path to it.
+server {
+	listen 80;
+	server_name _;
+
+	root /usr/share/nginx/html;
+	index index.html;
+
+	# Bank statements are the large uploads here; the API caps its own payloads.
+	client_max_body_size 25m;
+
+	gzip on;
+	gzip_types text/css application/javascript application/json image/svg+xml;
+	gzip_min_length 1024;
+
+	# The contract carries the `/api` prefix (shared/src/contract/api.ts), so the
+	# path is passed through unchanged — no trailing slash on proxy_pass, which
+	# would strip it.
+	location /api {
+		proxy_pass http://${API_UPSTREAM};
+		proxy_http_version 1.1;
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+
+		# PDF import shells out to the `claude` CLI and can run well past the
+		# 60s default before the first byte comes back.
+		proxy_connect_timeout 10s;
+		proxy_send_timeout 300s;
+		proxy_read_timeout 300s;
+	}
+
+	# Issuer images, served off the API's uploads volume (api/src/static/uploads.ts).
+	location /uploads {
+		proxy_pass http://${API_UPSTREAM};
+		proxy_http_version 1.1;
+		proxy_set_header Host $host;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+	}
+
+	# Content-hashed bundles are immutable; index.html must never be cached or
+	# clients pin to a dead asset graph after a deploy.
+	location /assets/ {
+		expires 1y;
+		add_header Cache-Control "public, immutable";
+	}
+
+	location = /index.html {
+		add_header Cache-Control "no-store";
+	}
+
+	# SPA fallback: TanStack Router owns client-side routing, so unknown paths
+	# must return the shell rather than a 404.
+	location / {
+		try_files $uri $uri/ /index.html;
+	}
+}
