@@ -42,3 +42,4 @@ mamen.db-wal
 *.sln
 *.sw?
 coverage/
+.dokploy.yml
