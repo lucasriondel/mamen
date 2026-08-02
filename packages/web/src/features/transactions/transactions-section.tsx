@@ -208,6 +208,13 @@ export function TransactionsSection({
 				/>
 			) : (
 				<>
+					<TransactionsPagination
+						position="top"
+						offset={search.offset ?? 0}
+						pageSize={TRANSACTIONS_PAGE_SIZE}
+						total={total}
+						onOffsetChange={onOffsetChange}
+					/>
 					<TransactionsTable
 						transactions={transactions}
 						accountsById={accountsById}
