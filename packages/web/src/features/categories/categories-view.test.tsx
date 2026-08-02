@@ -7,6 +7,7 @@ import {
 	RouterProvider,
 } from "@tanstack/react-router";
 import { render, screen, waitFor, within } from "@testing-library/react";
+import type { UserEvent } from "@testing-library/user-event";
 import userEvent from "@testing-library/user-event";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -79,6 +80,22 @@ const { CategoriesView } = await import("./categories-view");
 
 // The view's nodes are `Link`s (issue #25), so render inside a router that knows
 // the `/categories` layout and the `/categories/$categoryId` target.
+/**
+ * Choose a parent in the move dialog. The target is picked from the same
+ * searchable popover tree the create flow uses, not a native `select`, so this
+ * opens it and clicks the row — a folder is a real option there, since any node
+ * is a legal parent (ADR 0003).
+ */
+async function pickParent(user: UserEvent, name: string) {
+	// Scoped to the dialog: the tree behind it carries the same category names,
+	// and the trigger is labelled with the *current* parent (or "Top level"), so
+	// it is found by its title rather than its text.
+	const dialog = within(await screen.findByRole("dialog"));
+	await user.click(dialog.getByTitle(/where this category sits/i));
+	const listbox = within(await screen.findByRole("listbox"));
+	await user.click(await listbox.findByText(name));
+}
+
 function renderView() {
 	const rootRoute = createRootRoute();
 	const categoriesRoute = createRoute({
@@ -552,10 +569,7 @@ describe("CategoriesView", () => {
 		await user.click(
 			await screen.findByRole("button", { name: /move groceries/i }),
 		);
-		await user.selectOptions(
-			screen.getByLabelText(/target parent/i),
-			String(home.id),
-		);
+		await pickParent(user, home.name);
 		await user.click(screen.getByRole("button", { name: /^move$/i }));
 
 		await waitFor(() => expect(updateCategory).toHaveBeenCalledTimes(1));
@@ -572,10 +586,7 @@ describe("CategoriesView", () => {
 		// The Move gesture is offered on a folder (Food), and its target picker
 		// lists every category path-labelled, the moved subtree excluded (#32).
 		await user.click(await screen.findByRole("button", { name: /move food/i }));
-		await user.selectOptions(
-			screen.getByLabelText(/target parent/i),
-			String(home.id),
-		);
+		await pickParent(user, home.name);
 		await user.click(screen.getByRole("button", { name: /^move$/i }));
 
 		await waitFor(() => expect(updateCategory).toHaveBeenCalledTimes(1));
@@ -599,10 +610,7 @@ describe("CategoriesView", () => {
 		renderView();
 
 		await user.click(await screen.findByRole("button", { name: /move food/i }));
-		await user.selectOptions(
-			screen.getByLabelText(/target parent/i),
-			String(home.id),
-		);
+		await pickParent(user, home.name);
 		await user.click(screen.getByRole("button", { name: /^move$/i }));
 
 		await waitFor(() => expect(toastError).toHaveBeenCalledTimes(1));

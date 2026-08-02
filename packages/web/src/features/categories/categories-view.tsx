@@ -16,7 +16,6 @@ import {
 import { Empty } from "@/components/ui/empty";
 import {
 	buildTree,
-	categoryPath,
 	descendantIds,
 	NEUTRAL_CATEGORY_COLOR,
 	resolveCategoryColors,
@@ -26,6 +25,7 @@ import { formatCurrency } from "@/lib/format";
 import { categoryQueries, transactionQueries } from "@/lib/sdk";
 import { categoryHoldsMoney } from "@/lib/sdk-error";
 import { cn } from "@/lib/utils";
+import { CategoryParentPicker } from "./category-parent-picker";
 import { useCategoryMutations } from "./use-category-mutations";
 
 /**
@@ -388,10 +388,15 @@ function CategoryEditorDialog({
 	onEditor,
 	mutations,
 }: CategoryEditorDialogProps) {
+	// The dialog's own node, so the move form's parent picker portals *inside* the
+	// modal. A Radix modal locks scrolling outside its subtree, so a popover
+	// portalled to `document.body` renders and clicks but never takes the wheel.
+	const [dialogNode, setDialogNode] = useState<HTMLDivElement | null>(null);
+
 	return (
 		<Dialog open={editor !== null} onOpenChange={(open) => !open && onClose()}>
 			{/* Each form is a single labelled field, so no separate description. */}
-			<DialogContent aria-describedby={undefined}>
+			<DialogContent aria-describedby={undefined} ref={setDialogNode}>
 				{editor?.kind === "create" && (
 					<NameForm
 						title={
@@ -458,6 +463,7 @@ function CategoryEditorDialog({
 						node={editor.node}
 						categories={categories}
 						pending={mutations.move.isPending}
+						portalContainer={dialogNode}
 						onSubmit={(parentId) =>
 							mutations.move.mutate(
 								{ id: editor.node.id, parentId },
@@ -596,27 +602,31 @@ function SpillForm({
 }
 
 /**
- * Move a node under a different parent — the target picked from a `select`. Any
- * node may be a parent now (ADR 0003), so the picker offers **every** category,
- * rendered flat but **path-labelled** (`Life › Subscriptions`) rather than the
- * old lie of a bare root list (issue #32). The moved node's own subtree is
- * subtracted — a move under yourself or a descendant is a cycle the API refuses —
- * and a **Top level** option promotes the node to a root.
+ * Move a node under a different parent — the target picked with the same
+ * {@link CategoryParentPicker} the create flow uses, so "where does this sit" is
+ * one gesture everywhere rather than a searchable tree in one dialog and a flat
+ * `select` in another. Any node may be a parent (ADR 0003), which is what that
+ * picker offers; the moved node's own subtree is subtracted here, since only this
+ * caller knows which targets are illegal — a move under yourself or a descendant
+ * is a cycle the API refuses. **Top level** promotes the node to a root.
  */
 function MoveForm({
 	node,
 	categories,
 	pending,
 	onSubmit,
+	portalContainer,
 }: {
 	node: Category;
 	categories: readonly Category[];
 	pending: boolean;
 	onSubmit: (parentId: CategoryId | null) => void;
+	/** The dialog's node — see {@link CategoryParentPicker}'s prop. */
+	portalContainer?: HTMLElement | null;
 }) {
 	// Default to the node's current parent so a stray submit is a no-op, not a
-	// move. "" is the sentinel for the Top level (no parent) option.
-	const [target, setTarget] = useState<string>(String(node.parentId ?? ""));
+	// move.
+	const [target, setTarget] = useState<CategoryId | null>(node.parentId);
 
 	const own = subtreeIds(categories, node.id);
 	const targets = categories.filter((c) => !own.has(c.id));
@@ -624,7 +634,7 @@ function MoveForm({
 	const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
 		if (pending) return;
-		onSubmit(target === "" ? null : (Number(target) as CategoryId));
+		onSubmit(target);
 	};
 
 	return (
@@ -632,22 +642,13 @@ function MoveForm({
 			<DialogHeader>
 				<DialogTitle>Move {node.name}</DialogTitle>
 			</DialogHeader>
-			<label className="flex flex-col gap-1 text-gousse-muted text-sm">
-				Parent
-				<select
-					className={INPUT_CLASS}
-					value={target}
-					onChange={(e) => setTarget(e.target.value)}
-					aria-label="Target parent"
-				>
-					<option value="">Top level (no parent)</option>
-					{targets.map((parent) => (
-						<option key={parent.id} value={String(parent.id)}>
-							{categoryPath(categories, parent)}
-						</option>
-					))}
-				</select>
-			</label>
+			<CategoryParentPicker
+				categories={targets}
+				value={target}
+				onChange={setTarget}
+				disabled={pending}
+				portalContainer={portalContainer}
+			/>
 			<DialogFooter>
 				<Button variant="primary" type="submit" disabled={pending}>
 					Move
