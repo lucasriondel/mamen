@@ -128,6 +128,40 @@ export function searchTree(
 }
 
 /**
+ * The same flattened, query-filtered list as {@link searchTree}, except **every**
+ * node is selectable — folders included. Under ADR 0003 any node is a legal
+ * *parent*, so a picker choosing where a category sits must offer the whole tree,
+ * where a picker choosing where money is *filed* may only offer leaves. That is
+ * the one difference, so the two walks stay separate rather than growing a flag
+ * that silently changes what a row means.
+ *
+ * Every node is reported with `isLeaf: true` — not a claim about childlessness
+ * but about **selectability**, which is what the shared renderer keys off. A
+ * folder kept purely as context (its own name doesn't match, but a descendant's
+ * does) would be a lie here: it is genuinely pickable, so it matches on its own
+ * name like any other row, and a branch survives iff something in it matched.
+ */
+export function searchAllNodes(
+	categories: readonly Category[],
+	query: string,
+): PickerNode[] {
+	const walk = (nodes: CategoryTreeNode[], depth: number): PickerNode[] => {
+		const out: PickerNode[] = [];
+		for (const { children, ...category } of nodes) {
+			const inner = walk(children, depth + 1);
+			// Keep a node when it matches itself, or when it is the path to one that
+			// does — an ancestor of a match is context the nesting needs to read.
+			if (inner.length > 0 || matches(category.name, query)) {
+				out.push({ category, depth, isLeaf: true });
+				out.push(...inner);
+			}
+		}
+		return out;
+	};
+	return walk(buildTree(categories), 0);
+}
+
+/**
  * The assignable ids that roll up into a folder — every **leaf** beneath it, at
  * any depth, in tree order. A real recursive descent (ADR 0003): a folder's total
  * is the money on its whole subtree, so a leaf held three levels down counts just
