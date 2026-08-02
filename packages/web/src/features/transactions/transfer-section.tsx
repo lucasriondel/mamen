@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { formatCurrency, formatShortDate } from "@/lib/format";
 import { accountQueries, transactionQueries } from "@/lib/sdk";
 import { cn, indexById } from "@/lib/utils";
+import { TransferLegsSkeleton } from "./transfer-legs-skeleton";
 import {
 	isTransferEligible,
 	suggestTransferCounterparts,
@@ -154,9 +155,7 @@ export function TransferSection({
 						excluded from your recap spend.
 					</p>
 					{groupQuery.isPending ? (
-						<p className="text-sm text-gousse-muted italic">
-							Loading the other legs…
-						</p>
+						<TransferLegsSkeleton label="Loading the other legs…" />
 					) : groupQuery.isError ? (
 						<p className="text-sm text-gousse-high italic">
 							Couldn't load the other legs. Retry in a moment.
@@ -189,9 +188,7 @@ export function TransferSection({
 						: "This transaction can't be part of a transfer."}
 				</p>
 			) : candidatesQuery.isPending ? (
-				<p className="text-sm text-gousse-muted italic">
-					Looking for counterparts…
-				</p>
+				<TransferLegsSkeleton label="Looking for counterparts…" action />
 			) : candidatesQuery.isError ? (
 				// Without this the failed fetch falls through to the empty-state copy
 				// below, reporting "no counterpart exists" — a definitive negative

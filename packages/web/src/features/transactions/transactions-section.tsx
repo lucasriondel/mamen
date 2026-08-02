@@ -24,6 +24,7 @@ import {
 } from "./transactions-filters";
 import { TransactionsPagination } from "./transactions-pagination";
 import { TransactionsTable } from "./transactions-table";
+import { TransactionsTableSkeleton } from "./transactions-table-skeleton";
 
 /** How many transactions to scan when deriving the distinct-month filter options. */
 const MONTH_SCAN_LIMIT = 1000;
@@ -193,9 +194,7 @@ export function TransactionsSection({
 					description="Something went wrong reading these transactions. Try again in a moment."
 				/>
 			) : enabled && transactionsQuery.isPending ? (
-				<p className="py-16 text-center text-gousse-muted">
-					Loading transactions…
-				</p>
+				<TransactionsTableSkeleton />
 			) : transactions.length === 0 ? (
 				<Empty
 					title="No transactions"

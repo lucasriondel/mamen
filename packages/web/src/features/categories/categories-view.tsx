@@ -25,6 +25,7 @@ import { formatCurrency } from "@/lib/format";
 import { categoryQueries, transactionQueries } from "@/lib/sdk";
 import { categoryHoldsMoney } from "@/lib/sdk-error";
 import { cn } from "@/lib/utils";
+import { CategoriesTreeSkeleton } from "./categories-tree-skeleton";
 import { CategoryParentPicker } from "./category-parent-picker";
 import { useCategoryMutations } from "./use-category-mutations";
 
@@ -164,9 +165,7 @@ export function CategoriesView() {
 					description="Something went wrong reading your categories. Try again in a moment."
 				/>
 			) : categoriesQuery.isPending ? (
-				<p className="py-16 text-center text-gousse-muted">
-					Loading categories…
-				</p>
+				<CategoriesTreeSkeleton />
 			) : tree.length === 0 ? (
 				<Empty
 					title="No categories yet"

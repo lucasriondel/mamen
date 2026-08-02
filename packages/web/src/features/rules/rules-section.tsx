@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { issuerQueries, ruleQueries } from "@/lib/sdk";
 import { indexById } from "@/lib/utils";
 import { RuleDeleteConfirm } from "./rule-delete-confirm";
+import { RulesListSkeleton } from "./rules-list-skeleton";
 
 /** How many issuers to load for resolving preview rows' current issuer names. */
 const ISSUER_SCAN_LIMIT = 1000;
@@ -59,7 +60,7 @@ export function RulesSection({ issuer }: RulesSectionProps) {
 			</div>
 
 			{rulesQuery.isPending ? (
-				<p className="py-2 text-sm text-gousse-muted">Loading rules…</p>
+				<RulesListSkeleton />
 			) : rulesQuery.isError ? (
 				<p className="py-2 text-sm text-gousse-high">
 					Couldn’t load this issuer’s rules.

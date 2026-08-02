@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { BUTTON_CLASS } from "./field-styles";
 import { IssuerAvatar } from "./issuer-avatar";
 import { IssuerDefaultCategoryPicker } from "./issuer-default-category-picker";
+import { IssuerDetailSkeleton } from "./issuer-detail-skeleton";
 import { IssuerNameField } from "./issuer-name-field";
 import { IssuerNotesField } from "./issuer-notes-field";
 import { LogoSearchPopover } from "./logo-search-popover";
@@ -49,9 +50,7 @@ export function IssuerDetailPage() {
 	const issuerQuery = useQuery(issuerQueries.getById(id));
 
 	if (issuerQuery.isPending) {
-		return (
-			<p className="py-16 text-center text-gousse-muted">Loading issuer…</p>
-		);
+		return <IssuerDetailSkeleton />;
 	}
 
 	const issuer = issuerQuery.data as Issuer | undefined;

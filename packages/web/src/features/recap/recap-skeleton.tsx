@@ -51,7 +51,10 @@ function SpendSectionSkeleton() {
  */
 export function RecapSkeleton() {
 	return (
-		<SkeletonScreen label="Loading recap…" className="grid gap-6 lg:grid-cols-2">
+		<SkeletonScreen
+			label="Loading recap…"
+			className="grid gap-6 lg:grid-cols-2"
+		>
 			<SpendSectionSkeleton />
 			<SpendSectionSkeleton />
 		</SkeletonScreen>
