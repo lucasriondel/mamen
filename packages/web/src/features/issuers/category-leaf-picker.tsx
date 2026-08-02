@@ -2,6 +2,7 @@ import type { Category, CategoryId } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
 import { Tag, X } from "lucide-react";
 import { useState } from "react";
+import { CategoryIcon } from "@/components/category-icon";
 import { CategoryTreeItems } from "@/components/category-tree-items";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,7 +19,11 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "@/components/ui/popover";
-import { searchTree } from "@/lib/category-tree";
+import {
+	NEUTRAL_CATEGORY_COLOR,
+	resolveCategoryColors,
+	searchTree,
+} from "@/lib/category-tree";
 import { categoryQueries } from "@/lib/sdk";
 
 /**
@@ -70,6 +75,13 @@ export function CategoryLeafPicker({
 		value != null ? categories.find((c) => c.id === value) : undefined;
 	const nodes = searchTree(categories, query);
 
+	// A leaf's colour is inherited — a walk up `parentId`, not a field — so the
+	// trigger resolves through the whole list, same as the rows do.
+	const currentColor = current
+		? (resolveCategoryColors(categories).get(current.id) ??
+			NEUTRAL_CATEGORY_COLOR)
+		: undefined;
+
 	const handleOpenChange = (next: boolean) => {
 		if (disabled) return;
 		setOpen(next);
@@ -92,11 +104,24 @@ export function CategoryLeafPicker({
 					title={title}
 					disabled={disabled}
 				>
-					<Tag size={14} className="shrink-0 text-gousse-muted" aria-hidden />
 					{current ? (
-						<span>{current.name}</span>
+						<>
+							<CategoryIcon
+								name={current.icon}
+								color={currentColor}
+								size={14}
+							/>
+							<span style={{ color: currentColor }}>{current.name}</span>
+						</>
 					) : (
-						<span className="text-gousse-muted italic">No category</span>
+						<>
+							<Tag
+								size={14}
+								className="shrink-0 text-gousse-muted"
+								aria-hidden
+							/>
+							<span className="text-gousse-muted italic">No category</span>
+						</>
 					)}
 				</Button>
 			</PopoverTrigger>
