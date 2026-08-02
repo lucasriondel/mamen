@@ -64,7 +64,7 @@ export function useRecapSpend(
 	accountIds: readonly number[],
 ): RecapSpendResult {
 	const accountsQuery = useQuery(accountQueries.list());
-	const issuersQuery = useQuery(issuerQueries.list());
+	const issuersQuery = useQuery(issuerQueries.all());
 	const categoriesQuery = useQuery(categoryQueries.list({ limit: 200 }));
 
 	// The full unfiltered history, capped, purely to enumerate the distinct

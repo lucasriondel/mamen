@@ -8,14 +8,17 @@ import {
 /**
  * Typed URL search-param schema for the issuers route (issue #41).
  *
- * The grid's sort key + direction live in the URL so a chosen ordering is
+ * The table's sort key + direction live in the URL so a chosen ordering is
  * bookmarkable and survives a refresh, mirroring the transactions route. The
- * schema is a plain normalizing function — TanStack Router's `validateSearch` —
- * so it is unit-testable without a router.
+ * name filter (`q`) rides along for the same reason — a filtered table is a
+ * shareable view. The schema is a plain normalizing function — TanStack Router's
+ * `validateSearch` — so it is unit-testable without a router.
  */
 export interface IssuersSearch {
 	sort?: IssuerSortKey;
 	direction?: SortDirection;
+	/** Free-text name filter; absent when the box is empty. */
+	q?: string;
 }
 
 const SORT_KEYS: ReadonlyArray<IssuerSortKey> = ["name", "count", "value"];
@@ -35,7 +38,10 @@ export function validateIssuersSearch(
 		search.direction === "asc" || search.direction === "desc"
 			? search.direction
 			: DEFAULT_ISSUER_SORT.direction;
-	return { sort, direction };
+	// A blank/whitespace-only `q` is dropped rather than kept as "": an empty
+	// filter is the default view, so it shouldn't clutter the URL.
+	const q = typeof search.q === "string" ? search.q.trim() : "";
+	return q === "" ? { sort, direction } : { sort, direction, q };
 }
 
 /**

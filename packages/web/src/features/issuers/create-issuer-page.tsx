@@ -6,7 +6,7 @@ import { type FormEvent, useId, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { issuerQueries } from "@/lib/sdk";
+import { ISSUER_SCAN_LIMIT, issuerQueries } from "@/lib/sdk";
 import { CategoryLeafPicker } from "./category-leaf-picker";
 import { hasExactIssuerName } from "./issuer-name";
 import { useIssuerMutations } from "./use-issuer-mutations";
@@ -39,7 +39,9 @@ export function CreateIssuerPage() {
 
 	// Loaded so the duplicate-name guard has something to check against; the guard
 	// only covers the names the client has in hand (the contract allows dupes).
-	const issuersQuery = useQuery(issuerQueries.list({ orderBy: "name" }));
+	const issuersQuery = useQuery(
+		issuerQueries.list({ orderBy: "name", limit: ISSUER_SCAN_LIMIT }),
+	);
 	const issuers = (issuersQuery.data?.items ?? []) as readonly Issuer[];
 
 	const trimmed = name.trim();

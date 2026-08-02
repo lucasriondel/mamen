@@ -8,9 +8,6 @@ import { indexById } from "@/lib/utils";
 import { RuleForm } from "./rule-form";
 import { RuleFormSkeleton } from "./rule-form-skeleton";
 
-/** How many issuers to load for resolving preview rows' current issuer names. */
-const ISSUER_SCAN_LIMIT = 1000;
-
 const BACK_LINK_CLASS =
 	"flex items-center gap-1 self-start text-sm text-gousse-muted transition-colors hover:text-gousse-ink";
 
@@ -42,9 +39,8 @@ export function RuleFormPage({
 	const navigate = useNavigate();
 	const isEditing = ruleId != null;
 
-	const issuersQuery = useQuery(
-		issuerQueries.list({ limit: ISSUER_SCAN_LIMIT }),
-	);
+	// Every issuer, so a preview row's *current* issuer can be named whichever it is.
+	const issuersQuery = useQuery(issuerQueries.all());
 	const issuersById = useMemo(
 		() => indexById((issuersQuery.data?.items ?? []) as readonly Issuer[]),
 		[issuersQuery.data],

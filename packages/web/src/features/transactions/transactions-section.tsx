@@ -133,7 +133,10 @@ export function TransactionsSection({
 		enabled,
 	});
 	const accountsQuery = useQuery(accountQueries.list());
-	const issuersQuery = useQuery(issuerQueries.list());
+	// Every issuer, not a page of them: the table resolves a row's `issuerId`
+	// against this map, and a short page renders rows pointing at the issuers it
+	// missed as *unresolved* — a correctly-matched row looking unmatched.
+	const issuersQuery = useQuery(issuerQueries.all());
 	// The whole (small) category tree, for the derived-category column's name
 	// lookup. Wide limit — a single user's taxonomy is coarse (PRD).
 	const categoriesQuery = useQuery(categoryQueries.list({ limit: 200 }));

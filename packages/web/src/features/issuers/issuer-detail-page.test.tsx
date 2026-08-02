@@ -110,6 +110,13 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
 				queryKey: ["issuers", "detail", id],
 				queryFn: async () => issuersById[id],
 			}),
+			all: () => ({
+				queryKey: ["issuers", "list"],
+				queryFn: async () => ({
+					items: issuersList,
+					total: issuersList.length,
+				}),
+			}),
 			list: () => ({
 				queryKey: ["issuers", "list"],
 				queryFn: async () => ({
