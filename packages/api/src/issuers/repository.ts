@@ -26,6 +26,7 @@ const IssuerRow = Schema.Struct({
 	// entity-boundary guard, and the row is a raw storage shape that decodes
 	// straight into `Issuer`'s encoded form (where the brand is a plain number).
 	defaultCategoryId: Schema.NullOr(Schema.Number),
+	notes: Schema.NullOr(Schema.String),
 	createdAt: Schema.String,
 	firstSeen: Schema.String,
 });
@@ -48,6 +49,7 @@ export const IssuerFromRow = Schema.transform(IssuerRow, Issuer, {
 		...(row.defaultCategoryId !== null
 			? { defaultCategoryId: row.defaultCategoryId }
 			: {}),
+		...(row.notes !== null ? { notes: row.notes } : {}),
 		createdAt: row.createdAt,
 		firstSeen: row.firstSeen,
 	}),
@@ -56,6 +58,7 @@ export const IssuerFromRow = Schema.transform(IssuerRow, Issuer, {
 		name: m.name,
 		imageUrl: m.imageUrl ?? null,
 		defaultCategoryId: m.defaultCategoryId ?? null,
+		notes: m.notes ?? null,
 		createdAt: m.createdAt,
 		firstSeen: m.firstSeen,
 	}),
@@ -78,6 +81,7 @@ type WriteRow = {
 	name: string;
 	imageUrl: string | null;
 	defaultCategoryId: number | null;
+	notes: string | null;
 	createdAt: string;
 	firstSeen: string;
 };
@@ -237,6 +241,7 @@ export class IssuerRepo extends Effect.Service<IssuerRepo>()(
 				name: m.name,
 				imageUrl: m.imageUrl ?? null,
 				defaultCategoryId: m.defaultCategoryId ?? null,
+				notes: m.notes ?? null,
 				createdAt: m.createdAt.toISOString(),
 				firstSeen: m.firstSeen.toISOString(),
 			});
@@ -277,6 +282,7 @@ export class IssuerRepo extends Effect.Service<IssuerRepo>()(
 									name: payload.name,
 									imageUrl: payload.imageUrl ?? null,
 									defaultCategoryId: payload.defaultCategoryId ?? null,
+									notes: payload.notes ?? null,
 									createdAt: now,
 									firstSeen: payload.firstSeen.toISOString(),
 								}),
@@ -299,15 +305,24 @@ export class IssuerRepo extends Effect.Service<IssuerRepo>()(
 							changes.defaultCategoryId !== undefined
 								? changes.defaultCategoryId
 								: (current.defaultCategoryId ?? null);
+						// `notes` is nullable-to-clear for the same reason and needs the
+						// same treatment — an emptied note arrives as `null` and must
+						// reach the column, not be dropped by `Issuer`'s optional field.
+						const notes =
+							changes.notes !== undefined
+								? changes.notes
+								: (current.notes ?? null);
 						const merged = new Issuer({
 							...current,
 							...changes,
 							defaultCategoryId: current.defaultCategoryId,
+							notes: current.notes,
 						});
 						return updateQuery({
 							...toWriteRow(merged),
 							id,
 							defaultCategoryId,
+							notes,
 						}).pipe(orDieSql);
 					}),
 				);

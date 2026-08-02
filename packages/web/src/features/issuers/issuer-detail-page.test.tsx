@@ -338,17 +338,73 @@ describe("IssuerDetailPage", () => {
 		).toBeInTheDocument();
 	});
 
-	it("renames the issuer", async () => {
+	it("renames the issuer inline, autosaving once typing settles", async () => {
 		const user = userEvent.setup();
 		renderAt("/issuers/1");
+
+		// The heading *is* the field: no separate rename form, no Save button.
+		await user.click(await screen.findByRole("button", { name: /Spotify/ }));
 
 		const input = await screen.findByLabelText("Issuer name");
 		await user.clear(input);
 		await user.type(input, "Spotify Premium");
-		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() =>
 			expect(updateIssuer).toHaveBeenCalledWith(1, { name: "Spotify Premium" }),
+		);
+	});
+
+	it("writes a note once typing settles", async () => {
+		const user = userEvent.setup();
+		renderAt("/issuers/1");
+
+		const notes = await screen.findByLabelText("Notes");
+		await user.type(notes, "Cancels in March");
+
+		await waitFor(() =>
+			expect(updateIssuer).toHaveBeenCalledWith(1, {
+				notes: "Cancels in March",
+			}),
+		);
+	});
+
+	it("shows an existing note in the field", async () => {
+		issuersById[1] = { ...issuersById[1], notes: "Shared with Ana" } as Issuer;
+		renderAt("/issuers/1");
+
+		expect(await screen.findByLabelText("Notes")).toHaveValue(
+			"Shared with Ana",
+		);
+	});
+
+	// Emptying the box is the *only* way to remove a note, so — unlike the name
+	// field, where a blank is ignored as half-typed — it must reach the API, and
+	// as `null` (the clear) rather than an empty string.
+	it("clears the note with null when the field is emptied", async () => {
+		issuersById[1] = { ...issuersById[1], notes: "Temporary" } as Issuer;
+		const user = userEvent.setup();
+		renderAt("/issuers/1");
+
+		const notes = await screen.findByLabelText("Notes");
+		await user.clear(notes);
+
+		await waitFor(() =>
+			expect(updateIssuer).toHaveBeenCalledWith(1, { notes: null }),
+		);
+	});
+
+	it("closes the inline name field on blur", async () => {
+		const user = userEvent.setup();
+		renderAt("/issuers/1");
+
+		await user.click(await screen.findByRole("button", { name: /Spotify/ }));
+		await screen.findByLabelText("Issuer name");
+
+		// Tabbing away blurs the field, which is what closes it.
+		await user.tab();
+
+		await waitFor(() =>
+			expect(screen.queryByLabelText("Issuer name")).not.toBeInTheDocument(),
 		);
 	});
 

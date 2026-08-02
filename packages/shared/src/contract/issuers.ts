@@ -38,6 +38,8 @@ export class Issuer extends Schema.Class<Issuer>("Issuer")({
 	name: Schema.String,
 	imageUrl: Schema.optional(Schema.String), // root-relative "/uploads/issuers/..."
 	defaultCategoryId: Schema.optional(CategoryId),
+	/** Free-text note about this issuer. Absent when never written or cleared. */
+	notes: Schema.optional(Schema.String),
 	createdAt: Schema.Date,
 	firstSeen: Schema.Date,
 }) {}
@@ -50,6 +52,7 @@ export const IssuerCreate = Schema.Struct({
 	name: Issuer.fields.name,
 	imageUrl: Issuer.fields.imageUrl,
 	defaultCategoryId: Issuer.fields.defaultCategoryId,
+	notes: Issuer.fields.notes,
 	firstSeen: Issuer.fields.firstSeen,
 });
 export type IssuerCreate = typeof IssuerCreate.Type;
@@ -60,11 +63,17 @@ export type IssuerCreate = typeof IssuerCreate.Type;
  * (the "undo a categorisation" gesture), which absent-means-unchanged can't
  * express. A present leaf id sets it; the API rejects a folder ({@link
  * CategoryNotLeaf}).
+ *
+ * `notes` is nullable for the same reason, and it is the *only* way to erase a
+ * note: unlike `name` — where an empty field reads as a half-typed value and is
+ * ignored — an emptied note is a deliberate "remove this", so the client sends
+ * `null` rather than `""` and the column goes back to SQL `NULL`.
  */
 export const IssuerUpdate = Schema.partial(
 	Schema.Struct({
 		...IssuerCreate.fields,
 		defaultCategoryId: Schema.NullOr(CategoryId),
+		notes: Schema.NullOr(Schema.String),
 	}),
 );
 export type IssuerUpdate = typeof IssuerUpdate.Type;

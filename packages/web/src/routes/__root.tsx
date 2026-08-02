@@ -4,6 +4,7 @@ import { createRootRoute, Outlet } from "@tanstack/react-router";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "sonner";
 import { AppSidebar } from "@/components/app-sidebar";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { queryClient } from "@/lib/query-client";
 
 /**
@@ -11,20 +12,24 @@ import { queryClient } from "@/lib/query-client";
  *
  * Wires the cross-cutting providers the PRD assigns to `__root`: the TanStack
  * Query provider (app defaults), `next-themes` for the light/dark toggle, the
- * gousse `Sidebar`, and a `sonner` toaster for mutation-failure surfacing.
+ * gousse `Sidebar`, a `sonner` toaster for mutation-failure surfacing, and the
+ * Radix tooltip provider (one at the root, so hovering across a column of
+ * tooltips re-opens instantly rather than re-waiting the delay each time).
  */
 function RootLayout() {
 	return (
 		<QueryClientProvider client={queryClient}>
 			<ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
-				<div className="flex h-screen w-full bg-gousse-bg text-gousse-ink">
-					<AppSidebar />
-					<main className="flex-1 overflow-auto p-8">
-						<Outlet />
-					</main>
-				</div>
-				<Toaster position="bottom-right" richColors closeButton />
-				<ReactQueryDevtools initialIsOpen={false} />
+				<TooltipProvider>
+					<div className="flex h-screen w-full bg-gousse-bg text-gousse-ink">
+						<AppSidebar />
+						<main className="flex-1 overflow-auto p-8">
+							<Outlet />
+						</main>
+					</div>
+					<Toaster position="bottom-right" richColors closeButton />
+					<ReactQueryDevtools initialIsOpen={false} />
+				</TooltipProvider>
 			</ThemeProvider>
 		</QueryClientProvider>
 	);

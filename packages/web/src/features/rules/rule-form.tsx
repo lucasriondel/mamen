@@ -8,8 +8,8 @@ import { useQuery } from "@tanstack/react-query";
 import { type FormEvent, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ruleKeys, ruleMutations } from "@/lib/sdk";
+import { useDebouncedValue } from "@/lib/use-debounced-value";
 import { RulePreviewLists } from "./rule-preview-lists";
-import { useDebouncedValue } from "./use-debounced-value";
 import { useRuleMutations } from "./use-rule-mutations";
 
 const INPUT_CLASS =

@@ -48,6 +48,12 @@ export interface IconPickerProps {
 	pending?: boolean;
 	onSelect: (icon: IconName) => void;
 	className?: string;
+	/**
+	 * Render the popover here instead of `document.body` — required inside a modal
+	 * dialog, whose scroll lock would otherwise freeze the icon grid. See
+	 * {@link PopoverContent}'s `portalContainer`.
+	 */
+	portalContainer?: HTMLElement | null;
 }
 
 /**
@@ -77,6 +83,7 @@ export function IconPicker({
 	pending,
 	onSelect,
 	className,
+	portalContainer,
 }: IconPickerProps) {
 	const [open, setOpen] = useState(false);
 	const [query, setQuery] = useState("");
@@ -181,7 +188,7 @@ export function IconPicker({
 					<CategoryIcon name={value} color={color} />
 				</button>
 			</PopoverTrigger>
-			<PopoverContent className="w-72 p-2">
+			<PopoverContent className="w-72 p-2" portalContainer={portalContainer}>
 				<Input
 					value={query}
 					onChange={(e) => {

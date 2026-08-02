@@ -58,15 +58,18 @@ export function useCategoryMutations() {
 		mutationFn: ({
 			name,
 			parentId,
+			icon = NEW_CATEGORY_ICON,
 		}: {
 			name: string;
 			parentId: CategoryId | null;
+			/** An **Icon name** chosen up front; omitted, the node gets the default. */
+			icon?: string;
 		}): Promise<Category> =>
 			categoryMutations.create({
 				name,
 				slug: slugify(name),
 				color: NEW_COLOR,
-				icon: NEW_CATEGORY_ICON,
+				icon,
 				parentId,
 				sortOrder: 0,
 			}),

@@ -35,10 +35,7 @@ describe("IssuerRepo", () => {
 				assert.strictEqual(created.name, "Coffee Co");
 				assert.ok(created.id > 0);
 				assert.ok(created.createdAt instanceof Date);
-				assert.strictEqual(
-					created.firstSeen.getTime(),
-					FIRST_SEEN.getTime(),
-				);
+				assert.strictEqual(created.firstSeen.getTime(), FIRST_SEEN.getTime());
 				// Optional columns absent (not null) when unset.
 				assert.strictEqual(created.imageUrl, undefined);
 				assert.strictEqual(created.defaultCategoryId, undefined);
@@ -156,6 +153,52 @@ describe("IssuerRepo", () => {
 				updated.firstSeen.getTime(),
 				created.firstSeen.getTime(),
 			);
+		}).pipe(Effect.provide(RepoTest)),
+	);
+
+	it.effect("create stores notes, then getById returns them", () =>
+		Effect.gen(function* () {
+			const repo = yield* IssuerRepo;
+			const created = yield* repo.create(
+				make({ name: "Gym", notes: "Cancels in March" }),
+			);
+			assert.strictEqual(created.notes, "Cancels in March");
+			const found = yield* repo.getById(created.id);
+			assert.strictEqual(found.notes, "Cancels in March");
+		}).pipe(Effect.provide(RepoTest)),
+	);
+
+	it.effect("update sets notes on an issuer that had none", () =>
+		Effect.gen(function* () {
+			const repo = yield* IssuerRepo;
+			const created = yield* repo.create(make());
+			assert.strictEqual(created.notes, undefined);
+			const updated = yield* repo.update(created.id, {
+				notes: "Shared with Ana",
+			});
+			assert.strictEqual(updated.notes, "Shared with Ana");
+		}).pipe(Effect.provide(RepoTest)),
+	);
+
+	// The nullable-clear half of the contract: `null` erases, absent preserves.
+	it.effect("update clears notes with null (back to absent)", () =>
+		Effect.gen(function* () {
+			const repo = yield* IssuerRepo;
+			const created = yield* repo.create(make({ notes: "Temporary" }));
+			const cleared = yield* repo.update(created.id, { notes: null });
+			assert.strictEqual(cleared.notes, undefined);
+			const found = yield* repo.getById(created.id);
+			assert.strictEqual(found.notes, undefined);
+		}).pipe(Effect.provide(RepoTest)),
+	);
+
+	it.effect("update leaves notes untouched when the field is absent", () =>
+		Effect.gen(function* () {
+			const repo = yield* IssuerRepo;
+			const created = yield* repo.create(make({ notes: "Keep me" }));
+			const renamed = yield* repo.update(created.id, { name: "Renamed" });
+			assert.strictEqual(renamed.name, "Renamed");
+			assert.strictEqual(renamed.notes, "Keep me");
 		}).pipe(Effect.provide(RepoTest)),
 	);
 

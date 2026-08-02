@@ -82,6 +82,17 @@ export function useIssuerMutations() {
 		onError,
 	});
 
+	// The issuer's free-text note. `null` *clears* it (the contract's
+	// nullable-to-clear field), which is how an emptied textarea erases the note
+	// rather than storing an empty string. Invalidating the whole issuer family
+	// is what repaints the transactions table's note tooltip without a reload.
+	const setNotes = useMutation({
+		mutationFn: ({ id, notes }: { id: IssuerId; notes: string | null }) =>
+			issuerMutations.update(id, { notes }),
+		onSuccess: invalidate,
+		onError,
+	});
+
 	// The bulk lever (PRD #19): set — or clear (`null`) — an issuer's default
 	// category, reclassifying its whole non-overridden history at once (the
 	// category is derived through the issuer at query time, never copied). A
@@ -105,6 +116,7 @@ export function useIssuerMutations() {
 		deleteImage,
 		setImageFromUrl,
 		remove,
+		setNotes,
 		setDefaultCategory,
 	};
 }
