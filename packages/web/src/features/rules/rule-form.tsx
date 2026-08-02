@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { ruleKeys, ruleMutations } from "@/lib/sdk";
 import { useDebouncedValue } from "@/lib/use-debounced-value";
 import { RulePreviewLists } from "./rule-preview-lists";
+import { RulePreviewSkeleton } from "./rule-preview-skeleton";
 import { useRuleMutations } from "./use-rule-mutations";
 
 const INPUT_CLASS =
@@ -308,7 +309,7 @@ export function RuleForm({
 						Type a pattern to preview its effect.
 					</p>
 				) : previewQuery.isPending ? (
-					<p className="text-sm text-gousse-muted">Previewing…</p>
+					<RulePreviewSkeleton label="Previewing this pattern…" />
 				) : previewQuery.isError ? (
 					<p className="text-sm text-gousse-high">Couldn’t load the preview.</p>
 				) : previewQuery.data ? (

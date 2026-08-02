@@ -6,6 +6,7 @@ import { useMemo } from "react";
 import { issuerQueries, ruleQueries } from "@/lib/sdk";
 import { indexById } from "@/lib/utils";
 import { RuleForm } from "./rule-form";
+import { RuleFormSkeleton } from "./rule-form-skeleton";
 
 /** How many issuers to load for resolving preview rows' current issuer names. */
 const ISSUER_SCAN_LIMIT = 1000;
@@ -72,7 +73,12 @@ export function RuleFormPage({
 	);
 
 	if (isEditing && ruleQuery.isPending) {
-		return <p className="py-16 text-center text-gousse-muted">Loading rule…</p>;
+		return (
+			<section className="flex flex-col gap-6">
+				{backLink}
+				<RuleFormSkeleton />
+			</section>
+		);
 	}
 
 	const rule = isEditing ? (ruleQuery.data as Rule | undefined) : undefined;

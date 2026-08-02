@@ -18,6 +18,7 @@ import {
 } from "@/lib/sdk";
 import { cn, indexById } from "@/lib/utils";
 import { TransactionDetailContent } from "./transaction-detail-content";
+import { TransactionDetailSkeleton } from "./transaction-detail-skeleton";
 
 const routeApi = getRouteApi("/transactions_/$transactionId");
 
@@ -53,11 +54,7 @@ export function TransactionDetailPage() {
 	});
 
 	if (txnQuery.isPending) {
-		return (
-			<p className="py-16 text-center text-gousse-muted">
-				Loading transaction…
-			</p>
-		);
+		return <TransactionDetailSkeleton />;
 	}
 
 	const txn = txnQuery.data as Transaction | undefined;

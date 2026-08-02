@@ -2,6 +2,7 @@ import type { Issuer, Rule } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { ruleQueries } from "@/lib/sdk";
+import { RulePreviewSkeleton } from "./rule-preview-skeleton";
 import { TransactionPreviewList } from "./transaction-preview-list";
 import { useRuleMutations } from "./use-rule-mutations";
 
@@ -50,7 +51,7 @@ export function RuleDeleteConfirm({
 
 			<div className="max-h-72 overflow-y-auto rounded-md border border-gousse-line p-3">
 				{previewQuery.isPending ? (
-					<p className="text-sm text-gousse-muted">Loading consequences…</p>
+					<RulePreviewSkeleton label="Loading consequences…" />
 				) : previewQuery.isError ? (
 					<p className="text-sm text-gousse-high">
 						Couldn’t load the delete preview.

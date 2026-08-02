@@ -15,6 +15,7 @@ import {
 	sortIssuers,
 } from "./issuer-sort";
 import { IssuerSortControl } from "./issuer-sort-control";
+import { IssuersGridSkeleton } from "./issuers-grid-skeleton";
 import { type IssuersSearch, toIssuerSort } from "./search";
 
 const routeApi = getRouteApi("/issuers/");
@@ -114,7 +115,7 @@ export function IssuersView() {
 					description="Something went wrong reading your issuers. Try again in a moment."
 				/>
 			) : issuersQuery.isPending ? (
-				<p className="py-16 text-center text-gousse-muted">Loading issuers…</p>
+				<IssuersGridSkeleton />
 			) : issuers.length === 0 ? (
 				<Empty
 					title="No issuers yet"

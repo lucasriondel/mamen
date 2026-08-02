@@ -8,6 +8,7 @@ import { useTransfer } from "@/features/transactions/use-transfer";
 import { accountQueries, transactionQueries } from "@/lib/sdk";
 import { indexById } from "@/lib/utils";
 import { TransferCandidateRow } from "./transfer-candidate-row";
+import { TransfersListSkeleton } from "./transfers-list-skeleton";
 
 /**
  * Transfers page (PRD #48) — surfaces every **detected** internal transfer the
@@ -64,7 +65,7 @@ function TransfersList({
 	linkingIds: readonly number[] | undefined;
 }) {
 	if (query.isPending) {
-		return <p className="text-gousse-muted">Looking for transfers…</p>;
+		return <TransfersListSkeleton />;
 	}
 
 	if (query.isError) {

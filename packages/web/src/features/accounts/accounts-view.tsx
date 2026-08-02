@@ -3,6 +3,7 @@ import { type UseQueryResult, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { accountQueries } from "@/lib/sdk";
 import { AccountRow } from "./account-row";
+import { AccountsListSkeleton } from "./accounts-list-skeleton";
 import { CreateAccountForm } from "./create-account-form";
 import { ImportGrid } from "./import-grid";
 
@@ -44,7 +45,7 @@ function AccountsList({
 	query: UseQueryResult<{ items: readonly Account[]; total: number }>;
 }) {
 	if (query.isPending) {
-		return <p className="text-gousse-muted">Loading accounts…</p>;
+		return <AccountsListSkeleton />;
 	}
 
 	if (query.isError) {

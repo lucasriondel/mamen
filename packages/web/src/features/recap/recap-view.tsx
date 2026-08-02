@@ -5,6 +5,7 @@ import { AccountMultiSelect } from "./account-multi-select";
 import type { Period } from "./period";
 import { PeriodSelector } from "./period-selector";
 import type { SpendRow } from "./recap-aggregate";
+import { RecapSkeleton } from "./recap-skeleton";
 import type { SpendSort } from "./recap-sort";
 import { sortSpendRows } from "./recap-sort";
 import { type RecapSearch, toPeriod, toSpendSort } from "./search";
@@ -113,7 +114,7 @@ export function RecapView() {
 					description="Something went wrong reading your spending. Try again in a moment."
 				/>
 			) : isPending ? (
-				<p className="py-16 text-center text-gousse-muted">Loading recap…</p>
+				<RecapSkeleton />
 			) : (
 				<>
 					{truncated ? <TruncationNotice /> : null}
