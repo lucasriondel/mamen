@@ -1,7 +1,7 @@
 import type { Issuer, IssuerId, TransactionId } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, CircleHelp, Plus, SquarePen } from "lucide-react";
+import { ArrowLeft, CircleHelp, Plus, Search, SquarePen } from "lucide-react";
 import { useState } from "react";
 import {
 	Command,
@@ -49,6 +49,9 @@ function matches(issuer: Issuer, query: string): boolean {
  *    that issuer's rule-create page with the pattern pre-filled.
  * 3. **Match an issuer** — assign an existing issuer to this one transaction
  *    (`manualIssuer: true`, a sticky hand pick).
+ * 4. **Search on Google** — open the raw counterparty string, quoted, in a new
+ *    tab. Resolving a row often stalls on *who is this?* rather than on which
+ *    issuer to pick, and the answer lives outside the app.
  *
  * A `mode` switches what selecting an issuer row does: in `match` mode (default)
  * it assigns; in `add-rule` mode it navigates to the issuer's rule page. The
@@ -110,6 +113,20 @@ export function AssignmentPicker({
 			{ name: trimmed },
 			{ onSuccess: (issuer) => goToNewRule(issuer.id) },
 		);
+	};
+
+	/**
+	 * Look the raw counterparty string up on Google, in a new tab. Quoted so the
+	 * search is an exact-phrase one: bank strings are noisy tokens (`SEPA`, store
+	 * codes, dates) that Google otherwise splits and paraphrases into nothing
+	 * useful. `noopener,noreferrer` because the opened tab is untrusted.
+	 */
+	const searchOnGoogle = () => {
+		close();
+		const url = `https://www.google.com/search?q=${encodeURIComponent(
+			`"${rawIssuerString}"`,
+		)}`;
+		window.open(url, "_blank", "noopener,noreferrer");
 	};
 
 	/** What selecting an issuer row does, per the current mode. */
@@ -237,6 +254,19 @@ export function AssignmentPicker({
 											</span>
 										</CommandItem>
 									) : null}
+									<CommandItem
+										value="__google_search__"
+										onSelect={searchOnGoogle}
+									>
+										<Search
+											size={16}
+											className="shrink-0 text-gousse-muted"
+											aria-hidden
+										/>
+										<span className="truncate">
+											Search “{rawIssuerString}” on Google
+										</span>
+									</CommandItem>
 								</CommandGroup>
 							</>
 						)}

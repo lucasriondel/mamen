@@ -156,4 +156,23 @@ describe("AssignmentPicker", () => {
 		expect(createIssuer).not.toHaveBeenCalled();
 		expect(updateTransaction).not.toHaveBeenCalled();
 	});
+
+	it("searches the quoted raw string on Google in a new tab", async () => {
+		const openSpy = vi
+			.spyOn(window, "open")
+			.mockReturnValue(null as unknown as Window);
+		const user = await open();
+
+		await user.click(await screen.findByText(/Search .* on Google/));
+
+		// Quoted so Google runs an exact-phrase search on the noisy bank string.
+		expect(openSpy).toHaveBeenCalledWith(
+			"https://www.google.com/search?q=%22ACME%20PAYROLL%22",
+			"_blank",
+			"noopener,noreferrer",
+		);
+		expect(createIssuer).not.toHaveBeenCalled();
+		expect(updateTransaction).not.toHaveBeenCalled();
+		openSpy.mockRestore();
+	});
 });
