@@ -87,8 +87,11 @@ export function IssuerNameField({ issuer }: IssuerNameFieldProps) {
 		}
 	};
 
+	// No `text-balance`: it would split a long name evenly over two lines, which is
+	// exactly what the single-line heading wants to avoid. `truncate` keeps the
+	// name on one line and ellipsises only when it genuinely can't fit.
 	const HEADING_CLASS =
-		"w-full min-w-0 truncate text-balance text-2xl font-semibold text-gousse-ink";
+		"w-full min-w-0 truncate text-2xl font-semibold text-gousse-ink";
 
 	if (isEditing) {
 		return (

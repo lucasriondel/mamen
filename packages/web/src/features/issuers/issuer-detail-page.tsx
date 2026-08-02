@@ -165,7 +165,9 @@ function IssuerDetailContent({ issuer }: IssuerDetailContentProps) {
 					defaultCategoryId={issuer.defaultCategoryId}
 					size="lg"
 				/>
-				<div className="flex min-w-0 flex-col">
+				{/* `flex-1` so the name field gets the whole remaining row rather than
+				    shrink-wrapping and wrapping the heading onto a second line. */}
+				<div className="flex min-w-0 flex-1 flex-col">
 					{/* The name *is* the heading — click it to edit in place (no separate
 					    rename form; edits autosave once typing settles). */}
 					<IssuerNameField issuer={issuer} />
