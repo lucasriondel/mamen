@@ -22,6 +22,13 @@
 @import "@lucasriondel/gousse-ui/theme.css";
 @import "@lucasriondel/gousse-ui/effects.css";
 
+/* gousse's primitives carry their own utility classes (`bg-gousse-ink`,
+ * `disabled:bg-gousse-muted`, …) inside their compiled JS. Tailwind v4 skips
+ * `node_modules` when auto-detecting sources, so without this those classes are
+ * never generated and the primitives render unstyled — a `primary` Button ends
+ * up transparent with `text-gousse-bg` ink, i.e. invisible on a dark page. */
+@source "../../../node_modules/@lucasriondel/gousse-ui/dist";
+
 /* mamen's accent tint. gousse ships a warm orange default; we track miel's blue
  * so the two apps read as one design language. Bare channel triples — the
  * `rgb(var(--gousse-*))` wrapping lives in gousse's theme.css. */
