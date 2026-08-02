@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/table";
 import { resolveCategoryColors } from "@/lib/category-tree";
 import { formatShortDate } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { AssignmentPicker } from "./assignment-picker";
 import { CategoryPicker } from "./category-picker";
 import { IssuerPicker } from "./issuer-picker";
@@ -230,6 +231,14 @@ export function TransactionsTable({
 				</TableHeader>
 				<TableBody>
 					{table.getRowModel().rows.map((row) => {
+						// A row with no issuer, no category and no note is entirely
+						// uncurated: nothing about it has been reviewed yet. Tint it in the
+						// `high` (red) token at low alpha so a page of them reads as a
+						// to-do pile without shouting over the resolved rows.
+						const isUncurated =
+							row.original.issuerId == null &&
+							row.original.categoryId == null &&
+							(row.original.notes == null || row.original.notes.trim() === "");
 						const openDetail = () =>
 							navigate({
 								to: "/transactions/$transactionId",
@@ -255,7 +264,13 @@ export function TransactionsTable({
 								tabIndex={0}
 								role="link"
 								aria-label={`View transaction ${row.original.rawIssuerString}`}
-								className="cursor-pointer focus:outline-none focus-visible:bg-gousse-bg"
+								className={cn(
+									"cursor-pointer transition-colors focus:outline-none focus-visible:bg-gousse-bg",
+									// The tint has to restate hover/focus too: `TableRow`'s own
+									// `hover:bg-gousse-bg` would otherwise wash it away on hover.
+									isUncurated &&
+										"bg-gousse-high/5 hover:bg-gousse-high/10 focus-visible:bg-gousse-high/10",
+								)}
 							>
 								{row.getVisibleCells().map((cell) => {
 									// The issuer/category/notes cells are inline curation surfaces
