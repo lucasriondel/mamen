@@ -31,6 +31,10 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
 				queryKey: ["issuers", "list", "test"],
 				queryFn: async () => ({ items: ISSUERS, total: ISSUERS.length }),
 			}),
+			all: () => ({
+				queryKey: ["issuers", "list", "test"],
+				queryFn: async () => ({ items: ISSUERS, total: ISSUERS.length }),
+			}),
 		},
 		transactionMutations: {
 			update: (id: unknown, payload: unknown) => updateTransaction(id, payload),

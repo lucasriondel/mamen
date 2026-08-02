@@ -45,8 +45,39 @@ export const issuerKeys = {
  */
 const LOGO_SEARCH_CACHE_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * The page size {@link issuerQueries.all} asks for — high enough to hold a
+ * single user's whole issuer set in one response.
+ *
+ * The number exists because a *resolution* read has no business being
+ * paginated: a caller indexing issuers by id to name a transaction's issuer
+ * needs every issuer, and a short page silently resolves the ones it happens to
+ * contain. The contract's `list` defaults to 50 ordered by **id**, so with more
+ * than 50 issuers the newest ones fall off page 1 and rows pointing at them
+ * render as unresolved — a rule that matched correctly looks broken.
+ *
+ * A cap this far above a realistic issuer count is a stopgap, not a fix: it
+ * moves the cliff rather than removing it. Resolving by the ids actually on
+ * screen is the real answer (see the linked issue).
+ */
+export const ISSUER_SCAN_LIMIT = 1000;
+
 /** tanstack-query read options for the issuers resource. */
 export const issuerQueries = {
+	/**
+	 * **Every issuer**, in one query — the shared read for lookup-by-id.
+	 *
+	 * The single source of truth for "give me all the issuers so I can resolve
+	 * one": the transactions table, the pickers, the recap, and the rules UI all
+	 * call this rather than each passing its own `limit` to {@link
+	 * issuerQueries.list}. That drift is what broke issuer resolution once — most
+	 * call sites took the default 50 while the rules pages asked for 1000 — so
+	 * the limit lives here, in one place, where it cannot be forgotten.
+	 *
+	 * `list` stays for genuinely paginated/ordered reads (the issuers grid).
+	 */
+	all: () => issuerQueries.list({ limit: ISSUER_SCAN_LIMIT }),
+
 	list: (params: IssuerListParams = {}) => {
 		const urlParams = { ...PaginationDefaults, ...params };
 		return queryOptions({

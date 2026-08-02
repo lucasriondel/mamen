@@ -76,7 +76,7 @@ export function IssuerPicker({ transaction, issuer }: IssuerPickerProps) {
 	// actions step never shows issuers, so opening the popover alone needn't pay
 	// for the list.
 	const issuersQuery = useQuery({
-		...issuerQueries.list(),
+		...issuerQueries.all(),
 		enabled: open && mode === "search",
 	});
 	const issuers = (issuersQuery.data?.items ?? []) as readonly Issuer[];

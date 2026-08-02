@@ -41,7 +41,7 @@ export function TransactionDetailPage() {
 
 	const txnQuery = useQuery(transactionQueries.getById(id));
 	const accountsQuery = useQuery(accountQueries.list());
-	const issuersQuery = useQuery(issuerQueries.list());
+	const issuersQuery = useQuery(issuerQueries.all());
 	const categoriesQuery = useQuery(
 		categoryQueries.list({ limit: CATEGORY_SCAN_LIMIT }),
 	);

@@ -9,9 +9,6 @@ import { indexById } from "@/lib/utils";
 import { RuleDeleteConfirm } from "./rule-delete-confirm";
 import { RulesListSkeleton } from "./rules-list-skeleton";
 
-/** How many issuers to load for resolving preview rows' current issuer names. */
-const ISSUER_SCAN_LIMIT = 1000;
-
 export interface RulesSectionProps {
 	issuer: Issuer;
 }
@@ -35,9 +32,8 @@ export function RulesSection({ issuer }: RulesSectionProps) {
 	const rulesQuery = useQuery(ruleQueries.list({ issuerId: issuer.id }));
 	const rules = (rulesQuery.data?.items ?? []) as readonly Rule[];
 
-	const issuersQuery = useQuery(
-		issuerQueries.list({ limit: ISSUER_SCAN_LIMIT }),
-	);
+	// Every issuer, so a preview row's *current* issuer can be named whichever it is.
+	const issuersQuery = useQuery(issuerQueries.all());
 	const issuersById = useMemo(
 		() => indexById((issuersQuery.data?.items ?? []) as readonly Issuer[]),
 		[issuersQuery.data],

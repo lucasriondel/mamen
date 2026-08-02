@@ -71,7 +71,7 @@ export function AssignmentPicker({
 	const { assignExisting, createIssuer } = useAssignIssuer();
 
 	// Only fetch the issuer list once the picker is opened.
-	const issuersQuery = useQuery({ ...issuerQueries.list(), enabled: open });
+	const issuersQuery = useQuery({ ...issuerQueries.all(), enabled: open });
 	const issuers = (issuersQuery.data?.items ?? []) as readonly Issuer[];
 
 	const filtered = issuers.filter((issuer) => matches(issuer, query));
