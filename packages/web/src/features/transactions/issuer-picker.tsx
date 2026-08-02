@@ -15,6 +15,11 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { issuerQueries } from "@/lib/sdk";
 import { IssuerSearchList } from "./issuer-search-list";
 import { IssuerCell } from "./transaction-cells";
@@ -120,19 +125,28 @@ export function IssuerPicker({ transaction, issuer }: IssuerPickerProps) {
 
 	return (
 		<Popover open={open} onOpenChange={handleOpenChange}>
-			<PopoverTrigger asChild>
-				<button
-					type="button"
-					className="block rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-gousse-accent"
-					title="Change the issuer for this transaction"
-				>
-					<IssuerCell
-						rawIssuerString={transaction.rawIssuerString}
-						issuer={issuer}
-						isManual={isManual}
-					/>
-				</button>
-			</PopoverTrigger>
+			<IssuerNoteTooltip note={issuer.notes}>
+				<PopoverTrigger asChild>
+					<button
+						type="button"
+						className="block rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-gousse-accent"
+						// Only the browser-native hint when there is no note — with one,
+						// the Radix tooltip is the hover surface and a `title` would
+						// double up on it.
+						title={
+							issuer.notes == null
+								? "Change the issuer for this transaction"
+								: undefined
+						}
+					>
+						<IssuerCell
+							rawIssuerString={transaction.rawIssuerString}
+							issuer={issuer}
+							isManual={isManual}
+						/>
+					</button>
+				</PopoverTrigger>
+			</IssuerNoteTooltip>
 			<PopoverContent className="p-0">
 				<Command shouldFilter={false} label="Change the issuer">
 					{mode === "search" ? (
@@ -204,6 +218,39 @@ export function IssuerPicker({ transaction, issuer }: IssuerPickerProps) {
 				</Command>
 			</PopoverContent>
 		</Popover>
+	);
+}
+
+/**
+ * Reveals the issuer's **note** on hover over its cell, when it has one.
+ *
+ * A pass-through when the issuer has no note: rendering a `Tooltip` around every
+ * cell regardless would attach hover/focus handlers to a whole column to show
+ * nothing, and would swallow the plain `title` hint the cell falls back to.
+ *
+ * Reading only — the note is written on the issuer's page, which is one click
+ * away through this very popover. That keeps the tooltip safe as a surface a
+ * touch user or a screen reader may never open: nothing here is unavailable
+ * elsewhere. The note is wrapped to a readable measure rather than truncated;
+ * it exists to be read in full, and `whitespace-pre-wrap` keeps the line breaks
+ * the author typed.
+ */
+function IssuerNoteTooltip({
+	note,
+	children,
+}: {
+	note: string | undefined;
+	children: React.ReactNode;
+}) {
+	if (note == null || note.trim().length === 0) return <>{children}</>;
+
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>{children}</TooltipTrigger>
+			<TooltipContent className="max-w-72 whitespace-pre-wrap text-left leading-relaxed">
+				{note}
+			</TooltipContent>
+		</Tooltip>
 	);
 }
 

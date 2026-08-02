@@ -25,6 +25,7 @@ import { BUTTON_CLASS } from "./field-styles";
 import { IssuerAvatar } from "./issuer-avatar";
 import { IssuerDefaultCategoryPicker } from "./issuer-default-category-picker";
 import { IssuerNameField } from "./issuer-name-field";
+import { IssuerNotesField } from "./issuer-notes-field";
 import { LogoSearchPopover } from "./logo-search-popover";
 import { useIssuerMutations } from "./use-issuer-mutations";
 
@@ -221,6 +222,8 @@ function IssuerDetailContent({ issuer }: IssuerDetailContentProps) {
 			</div>
 
 			<IssuerDefaultCategoryPicker issuer={issuer} />
+
+			<IssuerNotesField issuer={issuer} />
 
 			{/* The same table, filters, sort, and pagination as the transactions and
 			    category pages — scoped to this issuer (issue #62). */}

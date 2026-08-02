@@ -41,6 +41,7 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
 
 // Imported after the mock so it binds to the mocked SDK surface.
 const { IssuerPicker } = await import("./issuer-picker");
+const { TooltipProvider } = await import("@/components/ui/tooltip");
 
 const issuer = ISSUERS[0] as unknown as Issuer;
 
@@ -67,12 +68,18 @@ beforeEach(() => {
 // ---- Router harness: the picker lives on a page; the issuer detail page is a
 // stub so we can assert the "Go to" navigation target. -------------------------
 
-function makeRouter(transaction: Transaction) {
+function makeRouter(transaction: Transaction, rowIssuer: Issuer = issuer) {
 	const rootRoute = createRootRoute();
 	const pickerRoute = createRoute({
 		getParentRoute: () => rootRoute,
 		path: "/",
-		component: () => <IssuerPicker transaction={transaction} issuer={issuer} />,
+		// `TooltipProvider` is mounted at `__root` in the app; the harness renders
+		// the picker in isolation, so it supplies its own.
+		component: () => (
+			<TooltipProvider>
+				<IssuerPicker transaction={transaction} issuer={rowIssuer} />
+			</TooltipProvider>
+		),
 	});
 	const issuerRoute = createRoute({
 		getParentRoute: () => rootRoute,
@@ -222,5 +229,69 @@ describe("IssuerPicker", () => {
 
 		await screen.findByRole("option", { name: /Go to MINT ENERGIE/ });
 		expect(screen.queryByText("Remove manual issuer")).not.toBeInTheDocument();
+	});
+
+	describe("issuer note tooltip", () => {
+		const withNote = {
+			...ISSUERS[0],
+			notes: "Cancels in March — shared with Ana",
+		} as unknown as Issuer;
+
+		it("reveals the issuer's note on hover", async () => {
+			const user = userEvent.setup();
+			render(
+				<RouterProvider
+					router={makeRouter(tx({ manualIssuer: false }), withNote)}
+				/>,
+			);
+
+			await user.hover(
+				await screen.findByRole("button", { name: /MINT ENERGIE/ }),
+			);
+
+			// Radix renders the visible tooltip with role=tooltip (plus an
+			// aria-describedby copy), so scope to the role and take the first.
+			await waitFor(() =>
+				expect(screen.getAllByRole("tooltip")[0]).toHaveTextContent(
+					"Cancels in March — shared with Ana",
+				),
+			);
+		});
+
+		it("shows no tooltip when the issuer has no note", async () => {
+			const user = userEvent.setup();
+			render(
+				<RouterProvider router={makeRouter(tx({ manualIssuer: false }))} />,
+			);
+
+			const trigger = await screen.findByRole("button", {
+				name: /MINT ENERGIE/,
+			});
+			// Without a note the cell keeps its plain hint, so the hover surface is
+			// the native `title` rather than a Radix tooltip.
+			expect(trigger).toHaveAttribute(
+				"title",
+				"Change the issuer for this transaction",
+			);
+
+			await user.hover(trigger);
+			expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+		});
+
+		it("still opens the picker on a row whose issuer has a note", async () => {
+			// The tooltip wraps the popover trigger — clicking must still open it.
+			const user = userEvent.setup();
+			render(
+				<RouterProvider
+					router={makeRouter(tx({ manualIssuer: true }), withNote)}
+				/>,
+			);
+
+			await user.click(
+				await screen.findByRole("button", { name: /MINT ENERGIE/ }),
+			);
+
+			await screen.findByRole("option", { name: /Go to MINT ENERGIE/ });
+		});
 	});
 });
