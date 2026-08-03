@@ -99,6 +99,7 @@ export {
 	AccountIdFilter,
 	BundleCreate,
 	NOTES_MAX_LENGTH,
+	PagedTransactions,
 	RecapCategoryBucket,
 	RecapFilters,
 	RecapIssuerBucket,

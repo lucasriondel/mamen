@@ -119,6 +119,14 @@ export const transactionKeys = {
 
 /** tanstack-query read options for the transactions resource. */
 export const transactionQueries = {
+	/**
+	 * A page of transactions — `{ items, total, bundleMembers }`. `items` is the
+	 * top-level set (bundle members hidden, per `bundleId` above) and `total` its
+	 * full filtered count; `bundleMembers` (issue #73) carries the members of
+	 * whatever **bundle parents** the page contains, so a parent can be expanded
+	 * in place without a request of its own. It is reference data for the rows on
+	 * screen — never rows of the page, and never part of any total.
+	 */
 	list: (params: TransactionListParams = {}) => {
 		// `direction` has a schema default (`desc`) but the derived client types it
 		// as required in the request, so fill it here alongside the pagination

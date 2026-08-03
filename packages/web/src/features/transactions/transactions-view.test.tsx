@@ -49,6 +49,46 @@ const TXNS = [
 	},
 ];
 
+/**
+ * A **bundle parent** and the two **bundle members** it stands for (issue #73):
+ * 200 € of groceries against 150 € paid back is one 50 € weekend. The members
+ * are hidden from the top level by the server, so they arrive in the list
+ * envelope's own `bundleMembers` field rather than among `items`.
+ */
+const BUNDLE_PARENT = {
+	id: 200,
+	accountId: 1,
+	date: new Date("2026-03-07T00:00:00Z"),
+	amount: -50,
+	rawIssuerString: "Weekend away",
+	kind: "bundle",
+	importedAt: new Date(),
+	importMonth: "2026-03",
+};
+
+const BUNDLE_MEMBERS = [
+	{
+		id: 201,
+		accountId: 1,
+		date: new Date("2026-03-07T00:00:00Z"),
+		amount: -200,
+		rawIssuerString: "GROCERIES",
+		bundleId: 200,
+		importedAt: new Date(),
+		importMonth: "2026-03",
+	},
+	{
+		id: 202,
+		accountId: 1,
+		date: new Date("2026-03-12T00:00:00Z"),
+		amount: 150,
+		rawIssuerString: "REVOLUT LUCAS",
+		bundleId: 200,
+		importedAt: new Date(),
+		importMonth: "2026-03",
+	},
+];
+
 // ---- SDK seam mock ----------------------------------------------------------
 
 /**
@@ -65,9 +105,20 @@ let listTotal = TXNS.length;
  */
 let listRows: Array<Record<string, unknown>> = TXNS;
 
+/**
+ * The **bundle members** the mocked envelope ships beside the page (issue #73) —
+ * the rows a **bundle parent** on screen stands for. Empty for every test that
+ * shows no parent, which is what the server sends for such a page.
+ */
+let listMembers: Array<Record<string, unknown>> = [];
+
 const listMock = vi.fn((params: Record<string, unknown>) => ({
 	queryKey: ["transactions", "list", params],
-	queryFn: async () => ({ items: listRows, total: listTotal }),
+	queryFn: async () => ({
+		items: listRows,
+		total: listTotal,
+		bundleMembers: listMembers,
+	}),
 }));
 
 /**
@@ -162,6 +213,7 @@ beforeEach(() => {
 	issuerByIdsMock.mockClear();
 	listRows = TXNS;
 	listTotal = TXNS.length;
+	listMembers = [];
 });
 
 describe("TransactionsView", () => {
@@ -229,6 +281,8 @@ describe("TransactionsView", () => {
 			// The selection column (issue #68) leads and carries no text: its header
 			// is the select-all checkbox, named for assistive tech by `aria-label`.
 			"",
+			// Screen-reader-only header for the bundle expand column (issue #73).
+			"Expand",
 			"Date",
 			"Account",
 			"Issuer",
@@ -489,6 +543,139 @@ describe("TransactionsView", () => {
 		await user.click(screen.getByRole("button", { name: /clear selection/i }));
 		expect(screen.queryByText(/selected/i)).toBeNull();
 		expect(selectAll).not.toBeChecked();
+	});
+
+	// **Bundle** expansion (issue #73). Members are hidden from the top level so
+	// they are not counted twice, which is right for the totals and opaque for the
+	// reader: a 50 € row labelled "Weekend away" says nothing about the 200 € debit
+	// and the 150 € refund behind it. Expanding the parent shows them in place.
+	describe("bundle expansion (issue #73)", () => {
+		/** Render a page holding the bundle parent, its members riding alongside. */
+		async function renderWithBundle() {
+			listRows = [BUNDLE_PARENT, ...TXNS];
+			listMembers = BUNDLE_MEMBERS;
+			listTotal = listRows.length;
+			return await renderView();
+		}
+
+		it("shows a parent's members only once it is expanded", async () => {
+			await renderWithBundle();
+			const user = userEvent.setup();
+
+			// Collapsed: the parent is the only row standing for that money.
+			expect(screen.getAllByText("Weekend away").length).toBeGreaterThan(0);
+			expect(screen.queryAllByText("GROCERIES")).toEqual([]);
+			expect(screen.queryAllByText("REVOLUT LUCAS")).toEqual([]);
+
+			const toggle = screen.getByRole("button", {
+				name: /show the 2 transactions in weekend away/i,
+			});
+			expect(toggle).toHaveAttribute("aria-expanded", "false");
+			await user.click(toggle);
+
+			expect(screen.getAllByText("GROCERIES").length).toBeGreaterThan(0);
+			expect(screen.getAllByText("REVOLUT LUCAS").length).toBeGreaterThan(0);
+			// The members arrive with the page — expanding asks the server nothing.
+			expect(listMock.mock.calls.some(([params]) => "bundleId" in params)).toBe(
+				false,
+			);
+
+			// And it closes again.
+			await user.click(
+				screen.getByRole("button", {
+					name: /hide the 2 transactions in weekend away/i,
+				}),
+			);
+			expect(screen.queryAllByText("GROCERIES")).toEqual([]);
+		});
+
+		// The row is a link to the detail page, so the one control inside it that
+		// means something else must not also navigate — the rule the curation cells
+		// and the selection checkbox already follow.
+		it("expands without navigating to the parent's detail page", async () => {
+			const router = await renderWithBundle();
+			const user = userEvent.setup();
+
+			await user.click(
+				screen.getByRole("button", {
+					name: /show the 2 transactions in weekend away/i,
+				}),
+			);
+
+			expect(router.state.location.pathname).toBe("/transactions");
+			expect(screen.getAllByText("GROCERIES").length).toBeGreaterThan(0);
+		});
+
+		// A member is a real bank row that has left the top level; it is shown for
+		// reading, and the count beneath the table still describes the top level.
+		it("shows members for reading, never as rows of the page", async () => {
+			await renderWithBundle();
+			const user = userEvent.setup();
+
+			await user.click(
+				screen.getByRole("button", {
+					name: /show the 2 transactions in weekend away/i,
+				}),
+			);
+
+			// A member is marked as one, and carries no selection checkbox: it is
+			// already bundled, so ticking it could lead nowhere.
+			const member = screen.getAllByText("GROCERIES")[0].closest("tr");
+			expect(member).toHaveAttribute("data-bundle-member", "true");
+			expect(
+				screen.queryByRole("checkbox", {
+					name: /select transaction GROCERIES/i,
+				}),
+			).toBeNull();
+
+			// Select-all takes the page's rows — the three top-level ones — and no
+			// member, so the bundle's money can't be re-bundled from under it.
+			await user.click(
+				screen.getByRole("checkbox", { name: /select all rows on this page/i }),
+			);
+			expect(screen.getByText(/3 selected/i)).toBeVisible();
+
+			// The pagination still counts the top-level set only: 3 rows, not 5.
+			expect(screen.getByLabelText("Pagination range")).toHaveTextContent(
+				"1–3 of 3",
+			);
+		});
+
+		// Three washes can apply to one row; the component settles the order rather
+		// than leaving it to CSS. Exclusion (arithmetic) beats bundle (structure),
+		// which beats uncurated (a to-do) — and they never stack.
+		it("paints the parent as a bundle, under the exclusion colour", async () => {
+			await renderWithBundle();
+
+			const parent = screen.getAllByText("Weekend away")[0].closest("tr");
+			expect(parent).toHaveAttribute("data-kind", "bundle");
+			expect(parent?.className).toContain("bg-gousse-accent");
+			// A fresh parent has no issuer, category or note, but it is not an
+			// unreviewed import — the bundle wash replaces the uncurated tint.
+			expect(parent?.className).not.toContain("bg-gousse-high");
+		});
+
+		it("lets the exclusion colour win over the bundle colour", async () => {
+			listRows = [{ ...BUNDLE_PARENT, excludedFromRecap: true }];
+			listMembers = BUNDLE_MEMBERS;
+			listTotal = 1;
+			const router = makeRouter();
+			render(<RouterProvider router={router} />);
+			await screen.findAllByText("Weekend away");
+
+			const parent = screen.getAllByText("Weekend away")[0].closest("tr");
+			expect(parent).toHaveAttribute("data-excluded", "true");
+			expect(parent?.className).toContain("bg-gousse-muted");
+			expect(parent?.className).not.toContain("bg-gousse-accent");
+		});
+
+		it("offers no expand affordance on an ordinary row", async () => {
+			await renderView();
+
+			expect(
+				screen.queryByRole("button", { name: /show the .* in /i }),
+			).toBeNull();
+		});
 	});
 
 	it("puts the page number — not the row offset — in the URL", async () => {

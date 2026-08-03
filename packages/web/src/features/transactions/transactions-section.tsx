@@ -191,6 +191,11 @@ export function TransactionsSection({
 	const categories = (categoriesQuery.data?.items ?? []) as readonly Category[];
 	const transactions = (transactionsQuery.data?.items ??
 		[]) as readonly Transaction[];
+	// The **bundle members** of the parents on this page (issue #73) — they ride
+	// with the list response, so a parent expands with no fetch of its own. Beside
+	// the rows, never among them: `total` and the page are the top-level set.
+	const bundleMembers = (transactionsQuery.data?.bundleMembers ??
+		[]) as readonly Transaction[];
 	const total = transactionsQuery.data?.total ?? 0;
 
 	// The issuers *this page* names — its rows' ids, not the issuer table. Reading
@@ -282,6 +287,7 @@ export function TransactionsSection({
 						onColumnVisibilityChange={onColumnVisibilityChange}
 						rowSelection={rowSelection}
 						onRowSelectionChange={setRowSelection}
+						bundleMembers={bundleMembers}
 					/>
 					<TransactionsPagination
 						page={page}

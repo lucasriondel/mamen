@@ -368,6 +368,28 @@ export const RecapPeriods = Schema.Struct({
 });
 
 /**
+ * `list` success body — the paged envelope `{ items, total }` **plus** the
+ * **bundle members** of whatever **bundle parents** the page happens to contain
+ * (issue #73), so a parent can be expanded in place without a fetch per row.
+ *
+ * They ride in their own field rather than in `items` on purpose. `items` is the
+ * top-level set — the one the signed `total` sums and the one pagination counts —
+ * and a member listed there would be counted twice, which is the very thing the
+ * `bundleId IS NULL` default exists to prevent. Here they are *reference data for
+ * the rows on this page*: shown for reading, counted nowhere.
+ *
+ * Scoped to the page, not the query: only the parents in `items` contribute, so
+ * the field grows with what is on screen rather than with the table. Empty for
+ * every page that holds no parent (the overwhelming majority), and empty when
+ * `bundleId` is the filter — that page's `items` *are* the members.
+ */
+export const PagedTransactions = Schema.Struct({
+	...Paged(Transaction).fields,
+	bundleMembers: Schema.Array(Transaction),
+});
+export type PagedTransactions = typeof PagedTransactions.Type;
+
+/**
  * The `list` ordering params: `orderBy: "date"` orders by `date`, `direction`
  * defaults `desc` (faithful to the old `getAllOrderedByDate` default). Separate
  * from {@link TransactionFilters} because `count` — which takes the identical
@@ -527,7 +549,7 @@ export class TransactionsGroup extends HttpApiGroup.make("transactions")
 					...TransactionListOrder,
 				}),
 			)
-			.addSuccess(Paged(Transaction)),
+			.addSuccess(PagedTransactions),
 	)
 	.add(
 		HttpApiEndpoint.get("count")`/transactions/count`

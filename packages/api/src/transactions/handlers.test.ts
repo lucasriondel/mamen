@@ -60,7 +60,13 @@ describe("transactions endpoints", () => {
 			const page = yield* client.transactions.list({
 				urlParams: { limit: 50, offset: 0, direction: "desc" },
 			});
-			assert.deepStrictEqual(page, { items: [], total: 0 });
+			// `bundleMembers` (issue #73) is part of the envelope on every page, so
+			// an empty table answers with an empty one rather than omitting it.
+			assert.deepStrictEqual(page, {
+				items: [],
+				total: 0,
+				bundleMembers: [],
+			});
 		}).pipe(Effect.provide(HttpLive)),
 	);
 
@@ -1887,6 +1893,54 @@ describe("createBundle (issue #68)", () => {
 			// amount is the members' sum whatever else lands on the row.
 			assert.strictEqual(curated.rawIssuerString, "Weekend Bretagne");
 			assert.strictEqual(curated.amount, -50);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	// Issue #73: a parent is expanded in the table with what came back beside it,
+	// never with a fetch of its own — so the list envelope has to carry the
+	// members of the parents on the page it just returned.
+	it.effect("carries the page's bundle members in the list envelope", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const a = yield* client.transactions.create({
+				payload: make({ amount: -200, rawIssuerString: "GROCERIES" }),
+			});
+			const b = yield* client.transactions.create({
+				payload: make({ amount: 150, rawIssuerString: "REVOLUT LUCAS" }),
+			});
+			yield* client.transactions.create({
+				payload: make({ amount: -10, rawIssuerString: "COFFEE" }),
+			});
+			const parent = yield* client.transactions.createBundle({
+				payload: { ids: [a.id, b.id], label: "Weekend away" },
+			});
+
+			const page = yield* client.transactions.list({
+				urlParams: { limit: 50, offset: 0, direction: "desc" },
+			});
+			assert.deepStrictEqual(
+				[...page.bundleMembers.map((t) => t.id)].sort((x, y) => x - y),
+				[a.id, b.id].sort((x, y) => x - y),
+			);
+			assert.ok(page.bundleMembers.every((m) => m.bundleId === parent.id));
+			// Beside the page, not in it: the rows and the signed total are still
+			// the top-level set, so nothing is counted twice.
+			assert.strictEqual(page.total, 2);
+			assert.ok(!page.items.some((t) => t.id === a.id || t.id === b.id));
+			const counted = yield* client.transactions.count({ urlParams: {} });
+			assert.strictEqual(counted.total, -60);
+
+			// A page with no parent on it carries none.
+			const coffeeOnly = yield* client.transactions.list({
+				urlParams: {
+					limit: 50,
+					offset: 0,
+					direction: "desc",
+					search: "COFFEE",
+				},
+			});
+			assert.strictEqual(coffeeOnly.items.length, 1);
+			assert.deepStrictEqual(coffeeOnly.bundleMembers, []);
 		}).pipe(Effect.provide(HttpLive)),
 	);
 

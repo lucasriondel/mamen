@@ -9,11 +9,11 @@ import {
 } from "@/components/ui/table";
 
 /**
- * Placeholder widths for the grid's columns (**select | Date | Account | Issuer
- * | Raw issuer | Category | Amount | Notes**), matching the settled table so the
- * layout doesn't shift when the rows arrive. `w-full` on the raw-issuer column
- * mirrors its free-text stretch; `ml-auto` right-aligns the amount as the real
- * cell does.
+ * Placeholder widths for the grid's columns (**select | expand | Date | Account
+ * | Issuer | Raw issuer | Category | Amount | Notes**), matching the settled
+ * table so the layout doesn't shift when the rows arrive. `w-full` on the
+ * raw-issuer column mirrors its free-text stretch; `ml-auto` right-aligns the
+ * amount as the real cell does.
  *
  * `id` names the real column each placeholder stands for, and is what the cells
  * are keyed on: two columns may legitimately share a width, so a width is not
@@ -22,6 +22,8 @@ import {
 const COLUMNS = [
 	// The selection checkbox (issue #68) — a 16px square in both rows and header.
 	{ id: "select", head: "w-4", cell: "w-4" },
+	// The bundle expand chevron (issue #73) — narrow, and empty on most rows.
+	{ id: "expand", head: "w-4", cell: "w-4" },
 	{ id: "date", head: "w-10", cell: "w-16" },
 	{ id: "account", head: "w-14", cell: "w-20" },
 	{ id: "issuer", head: "w-12", cell: "w-24" },

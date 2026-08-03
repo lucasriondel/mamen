@@ -6,7 +6,7 @@ import {
 	BundleInvalid,
 	CategoryNotLeaf,
 	NotFound,
-	Paged,
+	PagedTransactions,
 	RecapCategoryBucket,
 	RecapIssuerBucket,
 	RecapTransfers,
@@ -155,8 +155,6 @@ export const TransactionFromRow = Schema.transform(
 		}),
 	},
 );
-
-const PagedTransaction = Paged(Transaction);
 
 /** Decoder for a single stored row into the wire `Transaction`, reused per leg. */
 const decodeTransactionRow = Schema.decodeSync(TransactionFromRow);
@@ -805,6 +803,21 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 						ORDER BY ABS(julianday(c.date) - julianday(f.date)), f.id, c.id`,
 			});
 
+			// The **bundle members** of a set of **bundle parents** (issue #73) — the
+			// rows a page's parents stand for, fetched in ONE statement for the whole
+			// page rather than one per parent, so expanding a parent in the table
+			// needs no round-trip at all. Reads through the same `readColumns` /
+			// `readFrom` projection as the list, so a member expanded under its
+			// parent shows the same derived category and recap exclusion it would
+			// show anywhere else. Ordered date-then-id: the reading order of the rows
+			// that make up the parent's amount.
+			const bundleMembersQuery = SqlSchema.findAll({
+				Request: Schema.Any as Schema.Schema<ReadonlyArray<number>>,
+				Result: TransactionFromRow,
+				execute: (parentIds) =>
+					sql`SELECT ${readColumns} ${readFrom} WHERE ${sql.in("t.bundleId", parentIds)} ORDER BY t.date, t.id`,
+			});
+
 			// Reads a set of ids in one statement (partial existence allowed — the
 			// result holds only the ids that exist, order is arbitrary).
 			const bulkGetQuery = SqlSchema.findAll({
@@ -992,12 +1005,33 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 					),
 				);
 
+			/**
+			 * A page of transactions plus, since issue #73, the **bundle members** of
+			 * whatever **bundle parents** that page contains — one extra statement for
+			 * the whole page, and none at all for a page with no parent on it, so the
+			 * table can expand a parent in place without a fetch per row.
+			 *
+			 * The members travel BESIDE `items`, never inside it: `items` is the
+			 * top-level set that `total` counts and the signed `count` total sums, and
+			 * a member added there would be counted twice — exactly what the
+			 * `bundleId IS NULL` default in {@link buildConditions} exists to stop.
+			 * They are scoped to the parents on this page, so the payload grows with
+			 * the page rather than with the table.
+			 */
 			const list = (filter: ListFilter) =>
 				Effect.all({
 					items: listQuery(filter),
 					total: countQuery(filter).pipe(Effect.map((r) => r.count)),
 				}).pipe(
-					Effect.map((paged) => PagedTransaction.make(paged)),
+					Effect.bind("bundleMembers", ({ items }) => {
+						const parentIds = items.flatMap((t) =>
+							t.kind === "bundle" ? [t.id] : [],
+						);
+						return parentIds.length === 0
+							? Effect.succeed([] as ReadonlyArray<Transaction>)
+							: bundleMembersQuery(parentIds);
+					}),
+					Effect.map((paged) => PagedTransactions.make(paged)),
 					orDieSql,
 				);
 
