@@ -2,15 +2,14 @@ import type {
 	Account,
 	AccountId,
 	Category,
-	Issuer,
 	Transaction,
 } from "@mamen/shared/contract";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
+import { useIssuerLookup } from "@/features/issuers/use-issuer-lookup";
 import {
 	accountQueries,
 	categoryQueries,
-	issuerQueries,
 	type TransactionListParams,
 	transactionQueries,
 } from "@/lib/sdk";
@@ -64,7 +63,6 @@ export function useRecapSpend(
 	accountIds: readonly number[],
 ): RecapSpendResult {
 	const accountsQuery = useQuery(accountQueries.list());
-	const issuersQuery = useQuery(issuerQueries.all());
 	const categoriesQuery = useQuery(categoryQueries.list({ limit: 200 }));
 
 	// The full unfiltered history, capped, purely to enumerate the distinct
@@ -92,10 +90,8 @@ export function useRecapSpend(
 	});
 
 	const accounts = (accountsQuery.data?.items ?? []) as readonly Account[];
-	const issuers = (issuersQuery.data?.items ?? []) as readonly Issuer[];
 	const categories = (categoriesQuery.data?.items ?? []) as readonly Category[];
 
-	const issuersById = useMemo(() => indexById(issuers), [issuers]);
 	const categoriesById = useMemo(() => indexById(categories), [categories]);
 
 	// Merge every account query's page into one row set before aggregating.
@@ -106,6 +102,15 @@ export function useRecapSpend(
 			),
 		[spendQueries],
 	);
+
+	// The breakdown names the issuers of the rows it summed — so it asks for those
+	// ids, not for the issuer table. A period's rows reference far fewer issuers
+	// than exist, and none of them can fall off a page this way (#62).
+	const {
+		issuersById,
+		isPending: issuersPending,
+		isError: issuersError,
+	} = useIssuerLookup(transactions.map((t) => t.issuerId));
 
 	const spend = useMemo(
 		() => aggregateSpend(transactions, { issuersById, categoriesById }),
@@ -122,14 +127,17 @@ export function useRecapSpend(
 		return { months: monthList, years: yearList };
 	}, [periodsQuery.data]);
 
+	// The issuer lookup reads the ids of the rows, so it lands a beat after them —
+	// folded into `isPending` so the view holds its skeleton rather than briefly
+	// showing every bucket as *Unassigned*.
 	const isPending =
 		accountsQuery.isPending ||
-		issuersQuery.isPending ||
+		issuersPending ||
 		categoriesQuery.isPending ||
 		spendQueries.some((q) => q.isPending);
 	const isError =
 		accountsQuery.isError ||
-		issuersQuery.isError ||
+		issuersError ||
 		categoriesQuery.isError ||
 		spendQueries.some((q) => q.isError);
 

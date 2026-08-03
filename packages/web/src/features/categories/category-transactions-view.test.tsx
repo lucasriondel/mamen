@@ -89,6 +89,17 @@ vi.mock("@mamen/sdk", () => ({
 			queryKey: ["issuers", "list"],
 			queryFn: async () => ({ items: ISSUERS, total: ISSUERS.length }),
 		}),
+		// The resolution read: exactly the ids asked for, nothing else (#62).
+		byIds: (ids: Iterable<number>) => {
+			const wanted = [...new Set(ids)].sort((a, b) => a - b);
+			return {
+				queryKey: ["issuers", "by-ids", wanted],
+				queryFn: async () => {
+					const items = ISSUERS.filter((i) => wanted.includes(i.id));
+					return { items, total: items.length };
+				},
+			};
+		},
 	},
 	categoryQueries: {
 		list: () => ({

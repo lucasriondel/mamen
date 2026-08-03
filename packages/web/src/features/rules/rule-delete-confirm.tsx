@@ -1,6 +1,7 @@
-import type { Issuer, Rule } from "@mamen/shared/contract";
+import type { Rule } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { useIssuerLookup } from "@/features/issuers/use-issuer-lookup";
 import { ruleQueries } from "@/lib/sdk";
 import { RulePreviewSkeleton } from "./rule-preview-skeleton";
 import { TransactionPreviewList } from "./transaction-preview-list";
@@ -8,7 +9,6 @@ import { useRuleMutations } from "./use-rule-mutations";
 
 export interface RuleDeleteConfirmProps {
 	rule: Rule;
-	issuersById: ReadonlyMap<number, Issuer>;
 	/** Called after a successful delete (to leave the confirmation). */
 	onDone: () => void;
 	/** Called to back out without deleting. */
@@ -27,12 +27,19 @@ export interface RuleDeleteConfirmProps {
  */
 export function RuleDeleteConfirm({
 	rule,
-	issuersById,
 	onDone,
 	onCancel,
 }: RuleDeleteConfirmProps) {
 	const { remove } = useRuleMutations();
 	const previewQuery = useQuery(ruleQueries.deletePreview(rule.id));
+
+	// The issuers these consequence rows currently belong to, by the ids the rows
+	// carry — a handful, not the issuer table (#62).
+	const preview = previewQuery.data;
+	const { issuersById, isPending: issuersPending } = useIssuerLookup([
+		...(preview?.willReassign ?? []).map((t) => t.issuerId),
+		...(preview?.willUnmatch ?? []).map((t) => t.issuerId),
+	]);
 
 	const handleDelete = () => {
 		if (remove.isPending) return;
@@ -50,24 +57,26 @@ export function RuleDeleteConfirm({
 			</p>
 
 			<div className="max-h-72 overflow-y-auto rounded-md border border-gousse-line p-3">
-				{previewQuery.isPending ? (
+				{/* The issuer lookup reads the ids of the preview rows, so it lands a
+				    beat after them — the skeleton holds until both are in. */}
+				{previewQuery.isPending || issuersPending ? (
 					<RulePreviewSkeleton label="Loading consequences…" />
 				) : previewQuery.isError ? (
 					<p className="text-sm text-gousse-high">
 						Couldn’t load the delete preview.
 					</p>
-				) : previewQuery.data ? (
+				) : preview ? (
 					<div className="flex flex-col gap-4">
 						<TransactionPreviewList
 							title="Will reassign"
 							description="Transactions that fall back to another issuer's rule."
-							transactions={previewQuery.data.willReassign}
+							transactions={preview.willReassign}
 							issuersById={issuersById}
 						/>
 						<TransactionPreviewList
 							title="Will unmatch"
 							description="Transactions that become unmatched — no other rule claims them."
-							transactions={previewQuery.data.willUnmatch}
+							transactions={preview.willUnmatch}
 							issuersById={issuersById}
 						/>
 					</div>

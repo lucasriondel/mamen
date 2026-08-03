@@ -124,6 +124,17 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
 					total: issuersList.length,
 				}),
 			}),
+			// The resolution read: exactly the ids asked for, nothing else (#62).
+			byIds: (ids: Iterable<number>) => {
+				const wanted = [...new Set(ids)].sort((a, b) => a - b);
+				return {
+					queryKey: ["issuers", "by-ids", wanted],
+					queryFn: async () => {
+						const items = issuersList.filter((i) => wanted.includes(i.id));
+						return { items, total: items.length };
+					},
+				};
+			},
 			logoSearch: (q: string) => ({
 				queryKey: ["logo-search", q],
 				queryFn: () => searchLogos(q),

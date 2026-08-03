@@ -62,6 +62,29 @@ const listMock = vi.fn((params: Record<string, unknown>) => ({
 	queryFn: async () => ({ items: TXNS, total: listTotal }),
 }));
 
+/**
+ * The issuer *list* read, standing in for a table whose ids have outrun its
+ * first page: it reports 500 issuers and hands back none of them. Any surface
+ * that still named its rows from a list read would render them unresolved here —
+ * which is exactly what #62 is about. Resolution must go through `byIds`.
+ */
+const issuerListMock = vi.fn(() => ({
+	queryKey: ["issuers", "list"],
+	queryFn: async () => ({ items: [] as typeof ISSUERS, total: 500 }),
+}));
+
+/** The by-ids read — answers with exactly the issuers asked for, and no others. */
+const issuerByIdsMock = vi.fn((ids: Iterable<number>) => {
+	const wanted = [...new Set(ids)].sort((a, b) => a - b);
+	return {
+		queryKey: ["issuers", "by-ids", wanted],
+		queryFn: async () => {
+			const items = ISSUERS.filter((i) => wanted.includes(i.id));
+			return { items, total: items.length };
+		},
+	};
+});
+
 vi.mock("@mamen/sdk", () => ({
 	transactionQueries: {
 		list: (p: Record<string, unknown> = {}) => listMock(p),
@@ -73,14 +96,9 @@ vi.mock("@mamen/sdk", () => ({
 		}),
 	},
 	issuerQueries: {
-		list: () => ({
-			queryKey: ["issuers", "list"],
-			queryFn: async () => ({ items: ISSUERS, total: ISSUERS.length }),
-		}),
-		all: () => ({
-			queryKey: ["issuers", "list"],
-			queryFn: async () => ({ items: ISSUERS, total: ISSUERS.length }),
-		}),
+		list: () => issuerListMock(),
+		all: () => issuerListMock(),
+		byIds: (ids: Iterable<number>) => issuerByIdsMock(ids),
 	},
 	categoryQueries: {
 		list: () => ({
@@ -133,6 +151,7 @@ async function renderView(initialEntry = "/transactions") {
 
 beforeEach(() => {
 	listMock.mockClear();
+	issuerByIdsMock.mockClear();
 	listTotal = TXNS.length;
 });
 
@@ -170,6 +189,24 @@ describe("TransactionsView", () => {
 				offset: 0,
 			}),
 		);
+	});
+
+	// The regression #62 exists for: an issuer whose id sorts outside the issuer
+	// list's first page still names its rows, because the table asks for the ids
+	// it is showing rather than reading the table and hoping.
+	it("resolves an issuer the list read would have missed", async () => {
+		await renderView();
+
+		expect(screen.getByRole("button", { name: /Spotify/ })).toBeInTheDocument();
+		// Only the ids actually on screen are asked for — the unmatched row
+		// contributes none, so this is one id, not the whole issuer table.
+		expect(issuerByIdsMock).toHaveBeenCalled();
+		for (const [ids] of issuerByIdsMock.mock.calls) {
+			expect([...ids].every((id) => id === 10)).toBe(true);
+		}
+		expect(
+			issuerByIdsMock.mock.calls.some(([ids]) => [...ids].includes(10)),
+		).toBe(true);
 	});
 
 	it("shows the derived category leaf name, and Unassigned when none", async () => {

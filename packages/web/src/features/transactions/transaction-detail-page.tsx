@@ -1,7 +1,6 @@
 import type {
 	Account,
 	Category,
-	Issuer,
 	Transaction,
 	TransactionId,
 } from "@mamen/shared/contract";
@@ -9,13 +8,9 @@ import { useQuery } from "@tanstack/react-query";
 import { getRouteApi, Link } from "@tanstack/react-router";
 import { Empty } from "@/components/ui/empty";
 import { BUTTON_CLASS } from "@/features/issuers/field-styles";
+import { useIssuerLookup } from "@/features/issuers/use-issuer-lookup";
 import { resolveCategoryColor } from "@/lib/category-tree";
-import {
-	accountQueries,
-	categoryQueries,
-	issuerQueries,
-	transactionQueries,
-} from "@/lib/sdk";
+import { accountQueries, categoryQueries, transactionQueries } from "@/lib/sdk";
 import { cn, indexById } from "@/lib/utils";
 import { TransactionDetailContent } from "./transaction-detail-content";
 import { TransactionDetailSkeleton } from "./transaction-detail-skeleton";
@@ -41,10 +36,15 @@ export function TransactionDetailPage() {
 
 	const txnQuery = useQuery(transactionQueries.getById(id));
 	const accountsQuery = useQuery(accountQueries.list());
-	const issuersQuery = useQuery(issuerQueries.all());
 	const categoriesQuery = useQuery(
 		categoryQueries.list({ limit: CATEGORY_SCAN_LIMIT }),
 	);
+	// This row's issuer, asked for by its id — one issuer, not the issuer table
+	// (#62). Resolves after the row, so the skeleton holds until it lands rather
+	// than briefly showing the raw bank string in place of the name.
+	const { issuersById, isPending: issuerPending } = useIssuerLookup([
+		txnQuery.data?.issuerId,
+	]);
 	// A refunded row links its counterpart; fetch it too so the link can show the
 	// counterpart's date + amount rather than a bare id (disabled when unlinked).
 	const linkedRefundId = txnQuery.data?.linkedRefundId;
@@ -53,7 +53,7 @@ export function TransactionDetailPage() {
 		enabled: linkedRefundId != null,
 	});
 
-	if (txnQuery.isPending) {
+	if (txnQuery.isPending || issuerPending) {
 		return <TransactionDetailSkeleton />;
 	}
 
@@ -73,9 +73,6 @@ export function TransactionDetailPage() {
 
 	const accountsById = indexById(
 		(accountsQuery.data?.items ?? []) as readonly Account[],
-	);
-	const issuersById = indexById(
-		(issuersQuery.data?.items ?? []) as readonly Issuer[],
 	);
 	const categories = (categoriesQuery.data?.items ?? []) as readonly Category[];
 	const categoriesById = indexById(categories);

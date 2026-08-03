@@ -2,10 +2,9 @@ import type { Issuer, Rule } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Plus, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { issuerQueries, ruleQueries } from "@/lib/sdk";
-import { indexById } from "@/lib/utils";
+import { ruleQueries } from "@/lib/sdk";
 import { RuleDeleteConfirm } from "./rule-delete-confirm";
 import { RulesListSkeleton } from "./rules-list-skeleton";
 
@@ -23,21 +22,14 @@ export interface RulesSectionProps {
  * removes the rule and refreshes the list. Uses the user-facing term "Matching
  * Rule" throughout (the code entity is `Rule`).
  *
- * The issuer lookup for naming a preview row's current issuer is loaded once here
- * and threaded into the inline confirm.
+ * Naming the issuers a preview row currently belongs to is the confirm's own
+ * business: it holds the rows, so it knows the ids to ask for (#62).
  */
 export function RulesSection({ issuer }: RulesSectionProps) {
 	const [deletingId, setDeletingId] = useState<number | null>(null);
 
 	const rulesQuery = useQuery(ruleQueries.list({ issuerId: issuer.id }));
 	const rules = (rulesQuery.data?.items ?? []) as readonly Rule[];
-
-	// Every issuer, so a preview row's *current* issuer can be named whichever it is.
-	const issuersQuery = useQuery(issuerQueries.all());
-	const issuersById = useMemo(
-		() => indexById((issuersQuery.data?.items ?? []) as readonly Issuer[]),
-		[issuersQuery.data],
-	);
 
 	return (
 		<div className="flex flex-col gap-2">
@@ -100,7 +92,6 @@ export function RulesSection({ issuer }: RulesSectionProps) {
 								<div className="border-t border-gousse-line px-3 py-3">
 									<RuleDeleteConfirm
 										rule={rule}
-										issuersById={issuersById}
 										onDone={() => setDeletingId(null)}
 										onCancel={() => setDeletingId(null)}
 									/>

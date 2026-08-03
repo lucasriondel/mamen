@@ -2,16 +2,15 @@ import type {
 	Account,
 	AccountId,
 	Category,
-	Issuer,
 	Transaction,
 } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { Empty } from "@/components/ui/empty";
+import { useIssuerLookup } from "@/features/issuers/use-issuer-lookup";
 import {
 	accountQueries,
 	categoryQueries,
-	issuerQueries,
 	type TransactionCountParams,
 	type TransactionListParams,
 	transactionQueries,
@@ -142,10 +141,6 @@ export function TransactionsSection({
 		enabled,
 	});
 	const accountsQuery = useQuery(accountQueries.list());
-	// Every issuer, not a page of them: the table resolves a row's `issuerId`
-	// against this map, and a short page renders rows pointing at the issuers it
-	// missed as *unresolved* — a correctly-matched row looking unmatched.
-	const issuersQuery = useQuery(issuerQueries.all());
 	// The whole (small) category tree, for the derived-category column's name
 	// lookup. Wide limit — a single user's taxonomy is coarse (PRD).
 	const categoriesQuery = useQuery(categoryQueries.list({ limit: 200 }));
@@ -162,14 +157,21 @@ export function TransactionsSection({
 	});
 
 	const accounts = (accountsQuery.data?.items ?? []) as readonly Account[];
-	const issuers = (issuersQuery.data?.items ?? []) as readonly Issuer[];
 	const categories = (categoriesQuery.data?.items ?? []) as readonly Category[];
 	const transactions = (transactionsQuery.data?.items ??
 		[]) as readonly Transaction[];
 	const total = transactionsQuery.data?.total ?? 0;
 
+	// The issuers *this page* names — its rows' ids, not the issuer table. Reading
+	// a page of that table instead is what once rendered a correctly-matched row
+	// as unresolved, once the ids outgrew the page (#62).
+	const {
+		issuersById,
+		isPending: issuersPending,
+		isError: issuersError,
+	} = useIssuerLookup(transactions.map((t) => t.issuerId));
+
 	const accountsById = useMemo(() => indexById(accounts), [accounts]);
-	const issuersById = useMemo(() => indexById(issuers), [issuers]);
 	const categoriesById = useMemo(() => indexById(categories), [categories]);
 
 	const months = useMemo(() => {
@@ -202,12 +204,16 @@ export function TransactionsSection({
 				{actions}
 			</div>
 
-			{transactionsQuery.isError ? (
+			{transactionsQuery.isError || issuersError ? (
 				<Empty
 					title="Couldn't load transactions"
 					description="Something went wrong reading these transactions. Try again in a moment."
 				/>
-			) : enabled && transactionsQuery.isPending ? (
+			) : /* The issuer lookup reads the ids of the rows, so it lands a beat
+			      after them. Hold the skeleton until it does: a row rendered before
+			      its issuer arrives is a row rendered as *unresolved*, which is the
+			      state this whole read exists to prevent. */
+			enabled && (transactionsQuery.isPending || issuersPending) ? (
 				<TransactionsTableSkeleton />
 			) : transactions.length === 0 ? (
 				<Empty

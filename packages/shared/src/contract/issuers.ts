@@ -79,12 +79,35 @@ export const IssuerUpdate = Schema.partial(
 export type IssuerUpdate = typeof IssuerUpdate.Type;
 
 /**
+ * The `id` filter — a single id **or a set** (repeated `?id=`), mirroring
+ * {@link CategoryIdFilter} on transactions.
+ *
+ * It exists so a surface can resolve *the issuers it is showing* rather than
+ * reading the table and hoping the ones it needs are on the page it got: a grid
+ * of fifty transactions references at most fifty issuers, and those are the ones
+ * to ask for. Reading a page of the whole table instead is what once left rows
+ * pointing at a recently-created issuer rendering as unresolved — the id sorts
+ * last, so it fell off page one (#62).
+ *
+ * A single query value decodes to one branded id, a repeated one to an array;
+ * the repository normalises both. An empty set matches **nothing** — it is the
+ * honest answer to "resolve these zero issuers", where falling through to the
+ * unfiltered table would return every issuer to a caller that asked for none.
+ */
+export const IssuerIdFilter = Schema.Union(
+	numFromStr(IssuerId),
+	Schema.Array(numFromStr(IssuerId)),
+);
+
+/**
  * `list` filter (contract §2.4): `orderBy: "name"` orders by name (else natural
- * insertion order). Spread alongside `Pagination`. Faithful to today, where only
- * `orderBy=name` is recognized.
+ * insertion order), `id` narrows to a set of ids (see {@link IssuerIdFilter}).
+ * Spread alongside `Pagination`. `total` counts the filtered set, as everywhere
+ * else.
  */
 export const IssuerListFilters = {
 	orderBy: Schema.optional(Schema.Literal("name")),
+	id: Schema.optional(IssuerIdFilter),
 } as const;
 
 /**

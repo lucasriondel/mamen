@@ -43,21 +43,28 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
 				queryFn: async () => deletePreviewResult,
 			}),
 		},
+		// The *list* reads stand in for an issuer table whose ids have outrun their
+		// first page: 500 issuers reported, none handed back. A preview row's
+		// current issuer therefore has to be resolved by id (#62).
 		issuerQueries: {
 			all: () => ({
 				queryKey: ["issuers", "list", "test"],
-				queryFn: async () => ({
-					items: issuersList,
-					total: issuersList.length,
-				}),
+				queryFn: async () => ({ items: [] as Issuer[], total: 500 }),
 			}),
 			list: () => ({
 				queryKey: ["issuers", "list", "test"],
-				queryFn: async () => ({
-					items: issuersList,
-					total: issuersList.length,
-				}),
+				queryFn: async () => ({ items: [] as Issuer[], total: 500 }),
 			}),
+			byIds: (ids: Iterable<number>) => {
+				const wanted = [...new Set(ids)].sort((a, b) => a - b);
+				return {
+					queryKey: ["issuers", "by-ids", wanted],
+					queryFn: async () => {
+						const items = issuersList.filter((i) => wanted.includes(i.id));
+						return { items, total: items.length };
+					},
+				};
+			},
 		},
 		ruleMutations: {
 			remove: (id: unknown) => removeRule(id),
@@ -214,6 +221,9 @@ describe("RulesSection — inline delete confirm", () => {
 			screen.getByRole("heading", { name: /Will unmatch \(1\)/ }),
 		).toBeInTheDocument();
 		expect(screen.getByText("AMZN MKTP")).toBeInTheDocument();
+		// The reassigning row names the issuer it currently belongs to — resolved
+		// by its id, so it shows up whatever the issuer table's first page holds.
+		expect(screen.getByText("AWS")).toBeInTheDocument();
 
 		const confirm = screen
 			.getByRole("button", { name: "Delete rule" })

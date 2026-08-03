@@ -201,6 +201,52 @@ describe("issuers endpoints", () => {
 		}).pipe(Effect.provide(HttpLive)),
 	);
 
+	// The by-ids read (#62): `?id=1&id=3` resolves exactly the issuers a page is
+	// showing, whatever their ids are and wherever they sort.
+	it.effect("list narrows to a repeated id set over the wire", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const a = yield* client.issuers.create({ payload: make({ name: "a" }) });
+			yield* client.issuers.create({ payload: make({ name: "b" }) });
+			const c = yield* client.issuers.create({ payload: make({ name: "c" }) });
+
+			// A page of one from the top of the id order can't hold `c`…
+			const firstPage = yield* client.issuers.list({
+				urlParams: { limit: 1, offset: 0 },
+			});
+			assert.deepStrictEqual(
+				firstPage.items.map((m) => m.name),
+				["a"],
+			);
+
+			// …but asking for it by id does, and `total` counts only the set asked for.
+			const page = yield* client.issuers.list({
+				urlParams: { limit: 50, offset: 0, id: [a.id, c.id] },
+			});
+			assert.deepStrictEqual(
+				page.items.map((m) => m.name),
+				["a", "c"],
+			);
+			assert.strictEqual(page.total, 2);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("list accepts a single id over the wire", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			yield* client.issuers.create({ payload: make({ name: "a" }) });
+			const b = yield* client.issuers.create({ payload: make({ name: "b" }) });
+
+			const page = yield* client.issuers.list({
+				urlParams: { limit: 50, offset: 0, id: b.id },
+			});
+			assert.deepStrictEqual(
+				page.items.map((m) => m.name),
+				["b"],
+			);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
 	it.effect("update applies a partial change and keeps createdAt", () =>
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
