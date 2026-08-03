@@ -47,6 +47,27 @@ const BUNDLE = {
 	importMonth: "2026-03",
 } as unknown as Transaction;
 
+/**
+ * The same parent after a refund was counted twice (issue #76): its members sum
+ * to a credit, so the server has flagged it. The flag is a warning — the amount
+ * is still exactly what the members say — and it surfaces where every anomaly
+ * already does.
+ */
+const FLAGGED_BUNDLE = {
+	...BUNDLE,
+	id: 400,
+	amount: 100,
+	anomalyFlags: [
+		{
+			type: "non-negative-bundle",
+			reason:
+				"This bundle's members sum to zero or more, so it is not a cost. A member may have been added by mistake, or a refund counted twice.",
+			detectedAt: "2026-03-13T00:00:00.000Z",
+			dismissed: false,
+		},
+	],
+} as unknown as Transaction;
+
 /** The two rows the bundle stands for — reachable only by `bundleId`. */
 const MEMBERS = [
 	{
@@ -100,12 +121,18 @@ vi.mock("@mamen/sdk", () => ({
 		getById: (id: number) => ({
 			queryKey: ["transactions", "detail", id],
 			queryFn: async () =>
-				id === TXN.id ? TXN : id === BUNDLE.id ? BUNDLE : undefined,
+				id === TXN.id
+					? TXN
+					: id === BUNDLE.id
+						? BUNDLE
+						: id === FLAGGED_BUNDLE.id
+							? FLAGGED_BUNDLE
+							: undefined,
 		}),
 		list: (params: Record<string, unknown>) => ({
 			queryKey: ["transactions", "list", params],
 			queryFn: async () =>
-				params.bundleId === BUNDLE.id
+				params.bundleId === BUNDLE.id || params.bundleId === FLAGGED_BUNDLE.id
 					? { items: MEMBERS, total: MEMBERS.length }
 					: // The bundles a row may join (issue #74) — the parents, asked for
 						// by kind rather than by scanning the whole table for them.
@@ -253,5 +280,27 @@ describe("TransactionDetailPage", () => {
 		expect(
 			await screen.findByRole("button", { name: /dissolve bundle/i }),
 		).toBeVisible();
+	});
+
+	// Issue #76: a bundle that sums to zero or to a credit is usually a
+	// mis-bundling, and the server says so through the anomaly flags the page
+	// already renders — no new surface, and nothing that blocks the row.
+	it("warns on a bundle whose members do not sum to a cost", async () => {
+		render(<RouterProvider router={makeRouter(400)} />);
+
+		expect(await screen.findByText("Bundle is not a cost")).toBeVisible();
+		expect(screen.getByText(/a refund counted twice/i)).toBeVisible();
+		// The warning changes nothing: the parent still shows its members' sum, and
+		// the way out is the membership controls, not the flag.
+		expect(screen.getAllByText(/^\+100/).length).toBeGreaterThan(0);
+		expect(
+			screen.getByRole("button", { name: /dissolve bundle/i }),
+		).toBeVisible();
+	});
+
+	it("says so plainly when a row carries no anomaly", async () => {
+		render(<RouterProvider router={makeRouter(300)} />);
+
+		expect(await screen.findByText("No anomaly flags.")).toBeVisible();
 	});
 });

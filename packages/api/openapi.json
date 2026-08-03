@@ -6326,7 +6326,8 @@
             "enum": [
               "high-amount",
               "new-issuer",
-              "potential-duplicate"
+              "potential-duplicate",
+              "non-negative-bundle"
             ]
           },
           "reason": {

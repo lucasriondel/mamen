@@ -1,3 +1,5 @@
+import { AnomalyFlag } from "@mamen/shared/contract";
+
 /**
  * What a **bundle parent** derives from one of its members (issue #68/#72).
  * Structural rather than the whole `Transaction`, so the routine can be handed a
@@ -81,4 +83,61 @@ export const deriveBundleParent = <M extends BundleMemberFacts>(
 		accountId: earliest.accountId,
 		importMonth: earliest.importMonth,
 	};
+};
+
+/** The anomaly a **bundle** raises about itself (issue #76). */
+const NON_NEGATIVE_BUNDLE = "non-negative-bundle" as const;
+
+/**
+ * The flag's text carries no number. The amount it is about is on the very row
+ * the flag rides, so restating it here would be a second copy of a figure that
+ * moves with every membership change — stale the moment a member joins, and the
+ * standing flag below is deliberately never rewritten.
+ */
+const NON_NEGATIVE_BUNDLE_REASON =
+	"This bundle's members sum to zero or more, so it is not a cost. A member may have been added by mistake, or a refund counted twice.";
+
+/**
+ * The **bundle parent**'s anomaly flags, re-derived from its amount (issue #76,
+ * epic #66) — the second thing a membership change moves, beside the amount
+ * itself, and computed here rather than at any call site for the same reason
+ * {@link deriveBundleParent} is: one rule, one place.
+ *
+ * A bundle is a cost the bank told in several rows, so its members sum to a
+ * **debit**. Summing to zero (everyone paid back exactly) or to a credit
+ * (someone overpaid) is handled by the ordinary sign rules with no special case
+ * — a non-negative parent simply reaches no spend bucket — but it usually means
+ * a *mis-bundling*: a member added by mistake, or a refund counted twice. So it
+ * warns. Nothing is blocked and no amount is altered: the parent's number stays
+ * exactly what its members say, and the user is told to go and look.
+ *
+ * The sum is read in **integer cents**, the discipline every other money
+ * comparison in this codebase uses: a total a fraction of a cent below zero is
+ * zero, not a cost.
+ *
+ * Flags of every other kind are left untouched — they are none of this rule's
+ * business — and a flag already standing is returned as it is rather than raised
+ * again: re-stamping it on each recompute would resurrect one the user dismissed
+ * and re-date a detection that never stopped. A bundle that becomes a cost again
+ * **clears** it: the flag tracks a live condition, not a history.
+ */
+export const bundleAnomalyFlags = (
+	amount: number,
+	existing: ReadonlyArray<AnomalyFlag> | undefined,
+	detectedAt: Date,
+): ReadonlyArray<AnomalyFlag> => {
+	const flags = existing ?? [];
+	if (Math.round(amount * 100) < 0)
+		return flags.filter((f) => f.type !== NON_NEGATIVE_BUNDLE);
+	return flags.some((f) => f.type === NON_NEGATIVE_BUNDLE)
+		? flags
+		: [
+				...flags,
+				new AnomalyFlag({
+					type: NON_NEGATIVE_BUNDLE,
+					reason: NON_NEGATIVE_BUNDLE_REASON,
+					detectedAt: detectedAt.toISOString(),
+					dismissed: false,
+				}),
+			];
 };

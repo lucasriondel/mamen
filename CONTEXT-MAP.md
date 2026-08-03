@@ -365,7 +365,13 @@ repeated per package.
   fewer than two members **dissolves** rather than standing for a single
   transaction, exactly as an undersized **transfer group** does. A bundle never
   contains a bundle: only the inner parent would ever be recomputed, so the
-  outer total would drift.
+  outer total would drift. A bundle is a **cost**, so its members sum to a
+  debit; one that sums to zero (everyone paid back exactly) or to a credit
+  (someone overpaid) is handled by the ordinary sign rules with no special case
+  — it simply reaches no spend bucket — but it usually means a *mis-bundling*,
+  so the parent carries an **anomaly flag** saying so. The flag warns and
+  nothing more: the amount stays whatever the members say, and the fix is to add
+  or remove a member.
   _Avoid_: group (already reserved — see **Category folder**, **Transfer
   group**), merge, combine, split.
 
@@ -402,3 +408,17 @@ repeated per package.
   releases its members rather than deleting them** — it stands for them, it does
   not own them.
   _Avoid_: child transaction, sub-transaction, line item.
+
+- **Anomaly flag** — a *soft* signal attached to a transaction (`anomalyFlags`,
+  a JSON array on the row): something about this row is worth a second look.
+  Every flag **warns and nothing more** — no write is refused, no amount is
+  altered, and no total moves — and each one is a live condition rather than a
+  history: it is re-derived where the thing it is about is computed, and clears
+  itself when the condition goes. A flag the user has **dismissed** stays on the
+  row, dimmed, and is never raised a second time while it stands. Kinds:
+  `high-amount`, `new-issuer`, `potential-duplicate`, and `non-negative-bundle`
+  (a **bundle** whose members sum to zero or to a credit — see **Bundle**), the
+  first the server raises for itself. They surface in one place, the transaction
+  detail page, which is read-only about them.
+  _Avoid_: error, warning badge, validation (nothing is invalid — a flagged row
+  is a correct row worth looking at), alert.

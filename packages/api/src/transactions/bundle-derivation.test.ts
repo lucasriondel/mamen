@@ -1,5 +1,6 @@
 import { assert, describe, it } from "@effect/vitest";
-import { deriveBundleParent } from "./bundle-derivation";
+import { AnomalyFlag } from "@mamen/shared/contract";
+import { bundleAnomalyFlags, deriveBundleParent } from "./bundle-derivation";
 
 const member = (over: {
 	id: number;
@@ -94,5 +95,83 @@ describe("deriveBundleParent (issue #72)", () => {
 		// A member-less bundle has no number to stand for — dissolving it is the
 		// caller's answer (#74), not a zero-amount parent dated today.
 		assert.strictEqual(deriveBundleParent([]), undefined);
+	});
+});
+
+/**
+ * The **non-negative bundle** anomaly (issue #76, epic #66). A bundle is a cost
+ * told in several rows, so its members sum to a debit; summing to zero or to a
+ * credit usually means a member was added by mistake or a refund was counted
+ * twice. It is a *soft* signal — the sum stays whatever the members say — so it
+ * rides the `anomalyFlags` array the schema already carries, and is re-derived
+ * from the amount on every membership change beside the amount itself.
+ */
+describe("bundleAnomalyFlags (issue #76)", () => {
+	const AT = new Date("2026-04-01T10:00:00.000Z");
+	const otherFlag = new AnomalyFlag({
+		type: "high-amount",
+		reason: "8× this issuer's usual",
+		detectedAt: "2026-03-01T00:00:00.000Z",
+		dismissed: false,
+	});
+
+	it("flags a bundle that sums to a credit", () => {
+		const flags = bundleAnomalyFlags(12.5, [], AT);
+		assert.deepStrictEqual(
+			flags.map((f) => f.type),
+			["non-negative-bundle"],
+		);
+		assert.strictEqual(flags[0]?.dismissed, false);
+		assert.strictEqual(flags[0]?.detectedAt, AT.toISOString());
+	});
+
+	// Collect exactly what was spent and the bundle sums to nothing: still not a
+	// cost, and still the same mis-bundling it usually means.
+	it("flags a bundle that sums to zero", () => {
+		assert.deepStrictEqual(
+			bundleAnomalyFlags(0, [], AT).map((f) => f.type),
+			["non-negative-bundle"],
+		);
+	});
+
+	it("leaves a bundle that sums to a debit unflagged", () => {
+		assert.deepStrictEqual(bundleAnomalyFlags(-50, [], AT), []);
+	});
+
+	// Money is compared in integer cents here as everywhere else: a sum a
+	// hundredth of a cent below zero is zero, not a cost.
+	it("reads the sum in integer cents", () => {
+		assert.deepStrictEqual(
+			bundleAnomalyFlags(-0.001, [], AT).map((f) => f.type),
+			["non-negative-bundle"],
+		);
+		assert.deepStrictEqual(bundleAnomalyFlags(-0.01, [], AT), []);
+	});
+
+	// The flag tracks a live condition, so the member that fixes the bundle
+	// clears it — while every other flag on the row is none of this rule's
+	// business.
+	it("clears the flag when the bundle becomes a cost again, keeping others", () => {
+		const flagged = bundleAnomalyFlags(30, [otherFlag], AT);
+		assert.deepStrictEqual(
+			flagged.map((f) => f.type),
+			["high-amount", "non-negative-bundle"],
+		);
+		assert.deepStrictEqual(bundleAnomalyFlags(-20, flagged, AT), [otherFlag]);
+	});
+
+	// Re-flagging a still-non-negative bundle on every recompute would resurrect
+	// a flag the user dismissed, and re-stamp a detection that never stopped.
+	it("leaves a standing flag alone rather than raising a second one", () => {
+		const dismissed = new AnomalyFlag({
+			type: "non-negative-bundle",
+			reason: "…",
+			detectedAt: "2026-03-01T00:00:00.000Z",
+			dismissed: true,
+			dismissedAt: "2026-03-02T00:00:00.000Z",
+		});
+		assert.deepStrictEqual(bundleAnomalyFlags(30, [dismissed], AT), [
+			dismissed,
+		]);
 	});
 });

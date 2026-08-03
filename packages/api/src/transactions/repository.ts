@@ -21,7 +21,7 @@ import {
 } from "@mamen/shared/contract";
 import { Clock, Effect, Option, Schema } from "effect";
 import { orDieSql } from "../db/errors";
-import { deriveBundleParent } from "./bundle-derivation";
+import { bundleAnomalyFlags, deriveBundleParent } from "./bundle-derivation";
 
 /**
  * A stored transaction row. The seven "boolean" columns (`manualCategory`,
@@ -65,6 +65,15 @@ const TransactionRow = Schema.Struct({
 
 /** The JSON-array codec used inside the `anomalyFlags` TEXT column. */
 const AnomalyFlagsJson = Schema.parseJson(Schema.Array(AnomalyFlag));
+
+/**
+ * A flag list as the column holds it: `null` when there are none, so a row that
+ * carries no anomaly reads back with the field *absent* — the same shape a row
+ * that was never flagged has, rather than an empty array meaning the same thing
+ * a second way.
+ */
+const encodeFlags = (flags: ReadonlyArray<AnomalyFlag>): string | null =>
+	flags.length === 0 ? null : Schema.encodeSync(AnomalyFlagsJson)(flags);
 
 /**
  * `Schema.transform` maps `TransactionRow`'s decoded type to `Transaction`'s
@@ -405,6 +414,14 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 			// **Bundle members** are absent from this list on purpose: they are hidden
 			// by `buildConditions`' `t.bundleId IS NULL` default, which the recap
 			// inherits for free — the parent already stands for them.
+			//
+			// A **bundle parent** is absent for the mirror reason (issue #76): it is
+			// an ordinary row here, so it counts once, for its summed amount, under
+			// the issuer and category the user curated onto it, and follows the sign
+			// rule below with no special case — a bundle that sums to a credit is
+			// income and reaches no bucket, exactly as any credit does. That it is
+			// probably a mis-bundling is said with an anomaly flag on the parent
+			// (`bundleAnomalyFlags`), never by bending the arithmetic.
 			//
 			// Every clause reads a column that is never NULL (`recapExclusion`
 			// COALESCEs the LEFT JOIN's away), so `NOT (…)` cannot swallow a row.
@@ -1064,7 +1081,18 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 					const derived = deriveBundleParent(members, found.value);
 					if (derived === undefined) return false;
 
-					yield* sql`UPDATE transactions SET amount = ${derived.amount}, date = ${derived.date.toISOString()}, accountId = ${derived.accountId}, importMonth = ${derived.importMonth} WHERE id = ${parentId}`.pipe(
+					// The **non-negative bundle** flag (issue #76) moves with the amount,
+					// and is written in the same statement: a bundle is a cost told in
+					// several rows, so a sum that is zero or a credit is worth warning
+					// about — and it is *this* recompute that just made it one, or just
+					// stopped it being one. Through the same shared routine every writer
+					// uses, over the parent's own flags so an unrelated one is untouched.
+					const flags = bundleAnomalyFlags(
+						derived.amount,
+						found.value.anomalyFlags,
+						new Date(yield* Clock.currentTimeMillis),
+					);
+					yield* sql`UPDATE transactions SET amount = ${derived.amount}, date = ${derived.date.toISOString()}, accountId = ${derived.accountId}, importMonth = ${derived.importMonth}, anomalyFlags = ${encodeFlags(flags)} WHERE id = ${parentId}`.pipe(
 						orDieSql,
 					);
 					return true;
@@ -1547,7 +1575,12 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 						// A fresh parent is dated by its members, not by hand (issue #72):
 						// the derived date is the starting point the user may later override.
 						manualDate: 0,
-						anomalyFlags: null,
+						// A bundle can be born non-negative — the whole selection may have
+						// been the wrong rows — so the flag is derived here too (issue #76),
+						// through the same routine every recompute uses.
+						anomalyFlags: encodeFlags(
+							bundleAnomalyFlags(derived.amount, [], now),
+						),
 						isDuplicateExcluded: 0,
 						duplicateNote: null,
 						excludedFromRecap: 0,

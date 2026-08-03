@@ -1,14 +1,22 @@
 import { Schema } from "effect";
 
 /**
- * The anomaly kinds a transaction can be flagged with. Ported verbatim from the
- * existing `AnomalyType` union in `@mamen/shared/types` — the contract owns the
- * Effect-Schema form; the plain TS type stays for the legacy code paths.
+ * The anomaly kinds a transaction can be flagged with. The first three were
+ * ported verbatim from the existing `AnomalyType` union in `@mamen/shared/types`
+ * — the contract owns the Effect-Schema form; the plain TS type stays for the
+ * legacy code paths, and the two lists are kept in step.
+ *
+ * `non-negative-bundle` (issue #76) is the first flag the server itself raises:
+ * a **bundle** is a cost told in several rows, so its members sum to a debit;
+ * summing to zero or to a credit usually means a member was added by mistake or
+ * a refund counted twice. Like every anomaly it *warns* — the parent's amount
+ * stays whatever its members say.
  */
 export const AnomalyType = Schema.Literal(
 	"high-amount",
 	"new-issuer",
 	"potential-duplicate",
+	"non-negative-bundle",
 );
 export type AnomalyType = typeof AnomalyType.Type;
 

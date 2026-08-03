@@ -1,7 +1,8 @@
 export type AnomalyType =
 	| "high-amount"
 	| "new-issuer"
-	| "potential-duplicate";
+	| "potential-duplicate"
+	| "non-negative-bundle";
 
 export type AnomalyFlag = {
 	type: AnomalyType;

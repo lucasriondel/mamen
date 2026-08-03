@@ -1331,6 +1331,94 @@ describe("TransactionRepo", () => {
 			}).pipe(Effect.provide(RepoTest)),
 		);
 
+		// The point of a bundle (issue #76): the weekend reaches the recap as the
+		// ONE line the parent stands for, under the issuer and category the user
+		// curated onto it — not under whatever its members happened to carry.
+		it.effect("counts a bundle under its parent's issuer and category", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(
+					spent({
+						amount: -200,
+						issuerId: asIssuer(1),
+						categoryId: asCategory(3),
+						manualCategory: true,
+					}),
+				);
+				const b = yield* repo.create(spent({ amount: 150 }));
+				const parent = yield* repo.createBundle([a.id, b.id], "Weekend away");
+				yield* repo.update(parent.id, {
+					issuerId: asIssuer(4),
+					manualIssuer: true,
+					categoryId: asCategory(9),
+					manualCategory: true,
+				});
+
+				const recap = yield* repo.recap({});
+				assert.deepStrictEqual(byId(recap.byIssuer)[4], {
+					id: 4,
+					spent: 50,
+					count: 1,
+				});
+				assert.deepStrictEqual(byId(recap.byCategory)[9], {
+					id: 9,
+					spent: 50,
+					count: 1,
+				});
+				// The member's own issuer and category are its business, not the
+				// recap's: the parent stands for it.
+				assert.strictEqual(byId(recap.byIssuer)[1], undefined);
+				assert.strictEqual(byId(recap.byCategory)[3], undefined);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		// A fresh bundle is uncurated like any other row, and lands where any other
+		// uncategorised spend lands — reported, never dropped.
+		it.effect("counts an uncurated bundle under the Unassigned bucket", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(
+					spent({
+						amount: -200,
+						categoryId: asCategory(3),
+						manualCategory: true,
+					}),
+				);
+				const b = yield* repo.create(spent({ amount: 150 }));
+				yield* repo.createBundle([a.id, b.id], "Weekend away");
+
+				const recap = yield* repo.recap({});
+				assert.deepStrictEqual(byId(recap.byCategory).none, {
+					id: null,
+					spent: 50,
+					count: 1,
+				});
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		// The sign rules apply to a parent with no special case (issue #76): a
+		// bundle that sums to a credit is income, and income is not spend. Its
+		// members stay hidden all the same — nothing leaks back in through it.
+		it.effect("leaves a bundle that sums non-negative out of the spend", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(
+					spent({ amount: -200, issuerId: asIssuer(1) }),
+				);
+				const b = yield* repo.create(
+					spent({ amount: 230, issuerId: asIssuer(2) }),
+				);
+				yield* repo.createBundle([a.id, b.id], "Overcollected");
+				yield* repo.create(spent({ amount: -10, issuerId: asIssuer(5) }));
+
+				const recap = yield* repo.recap({});
+				assert.deepStrictEqual(
+					recap.byIssuer.map((r) => r.id),
+					[asIssuer(5)],
+				);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
 		// The correction at the heart of #71: the period is a bound on the
 		// transaction **date**, so a row whose statement landed in another month
 		// counts where the money was spent — and both edges of the window are
@@ -2588,6 +2676,137 @@ describe("TransactionRepo", () => {
 					);
 					assert.strictEqual((yield* repo.list(listAll)).total, 0);
 				}).pipe(Effect.provide(RepoTest)),
+		);
+	});
+
+	// The **non-negative bundle** anomaly (issue #76). A bundle is a cost told in
+	// several rows, so it sums to a debit; zero or a credit is handled by the
+	// ordinary sign rules with no special case, but it usually means a
+	// mis-bundling — a member added by mistake, a refund counted twice. So the
+	// parent carries a soft flag, raised beside the amount by the ONE recompute
+	// every membership change already runs, and cleared the moment the bundle is
+	// a cost again. It warns: nothing is refused and no amount moves.
+	describe("a bundle that is not a cost is flagged (issue #76)", () => {
+		/** The anomaly kinds standing on a row, in order. */
+		const flagsOf = (txn: { anomalyFlags?: ReadonlyArray<{ type: string }> }) =>
+			(txn.anomalyFlags ?? []).map((f) => f.type);
+
+		it.effect("flags a fresh bundle whose members sum to a credit", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const spend = yield* repo.create(make({ amount: -200 }));
+				const payback = yield* repo.create(make({ amount: 230 }));
+
+				const parent = yield* repo.createBundle(
+					[spend.id, payback.id],
+					"Overcollected",
+				);
+
+				assert.deepStrictEqual(flagsOf(parent), ["non-negative-bundle"]);
+				// The flag warns; it does not alter the sum the members state.
+				assert.strictEqual(parent.amount, 30);
+				assert.deepStrictEqual(flagsOf(yield* repo.getById(parent.id)), [
+					"non-negative-bundle",
+				]);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("flags a bundle whose members cancel out exactly", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const spend = yield* repo.create(make({ amount: -200 }));
+				const payback = yield* repo.create(make({ amount: 200 }));
+
+				const parent = yield* repo.createBundle(
+					[spend.id, payback.id],
+					"Paid back in full",
+				);
+				assert.strictEqual(parent.amount, 0);
+				assert.deepStrictEqual(flagsOf(parent), ["non-negative-bundle"]);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("leaves an ordinary bundle unflagged", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -200 }));
+				const b = yield* repo.create(make({ amount: 150 }));
+
+				const parent = yield* repo.createBundle([a.id, b.id], "Weekend away");
+				assert.strictEqual(parent.amount, -50);
+				assert.strictEqual(parent.anomalyFlags, undefined);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		// The flag is re-evaluated wherever the amount is: adding the refund twice
+		// raises it, and the correcting removal takes it away again.
+		it.effect("raises and clears the flag as membership changes", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -200 }));
+				const b = yield* repo.create(make({ amount: 150 }));
+				const parent = yield* repo.createBundle([a.id, b.id], "Weekend away");
+				const twice = yield* repo.create(make({ amount: 150 }));
+
+				const flagged = yield* repo.addBundleMember(parent.id, twice.id);
+				assert.strictEqual(flagged.amount, 100);
+				assert.deepStrictEqual(flagsOf(flagged), ["non-negative-bundle"]);
+
+				yield* repo.removeBundleMember(twice.id);
+				const fixed = yield* repo.getById(parent.id);
+				assert.strictEqual(fixed.amount, -50);
+				assert.deepStrictEqual(flagsOf(fixed), []);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		// Deleting a member is a membership change like any other, and goes through
+		// the same cleanup — so it moves the flag too.
+		it.effect("flags a parent left non-negative by a deleted member", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const spend = yield* repo.create(make({ amount: -200 }));
+				const other = yield* repo.create(make({ amount: -20 }));
+				const payback = yield* repo.create(make({ amount: 150 }));
+				const parent = yield* repo.createBundle(
+					[spend.id, other.id, payback.id],
+					"Weekend away",
+				);
+				assert.strictEqual(parent.amount, -70);
+
+				// The big charge turns out to be someone else's row entirely.
+				yield* repo.remove(spend.id);
+
+				const left = yield* repo.getById(parent.id);
+				assert.strictEqual(left.amount, 130);
+				assert.deepStrictEqual(flagsOf(left), ["non-negative-bundle"]);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		// The flag is the bundle's own business: anything else already on the row
+		// is left exactly as it was, in both directions.
+		it.effect("leaves every other anomaly flag on the parent alone", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -200 }));
+				const b = yield* repo.create(make({ amount: 230 }));
+				const parent = yield* repo.createBundle([a.id, b.id], "Overcollected");
+				yield* repo.update(parent.id, {
+					anomalyFlags: [
+						new AnomalyFlag({
+							type: "high-amount",
+							reason: "8× the usual",
+							detectedAt: "2026-03-01T00:00:00.000Z",
+							dismissed: false,
+						}),
+						...(parent.anomalyFlags ?? []),
+					],
+				});
+
+				const fix = yield* repo.create(make({ amount: -400 }));
+				const fixed = yield* repo.addBundleMember(parent.id, fix.id);
+				assert.strictEqual(fixed.amount, -370);
+				assert.deepStrictEqual(flagsOf(fixed), ["high-amount"]);
+			}).pipe(Effect.provide(RepoTest)),
 		);
 	});
 

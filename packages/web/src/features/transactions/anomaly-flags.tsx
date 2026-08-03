@@ -1,19 +1,30 @@
 import type { AnomalyFlag } from "@mamen/shared/contract";
 import { cn } from "@/lib/utils";
 
-/** Human labels for the anomaly kinds — the raw union values are terse slugs. */
+/**
+ * Human labels for the anomaly kinds — the raw union values are terse slugs. The
+ * record is keyed by the union itself, so a kind added to the contract without a
+ * label here fails the typecheck rather than rendering a label-less card.
+ */
 const ANOMALY_LABELS: Record<AnomalyFlag["type"], string> = {
 	"high-amount": "High amount",
 	"new-issuer": "New issuer",
 	"potential-duplicate": "Potential duplicate",
+	"non-negative-bundle": "Bundle is not a cost",
 };
 
 /**
  * The anomaly flags attached to a transaction (`high-amount`, `new-issuer`,
- * `potential-duplicate`), one card each. A dismissed flag is dimmed and tagged so
- * the history stays visible without reading as an active warning. Renders nothing
- * when the transaction carries no flags — the caller decides whether to show a
- * "none" placeholder.
+ * `potential-duplicate`, `non-negative-bundle`), one card each. A dismissed flag
+ * is dimmed and tagged so the history stays visible without reading as an active
+ * warning. Renders nothing when the transaction carries no flags — the caller
+ * decides whether to show a "none" placeholder.
+ *
+ * Every flag is a *soft* signal and this surface is read-only by design: the
+ * **non-negative bundle** flag (issue #76) says a bundle's members sum to zero or
+ * to a credit, which usually means a mis-bundling — but the parent's amount is
+ * still the sum of its members, so the fix is to add or remove a member, never to
+ * dismiss the arithmetic.
  */
 export function AnomalyFlags({ flags }: { flags: readonly AnomalyFlag[] }) {
 	return (

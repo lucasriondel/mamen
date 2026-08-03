@@ -2385,3 +2385,60 @@ describe("recap aggregation (issue #71)", () => {
 		}).pipe(Effect.provide(HttpLive)),
 	);
 });
+
+// The **non-negative bundle** anomaly over the wire (issue #76, epic #66): the
+// flag rides the `anomalyFlags` array the transaction entity already carries, so
+// nothing new crosses the seam — what is verified here is that the server raises
+// it, that the amount it warns about is untouched, and that the correcting
+// membership change clears it.
+describe("a bundle that is not a cost (issue #76)", () => {
+	const MARCH = new Date("2026-03-07T00:00:00.000Z");
+
+	it.effect("flags a non-negative bundle, and clears it once corrected", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const spend = yield* client.transactions.create({
+				payload: make({ amount: -200, date: MARCH }),
+			});
+			// The refund was imported twice: both rows swept into the bundle.
+			const payback = yield* client.transactions.create({
+				payload: make({ amount: 150, date: MARCH }),
+			});
+			const again = yield* client.transactions.create({
+				payload: make({ amount: 150, date: MARCH }),
+			});
+
+			const parent = yield* client.transactions.createBundle({
+				payload: {
+					ids: [spend.id, payback.id, again.id],
+					label: "Weekend away",
+				},
+			});
+			assert.deepStrictEqual(
+				(parent.anomalyFlags ?? []).map((f) => f.type),
+				["non-negative-bundle"],
+			);
+			// It warns: the sum stays exactly what the members say…
+			assert.strictEqual(parent.amount, 100);
+			// …and a bundle that is not spending reaches no spend bucket, by the
+			// ordinary sign rules and with no special case.
+			const recap = yield* client.transactions.recap({ urlParams: {} });
+			assert.deepStrictEqual(recap.byIssuer, []);
+
+			// The duplicate leaves; the bundle is a 50 € weekend again.
+			const released = yield* client.transactions.removeBundleMember({
+				payload: { transactionId: again.id },
+			});
+			assert.strictEqual(released.id, again.id);
+			const fixed = yield* client.transactions.getById({
+				path: { id: parent.id },
+			});
+			assert.strictEqual(fixed.amount, -50);
+			assert.strictEqual(fixed.anomalyFlags, undefined);
+			assert.deepStrictEqual(
+				(yield* client.transactions.recap({ urlParams: {} })).byIssuer,
+				[{ id: null, spent: 50, count: 1 }],
+			);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+});
