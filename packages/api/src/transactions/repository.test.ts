@@ -1511,6 +1511,92 @@ describe("TransactionRepo", () => {
 		);
 	});
 
+	// The members of the parents ON A PAGE ride along WITH that page (issue #73),
+	// so the table can expand a parent in place without a fetch per row. They
+	// travel in their own field, never in `items`: the page and the signed total
+	// are the top-level set, and a member counted there would be counted twice.
+	describe("bundle members ride with the list (issue #73)", () => {
+		it.effect("ships a parent's members beside the page, not inside it", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -200 }));
+				const b = yield* repo.create(make({ amount: 150 }));
+				yield* repo.create(make({ amount: -10, rawIssuerString: "COFFEE" }));
+				const parent = yield* repo.createBundle([a.id, b.id], "Weekend away");
+
+				const page = yield* repo.list(listAll);
+
+				assert.deepStrictEqual(
+					[...page.bundleMembers.map((t) => t.id)].sort((x, y) => x - y),
+					[a.id, b.id].sort((x, y) => x - y),
+				);
+				// Every member points back at the parent it is shown under.
+				assert.ok(page.bundleMembers.every((m) => m.bundleId === parent.id));
+				// The page itself is unchanged: two top-level rows, and the signed
+				// total still counts the members once, through their parent.
+				assert.strictEqual(page.items.length, 2);
+				assert.strictEqual(page.total, 2);
+				assert.ok(!page.items.some((t) => t.id === a.id || t.id === b.id));
+				assert.strictEqual((yield* repo.count({})).total, -60);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("carries no members when the page holds no parent", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				yield* repo.create(make({ amount: -10 }));
+				const page = yield* repo.list(listAll);
+				assert.deepStrictEqual(page.bundleMembers, []);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		// Only what is on screen: a parent the user has paged past ships nothing,
+		// or the field would grow with the table rather than with the page.
+		it.effect("carries only the members of the parents on this page", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -20 }));
+				const b = yield* repo.create(make({ amount: -5 }));
+				const c = yield* repo.create(make({ amount: -7 }));
+				const d = yield* repo.create(make({ amount: -3 }));
+				const first = yield* repo.createBundle([a.id, b.id], "First");
+				yield* repo.createBundle([c.id, d.id], "Second");
+
+				// Natural (id) order, one row at a time — the first parent only.
+				const page = yield* repo.list({ ...listAll, limit: 1 });
+				assert.deepStrictEqual(
+					page.items.map((t) => t.id),
+					[first.id],
+				);
+				assert.deepStrictEqual(
+					[...page.bundleMembers.map((t) => t.id)].sort((x, y) => x - y),
+					[a.id, b.id].sort((x, y) => x - y),
+				);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		// The members ride through the same projection as the rows (ADR 0002/0008):
+		// a member's category and recap exclusion are read through its own issuer,
+		// so it reads the same expanded under its parent as it does anywhere else.
+		it.effect("projects a member's derived fields like any other row", () =>
+			Effect.gen(function* () {
+				const sql = yield* SqlClient.SqlClient;
+				const repo = yield* TransactionRepo;
+				yield* sql`INSERT INTO issuers (id, name, defaultCategoryId, excludedFromRecap, createdAt, firstSeen) VALUES (7, 'Carrefour', 4, 1, ${DATE.toISOString()}, ${DATE.toISOString()})`;
+				const a = yield* repo.create(
+					make({ amount: -20, issuerId: asIssuer(7) }),
+				);
+				const b = yield* repo.create(make({ amount: -5 }));
+				yield* repo.createBundle([a.id, b.id], "Weekend away");
+
+				const page = yield* repo.list(listAll);
+				const member = page.bundleMembers.find((m) => m.id === a.id);
+				assert.strictEqual(member?.categoryId, 4);
+				assert.strictEqual(member?.excludedFromRecap, true);
+			}).pipe(Effect.provide(RepoAndSqlTest)),
+		);
+	});
+
 	// Auto-dissolve undersized transfer groups on leg deletion (PRD #48, issue
 	// #52). The grouping invariant (≥2 legs) must survive every delete path: a
 	// leg whose removal drops its group below 2 legs leaves the survivor(s)

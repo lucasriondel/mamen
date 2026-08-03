@@ -10,11 +10,17 @@ import {
 	createColumnHelper,
 	flexRender,
 	getCoreRowModel,
+	getExpandedRowModel,
 	type RowSelectionState,
 	useReactTable,
 	type VisibilityState,
 } from "@tanstack/react-table";
-import { ArrowDown, ArrowUp } from "lucide-react";
+import {
+	ArrowDown,
+	ArrowUp,
+	ChevronRight,
+	CornerDownRight,
+} from "lucide-react";
 import { useMemo } from "react";
 import {
 	Table,
@@ -68,6 +74,14 @@ export interface TransactionsTableProps {
 			| RowSelectionState
 			| ((old: RowSelectionState) => RowSelectionState),
 	) => void;
+	/**
+	 * The **bundle members** of the **bundle parents** in `transactions` (issue
+	 * #73), as the list envelope ships them — beside the page, never among its
+	 * rows. Each is attached to its parent by `bundleId` and rendered as a nested
+	 * row when that parent is expanded. Optional: a caller whose page can hold no
+	 * parent (or that has nothing to attach) omits it and every row is a leaf.
+	 */
+	bundleMembers?: readonly Transaction[];
 }
 
 const columnHelper = createColumnHelper<Transaction>();
@@ -78,6 +92,9 @@ const ALL_COLUMNS_VISIBLE: VisibilityState = {};
 
 /** Stable "nothing selected" default, for the same reason. */
 const NOTHING_SELECTED: RowSelectionState = {};
+
+/** Stable "no bundle on this page" default, for the same reason. */
+const NO_BUNDLE_MEMBERS: readonly Transaction[] = [];
 
 /**
  * The selection checkbox — gousse's `Checkbox` primitive (ADR 0002: gousse owns
@@ -106,7 +123,8 @@ function SelectCheckbox({
 
 /**
  * The transactions data grid (columns **Date | Account | Issuer | Raw issuer |
- * Category | Amount | Notes**), rendered with TanStack Table onto the token-styled `Table`
+ * Category | Amount | Notes**, behind the leading control columns — selection
+ * and bundle expansion), rendered with TanStack Table onto the token-styled `Table`
  * primitive. Sorting is server-driven: the Date header toggles `direction` in
  * the URL rather than reordering rows client-side, so the shown page always
  * matches the query. The Category column reads the row's *derived* `categoryId`
@@ -118,6 +136,14 @@ function SelectCheckbox({
  * checkbox column (issue #68) — the owner holds the selection because the bar
  * that acts on it lives outside the table too, and it is not toggleable: it is a
  * gesture, not a dimension of the data.
+ *
+ * **Expansion** (issue #73) is the one row model that runs client-side. Sorting,
+ * filtering and paging are server-driven and stay that way — the shown page must
+ * match the query — but a **bundle parent** already ships with its members
+ * (`bundleMembers`), so expanding it is a display decision about data already in
+ * hand rather than another question for the server. Expanded state is TanStack's
+ * own: nothing outside this table acts on it, and it is keyed by transaction id,
+ * so a page turn simply leaves it addressing rows that are no longer here.
  */
 export function TransactionsTable({
 	transactions,
@@ -130,9 +156,24 @@ export function TransactionsTable({
 	onColumnVisibilityChange,
 	rowSelection = NOTHING_SELECTED,
 	onRowSelectionChange,
+	bundleMembers = NO_BUNDLE_MEMBERS,
 }: TransactionsTableProps) {
 	// Selection only exists where something can be done with it (issue #68).
 	const selectable = onRowSelectionChange !== undefined;
+	// The page's members, indexed by the parent each belongs to (issue #73) — the
+	// sub-rows `getSubRows` hands TanStack. Built here rather than upstream because
+	// it is the table's own reading of a flat wire field, and a parent with no
+	// entry simply has nothing to expand.
+	const membersByParent = useMemo(() => {
+		const byParent = new Map<number, Transaction[]>();
+		for (const member of bundleMembers) {
+			if (member.bundleId == null) continue;
+			const siblings = byParent.get(member.bundleId);
+			if (siblings === undefined) byParent.set(member.bundleId, [member]);
+			else siblings.push(member);
+		}
+		return byParent;
+	}, [bundleMembers]);
 	// Every category's **Resolved colour**, in one pass over the tree: an
 	// inheriting leaf's colour lives on an ancestor, so a row cannot resolve its
 	// own. `categoriesById` is the whole (small) tree, ancestors included.
@@ -163,16 +204,60 @@ export function TransactionsTable({
 									label="Select all rows on this page"
 								/>
 							),
-							cell: ({ row }) => (
-								<SelectCheckbox
-									checked={row.getIsSelected()}
-									onChange={() => row.toggleSelected(!row.getIsSelected())}
-									label={`Select transaction ${row.original.rawIssuerString}`}
-								/>
-							),
+							// A **bundle member** (a nested row) carries no checkbox: it
+							// already belongs to a bundle, so the one action the selection
+							// offers would be refused. `getCanSelect` is the same rule the
+							// header's select-all reads, so the two cannot disagree.
+							cell: ({ row }) =>
+								row.getCanSelect() ? (
+									<SelectCheckbox
+										checked={row.getIsSelected()}
+										onChange={() => row.toggleSelected(!row.getIsSelected())}
+										label={`Select transaction ${row.original.rawIssuerString}`}
+									/>
+								) : null,
 						}),
 					]
 				: []),
+			// The expand affordance (issue #73) — its own column, so the chevron has
+			// a hit area of its own and the nested rows have a left edge to sit
+			// under. Empty on every row that stands for nothing else, exactly as the
+			// transfer-badge column is empty on every row that is not a leg.
+			columnHelper.display({
+				id: "expand",
+				// Header intentionally blank (screen-reader only): the column is a
+				// per-row control, not a labelled dimension of the data.
+				header: () => <span className="sr-only">Expand</span>,
+				cell: ({ row }) => {
+					// A member marks itself as one — the indent is what says "this row
+					// is here because of the row above it", not a colour of its own.
+					if (row.depth > 0)
+						return (
+							<CornerDownRight
+								size={14}
+								className="ml-2 text-gousse-muted"
+								aria-hidden
+							/>
+						);
+					if (!row.getCanExpand()) return null;
+					const expanded = row.getIsExpanded();
+					return (
+						<button
+							type="button"
+							onClick={row.getToggleExpandedHandler()}
+							aria-expanded={expanded}
+							aria-label={`${expanded ? "Hide" : "Show"} the ${row.subRows.length} transactions in ${row.original.rawIssuerString}`}
+							className="grid size-6 place-items-center rounded-sm text-gousse-muted outline-none transition-colors hover:bg-gousse-bg hover:text-gousse-ink focus-visible:ring-2 focus-visible:ring-gousse-accent"
+						>
+							<ChevronRight
+								size={14}
+								className={cn("transition-transform", expanded && "rotate-90")}
+								aria-hidden
+							/>
+						</button>
+					);
+				},
+			}),
 			columnHelper.accessor("date", {
 				header: "Date",
 				cell: (info) => (
@@ -276,8 +361,18 @@ export function TransactionsTable({
 		// Key selection by the transaction's own id rather than TanStack's default
 		// row index: the selection *is* the set of ids a bundle is built from, and
 		// an index would silently mean a different row after a sort or a page turn.
+		// A member is keyed the same way, so a nested row's id is its own id and not
+		// a path through its parent.
 		getRowId: (row) => String(row.id),
+		// A **bundle parent**'s members (issue #73), from the page's own payload —
+		// so a parent expands with no round-trip. Every other row has none.
+		getSubRows: (row) => membersByParent.get(row.id),
+		// Only top-level rows can be picked: a member is already bundled, so
+		// selecting it leads nowhere, and letting select-all sweep it up would offer
+		// to re-bundle money a parent already stands for.
+		enableRowSelection: (row) => row.depth === 0,
 		getCoreRowModel: getCoreRowModel(),
+		getExpandedRowModel: getExpandedRowModel(),
 	});
 
 	const navigate = useNavigate();
@@ -317,6 +412,32 @@ export function TransactionsTable({
 				</TableHeader>
 				<TableBody>
 					{table.getRowModel().rows.map((row) => {
+						// ---- Row colour: ONE wash per row, in this order (issue #73) ----
+						//
+						//   1. excluded  2. bundle parent  3. uncurated
+						//
+						// Settled here rather than left to CSS order, because all three can
+						// be true of one row at once and each says something different:
+						//
+						// - **Excluded** is about arithmetic — this money is outside every
+						//   total — and outranks both of the others, as it already did the
+						//   uncurated tint (issues #67/#70). A parent held out of the recap
+						//   is grey; its chevron still says it is a bundle.
+						// - **Bundle parent** is *structural*: this row stands for the rows
+						//   beneath it. It has to survive the parent's curation state, or
+						//   the one row whose background carries structure would lose it
+						//   exactly when the bundle is new — a fresh parent has no issuer,
+						//   category or note, so it is uncurated by construction.
+						// - **Uncurated** is a to-do, and yields to both. The row is still
+						//   uncurated *as a fact* — the server's predicate is untouched and
+						//   the *Uncurated only* filter still returns it; it is the colour
+						//   that gives way, not the state.
+						//
+						// A **bundle member** (a nested row) is an ordinary bank row shown
+						// for reading, so it keeps its own wash and is marked as nested by
+						// its indent, not by a fourth colour.
+						const isBundleParent = row.original.kind === "bundle";
+						const isBundleMember = row.depth > 0;
 						// **Excluded from recap** (issue #67): the row stays fully
 						// visible — exclusion is arithmetic, not visibility — but it is
 						// washed grey so a page reads at a glance as "this one is out of
@@ -333,9 +454,12 @@ export function TransactionsTable({
 						// so it is not a to-do — which is also what settles the precedence
 						// between the two washes: they never stack. Same shape as the
 						// server's `uncurated` filter, so the tint and the filter agree
-						// about which rows are to-dos.
+						// about which rows are to-dos — with the one exception the
+						// precedence above states: a **bundle parent** wears the bundle
+						// wash instead, while still counting as a to-do for the filter.
 						const isUncurated =
 							!isExcluded &&
+							!isBundleParent &&
 							row.original.issuerId == null &&
 							row.original.categoryId == null &&
 							(row.original.notes == null || row.original.notes.trim() === "");
@@ -348,8 +472,14 @@ export function TransactionsTable({
 							<TableRow
 								key={row.id}
 								data-excluded={isExcluded ? "true" : undefined}
+								data-kind={isBundleParent ? "bundle" : undefined}
+								data-bundle-member={isBundleMember ? "true" : undefined}
 								title={
-									isExcluded ? "Excluded from your recap spend" : undefined
+									isExcluded
+										? "Excluded from your recap spend"
+										: isBundleParent
+											? "A bundle — expand it to see the transactions it stands for"
+											: undefined
 								}
 								onClick={openDetail}
 								onKeyDown={(event) => {
@@ -372,21 +502,28 @@ export function TransactionsTable({
 									"cursor-pointer transition-colors focus:outline-none focus-visible:bg-gousse-bg",
 									// Each tint has to restate hover/focus too: `TableRow`'s own
 									// `hover:bg-gousse-bg` would otherwise wash it away on hover.
+									// Written in the precedence order documented above; the three
+									// conditions are mutually exclusive by construction, so no
+									// later class ever paints over an earlier one.
 									isUncurated &&
 										"bg-gousse-high/5 hover:bg-gousse-high/10 focus-visible:bg-gousse-high/10",
+									isBundleParent &&
+										!isExcluded &&
+										"bg-gousse-accent/5 hover:bg-gousse-accent/10 focus-visible:bg-gousse-accent/10",
 									isExcluded &&
 										"bg-gousse-muted/10 text-gousse-muted hover:bg-gousse-muted/15 focus-visible:bg-gousse-muted/15",
 								)}
 							>
 								{row.getVisibleCells().map((cell) => {
 									// The issuer/category/notes cells are inline curation surfaces
-									// (their own click targets) and the select cell is the
-									// selection surface; a click in any of them acts on the row
-									// where it is, so it must not also navigate to the detail
-									// page. Stop the event before it bubbles to the row's
-									// navigation handler.
+									// (their own click targets), the select cell is the selection
+									// surface and the expand cell opens the bundle in place; a
+									// click in any of them acts on the row where it is, so it
+									// must not also navigate to the detail page. Stop the event
+									// before it bubbles to the row's navigation handler.
 									const isOwnClickTarget =
 										cell.column.id === "select" ||
+										cell.column.id === "expand" ||
 										cell.column.id === "issuer" ||
 										cell.column.id === "category" ||
 										cell.column.id === "notes";

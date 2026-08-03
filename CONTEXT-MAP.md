@@ -364,14 +364,20 @@ repeated per package.
   sum of its members**, never stored independently of them: a late refund joining
   the bundle just changes the number. Its date defaults to the earliest member's
   and may be overridden, because the cost belongs to when the money was spent,
-  not to when the last person settled up.
+  not to when the last person settled up. In the transactions table it carries an
+  **expand** affordance and a wash of its own — a *structural* colour, so it
+  survives the parent's curation state (a fresh bundle is **uncurated** by
+  construction) but yields to the **excluded from recap** wash, which is about
+  arithmetic. One wash per row: excluded, then bundle parent, then uncurated.
   _Avoid_: virtual transaction, container, header row, master.
 
 - **Bundle member** — a real bank row pointing at its **bundle parent** through
   `bundleId`. Members are hidden from the top level of the transactions list and
   from its signed total, since the parent already accounts for them and showing
   both double-counts; they stay reachable by expanding the parent, and are shown
-  there for reading, not counted again. Bundling never touches a member's own
+  there for reading, not counted again. They travel with the page that holds
+  their parent — the list envelope's own `bundleMembers` field, beside `items`
+  rather than among them — so expanding costs no request and changes no total. Bundling never touches a member's own
   issuer, category or notes, so dissolving a bundle returns each member exactly
   as it was.
   _Avoid_: child transaction, sub-transaction, line item.

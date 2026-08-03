@@ -98,6 +98,7 @@ export {
 export {
 	BundleCreate,
 	NOTES_MAX_LENGTH,
+	PagedTransactions,
 	TRANSFER_DATE_WINDOW_DAYS,
 	Transaction,
 	TransactionAffected,
