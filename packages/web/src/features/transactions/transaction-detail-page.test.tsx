@@ -30,6 +30,47 @@ const TXN = {
 	importMonth: "2026-01",
 } as unknown as Transaction;
 
+/**
+ * A **bundle parent** (issue #72): the one row in the app that is only ever met
+ * on this page, since members hide its own members from the list. It carries a
+ * label and nothing else — no issuer, no category, no note — which is exactly
+ * what the page has to let the user fix.
+ */
+const BUNDLE = {
+	id: 300,
+	accountId: 1,
+	date: new Date("2026-03-07T00:00:00Z"),
+	amount: -50,
+	rawIssuerString: "Weekend Bretagne",
+	kind: "bundle",
+	importedAt: new Date(),
+	importMonth: "2026-03",
+} as unknown as Transaction;
+
+/** The two rows the bundle stands for — reachable only by `bundleId`. */
+const MEMBERS = [
+	{
+		id: 301,
+		accountId: 1,
+		date: new Date("2026-03-07T00:00:00Z"),
+		amount: -200,
+		rawIssuerString: "CARREFOUR MARKET",
+		bundleId: 300,
+		importedAt: new Date(),
+		importMonth: "2026-03",
+	},
+	{
+		id: 302,
+		accountId: 1,
+		date: new Date("2026-03-12T00:00:00Z"),
+		amount: 150,
+		rawIssuerString: "VIREMENT LUCAS",
+		bundleId: 300,
+		importedAt: new Date(),
+		importMonth: "2026-03",
+	},
+] as unknown as Transaction[];
+
 // ---- SDK seam mock ----------------------------------------------------------
 
 /**
@@ -58,11 +99,15 @@ vi.mock("@mamen/sdk", () => ({
 	transactionQueries: {
 		getById: (id: number) => ({
 			queryKey: ["transactions", "detail", id],
-			queryFn: async () => (id === TXN.id ? TXN : undefined),
+			queryFn: async () =>
+				id === TXN.id ? TXN : id === BUNDLE.id ? BUNDLE : undefined,
 		}),
 		list: (params: Record<string, unknown>) => ({
 			queryKey: ["transactions", "list", params],
-			queryFn: async () => ({ items: [], total: 0 }),
+			queryFn: async () =>
+				params.bundleId === BUNDLE.id
+					? { items: MEMBERS, total: MEMBERS.length }
+					: { items: [], total: 0 },
 		}),
 	},
 	accountQueries: {
@@ -110,16 +155,24 @@ const { TransactionDetailPage } = await import("./transaction-detail-page");
  * app serves it at `/transactions/$transactionId`; the `_` is the file-router's
  * "don't nest under /transactions" marker and never reaches a user's URL.
  */
-function makeRouter() {
+function makeRouter(id = 100) {
 	const rootRoute = createRootRoute();
 	const detailRoute = createRoute({
 		getParentRoute: () => rootRoute,
 		path: "/transactions_/$transactionId",
 		component: TransactionDetailPage,
 	});
+	// The member rows link here; a stub is enough for the links to resolve.
+	const memberRoute = createRoute({
+		getParentRoute: () => rootRoute,
+		path: "/transactions/$transactionId",
+		component: () => <div>member page</div>,
+	});
 	return createRouter({
-		routeTree: rootRoute.addChildren([detailRoute]),
-		history: createMemoryHistory({ initialEntries: ["/transactions_/100"] }),
+		routeTree: rootRoute.addChildren([detailRoute, memberRoute]),
+		history: createMemoryHistory({
+			initialEntries: [`/transactions_/${id}`],
+		}),
 	});
 }
 
@@ -147,5 +200,41 @@ describe("TransactionDetailPage", () => {
 		expect(
 			issuerByIdsMock.mock.calls.some(([ids]) => [...ids].includes(812)),
 		).toBe(true);
+	});
+
+	// Issue #72: the parent is a real transaction row, so the page curates it
+	// through the very controls the grid's cells are — no bundle-specific issuer,
+	// category or notes editor exists, and none should.
+	it("offers the curation controls on any row, bundle parent included", async () => {
+		render(<RouterProvider router={makeRouter(300)} />);
+
+		expect(
+			await screen.findByRole("heading", { name: "Weekend Bretagne" }),
+		).toBeVisible();
+		// The unresolved-issuer surface (the parent carries none yet), the category
+		// picker and the notes editor — the same three the table row offers.
+		expect(screen.getByTitle("Assign an issuer")).toBeVisible();
+		expect(
+			screen.getByTitle("Set a category for this transaction"),
+		).toBeVisible();
+		expect(screen.getByTitle("Add a note to this transaction")).toBeVisible();
+	});
+
+	it("shows a bundle parent the members it stands for", async () => {
+		render(<RouterProvider router={makeRouter(300)} />);
+
+		expect(await screen.findByText(/CARREFOUR MARKET/)).toBeVisible();
+		expect(screen.getByText(/VIREMENT LUCAS/)).toBeVisible();
+		// The date is the bundle's own to override; the amount is the members' sum
+		// and has no control anywhere on the page.
+		expect(screen.getByLabelText(/bundle date/i)).toBeVisible();
+		expect(screen.queryByLabelText(/amount/i)).toBeNull();
+	});
+
+	it("shows no bundle block on an ordinary bank row", async () => {
+		render(<RouterProvider router={makeRouter()} />);
+
+		await screen.findByRole("heading", { name: "Spotify" });
+		expect(screen.queryByLabelText(/bundle date/i)).toBeNull();
 	});
 });

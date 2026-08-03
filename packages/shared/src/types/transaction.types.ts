@@ -17,6 +17,8 @@ export type Transaction = {
 	kind?: "bank" | "bundle";
 	/** The id of the bundle parent standing for this row, when it is a member. */
 	bundleId?: number;
+	/** The row's `date` is the user's override, not a derived default (#72). */
+	manualDate?: boolean;
 	anomalyFlags?: AnomalyFlag[];
 	isDuplicateExcluded?: boolean;
 	duplicateNote?: string;

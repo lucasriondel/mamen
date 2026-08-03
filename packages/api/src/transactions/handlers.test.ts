@@ -1839,6 +1839,57 @@ describe("createBundle (issue #68)", () => {
 		}).pipe(Effect.provide(HttpLive)),
 	);
 
+	// Giving a parent its identity (issue #72), over the wire it already has: the
+	// parent is a real row, so the generic `update` is the whole edit surface —
+	// issuer, category, notes, and the one thing that is a bundle's own, the date.
+	it.effect("curates a parent through the generic update endpoint", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const a = yield* client.transactions.create({
+				payload: make({
+					amount: -200,
+					date: new Date("2026-03-07T00:00:00.000Z"),
+				}),
+			});
+			const b = yield* client.transactions.create({
+				payload: make({
+					amount: 150,
+					date: new Date("2026-03-12T00:00:00.000Z"),
+				}),
+			});
+			const parent = yield* client.transactions.createBundle({
+				payload: { ids: [a.id, b.id], label: "Weekend Bretagne" },
+			});
+
+			const curated = yield* client.transactions.update({
+				path: { id: parent.id },
+				payload: {
+					issuerId: asIssuer(3),
+					manualIssuer: true,
+					categoryId: asCategory(7),
+					manualCategory: true,
+					notes: "Split four ways",
+					date: new Date("2026-02-14T00:00:00.000Z"),
+					manualDate: true,
+				},
+			});
+
+			assert.strictEqual(curated.issuerId, 3);
+			assert.strictEqual(curated.categoryId, 7);
+			assert.strictEqual(curated.notes, "Split four ways");
+			assert.strictEqual(curated.manualDate, true);
+			assert.deepStrictEqual(
+				curated.date,
+				new Date("2026-02-14T00:00:00.000Z"),
+			);
+			// A bundle can be named "Weekend Bretagne" and still carry the issuer
+			// its members carry: adopting one never rewrites the label. And the
+			// amount is the members' sum whatever else lands on the row.
+			assert.strictEqual(curated.rawIssuerString, "Weekend Bretagne");
+			assert.strictEqual(curated.amount, -50);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
 	// The label is the parent's only human-readable identity, so a blank one is
 	// refused at the boundary (decode → 400) rather than written as a nameless row.
 	it.effect("refuses an empty label at the contract boundary", () =>

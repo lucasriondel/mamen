@@ -2230,6 +2230,9 @@
                     "description": "an integer",
                     "title": "int"
                   },
+                  "manualDate": {
+                    "type": "boolean"
+                  },
                   "anomalyFlags": {
                     "type": "array",
                     "items": {
@@ -2886,6 +2889,9 @@
                     "description": "an integer",
                     "title": "int"
                   },
+                  "manualDate": {
+                    "type": "boolean"
+                  },
                   "anomalyFlags": {
                     "type": "array",
                     "items": {
@@ -3152,6 +3158,9 @@
                           "type": "integer",
                           "description": "an integer",
                           "title": "int"
+                        },
+                        "manualDate": {
+                          "type": "boolean"
                         },
                         "anomalyFlags": {
                           "type": "array",
@@ -6029,6 +6038,9 @@
             "type": "integer",
             "description": "an integer",
             "title": "int"
+          },
+          "manualDate": {
+            "type": "boolean"
           },
           "anomalyFlags": {
             "type": "array",

@@ -369,9 +369,12 @@ repeated per package.
   identity — label (in `rawIssuerString`, which already means *the human-readable
   name of this row*), issuer, category, notes — and its amount is **always the
   sum of its members**, never stored independently of them: a late refund joining
-  the bundle just changes the number. Its date defaults to the earliest member's
-  and may be overridden, because the cost belongs to when the money was spent,
-  not to when the last person settled up.
+  the bundle just changes the number — and is editable nowhere, since a total
+  that could drift from the bank rows beneath it would stop being evidence. Its
+  date defaults to the earliest member's and may be overridden (flagged
+  `manualDate`, which is what carries the override through every later
+  recompute), because the cost belongs to when the money was spent, not to when
+  the last person settled up.
   _Avoid_: virtual transaction, container, header row, master.
 
 - **Bundle member** — a real bank row pointing at its **bundle parent** through
