@@ -50,6 +50,7 @@ export function composeTransactionFilters(
 			: {}),
 		...(search.importMonth != null ? { importMonth: search.importMonth } : {}),
 		...(search.search != null ? { search: search.search } : {}),
+		...(search.uncurated ? { uncurated: true } : {}),
 	};
 }
 
@@ -179,7 +180,8 @@ export function TransactionsSection({
 	const hasFilters =
 		search.accountId != null ||
 		search.importMonth != null ||
-		search.search != null;
+		search.search != null ||
+		search.uncurated === true;
 
 	return (
 		<>
@@ -193,6 +195,7 @@ export function TransactionsSection({
 						accountId: search.accountId,
 						importMonth: search.importMonth,
 						search: search.search,
+						uncurated: search.uncurated,
 					}}
 					onChange={onFiltersChange}
 				/>
