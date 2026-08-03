@@ -34,21 +34,28 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("@mamen/sdk")>();
 	return {
 		...actual,
+		// The *list* reads stand in for an issuer table whose ids have outrun their
+		// first page: 500 issuers reported, none handed back. A preview row's
+		// current issuer therefore has to be resolved by id (#62).
 		issuerQueries: {
 			all: () => ({
 				queryKey: ["issuers", "list", "test"],
-				queryFn: async () => ({
-					items: issuersList,
-					total: issuersList.length,
-				}),
+				queryFn: async () => ({ items: [] as Issuer[], total: 500 }),
 			}),
 			list: () => ({
 				queryKey: ["issuers", "list", "test"],
-				queryFn: async () => ({
-					items: issuersList,
-					total: issuersList.length,
-				}),
+				queryFn: async () => ({ items: [] as Issuer[], total: 500 }),
 			}),
+			byIds: (ids: Iterable<number>) => {
+				const wanted = [...new Set(ids)].sort((a, b) => a - b);
+				return {
+					queryKey: ["issuers", "by-ids", wanted],
+					queryFn: async () => {
+						const items = issuersList.filter((i) => wanted.includes(i.id));
+						return { items, total: items.length };
+					},
+				};
+			},
 		},
 		ruleQueries: {
 			getById: (id: number) => ({

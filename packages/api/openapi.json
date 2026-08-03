@@ -1111,6 +1111,24 @@
               ]
             },
             "required": false
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/NumberFromString"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NumberFromString"
+                  }
+                }
+              ]
+            },
+            "required": false
           }
         ],
         "security": [],

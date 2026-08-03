@@ -113,6 +113,94 @@ describe("IssuerRepo", () => {
 		}).pipe(Effect.provide(RepoTest)),
 	);
 
+	it.effect("list narrows to a set of ids, and total counts only those", () =>
+		Effect.gen(function* () {
+			const repo = yield* IssuerRepo;
+			const a = yield* repo.create(make({ name: "a" }));
+			yield* repo.create(make({ name: "b" }));
+			const c = yield* repo.create(make({ name: "c" }));
+
+			const page = yield* repo.list({ limit: 50, offset: 0, id: [a.id, c.id] });
+			assert.deepStrictEqual(
+				page.items.map((m) => m.name),
+				["a", "c"],
+			);
+			// `total` is the filtered count, not the table's row count.
+			assert.strictEqual(page.total, 2);
+		}).pipe(Effect.provide(RepoTest)),
+	);
+
+	it.effect("list accepts a lone id, not only a set", () =>
+		Effect.gen(function* () {
+			const repo = yield* IssuerRepo;
+			yield* repo.create(make({ name: "a" }));
+			const b = yield* repo.create(make({ name: "b" }));
+
+			const page = yield* repo.list({ limit: 50, offset: 0, id: b.id });
+			assert.deepStrictEqual(
+				page.items.map((m) => m.name),
+				["b"],
+			);
+			assert.strictEqual(page.total, 1);
+		}).pipe(Effect.provide(RepoTest)),
+	);
+
+	// The bug this filter exists to kill: resolution used to read page 1 of the
+	// whole table, so an issuer whose id sorts past that page came back missing
+	// and every row pointing at it rendered *unresolved*. Asking by id must not
+	// care where the id sorts.
+	it.effect("list finds an id that sorts outside the first page", () =>
+		Effect.gen(function* () {
+			const repo = yield* IssuerRepo;
+			yield* repo.create(make({ name: "first" }));
+			yield* repo.create(make({ name: "second" }));
+			const last = yield* repo.create(make({ name: "newest" }));
+
+			// A page of one, from the top of the id order — `last` is nowhere near it.
+			const firstPage = yield* repo.list({ limit: 1, offset: 0 });
+			assert.notStrictEqual(firstPage.items[0]?.id, last.id);
+
+			const page = yield* repo.list({ limit: 1, offset: 0, id: [last.id] });
+			assert.deepStrictEqual(
+				page.items.map((m) => m.name),
+				["newest"],
+			);
+		}).pipe(Effect.provide(RepoTest)),
+	);
+
+	// An empty set is a real answer ("resolve nothing"), not a dropped filter —
+	// falling through to the whole table would hand a caller every issuer at the
+	// exact moment it asked for none.
+	it.effect("list with an empty id set matches nothing", () =>
+		Effect.gen(function* () {
+			const repo = yield* IssuerRepo;
+			yield* repo.create(make({ name: "a" }));
+			yield* repo.create(make({ name: "b" }));
+
+			const page = yield* repo.list({ limit: 50, offset: 0, id: [] });
+			assert.strictEqual(page.items.length, 0);
+			assert.strictEqual(page.total, 0);
+		}).pipe(Effect.provide(RepoTest)),
+	);
+
+	it.effect("list ignores an id that no longer exists", () =>
+		Effect.gen(function* () {
+			const repo = yield* IssuerRepo;
+			const a = yield* repo.create(make({ name: "a" }));
+
+			const page = yield* repo.list({
+				limit: 50,
+				offset: 0,
+				id: [a.id, asId(9999)],
+			});
+			assert.deepStrictEqual(
+				page.items.map((m) => m.name),
+				["a"],
+			);
+			assert.strictEqual(page.total, 1);
+		}).pipe(Effect.provide(RepoTest)),
+	);
+
 	it.effect("getByName matches exactly (case-sensitive)", () =>
 		Effect.gen(function* () {
 			const repo = yield* IssuerRepo;

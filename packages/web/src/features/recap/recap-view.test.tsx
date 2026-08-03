@@ -42,21 +42,29 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
 				}),
 			}),
 		},
+		// The *list* reads stand in for an issuer table whose ids have outrun their
+		// first page: 500 issuers reported, none handed back. Every issuer name in
+		// this suite therefore has to come through `byIds` — which is the point of
+		// #62: a breakdown names the issuers it is showing, by their ids.
 		issuerQueries: {
 			all: () => ({
 				queryKey: ["issuers", "list", "test"],
-				queryFn: async () => ({
-					items: issuersList,
-					total: issuersList.length,
-				}),
+				queryFn: async () => ({ items: [] as Issuer[], total: 500 }),
 			}),
 			list: () => ({
 				queryKey: ["issuers", "list", "test"],
-				queryFn: async () => ({
-					items: issuersList,
-					total: issuersList.length,
-				}),
+				queryFn: async () => ({ items: [] as Issuer[], total: 500 }),
 			}),
+			byIds: (ids: Iterable<number>) => {
+				const wanted = [...new Set(ids)].sort((a, b) => a - b);
+				return {
+					queryKey: ["issuers", "by-ids", wanted],
+					queryFn: async () => {
+						const items = issuersList.filter((i) => wanted.includes(i.id));
+						return { items, total: items.length };
+					},
+				};
+			},
 		},
 		categoryQueries: {
 			list: () => ({

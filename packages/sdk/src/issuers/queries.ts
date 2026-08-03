@@ -1,4 +1,5 @@
 import type {
+	Issuer,
 	IssuerCreate,
 	IssuerId,
 	IssuerUpdate,
@@ -15,11 +16,25 @@ export type IssuerListParams = {
 	orderBy?: "name";
 };
 
+/** The paged envelope every issuers list read resolves to. */
+type PagedIssuers = {
+	readonly items: readonly Issuer[];
+	readonly total: number;
+};
+
 /** Query-key factory for the issuers resource. */
 export const issuerKeys = {
 	all: ["issuers"] as const,
 	lists: () => [...issuerKeys.all, "list"] as const,
 	list: (params: IssuerListParams) => [...issuerKeys.lists(), params] as const,
+	/**
+	 * The **by-ids** read's key. Takes the already-normalised (deduped, ascending)
+	 * set {@link issuerQueries.byIds} builds, so two surfaces asking for the same
+	 * issuers in a different order share one cache entry rather than fetching the
+	 * same rows twice.
+	 */
+	byIds: (ids: ReadonlyArray<number>) =>
+		[...issuerKeys.all, "by-ids", ids] as const,
 	details: () => [...issuerKeys.all, "detail"] as const,
 	detail: (id: IssuerId) => [...issuerKeys.details(), id] as const,
 	byName: (name: string) => [...issuerKeys.all, "by-name", name] as const,
@@ -49,34 +64,76 @@ const LOGO_SEARCH_CACHE_MS = 24 * 60 * 60 * 1000;
  * The page size {@link issuerQueries.all} asks for — high enough to hold a
  * single user's whole issuer set in one response.
  *
- * The number exists because a *resolution* read has no business being
- * paginated: a caller indexing issuers by id to name a transaction's issuer
- * needs every issuer, and a short page silently resolves the ones it happens to
- * contain. The contract's `list` defaults to 50 ordered by **id**, so with more
- * than 50 issuers the newest ones fall off page 1 and rows pointing at them
- * render as unresolved — a rule that matched correctly looks broken.
+ * This is the limit for the surfaces that are *about* the whole set: the issuers
+ * grid, the duplicate-name guard, and the pickers, which offer a choice among
+ * every issuer and filter client-side. Those are bounded by the user's own
+ * issuer count and there is nothing narrower to ask for.
  *
- * A cap this far above a realistic issuer count is a stopgap, not a fix: it
- * moves the cliff rather than removing it. Resolving by the ids actually on
- * screen is the real answer (see the linked issue).
+ * **Naming** a row's issuer is not one of them — that asks for the ids on screen
+ * via {@link issuerQueries.byIds} and has no ceiling at all (#62). It used to
+ * come through here, which is why this number is so far above a realistic issuer
+ * count: a short page silently resolved only the issuers it happened to contain,
+ * so past the cap a row pointing at a newer issuer rendered as unresolved and a
+ * rule that had matched correctly looked broken.
  */
 export const ISSUER_SCAN_LIMIT = 1000;
 
 /** tanstack-query read options for the issuers resource. */
 export const issuerQueries = {
 	/**
-	 * **Every issuer**, in one query — the shared read for lookup-by-id.
+	 * **Every issuer**, in one query — the read for surfaces that offer a choice
+	 * among all of them: the issuer pickers, which show a searchable list and
+	 * filter it client-side. There is nothing narrower for those to ask for, and
+	 * the set is bounded by the user's own issuer count.
 	 *
-	 * The single source of truth for "give me all the issuers so I can resolve
-	 * one": the transactions table, the pickers, the recap, and the rules UI all
-	 * call this rather than each passing its own `limit` to {@link
-	 * issuerQueries.list}. That drift is what broke issuer resolution once — most
-	 * call sites took the default 50 while the rules pages asked for 1000 — so
-	 * the limit lives here, in one place, where it cannot be forgotten.
+	 * Not for *naming* a row's issuer — that is {@link issuerQueries.byIds},
+	 * which asks for the ids on screen and so has no page to fall off (#62).
 	 *
 	 * `list` stays for genuinely paginated/ordered reads (the issuers grid).
 	 */
 	all: () => issuerQueries.list({ limit: ISSUER_SCAN_LIMIT }),
+
+	/**
+	 * **The issuers with these ids** — the resolution read.
+	 *
+	 * A surface showing rows knows exactly which issuers it needs to name: the
+	 * distinct `issuerId`s of the rows it is rendering. A page of fifty
+	 * transactions references at most fifty issuers, so it asks for those rather
+	 * than reading the issuer table and hoping the ones it needs are on the page
+	 * it got back. That hope is what failed before: `list` pages by **id**, and an
+	 * issuer created moments ago sorts last, so the row pointing at it rendered as
+	 * *unresolved* — the raw counterparty text, and a picker offering to assign an
+	 * issuer the row already had (#62). Asking by id has no such cliff, whatever
+	 * the ids are and however many issuers exist.
+	 *
+	 * `ids` is normalised — deduped and sorted ascending — before it reaches the
+	 * key and the request, so a re-render with the same issuers in a different
+	 * order hits the same cache entry, and `limit` is the size of the set asked
+	 * for: the response is complete by construction.
+	 *
+	 * An **empty** set resolves to an empty page without a request. Zero issuers
+	 * to name is a real state (a page of entirely unmatched rows), and it is the
+	 * one case where sending the filter would be dangerous — an omitted `id` param
+	 * reads as *unfiltered*, so the request that asked for nothing would come back
+	 * with everything.
+	 */
+	byIds: (ids: Iterable<IssuerId>) => {
+		const unique = [...new Set(ids)].sort((a, b) => a - b);
+		return queryOptions({
+			queryKey: issuerKeys.byIds(unique),
+			queryFn: ({ signal }): Promise<PagedIssuers> =>
+				unique.length === 0
+					? Promise.resolve({ items: [], total: 0 })
+					: runQuery(
+							Effect.flatMap(Client, (client) =>
+								client.issuers.list({
+									urlParams: { id: unique, limit: unique.length, offset: 0 },
+								}),
+							),
+							signal,
+						),
+		});
+	},
 
 	list: (params: IssuerListParams = {}) => {
 		const urlParams = { ...PaginationDefaults, ...params };

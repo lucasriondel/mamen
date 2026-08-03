@@ -1,10 +1,8 @@
-import type { Issuer, IssuerId, Rule, RuleId } from "@mamen/shared/contract";
+import type { IssuerId, Rule, RuleId } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
-import { useMemo } from "react";
-import { issuerQueries, ruleQueries } from "@/lib/sdk";
-import { indexById } from "@/lib/utils";
+import { ruleQueries } from "@/lib/sdk";
 import { RuleForm } from "./rule-form";
 import { RuleFormSkeleton } from "./rule-form-skeleton";
 
@@ -26,9 +24,10 @@ export interface RuleFormPageProps {
  * presence of `ruleId`, so the shared {@link RuleForm} (regex helpers + the live
  * three-list preview) is the single source of truth.
  *
- * The page owns the reads the form needs (the issuer lookup for naming a
- * preview row's current issuer, and — when editing — the rule to pre-fill from)
- * plus the loading / not-found states. Saving or cancelling returns to the
+ * The page owns the read the form needs when editing — the rule to pre-fill
+ * from — plus the loading / not-found states. Naming a preview row's current
+ * issuer is the form's own business: it holds the rows, so it knows which ids
+ * to ask for (#62). Saving or cancelling returns to the
  * issuer detail page; the form's own `onDone`/`onCancel` fire the navigation.
  */
 export function RuleFormPage({
@@ -38,13 +37,6 @@ export function RuleFormPage({
 }: RuleFormPageProps) {
 	const navigate = useNavigate();
 	const isEditing = ruleId != null;
-
-	// Every issuer, so a preview row's *current* issuer can be named whichever it is.
-	const issuersQuery = useQuery(issuerQueries.all());
-	const issuersById = useMemo(
-		() => indexById((issuersQuery.data?.items ?? []) as readonly Issuer[]),
-		[issuersQuery.data],
-	);
 
 	const ruleQuery = useQuery({
 		...ruleQueries.getById((ruleId ?? 0) as RuleId),
@@ -97,7 +89,6 @@ export function RuleFormPage({
 			</h1>
 			<RuleForm
 				issuerId={issuerId}
-				issuersById={issuersById}
 				rule={rule}
 				defaultPattern={defaultPattern}
 				onDone={back}

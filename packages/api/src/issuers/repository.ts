@@ -69,11 +69,15 @@ const PagedIssuer = Paged(Issuer);
 /** Number of rows in a `count(*)` result. */
 const CountResult = Schema.Struct({ count: Schema.Number });
 
-/** The `list` filter, decoded from the query string (`orderBy` optional). */
+/**
+ * The `list` filter, decoded from the query string (`orderBy`/`id` optional).
+ * `id` is a single id or a set — the by-ids read (#62).
+ */
 type ListFilter = {
 	limit: number;
 	offset: number;
 	orderBy?: "name";
+	id?: number | ReadonlyArray<number>;
 };
 
 /** A null-mapped write row (the shape bound into INSERT/UPDATE statements). */
@@ -100,269 +104,283 @@ type WriteRow = {
  * as `CategoryNotLeaf`.
  * `update` additionally treats a `null` `defaultCategoryId` as a *clear*.
  */
-export class IssuerRepo extends Effect.Service<IssuerRepo>()(
-	"api/IssuerRepo",
-	{
-		effect: Effect.gen(function* () {
-			const sql = yield* SqlClient.SqlClient;
+export class IssuerRepo extends Effect.Service<IssuerRepo>()("api/IssuerRepo", {
+	effect: Effect.gen(function* () {
+		const sql = yield* SqlClient.SqlClient;
 
-			// Faithful to today: `orderBy=name` orders case-insensitively by name
-			// (matching the old `ORDER BY name COLLATE NOCASE ASC`), else natural
-			// insertion order (`id`).
-			const orderClause = (orderBy: "name" | undefined) =>
-				orderBy === "name"
-					? sql`ORDER BY name COLLATE NOCASE ASC`
-					: sql`ORDER BY id`;
+		// Faithful to today: `orderBy=name` orders case-insensitively by name
+		// (matching the old `ORDER BY name COLLATE NOCASE ASC`), else natural
+		// insertion order (`id`).
+		const orderClause = (orderBy: "name" | undefined) =>
+			orderBy === "name"
+				? sql`ORDER BY name COLLATE NOCASE ASC`
+				: sql`ORDER BY id`;
 
-			// `Request: Schema.Any` skips a redundant re-decode: the filter is
-			// already decoded at the HTTP boundary (`IssuerListFilters`), and the
-			// params bind through the `sql` fragments, not the Request schema. A
-			// `Schema.Struct` Request can't co-exist with the dynamic order fragment.
-			const listQuery = SqlSchema.findAll({
-				Request: Schema.Any as Schema.Schema<ListFilter>,
-				Result: IssuerFromRow,
-				execute: ({ limit, offset, orderBy }) =>
-					sql`SELECT * FROM issuers ${orderClause(orderBy)} LIMIT ${limit} OFFSET ${offset}`,
+		// The `id` filter (#62): narrows to the ids a caller is actually showing.
+		// A lone id and a repeated one arrive as a number and an array
+		// respectively, so both normalise to a set here. An empty set renders
+		// `1 = 0` rather than no predicate at all — asking to resolve nothing must
+		// return nothing, where dropping the filter would return everything
+		// (`sql.in([])` would also render an invalid `IN ()`). An unfiltered read
+		// contributes no WHERE, so the whole-table reads are untouched.
+		const whereClause = (id: ListFilter["id"]) => {
+			if (id === undefined) return sql``;
+			const ids = Array.isArray(id) ? id : [id as number];
+			return ids.length === 0
+				? sql`WHERE 1 = 0`
+				: sql`WHERE ${sql.in("id", ids)}`;
+		};
+
+		// `Request: Schema.Any` skips a redundant re-decode: the filter is
+		// already decoded at the HTTP boundary (`IssuerListFilters`), and the
+		// params bind through the `sql` fragments, not the Request schema. A
+		// `Schema.Struct` Request can't co-exist with the dynamic order fragment.
+		const listQuery = SqlSchema.findAll({
+			Request: Schema.Any as Schema.Schema<ListFilter>,
+			Result: IssuerFromRow,
+			execute: ({ limit, offset, orderBy, id }) =>
+				sql`SELECT * FROM issuers ${whereClause(id)} ${orderClause(orderBy)} LIMIT ${limit} OFFSET ${offset}`,
+		});
+
+		// Counts the *filtered* set, sharing `whereClause` with the read above so
+		// `total` can never describe a different set than `items` pages through.
+		const countQuery = SqlSchema.single({
+			Request: Schema.Any as Schema.Schema<Pick<ListFilter, "id">>,
+			Result: CountResult,
+			execute: ({ id }) =>
+				sql`SELECT COUNT(*) AS count FROM issuers ${whereClause(id)}`,
+		});
+
+		const byIdQuery = SqlSchema.findOne({
+			Request: IssuerId,
+			Result: IssuerFromRow,
+			execute: (id) => sql`SELECT * FROM issuers WHERE id = ${id}`,
+		});
+
+		const byNameQuery = SqlSchema.findOne({
+			Request: Schema.String,
+			Result: IssuerFromRow,
+			execute: (name) => sql`SELECT * FROM issuers WHERE name = ${name}`,
+		});
+
+		const byNameCiQuery = SqlSchema.findOne({
+			Request: Schema.String,
+			Result: IssuerFromRow,
+			execute: (name) =>
+				sql`SELECT * FROM issuers WHERE name COLLATE NOCASE = ${name}`,
+		});
+
+		// One indexed existence probe of a category's children — the
+		// childlessness test for the Leaf-assignable invariant (ADR 0003) below.
+		// A row means the category has children (a folder, unassignable); none
+		// means it is childless (a leaf, assignable) at any depth. Rides
+		// `idx_categories_parentId`.
+		const hasChildrenQuery = SqlSchema.findOne({
+			Request: Schema.Number,
+			Result: Schema.Struct({ one: Schema.Number }),
+			execute: (id) =>
+				sql`SELECT 1 AS one FROM categories WHERE parentId = ${id} LIMIT 1`,
+		});
+
+		// Writes bind a plain null-mapped `WriteRow` object. `Request: Schema.Any`
+		// because the row is already a plain object (built in `create`/`update`),
+		// not something to decode; only the `Result` decode (RETURNING → entity)
+		// matters here.
+		const insertQuery = SqlSchema.single({
+			Request: Schema.Any as Schema.Schema<WriteRow>,
+			Result: IssuerFromRow,
+			execute: (row) => sql`INSERT INTO issuers ${sql.insert(row)} RETURNING *`,
+		});
+
+		const updateQuery = SqlSchema.single({
+			Request: Schema.Any as Schema.Schema<
+				WriteRow & { id: typeof IssuerId.Type }
+			>,
+			Result: IssuerFromRow,
+			execute: (row) =>
+				sql`UPDATE issuers SET ${sql.update(row, ["id"])} WHERE id = ${row.id} RETURNING *`,
+		});
+
+		// One hoisted query for both `setImage` and `clearImage` — a `string`
+		// sets the column, `null` clears it. Keeps the `RETURNING *` + decode
+		// shape in a single place (the other writes are hoisted too).
+		const setImageUrlQuery = SqlSchema.single({
+			Request: Schema.Any as Schema.Schema<{
+				id: typeof IssuerId.Type;
+				imageUrl: string | null;
+			}>,
+			Result: IssuerFromRow,
+			execute: ({ id, imageUrl }) =>
+				sql`UPDATE issuers SET imageUrl = ${imageUrl} WHERE id = ${id} RETURNING *`,
+		});
+
+		const nowIso = Clock.currentTimeMillis.pipe(
+			Effect.map((millis) => new Date(millis).toISOString()),
+		);
+
+		/** Unwrap a lookup's `Option`, 404-ing when absent (the key goes on the error). */
+		const requireOne = (
+			found: Option.Option<Issuer>,
+			key: string | number,
+		): Effect.Effect<Issuer, NotFound> =>
+			Option.match(found, {
+				onNone: () =>
+					Effect.fail(new NotFound({ resource: "issuer", id: key })),
+				onSome: Effect.succeed,
 			});
 
-			const countQuery = SqlSchema.single({
-				Request: Schema.Void,
-				Result: CountResult,
-				execute: () => sql`SELECT COUNT(*) AS count FROM issuers`,
-			});
+		/**
+		 * The Leaf-assignable invariant (ADR 0003) at the issuers door: a default
+		 * category must be an assignable **leaf** (a category with no children),
+		 * never a **folder**. Assignability is childlessness, not root-ness — a
+		 * childless node is a leaf at *any* depth. A folder-assigned issuer would
+		 * hang its transactions off a node the category rollup visits but never
+		 * counts, understating the total with no error on screen — so reject at
+		 * the write boundary, the same door the UI and any future writer share.
+		 * Absent (`undefined`) or a clear (`null`) skips the check; an unknown id
+		 * is left to pass (no FK exists — policing missing rows is not this
+		 * invariant's job).
+		 */
+		const assertLeaf = (
+			categoryId: number | null | undefined,
+		): Effect.Effect<void, CategoryNotLeaf> =>
+			categoryId == null
+				? Effect.void
+				: hasChildrenQuery(categoryId).pipe(
+						orDieSql,
+						Effect.flatMap((found) =>
+							Option.isSome(found)
+								? Effect.fail(new CategoryNotLeaf({ categoryId }))
+								: Effect.void,
+						),
+					);
 
-			const byIdQuery = SqlSchema.findOne({
-				Request: IssuerId,
-				Result: IssuerFromRow,
-				execute: (id) => sql`SELECT * FROM issuers WHERE id = ${id}`,
-			});
+		/** Fold an entity into a plain, null-mapped write row (drops `id`). */
+		const toWriteRow = (m: Issuer): WriteRow => ({
+			name: m.name,
+			imageUrl: m.imageUrl ?? null,
+			defaultCategoryId: m.defaultCategoryId ?? null,
+			notes: m.notes ?? null,
+			createdAt: m.createdAt.toISOString(),
+			firstSeen: m.firstSeen.toISOString(),
+		});
 
-			const byNameQuery = SqlSchema.findOne({
-				Request: Schema.String,
-				Result: IssuerFromRow,
-				execute: (name) => sql`SELECT * FROM issuers WHERE name = ${name}`,
-			});
-
-			const byNameCiQuery = SqlSchema.findOne({
-				Request: Schema.String,
-				Result: IssuerFromRow,
-				execute: (name) =>
-					sql`SELECT * FROM issuers WHERE name COLLATE NOCASE = ${name}`,
-			});
-
-			// One indexed existence probe of a category's children — the
-			// childlessness test for the Leaf-assignable invariant (ADR 0003) below.
-			// A row means the category has children (a folder, unassignable); none
-			// means it is childless (a leaf, assignable) at any depth. Rides
-			// `idx_categories_parentId`.
-			const hasChildrenQuery = SqlSchema.findOne({
-				Request: Schema.Number,
-				Result: Schema.Struct({ one: Schema.Number }),
-				execute: (id) =>
-					sql`SELECT 1 AS one FROM categories WHERE parentId = ${id} LIMIT 1`,
-			});
-
-			// Writes bind a plain null-mapped `WriteRow` object. `Request: Schema.Any`
-			// because the row is already a plain object (built in `create`/`update`),
-			// not something to decode; only the `Result` decode (RETURNING → entity)
-			// matters here.
-			const insertQuery = SqlSchema.single({
-				Request: Schema.Any as Schema.Schema<WriteRow>,
-				Result: IssuerFromRow,
-				execute: (row) =>
-					sql`INSERT INTO issuers ${sql.insert(row)} RETURNING *`,
-			});
-
-			const updateQuery = SqlSchema.single({
-				Request: Schema.Any as Schema.Schema<
-					WriteRow & { id: typeof IssuerId.Type }
-				>,
-				Result: IssuerFromRow,
-				execute: (row) =>
-					sql`UPDATE issuers SET ${sql.update(row, ["id"])} WHERE id = ${row.id} RETURNING *`,
-			});
-
-			// One hoisted query for both `setImage` and `clearImage` — a `string`
-			// sets the column, `null` clears it. Keeps the `RETURNING *` + decode
-			// shape in a single place (the other writes are hoisted too).
-			const setImageUrlQuery = SqlSchema.single({
-				Request: Schema.Any as Schema.Schema<{
-					id: typeof IssuerId.Type;
-					imageUrl: string | null;
-				}>,
-				Result: IssuerFromRow,
-				execute: ({ id, imageUrl }) =>
-					sql`UPDATE issuers SET imageUrl = ${imageUrl} WHERE id = ${id} RETURNING *`,
-			});
-
-			const nowIso = Clock.currentTimeMillis.pipe(
-				Effect.map((millis) => new Date(millis).toISOString()),
+		const list = (filter: ListFilter) =>
+			Effect.all({
+				items: listQuery(filter),
+				total: countQuery({ id: filter.id }).pipe(Effect.map((r) => r.count)),
+			}).pipe(
+				Effect.map((paged) => PagedIssuer.make(paged)),
+				orDieSql,
 			);
 
-			/** Unwrap a lookup's `Option`, 404-ing when absent (the key goes on the error). */
-			const requireOne = (
-				found: Option.Option<Issuer>,
-				key: string | number,
-			): Effect.Effect<Issuer, NotFound> =>
-				Option.match(found, {
-					onNone: () =>
-						Effect.fail(new NotFound({ resource: "issuer", id: key })),
-					onSome: Effect.succeed,
-				});
+		const getById = (id: typeof IssuerId.Type) =>
+			byIdQuery(id).pipe(
+				orDieSql,
+				Effect.flatMap((found) => requireOne(found, id)),
+			);
 
-			/**
-			 * The Leaf-assignable invariant (ADR 0003) at the issuers door: a default
-			 * category must be an assignable **leaf** (a category with no children),
-			 * never a **folder**. Assignability is childlessness, not root-ness — a
-			 * childless node is a leaf at *any* depth. A folder-assigned issuer would
-			 * hang its transactions off a node the category rollup visits but never
-			 * counts, understating the total with no error on screen — so reject at
-			 * the write boundary, the same door the UI and any future writer share.
-			 * Absent (`undefined`) or a clear (`null`) skips the check; an unknown id
-			 * is left to pass (no FK exists — policing missing rows is not this
-			 * invariant's job).
-			 */
-			const assertLeaf = (
-				categoryId: number | null | undefined,
-			): Effect.Effect<void, CategoryNotLeaf> =>
-				categoryId == null
-					? Effect.void
-					: hasChildrenQuery(categoryId).pipe(
-							orDieSql,
-							Effect.flatMap((found) =>
-								Option.isSome(found)
-									? Effect.fail(new CategoryNotLeaf({ categoryId }))
-									: Effect.void,
-							),
-						);
+		const getByName = (name: string) =>
+			byNameQuery(name).pipe(
+				orDieSql,
+				Effect.flatMap((found) => requireOne(found, name)),
+			);
 
-			/** Fold an entity into a plain, null-mapped write row (drops `id`). */
-			const toWriteRow = (m: Issuer): WriteRow => ({
-				name: m.name,
-				imageUrl: m.imageUrl ?? null,
-				defaultCategoryId: m.defaultCategoryId ?? null,
-				notes: m.notes ?? null,
-				createdAt: m.createdAt.toISOString(),
-				firstSeen: m.firstSeen.toISOString(),
-			});
+		const getByNameCi = (name: string) =>
+			byNameCiQuery(name).pipe(
+				orDieSql,
+				Effect.flatMap((found) => requireOne(found, name)),
+			);
 
-			const list = (filter: ListFilter) =>
-				Effect.all({
-					items: listQuery(filter),
-					total: countQuery().pipe(Effect.map((r) => r.count)),
-				}).pipe(
-					Effect.map((paged) => PagedIssuer.make(paged)),
-					orDieSql,
-				);
-
-			const getById = (id: typeof IssuerId.Type) =>
-				byIdQuery(id).pipe(
-					orDieSql,
-					Effect.flatMap((found) => requireOne(found, id)),
-				);
-
-			const getByName = (name: string) =>
-				byNameQuery(name).pipe(
-					orDieSql,
-					Effect.flatMap((found) => requireOne(found, name)),
-				);
-
-			const getByNameCi = (name: string) =>
-				byNameCiQuery(name).pipe(
-					orDieSql,
-					Effect.flatMap((found) => requireOne(found, name)),
-				);
-
-			const create = (payload: IssuerCreate) =>
-				assertLeaf(payload.defaultCategoryId).pipe(
-					Effect.andThen(
-						nowIso.pipe(
-							Effect.flatMap((now) =>
-								insertQuery({
-									name: payload.name,
-									imageUrl: payload.imageUrl ?? null,
-									defaultCategoryId: payload.defaultCategoryId ?? null,
-									notes: payload.notes ?? null,
-									createdAt: now,
-									firstSeen: payload.firstSeen.toISOString(),
-								}),
-							),
-							orDieSql,
+		const create = (payload: IssuerCreate) =>
+			assertLeaf(payload.defaultCategoryId).pipe(
+				Effect.andThen(
+					nowIso.pipe(
+						Effect.flatMap((now) =>
+							insertQuery({
+								name: payload.name,
+								imageUrl: payload.imageUrl ?? null,
+								defaultCategoryId: payload.defaultCategoryId ?? null,
+								notes: payload.notes ?? null,
+								createdAt: now,
+								firstSeen: payload.firstSeen.toISOString(),
+							}),
 						),
+						orDieSql,
 					),
-				);
+				),
+			);
 
-			const update = (id: typeof IssuerId.Type, changes: IssuerUpdate) =>
-				assertLeaf(changes.defaultCategoryId).pipe(
-					// getById already 404s if missing; the write then always hits a row.
-					Effect.andThen(getById(id)),
-					Effect.flatMap((current) => {
-						// A `null` in `changes` *clears* the default, an absent one leaves
-						// it unchanged. `new Issuer` can't carry a null defaultCategoryId
-						// (its field is optional, not nullable), so merge every other field
-						// through it and set the FK on the write row directly.
-						const defaultCategoryId =
-							changes.defaultCategoryId !== undefined
-								? changes.defaultCategoryId
-								: (current.defaultCategoryId ?? null);
-						// `notes` is nullable-to-clear for the same reason and needs the
-						// same treatment — an emptied note arrives as `null` and must
-						// reach the column, not be dropped by `Issuer`'s optional field.
-						const notes =
-							changes.notes !== undefined
-								? changes.notes
-								: (current.notes ?? null);
-						const merged = new Issuer({
-							...current,
-							...changes,
-							defaultCategoryId: current.defaultCategoryId,
-							notes: current.notes,
-						});
-						return updateQuery({
-							...toWriteRow(merged),
-							id,
-							defaultCategoryId,
-							notes,
-						}).pipe(orDieSql);
-					}),
-				);
+		const update = (id: typeof IssuerId.Type, changes: IssuerUpdate) =>
+			assertLeaf(changes.defaultCategoryId).pipe(
+				// getById already 404s if missing; the write then always hits a row.
+				Effect.andThen(getById(id)),
+				Effect.flatMap((current) => {
+					// A `null` in `changes` *clears* the default, an absent one leaves
+					// it unchanged. `new Issuer` can't carry a null defaultCategoryId
+					// (its field is optional, not nullable), so merge every other field
+					// through it and set the FK on the write row directly.
+					const defaultCategoryId =
+						changes.defaultCategoryId !== undefined
+							? changes.defaultCategoryId
+							: (current.defaultCategoryId ?? null);
+					// `notes` is nullable-to-clear for the same reason and needs the
+					// same treatment — an emptied note arrives as `null` and must
+					// reach the column, not be dropped by `Issuer`'s optional field.
+					const notes =
+						changes.notes !== undefined
+							? changes.notes
+							: (current.notes ?? null);
+					const merged = new Issuer({
+						...current,
+						...changes,
+						defaultCategoryId: current.defaultCategoryId,
+						notes: current.notes,
+					});
+					return updateQuery({
+						...toWriteRow(merged),
+						id,
+						defaultCategoryId,
+						notes,
+					}).pipe(orDieSql);
+				}),
+			);
 
-			/**
-			 * Set the `imageUrl` column (used by `uploadImage`). Distinct from
-			 * `update` because a partial update can't distinguish "leave imageUrl
-			 * unchanged" from "set it" — this always writes the column. Returns the
-			 * updated `Issuer`; the caller has already fetched it (404 handled).
-			 */
-			const setImage = (id: typeof IssuerId.Type, imageUrl: string) =>
-				setImageUrlQuery({ id, imageUrl }).pipe(orDieSql);
+		/**
+		 * Set the `imageUrl` column (used by `uploadImage`). Distinct from
+		 * `update` because a partial update can't distinguish "leave imageUrl
+		 * unchanged" from "set it" — this always writes the column. Returns the
+		 * updated `Issuer`; the caller has already fetched it (404 handled).
+		 */
+		const setImage = (id: typeof IssuerId.Type, imageUrl: string) =>
+			setImageUrlQuery({ id, imageUrl }).pipe(orDieSql);
 
-			/**
-			 * Clear the `imageUrl` column to NULL (used by `deleteImage`). A partial
-			 * `update({ imageUrl: undefined })` means "no change", so clearing needs
-			 * this explicit write. Returns the updated `Issuer` (`imageUrl` absent).
-			 */
-			const clearImage = (id: typeof IssuerId.Type) =>
-				setImageUrlQuery({ id, imageUrl: null }).pipe(orDieSql);
+		/**
+		 * Clear the `imageUrl` column to NULL (used by `deleteImage`). A partial
+		 * `update({ imageUrl: undefined })` means "no change", so clearing needs
+		 * this explicit write. Returns the updated `Issuer` (`imageUrl` absent).
+		 */
+		const clearImage = (id: typeof IssuerId.Type) =>
+			setImageUrlQuery({ id, imageUrl: null }).pipe(orDieSql);
 
-			const remove = (id: typeof IssuerId.Type) =>
-				getById(id).pipe(
-					Effect.flatMap(() =>
-						orDieSql(sql`DELETE FROM issuers WHERE id = ${id}`),
-					),
-					Effect.asVoid,
-				);
+		const remove = (id: typeof IssuerId.Type) =>
+			getById(id).pipe(
+				Effect.flatMap(() =>
+					orDieSql(sql`DELETE FROM issuers WHERE id = ${id}`),
+				),
+				Effect.asVoid,
+			);
 
-			return {
-				list,
-				getById,
-				getByName,
-				getByNameCi,
-				create,
-				update,
-				remove,
-				setImage,
-				clearImage,
-			} as const;
-		}),
-	},
-) {}
+		return {
+			list,
+			getById,
+			getByName,
+			getByNameCi,
+			create,
+			update,
+			remove,
+			setImage,
+			clearImage,
+		} as const;
+	}),
+}) {}

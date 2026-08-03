@@ -1,12 +1,8 @@
-import type {
-	Issuer,
-	IssuerId,
-	Rule,
-	Transaction,
-} from "@mamen/shared/contract";
+import type { IssuerId, Rule, Transaction } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
 import { type FormEvent, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { useIssuerLookup } from "@/features/issuers/use-issuer-lookup";
 import { ruleKeys, ruleMutations } from "@/lib/sdk";
 import { useDebouncedValue } from "@/lib/use-debounced-value";
 import { RulePreviewLists } from "./rule-preview-lists";
@@ -123,8 +119,6 @@ function ValueMatcherField({
 
 export interface RuleFormProps {
 	issuerId: IssuerId;
-	/** Issuer lookup so the preview can name a row's current issuer. */
-	issuersById: ReadonlyMap<number, Issuer>;
 	/** The rule being edited; omit to create a new one. */
 	rule?: Rule;
 	/** Initial pattern when creating (ignored when editing — the rule wins). */
@@ -150,7 +144,6 @@ export interface RuleFormProps {
  */
 export function RuleForm({
 	issuerId,
-	issuersById,
 	rule,
 	defaultPattern,
 	onDone,
@@ -219,6 +212,16 @@ export function RuleForm({
 		queryFn: () => ruleMutations.preview(previewInput),
 		enabled: debouncedPattern.length > 0,
 	});
+
+	// The issuers the previewed rows currently belong to, by the ids those rows
+	// carry — the three lists are short, and this way none of their issuers can
+	// fall off a page of the issuer table (#62).
+	const preview = previewQuery.data;
+	const { issuersById, isPending: issuersPending } = useIssuerLookup([
+		...(preview?.willMatch ?? []).map((t) => t.issuerId),
+		...(preview?.willReassign ?? []).map((t) => t.issuerId),
+		...(preview?.manualCollisions ?? []).map((t) => t.issuerId),
+	]);
 
 	const saving = create.isPending || update.isPending;
 
@@ -307,13 +310,15 @@ export function RuleForm({
 					<p className="text-sm text-gousse-muted italic">
 						Type a pattern to preview its effect.
 					</p>
-				) : previewQuery.isPending ? (
+				) : /* The issuer lookup reads the ids of the previewed rows, so it
+				      lands a beat after them — one skeleton covers both. */
+				previewQuery.isPending || issuersPending ? (
 					<RulePreviewSkeleton label="Previewing this pattern…" />
 				) : previewQuery.isError ? (
 					<p className="text-sm text-gousse-high">Couldn’t load the preview.</p>
-				) : previewQuery.data ? (
+				) : preview ? (
 					<RulePreviewLists
-						preview={previewQuery.data}
+						preview={preview}
 						issuersById={issuersById}
 						renderManualAction={(transaction) => (
 							<Button
