@@ -24,7 +24,6 @@ const RuleRow = Schema.Struct({
 	issuerId: Schema.Number,
 	pattern: Schema.String,
 	matchValue: Schema.NullOr(Schema.Number),
-	matchCount: Schema.Number,
 	createdAt: Schema.String,
 });
 
@@ -45,7 +44,6 @@ export const RuleFromRow = Schema.transform(RuleRow, Rule, {
 		pattern: row.pattern,
 		// `NULL` matchValue folds to an absent wire field (a regex-only rule).
 		...(row.matchValue !== null ? { matchValue: row.matchValue } : {}),
-		matchCount: row.matchCount,
 		createdAt: row.createdAt,
 	}),
 	encode: (r) => ({
@@ -53,7 +51,6 @@ export const RuleFromRow = Schema.transform(RuleRow, Rule, {
 		issuerId: r.issuerId,
 		pattern: r.pattern,
 		matchValue: r.matchValue ?? null,
-		matchCount: r.matchCount,
 		createdAt: r.createdAt,
 	}),
 });
@@ -75,7 +72,6 @@ type WriteRow = {
 	issuerId: number;
 	pattern: string;
 	matchValue: number | null;
-	matchCount: number;
 	createdAt: string;
 };
 
@@ -171,7 +167,6 @@ export class RuleRepo extends Effect.Service<RuleRepo>()("api/RuleRepo", {
 			issuerId: r.issuerId,
 			pattern: r.pattern,
 			matchValue: r.matchValue ?? null,
-			matchCount: r.matchCount,
 		});
 
 		const list = (filter: ListFilter) =>

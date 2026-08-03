@@ -1,4 +1,4 @@
-import type { Issuer, Rule } from "@mamen/shared/contract";
+import type { Issuer, RuleView } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Plus, Trash2 } from "lucide-react";
@@ -30,7 +30,7 @@ export function RulesSection({ issuer }: RulesSectionProps) {
 	const [deletingId, setDeletingId] = useState<number | null>(null);
 
 	const rulesQuery = useQuery(ruleQueries.list({ issuerId: issuer.id }));
-	const rules = (rulesQuery.data?.items ?? []) as readonly Rule[];
+	const rules = (rulesQuery.data?.items ?? []) as readonly RuleView[];
 
 	// Every issuer, so a preview row's *current* issuer can be named whichever it is.
 	const issuersQuery = useQuery(issuerQueries.all());
@@ -82,8 +82,16 @@ export function RulesSection({ issuer }: RulesSectionProps) {
 									<code className="min-w-0 flex-1 truncate font-mono text-gousse-ink">
 										{rule.pattern}
 									</code>
-									<span className="shrink-0 text-xs text-gousse-muted">
-										{rule.matchCount} match{rule.matchCount === 1 ? "" : "es"}
+									{/* What the rule owns *right now* — derived server-side on
+									    every read (issue #63), so it falls when a row is
+									    hand-assigned away or a sibling rule out-specifies this
+									    one. Worded as the thing it counts, not as "matches". */}
+									<span
+										className="shrink-0 text-xs text-gousse-muted"
+										title="Transactions this Matching Rule currently assigns"
+									>
+										{rule.ownedCount} transaction
+										{rule.ownedCount === 1 ? "" : "s"}
 									</span>
 								</Link>
 								<Button

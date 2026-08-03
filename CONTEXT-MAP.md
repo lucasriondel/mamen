@@ -37,6 +37,16 @@ repeated per package.
   default category, never by carrying a category itself — see
   [ADR 0004](./docs/adr/0004-value-matcher-rides-the-issuer.md).
 
+- **Owned count** — how many transactions a **Matching Rule** currently wins,
+  i.e. the rows for which it is the specificity winner *right now*. Derived from
+  the live table on every read (`RuleView.ownedCount`), never stored: it falls
+  when a sibling rule out-specifies this one, a row is hand-assigned away, or a
+  transaction is deleted. Supersedes the stored `matchCount` column, a lifetime
+  tally of import-time wins that nothing displayed as such and that a rule
+  written against existing history never accumulated (issue #63).
+  _Avoid_: match count (it is not a count of matches — a rule can match a row and
+  lose it to a more specific rule).
+
 - **Value matcher** — an optional second predicate on a **Matching Rule**
   (`matchValue`, a positive amount magnitude): when set, the rule matches a row
   only if its pattern matches the raw issuer string **and** the row's amount

@@ -82,6 +82,7 @@ export {
 	RulePreviewResult,
 	RulesGroup,
 	RuleUpdate,
+	RuleView,
 } from "./rules";
 export { Setting, SettingKey, SettingsGroup } from "./settings";
 export {

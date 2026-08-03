@@ -3431,7 +3431,7 @@
                     "items": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/Rule"
+                        "$ref": "#/components/schemas/RuleView"
                       }
                     },
                     "total": {
@@ -3467,11 +3467,11 @@
         "security": [],
         "responses": {
           "201": {
-            "description": "Rule",
+            "description": "RuleView",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Rule"
+                  "$ref": "#/components/schemas/RuleView"
                 }
               }
             }
@@ -3497,8 +3497,7 @@
                 "type": "object",
                 "required": [
                   "issuerId",
-                  "pattern",
-                  "matchCount"
+                  "pattern"
                 ],
                 "properties": {
                   "issuerId": {
@@ -3514,9 +3513,6 @@
                     "description": "a positive number",
                     "title": "positive",
                     "exclusiveMinimum": 0
-                  },
-                  "matchCount": {
-                    "type": "number"
                   }
                 },
                 "additionalProperties": false
@@ -3599,11 +3595,11 @@
         "security": [],
         "responses": {
           "200": {
-            "description": "Rule",
+            "description": "RuleView",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Rule"
+                  "$ref": "#/components/schemas/RuleView"
                 }
               }
             }
@@ -3651,11 +3647,11 @@
         "security": [],
         "responses": {
           "200": {
-            "description": "Rule",
+            "description": "RuleView",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Rule"
+                  "$ref": "#/components/schemas/RuleView"
                 }
               }
             }
@@ -3711,9 +3707,6 @@
                         "type": "null"
                       }
                     ]
-                  },
-                  "matchCount": {
-                    "type": "number"
                   }
                 },
                 "additionalProperties": false
@@ -3796,11 +3789,11 @@
         "security": [],
         "responses": {
           "200": {
-            "description": "Rule",
+            "description": "RuleView",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Rule"
+                  "$ref": "#/components/schemas/RuleView"
                 }
               }
             }
@@ -5734,14 +5727,14 @@
         },
         "additionalProperties": false
       },
-      "Rule": {
+      "RuleView": {
         "type": "object",
         "required": [
           "id",
           "issuerId",
           "pattern",
-          "matchCount",
-          "createdAt"
+          "createdAt",
+          "ownedCount"
         ],
         "properties": {
           "id": {
@@ -5763,11 +5756,11 @@
             "title": "positive",
             "exclusiveMinimum": 0
           },
-          "matchCount": {
-            "type": "number"
-          },
           "createdAt": {
             "$ref": "#/components/schemas/Date"
+          },
+          "ownedCount": {
+            "type": "number"
           }
         },
         "additionalProperties": false
@@ -5948,6 +5941,40 @@
             "enum": [
               true
             ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "Rule": {
+        "type": "object",
+        "required": [
+          "id",
+          "issuerId",
+          "pattern",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "an integer",
+            "title": "int"
+          },
+          "issuerId": {
+            "type": "integer",
+            "description": "an integer",
+            "title": "int"
+          },
+          "pattern": {
+            "type": "string"
+          },
+          "matchValue": {
+            "type": "number",
+            "description": "a positive number",
+            "title": "positive",
+            "exclusiveMinimum": 0
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/Date"
           }
         },
         "additionalProperties": false

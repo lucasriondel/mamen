@@ -105,7 +105,9 @@ edit / delete each previews its effect (which transactions gain, change, or lose
 an issuer) before applying on save. Assigns **only** an issuer — category flows
 through the issuer (**derived category**), never off the rule.
 _Code note_: the entity is `Rule` in the contract/DB/SDK; "Matching Rule" is the
-user-facing name only.
+user-facing name only. Each rule row shows its **owned count** (see
+[CONTEXT-MAP.md](../../CONTEXT-MAP.md)) worded as what it counts — "3
+transactions", never "3 matches".
 
 **Amount sign convention**:
 `amount` is a single signed number. A CSV `DEBIT` (money leaving) is stored

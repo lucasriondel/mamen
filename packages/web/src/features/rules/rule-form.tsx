@@ -238,7 +238,6 @@ export function RuleForm({
 				{
 					issuerId,
 					pattern: trimmed,
-					matchCount: 0,
 					...(matchValue != null ? { matchValue } : {}),
 				},
 				{ onSuccess: onDone },

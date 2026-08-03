@@ -84,7 +84,7 @@ function rule(overrides: Partial<Rule> = {}): Rule {
 		id: 10 as Rule["id"],
 		issuerId: 1 as Rule["issuerId"],
 		pattern: "amazon",
-		matchCount: 3,
+		ownedCount: 3,
 		createdAt: new Date("2026-01-02"),
 		...overrides,
 	} as Rule;
@@ -210,7 +210,6 @@ describe("RuleFormPage — create", () => {
 			expect(createRule).toHaveBeenCalledWith({
 				issuerId: 1,
 				pattern: "amazon",
-				matchCount: 0,
 			}),
 		);
 		// Save navigates back to the issuer detail page.
@@ -243,7 +242,6 @@ describe("RuleFormPage — create", () => {
 			expect(createRule).toHaveBeenCalledWith({
 				issuerId: 1,
 				pattern: "amazon",
-				matchCount: 0,
 				matchValue: 6.99,
 			}),
 		);
@@ -269,7 +267,6 @@ describe("RuleFormPage — create", () => {
 			expect(createRule).toHaveBeenCalledWith({
 				issuerId: 1,
 				pattern: "amazon",
-				matchCount: 0,
 			}),
 		);
 	});
