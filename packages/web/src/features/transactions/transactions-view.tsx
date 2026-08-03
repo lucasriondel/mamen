@@ -31,7 +31,7 @@ export function TransactionsView() {
 	} = useColumnVisibility();
 
 	const applyFilters = (patch: TransactionFilterValues) => {
-		navigate({ search: (prev) => ({ ...prev, ...patch, offset: 0 }) });
+		navigate({ search: (prev) => ({ ...prev, ...patch, page: 1 }) });
 	};
 
 	const toggleSort = () => {
@@ -39,13 +39,13 @@ export function TransactionsView() {
 			search: (prev) => ({
 				...prev,
 				direction: prev.direction === "asc" ? "desc" : "asc",
-				offset: 0,
+				page: 1,
 			}),
 		});
 	};
 
-	const goToOffset = (offset: number) => {
-		navigate({ search: (prev) => ({ ...prev, offset }) });
+	const goToPage = (page: number) => {
+		navigate({ search: (prev) => ({ ...prev, page }) });
 	};
 
 	return (
@@ -55,7 +55,7 @@ export function TransactionsView() {
 				search={search}
 				onFiltersChange={applyFilters}
 				onToggleSort={toggleSort}
-				onOffsetChange={goToOffset}
+				onPageChange={goToPage}
 				emptyDescription="Import a bank statement to see your transactions here."
 				columnVisibility={columnVisibility}
 				onColumnVisibilityChange={setColumnVisibility}

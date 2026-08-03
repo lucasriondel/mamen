@@ -5,7 +5,7 @@ import type {
 	Transaction,
 } from "@mamen/shared/contract";
 import { Link } from "@tanstack/react-router";
-import { ArrowLeft } from "lucide-react";
+import { BackLink } from "@/components/back-link";
 import { formatCurrency, formatMonth, formatShortDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { AnomalyFlags } from "./anomaly-flags";
@@ -236,13 +236,12 @@ export function TransactionDetailContent({
 }: TransactionDetailContentProps) {
 	return (
 		<section className="flex flex-col gap-8">
-			<Link
-				to="/transactions"
-				className="flex items-center gap-1 self-start text-sm text-gousse-muted transition-colors hover:text-gousse-ink"
-			>
-				<ArrowLeft size={16} aria-hidden />
-				Transactions
-			</Link>
+			{/*
+			 * Back, not a link to the list: the user came from some page of some
+			 * filtered view (global, a category's, an issuer's), and popping history
+			 * is the only thing that returns them to that exact spot.
+			 */}
+			<BackLink to="/transactions">Transactions</BackLink>
 
 			<DetailHeader txn={txn} issuer={issuer} />
 			<CoreFields

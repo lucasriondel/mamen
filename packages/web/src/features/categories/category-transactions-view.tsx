@@ -96,7 +96,7 @@ export function CategoryTransactionsView() {
 
 	const applyFilters = (patch: TransactionFilterValues) => {
 		navigate({
-			search: (prev: TransactionsSearch) => ({ ...prev, ...patch, offset: 0 }),
+			search: (prev: TransactionsSearch) => ({ ...prev, ...patch, page: 1 }),
 		});
 	};
 
@@ -105,13 +105,13 @@ export function CategoryTransactionsView() {
 			search: (prev: TransactionsSearch) => ({
 				...prev,
 				direction: prev.direction === "asc" ? "desc" : "asc",
-				offset: 0,
+				page: 1,
 			}),
 		});
 	};
 
-	const goToOffset = (offset: number) => {
-		navigate({ search: (prev: TransactionsSearch) => ({ ...prev, offset }) });
+	const goToPage = (page: number) => {
+		navigate({ search: (prev: TransactionsSearch) => ({ ...prev, page }) });
 	};
 
 	// The tree has loaded but the id names nothing (or a folder with no leaves):
@@ -142,7 +142,7 @@ export function CategoryTransactionsView() {
 				enabled={hasSet}
 				onFiltersChange={applyFilters}
 				onToggleSort={toggleSort}
-				onOffsetChange={goToOffset}
+				onPageChange={goToPage}
 				emptyDescription="No transactions are categorised here yet."
 			>
 				<CategoryHeader

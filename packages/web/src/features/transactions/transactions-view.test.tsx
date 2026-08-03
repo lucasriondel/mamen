@@ -51,9 +51,15 @@ const TXNS = [
 
 // ---- SDK seam mock ----------------------------------------------------------
 
+/**
+ * The `total` the mocked list envelope reports. Defaults to the canned rows;
+ * a pagination test raises it so there is more than one page to move between.
+ */
+let listTotal = TXNS.length;
+
 const listMock = vi.fn((params: Record<string, unknown>) => ({
 	queryKey: ["transactions", "list", params],
-	queryFn: async () => ({ items: TXNS, total: TXNS.length }),
+	queryFn: async () => ({ items: TXNS, total: listTotal }),
 }));
 
 vi.mock("@mamen/sdk", () => ({
@@ -127,6 +133,7 @@ async function renderView(initialEntry = "/transactions") {
 
 beforeEach(() => {
 	listMock.mockClear();
+	listTotal = TXNS.length;
 });
 
 describe("TransactionsView", () => {
@@ -292,5 +299,64 @@ describe("TransactionsView", () => {
 		// And the empty Notes cell ("Add note").
 		await user.click(screen.getAllByText("Add note")[0]);
 		expect(router.state.location.pathname).toBe("/transactions");
+	});
+
+	it("puts the page number — not the row offset — in the URL", async () => {
+		listTotal = 120;
+		const router = await renderView();
+		const user = userEvent.setup();
+
+		await user.click(screen.getByRole("button", { name: /next/i }));
+
+		// The URL carries the human-readable page; the SDK still gets the offset it
+		// multiplies out to.
+		await waitFor(() => {
+			expect(router.state.location.search).toMatchObject({ page: 2 });
+		});
+		expect(router.state.location.search).not.toHaveProperty("offset");
+		expect(listMock).toHaveBeenCalledWith(
+			expect.objectContaining({ offset: 50, limit: 50 }),
+		);
+	});
+
+	it("restores the page from a bookmarked ?page= URL", async () => {
+		listTotal = 120;
+		await renderView("/transactions?page=3");
+
+		expect(screen.getByLabelText("Pagination range")).toHaveTextContent(
+			"Page 3 of 3",
+		);
+		// Page 3 at 50/page starts at row 100.
+		expect(listMock).toHaveBeenCalledWith(
+			expect.objectContaining({ offset: 100 }),
+		);
+	});
+
+	it("returns to the exact page it left when history goes back", async () => {
+		listTotal = 120;
+		const router = await renderView();
+		const user = userEvent.setup();
+
+		// Walk to page 3, then drill into a row.
+		await user.click(screen.getByRole("button", { name: /next/i }));
+		await waitFor(() =>
+			expect(router.state.location.search).toMatchObject({ page: 2 }),
+		);
+		await user.click(screen.getByRole("button", { name: /next/i }));
+		await waitFor(() =>
+			expect(router.state.location.search).toMatchObject({ page: 3 }),
+		);
+
+		await user.click(screen.getByText("SPOTIFY P2A34"));
+		await waitFor(() =>
+			expect(router.state.location.pathname).toBe("/transactions/100"),
+		);
+
+		// Back lands on page 3 again — not page 1, which a fresh link would give.
+		router.history.back();
+		await waitFor(() => {
+			expect(router.state.location.pathname).toBe("/transactions");
+			expect(router.state.location.search).toMatchObject({ page: 3 });
+		});
 	});
 });

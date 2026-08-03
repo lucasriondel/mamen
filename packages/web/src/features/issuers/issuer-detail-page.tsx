@@ -2,9 +2,9 @@ import type { Issuer, IssuerId } from "@mamen/shared/contract";
 import { MAX_IMAGE_BYTES } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft } from "lucide-react";
 import { useMemo, useRef } from "react";
 import { toast } from "sonner";
+import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/ui/button";
 import { Empty } from "@/components/ui/empty";
 import { RulesSection } from "@/features/rules/rules-section";
@@ -110,7 +110,7 @@ function IssuerDetailContent({ issuer }: IssuerDetailContentProps) {
 
 	const applyFilters = (patch: TransactionFilterValues) => {
 		routeNavigate({
-			search: (prev: TransactionsSearch) => ({ ...prev, ...patch, offset: 0 }),
+			search: (prev: TransactionsSearch) => ({ ...prev, ...patch, page: 1 }),
 		});
 	};
 
@@ -119,14 +119,14 @@ function IssuerDetailContent({ issuer }: IssuerDetailContentProps) {
 			search: (prev: TransactionsSearch) => ({
 				...prev,
 				direction: prev.direction === "asc" ? "desc" : "asc",
-				offset: 0,
+				page: 1,
 			}),
 		});
 	};
 
-	const goToOffset = (offset: number) => {
+	const goToPage = (page: number) => {
 		routeNavigate({
-			search: (prev: TransactionsSearch) => ({ ...prev, offset }),
+			search: (prev: TransactionsSearch) => ({ ...prev, page }),
 		});
 	};
 
@@ -151,13 +151,7 @@ function IssuerDetailContent({ issuer }: IssuerDetailContentProps) {
 
 	return (
 		<section className="flex flex-col gap-8">
-			<Link
-				to="/issuers"
-				className="flex items-center gap-1 self-start text-sm text-gousse-muted transition-colors hover:text-gousse-ink"
-			>
-				<ArrowLeft size={16} aria-hidden />
-				Issuers
-			</Link>
+			<BackLink to="/issuers">Issuers</BackLink>
 
 			<header className="flex items-center gap-4">
 				<IssuerAvatar
@@ -232,7 +226,7 @@ function IssuerDetailContent({ issuer }: IssuerDetailContentProps) {
 					search={search}
 					onFiltersChange={applyFilters}
 					onToggleSort={toggleSort}
-					onOffsetChange={goToOffset}
+					onPageChange={goToPage}
 					emptyDescription="No transactions reference this issuer yet."
 				>
 					<h2 className="text-balance text-lg font-semibold text-gousse-ink">

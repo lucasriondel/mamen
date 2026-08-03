@@ -17,7 +17,11 @@ import {
 	transactionQueries,
 } from "@/lib/sdk";
 import { indexById } from "@/lib/utils";
-import { TRANSACTIONS_PAGE_SIZE, type TransactionsSearch } from "./search";
+import {
+	pageToOffset,
+	TRANSACTIONS_PAGE_SIZE,
+	type TransactionsSearch,
+} from "./search";
 import {
 	type TransactionFilterValues,
 	TransactionsFilters,
@@ -56,14 +60,14 @@ export interface TransactionsSectionProps {
 	 * account/month/search filters. An empty object is the unscoped view.
 	 */
 	scope: TransactionCountParams;
-	/** The route's typed search params (filters, sort, offset). */
+	/** The route's typed search params (filters, sort, page). */
 	search: TransactionsSearch;
-	/** Apply a filter patch; the caller writes it to the URL and resets `offset`. */
+	/** Apply a filter patch; the caller writes it to the URL and resets `page`. */
 	onFiltersChange: (patch: TransactionFilterValues) => void;
 	/** Toggle the date sort order (asc ⇄ desc). */
 	onToggleSort: () => void;
-	/** Jump to a new pagination offset. */
-	onOffsetChange: (offset: number) => void;
+	/** Jump to a new 1-based page. */
+	onPageChange: (page: number) => void;
 	/**
 	 * Whether the section may query at all. A scope that isn't resolved yet (a
 	 * category page whose id set is still empty) passes `false` — querying with a
@@ -103,7 +107,7 @@ export function TransactionsSection({
 	search,
 	onFiltersChange,
 	onToggleSort,
-	onOffsetChange,
+	onPageChange,
 	enabled = true,
 	children,
 	emptyDescription,
@@ -117,15 +121,19 @@ export function TransactionsSection({
 		[scope, search],
 	);
 
+	// The URL carries a 1-based page; the SDK list is offset-paginated, so the
+	// multiplication happens here — once, for every page that lists transactions.
+	const page = search.page ?? 1;
+
 	const listParams = useMemo<TransactionListParams>(
 		() => ({
 			limit: TRANSACTIONS_PAGE_SIZE,
-			offset: search.offset ?? 0,
+			offset: pageToOffset(page, TRANSACTIONS_PAGE_SIZE),
 			orderBy: "date",
 			direction: search.direction ?? "desc",
 			...filters,
 		}),
-		[filters, search.offset, search.direction],
+		[filters, page, search.direction],
 	);
 
 	const transactionsQuery = useQuery({
@@ -212,10 +220,10 @@ export function TransactionsSection({
 				<>
 					<TransactionsPagination
 						position="top"
-						offset={search.offset ?? 0}
+						page={page}
 						pageSize={TRANSACTIONS_PAGE_SIZE}
 						total={total}
-						onOffsetChange={onOffsetChange}
+						onPageChange={onPageChange}
 					/>
 					<TransactionsTable
 						transactions={transactions}
@@ -228,10 +236,10 @@ export function TransactionsSection({
 						onColumnVisibilityChange={onColumnVisibilityChange}
 					/>
 					<TransactionsPagination
-						offset={search.offset ?? 0}
+						page={page}
 						pageSize={TRANSACTIONS_PAGE_SIZE}
 						total={total}
-						onOffsetChange={onOffsetChange}
+						onPageChange={onPageChange}
 					/>
 				</>
 			)}

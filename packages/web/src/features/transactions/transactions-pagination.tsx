@@ -2,14 +2,14 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export interface TransactionsPaginationProps {
-	/** Current offset into the filtered set. */
-	offset: number;
+	/** The current 1-based page number. */
+	page: number;
 	/** Page size (limit). */
 	pageSize: number;
 	/** Total filtered row count (the paged envelope's `total`). */
 	total: number;
-	/** Jump to a new offset. */
-	onOffsetChange: (offset: number) => void;
+	/** Jump to a new 1-based page. */
+	onPageChange: (page: number) => void;
 	/**
 	 * Where this copy sits relative to the table. The same controls render above
 	 * and below a long page so the user never has to scroll to change page, but
@@ -20,28 +20,33 @@ export interface TransactionsPaginationProps {
 }
 
 /**
- * Offset pagination controls: a "m–n of total" range plus prev/next buttons, so
- * a large history stays responsive (the SDK `list` is offset-paginated). Buttons
+ * Page-based pagination controls: a "page m of n" indicator, the "m–n of total"
+ * row range, and prev/next buttons, so a large history stays responsive. Buttons
  * disable at the ends of the set.
+ *
+ * The page number is what the URL carries and what the user reads; the row
+ * offset the SDK list needs is derived from it upstream.
  */
 export function TransactionsPagination({
-	offset,
+	page,
 	pageSize,
 	total,
-	onOffsetChange,
+	onPageChange,
 	position = "bottom",
 }: TransactionsPaginationProps) {
+	const pageCount = Math.max(1, Math.ceil(total / pageSize));
+	const offset = (page - 1) * pageSize;
 	const start = total === 0 ? 0 : offset + 1;
 	const end = Math.min(offset + pageSize, total);
-	const hasPrev = offset > 0;
-	const hasNext = offset + pageSize < total;
+	const hasPrev = page > 1;
+	const hasNext = page < pageCount;
 	const isTop = position === "top";
 
 	return (
 		<div className="flex items-center justify-between text-sm text-gousse-muted">
 			{isTop ? null : (
 				<output aria-label="Pagination range" className="tabular-nums">
-					{start}–{end} of {total}
+					Page {page} of {pageCount} · {start}–{end} of {total}
 				</output>
 			)}
 			<div className="ml-auto flex items-center gap-2" aria-hidden={isTop}>
@@ -51,7 +56,7 @@ export function TransactionsPagination({
 					className="disabled:opacity-40"
 					disabled={!hasPrev}
 					tabIndex={isTop ? -1 : undefined}
-					onClick={() => onOffsetChange(Math.max(0, offset - pageSize))}
+					onClick={() => onPageChange(Math.max(1, page - 1))}
 				>
 					<ChevronLeft size={14} />
 					Previous
@@ -62,7 +67,7 @@ export function TransactionsPagination({
 					className="disabled:opacity-40"
 					disabled={!hasNext}
 					tabIndex={isTop ? -1 : undefined}
-					onClick={() => onOffsetChange(offset + pageSize)}
+					onClick={() => onPageChange(page + 1)}
 				>
 					Next
 					<ChevronRight size={14} />

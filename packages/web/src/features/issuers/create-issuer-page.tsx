@@ -1,9 +1,9 @@
 import type { CategoryId, Issuer } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
 import { type FormEvent, useId, useState } from "react";
 import { toast } from "sonner";
+import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ISSUER_SCAN_LIMIT, issuerQueries } from "@/lib/sdk";
@@ -70,13 +70,7 @@ export function CreateIssuerPage() {
 
 	return (
 		<section className="flex flex-col gap-8">
-			<Link
-				to="/issuers"
-				className="flex items-center gap-1 self-start text-sm text-gousse-muted transition-colors hover:text-gousse-ink"
-			>
-				<ArrowLeft size={16} aria-hidden />
-				Issuers
-			</Link>
+			<BackLink to="/issuers">Issuers</BackLink>
 
 			<header>
 				<h1 className="text-balance text-2xl font-semibold text-gousse-ink">
