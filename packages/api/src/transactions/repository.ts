@@ -1041,6 +1041,69 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				});
 
 			/**
+			 * The **bundle parents** whose bundle touches a set of rows (issue #77) —
+			 * the ONE answer to "which bundles does this delete destroy", asked by the
+			 * pre-flight count the import wizard shows AND by the delete that acts on
+			 * it, so the warning and the action can never name different bundles.
+			 *
+			 * A bundle touches the scope when its **parent** sits in it (a bundle
+			 * wholly inside the statement being replaced) *or* when any **member**
+			 * does (a bundle spanning two months or two accounts, whose parent is
+			 * stamped with the earliest member's and therefore lives elsewhere). Both
+			 * cases fall out of one `COALESCE(t.bundleId, t.id)`: a matching member
+			 * names its parent, a matching parent names itself — and a parent never
+			 * carries a `bundleId`, since nesting is refused, so the choice is never
+			 * ambiguous. `DISTINCT` is what makes this a count of **bundles**, not of
+			 * the rows that reach them.
+			 *
+			 * `scope` is the same predicate the delete runs, handed in as a fragment
+			 * rather than re-stated per caller.
+			 */
+			const bundlesTouching = (
+				scope: Fragment,
+			): Effect.Effect<ReadonlyArray<number>> =>
+				sql<{
+					parentId: number;
+				}>`SELECT DISTINCT COALESCE(t.bundleId, t.id) AS parentId FROM transactions t
+					WHERE ${scope} AND (t.kind = 'bundle' OR t.bundleId IS NOT NULL)`.pipe(
+					orDieSql,
+					Effect.map((rows) => rows.map((r) => r.parentId)),
+				);
+
+			/**
+			 * Dissolve every bundle touching `scope`, through the shared
+			 * {@link dissolveBundle} — so a re-import leaves no parent standing for a
+			 * set that silently shrank, and no member pointing at a parent that is
+			 * gone. Run BEFORE the delete: afterwards the rows in scope are ordinary,
+			 * and what the statement removes is exactly the bank rows it replaces.
+			 *
+			 * Dissolving is the honest option of the three (issue #77). Exempting
+			 * parents from the delete would leave them summing member ids that no
+			 * longer exist; re-attaching members by fingerprint would invent an
+			 * identity transactions do not have, and would silently mis-match a
+			 * statement that genuinely changed. Re-bundling is manual, which is
+			 * acceptable because re-importing an already-curated month is rare — but
+			 * only because {@link bundleImpact} says so first.
+			 */
+			const dissolveBundlesTouching = (scope: Fragment): Effect.Effect<void> =>
+				bundlesTouching(scope).pipe(
+					Effect.flatMap((parentIds) =>
+						Effect.forEach(
+							parentIds,
+							(id) => dissolveBundle(TransactionId.make(id)),
+							{ discard: true },
+						),
+					),
+				);
+
+			/** The rows one re-imported statement replaces: one account, one month. */
+			const accountMonthScope = (
+				accountId: typeof AccountId.Type,
+				importMonth: string,
+			): Fragment =>
+				sql`t.accountId = ${accountId} AND t.importMonth = ${importMonth}`;
+
+			/**
 			 * Recompute a **bundle parent** from its members — the SINGLE point where a
 			 * bundle's number can go stale (issue #74), so every path that changes
 			 * membership goes through it: adding a member, removing one, and deleting a
@@ -1401,19 +1464,59 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 					? Effect.succeed([] as ReadonlyArray<Transaction>)
 					: bulkGetQuery(ids).pipe(orDieSql);
 
+			/**
+			 * The targeted deletes behind the delete-then-reinsert shape: re-importing
+			 * a statement (account + month) and dropping an import batch. Both take
+			 * the same two steps in the same order (issue #77):
+			 *
+			 * 1. **dissolve** every bundle the scope touches, through the shared
+			 *    {@link dissolveBundle} — the delete is unconditional and a bundle
+			 *    parent is a row in this table like any other, so without this a
+			 *    re-import wipes the parents and reinserts the members ungrouped, the
+			 *    recap quietly reverting to the gross rows with nothing said;
+			 * 2. **delete** the scope, which by then holds only ordinary rows.
+			 *
+			 * The count is therefore the **bank rows** the statement replaces: a
+			 * parent inside the scope was already dissolved, and it was never a row
+			 * the import produced. {@link bundleImpact} is the pre-flight of step 1,
+			 * over the same scope fragment.
+			 */
+			const deleteScope = (scope: Fragment) =>
+				dissolveBundlesTouching(scope).pipe(
+					Effect.andThen(
+						deleteAndDissolve(
+							sql<DeletedRow>`DELETE FROM transactions AS t WHERE ${scope} RETURNING id, transferGroupId, bundleId, kind`,
+						),
+					),
+				);
+
 			// Targeted delete: both params required at the boundary. Returns the
 			// deleted count (was `{ ok: true }` in the old server; taxonomy §5).
 			const deleteByAccountMonth = (
 				accountId: typeof AccountId.Type,
 				importMonth: string,
-			) =>
-				deleteAndDissolve(
-					sql<DeletedRow>`DELETE FROM transactions WHERE accountId = ${accountId} AND importMonth = ${importMonth} RETURNING id, transferGroupId, bundleId, kind`,
-				);
+			) => deleteScope(accountMonthScope(accountId, importMonth));
 
 			const deleteByImportBatch = (batchId: string) =>
-				deleteAndDissolve(
-					sql<DeletedRow>`DELETE FROM transactions WHERE importBatchId = ${batchId} RETURNING id, transferGroupId, bundleId, kind`,
+				deleteScope(sql`t.importBatchId = ${batchId}`);
+
+			/**
+			 * How many **bundles** committing an import for one account + month would
+			 * dissolve — the pre-flight the import wizard shows before the user
+			 * commits, so the bundling is never destroyed silently (issue #77).
+			 *
+			 * Read-only, and read through the SAME {@link bundlesTouching} the commit
+			 * dissolves through, over the same scope fragment: the number on screen is
+			 * the number of bundles that will go, not a second estimate of it. Counts
+			 * bundles only *partly* inside the target, since re-importing takes their
+			 * members whatever month or account the parent happens to sit in.
+			 */
+			const bundleImpact = (
+				accountId: typeof AccountId.Type,
+				importMonth: string,
+			): Effect.Effect<{ count: number }> =>
+				bundlesTouching(accountMonthScope(accountId, importMonth)).pipe(
+					Effect.map((parentIds) => ({ count: parentIds.length })),
 				);
 
 			/**
@@ -1724,6 +1827,7 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				bulkGet,
 				deleteByAccountMonth,
 				deleteByImportBatch,
+				bundleImpact,
 				linkTransfer,
 				unlinkTransfer,
 				createBundle,

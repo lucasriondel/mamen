@@ -2222,6 +2222,94 @@ describe("changing a bundle's membership (issue #74)", () => {
 	);
 });
 
+// The re-import warning over the wire (issue #77): the pre-flight count the
+// import wizard reads, and the delete it precedes. What is pinned here is the
+// seam — the query string carries the same two required params the targeted
+// delete does, and committing really does take the bundle with it.
+describe("warning before a re-import dissolves bundles (issue #77)", () => {
+	it.effect("reports the bundles a re-import would dissolve", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const a = yield* client.transactions.create({
+				payload: make({ amount: -200, importMonth: "2026-03" }),
+			});
+			// A member in the NEXT month: the parent is stamped with the earliest
+			// member's, so March's statement is the one holding the parent.
+			const b = yield* client.transactions.create({
+				payload: make({
+					amount: 150,
+					date: new Date("2026-04-02T00:00:00.000Z"),
+					importMonth: "2026-04",
+				}),
+			});
+			yield* client.transactions.createBundle({
+				payload: { ids: [a.id, b.id], label: "Weekend away" },
+			});
+
+			// Both months are impacted — the one holding the parent, and the one
+			// holding only a member.
+			for (const importMonth of ["2026-03", "2026-04"]) {
+				const impact = yield* client.transactions.bundleImpact({
+					urlParams: { accountId: asAccount(1), importMonth },
+				});
+				assert.deepStrictEqual(impact, { count: 1 });
+			}
+
+			// A month with nothing bundled in it warns about nothing.
+			const quiet = yield* client.transactions.bundleImpact({
+				urlParams: { accountId: asAccount(1), importMonth: "2026-05" },
+			});
+			assert.deepStrictEqual(quiet, { count: 0 });
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("bundleImpact requires both query params (missing → 400)", () =>
+		Effect.gen(function* () {
+			const http = yield* HttpClient.HttpClient;
+			const res = yield* http.execute(
+				HttpClientRequest.get("/api/transactions/bundle-impact?accountId=1"),
+			);
+			assert.strictEqual(res.status, 400);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("committing the re-import dissolves the warned-about bundle", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const a = yield* client.transactions.create({
+				payload: make({ amount: -200, importMonth: "2026-03" }),
+			});
+			const b = yield* client.transactions.create({
+				payload: make({ amount: -30, importMonth: "2026-03" }),
+			});
+			const c = yield* client.transactions.create({
+				payload: make({
+					amount: 150,
+					date: new Date("2026-04-02T00:00:00.000Z"),
+					importMonth: "2026-04",
+				}),
+			});
+			const parent = yield* client.transactions.createBundle({
+				payload: { ids: [a.id, b.id, c.id], label: "Weekend away" },
+			});
+
+			// April is re-imported: one row goes, and so does the bundle — the two
+			// March members come back as ordinary rows, not as a shrunken bundle.
+			const deleted = yield* client.transactions.deleteByAccountMonth({
+				urlParams: { accountId: asAccount(1), importMonth: "2026-04" },
+			});
+			assert.strictEqual(deleted.count, 1);
+
+			const rows = yield* client.transactions.list({
+				urlParams: { limit: 50, offset: 0, direction: "desc" },
+			});
+			assert.strictEqual(rows.total, 2);
+			assert.ok(!rows.items.some((t) => t.id === parent.id));
+			assert.ok(rows.items.every((t) => t.bundleId === undefined));
+		}).pipe(Effect.provide(HttpLive)),
+	);
+});
+
 // The **recap** over the wire (issue #71, epic #66) — the API seam, not the
 // repository: the query string carries the period as `date` bounds and the
 // account selection as a repeated param, and the aggregation comes back already

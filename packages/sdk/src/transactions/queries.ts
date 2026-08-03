@@ -97,6 +97,16 @@ export type RecapParams = {
 	endDate?: Date;
 };
 
+/**
+ * The `bundleImpact` params (issue #77) — the statement about to be re-imported,
+ * named exactly as `deleteByAccountMonth` names it. Both are required: this is a
+ * pre-flight of one targeted delete, not a filtered read.
+ */
+export type BundleImpactParams = {
+	accountId: AccountId;
+	importMonth: string;
+};
+
 /** The `count` filter — the same composable set minus pagination + ordering. */
 export type TransactionCountParams = Omit<
 	TransactionListParams,
@@ -121,6 +131,8 @@ export const transactionKeys = {
 	recap: (params: RecapParams) =>
 		[...transactionKeys.all, "recap", params] as const,
 	recapPeriods: () => [...transactionKeys.all, "recap-periods"] as const,
+	bundleImpact: (params: BundleImpactParams) =>
+		[...transactionKeys.all, "bundle-impact", params] as const,
 	bulkGet: (ids: ReadonlyArray<TransactionId>) =>
 		[...transactionKeys.all, "bulk-get", ids] as const,
 };
@@ -252,6 +264,30 @@ export const transactionQueries = {
 				runQuery(
 					Effect.flatMap(Client, (client) =>
 						client.transactions.recapPeriods(),
+					),
+					signal,
+				),
+		}),
+
+	/**
+	 * How many **bundles** committing an import for one account + month would
+	 * dissolve (issue #77) — the import wizard's pre-flight, read before the user
+	 * commits so the bundling is never destroyed silently.
+	 *
+	 * Server-side by necessity, not by preference: a bundle spanning two months or
+	 * two accounts is only *partly* inside the statement being replaced, so the
+	 * count cannot be inferred from whatever page the client happens to hold. The
+	 * commit dissolves through the same query this counts through. Any write that
+	 * creates, dissolves or re-scopes a bundle moves this number, so invalidate
+	 * `transactionKeys.all` after one.
+	 */
+	bundleImpact: (params: BundleImpactParams) =>
+		queryOptions({
+			queryKey: transactionKeys.bundleImpact(params),
+			queryFn: ({ signal }) =>
+				runQuery(
+					Effect.flatMap(Client, (client) =>
+						client.transactions.bundleImpact({ urlParams: params }),
 					),
 					signal,
 				),

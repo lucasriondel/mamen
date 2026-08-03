@@ -11,6 +11,11 @@ import { TransactionRepo } from "./repository";
  * `deleteByAccountMonth`/`deleteByImportBatch`). Each handler is a thin delegate;
  * status codes / success bodies are set by the contract, not here.
  *
+ * `bundleImpact` (issue #77) is the pre-flight of `deleteByAccountMonth`: how
+ * many **bundles** re-importing that statement would dissolve. It reads through
+ * the same repository routine the delete dissolves through, so the warning and
+ * the commit can never disagree about what is about to go.
+ *
  * `recap`/`recapPeriods` (issue #71) are delegates like the rest: the spend
  * summary is summed in SQL over the whole filtered set, and the one
  * `countsTowardRecap` predicate lives in the repository beside the derived
@@ -58,6 +63,9 @@ export const TransactionsLive = HttpApiBuilder.group(
 				)
 				.handle("deleteByImportBatch", (_) =>
 					repo.deleteByImportBatch(_.path.batchId),
+				)
+				.handle("bundleImpact", (_) =>
+					repo.bundleImpact(_.urlParams.accountId, _.urlParams.importMonth),
 				)
 				.handle("linkTransfer", (_) => repo.linkTransfer(_.payload.ids))
 				.handle("unlinkTransfer", (_) =>

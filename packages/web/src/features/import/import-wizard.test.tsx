@@ -41,6 +41,12 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
 				queryKey: ["transactions", "count", params],
 				queryFn: async () => ({ count: 0 }),
 			}),
+			// The commit bar's second per-month read (issue #77) — stubbed to "no
+			// bundle at risk" so the wizard's own flow is what these tests see.
+			bundleImpact: (params: unknown) => ({
+				queryKey: ["transactions", "bundle-impact", params],
+				queryFn: async () => ({ count: 0 }),
+			}),
 		},
 		transactionMutations: {
 			...actual.transactionMutations,

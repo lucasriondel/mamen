@@ -44,6 +44,7 @@ export {
 	subscriptionQueries,
 } from "./subscriptions/queries";
 export {
+	type BundleImpactParams,
 	type RecapParams,
 	type TransactionCountParams,
 	type TransactionListParams,

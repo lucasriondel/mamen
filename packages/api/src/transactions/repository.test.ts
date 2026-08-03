@@ -2667,12 +2667,13 @@ describe("TransactionRepo", () => {
 					const parent = yield* repo.createBundle([a.id, b.id], "Weekend");
 					assert.strictEqual(parent.importMonth, "2026-03");
 
-					// The whole statement is re-imported: the parent goes with it (it was
-					// stamped with the earliest member's account + month) and so do both
-					// members, leaving nothing behind.
+					// The whole statement is re-imported: the bundle is dissolved first
+					// (issue #77), so the parent is gone before the delete runs and the
+					// count is the two *bank* rows the statement replaces — the synthetic
+					// parent was never one of them. Nothing is left behind either way.
 					assert.strictEqual(
 						(yield* repo.deleteByAccountMonth(asAccount(1), "2026-03")).count,
-						3,
+						2,
 					);
 					assert.strictEqual((yield* repo.list(listAll)).total, 0);
 				}).pipe(Effect.provide(RepoTest)),
@@ -2806,6 +2807,261 @@ describe("TransactionRepo", () => {
 				const fixed = yield* repo.addBundleMember(parent.id, fix.id);
 				assert.strictEqual(fixed.amount, -370);
 				assert.deepStrictEqual(flagsOf(fixed), ["high-amount"]);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+	});
+
+	// Re-importing a statement deletes everything for that account+month and
+	// re-inserts the parsed rows, so a bundle touching that month cannot survive
+	// it: its members are about to become different rows (issue #77). Rather than
+	// leave a parent standing for a set that silently shrank, every touched
+	// bundle is dissolved — and counted first, so the wizard can say so.
+	describe("a re-import dissolves the bundles it touches (issue #77)", () => {
+		it.effect("counts a bundle wholly inside the target account+month", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -200 }));
+				const b = yield* repo.create(make({ amount: 150 }));
+				yield* repo.createBundle([a.id, b.id], "Weekend");
+
+				assert.deepStrictEqual(
+					yield* repo.bundleImpact(asAccount(1), "2026-03"),
+					{ count: 1 },
+				);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		// The parent is stamped with the EARLIEST member's month, so the later
+		// month holds only a member — the case a scan for parents would miss.
+		it.effect("counts a bundle only partly inside the target month", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(
+					make({
+						amount: -200,
+						date: new Date("2026-03-02"),
+						importMonth: "2026-03",
+					}),
+				);
+				const b = yield* repo.create(
+					make({
+						amount: 150,
+						date: new Date("2026-04-02"),
+						importMonth: "2026-04",
+					}),
+				);
+				const parent = yield* repo.createBundle([a.id, b.id], "Weekend");
+				assert.strictEqual(parent.importMonth, "2026-03");
+
+				assert.deepStrictEqual(
+					yield* repo.bundleImpact(asAccount(1), "2026-04"),
+					{ count: 1 },
+				);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("counts a bundle only partly inside the target account", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -200 }));
+				const b = yield* repo.create(
+					make({ amount: 150, accountId: asAccount(2) }),
+				);
+				const parent = yield* repo.createBundle([a.id, b.id], "Weekend");
+				assert.strictEqual(parent.accountId, asAccount(1));
+
+				assert.deepStrictEqual(
+					yield* repo.bundleImpact(asAccount(2), "2026-03"),
+					{ count: 1 },
+				);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		// Two bundles touching the month are two, and one bundle touched through
+		// several of its rows is still one — the count is of bundles, not rows.
+		it.effect("counts each touched bundle once", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -200 }));
+				const b = yield* repo.create(make({ amount: 150 }));
+				const c = yield* repo.create(make({ amount: -30 }));
+				const d = yield* repo.create(make({ amount: 10 }));
+				yield* repo.createBundle([a.id, b.id], "Weekend");
+				yield* repo.createBundle([c.id, d.id], "Lunch");
+
+				assert.deepStrictEqual(
+					yield* repo.bundleImpact(asAccount(1), "2026-03"),
+					{ count: 2 },
+				);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("counts nothing when the month holds no bundled row", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -200 }));
+				const b = yield* repo.create(make({ amount: 150 }));
+				yield* repo.createBundle([a.id, b.id], "Weekend");
+
+				assert.deepStrictEqual(
+					yield* repo.bundleImpact(asAccount(1), "2026-04"),
+					{ count: 0 },
+				);
+				assert.deepStrictEqual(
+					yield* repo.bundleImpact(asAccount(2), "2026-03"),
+					{ count: 0 },
+				);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		// Three members so the survivors are still ≥2: without the dissolve the
+		// parent would be *recomputed* and quietly stand for a smaller set.
+		it.effect(
+			"deleteByAccountMonth dissolves a bundle spanning two months",
+			() =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					const a = yield* repo.create(
+						make({
+							amount: -200,
+							date: new Date("2026-03-02"),
+							importMonth: "2026-03",
+						}),
+					);
+					const b = yield* repo.create(
+						make({
+							amount: -30,
+							date: new Date("2026-03-03"),
+							importMonth: "2026-03",
+						}),
+					);
+					const c = yield* repo.create(
+						make({
+							amount: 150,
+							date: new Date("2026-04-02"),
+							importMonth: "2026-04",
+						}),
+					);
+					const parent = yield* repo.createBundle(
+						[a.id, b.id, c.id],
+						"Weekend",
+					);
+
+					// Re-importing April takes only `c` — but the bundle goes with it.
+					assert.strictEqual(
+						(yield* repo.deleteByAccountMonth(asAccount(1), "2026-04")).count,
+						1,
+					);
+					assert.deepStrictEqual(
+						yield* repo.getById(parent.id).pipe(Effect.flip),
+						new NotFound({ resource: "transaction", id: parent.id }),
+					);
+					assert.strictEqual((yield* repo.getById(a.id)).bundleId, undefined);
+					assert.strictEqual((yield* repo.getById(b.id)).bundleId, undefined);
+				}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect(
+			"deleteByAccountMonth dissolves a bundle spanning two accounts",
+			() =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					const a = yield* repo.create(make({ amount: -200 }));
+					const b = yield* repo.create(make({ amount: -30 }));
+					const c = yield* repo.create(
+						make({ amount: 150, accountId: asAccount(2) }),
+					);
+					const parent = yield* repo.createBundle(
+						[a.id, b.id, c.id],
+						"Weekend",
+					);
+					assert.strictEqual(parent.accountId, asAccount(1));
+
+					// The other account's statement is re-imported: the parent lives in
+					// account 1 and is untouched by the delete, so only the dissolve can
+					// stop it standing for a member that no longer exists.
+					assert.strictEqual(
+						(yield* repo.deleteByAccountMonth(asAccount(2), "2026-03")).count,
+						1,
+					);
+					assert.deepStrictEqual(
+						yield* repo.getById(parent.id).pipe(Effect.flip),
+						new NotFound({ resource: "transaction", id: parent.id }),
+					);
+					assert.strictEqual((yield* repo.getById(a.id)).bundleId, undefined);
+					assert.strictEqual((yield* repo.getById(b.id)).bundleId, undefined);
+					assert.strictEqual((yield* repo.list(listAll)).total, 2);
+				}).pipe(Effect.provide(RepoTest)),
+		);
+
+		// The parent carries no `importBatchId` (it is synthetic, no import made
+		// it), so a batch delete can never take it directly — only the dissolve.
+		it.effect(
+			"deleteByImportBatch dissolves the bundles the batch touches",
+			() =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					const a = yield* repo.create(
+						make({ amount: -200, importBatchId: "batch-1" }),
+					);
+					const b = yield* repo.create(
+						make({ amount: -30, importBatchId: "batch-1" }),
+					);
+					const c = yield* repo.create(
+						make({ amount: 150, importBatchId: "batch-2" }),
+					);
+					const parent = yield* repo.createBundle(
+						[a.id, b.id, c.id],
+						"Weekend",
+					);
+
+					assert.strictEqual(
+						(yield* repo.deleteByImportBatch("batch-2")).count,
+						1,
+					);
+					assert.deepStrictEqual(
+						yield* repo.getById(parent.id).pipe(Effect.flip),
+						new NotFound({ resource: "transaction", id: parent.id }),
+					);
+					assert.strictEqual((yield* repo.getById(a.id)).bundleId, undefined);
+					assert.strictEqual((yield* repo.getById(b.id)).bundleId, undefined);
+				}).pipe(Effect.provide(RepoTest)),
+		);
+
+		// No orphan can outlive a re-import: not a member pointing at a parent
+		// that is gone, and not a parent summing rows that are.
+		it.effect("leaves no dangling bundleId after a re-import", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(
+					make({
+						amount: -200,
+						date: new Date("2026-03-02"),
+						importMonth: "2026-03",
+					}),
+				);
+				const b = yield* repo.create(
+					make({
+						amount: -30,
+						date: new Date("2026-03-03"),
+						importMonth: "2026-03",
+					}),
+				);
+				const c = yield* repo.create(
+					make({
+						amount: 150,
+						date: new Date("2026-04-02"),
+						importMonth: "2026-04",
+					}),
+				);
+				yield* repo.createBundle([a.id, b.id, c.id], "Weekend");
+
+				yield* repo.deleteByAccountMonth(asAccount(1), "2026-03");
+
+				const rows = yield* repo.list(listAll);
+				assert.strictEqual(rows.total, 1);
+				assert.strictEqual(rows.items[0]?.bundleId, undefined);
+				assert.strictEqual(rows.items[0]?.kind, "bank");
 			}).pipe(Effect.provide(RepoTest)),
 		);
 	});

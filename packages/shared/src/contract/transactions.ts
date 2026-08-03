@@ -561,11 +561,30 @@ export class TransferCandidate extends Schema.Class<TransferCandidate>(
  * delete, not a filtered list): `accountId` decodes a branded id from the query
  * string, `importMonth` is the `"YYYY-MM"` string. A missing param fails decode
  * → `HttpApiDecodeError (400)`.
+ *
+ * Shared with `bundleImpact`, the pre-flight of that same delete (issue #77):
+ * the warning and the delete must name the same statement, so they take the
+ * same two params rather than each declaring their own.
  */
 export const TransactionByAccountMonth = Schema.Struct({
 	accountId: numFromStr(AccountId),
 	importMonth: Schema.String,
 });
+
+/**
+ * `bundle-impact` success body (issue #77) — how many **bundles** committing an
+ * import for one account + month would **dissolve**.
+ *
+ * Import is idempotent by structure: committing a statement deletes everything
+ * for that account and month, then inserts the parsed rows. A **bundle parent**
+ * is a row in that same table, so a re-import destroys the bundling — and a
+ * bundle spanning two months or two accounts is only *partly* inside the target,
+ * which is why this is a server-side count and not something the wizard can
+ * infer from the page it happens to have fetched. Re-attaching members
+ * afterwards is manual (there is no dedup key on a transaction to re-match them
+ * by), so the number is shown *before* the user commits.
+ */
+export const BundleImpact = Schema.Struct({ count: Schema.Number });
 
 /**
  * Transactions group (contract §2.5), prefix `/transactions` — the **core**:
@@ -636,6 +655,16 @@ export class TransactionsGroup extends HttpApiGroup.make("transactions")
 		HttpApiEndpoint.get("recapPeriods")`/transactions/recap-periods`.addSuccess(
 			RecapPeriods,
 		),
+	)
+	// The pre-flight of `deleteByAccountMonth` (issue #77): how many **bundles**
+	// re-importing that statement would dissolve, asked before the user commits
+	// so the bundling is never destroyed silently. A read, so `GET` with the
+	// same required params the delete takes — and another literal sub-path,
+	// declared before the `:id` route.
+	.add(
+		HttpApiEndpoint.get("bundleImpact")`/transactions/bundle-impact`
+			.setUrlParams(TransactionByAccountMonth)
+			.addSuccess(BundleImpact),
 	)
 	.add(
 		HttpApiEndpoint.get(
