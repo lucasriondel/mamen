@@ -365,7 +365,15 @@ repeated per package.
   fewer than two members **dissolves** rather than standing for a single
   transaction, exactly as an undersized **transfer group** does. A bundle never
   contains a bundle: only the inner parent would ever be recomputed, so the
-  outer total would drift.
+  outer total would drift. A bundle also **does not survive a re-import** of any
+  statement it touches: import is idempotent by deleting everything for an
+  account and month and re-inserting the parsed rows, so the members become
+  different rows. Every touched bundle is dissolved — including one only
+  *partly* inside the statement, whose parent may sit in another month or
+  account entirely — and the count is reported *before* the user commits.
+  Re-attaching the members afterwards is manual: a transaction has no dedup key
+  to re-match them by, and inventing one would silently mis-match a statement
+  that genuinely changed.
   _Avoid_: group (already reserved — see **Category folder**, **Transfer
   group**), merge, combine, split.
 
@@ -400,5 +408,8 @@ repeated per package.
   same cleanup a deleted **transfer leg** does: the parent it left is
   recomputed, never left summing a row that is gone. **Deleting the parent
   releases its members rather than deleting them** — it stands for them, it does
-  not own them.
+  not own them. A member falling inside a re-imported statement (or a deleted
+  import batch) is the one case that does not recompute but **dissolves** the
+  whole bundle, parent included: the row is not being edited, it is being
+  replaced by a different one.
   _Avoid_: child transaction, sub-transaction, line item.

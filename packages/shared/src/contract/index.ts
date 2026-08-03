@@ -99,6 +99,7 @@ export {
 	AccountIdFilter,
 	BundleCreate,
 	BundleDissolve,
+	BundleImpact,
 	BundleMemberAdd,
 	BundleMemberRemove,
 	NOTES_MAX_LENGTH,

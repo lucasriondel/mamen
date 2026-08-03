@@ -1,5 +1,6 @@
 import type { AccountId } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
+import { Fragment } from "react";
 import { Button } from "@/components/ui/button";
 import { formatMonth } from "@/lib/format";
 import { transactionQueries } from "@/lib/sdk";
@@ -9,10 +10,14 @@ import { useImportCommit } from "./use-import-commit";
 
 /**
  * The shared foot of both preview paths (CSV plain table and PDF side-by-side):
- * the per-month replacement warnings plus the Commit / Back buttons. Committing
- * runs the same delete-then-create-per-month rail regardless of source, so this
- * is the single place that owns the destructive-replace notice and the commit
- * action.
+ * the per-month warnings plus the Commit / Back buttons. Committing runs the
+ * same delete-then-create-per-month rail regardless of source, so this is the
+ * single place that owns the destructive-replace notices and the commit action.
+ *
+ * Two notices per month, from two independent reads: the rows the commit
+ * replaces, and the **bundles** it dissolves (issue #77). They are separate
+ * questions with separate answers — a bundle can span two months or two
+ * accounts, so it is destroyed by a statement whose own rows it barely touches.
  */
 export function CommitBar({
 	records,
@@ -30,7 +35,10 @@ export function CommitBar({
 		<div className="flex flex-col gap-4">
 			<div className="flex flex-col gap-2">
 				{months.map((month) => (
-					<MonthReplacement key={month} accountId={accountId} month={month} />
+					<Fragment key={month}>
+						<MonthReplacement accountId={accountId} month={month} />
+						<BundleDissolution accountId={accountId} month={month} />
+					</Fragment>
 				))}
 			</div>
 
@@ -78,6 +86,39 @@ function MonthReplacement({
 		<p role="alert" className="text-sm text-gousse-high">
 			This will replace {count} existing row{count === 1 ? "" : "s"} for{" "}
 			{formatMonth(month)}.
+		</p>
+	);
+}
+
+/**
+ * A per-month **bundle** notice (issue #77): committing deletes everything for
+ * the account and month, and a bundle parent is a row in that same table — so
+ * the bundling goes with it and the recap quietly reverts to counting the gross
+ * rows. Say so first.
+ *
+ * The count is the server's (`bundleImpact`), not a client-side scan: a bundle
+ * only *partly* inside this month — spanning two months, or two accounts — is
+ * dissolved too, and nothing on this page could see it. Re-bundling afterwards
+ * is manual, so the notice says that rather than implying it will be restored.
+ */
+function BundleDissolution({
+	accountId,
+	month,
+}: {
+	accountId: AccountId;
+	month: string;
+}) {
+	const impactQuery = useQuery(
+		transactionQueries.bundleImpact({ accountId, importMonth: month }),
+	);
+	const count = impactQuery.data?.count ?? 0;
+
+	if (count === 0) return null;
+
+	return (
+		<p role="alert" className="text-sm text-gousse-high">
+			This will dissolve {count} bundle{count === 1 ? "" : "s"} including rows
+			from {formatMonth(month)}. Re-bundling is manual.
 		</p>
 	);
 }

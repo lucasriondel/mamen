@@ -11,6 +11,7 @@ export {
 	accountKeys,
 	accountMutations,
 	accountQueries,
+	type BundleImpactParams,
 	type CategoryListParams,
 	categoryKeys,
 	categoryMutations,
