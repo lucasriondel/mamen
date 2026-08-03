@@ -3,6 +3,7 @@ import type { Fragment } from "@effect/sql/Statement";
 import {
 	type AccountId,
 	AnomalyFlag,
+	BundleInvalid,
 	CategoryNotLeaf,
 	NotFound,
 	Paged,
@@ -10,11 +11,12 @@ import {
 	Transaction,
 	type TransactionCreate,
 	TransactionId,
+	TransactionKind,
 	type TransactionUpdate,
 	TransferCandidate,
 	TransferInvalid,
 } from "@mamen/shared/contract";
-import { Effect, Option, Schema } from "effect";
+import { Clock, Effect, Option, Schema } from "effect";
 import { orDieSql } from "../db/errors";
 
 /**
@@ -39,6 +41,12 @@ const TransactionRow = Schema.Struct({
 	isRefund: Schema.Number,
 	linkedRefundId: Schema.NullOr(Schema.Number),
 	transferGroupId: Schema.NullOr(Schema.Number),
+	// `kind` is `TEXT DEFAULT 'bank'` (migration 0020) and every write states it,
+	// so it is never null in practice — read as nullable anyway so a row written
+	// by something that predates the column reads as the `bank` row it is rather
+	// than failing the whole page's decode.
+	kind: Schema.NullOr(TransactionKind),
+	bundleId: Schema.NullOr(Schema.Number),
 	anomalyFlags: Schema.NullOr(Schema.String),
 	isDuplicateExcluded: Schema.Number,
 	duplicateNote: Schema.NullOr(Schema.String),
@@ -86,6 +94,10 @@ export const TransactionFromRow = Schema.transform(
 			...(row.transferGroupId !== null
 				? { transferGroupId: row.transferGroupId }
 				: {}),
+			// Absent decodes to `bank` through the entity's own default, so the fold
+			// is the same null → absent one every other optional column uses.
+			...(row.kind !== null ? { kind: row.kind } : {}),
+			...(row.bundleId !== null ? { bundleId: row.bundleId } : {}),
 			...(row.anomalyFlags !== null
 				? {
 						anomalyFlags: Schema.decodeSync(AnomalyFlagsJson)(row.anomalyFlags),
@@ -117,6 +129,10 @@ export const TransactionFromRow = Schema.transform(
 			isRefund: t.isRefund ? 1 : 0,
 			linkedRefundId: t.linkedRefundId ?? null,
 			transferGroupId: t.transferGroupId ?? null,
+			// The entity defaults `kind` on decode, so the encoded side is where it can
+			// still be absent — a row is stored as the `bank` row it is.
+			kind: t.kind ?? "bank",
+			bundleId: t.bundleId ?? null,
 			anomalyFlags:
 				t.anomalyFlags !== undefined
 					? Schema.encodeSync(AnomalyFlagsJson)(t.anomalyFlags)
@@ -157,6 +173,8 @@ const TransferCandidateRow = Schema.Struct({
 	f_isRefund: Schema.Number,
 	f_linkedRefundId: Schema.NullOr(Schema.Number),
 	f_transferGroupId: Schema.NullOr(Schema.Number),
+	f_kind: Schema.NullOr(TransactionKind),
+	f_bundleId: Schema.NullOr(Schema.Number),
 	f_anomalyFlags: Schema.NullOr(Schema.String),
 	f_isDuplicateExcluded: Schema.Number,
 	f_duplicateNote: Schema.NullOr(Schema.String),
@@ -178,6 +196,8 @@ const TransferCandidateRow = Schema.Struct({
 	t_isRefund: Schema.Number,
 	t_linkedRefundId: Schema.NullOr(Schema.Number),
 	t_transferGroupId: Schema.NullOr(Schema.Number),
+	t_kind: Schema.NullOr(TransactionKind),
+	t_bundleId: Schema.NullOr(Schema.Number),
 	t_anomalyFlags: Schema.NullOr(Schema.String),
 	t_isDuplicateExcluded: Schema.Number,
 	t_duplicateNote: Schema.NullOr(Schema.String),
@@ -215,6 +235,8 @@ const legFromRow = (
 		isRefund: pick("isRefund"),
 		linkedRefundId: pick("linkedRefundId"),
 		transferGroupId: pick("transferGroupId"),
+		kind: pick("kind"),
+		bundleId: pick("bundleId"),
 		anomalyFlags: pick("anomalyFlags"),
 		isDuplicateExcluded: pick("isDuplicateExcluded"),
 		duplicateNote: pick("duplicateNote"),
@@ -258,6 +280,7 @@ type Filters = {
 	categoryId?: number | ReadonlyArray<number>;
 	linkedRefundId?: number;
 	transferGroupId?: number;
+	bundleId?: number;
 	importMonth?: string;
 	importBatchId?: string;
 	startDate?: Date;
@@ -290,6 +313,8 @@ type WriteRow = {
 	isRefund: number;
 	linkedRefundId: number | null;
 	transferGroupId: number | null;
+	kind: TransactionKind;
+	bundleId: number | null;
 	anomalyFlags: string | null;
 	isDuplicateExcluded: number;
 	duplicateNote: string | null;
@@ -385,6 +410,18 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				// internal transfer. Mirrors `linkedRefundId`, rides its own index.
 				if (f.transferGroupId !== undefined)
 					conditions.push(sql`t.transferGroupId = ${f.transferGroupId}`);
+				// **Bundle** membership (issue #68). Asked for, it narrows to one
+				// bundle's members — the only way `list` reaches a member at all.
+				// NOT asked for, it *hides* every bundled row: the **bundle parent**
+				// already accounts for them, so listing both would show the same money
+				// twice, in the rows and in the signed `total` the same WHERE drives.
+				// The default belongs here, not in each caller, so no surface can
+				// forget it (the drift ADR 0002 records, on the grouping axis).
+				conditions.push(
+					f.bundleId !== undefined
+						? sql`t.bundleId = ${f.bundleId}`
+						: sql`t.bundleId IS NULL`,
+				);
 				if (f.importMonth !== undefined)
 					conditions.push(sql`t.importMonth = ${f.importMonth}`);
 				if (f.importBatchId !== undefined)
@@ -479,7 +516,7 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 			// (`RETURNING *`) echo the stored row verbatim, and the internal
 			// `storedByIdQuery` reads the raw row so an update's merge never persists
 			// a derived value.
-			const readColumns = sql`t.id, t.accountId, t.date, t.amount, t.rawIssuerString, t.issuerId, ${derivedCategory} AS categoryId, t.manualCategory, t.manualIssuer, t.isRefund, t.linkedRefundId, t.transferGroupId, t.anomalyFlags, t.isDuplicateExcluded, t.duplicateNote, ${recapExclusion} AS excludedFromRecap, t.manualExcluded, t.notes, t.importedAt, t.importMonth, t.importBatchId`;
+			const readColumns = sql`t.id, t.accountId, t.date, t.amount, t.rawIssuerString, t.issuerId, ${derivedCategory} AS categoryId, t.manualCategory, t.manualIssuer, t.isRefund, t.linkedRefundId, t.transferGroupId, t.kind, t.bundleId, t.anomalyFlags, t.isDuplicateExcluded, t.duplicateNote, ${recapExclusion} AS excludedFromRecap, t.manualExcluded, t.notes, t.importedAt, t.importMonth, t.importBatchId`;
 			const readFrom = sql`FROM transactions t LEFT JOIN issuers i ON t.issuerId = i.id`;
 
 			// `Request: Schema.Any` skips a redundant re-decode: filters are already
@@ -575,7 +612,7 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				Request: TransactionId,
 				Result: TransactionFromRow,
 				execute: (id) =>
-					sql`SELECT c.id, c.accountId, c.date, c.amount, c.rawIssuerString, c.issuerId, CASE WHEN c.manualCategory = 1 THEN c.categoryId ELSE ci.defaultCategoryId END AS categoryId, c.manualCategory, c.manualIssuer, c.isRefund, c.linkedRefundId, c.transferGroupId, c.anomalyFlags, c.isDuplicateExcluded, c.duplicateNote, ${recapExclusionFor("c", "ci")} AS excludedFromRecap, c.manualExcluded, c.notes, c.importedAt, c.importMonth, c.importBatchId
+					sql`SELECT c.id, c.accountId, c.date, c.amount, c.rawIssuerString, c.issuerId, CASE WHEN c.manualCategory = 1 THEN c.categoryId ELSE ci.defaultCategoryId END AS categoryId, c.manualCategory, c.manualIssuer, c.isRefund, c.linkedRefundId, c.transferGroupId, c.kind, c.bundleId, c.anomalyFlags, c.isDuplicateExcluded, c.duplicateNote, ${recapExclusionFor("c", "ci")} AS excludedFromRecap, c.manualExcluded, c.notes, c.importedAt, c.importMonth, c.importBatchId
 						FROM transactions t
 						JOIN transactions c
 							ON c.id <> t.id
@@ -610,7 +647,7 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				issuerAlias: "fi" | "ci",
 				prefix: "f" | "t",
 			) =>
-				sql`${sql.literal(a)}.id AS ${sql.literal(prefix)}_id, ${sql.literal(a)}.accountId AS ${sql.literal(prefix)}_accountId, ${sql.literal(a)}.date AS ${sql.literal(prefix)}_date, ${sql.literal(a)}.amount AS ${sql.literal(prefix)}_amount, ${sql.literal(a)}.rawIssuerString AS ${sql.literal(prefix)}_rawIssuerString, ${sql.literal(a)}.issuerId AS ${sql.literal(prefix)}_issuerId, CASE WHEN ${sql.literal(a)}.manualCategory = 1 THEN ${sql.literal(a)}.categoryId ELSE ${sql.literal(issuerAlias)}.defaultCategoryId END AS ${sql.literal(prefix)}_categoryId, ${sql.literal(a)}.manualCategory AS ${sql.literal(prefix)}_manualCategory, ${sql.literal(a)}.manualIssuer AS ${sql.literal(prefix)}_manualIssuer, ${sql.literal(a)}.isRefund AS ${sql.literal(prefix)}_isRefund, ${sql.literal(a)}.linkedRefundId AS ${sql.literal(prefix)}_linkedRefundId, ${sql.literal(a)}.transferGroupId AS ${sql.literal(prefix)}_transferGroupId, ${sql.literal(a)}.anomalyFlags AS ${sql.literal(prefix)}_anomalyFlags, ${sql.literal(a)}.isDuplicateExcluded AS ${sql.literal(prefix)}_isDuplicateExcluded, ${sql.literal(a)}.duplicateNote AS ${sql.literal(prefix)}_duplicateNote, ${recapExclusionFor(a, issuerAlias)} AS ${sql.literal(prefix)}_excludedFromRecap, ${sql.literal(a)}.manualExcluded AS ${sql.literal(prefix)}_manualExcluded, ${sql.literal(a)}.notes AS ${sql.literal(prefix)}_notes, ${sql.literal(a)}.importedAt AS ${sql.literal(prefix)}_importedAt, ${sql.literal(a)}.importMonth AS ${sql.literal(prefix)}_importMonth, ${sql.literal(a)}.importBatchId AS ${sql.literal(prefix)}_importBatchId`;
+				sql`${sql.literal(a)}.id AS ${sql.literal(prefix)}_id, ${sql.literal(a)}.accountId AS ${sql.literal(prefix)}_accountId, ${sql.literal(a)}.date AS ${sql.literal(prefix)}_date, ${sql.literal(a)}.amount AS ${sql.literal(prefix)}_amount, ${sql.literal(a)}.rawIssuerString AS ${sql.literal(prefix)}_rawIssuerString, ${sql.literal(a)}.issuerId AS ${sql.literal(prefix)}_issuerId, CASE WHEN ${sql.literal(a)}.manualCategory = 1 THEN ${sql.literal(a)}.categoryId ELSE ${sql.literal(issuerAlias)}.defaultCategoryId END AS ${sql.literal(prefix)}_categoryId, ${sql.literal(a)}.manualCategory AS ${sql.literal(prefix)}_manualCategory, ${sql.literal(a)}.manualIssuer AS ${sql.literal(prefix)}_manualIssuer, ${sql.literal(a)}.isRefund AS ${sql.literal(prefix)}_isRefund, ${sql.literal(a)}.linkedRefundId AS ${sql.literal(prefix)}_linkedRefundId, ${sql.literal(a)}.transferGroupId AS ${sql.literal(prefix)}_transferGroupId, ${sql.literal(a)}.kind AS ${sql.literal(prefix)}_kind, ${sql.literal(a)}.bundleId AS ${sql.literal(prefix)}_bundleId, ${sql.literal(a)}.anomalyFlags AS ${sql.literal(prefix)}_anomalyFlags, ${sql.literal(a)}.isDuplicateExcluded AS ${sql.literal(prefix)}_isDuplicateExcluded, ${sql.literal(a)}.duplicateNote AS ${sql.literal(prefix)}_duplicateNote, ${recapExclusionFor(a, issuerAlias)} AS ${sql.literal(prefix)}_excludedFromRecap, ${sql.literal(a)}.manualExcluded AS ${sql.literal(prefix)}_manualExcluded, ${sql.literal(a)}.notes AS ${sql.literal(prefix)}_notes, ${sql.literal(a)}.importedAt AS ${sql.literal(prefix)}_importedAt, ${sql.literal(a)}.importMonth AS ${sql.literal(prefix)}_importMonth, ${sql.literal(a)}.importBatchId AS ${sql.literal(prefix)}_importBatchId`;
 
 			const transferCandidatesQuery = SqlSchema.findAll({
 				Request: Schema.Void,
@@ -746,6 +783,11 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				isRefund: t.isRefund ? 1 : 0,
 				linkedRefundId: t.linkedRefundId ?? null,
 				transferGroupId: t.transferGroupId ?? null,
+				// Absent on a plain create payload → a `bank` row, the only kind a
+				// caller ever posts: a bundle parent is written by `createBundle`,
+				// which builds its row itself.
+				kind: t.kind ?? "bank",
+				bundleId: t.bundleId ?? null,
 				anomalyFlags:
 					t.anomalyFlags !== undefined
 						? Schema.encodeSync(AnomalyFlagsJson)(t.anomalyFlags)
@@ -1059,6 +1101,108 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				});
 
 			/**
+			 * Create a **bundle** from a set of rows (issue #68): several transactions
+			 * treated as ONE for the recap — 200 € of groceries and the 150 € friends
+			 * paid back is one 50 € weekend, not a large debit filed apart from an
+			 * unexplained credit. Writes the **bundle parent**, a synthetic row in this
+			 * same table (`kind = 'bundle'`), and stamps `bundleId` on every member.
+			 *
+			 * The parent is *derived from* its members, never independent of them:
+			 *
+			 * - **amount** — their sum, computed in integer cents (amounts are float
+			 *   euros, never added as floats — the discipline `linkTransfer` and the
+			 *   value-matcher use). Recomputed, not accumulated: when a later slice adds
+			 *   a member, the number simply changes.
+			 * - **date** — the earliest member's (ties broken by the smaller id, so the
+			 *   choice is deterministic), because the cost belongs to when the money was
+			 *   spent, not to when the last person settled up.
+			 * - **accountId / importMonth** — taken from that same earliest member, so
+			 *   the parent sits where the row it takes its date from sits, rather than
+			 *   inventing an account or a statement month that no import produced.
+			 *
+			 * `rawIssuerString` holds the (trimmed) label — that field already means
+			 * *the human-readable name of this row* and is already the display fallback
+			 * when there is no issuer. Issuer, category and notes are left unset: a
+			 * fresh bundle is uncurated like any other row, and every edit surface that
+			 * works on a transaction already works on this one.
+			 *
+			 * Fails {@link BundleInvalid} — never a partial write — on fewer than 2
+			 * **distinct** members, an unknown id, or a row already carrying a
+			 * `bundleId` (a member belongs to at most one bundle; two parents each
+			 * summing it would each be right about a different number).
+			 */
+			const createBundle = (
+				rawIds: ReadonlyArray<typeof TransactionId.Type>,
+				label: string,
+			): Effect.Effect<Transaction, BundleInvalid> =>
+				Effect.gen(function* () {
+					const ids = [...new Set(rawIds)];
+					if (ids.length < 2)
+						return yield* Effect.fail(
+							new BundleInvalid({ reason: "too-few-members" }),
+						);
+
+					const members = yield* bulkGetQuery(ids).pipe(orDieSql);
+					if (members.length !== ids.length)
+						return yield* Effect.fail(
+							new BundleInvalid({ reason: "unknown-id" }),
+						);
+					if (members.some((m) => m.bundleId !== undefined))
+						return yield* Effect.fail(
+							new BundleInvalid({ reason: "already-bundled" }),
+						);
+
+					// Sum in integer cents, then back to euros once — adding floats would
+					// leave a parent whose amount is a hundredth off the rows it stands for.
+					const cents = members.reduce(
+						(sum, m) => sum + Math.round(m.amount * 100),
+						0,
+					);
+					// The earliest member; the smaller id breaks a same-date tie so the
+					// parent's account and import month are a function of the set, not of
+					// the order the ids happened to arrive in.
+					const earliest = members.reduce((a, b) =>
+						b.date.getTime() < a.date.getTime() ||
+						(b.date.getTime() === a.date.getTime() && b.id < a.id)
+							? b
+							: a,
+					);
+
+					const now = new Date(yield* Clock.currentTimeMillis);
+					const parent = yield* insertQuery({
+						accountId: earliest.accountId,
+						date: earliest.date.toISOString(),
+						amount: cents / 100,
+						rawIssuerString: label.trim(),
+						issuerId: null,
+						categoryId: null,
+						manualCategory: 0,
+						manualIssuer: 0,
+						isRefund: 0,
+						linkedRefundId: null,
+						transferGroupId: null,
+						kind: "bundle",
+						bundleId: null,
+						anomalyFlags: null,
+						isDuplicateExcluded: 0,
+						duplicateNote: null,
+						excludedFromRecap: 0,
+						manualExcluded: 0,
+						notes: null,
+						// The synthetic row entered the system now; its *date* is the
+						// members' business, its import stamp is this write's.
+						importedAt: now.toISOString(),
+						importMonth: earliest.importMonth,
+						importBatchId: null,
+					}).pipe(orDieSql);
+
+					yield* sql`UPDATE transactions SET bundleId = ${parent.id} WHERE ${sql.in("id", ids)}`.pipe(
+						orDieSql,
+					);
+					return parent;
+				});
+
+			/**
 			 * Dissolve a transfer group (PRD #48): clear `transferGroupId` on every leg
 			 * carrying the given group id, reverting them to normal transactions (they
 			 * count as spend again). Returns the count cleared — 0 for an unknown group
@@ -1089,6 +1233,7 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				deleteByImportBatch,
 				linkTransfer,
 				unlinkTransfer,
+				createBundle,
 			} as const;
 		}),
 	},

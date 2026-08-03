@@ -17,6 +17,7 @@ import addIssuersNotes from "./0016_add_issuers_notes";
 import dropRulesMatchCount from "./0017_drop_rules_match_count";
 import addTransactionsRecapExclusion from "./0018_add_transactions_recap_exclusion";
 import addIssuersRecapExclusion from "./0019_add_issuers_recap_exclusion";
+import addTransactionsBundle from "./0020_add_transactions_bundle";
 
 /**
  * The migration set, keyed `NNNN_name` (the Migrator parses the numeric prefix
@@ -44,4 +45,5 @@ export const migrations = {
 	"0017_drop_rules_match_count": dropRulesMatchCount,
 	"0018_add_transactions_recap_exclusion": addTransactionsRecapExclusion,
 	"0019_add_issuers_recap_exclusion": addIssuersRecapExclusion,
+	"0020_add_transactions_bundle": addTransactionsBundle,
 } as const;

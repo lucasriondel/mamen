@@ -8,6 +8,7 @@ import { Schema } from "effect";
 import { AnomalyFlag } from "./anomaly";
 import {
 	BooleanFromString,
+	BundleInvalid,
 	CategoryNotLeaf,
 	NotFound,
 	TransferInvalid,
@@ -41,6 +42,20 @@ export const NOTES_MAX_LENGTH = 1000;
  */
 export const TRANSFER_DATE_WINDOW_DAYS = 5;
 
+/**
+ * What a transaction row **is** (issue #68) — the discriminator that tells a real
+ * bank row from a synthetic one:
+ *
+ * - `bank` — a real row, imported from a statement. Every row before bundles
+ *   existed is one, which is why it is the default.
+ * - `bundle` — a **bundle parent**: the synthetic row that stands for two or more
+ *   members, carrying their label and their summed amount. It lives in the same
+ *   table precisely so it sorts, pages, filters, searches and is edited through
+ *   every surface a transaction already has.
+ */
+export const TransactionKind = Schema.Literal("bank", "bundle");
+export type TransactionKind = typeof TransactionKind.Type;
+
 /** Transaction entity — the wire shape returned by every transactions endpoint. */
 export class Transaction extends Schema.Class<Transaction>("Transaction")({
 	id: TransactionId,
@@ -64,6 +79,26 @@ export class Transaction extends Schema.Class<Transaction>("Transaction")({
 	 * lands in a later slice — this only persists and reads the membership.
 	 */
 	transferGroupId: Schema.optional(TransactionId),
+	/**
+	 * What this row **is** (issue #68) — see {@link TransactionKind}. Optional
+	 * like every other added field: **absent means `bank`**, so a row written
+	 * before bundles existed (or by a caller that doesn't know about them) reads
+	 * as the real bank row it is. Only `kind === "bundle"` ever means anything, so
+	 * no surface has to distinguish absent from `"bank"`.
+	 */
+	kind: Schema.optional(TransactionKind),
+	/**
+	 * **Bundle** membership (issue #68). Absent means the row belongs to no
+	 * bundle; when set it is the id of the **bundle parent** that stands for this
+	 * row — a `TransactionId` because the parent *is* a transaction. Stored flat
+	 * and FK-free, mirroring `transferGroupId`/`linkedRefundId`, but pointing at a
+	 * distinct row rather than at one of the members: a bundle nets to a non-zero
+	 * amount, so unlike a transfer group it needs a row to *hold* that amount.
+	 *
+	 * A member never carries `kind: "bundle"`, and a parent never carries a
+	 * `bundleId` — the two fields are the two halves of one relationship.
+	 */
+	bundleId: Schema.optional(TransactionId),
 	anomalyFlags: Schema.optional(Schema.Array(AnomalyFlag)),
 	isDuplicateExcluded: Schema.optional(Schema.Boolean),
 	duplicateNote: Schema.optional(Schema.String),
@@ -120,6 +155,11 @@ export const TransactionCreate = Schema.Struct({
 	isRefund: Transaction.fields.isRefund,
 	linkedRefundId: Transaction.fields.linkedRefundId,
 	transferGroupId: Transaction.fields.transferGroupId,
+	// Accepted for a faithful round-trip (a DB restore replays whole rows), but
+	// never stated by an ordinary caller: the only writer of a `bundle` row is
+	// `createBundle`, which builds the parent itself.
+	kind: Transaction.fields.kind,
+	bundleId: Transaction.fields.bundleId,
 	anomalyFlags: Transaction.fields.anomalyFlags,
 	isDuplicateExcluded: Transaction.fields.isDuplicateExcluded,
 	duplicateNote: Transaction.fields.duplicateNote,
@@ -168,6 +208,12 @@ export const TransactionFilters = {
 	// transfer, so the detail page can list a group's other legs and the table
 	// can badge legs without client-side scanning. Mirrors `linkedRefundId`.
 	transferGroupId: Schema.optional(numFromStr(TransactionId)),
+	// **Bundle** membership (issue #68) — returns the members of one bundle, so a
+	// parent can list what it stands for. It is also the ONLY way to reach a
+	// member through `list`: absent, the list hides every bundled row, because the
+	// parent already accounts for it and showing both double-counts (in the rows
+	// and in the signed `total` beneath them). Mirrors `transferGroupId`.
+	bundleId: Schema.optional(numFromStr(TransactionId)),
 	importMonth: Schema.optional(Schema.String), // "YYYY-MM"
 	importBatchId: Schema.optional(Schema.String),
 	startDate: Schema.optional(Schema.Date), // inclusive lower bound on `date`
@@ -274,6 +320,27 @@ export const TransferUnlink = Schema.Struct({
 	transferGroupId: TransactionId,
 });
 export type TransferUnlink = typeof TransferUnlink.Type;
+
+/**
+ * `bundle` payload (issue #68) — the set of transaction ids to treat as **one**,
+ * plus the `label` the resulting **bundle parent** carries. The server validates
+ * the set atomically (≥2 distinct members, all ids real, none already bundled),
+ * then writes one synthetic row whose amount is the members' sum and whose date
+ * is the earliest member's, and stamps `bundleId` on each member — the multi-row
+ * operation the generic single-row `create` cannot express.
+ *
+ * `label` is `minLength(1)`, so an empty one fails decode (400) at the boundary
+ * rather than producing a nameless row; the server trims it before storing it in
+ * the parent's `rawIssuerString`, which already means *the human-readable name of
+ * this row* and is already what the UI falls back to when there is no issuer.
+ * Issuer and category are deliberately NOT accepted here: a fresh bundle is
+ * uncurated like any other row, and every existing edit surface can set them.
+ */
+export const BundleCreate = Schema.Struct({
+	ids: Schema.Array(TransactionId),
+	label: Schema.String.pipe(Schema.minLength(1)),
+});
+export type BundleCreate = typeof BundleCreate.Type;
 
 /**
  * One **detected** (not yet confirmed) internal-transfer pair (PRD #48) — the
@@ -460,5 +527,18 @@ export class TransactionsGroup extends HttpApiGroup.make("transactions")
 		HttpApiEndpoint.post("unlinkTransfer")`/transactions/unlink-transfer`
 			.setPayload(TransferUnlink)
 			.addSuccess(TransactionAffected),
+	)
+	// Create a **bundle** from a set of rows (issue #68) — the other atomic
+	// multi-row operation. Unlike `link-transfer` it *creates* a row: the
+	// **bundle parent** it returns (201, like every other create) is the whole
+	// point, since a bundle nets to a non-zero amount that needs somewhere to
+	// live. Fails `BundleInvalid` (422) — its own error, not `TransferInvalid`:
+	// none of the transfer's balance rules apply — on <2 distinct members, an
+	// unknown id, or a row already bundled.
+	.add(
+		HttpApiEndpoint.post("createBundle")`/transactions/bundle`
+			.setPayload(BundleCreate)
+			.addSuccess(Transaction, { status: 201 })
+			.addError(BundleInvalid),
 	)
 	.annotateContext(OpenApi.annotations({ title: "Transactions" })) {}

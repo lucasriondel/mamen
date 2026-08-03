@@ -3,9 +3,11 @@ import type {
 	AccountId,
 	Category,
 	Transaction,
+	TransactionId,
 } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
+import type { RowSelectionState } from "@tanstack/react-table";
+import { useMemo, useState } from "react";
 import { Empty } from "@/components/ui/empty";
 import { useIssuerLookup } from "@/features/issuers/use-issuer-lookup";
 import {
@@ -16,6 +18,7 @@ import {
 	transactionQueries,
 } from "@/lib/sdk";
 import { indexById } from "@/lib/utils";
+import { BundleActionBar } from "./bundle-action-bar";
 import {
 	pageToOffset,
 	TRANSACTIONS_PAGE_SIZE,
@@ -146,6 +149,28 @@ export function TransactionsSection({
 		...transactionQueries.list(listParams),
 		enabled,
 	});
+
+	// Row selection (issue #68) — keyed by transaction id, and deliberately
+	// **page-scoped**: the ids it holds are the rows on screen, so it is dropped
+	// whenever the query behind them changes. Carrying a selection across a filter
+	// change would let a user bundle rows they can no longer see.
+	const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+	// Reset during render against the params the selection was made under, rather
+	// than in an effect: React's own "adjusting state when a prop changes" — the
+	// selection is dropped in the same pass that swaps the rows, so no frame ever
+	// shows ticks belonging to a page that has gone.
+	const [selectionScope, setSelectionScope] = useState(listParams);
+	if (selectionScope !== listParams) {
+		setSelectionScope(listParams);
+		setRowSelection({});
+	}
+	const selectedIds = useMemo(
+		() =>
+			Object.entries(rowSelection)
+				.filter(([, selected]) => selected)
+				.map(([id]) => Number(id) as TransactionId),
+		[rowSelection],
+	);
 	const accountsQuery = useQuery(accountQueries.list());
 	// The whole (small) category tree, for the derived-category column's name
 	// lookup. Wide limit — a single user's taxonomy is coarse (PRD).
@@ -235,6 +260,10 @@ export function TransactionsSection({
 				/>
 			) : (
 				<>
+					<BundleActionBar
+						selectedIds={selectedIds}
+						onClear={() => setRowSelection({})}
+					/>
 					<TransactionsPagination
 						position="top"
 						page={page}
@@ -251,6 +280,8 @@ export function TransactionsSection({
 						onToggleSort={onToggleSort}
 						columnVisibility={columnVisibility}
 						onColumnVisibilityChange={onColumnVisibilityChange}
+						rowSelection={rowSelection}
+						onRowSelectionChange={setRowSelection}
 					/>
 					<TransactionsPagination
 						page={page}

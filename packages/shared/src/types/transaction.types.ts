@@ -13,6 +13,10 @@ export type Transaction = {
 	isRefund?: boolean;
 	linkedRefundId?: number;
 	transferGroupId?: number;
+	/** `"bank"` (a real imported row) or `"bundle"` (a synthetic bundle parent). */
+	kind?: "bank" | "bundle";
+	/** The id of the bundle parent standing for this row, when it is a member. */
+	bundleId?: number;
 	anomalyFlags?: AnomalyFlag[];
 	isDuplicateExcluded?: boolean;
 	duplicateNote?: string;

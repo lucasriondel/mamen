@@ -226,6 +226,9 @@ describe("TransactionsView", () => {
 			.getAllByRole("columnheader")
 			.map((h) => h.textContent);
 		expect(headers).toEqual([
+			// The selection column (issue #68) leads and carries no text: its header
+			// is the select-all checkbox, named for assistive tech by `aria-label`.
+			"",
 			"Date",
 			"Account",
 			"Issuer",
@@ -430,6 +433,62 @@ describe("TransactionsView", () => {
 		// And the empty Notes cell ("Add note").
 		await user.click(screen.getAllByText("Add note")[0]);
 		expect(router.state.location.pathname).toBe("/transactions");
+	});
+
+	// Selection is new to this table (issue #68): it exists so several rows can be
+	// bundled into one. The checkbox lives inside a row whose every other cell
+	// navigates, so it must not navigate — the same rule the curation cells follow.
+	it("selects a row from its checkbox without navigating away", async () => {
+		const router = await renderView();
+		const user = userEvent.setup();
+
+		await user.click(
+			screen.getByRole("checkbox", { name: /select transaction SPOTIFY/i }),
+		);
+
+		expect(router.state.location.pathname).toBe("/transactions");
+		expect(
+			screen.getByRole("checkbox", { name: /select transaction SPOTIFY/i }),
+		).toBeChecked();
+	});
+
+	it("offers bundling only once a selection exists, and counts it", async () => {
+		await renderView();
+		const user = userEvent.setup();
+
+		// Nothing selected → no action bar at all.
+		expect(screen.queryByRole("button", { name: /create bundle/i })).toBeNull();
+
+		await user.click(
+			screen.getByRole("checkbox", { name: /select transaction SPOTIFY/i }),
+		);
+		expect(screen.getByText(/1 selected/i)).toBeVisible();
+		// One row is not a bundle — the action stays out of reach until there are two.
+		expect(
+			screen.getByRole("button", { name: /create bundle/i }),
+		).toBeDisabled();
+
+		await user.click(
+			screen.getByRole("checkbox", {
+				name: /select transaction ACME PAYROLL/i,
+			}),
+		);
+		expect(screen.getByText(/2 selected/i)).toBeVisible();
+	});
+
+	it("selects and clears every row on the page from the header checkbox", async () => {
+		await renderView();
+		const user = userEvent.setup();
+
+		const selectAll = screen.getByRole("checkbox", {
+			name: /select all rows on this page/i,
+		});
+		await user.click(selectAll);
+		expect(screen.getByText(/2 selected/i)).toBeVisible();
+
+		await user.click(screen.getByRole("button", { name: /clear selection/i }));
+		expect(screen.queryByText(/selected/i)).toBeNull();
+		expect(selectAll).not.toBeChecked();
 	});
 
 	it("puts the page number — not the row offset — in the URL", async () => {

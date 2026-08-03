@@ -10,6 +10,7 @@ import {
 	AccountId,
 	AnomalyFlag,
 	Api,
+	BundleInvalid,
 	CategoryId,
 	CategoryNotLeaf,
 	IssuerId,
@@ -1665,5 +1666,157 @@ describe("category filter matches the derived category (ADR 0002)", () => {
 				assert.strictEqual(page.items.length, 1);
 				assert.strictEqual(page.total, 3);
 			}).pipe(Effect.provide(HttpLive)),
+	);
+});
+
+// **Bundle** creation over the wire (issue #68, epic #66) — the endpoint that
+// turns a set of rows into one, and what the list looks like afterwards. The
+// API seam, not the repository: the payload decode (an empty label is a 400),
+// the 201 body, and the 422 refusals all live here.
+describe("createBundle (issue #68)", () => {
+	it.effect("returns the parent (201) with the summed amount and label", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const spend = yield* client.transactions.create({
+				payload: make({
+					amount: -200,
+					date: new Date("2026-03-07T00:00:00.000Z"),
+					rawIssuerString: "GROCERIES",
+				}),
+			});
+			const payback = yield* client.transactions.create({
+				payload: make({
+					amount: 150,
+					date: new Date("2026-03-12T00:00:00.000Z"),
+					rawIssuerString: "REVOLUT LUCAS",
+				}),
+			});
+
+			const parent = yield* client.transactions.createBundle({
+				payload: { ids: [spend.id, payback.id], label: "Weekend away" },
+			});
+			assert.strictEqual(parent.kind, "bundle");
+			assert.strictEqual(parent.amount, -50);
+			assert.strictEqual(parent.rawIssuerString, "Weekend away");
+			assert.deepStrictEqual(parent.date, new Date("2026-03-07T00:00:00.000Z"));
+
+			// The members carry the parent's id and keep their own everything else.
+			const member = yield* client.transactions.getById({
+				path: { id: spend.id },
+			});
+			assert.strictEqual(member.bundleId, parent.id);
+			assert.strictEqual(member.kind, "bank");
+			assert.strictEqual(member.amount, -200);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("members leave the top-level list and its signed total", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const a = yield* client.transactions.create({
+				payload: make({ amount: -200 }),
+			});
+			const b = yield* client.transactions.create({
+				payload: make({ amount: 150 }),
+			});
+			yield* client.transactions.create({
+				payload: make({ amount: -10, rawIssuerString: "COFFEE" }),
+			});
+			const parent = yield* client.transactions.createBundle({
+				payload: { ids: [a.id, b.id], label: "Weekend away" },
+			});
+
+			const page = yield* client.transactions.list({
+				urlParams: { limit: 50, offset: 0, direction: "desc" },
+			});
+			assert.strictEqual(page.total, 2);
+			assert.ok(page.items.some((t) => t.id === parent.id));
+			assert.ok(!page.items.some((t) => t.id === a.id || t.id === b.id));
+
+			// -50 (the parent) + -10 (the coffee): the members counted once.
+			const counted = yield* client.transactions.count({ urlParams: {} });
+			assert.strictEqual(counted.total, -60);
+
+			// The members are reachable through the bundle they belong to.
+			const members = yield* client.transactions.list({
+				urlParams: {
+					limit: 50,
+					offset: 0,
+					direction: "desc",
+					bundleId: parent.id,
+				},
+			});
+			assert.strictEqual(members.total, 2);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("refuses fewer than two members with a 422", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const a = yield* client.transactions.create({
+				payload: make({ amount: -20 }),
+			});
+			const error = yield* client.transactions
+				.createBundle({ payload: { ids: [a.id], label: "Lonely" } })
+				.pipe(Effect.flip);
+			assert.ok(error instanceof BundleInvalid);
+			assert.strictEqual(error.reason, "too-few-members");
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("refuses a row that already belongs to a bundle with a 422", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const a = yield* client.transactions.create({
+				payload: make({ amount: -20 }),
+			});
+			const b = yield* client.transactions.create({
+				payload: make({ amount: -5 }),
+			});
+			const c = yield* client.transactions.create({
+				payload: make({ amount: -7 }),
+			});
+			yield* client.transactions.createBundle({
+				payload: { ids: [a.id, b.id], label: "First" },
+			});
+
+			const error = yield* client.transactions
+				.createBundle({ payload: { ids: [a.id, c.id], label: "Second" } })
+				.pipe(Effect.flip);
+			assert.ok(error instanceof BundleInvalid);
+			assert.strictEqual(error.reason, "already-bundled");
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("refuses an unknown id with a 422", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const a = yield* client.transactions.create({
+				payload: make({ amount: -20 }),
+			});
+			const error = yield* client.transactions
+				.createBundle({ payload: { ids: [a.id, asTx(9999)], label: "Ghost" } })
+				.pipe(Effect.flip);
+			assert.ok(error instanceof BundleInvalid);
+			assert.strictEqual(error.reason, "unknown-id");
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	// The label is the parent's only human-readable identity, so a blank one is
+	// refused at the boundary (decode → 400) rather than written as a nameless row.
+	it.effect("refuses an empty label at the contract boundary", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const a = yield* client.transactions.create({
+				payload: make({ amount: -20 }),
+			});
+			const b = yield* client.transactions.create({
+				payload: make({ amount: -5 }),
+			});
+			const error = yield* client.transactions
+				.createBundle({ payload: { ids: [a.id, b.id], label: "" } })
+				.pipe(Effect.flip);
+			assert.ok(!(error instanceof BundleInvalid));
+		}).pipe(Effect.provide(HttpLive)),
 	);
 });

@@ -3,6 +3,7 @@ import { assert, describe, it } from "@effect/vitest";
 import {
 	AccountId,
 	AnomalyFlag,
+	BundleInvalid,
 	CategoryId,
 	IssuerId,
 	NotFound,
@@ -73,6 +74,11 @@ describe("TransactionFromRow storage codec", () => {
 			isRefund: true,
 			linkedRefundId: asTx(6),
 			transferGroupId: asTx(1),
+			// Stated explicitly: `kind` is the one column storage always holds, so an
+			// entity that leaves it absent does not survive the round-trip unchanged
+			// — it comes back as the `bank` row it always was (see the bare case).
+			kind: "bank",
+			bundleId: asTx(8),
 			anomalyFlags: [
 				new AnomalyFlag({
 					type: "high-amount",
@@ -111,12 +117,20 @@ describe("TransactionFromRow storage codec", () => {
 		const row = encode(bare);
 		assert.strictEqual(row.issuerId, null);
 		assert.strictEqual(row.transferGroupId, null);
+		assert.strictEqual(row.bundleId, null);
 		assert.strictEqual(row.manualCategory, 0);
 		assert.strictEqual(row.manualIssuer, 0);
 		assert.strictEqual(row.anomalyFlags, null);
 		assert.strictEqual(row.notes, null);
 		assert.strictEqual(row.importBatchId, null);
-		assert.deepStrictEqual(decode(row), bare);
+		// `kind` is the exception to the null → absent fold: the column is never
+		// null, so an absent kind is stored as the `bank` it means and reads back
+		// that way. Every other absent field round-trips as absent.
+		assert.strictEqual(row.kind, "bank");
+		assert.deepStrictEqual(
+			decode(row),
+			new Transaction({ ...bare, kind: "bank" }),
+		);
 	});
 });
 
@@ -1166,6 +1180,213 @@ describe("TransactionRepo", () => {
 				const repo = yield* TransactionRepo;
 				const result = yield* repo.unlinkTransfer(asTx(9999));
 				assert.strictEqual(result.count, 0);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+	});
+
+	// **Bundle** creation (issue #68, epic #66): several transactions treated as
+	// ONE for the recap. The parent is a synthetic row in this same table — so it
+	// sorts, pages, filters and is edited like any other — carrying a derived
+	// amount (the sum of its members) and the earliest member's date. Members are
+	// stamped with `bundleId` and drop out of the top level of the list.
+	describe("createBundle (issue #68)", () => {
+		it.effect("sums its members' amounts and takes the earliest date", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const spend = yield* repo.create(
+					make({
+						amount: -200,
+						date: new Date("2026-03-07T00:00:00.000Z"),
+						rawIssuerString: "GROCERIES",
+					}),
+				);
+				const payback = yield* repo.create(
+					make({
+						amount: 150,
+						date: new Date("2026-03-12T00:00:00.000Z"),
+						rawIssuerString: "REVOLUT LUCAS",
+					}),
+				);
+
+				const parent = yield* repo.createBundle(
+					[payback.id, spend.id],
+					"Weekend away",
+				);
+
+				// The 200 € debit and the 150 € repaid is one 50 € weekend.
+				assert.strictEqual(parent.amount, -50);
+				// The cost belongs to when the money was spent, not to when the last
+				// person settled up.
+				assert.deepStrictEqual(
+					parent.date,
+					new Date("2026-03-07T00:00:00.000Z"),
+				);
+				assert.strictEqual(parent.kind, "bundle");
+				assert.strictEqual(parent.bundleId, undefined);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect(
+			"stores the label in rawIssuerString, leaving issuer and category unset",
+			() =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					const a = yield* repo.create(
+						make({ amount: -20, issuerId: asIssuer(3) }),
+					);
+					const b = yield* repo.create(
+						make({
+							amount: -5,
+							categoryId: asCategory(7),
+							manualCategory: true,
+						}),
+					);
+
+					const parent = yield* repo.createBundle(
+						[a.id, b.id],
+						"  Weekend away  ",
+					);
+					// Trimmed: the label is the row's human-readable name, and leading
+					// whitespace is not part of it.
+					assert.strictEqual(parent.rawIssuerString, "Weekend away");
+					assert.strictEqual(parent.issuerId, undefined);
+					assert.strictEqual(parent.categoryId, undefined);
+					// Bundling never touches a member's own identity.
+					assert.strictEqual((yield* repo.getById(a.id)).issuerId, 3);
+					assert.strictEqual((yield* repo.getById(b.id)).categoryId, 7);
+				}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("stamps bundleId on every member, pointing at the parent", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -20 }));
+				const b = yield* repo.create(make({ amount: -5 }));
+
+				const parent = yield* repo.createBundle([a.id, b.id], "Trip");
+
+				assert.strictEqual((yield* repo.getById(a.id)).bundleId, parent.id);
+				assert.strictEqual((yield* repo.getById(b.id)).bundleId, parent.id);
+				assert.strictEqual((yield* repo.getById(a.id)).kind, "bank");
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("sums in integer cents, not as floats (-0.10 + -0.20)", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -0.1 }));
+				const b = yield* repo.create(make({ amount: -0.2 }));
+				const parent = yield* repo.createBundle([a.id, b.id], "Cents");
+				assert.strictEqual(parent.amount, -0.3);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("refuses fewer than two members (a set, so dupes collapse)", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -20 }));
+				const error = yield* repo
+					.createBundle([a.id, a.id], "Lonely")
+					.pipe(Effect.flip);
+				assert.deepStrictEqual(
+					error,
+					new BundleInvalid({ reason: "too-few-members" }),
+				);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("refuses an unknown (non-existent) id", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -20 }));
+				const error = yield* repo
+					.createBundle([a.id, asTx(9999)], "Ghost")
+					.pipe(Effect.flip);
+				assert.deepStrictEqual(
+					error,
+					new BundleInvalid({ reason: "unknown-id" }),
+				);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("refuses a member that already belongs to another bundle", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -20 }));
+				const b = yield* repo.create(make({ amount: -5 }));
+				const c = yield* repo.create(make({ amount: -7 }));
+				yield* repo.createBundle([a.id, b.id], "First");
+
+				const error = yield* repo
+					.createBundle([a.id, c.id], "Second")
+					.pipe(Effect.flip);
+				assert.deepStrictEqual(
+					error,
+					new BundleInvalid({ reason: "already-bundled" }),
+				);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("a refused bundle writes nothing (no parent, no stamping)", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -20 }));
+				yield* repo.createBundle([a.id, asTx(9999)], "Ghost").pipe(Effect.flip);
+				assert.strictEqual((yield* repo.getById(a.id)).bundleId, undefined);
+				assert.strictEqual((yield* repo.list(listAll)).total, 1);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		// Members are accounted for by their parent, so showing both would
+		// double-count — in the rows AND in the signed total beneath them.
+		it.effect("hides members from the list and its signed total", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -200 }));
+				const b = yield* repo.create(make({ amount: 150 }));
+				const unrelated = yield* repo.create(
+					make({ amount: -10, rawIssuerString: "COFFEE" }),
+				);
+				const parent = yield* repo.createBundle([a.id, b.id], "Weekend away");
+
+				const page = yield* repo.list(listAll);
+				assert.deepStrictEqual(
+					[...page.items.map((t) => t.id)].sort((x, y) => x - y),
+					[unrelated.id, parent.id].sort((x, y) => x - y),
+				);
+				assert.strictEqual(page.total, 2);
+				// -50 (the parent) + -10 (the unrelated row) — the members' -200 and
+				// +150 are counted once, through the parent.
+				assert.strictEqual((yield* repo.count({})).total, -60);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("the bundleId filter lists a bundle's members", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -200 }));
+				const b = yield* repo.create(make({ amount: 150 }));
+				yield* repo.create(make({ amount: -10 }));
+				const parent = yield* repo.createBundle([a.id, b.id], "Weekend away");
+
+				const page = yield* repo.list({ ...listAll, bundleId: parent.id });
+				assert.deepStrictEqual(
+					[...page.items.map((t) => t.id)].sort((x, y) => x - y),
+					[a.id, b.id].sort((x, y) => x - y),
+				);
+				assert.strictEqual(page.total, 2);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("a member is still reachable by id and in bulkGet", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -200 }));
+				const b = yield* repo.create(make({ amount: 150 }));
+				yield* repo.createBundle([a.id, b.id], "Weekend away");
+
+				assert.strictEqual((yield* repo.getById(a.id)).id, a.id);
+				assert.strictEqual((yield* repo.bulkGet([a.id, b.id])).length, 2);
 			}).pipe(Effect.provide(RepoTest)),
 		);
 	});

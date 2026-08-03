@@ -1,3 +1,4 @@
+import { Checkbox } from "@lucasriondel/gousse-ui";
 import type {
 	Account,
 	Category,
@@ -9,6 +10,7 @@ import {
 	createColumnHelper,
 	flexRender,
 	getCoreRowModel,
+	type RowSelectionState,
 	useReactTable,
 	type VisibilityState,
 } from "@tanstack/react-table";
@@ -53,6 +55,19 @@ export interface TransactionsTableProps {
 	onColumnVisibilityChange?: (
 		updater: VisibilityState | ((old: VisibilityState) => VisibilityState),
 	) => void;
+	/**
+	 * Which rows are selected, keyed by **transaction id** (see `getRowId`).
+	 * Optional: a caller that offers no bulk action (the category drill-down)
+	 * omits it and gets no checkbox column at all — an affordance that leads
+	 * nowhere is worse than none.
+	 */
+	rowSelection?: RowSelectionState;
+	/** TanStack's `onRowSelectionChange` handler (the owner holds the state). */
+	onRowSelectionChange?: (
+		updater:
+			| RowSelectionState
+			| ((old: RowSelectionState) => RowSelectionState),
+	) => void;
 }
 
 const columnHelper = createColumnHelper<Transaction>();
@@ -60,6 +75,34 @@ const columnHelper = createColumnHelper<Transaction>();
 /** Stable "everything visible" default, so an uncontrolled caller's table state
  * doesn't get a fresh object identity on every render. */
 const ALL_COLUMNS_VISIBLE: VisibilityState = {};
+
+/** Stable "nothing selected" default, for the same reason. */
+const NOTHING_SELECTED: RowSelectionState = {};
+
+/**
+ * The selection checkbox — gousse's `Checkbox` primitive (ADR 0002: gousse owns
+ * the chassis) named by `aria-label` rather than a visible `<label>`, since the
+ * column is 32px of pure control with no room for text beside it. TanStack owns
+ * the checked state; this holds none of its own.
+ */
+function SelectCheckbox({
+	checked,
+	onChange,
+	label,
+}: {
+	checked: boolean;
+	onChange: () => void;
+	label: string;
+}) {
+	return (
+		<Checkbox
+			checked={checked}
+			onChange={onChange}
+			aria-label={label}
+			className="align-middle"
+		/>
+	);
+}
 
 /**
  * The transactions data grid (columns **Date | Account | Issuer | Raw issuer |
@@ -71,7 +114,10 @@ const ALL_COLUMNS_VISIBLE: VisibilityState = {};
  *
  * Column visibility is controlled: the owner holds the state (persisted across
  * sessions) and passes it in, so the toggle menu can live outside the table in
- * the filter bar.
+ * the filter bar. Row selection is controlled the same way and adds a leading
+ * checkbox column (issue #68) — the owner holds the selection because the bar
+ * that acts on it lives outside the table too, and it is not toggleable: it is a
+ * gesture, not a dimension of the data.
  */
 export function TransactionsTable({
 	transactions,
@@ -82,7 +128,11 @@ export function TransactionsTable({
 	onToggleSort,
 	columnVisibility = ALL_COLUMNS_VISIBLE,
 	onColumnVisibilityChange,
+	rowSelection = NOTHING_SELECTED,
+	onRowSelectionChange,
 }: TransactionsTableProps) {
+	// Selection only exists where something can be done with it (issue #68).
+	const selectable = onRowSelectionChange !== undefined;
 	// Every category's **Resolved colour**, in one pass over the tree: an
 	// inheriting leaf's colour lives on an ancestor, so a row cannot resolve its
 	// own. `categoriesById` is the whole (small) tree, ancestors included.
@@ -93,6 +143,36 @@ export function TransactionsTable({
 
 	const columns = useMemo(
 		() => [
+			// The selection column (issue #68) — how several rows are picked out to be
+			// bundled into one. Scoped to the page on screen: bundle members are
+			// date-clustered in practice, and reaching across pages is what the
+			// add-to-an-existing-bundle path is for.
+			...(selectable
+				? [
+						columnHelper.display({
+							id: "select",
+							// No header text — the control *is* the header, named for
+							// assistive tech rather than by a visible label it would
+							// otherwise sit beside in a 32px-wide column.
+							header: ({ table: t }) => (
+								<SelectCheckbox
+									checked={t.getIsAllRowsSelected()}
+									onChange={() =>
+										t.toggleAllRowsSelected(!t.getIsAllRowsSelected())
+									}
+									label="Select all rows on this page"
+								/>
+							),
+							cell: ({ row }) => (
+								<SelectCheckbox
+									checked={row.getIsSelected()}
+									onChange={() => row.toggleSelected(!row.getIsSelected())}
+									label={`Select transaction ${row.original.rawIssuerString}`}
+								/>
+							),
+						}),
+					]
+				: []),
 			columnHelper.accessor("date", {
 				header: "Date",
 				cell: (info) => (
@@ -184,14 +264,19 @@ export function TransactionsTable({
 				cell: ({ row }) => <NotesPicker transaction={row.original} />,
 			}),
 		],
-		[accountsById, issuersById, categoriesById, categoryColorById],
+		[accountsById, issuersById, categoriesById, categoryColorById, selectable],
 	);
 
 	const table = useReactTable({
 		data: transactions as Transaction[],
 		columns,
-		state: { columnVisibility },
+		state: { columnVisibility, rowSelection },
 		onColumnVisibilityChange,
+		onRowSelectionChange,
+		// Key selection by the transaction's own id rather than TanStack's default
+		// row index: the selection *is* the set of ids a bundle is built from, and
+		// an index would silently mean a different row after a sort or a page turn.
+		getRowId: (row) => String(row.id),
 		getCoreRowModel: getCoreRowModel(),
 	});
 
@@ -289,10 +374,13 @@ export function TransactionsTable({
 							>
 								{row.getVisibleCells().map((cell) => {
 									// The issuer/category/notes cells are inline curation surfaces
-									// (their own click targets); a click there edits the row, it
-									// must not also navigate to the detail page. Stop the event
-									// before it bubbles to the row's navigation handler.
-									const isCurationCell =
+									// (their own click targets) and the select cell is the
+									// selection surface; a click in any of them acts on the row
+									// where it is, so it must not also navigate to the detail
+									// page. Stop the event before it bubbles to the row's
+									// navigation handler.
+									const isOwnClickTarget =
+										cell.column.id === "select" ||
 										cell.column.id === "issuer" ||
 										cell.column.id === "category" ||
 										cell.column.id === "notes";
@@ -300,7 +388,7 @@ export function TransactionsTable({
 										<TableCell
 											key={cell.id}
 											onClick={
-												isCurationCell
+												isOwnClickTarget
 													? (event) => event.stopPropagation()
 													: undefined
 											}

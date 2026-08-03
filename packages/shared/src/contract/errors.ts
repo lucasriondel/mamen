@@ -155,6 +155,35 @@ export class TransferInvalid extends Schema.TaggedError<TransferInvalid>()(
 	HttpApiSchema.annotations({ status: 422 }),
 ) {}
 
+/**
+ * A set of transactions could not be turned into a **bundle** (issue #68) —
+ * several rows treated as **one** for the recap. Raised only by `createBundle`,
+ * which validates the set atomically server-side: the multi-row invariants the
+ * generic single-row create structurally cannot enforce. A dedicated error
+ * rather than an overloaded `NotFound`, so the client can tell "one of these
+ * rows is gone" from "one of them is already in a bundle". `reason` is the
+ * machine-readable cause:
+ *
+ * - `too-few-members` — a bundle needs ≥2 distinct members. One row is already
+ *   its own account of itself; a parent standing for it would only double the
+ *   rows without changing a total.
+ * - `unknown-id` — some id in the set doesn't exist.
+ * - `already-bundled` — some row already carries a `bundleId`. A member belongs
+ *   to at most one bundle: two parents each claiming to sum it would each be
+ *   right about a different number.
+ *
+ * Mirrors {@link TransferInvalid}, the other multi-row grouping refusal — but is
+ * its own error, because a bundle nets to a **non-zero** amount and so shares
+ * none of the transfer's balance rules.
+ */
+export class BundleInvalid extends Schema.TaggedError<BundleInvalid>()(
+	"BundleInvalid",
+	{
+		reason: Schema.Literal("too-few-members", "unknown-id", "already-bundled"),
+	},
+	HttpApiSchema.annotations({ status: 422 }),
+) {}
+
 /** An upload's MIME type is not in the image allow-list. */
 export class InvalidFileType extends Schema.TaggedError<InvalidFileType>()(
 	"InvalidFileType",

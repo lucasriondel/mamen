@@ -9,8 +9,8 @@ import {
 } from "@/components/ui/table";
 
 /**
- * Placeholder widths for the grid's seven columns (**Date | Account | Issuer |
- * Raw issuer | Category | Amount | Notes**), matching the settled table so the
+ * Placeholder widths for the grid's columns (**select | Date | Account | Issuer
+ * | Raw issuer | Category | Amount | Notes**), matching the settled table so the
  * layout doesn't shift when the rows arrive. `w-full` on the raw-issuer column
  * mirrors its free-text stretch; `ml-auto` right-aligns the amount as the real
  * cell does.
@@ -20,6 +20,8 @@ import {
  * an identity.
  */
 const COLUMNS = [
+	// The selection checkbox (issue #68) — a 16px square in both rows and header.
+	{ id: "select", head: "w-4", cell: "w-4" },
 	{ id: "date", head: "w-10", cell: "w-16" },
 	{ id: "account", head: "w-14", cell: "w-20" },
 	{ id: "issuer", head: "w-12", cell: "w-24" },

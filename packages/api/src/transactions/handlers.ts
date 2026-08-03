@@ -55,6 +55,9 @@ export const TransactionsLive = HttpApiBuilder.group(
 				.handle("linkTransfer", (_) => repo.linkTransfer(_.payload.ids))
 				.handle("unlinkTransfer", (_) =>
 					repo.unlinkTransfer(_.payload.transferGroupId),
+				)
+				.handle("createBundle", (_) =>
+					repo.createBundle(_.payload.ids, _.payload.label),
 				);
 		}),
 ).pipe(Layer.provide([TransactionRepo.Default, IssuerMatcher.Default]));

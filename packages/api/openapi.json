@@ -1957,6 +1957,14 @@
             "required": false
           },
           {
+            "name": "bundleId",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/NumberFromString"
+            },
+            "required": false
+          },
+          {
             "name": "importMonth",
             "in": "query",
             "schema": {
@@ -2210,6 +2218,18 @@
                     "description": "an integer",
                     "title": "int"
                   },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "bank",
+                      "bundle"
+                    ]
+                  },
+                  "bundleId": {
+                    "type": "integer",
+                    "description": "an integer",
+                    "title": "int"
+                  },
                   "anomalyFlags": {
                     "type": "array",
                     "items": {
@@ -2303,6 +2323,14 @@
           },
           {
             "name": "transferGroupId",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/NumberFromString"
+            },
+            "required": false
+          },
+          {
+            "name": "bundleId",
             "in": "query",
             "schema": {
               "$ref": "#/components/schemas/NumberFromString"
@@ -2641,6 +2669,18 @@
                     "description": "an integer",
                     "title": "int"
                   },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "bank",
+                      "bundle"
+                    ]
+                  },
+                  "bundleId": {
+                    "type": "integer",
+                    "description": "an integer",
+                    "title": "int"
+                  },
                   "anomalyFlags": {
                     "type": "array",
                     "items": {
@@ -2892,6 +2932,18 @@
                           "title": "int"
                         },
                         "transferGroupId": {
+                          "type": "integer",
+                          "description": "an integer",
+                          "title": "int"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "bank",
+                            "bundle"
+                          ]
+                        },
+                        "bundleId": {
                           "type": "integer",
                           "description": "an integer",
                           "title": "int"
@@ -3439,6 +3491,82 @@
                     "type": "integer",
                     "description": "an integer",
                     "title": "int"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/transactions/bundle": {
+      "post": {
+        "tags": [
+          "Transactions"
+        ],
+        "operationId": "transactions.createBundle",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "201": {
+            "description": "Transaction",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transaction"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "BundleInvalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BundleInvalid"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "ids",
+                  "label"
+                ],
+                "properties": {
+                  "ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "description": "an integer",
+                      "title": "int"
+                    }
+                  },
+                  "label": {
+                    "type": "string",
+                    "description": "a string at least 1 character(s) long",
+                    "title": "minLength(1)",
+                    "minLength": 1
                   }
                 },
                 "additionalProperties": false
@@ -5685,6 +5813,18 @@
             "description": "an integer",
             "title": "int"
           },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "bank",
+              "bundle"
+            ]
+          },
+          "bundleId": {
+            "type": "integer",
+            "description": "an integer",
+            "title": "int"
+          },
           "anomalyFlags": {
             "type": "array",
             "items": {
@@ -5797,6 +5937,30 @@
             "type": "string",
             "enum": [
               "TransferInvalid"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "BundleInvalid": {
+        "type": "object",
+        "required": [
+          "reason",
+          "_tag"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string",
+            "enum": [
+              "too-few-members",
+              "unknown-id",
+              "already-bundled"
+            ]
+          },
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "BundleInvalid"
             ]
           }
         },

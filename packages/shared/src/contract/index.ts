@@ -24,6 +24,7 @@ export {
 } from "./database";
 export {
 	BooleanFromString,
+	BundleInvalid,
 	CategoryHoldsMoney,
 	CategoryInUse,
 	CategoryNotLeaf,
@@ -95,6 +96,7 @@ export {
 	SubscriptionUpdate,
 } from "./subscriptions";
 export {
+	BundleCreate,
 	NOTES_MAX_LENGTH,
 	TRANSFER_DATE_WINDOW_DAYS,
 	Transaction,
@@ -106,6 +108,7 @@ export {
 	TransactionCount,
 	TransactionCreate,
 	TransactionFilters,
+	TransactionKind,
 	TransactionListOrder,
 	TransactionsGroup,
 	TransactionUpdate,

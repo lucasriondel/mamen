@@ -37,6 +37,13 @@ export type TransactionListParams = {
 	 * `linkedRefundId`; the group id is one of the legs' `TransactionId`s.
 	 */
 	transferGroupId?: TransactionId;
+	/**
+	 * **Bundle** membership (issue #68) — narrows to the members of one bundle, so
+	 * a parent can list what it stands for. Omitted, the list hides every bundled
+	 * row: the parent already accounts for them, and showing both double-counts
+	 * the rows *and* the signed total.
+	 */
+	bundleId?: TransactionId;
 	importMonth?: string;
 	importBatchId?: string;
 	startDate?: Date;
@@ -294,6 +301,21 @@ export const transactionMutations = {
 		runQuery(
 			Effect.flatMap(Client, (client) =>
 				client.transactions.unlinkTransfer({ payload: { transferGroupId } }),
+			),
+		),
+
+	/**
+	 * Treat a set of transactions as **one** (issue #68) → the created **bundle
+	 * parent** (201). The server validates the set atomically (≥2 distinct
+	 * members, real ids, none already bundled) and fails `BundleInvalid` (422)
+	 * otherwise; the parent's amount is the members' sum and its date the earliest
+	 * of theirs. Invalidate `transactionKeys.all` after: every member has left the
+	 * top level of the list, and a new row has joined it.
+	 */
+	createBundle: (ids: ReadonlyArray<TransactionId>, label: string) =>
+		runQuery(
+			Effect.flatMap(Client, (client) =>
+				client.transactions.createBundle({ payload: { ids, label } }),
 			),
 		),
 };
