@@ -1,8 +1,8 @@
 import { CategoryIcon } from "@/components/category-icon";
 import { IssuerAvatar } from "@/features/issuers/issuer-avatar";
 import { formatCurrency } from "@/lib/format";
-import type { SpendRow } from "./recap-aggregate";
 import type { SpendSort } from "./recap-sort";
+import type { SpendRow } from "./spend-rows";
 import { SpendSortControl } from "./spend-sort-control";
 
 export interface SpendSectionProps {

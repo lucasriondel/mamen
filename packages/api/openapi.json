@@ -2505,6 +2505,211 @@
         }
       }
     },
+    "/api/transactions/recap": {
+      "get": {
+        "tags": [
+          "Transactions"
+        ],
+        "operationId": "transactions.recap",
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "query",
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/NumberFromString"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NumberFromString"
+                  }
+                }
+              ]
+            },
+            "required": false
+          },
+          {
+            "name": "startDate",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/Date"
+            },
+            "required": false
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/Date"
+            },
+            "required": false
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "byIssuer",
+                    "byCategory",
+                    "transfers"
+                  ],
+                  "properties": {
+                    "byIssuer": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "spent",
+                          "count"
+                        ],
+                        "properties": {
+                          "id": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "description": "an integer",
+                                "title": "int"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "spent": {
+                            "type": "number"
+                          },
+                          "count": {
+                            "type": "number"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "byCategory": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "spent",
+                          "count"
+                        ],
+                        "properties": {
+                          "id": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "description": "an integer",
+                                "title": "int"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "spent": {
+                            "type": "number"
+                          },
+                          "count": {
+                            "type": "number"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "transfers": {
+                      "type": "object",
+                      "required": [
+                        "total",
+                        "count"
+                      ],
+                      "properties": {
+                        "total": {
+                          "type": "number"
+                        },
+                        "count": {
+                          "type": "number"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/transactions/recap-periods": {
+      "get": {
+        "tags": [
+          "Transactions"
+        ],
+        "operationId": "transactions.recapPeriods",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "months"
+                  ],
+                  "properties": {
+                    "months": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        }
+      }
+    },
     "/api/transactions/{id}": {
       "get": {
         "tags": [

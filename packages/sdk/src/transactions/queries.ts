@@ -71,6 +71,24 @@ export type TransactionListParams = {
 	direction?: "asc" | "desc";
 };
 
+/**
+ * The **recap** params (issue #71) — a period and an account selection, and
+ * nothing else. Which rows count toward spend is not a filter the caller
+ * composes: the server applies one `countsTowardRecap` predicate (not a transfer
+ * leg, not excluded, not duplicate-excluded, not a bundle member) so the client
+ * never carries a second definition of it.
+ *
+ * `accountId` accepts a **set** — the recap's picker is multi-select and the
+ * whole selection is summed in ONE request, not one per account. `startDate` /
+ * `endDate` are inclusive bounds on the transaction **`date`**: every period
+ * (month, year, all time) is that same bound, widened.
+ */
+export type RecapParams = {
+	accountId?: AccountId | ReadonlyArray<AccountId>;
+	startDate?: Date;
+	endDate?: Date;
+};
+
 /** The `count` filter — the same composable set minus pagination + ordering. */
 export type TransactionCountParams = Omit<
 	TransactionListParams,
@@ -92,6 +110,9 @@ export const transactionKeys = {
 		[...transactionKeys.detail(id), "transfer-suggestions"] as const,
 	transferCandidates: () =>
 		[...transactionKeys.all, "transfer-candidates"] as const,
+	recap: (params: RecapParams) =>
+		[...transactionKeys.all, "recap", params] as const,
+	recapPeriods: () => [...transactionKeys.all, "recap-periods"] as const,
 	bulkGet: (ids: ReadonlyArray<TransactionId>) =>
 		[...transactionKeys.all, "bulk-get", ids] as const,
 };
@@ -176,6 +197,45 @@ export const transactionQueries = {
 				runQuery(
 					Effect.flatMap(Client, (client) =>
 						client.transactions.transferCandidates(),
+					),
+					signal,
+				),
+		}),
+
+	/**
+	 * The **recap** (issue #71): spend for a period and an account selection,
+	 * aggregated by issuer and by category **server-side, over the whole filtered
+	 * set** — no page, no row cap, no partial answer to caveat in the UI. The
+	 * buckets carry ids (`null` for the unassigned one) and are summed in integer
+	 * cents; the caller resolves the names it shows from the ids it is showing.
+	 * Any write that changes an amount, an issuer, a category or an exclusion
+	 * moves these totals, so invalidate `transactionKeys.all` after one.
+	 */
+	recap: (params: RecapParams = {}) =>
+		queryOptions({
+			queryKey: transactionKeys.recap(params),
+			queryFn: ({ signal }) =>
+				runQuery(
+					Effect.flatMap(Client, (client) =>
+						client.transactions.recap({ urlParams: params }),
+					),
+					signal,
+				),
+		}),
+
+	/**
+	 * Every `"YYYY-MM"` the data covers, newest first — the recap period picker's
+	 * options, derived from the transaction `date` exactly as the period bounds
+	 * are. Unscoped by period on purpose: switching away from a month must never
+	 * drop the option of switching back to it.
+	 */
+	recapPeriods: () =>
+		queryOptions({
+			queryKey: transactionKeys.recapPeriods(),
+			queryFn: ({ signal }) =>
+				runQuery(
+					Effect.flatMap(Client, (client) =>
+						client.transactions.recapPeriods(),
 					),
 					signal,
 				),

@@ -1857,3 +1857,167 @@ describe("createBundle (issue #68)", () => {
 		}).pipe(Effect.provide(HttpLive)),
 	);
 });
+
+// The **recap** over the wire (issue #71, epic #66) — the API seam, not the
+// repository: the query string carries the period as `date` bounds and the
+// account selection as a repeated param, and the aggregation comes back already
+// summed. The exclusion clauses and the period edges are pinned at the
+// repository; what is verified here is that they survive the round trip.
+describe("recap aggregation (issue #71)", () => {
+	const JULY = new Date("2026-07-15T12:00:00.000Z");
+
+	it.effect("returns spend by issuer and by category for a period", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const issuer = yield* client.issuers.create({
+				payload: {
+					name: "EDF",
+					firstSeen: JULY,
+					defaultCategoryId: asCategory(7),
+				},
+			});
+			yield* client.transactions.create({
+				payload: make({ amount: -40, date: JULY, issuerId: issuer.id }),
+			});
+			yield* client.transactions.create({
+				payload: make({ amount: -2.5, date: JULY, issuerId: issuer.id }),
+			});
+			// Dated outside the window — a row the period must not reach.
+			yield* client.transactions.create({
+				payload: make({
+					amount: -1000,
+					date: new Date("2026-08-02T00:00:00.000Z"),
+					issuerId: issuer.id,
+				}),
+			});
+
+			const recap = yield* client.transactions.recap({
+				urlParams: {
+					startDate: new Date("2026-07-01T00:00:00.000Z"),
+					endDate: new Date("2026-07-31T23:59:59.999Z"),
+				},
+			});
+			assert.deepStrictEqual(recap.byIssuer, [
+				{ id: issuer.id, spent: 42.5, count: 2 },
+			]);
+			// Categorised through the issuer's default, not by a stored column.
+			assert.deepStrictEqual(recap.byCategory, [
+				{ id: asCategory(7), spent: 42.5, count: 2 },
+			]);
+			assert.deepStrictEqual(recap.transfers, { total: 0, count: 0 });
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	// The account picker is multi-select; the selection rides as a repeated
+	// `?accountId=` and the whole of it is summed in one request.
+	it.effect("narrows to a selection of accounts in one request", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			yield* client.transactions.create({
+				payload: make({ amount: -10, date: JULY, accountId: asAccount(1) }),
+			});
+			yield* client.transactions.create({
+				payload: make({ amount: -20, date: JULY, accountId: asAccount(2) }),
+			});
+			yield* client.transactions.create({
+				payload: make({ amount: -40, date: JULY, accountId: asAccount(3) }),
+			});
+
+			const recap = yield* client.transactions.recap({
+				urlParams: { accountId: [asAccount(1), asAccount(3)] },
+			});
+			assert.deepStrictEqual(recap.byIssuer, [
+				{ id: null, spent: 50, count: 2 },
+			]);
+
+			const one = yield* client.transactions.recap({
+				urlParams: { accountId: asAccount(2) },
+			});
+			assert.deepStrictEqual(one.byIssuer, [{ id: null, spent: 20, count: 1 }]);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	// Every reason a row does not count, over the wire, in one dataset: a transfer
+	// leg (summarised instead), a hand-excluded row, an issuer-inherited exclusion,
+	// a duplicate, and a bundle member (its parent stands in).
+	it.effect("honours every exclusion reason and summarises transfers", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const joint = yield* client.issuers.create({
+				payload: { name: "Joint account", firstSeen: JULY },
+			});
+			yield* client.issuers.update({
+				path: { id: joint.id },
+				payload: { excludedFromRecap: true },
+			});
+
+			yield* client.transactions.create({
+				payload: make({ amount: -10, date: JULY, rawIssuerString: "REAL" }),
+			});
+			const debit = yield* client.transactions.create({
+				payload: make({ amount: -30, date: JULY, accountId: asAccount(1) }),
+			});
+			const credit = yield* client.transactions.create({
+				payload: make({ amount: 30, date: JULY, accountId: asAccount(2) }),
+			});
+			yield* client.transactions.linkTransfer({
+				payload: { ids: [debit.id, credit.id] },
+			});
+			yield* client.transactions.create({
+				payload: make({
+					amount: -100,
+					date: JULY,
+					excludedFromRecap: true,
+					manualExcluded: true,
+				}),
+			});
+			yield* client.transactions.create({
+				payload: make({ amount: -200, date: JULY, issuerId: joint.id }),
+			});
+			yield* client.transactions.create({
+				payload: make({ amount: -300, date: JULY, isDuplicateExcluded: true }),
+			});
+			const memberA = yield* client.transactions.create({
+				payload: make({ amount: -8, date: JULY }),
+			});
+			const memberB = yield* client.transactions.create({
+				payload: make({ amount: -2, date: JULY }),
+			});
+			yield* client.transactions.createBundle({
+				payload: { ids: [memberA.id, memberB.id], label: "Lunch run" },
+			});
+
+			const recap = yield* client.transactions.recap({ urlParams: {} });
+			// The real -10 plus the bundle parent's -10; nothing else counts.
+			assert.deepStrictEqual(recap.byIssuer, [
+				{ id: null, spent: 20, count: 2 },
+			]);
+			assert.deepStrictEqual(recap.transfers, { total: 30, count: 2 });
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	// The period picker's options come from the transaction date, so a row filed
+	// with a later statement offers the month it was actually spent in.
+	it.effect("lists the months the data covers, newest first", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			yield* client.transactions.create({
+				payload: make({
+					amount: -10,
+					date: JULY,
+					importMonth: "2026-08",
+				}),
+			});
+			yield* client.transactions.create({
+				payload: make({
+					amount: -10,
+					date: new Date("2025-12-24T00:00:00.000Z"),
+					importMonth: "2026-01",
+				}),
+			});
+
+			const { months } = yield* client.transactions.recapPeriods();
+			assert.deepStrictEqual(months, ["2026-07", "2025-12"]);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+});

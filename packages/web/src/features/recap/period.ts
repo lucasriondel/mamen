@@ -1,4 +1,4 @@
-import type { TransactionListParams } from "@/lib/sdk";
+import type { RecapParams } from "@/lib/sdk";
 
 /**
  * The recap page's period selector (issue #35). Spend is reviewed over one of
@@ -46,21 +46,38 @@ export function currentMonthPeriod(today: Date): Period {
 }
 
 /**
- * Turn a resolved {@link Period} into the transactions `list`/`count` filter that
- * scopes a query to it (issue #35):
- * - `month` → the `importMonth` filter (a row's `YYYY-MM` bucket).
- * - `year` → inclusive `startDate`/`endDate` bounds spanning Jan 1 – Dec 31 of
- *   the year (the contract has no year filter; a date range is the primitive).
+ * Turn a resolved {@link Period} into the recap filter that scopes a query to it
+ * (issue #35). All three periods are one bound on the transaction **`date`**,
+ * widened (issue #71):
+ * - `month` → Jan-1-style bounds spanning the first and last day of the month.
+ * - `year` → the same, spanning Jan 1 – Dec 31.
  * - `all` → no bound at all.
  *
- * The year bounds are built in UTC so they match the wire `date` (an ISO instant)
+ * The month used to filter on `importMonth` instead, which made the same row land
+ * in different buckets depending on whether you were looking at the month or the
+ * year: import month is **provenance** — it keys the delete-then-insert that
+ * makes re-import idempotent, and it is per-account-per-statement — while spend
+ * happens when the transaction happens. A late statement or a month-boundary row
+ * therefore moves; that is the correction, and statement-level reconciliation is
+ * already handled at import time.
+ *
+ * The bounds are built in UTC so they match the wire `date` (an ISO instant)
  * rather than drifting by the viewer's offset. `endDate` is the last millisecond
- * of Dec 31 so the upper bound is inclusive of the whole final day.
+ * of the final day, so the upper bound is inclusive of the whole of it; a month's
+ * last day is derived (`day 0` of the next month), never assumed to be 30 or 31.
  */
-export function periodToFilter(period: Period): TransactionListParams {
+export function periodToFilter(period: Period): RecapParams {
 	switch (period.kind) {
-		case "month":
-			return { importMonth: period.month };
+		case "month": {
+			const year = Number(period.month.slice(0, 4));
+			// 1-based, as the key writes it: `Date.UTC(y, m, 0)` is then the last
+			// day of month `m`, and `Date.UTC(y, m - 1, 1)` its first.
+			const month = Number(period.month.slice(5, 7));
+			return {
+				startDate: new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0)),
+				endDate: new Date(Date.UTC(year, month, 0, 23, 59, 59, 999)),
+			};
+		}
 		case "year": {
 			const year = Number(period.year);
 			return {

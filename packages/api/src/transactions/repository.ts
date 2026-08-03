@@ -7,6 +7,9 @@ import {
 	CategoryNotLeaf,
 	NotFound,
 	Paged,
+	RecapCategoryBucket,
+	RecapIssuerBucket,
+	RecapTransfers,
 	TRANSFER_DATE_WINDOW_DAYS,
 	Transaction,
 	type TransactionCreate,
@@ -275,7 +278,7 @@ const CountResult = Schema.Struct({
  * `AND`. `startDate`/`endDate` are inclusive bounds on `date`.
  */
 type Filters = {
-	accountId?: number;
+	accountId?: number | ReadonlyArray<number>;
 	issuerId?: number;
 	categoryId?: number | ReadonlyArray<number>;
 	linkedRefundId?: number;
@@ -291,6 +294,15 @@ type Filters = {
 	search?: string;
 	uncurated?: boolean;
 };
+
+/**
+ * The **recap** filter (issue #71) — a period and an account selection, and
+ * nothing else. A subset of {@link Filters} rather than a type of its own, so the
+ * recap runs through the same `buildConditions` every other read does: which rows
+ * *count* is the server's `countsTowardRecap` predicate, never something a caller
+ * composes.
+ */
+type RecapFilter = Pick<Filters, "accountId" | "startDate" | "endDate">;
 
 /** The full `list` filter — the composable set plus pagination + ordering. */
 type ListFilter = Filters & {
@@ -372,6 +384,27 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 			// filter would list it.
 			const recapExclusion = sql`CASE WHEN t.manualExcluded = 1 THEN t.excludedFromRecap ELSE COALESCE(i.excludedFromRecap, 0) END`;
 
+			// **Counts toward recap** (issue #71) — the ONE definition of what the
+			// spend summary is computed over, built from the `recapExclusion` fragment
+			// above rather than restating any part of it. A row counts unless it is:
+			//
+			// - a **transfer group** leg — money moving between the user's own
+			//   accounts, not spending. Summarised separately (`recapTransfersQuery`)
+			//   because there IS a counterpart and the movement is worth a line.
+			// - **excluded from recap** — by its own flag or through its issuer.
+			// - **duplicate-excluded** — the same money already counted on another
+			//   row, so counting it again would overstate the period.
+			//
+			// **Bundle members** are absent from this list on purpose: they are hidden
+			// by `buildConditions`' `t.bundleId IS NULL` default, which the recap
+			// inherits for free — the parent already stands for them.
+			//
+			// Every clause reads a column that is never NULL (`recapExclusion`
+			// COALESCEs the LEFT JOIN's away), so `NOT (…)` cannot swallow a row.
+			const isTransferLeg = sql`t.transferGroupId IS NOT NULL`;
+			const isRecapExcluded = sql`(${recapExclusion} = 1 OR t.isDuplicateExcluded = 1)`;
+			const countsTowardRecap = sql`(NOT ${isTransferLeg} AND NOT ${isRecapExcluded})`;
+
 			// The same expression under different table aliases, for the two
 			// self-join projections below (`suggestTransfers`, `transferCandidates`):
 			// each leg reads through its OWN issuer. Kept as one generator rather
@@ -386,8 +419,19 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 			// fragment list; an empty list means "no WHERE" (whole table).
 			const buildConditions = (f: Filters): Array<Fragment> => {
 				const conditions: Array<Fragment> = [];
-				if (f.accountId !== undefined)
-					conditions.push(sql`t.accountId = ${f.accountId}`);
+				// One account or a **set** of them: the recap's account picker is
+				// multi-select and sums the whole selection in ONE query (issue #71) —
+				// fanning out one query per account and merging the pages client-side
+				// is exactly what the old scan-and-reduce did. Same shape as the
+				// category filter below; an empty set matches nothing.
+				if (f.accountId !== undefined) {
+					const ids = Array.isArray(f.accountId)
+						? f.accountId
+						: [f.accountId as number];
+					conditions.push(
+						ids.length === 0 ? sql`1 = 0` : sql`t.accountId IN ${sql.in(ids)}`,
+					);
+				}
 				if (f.issuerId !== undefined)
 					conditions.push(sql`t.issuerId = ${f.issuerId}`);
 				// Filter on the DERIVED category, not the stored column (ADR 0002): an
@@ -556,6 +600,73 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				Result: CountResult,
 				execute: (f) =>
 					sql`SELECT COUNT(*) AS count, COALESCE(SUM(t.amount), 0) AS total ${readFrom} ${whereClause(f)}`,
+			});
+
+			// The recap's WHERE: the caller's own filters (period + accounts) AND the
+			// single `countsTowardRecap` predicate AND "this is spending" — money OUT,
+			// so only debits. Income nets a bucket down by never being counted, which
+			// is what makes a fully-refunded purchase read as its own charge and not
+			// as a negative bucket. `buildConditions` always contributes at least the
+			// bundle-member clause, so the fragment list is never empty.
+			const spendWhere = (f: Filters) =>
+				sql`WHERE ${sql.and([...buildConditions(f), countsTowardRecap, sql`t.amount < 0`])}`;
+
+			// Money is summed in **integer cents** and divided back once, never added
+			// as floats: three 0.10 € rows added as REALs give 0.30000000000000004,
+			// and a month of small amounts drifts visibly. The same discipline
+			// `linkTransfer` and `createBundle` apply to comparing and summing money.
+			// `ROUND(-t.amount * 100)` is a whole number of cents held exactly in a
+			// REAL, so `SUM` over them is exact.
+			const spentCents = sql`SUM(ROUND(-t.amount * 100))`;
+
+			// Spend per **issuer** over the whole filtered set — no page, no cap. The
+			// `null` group is the rows with no issuer: unattributed spend is still
+			// spend, so it comes back as its own bucket for the page to label
+			// *Unassigned* rather than being dropped from the total.
+			const recapByIssuerQuery = SqlSchema.findAll({
+				Request: Schema.Any as Schema.Schema<Filters>,
+				Result: RecapIssuerBucket,
+				execute: (f) =>
+					sql`SELECT t.issuerId AS id, ${spentCents} / 100.0 AS spent, COUNT(*) AS count ${readFrom} ${spendWhere(f)} GROUP BY t.issuerId ORDER BY spent DESC, t.issuerId`,
+			});
+
+			// Spend per **derived** category (ADR 0002), through the same fragment the
+			// projection and the category filter read: a row categorised through its
+			// issuer buckets under that category, not under Unassigned. Grouping by
+			// the expression rather than by `t.categoryId` is the whole point.
+			const recapByCategoryQuery = SqlSchema.findAll({
+				Request: Schema.Any as Schema.Schema<Filters>,
+				Result: RecapCategoryBucket,
+				execute: (f) =>
+					sql`SELECT ${derivedCategory} AS id, ${spentCents} / 100.0 AS spent, COUNT(*) AS count ${readFrom} ${spendWhere(f)} GROUP BY ${derivedCategory} ORDER BY spent DESC, id`,
+			});
+
+			// The transfer legs netted out of the breakdowns, summarised (PRD #48):
+			// `total` sums the DEBIT legs' magnitudes, so a clean -30/+30 pair reads
+			// as the 30 that moved rather than a net ~0 or a doubled 60; `count` is
+			// every leg in the period, both sides. Legs that are excluded or
+			// duplicate-excluded are left out of this too — they are out of the
+			// arithmetic entirely, and unlike a transfer there is nothing to report.
+			const recapTransfersQuery = SqlSchema.single({
+				Request: Schema.Any as Schema.Schema<Filters>,
+				Result: RecapTransfers,
+				execute: (f) =>
+					sql`SELECT COALESCE(SUM(CASE WHEN t.amount < 0 THEN ROUND(-t.amount * 100) ELSE 0 END), 0) / 100.0 AS total, COUNT(*) AS count ${readFrom} WHERE ${sql.and([...buildConditions(f), isTransferLeg, sql`NOT ${isRecapExcluded}`])}`,
+			});
+
+			// The months the data covers, newest first — the period picker's options.
+			// `substr(t.date, 1, 7)` is the `"YYYY-MM"` prefix of the ISO TEXT `date`,
+			// so the options are derived from the same field every period bound is
+			// (offering *import* months while filtering on the date is how the month
+			// and year views came to disagree). Bundle members are hidden like
+			// everywhere else; `countsTowardRecap` is deliberately NOT applied — a
+			// month exists because rows are dated in it, and hiding one whose money
+			// all happens to be excluded would leave the user unable to look at it.
+			const recapPeriodsQuery = SqlSchema.findAll({
+				Request: Schema.Void,
+				Result: Schema.Struct({ month: Schema.String }),
+				execute: () =>
+					sql`SELECT DISTINCT substr(t.date, 1, 7) AS month FROM transactions t WHERE t.bundleId IS NULL ORDER BY month DESC`,
 			});
 
 			const byIdQuery = SqlSchema.findOne({
@@ -882,6 +993,34 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				);
 
 			const count = (filter: Filters) => countQuery(filter).pipe(orDieSql);
+
+			/**
+			 * The **recap** (issue #71): spend for a period and an account selection,
+			 * aggregated by issuer and by category **over the whole filtered set**.
+			 *
+			 * This replaces a client-side scan that listed up to a fixed number of
+			 * rows per account and reduced them in the browser — past that cap the
+			 * totals were simply wrong, and every exclusion rule had to be restated in
+			 * that reducer alongside the SQL that already expressed it for the list.
+			 * Here there is one predicate, `countsTowardRecap`, defined once beside
+			 * the derived-category and derived-exclusion expressions it is built from.
+			 *
+			 * The three queries share one filter object, so the breakdowns and the
+			 * transfer line can never be computed over different row sets.
+			 */
+			const recap = (filter: RecapFilter) =>
+				Effect.all({
+					byIssuer: recapByIssuerQuery(filter),
+					byCategory: recapByCategoryQuery(filter),
+					transfers: recapTransfersQuery(filter),
+				}).pipe(orDieSql);
+
+			/** Every `"YYYY-MM"` the data covers, newest first (the period picker). */
+			const recapPeriods = () =>
+				recapPeriodsQuery().pipe(
+					Effect.map((rows) => ({ months: rows.map((r) => r.month) })),
+					orDieSql,
+				);
 
 			const getById = (id: typeof TransactionId.Type) =>
 				byIdQuery(id).pipe(
@@ -1233,6 +1372,8 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 			return {
 				list,
 				count,
+				recap,
+				recapPeriods,
 				getById,
 				suggestTransfers,
 				transferCandidates,

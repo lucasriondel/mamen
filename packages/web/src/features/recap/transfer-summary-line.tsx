@@ -1,5 +1,5 @@
 import { formatCurrency } from "@/lib/format";
-import type { TransferSummary } from "./recap-aggregate";
+import type { TransferSummary } from "./spend-rows";
 
 /**
  * The "Internal transfers" line (PRD #48) — the money that moved between the

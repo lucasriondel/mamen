@@ -44,6 +44,7 @@ export {
 	subscriptionQueries,
 } from "./subscriptions/queries";
 export {
+	type RecapParams,
 	type TransactionCountParams,
 	type TransactionListParams,
 	transactionKeys,

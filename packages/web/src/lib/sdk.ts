@@ -21,6 +21,7 @@ export {
 	issuerKeys,
 	issuerMutations,
 	issuerQueries,
+	type RecapParams,
 	type RuleCountParams,
 	type RuleListParams,
 	ruleKeys,

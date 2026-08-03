@@ -244,6 +244,109 @@ export const TransactionFilters = {
 } as const;
 
 /**
+ * The **recap**'s account filter (issue #71) — one account id, or a repeated set
+ * of them. The recap page's account picker is multi-select, and the aggregation
+ * runs in ONE query over the whole selection: fanning out one query per account
+ * and merging client-side is what forced the old scan-and-reduce. Same shape as
+ * {@link CategoryIdFilter}; absent means every account.
+ */
+export const AccountIdFilter = Schema.Union(
+	numFromStr(AccountId),
+	Schema.Array(numFromStr(AccountId)),
+);
+
+/**
+ * The **recap**'s filter set (issue #71) — deliberately narrow next to
+ * {@link TransactionFilters}: a recap is a **period** and an account selection,
+ * nothing else. Which rows *count* is not a filter the caller composes but the
+ * server's `countsTowardRecap` predicate, defined once in the repository beside
+ * the derived-category and derived-exclusion expressions.
+ *
+ * `startDate`/`endDate` are inclusive bounds on the transaction's **`date`** —
+ * the day the money moved. Every period (month, year, all time) is expressed as
+ * a bound on that one field: `importMonth` is provenance (it keys the
+ * delete-then-insert that makes re-import idempotent, and is
+ * per-account-per-statement), so bucketing a month by it made the same row land
+ * in different buckets depending on which period you were looking at.
+ */
+export const RecapFilters = {
+	accountId: Schema.optional(AccountIdFilter),
+	startDate: Schema.optional(Schema.Date), // inclusive lower bound on `date`
+	endDate: Schema.optional(Schema.Date), // inclusive upper bound on `date`
+} as const;
+
+/**
+ * One row of the by-issuer breakdown: the issuer, the money spent against it over
+ * the period, and how many spending rows fell in the bucket. `id` is `null` for
+ * the rows with no issuer — the **Unassigned** bucket, reported rather than
+ * dropped, since unattributed spend is still spend. `spent` is a **positive**
+ * magnitude in euros (debits only), summed in integer cents server-side so a
+ * period of small amounts does not accumulate float dust.
+ */
+export const RecapIssuerBucket = Schema.Struct({
+	id: Schema.NullOr(IssuerId),
+	spent: Schema.Number,
+	count: Schema.Number,
+});
+
+/**
+ * One row of the by-category breakdown. Keyed by the **derived** category (ADR
+ * 0002) — a row categorised through its issuer counts under that category, not
+ * under Unassigned. `id` is `null` for the uncategorised bucket.
+ */
+export const RecapCategoryBucket = Schema.Struct({
+	id: Schema.NullOr(CategoryId),
+	spent: Schema.Number,
+	count: Schema.Number,
+});
+
+/**
+ * The internal-transfer legs netted out of the breakdowns, summarised (PRD #48).
+ * `total` is the money that moved between the user's own accounts — the sum of
+ * the **debit** legs' magnitudes, so a clean -30/+30 pair reads as 30, not a net
+ * ~0 nor a doubled 60. `count` is every leg in the period, both sides.
+ */
+export const RecapTransfers = Schema.Struct({
+	total: Schema.Number,
+	count: Schema.Number,
+});
+
+/**
+ * `recap` success body (issue #71) — spend for a period, aggregated **over the
+ * whole filtered set** rather than a page. There is no row cap and no partial
+ * answer: the sums are computed in SQL, through the one `countsTowardRecap`
+ * predicate, so the client never re-expresses "counts toward spend" in a second
+ * reducer that has to be kept in sync by hand.
+ *
+ * Buckets carry ids, not names: the recap page already resolves the issuers and
+ * categories it is showing (by id — issue #62), and duplicating those names into
+ * this payload would make the aggregation own a second copy of the display
+ * identity it resolves nowhere else.
+ */
+export const RecapSummary = Schema.Struct({
+	byIssuer: Schema.Array(RecapIssuerBucket),
+	byCategory: Schema.Array(RecapCategoryBucket),
+	transfers: RecapTransfers,
+});
+export type RecapSummary = typeof RecapSummary.Type;
+export type RecapIssuerBucket = typeof RecapIssuerBucket.Type;
+export type RecapCategoryBucket = typeof RecapCategoryBucket.Type;
+export type RecapTransfers = typeof RecapTransfers.Type;
+
+/**
+ * `recap-periods` success body — every `"YYYY-MM"` month the data covers,
+ * newest first, derived from the transaction **`date`** like every recap bound.
+ * The period picker offers these; the years it offers are their distinct
+ * prefixes. Unscoped by period (that is what it is *for*: switching away from a
+ * period must never drop the option of switching back) and unfiltered by
+ * `countsTowardRecap` — a month exists because rows are dated in it, not because
+ * its money counts.
+ */
+export const RecapPeriods = Schema.Struct({
+	months: Schema.Array(Schema.String),
+});
+
+/**
  * The `list` ordering params: `orderBy: "date"` orders by `date`, `direction`
  * defaults `desc` (faithful to the old `getAllOrderedByDate` default). Separate
  * from {@link TransactionFilters} because `count` — which takes the identical
@@ -423,6 +526,26 @@ export class TransactionsGroup extends HttpApiGroup.make("transactions")
 			"transferCandidates",
 		)`/transactions/transfer-candidates`.addSuccess(
 			Schema.Array(TransferCandidate),
+		),
+	)
+	// The **recap** (issue #71): spend for one period and account selection,
+	// aggregated by issuer and by category over the WHOLE filtered set — no page,
+	// no row cap, no `truncated` caveat. Which rows count is the server's single
+	// `countsTowardRecap` predicate (not a transfer leg, not excluded, not
+	// duplicate-excluded), defined once beside the derived-category and
+	// derived-exclusion expressions, so the recap and the list can never disagree
+	// about what "counts toward spend" means. Another literal sub-path, declared
+	// before the `:id` route.
+	.add(
+		HttpApiEndpoint.get("recap")`/transactions/recap`
+			.setUrlParams(Schema.Struct(RecapFilters))
+			.addSuccess(RecapSummary),
+	)
+	// The months the recap can be asked about — the period picker's options,
+	// derived from the transaction `date` exactly as the period bounds are.
+	.add(
+		HttpApiEndpoint.get("recapPeriods")`/transactions/recap-periods`.addSuccess(
+			RecapPeriods,
 		),
 	)
 	.add(

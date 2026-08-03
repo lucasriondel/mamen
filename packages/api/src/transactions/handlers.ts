@@ -11,6 +11,11 @@ import { TransactionRepo } from "./repository";
  * `deleteByAccountMonth`/`deleteByImportBatch`). Each handler is a thin delegate;
  * status codes / success bodies are set by the contract, not here.
  *
+ * `recap`/`recapPeriods` (issue #71) are delegates like the rest: the spend
+ * summary is summed in SQL over the whole filtered set, and the one
+ * `countsTowardRecap` predicate lives in the repository beside the derived
+ * expressions it is built from — never restated here.
+ *
  * `bulkCreate` is the exception: after inserting the rows it runs the
  * {@link IssuerMatcher} over them so a freshly-imported statement arrives with
  * `issuerId` already resolved against the current Matching Rules (PRD #8; import
@@ -26,6 +31,8 @@ export const TransactionsLive = HttpApiBuilder.group(
 			return handlers
 				.handle("list", (_) => repo.list(_.urlParams))
 				.handle("count", (_) => repo.count(_.urlParams))
+				.handle("recap", (_) => repo.recap(_.urlParams))
+				.handle("recapPeriods", () => repo.recapPeriods())
 				.handle("getById", (_) => repo.getById(_.path.id))
 				.handle("transferCandidates", () => repo.transferCandidates())
 				.handle("transferSuggestions", (_) => repo.suggestTransfers(_.path.id))

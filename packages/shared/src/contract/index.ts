@@ -96,8 +96,15 @@ export {
 	SubscriptionUpdate,
 } from "./subscriptions";
 export {
+	AccountIdFilter,
 	BundleCreate,
 	NOTES_MAX_LENGTH,
+	RecapCategoryBucket,
+	RecapFilters,
+	RecapIssuerBucket,
+	RecapPeriods,
+	RecapSummary,
+	RecapTransfers,
 	TRANSFER_DATE_WINDOW_DAYS,
 	Transaction,
 	TransactionAffected,

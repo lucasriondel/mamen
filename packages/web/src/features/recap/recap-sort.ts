@@ -1,4 +1,4 @@
-import type { SpendRow } from "./recap-aggregate";
+import type { SpendRow } from "./spend-rows";
 
 /**
  * How a recap spend section can be ordered (issue #35):

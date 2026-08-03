@@ -4,14 +4,13 @@ import { Empty } from "@/components/ui/empty";
 import { AccountMultiSelect } from "./account-multi-select";
 import type { Period } from "./period";
 import { PeriodSelector } from "./period-selector";
-import type { SpendRow } from "./recap-aggregate";
 import { RecapSkeleton } from "./recap-skeleton";
 import type { SpendSort } from "./recap-sort";
 import { sortSpendRows } from "./recap-sort";
 import { type RecapSearch, toPeriod, toSpendSort } from "./search";
+import type { SpendRow } from "./spend-rows";
 import { SpendSection } from "./spend-section";
 import { TransferSummaryLine } from "./transfer-summary-line";
-import { TruncationNotice } from "./truncation-notice";
 import { useRecapSpend } from "./use-recap-spend";
 
 const routeApi = getRouteApi("/recap");
@@ -27,9 +26,9 @@ function sumSpent(rows: readonly SpendRow[]): number {
  *
  * Filters + sort live in the route's typed URL search params, so a filtered
  * recap is bookmarkable and survives a refresh, mirroring the transactions and
- * issuers routes. The spend itself is fetched and aggregated client-side by
- * {@link useRecapSpend} (the contract has no per-issuer/category sum); the two
- * pure sections just sort and render. A read failure shows an inline `Empty`.
+ * issuers routes. The spend itself is summed **server-side** over the whole
+ * period (issue #71) and read by {@link useRecapSpend}; the two pure sections
+ * just sort and render. A read failure shows an inline `Empty`.
  */
 export function RecapView() {
 	const search = routeApi.useSearch();
@@ -40,8 +39,10 @@ export function RecapView() {
 	const sort = toSpendSort(search);
 	const accountIds = search.accountIds ?? [];
 
-	const { spend, accounts, months, years, isPending, isError, truncated } =
-		useRecapSpend(period, accountIds);
+	const { spend, accounts, months, years, isPending, isError } = useRecapSpend(
+		period,
+		accountIds,
+	);
 
 	const byIssuer = useMemo(
 		() => sortSpendRows(spend.byIssuer, sort),
@@ -117,7 +118,6 @@ export function RecapView() {
 				<RecapSkeleton />
 			) : (
 				<>
-					{truncated ? <TruncationNotice /> : null}
 					{spend.transfers.count > 0 ? (
 						<TransferSummaryLine transfers={spend.transfers} />
 					) : null}

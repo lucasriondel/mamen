@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { SpendRow } from "./recap-aggregate";
 import {
 	DEFAULT_SPEND_SORT,
 	nextSpendSort,
 	type SpendSort,
 	sortSpendRows,
 } from "./recap-sort";
+import type { SpendRow } from "./spend-rows";
 
 function row(name: string, spent: number, id: number | null = null): SpendRow {
 	return { id, name, spent, count: 1 };

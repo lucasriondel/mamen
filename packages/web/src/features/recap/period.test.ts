@@ -26,9 +26,27 @@ describe("currentMonthPeriod", () => {
 });
 
 describe("periodToFilter", () => {
-	it("maps a month to the importMonth filter", () => {
+	// Issue #71: a month is a bound on the transaction **date**, like the year and
+	// unlike the `importMonth` it used to filter on — spend happens when the
+	// transaction happens, and provenance is not a bucket.
+	it("maps a month to inclusive UTC start/end bounds on the date", () => {
 		const period: Period = { kind: "month", month: "2026-07" };
-		expect(periodToFilter(period)).toEqual({ importMonth: "2026-07" });
+		expect(periodToFilter(period)).toEqual({
+			startDate: new Date(Date.UTC(2026, 6, 1, 0, 0, 0, 0)),
+			endDate: new Date(Date.UTC(2026, 6, 31, 23, 59, 59, 999)),
+		});
+	});
+
+	it("bounds a month at the last millisecond of its last day", () => {
+		// February, so the length of the month has to be derived, not assumed.
+		const { endDate } = periodToFilter({ kind: "month", month: "2026-02" });
+		expect(endDate?.toISOString()).toBe("2026-02-28T23:59:59.999Z");
+	});
+
+	it("never filters on the import month", () => {
+		expect(
+			periodToFilter({ kind: "month", month: "2026-07" }),
+		).not.toHaveProperty("importMonth");
 	});
 
 	it("maps a year to inclusive UTC start/end bounds", () => {

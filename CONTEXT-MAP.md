@@ -286,9 +286,16 @@ repeated per package.
   positive magnitudes, ranked high→low. Not every row reaches it — a **transfer
   group**'s legs, a transaction **excluded from recap**, and a **bundle member**
   (its **bundle parent** stands in for it) are all held out. Which rows count is
-  one predicate, defined once beside the **derived category** expression, never
-  restated per surface: a second copy is a second definition of "counts toward
-  spend", and the two drift.
+  one predicate, `countsTowardRecap`, defined once beside the **derived category**
+  expression and never restated per surface: a second copy is a second definition
+  of "counts toward spend", and the two drift. The totals are summed **in SQL over
+  the whole period** (issue #71) — there is no page, no row cap and no partial
+  answer; the client only names the buckets it is handed.
+  A period is always a bound on the transaction **date**, never on the **import
+  month**: import month is provenance (it keys the delete-then-insert that makes
+  re-import idempotent, and it is per-account-per-statement), while spend happens
+  when the transaction happens. Bucketing the month view by it made the same row
+  land in different buckets in the month and year views.
   _Avoid_: dashboard, report, stats, overview.
 
 - **Excluded from recap** — a transaction that does not count toward spend

@@ -1074,6 +1074,421 @@ describe("TransactionRepo", () => {
 		);
 	});
 
+	// The **recap** (issue #71): spend aggregated in SQL over the WHOLE filtered
+	// set — the thing the old client-side scan could only approximate past its row
+	// cap. Every case below pins one clause of the single `countsTowardRecap`
+	// predicate, or one edge of the period bound it runs under.
+	describe("recap aggregation", () => {
+		/** A spending row (a debit) dated in July 2026 unless told otherwise. */
+		const spent = (over: Partial<TransactionCreate> = {}): TransactionCreate =>
+			make({
+				amount: -10,
+				date: new Date("2026-07-15T12:00:00.000Z"),
+				importMonth: "2026-07",
+				...over,
+			});
+
+		/** The buckets as `{ [id]: spent }`, with `"none"` for the null bucket. */
+		const byId = (
+			rows: ReadonlyArray<{ id: number | null; spent: number; count: number }>,
+		) => Object.fromEntries(rows.map((r) => [r.id ?? "none", r]));
+
+		it.effect(
+			"sums spend by issuer and by category, as positive magnitudes",
+			() =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* repo.create(
+						spent({
+							amount: -10,
+							issuerId: asIssuer(1),
+							categoryId: asCategory(7),
+							manualCategory: true,
+						}),
+					);
+					yield* repo.create(
+						spent({
+							amount: -5,
+							issuerId: asIssuer(1),
+							categoryId: asCategory(7),
+							manualCategory: true,
+						}),
+					);
+					yield* repo.create(
+						spent({
+							amount: -8,
+							issuerId: asIssuer(2),
+							categoryId: asCategory(8),
+							manualCategory: true,
+						}),
+					);
+
+					const recap = yield* repo.recap({});
+					assert.deepStrictEqual(byId(recap.byIssuer)[1], {
+						id: 1,
+						spent: 15,
+						count: 2,
+					});
+					assert.deepStrictEqual(byId(recap.byIssuer)[2], {
+						id: 2,
+						spent: 8,
+						count: 1,
+					});
+					assert.deepStrictEqual(byId(recap.byCategory)[7], {
+						id: 7,
+						spent: 15,
+						count: 2,
+					});
+				}).pipe(Effect.provide(RepoTest)),
+		);
+
+		// Spend is money OUT. Income and zero-value rows are not spending, so they
+		// reach no bucket — a refund still nets its purchase out by being income.
+		it.effect("counts only debits — income and zero rows reach no bucket", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				yield* repo.create(spent({ amount: -10, issuerId: asIssuer(1) }));
+				yield* repo.create(spent({ amount: 100, issuerId: asIssuer(1) }));
+				yield* repo.create(spent({ amount: 0, issuerId: asIssuer(1) }));
+
+				const recap = yield* repo.recap({});
+				assert.deepStrictEqual(byId(recap.byIssuer)[1], {
+					id: 1,
+					spent: 10,
+					count: 1,
+				});
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		// Unattributed spend is still spend: it lands in a `null`-keyed bucket the
+		// page labels *Unassigned*, rather than being dropped from the total.
+		it.effect("reports rows with no issuer / no category under a null id", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				yield* repo.create(spent({ amount: -10 }));
+				yield* repo.create(spent({ amount: -4 }));
+
+				const recap = yield* repo.recap({});
+				assert.deepStrictEqual(byId(recap.byIssuer).none, {
+					id: null,
+					spent: 14,
+					count: 2,
+				});
+				assert.deepStrictEqual(byId(recap.byCategory).none, {
+					id: null,
+					spent: 14,
+					count: 2,
+				});
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		// ADR 0002 on the aggregation surface: a row categorised THROUGH its issuer
+		// must bucket under that category, not under Unassigned.
+		it.effect("buckets by the derived category, not the stored column", () =>
+			Effect.gen(function* () {
+				const sql = yield* SqlClient.SqlClient;
+				const repo = yield* TransactionRepo;
+				yield* sql`INSERT INTO issuers (id, name, defaultCategoryId, createdAt, firstSeen) VALUES (8, 'Spotify AB', 7, ${DATE.toISOString()}, ${DATE.toISOString()})`;
+				yield* repo.create(spent({ amount: -12, issuerId: asIssuer(8) }));
+
+				const recap = yield* repo.recap({});
+				assert.deepStrictEqual(byId(recap.byCategory)[7], {
+					id: 7,
+					spent: 12,
+					count: 1,
+				});
+			}).pipe(Effect.provide(RepoAndSqlTest)),
+		);
+
+		// Transfer legs are money moving between the user's own accounts, so they
+		// leave both breakdowns — and are summarised instead: the debit legs'
+		// magnitudes, so a clean pair reads as what moved, not as double or ~zero.
+		it.effect(
+			"nets transfer legs out of the breakdowns and summarises them",
+			() =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					const debit = yield* repo.create(
+						spent({ amount: -30, issuerId: asIssuer(1) }),
+					);
+					const credit = yield* repo.create(
+						spent({
+							amount: 30,
+							accountId: asAccount(2),
+							issuerId: asIssuer(1),
+						}),
+					);
+					yield* repo.linkTransfer([debit.id, credit.id]);
+					yield* repo.create(spent({ amount: -10, issuerId: asIssuer(2) }));
+
+					const recap = yield* repo.recap({});
+					assert.strictEqual(byId(recap.byIssuer)[1], undefined);
+					assert.deepStrictEqual(byId(recap.byIssuer)[2], {
+						id: 2,
+						spent: 10,
+						count: 1,
+					});
+					assert.deepStrictEqual(recap.transfers, { total: 30, count: 2 });
+				}).pipe(Effect.provide(RepoTest)),
+		);
+
+		// **Excluded from recap** through BOTH routes (ADR 0008): the per-row flag
+		// and the issuer's default. Read through the shared `recapExclusion`
+		// fragment, so the inherited half cannot be left in.
+		it.effect("drops excluded rows — flagged and issuer-inherited alike", () =>
+			Effect.gen(function* () {
+				const sql = yield* SqlClient.SqlClient;
+				const repo = yield* TransactionRepo;
+				yield* sql`INSERT INTO issuers (id, name, excludedFromRecap, createdAt, firstSeen) VALUES (10, 'Joint account', 1, ${DATE.toISOString()}, ${DATE.toISOString()})`;
+				yield* repo.create(
+					spent({
+						amount: -50,
+						issuerId: asIssuer(1),
+						excludedFromRecap: true,
+						manualExcluded: true,
+					}),
+				);
+				yield* repo.create(spent({ amount: -70, issuerId: asIssuer(10) }));
+				yield* repo.create(spent({ amount: -10, issuerId: asIssuer(2) }));
+
+				const recap = yield* repo.recap({});
+				assert.deepStrictEqual(
+					recap.byIssuer.map((r) => r.id),
+					[asIssuer(2)],
+				);
+				// Not summarised as a transfer either: nothing moved, there is no
+				// counterpart — an excluded row is simply out of the arithmetic.
+				assert.deepStrictEqual(recap.transfers, { total: 0, count: 0 });
+			}).pipe(Effect.provide(RepoAndSqlTest)),
+		);
+
+		// An override the other way: a row inside an excluded issuer, forced back
+		// into the recap, is spend again — the predicate follows the derived value.
+		it.effect("counts a row forced back into the recap", () =>
+			Effect.gen(function* () {
+				const sql = yield* SqlClient.SqlClient;
+				const repo = yield* TransactionRepo;
+				yield* sql`INSERT INTO issuers (id, name, excludedFromRecap, createdAt, firstSeen) VALUES (10, 'Joint account', 1, ${DATE.toISOString()}, ${DATE.toISOString()})`;
+				yield* repo.create(
+					spent({
+						amount: -70,
+						issuerId: asIssuer(10),
+						excludedFromRecap: false,
+						manualExcluded: true,
+					}),
+				);
+
+				const recap = yield* repo.recap({});
+				assert.deepStrictEqual(byId(recap.byIssuer)[10], {
+					id: 10,
+					spent: 70,
+					count: 1,
+				});
+			}).pipe(Effect.provide(RepoAndSqlTest)),
+		);
+
+		// The third clause: a row the import marked as a duplicate of another is
+		// the same money twice, so counting it would overstate the period.
+		it.effect("drops duplicate-excluded rows", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				yield* repo.create(
+					spent({
+						amount: -25,
+						issuerId: asIssuer(1),
+						isDuplicateExcluded: true,
+					}),
+				);
+				yield* repo.create(spent({ amount: -10, issuerId: asIssuer(2) }));
+
+				const recap = yield* repo.recap({});
+				assert.deepStrictEqual(
+					recap.byIssuer.map((r) => r.id),
+					[asIssuer(2)],
+				);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		// A **bundle member** is accounted for by its parent, so counting both would
+		// show the same money twice. The hiding is `buildConditions`' default, which
+		// the recap inherits for free.
+		it.effect("counts the bundle parent once, never its members", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(spent({ amount: -200 }));
+				const b = yield* repo.create(spent({ amount: 150 }));
+				yield* repo.createBundle([a.id, b.id], "Weekend away");
+
+				const recap = yield* repo.recap({});
+				// The parent nets to -50 and is the only row in the breakdown.
+				assert.deepStrictEqual(byId(recap.byIssuer).none, {
+					id: null,
+					spent: 50,
+					count: 1,
+				});
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		// The correction at the heart of #71: the period is a bound on the
+		// transaction **date**, so a row whose statement landed in another month
+		// counts where the money was spent — and both edges of the window are
+		// inclusive.
+		it.effect("bounds the period on the transaction date, inclusively", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				// Dated in July, imported with August's statement — a late statement.
+				yield* repo.create(
+					spent({
+						amount: -10,
+						date: new Date("2026-07-31T22:00:00.000Z"),
+						importMonth: "2026-08",
+					}),
+				);
+				// Both edges of the July window, to the millisecond.
+				yield* repo.create(
+					spent({ amount: -1, date: new Date("2026-07-01T00:00:00.000Z") }),
+				);
+				yield* repo.create(
+					spent({ amount: -2, date: new Date("2026-07-31T23:59:59.999Z") }),
+				);
+				// Just outside it, dated in August but imported with July's statement.
+				yield* repo.create(
+					spent({
+						amount: -99,
+						date: new Date("2026-08-01T00:00:00.000Z"),
+						importMonth: "2026-07",
+					}),
+				);
+
+				const july = yield* repo.recap({
+					startDate: new Date("2026-07-01T00:00:00.000Z"),
+					endDate: new Date("2026-07-31T23:59:59.999Z"),
+				});
+				assert.deepStrictEqual(byId(july.byIssuer).none, {
+					id: null,
+					spent: 13,
+					count: 3,
+				});
+
+				// The year and the unbounded window are the same bound, widened.
+				const year = yield* repo.recap({
+					startDate: new Date("2026-01-01T00:00:00.000Z"),
+					endDate: new Date("2026-12-31T23:59:59.999Z"),
+				});
+				assert.strictEqual(byId(year.byIssuer).none?.count, 4);
+				assert.strictEqual(
+					byId((yield* repo.recap({})).byIssuer).none?.count,
+					4,
+				);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("narrows to one account, or to a selection of them", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				yield* repo.create(spent({ amount: -10, accountId: asAccount(1) }));
+				yield* repo.create(spent({ amount: -20, accountId: asAccount(2) }));
+				yield* repo.create(spent({ amount: -40, accountId: asAccount(3) }));
+
+				assert.strictEqual(
+					byId((yield* repo.recap({ accountId: asAccount(2) })).byIssuer).none
+						?.spent,
+					20,
+				);
+				// The picker is multi-select, and the whole selection is ONE query.
+				assert.strictEqual(
+					byId(
+						(yield* repo.recap({ accountId: [asAccount(1), asAccount(3)] }))
+							.byIssuer,
+					).none?.spent,
+					50,
+				);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		// Amounts are float euros; three of them summed as floats give
+		// 0.30000000000000004. The sum runs in integer cents, exactly as
+		// `linkTransfer` and `createBundle` compare and add money.
+		it.effect(
+			"sums in integer cents, so a period of small amounts is exact",
+			() =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* repo.create(spent({ amount: -0.1 }));
+					yield* repo.create(spent({ amount: -0.2 }));
+					yield* repo.create(spent({ amount: -0.1 }));
+
+					const recap = yield* repo.recap({});
+					assert.strictEqual(byId(recap.byIssuer).none?.spent, 0.4);
+				}).pipe(Effect.provide(RepoTest)),
+		);
+
+		// The point of moving this server-side: the old scan reduced at most 1000
+		// rows per account and admitted the shortfall with a `truncated` flag.
+		// There is no page here, so there is nothing to truncate.
+		it.effect("aggregates the whole set, past any page size", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				yield* repo.bulkCreate(
+					Array.from({ length: 1200 }, () =>
+						spent({ amount: -1, issuerId: asIssuer(1) }),
+					),
+				);
+
+				const recap = yield* repo.recap({});
+				assert.deepStrictEqual(byId(recap.byIssuer)[1], {
+					id: 1,
+					spent: 1200,
+					count: 1200,
+				});
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect(
+			"returns empty breakdowns and no transfers for an empty set",
+			() =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					const recap = yield* repo.recap({});
+					assert.deepStrictEqual(recap.byIssuer, []);
+					assert.deepStrictEqual(recap.byCategory, []);
+					assert.deepStrictEqual(recap.transfers, { total: 0, count: 0 });
+				}).pipe(Effect.provide(RepoTest)),
+		);
+
+		// The period picker's options, derived from the transaction date like every
+		// other period bound — offering an *import* month while filtering on the
+		// date is how the two views came to disagree in the first place.
+		it.effect(
+			"lists the distinct months of the transaction dates, newest first",
+			() =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* repo.create(
+						spent({
+							date: new Date("2026-07-15T00:00:00.000Z"),
+							importMonth: "2026-08",
+						}),
+					);
+					yield* repo.create(
+						spent({
+							date: new Date("2026-07-02T00:00:00.000Z"),
+							importMonth: "2026-07",
+						}),
+					);
+					yield* repo.create(
+						spent({
+							date: new Date("2025-12-31T00:00:00.000Z"),
+							importMonth: "2026-01",
+						}),
+					);
+
+					const { months } = yield* repo.recapPeriods();
+					assert.deepStrictEqual(months, ["2026-07", "2025-12"]);
+				}).pipe(Effect.provide(RepoTest)),
+		);
+	});
+
 	// Link/unlink internal transfers (PRD #48, issue #50). The atomic multi-row
 	// operations validated entirely server-side — tested at the repository seam
 	// over the in-memory SQLite layer, the same boundary the handler tests use.
