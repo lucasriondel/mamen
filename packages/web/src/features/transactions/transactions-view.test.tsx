@@ -332,6 +332,27 @@ describe("TransactionsView", () => {
 		expect(countedRow).not.toHaveAttribute("data-excluded");
 	});
 
+	// Exclusion is derived through the issuer (issue #69, ADR 0008), so the wire
+	// hands the table one answer whatever its source: a row excluded because its
+	// issuer is (no `manualExcluded`) and one the user flagged by hand must be
+	// indistinguishable here. Anything else would make the table re-implement the
+	// derivation — the drift ADR 0002 exists to stop.
+	it("paints an inherited exclusion exactly like a hand-flagged one", async () => {
+		listRows = [
+			// Inherited: the row carries no manual flag of its own.
+			{ ...TXNS[0], excludedFromRecap: true },
+			{ ...TXNS[1], excludedFromRecap: true, manualExcluded: true },
+		];
+		await renderView();
+
+		const inherited = screen.getByText("SPOTIFY P2A34").closest("tr");
+		const manual = screen.getAllByText("ACME PAYROLL")[0].closest("tr");
+		expect(inherited).toHaveAttribute("data-excluded", "true");
+		expect(manual).toHaveAttribute("data-excluded", "true");
+		expect(inherited?.className).toContain("bg-gousse-muted");
+		expect(manual?.className).toContain("bg-gousse-muted");
+	});
+
 	// An excluded row that is *also* bare would otherwise carry two washes; the
 	// exclusion is the stronger statement, so it wins (ADR 0008).
 	it("prefers the exclusion colour over the uncurated tint on a bare row", async () => {

@@ -290,6 +290,49 @@ describe("IssuerRepo", () => {
 		}).pipe(Effect.provide(RepoTest)),
 	);
 
+	// --- Recap exclusion (issue #69, ADR 0008) ---------------------------------
+	// The issuer-level default every non-manually-flagged transaction of this
+	// issuer reads. Stored as a plain 0/1 column and folded like the transaction
+	// flags: `1` → `true`, `0` → absent.
+
+	it.effect("create stores excludedFromRecap, then getById returns it", () =>
+		Effect.gen(function* () {
+			const repo = yield* IssuerRepo;
+			const created = yield* repo.create(
+				make({ name: "Joint account", excludedFromRecap: true }),
+			);
+			assert.strictEqual(created.excludedFromRecap, true);
+			const found = yield* repo.getById(created.id);
+			assert.strictEqual(found.excludedFromRecap, true);
+		}).pipe(Effect.provide(RepoTest)),
+	);
+
+	it.effect(
+		"an issuer defaults to counted, and update flips it both ways",
+		() =>
+			Effect.gen(function* () {
+				const repo = yield* IssuerRepo;
+				const created = yield* repo.create(make());
+				// Not-excluded is the default, so an untouched issuer reads absent.
+				assert.strictEqual(created.excludedFromRecap, undefined);
+
+				const excluded = yield* repo.update(created.id, {
+					excludedFromRecap: true,
+				});
+				assert.strictEqual(excluded.excludedFromRecap, true);
+
+				// An unrelated later edit must not silently pull the issuer back in.
+				const renamed = yield* repo.update(created.id, { name: "Renamed" });
+				assert.strictEqual(renamed.name, "Renamed");
+				assert.strictEqual(renamed.excludedFromRecap, true);
+
+				const included = yield* repo.update(created.id, {
+					excludedFromRecap: false,
+				});
+				assert.strictEqual(included.excludedFromRecap, undefined);
+			}).pipe(Effect.provide(RepoTest)),
+	);
+
 	it.effect("setImage sets imageUrl, then getById reflects it", () =>
 		Effect.gen(function* () {
 			const repo = yield* IssuerRepo;

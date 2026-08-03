@@ -329,14 +329,31 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 			// 0002 records). Requires the `issuers` LEFT JOIN (`readFrom`) in scope.
 			const derivedCategory = sql`CASE WHEN t.manualCategory = 1 THEN t.categoryId ELSE i.defaultCategoryId END`;
 
-			// **Excluded from recap** (issue #67, ADR 0008), defined ONCE beside the
-			// expression it mirrors and reused by the read projection AND the filter,
-			// so the two can never disagree — the ADR 0002 drift, on a second field.
-			// Today it is the stored column alone; #69 widens it here, in one place,
-			// to `CASE WHEN t.manualExcluded = 1 THEN t.excludedFromRecap ELSE
-			// i.excludedFromRecap END` over the `issuers` LEFT JOIN this read already
-			// carries, and every surface asking "does this row count" follows for free.
-			const recapExclusion = sql`t.excludedFromRecap`;
+			// **Excluded from recap** (issues #67/#69, ADR 0008), defined ONCE beside
+			// the expression it mirrors and reused by the read projection AND the
+			// filter, so the two can never disagree — the ADR 0002 drift, on a second
+			// field. Same shape as `derivedCategory`, over the same `issuers` LEFT
+			// JOIN: a row the user decided about (`manualExcluded`) keeps its own
+			// stored flag, any other row inherits its issuer's default. So a
+			// transaction imported under an excluded issuer is excluded the moment it
+			// lands — nothing to re-run — and un-excluding an issuer cannot clobber a
+			// deliberate per-row decision in either direction.
+			//
+			// `COALESCE(i.excludedFromRecap, 0)` is where the LEFT JOIN's `NULL`
+			// lands: a row with no issuer (or an issuer predating migration 0019) has
+			// nothing to inherit, so it *counts*. Without it the read would decode a
+			// `NULL` into a non-nullable column and `WHERE … = 0` would drop every
+			// issuer-less row from the "counted only" view — neither side of the
+			// filter would list it.
+			const recapExclusion = sql`CASE WHEN t.manualExcluded = 1 THEN t.excludedFromRecap ELSE COALESCE(i.excludedFromRecap, 0) END`;
+
+			// The same expression under different table aliases, for the two
+			// self-join projections below (`suggestTransfers`, `transferCandidates`):
+			// each leg reads through its OWN issuer. Kept as one generator rather
+			// than three hand-written copies — a candidate is the same row the list
+			// projects, so the two reads must never disagree about whether it counts.
+			const recapExclusionFor = (row: "c" | "f", issuer: "ci" | "fi") =>
+				sql`CASE WHEN ${sql.literal(row)}.manualExcluded = 1 THEN ${sql.literal(row)}.excludedFromRecap ELSE COALESCE(${sql.literal(issuer)}.excludedFromRecap, 0) END`;
 
 			// Each present filter contributes one predicate; absent ones contribute
 			// nothing. `dates` bind as ISO strings (the `date` column is ISO TEXT,
@@ -451,15 +468,17 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 					: sql`ORDER BY t.id`;
 
 			// The read projection (model A / Derived category, PRD #8 issue #13):
-			// every stored transaction column is read verbatim except `categoryId`,
-			// which is read *through* the row's issuer. A non-manual row takes its issuer's
-			// `defaultCategoryId` (LEFT JOIN `issuers`, `null` when unmatched or the
-			// issuer has no default); a `manualCategory` row keeps its own stored
-			// `categoryId` (manual wins). Derivation is query-time only — no column
-			// is written — so re-categorising an issuer reclassifies its whole
-			// history at once. Reads go through this; writes (`RETURNING *`) echo the
-			// stored row verbatim, and the internal `storedByIdQuery` reads the raw
-			// row so an update's merge never persists a derived value.
+			// every stored transaction column is read verbatim except **two**, both
+			// read *through* the row's issuer — `categoryId` and `excludedFromRecap`.
+			// A non-manual row takes its issuer's `defaultCategoryId` (LEFT JOIN
+			// `issuers`, `null` when unmatched or the issuer has no default) and its
+			// `excludedFromRecap` default; a `manualCategory` / `manualExcluded` row
+			// keeps its own stored value (manual wins). Derivation is query-time only
+			// — no column is written — so re-categorising or excluding an issuer
+			// reclassifies its whole history at once. Reads go through this; writes
+			// (`RETURNING *`) echo the stored row verbatim, and the internal
+			// `storedByIdQuery` reads the raw row so an update's merge never persists
+			// a derived value.
 			const readColumns = sql`t.id, t.accountId, t.date, t.amount, t.rawIssuerString, t.issuerId, ${derivedCategory} AS categoryId, t.manualCategory, t.manualIssuer, t.isRefund, t.linkedRefundId, t.transferGroupId, t.anomalyFlags, t.isDuplicateExcluded, t.duplicateNote, ${recapExclusion} AS excludedFromRecap, t.manualExcluded, t.notes, t.importedAt, t.importMonth, t.importBatchId`;
 			const readFrom = sql`FROM transactions t LEFT JOIN issuers i ON t.issuerId = i.id`;
 
@@ -546,15 +565,17 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 			// refund-paired), and its `date` is within `TRANSFER_DATE_WINDOW_DAYS` of
 			// the target's (`julianday` parses the ISO TEXT `date`; `ABS(Δ) <= N`
 			// windows both directions). The projection mirrors `readColumns` but reads
-			// the CANDIDATE's columns and its OWN issuer's derived category (LEFT JOIN
-			// `issuers ci`). Ordered nearest-date first, then id, so the closest match
+			// the CANDIDATE's columns and its OWN issuer's derived category *and*
+			// derived recap exclusion (LEFT JOIN `issuers ci`) — a candidate is the
+			// same row the list projects, so the two reads must agree about whether it
+			// counts. Ordered nearest-date first, then id, so the closest match
 			// leads. The target's own eligibility is checked in the method, not here —
 			// an ineligible target simply never runs this query.
 			const suggestTransfersQuery = SqlSchema.findAll({
 				Request: TransactionId,
 				Result: TransactionFromRow,
 				execute: (id) =>
-					sql`SELECT c.id, c.accountId, c.date, c.amount, c.rawIssuerString, c.issuerId, CASE WHEN c.manualCategory = 1 THEN c.categoryId ELSE ci.defaultCategoryId END AS categoryId, c.manualCategory, c.manualIssuer, c.isRefund, c.linkedRefundId, c.transferGroupId, c.anomalyFlags, c.isDuplicateExcluded, c.duplicateNote, c.excludedFromRecap, c.manualExcluded, c.notes, c.importedAt, c.importMonth, c.importBatchId
+					sql`SELECT c.id, c.accountId, c.date, c.amount, c.rawIssuerString, c.issuerId, CASE WHEN c.manualCategory = 1 THEN c.categoryId ELSE ci.defaultCategoryId END AS categoryId, c.manualCategory, c.manualIssuer, c.isRefund, c.linkedRefundId, c.transferGroupId, c.anomalyFlags, c.isDuplicateExcluded, c.duplicateNote, ${recapExclusionFor("c", "ci")} AS excludedFromRecap, c.manualExcluded, c.notes, c.importedAt, c.importMonth, c.importBatchId
 						FROM transactions t
 						JOIN transactions c
 							ON c.id <> t.id
@@ -579,8 +600,9 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 			// what makes each real pair surface **exactly once** (the mirror row, with
 			// the credit as `f`, fails `f.amount < 0`), so no client-side dedup is
 			// needed. `daysApart` is the whole-day gap (`CAST(... AS INTEGER)` truncates
-			// the julian delta). Each leg reads its OWN issuer's derived category (two
-			// LEFT JOINs, `fi`/`ci`). Ordered closest-date first, then by the leg ids
+			// the julian delta). Each leg reads its OWN issuer's derived category and
+			// derived recap exclusion (two LEFT JOINs, `fi`/`ci`), so a leg reads the
+			// same here as in the list. Ordered closest-date first, then by the leg ids
 			// for a stable page. The projection aliases every column `f_*` / `t_*` so
 			// the flat row decodes into the two nested `Transaction`s below.
 			const candidateColumns = (
@@ -588,7 +610,7 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				issuerAlias: "fi" | "ci",
 				prefix: "f" | "t",
 			) =>
-				sql`${sql.literal(a)}.id AS ${sql.literal(prefix)}_id, ${sql.literal(a)}.accountId AS ${sql.literal(prefix)}_accountId, ${sql.literal(a)}.date AS ${sql.literal(prefix)}_date, ${sql.literal(a)}.amount AS ${sql.literal(prefix)}_amount, ${sql.literal(a)}.rawIssuerString AS ${sql.literal(prefix)}_rawIssuerString, ${sql.literal(a)}.issuerId AS ${sql.literal(prefix)}_issuerId, CASE WHEN ${sql.literal(a)}.manualCategory = 1 THEN ${sql.literal(a)}.categoryId ELSE ${sql.literal(issuerAlias)}.defaultCategoryId END AS ${sql.literal(prefix)}_categoryId, ${sql.literal(a)}.manualCategory AS ${sql.literal(prefix)}_manualCategory, ${sql.literal(a)}.manualIssuer AS ${sql.literal(prefix)}_manualIssuer, ${sql.literal(a)}.isRefund AS ${sql.literal(prefix)}_isRefund, ${sql.literal(a)}.linkedRefundId AS ${sql.literal(prefix)}_linkedRefundId, ${sql.literal(a)}.transferGroupId AS ${sql.literal(prefix)}_transferGroupId, ${sql.literal(a)}.anomalyFlags AS ${sql.literal(prefix)}_anomalyFlags, ${sql.literal(a)}.isDuplicateExcluded AS ${sql.literal(prefix)}_isDuplicateExcluded, ${sql.literal(a)}.duplicateNote AS ${sql.literal(prefix)}_duplicateNote, ${sql.literal(a)}.excludedFromRecap AS ${sql.literal(prefix)}_excludedFromRecap, ${sql.literal(a)}.manualExcluded AS ${sql.literal(prefix)}_manualExcluded, ${sql.literal(a)}.notes AS ${sql.literal(prefix)}_notes, ${sql.literal(a)}.importedAt AS ${sql.literal(prefix)}_importedAt, ${sql.literal(a)}.importMonth AS ${sql.literal(prefix)}_importMonth, ${sql.literal(a)}.importBatchId AS ${sql.literal(prefix)}_importBatchId`;
+				sql`${sql.literal(a)}.id AS ${sql.literal(prefix)}_id, ${sql.literal(a)}.accountId AS ${sql.literal(prefix)}_accountId, ${sql.literal(a)}.date AS ${sql.literal(prefix)}_date, ${sql.literal(a)}.amount AS ${sql.literal(prefix)}_amount, ${sql.literal(a)}.rawIssuerString AS ${sql.literal(prefix)}_rawIssuerString, ${sql.literal(a)}.issuerId AS ${sql.literal(prefix)}_issuerId, CASE WHEN ${sql.literal(a)}.manualCategory = 1 THEN ${sql.literal(a)}.categoryId ELSE ${sql.literal(issuerAlias)}.defaultCategoryId END AS ${sql.literal(prefix)}_categoryId, ${sql.literal(a)}.manualCategory AS ${sql.literal(prefix)}_manualCategory, ${sql.literal(a)}.manualIssuer AS ${sql.literal(prefix)}_manualIssuer, ${sql.literal(a)}.isRefund AS ${sql.literal(prefix)}_isRefund, ${sql.literal(a)}.linkedRefundId AS ${sql.literal(prefix)}_linkedRefundId, ${sql.literal(a)}.transferGroupId AS ${sql.literal(prefix)}_transferGroupId, ${sql.literal(a)}.anomalyFlags AS ${sql.literal(prefix)}_anomalyFlags, ${sql.literal(a)}.isDuplicateExcluded AS ${sql.literal(prefix)}_isDuplicateExcluded, ${sql.literal(a)}.duplicateNote AS ${sql.literal(prefix)}_duplicateNote, ${recapExclusionFor(a, issuerAlias)} AS ${sql.literal(prefix)}_excludedFromRecap, ${sql.literal(a)}.manualExcluded AS ${sql.literal(prefix)}_manualExcluded, ${sql.literal(a)}.notes AS ${sql.literal(prefix)}_notes, ${sql.literal(a)}.importedAt AS ${sql.literal(prefix)}_importedAt, ${sql.literal(a)}.importMonth AS ${sql.literal(prefix)}_importMonth, ${sql.literal(a)}.importBatchId AS ${sql.literal(prefix)}_importBatchId`;
 
 			const transferCandidatesQuery = SqlSchema.findAll({
 				Request: Schema.Void,

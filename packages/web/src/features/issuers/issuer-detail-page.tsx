@@ -27,6 +27,7 @@ import { IssuerDefaultCategoryPicker } from "./issuer-default-category-picker";
 import { IssuerDetailSkeleton } from "./issuer-detail-skeleton";
 import { IssuerNameField } from "./issuer-name-field";
 import { IssuerNotesField } from "./issuer-notes-field";
+import { IssuerRecapExclusionSection } from "./issuer-recap-exclusion-section";
 import { LogoSearchPopover } from "./logo-search-popover";
 import { useIssuerMutations } from "./use-issuer-mutations";
 
@@ -217,6 +218,11 @@ function IssuerDetailContent({ issuer }: IssuerDetailContentProps) {
 			<IssuerDefaultCategoryPicker issuer={issuer} />
 
 			<IssuerNotesField issuer={issuer} />
+
+			{/* The bulk exclusion lever (issue #69), directly above the rows it
+			    governs — whether they count is read *through* the issuer, so this
+			    is the one write that changes the whole list's arithmetic. */}
+			<IssuerRecapExclusionSection issuer={issuer} />
 
 			{/* The same table, filters, sort, and pagination as the transactions and
 			    category pages — scoped to this issuer (issue #62). */}

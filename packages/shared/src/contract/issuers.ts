@@ -40,6 +40,21 @@ export class Issuer extends Schema.Class<Issuer>("Issuer")({
 	defaultCategoryId: Schema.optional(CategoryId),
 	/** Free-text note about this issuer. Absent when never written or cleared. */
 	notes: Schema.optional(Schema.String),
+	/**
+	 * **Excluded from recap**, the bulk lever (issue #69, ADR 0008) — every
+	 * transaction of this issuer is held out of spend totals *by default*: the
+	 * standing transfer to a joint account, the savings sweep, the internal
+	 * movement that arrives every month under the same name. Optional; absent
+	 * means the issuer's rows count.
+	 *
+	 * It is a **default**, never a stamp: no transaction column is written, the
+	 * value is read through the issuer at query time. So a row imported under an
+	 * excluded issuer is excluded the moment it lands, and a row the user
+	 * decided about by hand (`Transaction.manualExcluded`) overrides this in
+	 * either direction — exactly as `defaultCategoryId` stands to a row's
+	 * `manualCategory`.
+	 */
+	excludedFromRecap: Schema.optional(Schema.Boolean),
 	createdAt: Schema.Date,
 	firstSeen: Schema.Date,
 }) {}
@@ -53,6 +68,7 @@ export const IssuerCreate = Schema.Struct({
 	imageUrl: Issuer.fields.imageUrl,
 	defaultCategoryId: Issuer.fields.defaultCategoryId,
 	notes: Issuer.fields.notes,
+	excludedFromRecap: Issuer.fields.excludedFromRecap,
 	firstSeen: Issuer.fields.firstSeen,
 });
 export type IssuerCreate = typeof IssuerCreate.Type;
@@ -68,6 +84,10 @@ export type IssuerCreate = typeof IssuerCreate.Type;
  * note: unlike `name` — where an empty field reads as a half-typed value and is
  * ignored — an emptied note is a deliberate "remove this", so the client sends
  * `null` rather than `""` and the column goes back to SQL `NULL`.
+ *
+ * `excludedFromRecap` needs no null: it is a boolean with a meaningful `false`
+ * (pull this issuer's rows back into the recap), so absent-means-unchanged and
+ * `false` say different things already.
  */
 export const IssuerUpdate = Schema.partial(
 	Schema.Struct({

@@ -529,6 +529,37 @@ describe("IssuerDetailPage", () => {
 		);
 	});
 
+	// The bulk **recap exclusion** lever (issue #69, ADR 0008) lives on the issuer,
+	// beside the rows it governs — one write for the whole history.
+	it("excludes every transaction of the issuer from the recap", async () => {
+		const user = userEvent.setup();
+		renderAt("/issuers/1");
+
+		await user.click(
+			await screen.findByRole("button", { name: /exclude from recap/i }),
+		);
+
+		await waitFor(() =>
+			expect(updateIssuer).toHaveBeenCalledWith(1, { excludedFromRecap: true }),
+		);
+	});
+
+	it("offers the way back for an already-excluded issuer", async () => {
+		issuersById = { 1: issuer({ excludedFromRecap: true }) };
+		const user = userEvent.setup();
+		renderAt("/issuers/1");
+
+		await user.click(
+			await screen.findByRole("button", { name: /include in recap/i }),
+		);
+
+		await waitFor(() =>
+			expect(updateIssuer).toHaveBeenCalledWith(1, {
+				excludedFromRecap: false,
+			}),
+		);
+	});
+
 	it("opens Logo search from beside the upload control", async () => {
 		const user = userEvent.setup();
 		renderAt("/issuers/1");
