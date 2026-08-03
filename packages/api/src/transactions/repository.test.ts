@@ -852,6 +852,126 @@ describe("TransactionRepo", () => {
 					assert.strictEqual((yield* repo.count({ uncurated: true })).count, 1);
 				}).pipe(Effect.provide(RepoAndSqlTest)),
 			);
+
+			// Issue #70: an **excluded from recap** row is exempt from the curation
+			// question entirely. Curating it changes no number, so it is not a to-do
+			// — and it is not "done" either, so neither polarity of the filter lists
+			// it. Both routes into exclusion (the per-row flag and the issuer's
+			// default) are read through the SAME fragment the projection uses, so a
+			// stored-column check would drop the inherited half (ADR 0002/0008).
+			describe("excluded rows are exempt", () => {
+				it.effect("a manually excluded bare row is not uncurated", () =>
+					Effect.gen(function* () {
+						const repo = yield* TransactionRepo;
+						yield* repo.create(
+							make({
+								rawIssuerString: "EXCLUDED BARE",
+								excludedFromRecap: true,
+								manualExcluded: true,
+							}),
+						);
+						yield* repo.create(make({ rawIssuerString: "COUNTED BARE" }));
+
+						const page = yield* repo.list({ ...listAll, uncurated: true });
+						assert.deepStrictEqual(
+							page.items.map((t) => t.rawIssuerString),
+							["COUNTED BARE"],
+						);
+					}).pipe(Effect.provide(RepoTest)),
+				);
+
+				// Exemption, not reclassification: a row nobody has curated is not
+				// suddenly "curated" because it is excluded, so the complement must
+				// not pick it up on the way out of the uncurated view.
+				it.effect("…and it is not in the complement either", () =>
+					Effect.gen(function* () {
+						const repo = yield* TransactionRepo;
+						yield* repo.create(
+							make({
+								rawIssuerString: "EXCLUDED BARE",
+								excludedFromRecap: true,
+								manualExcluded: true,
+							}),
+						);
+
+						assert.strictEqual(
+							(yield* repo.list({ ...listAll, uncurated: false })).total,
+							0,
+						);
+						// Absent, the filter says nothing about exclusion: the row is
+						// hidden from a *curation* view, never from the table.
+						assert.strictEqual((yield* repo.list(listAll)).total, 1);
+					}).pipe(Effect.provide(RepoTest)),
+				);
+
+				// The route a stored-column check would miss (ADR 0008). The row has
+				// an issuer, so it was never uncurated — it is the *complement* it has
+				// to drop out of, through the derivation rather than its own column,
+				// which reads 0 here.
+				it.effect("a row excluded through its issuer is exempt too", () =>
+					Effect.gen(function* () {
+						const sql = yield* SqlClient.SqlClient;
+						const repo = yield* TransactionRepo;
+						yield* sql`INSERT INTO issuers (id, name, excludedFromRecap, createdAt, firstSeen) VALUES (10, 'Joint account', 1, ${DATE.toISOString()}, ${DATE.toISOString()})`;
+						yield* repo.create(
+							make({ rawIssuerString: "INHERITED", issuerId: asIssuer(10) }),
+						);
+
+						assert.strictEqual(
+							(yield* repo.list({ ...listAll, uncurated: true })).total,
+							0,
+						);
+						assert.strictEqual(
+							(yield* repo.list({ ...listAll, uncurated: false })).total,
+							0,
+						);
+					}).pipe(Effect.provide(RepoAndSqlTest)),
+				);
+
+				// The override in the other direction: pulled back into the recap, the
+				// row is spending again and rejoins the curation question — proof the
+				// exemption follows the derived value, not either column alone.
+				it.effect("a row forced back into the recap is curated again", () =>
+					Effect.gen(function* () {
+						const sql = yield* SqlClient.SqlClient;
+						const repo = yield* TransactionRepo;
+						yield* sql`INSERT INTO issuers (id, name, excludedFromRecap, createdAt, firstSeen) VALUES (10, 'Joint account', 1, ${DATE.toISOString()}, ${DATE.toISOString()})`;
+						yield* repo.create(
+							make({
+								rawIssuerString: "PULLED BACK IN",
+								issuerId: asIssuer(10),
+								excludedFromRecap: false,
+								manualExcluded: true,
+							}),
+						);
+
+						assert.strictEqual(
+							(yield* repo.list({ ...listAll, uncurated: false })).total,
+							1,
+						);
+					}).pipe(Effect.provide(RepoAndSqlTest)),
+				);
+
+				it.effect("count honors the exemption", () =>
+					Effect.gen(function* () {
+						const repo = yield* TransactionRepo;
+						yield* seedCuration(repo);
+						yield* repo.create(
+							make({
+								rawIssuerString: "EXCLUDED BARE",
+								excludedFromRecap: true,
+								manualExcluded: true,
+							}),
+						);
+
+						// Still the one BARE ROW from `seedCuration`, not two.
+						assert.strictEqual(
+							(yield* repo.count({ uncurated: true })).count,
+							1,
+						);
+					}).pipe(Effect.provide(RepoAndSqlTest)),
+				);
+			});
 		});
 
 		// The `excludedFromRecap` filter (issue #67) — the list must be able to

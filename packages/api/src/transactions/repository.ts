@@ -478,8 +478,22 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				// table's own `notes.trim() === ""`, so a whitespace-only note is not
 				// curation. `false` asks for the complement — rows with at least one
 				// of the three.
+				//
+				// An **excluded from recap** row is exempt from the whole question
+				// (issue #70, ADR 0008): its money is deliberately outside every
+				// total, so no amount of curating it moves a number — it is not a
+				// to-do, and calling it "done" would be just as wrong. So exclusion is
+				// an AND on BOTH polarities rather than a term inside the negated
+				// predicate: neither the uncurated view nor its complement lists an
+				// excluded row. Unlike the `excludedFromRecap` filter — whose two
+				// halves are exhaustive views of the table — these two are views of
+				// *curation work*, and an excluded row has none either way. Read
+				// through the shared `recapExclusion` fragment, so a row excluded by
+				// inheritance is exempt exactly like a hand-flagged one; a check
+				// against the stored column would let the inherited half back in.
 				if (f.uncurated !== undefined) {
 					const isUncurated = sql`(t.issuerId IS NULL AND ${derivedCategory} IS NULL AND (t.notes IS NULL OR trim(t.notes) = ''))`;
+					conditions.push(sql`${recapExclusion} = 0`);
 					conditions.push(f.uncurated ? isUncurated : sql`NOT ${isUncurated}`);
 				}
 				return conditions;

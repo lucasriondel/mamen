@@ -319,7 +319,10 @@ repeated per package.
   the transactions repository backs both the *Uncurated only* filter and the red
   row tint, so the filter and the tint cannot disagree. Narrower than
   **Unassigned**, which is about the category alone: a row with an issuer but no
-  category is unassigned and *curated*.
+  category is unassigned and *curated*. A row **excluded from recap** is exempt
+  from the question altogether — not uncurated, and not curated either: the
+  *Uncurated only* filter drops it, so does its complement, and the exclusion
+  wash replaces the red tint on a bare excluded row.
   _Avoid_: unreviewed, untouched, incomplete, dirty; and *uncategorised* (that
   names a real Category, and curation is three fields, not one).
 
