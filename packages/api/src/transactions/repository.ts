@@ -18,8 +18,9 @@ import { Effect, Option, Schema } from "effect";
 import { orDieSql } from "../db/errors";
 
 /**
- * A stored transaction row. The four "boolean" columns (`manualCategory`,
- * `manualIssuer`, `isRefund`, `isDuplicateExcluded`) are sqlite `INTEGER`
+ * A stored transaction row. The six "boolean" columns (`manualCategory`,
+ * `manualIssuer`, `isRefund`, `isDuplicateExcluded`, `excludedFromRecap`,
+ * `manualExcluded`) are sqlite `INTEGER`
  * 0/1, the FK columns and optional strings come back as `null` (not absent), and
  * `anomalyFlags` is a JSON-encoded TEXT blob (or `null`). {@link TransactionFromRow}
  * folds all of this into the wire `Transaction`: `null` → absent, `1` → `true`
@@ -41,6 +42,8 @@ const TransactionRow = Schema.Struct({
 	anomalyFlags: Schema.NullOr(Schema.String),
 	isDuplicateExcluded: Schema.Number,
 	duplicateNote: Schema.NullOr(Schema.String),
+	excludedFromRecap: Schema.Number,
+	manualExcluded: Schema.Number,
 	notes: Schema.NullOr(Schema.String),
 	importedAt: Schema.String,
 	importMonth: Schema.String,
@@ -92,6 +95,8 @@ export const TransactionFromRow = Schema.transform(
 			...(row.duplicateNote !== null
 				? { duplicateNote: row.duplicateNote }
 				: {}),
+			...(row.excludedFromRecap === 1 ? { excludedFromRecap: true } : {}),
+			...(row.manualExcluded === 1 ? { manualExcluded: true } : {}),
 			...(row.notes !== null ? { notes: row.notes } : {}),
 			importedAt: row.importedAt,
 			importMonth: row.importMonth,
@@ -118,6 +123,8 @@ export const TransactionFromRow = Schema.transform(
 					: null,
 			isDuplicateExcluded: t.isDuplicateExcluded ? 1 : 0,
 			duplicateNote: t.duplicateNote ?? null,
+			excludedFromRecap: t.excludedFromRecap ? 1 : 0,
+			manualExcluded: t.manualExcluded ? 1 : 0,
 			notes: t.notes ?? null,
 			importedAt: t.importedAt,
 			importMonth: t.importMonth,
@@ -153,6 +160,8 @@ const TransferCandidateRow = Schema.Struct({
 	f_anomalyFlags: Schema.NullOr(Schema.String),
 	f_isDuplicateExcluded: Schema.Number,
 	f_duplicateNote: Schema.NullOr(Schema.String),
+	f_excludedFromRecap: Schema.Number,
+	f_manualExcluded: Schema.Number,
 	f_notes: Schema.NullOr(Schema.String),
 	f_importedAt: Schema.String,
 	f_importMonth: Schema.String,
@@ -172,6 +181,8 @@ const TransferCandidateRow = Schema.Struct({
 	t_anomalyFlags: Schema.NullOr(Schema.String),
 	t_isDuplicateExcluded: Schema.Number,
 	t_duplicateNote: Schema.NullOr(Schema.String),
+	t_excludedFromRecap: Schema.Number,
+	t_manualExcluded: Schema.Number,
 	t_notes: Schema.NullOr(Schema.String),
 	t_importedAt: Schema.String,
 	t_importMonth: Schema.String,
@@ -207,6 +218,8 @@ const legFromRow = (
 		anomalyFlags: pick("anomalyFlags"),
 		isDuplicateExcluded: pick("isDuplicateExcluded"),
 		duplicateNote: pick("duplicateNote"),
+		excludedFromRecap: pick("excludedFromRecap"),
+		manualExcluded: pick("manualExcluded"),
 		notes: pick("notes"),
 		importedAt: pick("importedAt"),
 		importMonth: pick("importMonth"),
@@ -251,6 +264,7 @@ type Filters = {
 	endDate?: Date;
 	isRefund?: boolean;
 	isDuplicateExcluded?: boolean;
+	excludedFromRecap?: boolean;
 	search?: string;
 	uncurated?: boolean;
 };
@@ -279,6 +293,8 @@ type WriteRow = {
 	anomalyFlags: string | null;
 	isDuplicateExcluded: number;
 	duplicateNote: string | null;
+	excludedFromRecap: number;
+	manualExcluded: number;
 	notes: string | null;
 	importedAt: string;
 	importMonth: string;
@@ -312,6 +328,15 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 			// filter — so the read and the filter can never disagree (the drift ADR
 			// 0002 records). Requires the `issuers` LEFT JOIN (`readFrom`) in scope.
 			const derivedCategory = sql`CASE WHEN t.manualCategory = 1 THEN t.categoryId ELSE i.defaultCategoryId END`;
+
+			// **Excluded from recap** (issue #67, ADR 0008), defined ONCE beside the
+			// expression it mirrors and reused by the read projection AND the filter,
+			// so the two can never disagree — the ADR 0002 drift, on a second field.
+			// Today it is the stored column alone; #69 widens it here, in one place,
+			// to `CASE WHEN t.manualExcluded = 1 THEN t.excludedFromRecap ELSE
+			// i.excludedFromRecap END` over the `issuers` LEFT JOIN this read already
+			// carries, and every surface asking "does this row count" follows for free.
+			const recapExclusion = sql`t.excludedFromRecap`;
 
 			// Each present filter contributes one predicate; absent ones contribute
 			// nothing. `dates` bind as ISO strings (the `date` column is ISO TEXT,
@@ -356,6 +381,14 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				if (f.isDuplicateExcluded !== undefined)
 					conditions.push(
 						sql`t.isDuplicateExcluded = ${f.isDuplicateExcluded ? 1 : 0}`,
+					);
+				// Recap exclusion (issue #67): filtered through the SAME fragment the
+				// projection reads (ADR 0008), never a second copy of the rule — that
+				// is exactly how the category filter once dropped every issuer-derived
+				// row while looking like it worked.
+				if (f.excludedFromRecap !== undefined)
+					conditions.push(
+						sql`${recapExclusion} = ${f.excludedFromRecap ? 1 : 0}`,
 					);
 				// Free-text search (#40): a case-insensitive substring matched against
 				// the union of every human-readable field of a row — raw issuer text,
@@ -427,7 +460,7 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 			// history at once. Reads go through this; writes (`RETURNING *`) echo the
 			// stored row verbatim, and the internal `storedByIdQuery` reads the raw
 			// row so an update's merge never persists a derived value.
-			const readColumns = sql`t.id, t.accountId, t.date, t.amount, t.rawIssuerString, t.issuerId, ${derivedCategory} AS categoryId, t.manualCategory, t.manualIssuer, t.isRefund, t.linkedRefundId, t.transferGroupId, t.anomalyFlags, t.isDuplicateExcluded, t.duplicateNote, t.notes, t.importedAt, t.importMonth, t.importBatchId`;
+			const readColumns = sql`t.id, t.accountId, t.date, t.amount, t.rawIssuerString, t.issuerId, ${derivedCategory} AS categoryId, t.manualCategory, t.manualIssuer, t.isRefund, t.linkedRefundId, t.transferGroupId, t.anomalyFlags, t.isDuplicateExcluded, t.duplicateNote, ${recapExclusion} AS excludedFromRecap, t.manualExcluded, t.notes, t.importedAt, t.importMonth, t.importBatchId`;
 			const readFrom = sql`FROM transactions t LEFT JOIN issuers i ON t.issuerId = i.id`;
 
 			// `Request: Schema.Any` skips a redundant re-decode: filters are already
@@ -521,7 +554,7 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				Request: TransactionId,
 				Result: TransactionFromRow,
 				execute: (id) =>
-					sql`SELECT c.id, c.accountId, c.date, c.amount, c.rawIssuerString, c.issuerId, CASE WHEN c.manualCategory = 1 THEN c.categoryId ELSE ci.defaultCategoryId END AS categoryId, c.manualCategory, c.manualIssuer, c.isRefund, c.linkedRefundId, c.transferGroupId, c.anomalyFlags, c.isDuplicateExcluded, c.duplicateNote, c.notes, c.importedAt, c.importMonth, c.importBatchId
+					sql`SELECT c.id, c.accountId, c.date, c.amount, c.rawIssuerString, c.issuerId, CASE WHEN c.manualCategory = 1 THEN c.categoryId ELSE ci.defaultCategoryId END AS categoryId, c.manualCategory, c.manualIssuer, c.isRefund, c.linkedRefundId, c.transferGroupId, c.anomalyFlags, c.isDuplicateExcluded, c.duplicateNote, c.excludedFromRecap, c.manualExcluded, c.notes, c.importedAt, c.importMonth, c.importBatchId
 						FROM transactions t
 						JOIN transactions c
 							ON c.id <> t.id
@@ -555,7 +588,7 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				issuerAlias: "fi" | "ci",
 				prefix: "f" | "t",
 			) =>
-				sql`${sql.literal(a)}.id AS ${sql.literal(prefix)}_id, ${sql.literal(a)}.accountId AS ${sql.literal(prefix)}_accountId, ${sql.literal(a)}.date AS ${sql.literal(prefix)}_date, ${sql.literal(a)}.amount AS ${sql.literal(prefix)}_amount, ${sql.literal(a)}.rawIssuerString AS ${sql.literal(prefix)}_rawIssuerString, ${sql.literal(a)}.issuerId AS ${sql.literal(prefix)}_issuerId, CASE WHEN ${sql.literal(a)}.manualCategory = 1 THEN ${sql.literal(a)}.categoryId ELSE ${sql.literal(issuerAlias)}.defaultCategoryId END AS ${sql.literal(prefix)}_categoryId, ${sql.literal(a)}.manualCategory AS ${sql.literal(prefix)}_manualCategory, ${sql.literal(a)}.manualIssuer AS ${sql.literal(prefix)}_manualIssuer, ${sql.literal(a)}.isRefund AS ${sql.literal(prefix)}_isRefund, ${sql.literal(a)}.linkedRefundId AS ${sql.literal(prefix)}_linkedRefundId, ${sql.literal(a)}.transferGroupId AS ${sql.literal(prefix)}_transferGroupId, ${sql.literal(a)}.anomalyFlags AS ${sql.literal(prefix)}_anomalyFlags, ${sql.literal(a)}.isDuplicateExcluded AS ${sql.literal(prefix)}_isDuplicateExcluded, ${sql.literal(a)}.duplicateNote AS ${sql.literal(prefix)}_duplicateNote, ${sql.literal(a)}.notes AS ${sql.literal(prefix)}_notes, ${sql.literal(a)}.importedAt AS ${sql.literal(prefix)}_importedAt, ${sql.literal(a)}.importMonth AS ${sql.literal(prefix)}_importMonth, ${sql.literal(a)}.importBatchId AS ${sql.literal(prefix)}_importBatchId`;
+				sql`${sql.literal(a)}.id AS ${sql.literal(prefix)}_id, ${sql.literal(a)}.accountId AS ${sql.literal(prefix)}_accountId, ${sql.literal(a)}.date AS ${sql.literal(prefix)}_date, ${sql.literal(a)}.amount AS ${sql.literal(prefix)}_amount, ${sql.literal(a)}.rawIssuerString AS ${sql.literal(prefix)}_rawIssuerString, ${sql.literal(a)}.issuerId AS ${sql.literal(prefix)}_issuerId, CASE WHEN ${sql.literal(a)}.manualCategory = 1 THEN ${sql.literal(a)}.categoryId ELSE ${sql.literal(issuerAlias)}.defaultCategoryId END AS ${sql.literal(prefix)}_categoryId, ${sql.literal(a)}.manualCategory AS ${sql.literal(prefix)}_manualCategory, ${sql.literal(a)}.manualIssuer AS ${sql.literal(prefix)}_manualIssuer, ${sql.literal(a)}.isRefund AS ${sql.literal(prefix)}_isRefund, ${sql.literal(a)}.linkedRefundId AS ${sql.literal(prefix)}_linkedRefundId, ${sql.literal(a)}.transferGroupId AS ${sql.literal(prefix)}_transferGroupId, ${sql.literal(a)}.anomalyFlags AS ${sql.literal(prefix)}_anomalyFlags, ${sql.literal(a)}.isDuplicateExcluded AS ${sql.literal(prefix)}_isDuplicateExcluded, ${sql.literal(a)}.duplicateNote AS ${sql.literal(prefix)}_duplicateNote, ${sql.literal(a)}.excludedFromRecap AS ${sql.literal(prefix)}_excludedFromRecap, ${sql.literal(a)}.manualExcluded AS ${sql.literal(prefix)}_manualExcluded, ${sql.literal(a)}.notes AS ${sql.literal(prefix)}_notes, ${sql.literal(a)}.importedAt AS ${sql.literal(prefix)}_importedAt, ${sql.literal(a)}.importMonth AS ${sql.literal(prefix)}_importMonth, ${sql.literal(a)}.importBatchId AS ${sql.literal(prefix)}_importBatchId`;
 
 			const transferCandidatesQuery = SqlSchema.findAll({
 				Request: Schema.Void,
@@ -697,6 +730,8 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 						: null,
 				isDuplicateExcluded: t.isDuplicateExcluded ? 1 : 0,
 				duplicateNote: t.duplicateNote ?? null,
+				excludedFromRecap: t.excludedFromRecap ? 1 : 0,
+				manualExcluded: t.manualExcluded ? 1 : 0,
 				notes: t.notes ?? null,
 				importedAt: t.importedAt.toISOString(),
 				importMonth: t.importMonth,

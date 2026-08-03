@@ -2007,6 +2007,18 @@
             "required": false
           },
           {
+            "name": "excludedFromRecap",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "required": false
+          },
+          {
             "name": "search",
             "in": "query",
             "schema": {
@@ -2204,6 +2216,12 @@
                   "duplicateNote": {
                     "type": "string"
                   },
+                  "excludedFromRecap": {
+                    "type": "boolean"
+                  },
+                  "manualExcluded": {
+                    "type": "boolean"
+                  },
                   "notes": {
                     "type": "string",
                     "description": "a string at most 1000 character(s) long",
@@ -2331,6 +2349,18 @@
           },
           {
             "name": "isDuplicateExcluded",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "required": false
+          },
+          {
+            "name": "excludedFromRecap",
             "in": "query",
             "schema": {
               "type": "string",
@@ -2617,6 +2647,12 @@
                   "duplicateNote": {
                     "type": "string"
                   },
+                  "excludedFromRecap": {
+                    "type": "boolean"
+                  },
+                  "manualExcluded": {
+                    "type": "boolean"
+                  },
                   "notes": {
                     "type": "string",
                     "description": "a string at most 1000 character(s) long",
@@ -2865,6 +2901,12 @@
                         },
                         "duplicateNote": {
                           "type": "string"
+                        },
+                        "excludedFromRecap": {
+                          "type": "boolean"
+                        },
+                        "manualExcluded": {
+                          "type": "boolean"
                         },
                         "notes": {
                           "type": "string",
@@ -5645,6 +5687,12 @@
           },
           "duplicateNote": {
             "type": "string"
+          },
+          "excludedFromRecap": {
+            "type": "boolean"
+          },
+          "manualExcluded": {
+            "type": "boolean"
           },
           "notes": {
             "type": "string",

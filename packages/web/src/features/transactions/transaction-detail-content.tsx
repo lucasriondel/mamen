@@ -10,6 +10,7 @@ import { formatCurrency, formatMonth, formatShortDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { AnomalyFlags } from "./anomaly-flags";
 import { DetailField } from "./detail-field";
+import { RecapExclusionSection } from "./recap-exclusion-section";
 import { CategoryCell, IssuerCell } from "./transaction-cells";
 import { TransferSection } from "./transfer-section";
 
@@ -252,6 +253,7 @@ export function TransactionDetailContent({
 				categoryColor={categoryColor}
 			/>
 			<RefundDuplicateSection txn={txn} linkedRefund={linkedRefund} />
+			<RecapExclusionSection transaction={txn} />
 			<TransferSection transaction={txn} />
 			<AnomalyFlagsSection flags={txn.anomalyFlags} />
 			<ImportSection txn={txn} />

@@ -68,6 +68,27 @@ export class Transaction extends Schema.Class<Transaction>("Transaction")({
 	isDuplicateExcluded: Schema.optional(Schema.Boolean),
 	duplicateNote: Schema.optional(Schema.String),
 	/**
+	 * **Excluded from recap** (issue #67, ADR 0008) — the row does not count
+	 * toward spend totals: an internal movement the **transfer group** feature
+	 * never caught, a correction, a row the user has decided is noise. Optional;
+	 * absent means the row counts. Excluded rows stay fully visible in the list —
+	 * exclusion is about arithmetic, not visibility.
+	 *
+	 * Distinct from `isDuplicateExcluded`, which claims *this row is a duplicate
+	 * of another* (a provenance fact) rather than *this row is not spending*.
+	 */
+	excludedFromRecap: Schema.optional(Schema.Boolean),
+	/**
+	 * Marks this row's `excludedFromRecap` as a **deliberate** decision, so it
+	 * wins over the default its issuer will carry once issuer-level exclusion
+	 * lands (#69) — `manualExcluded` stands to `excludedFromRecap` exactly as
+	 * `manualCategory` stands to `categoryId` (ADR 0008). Set in *both*
+	 * directions: forcing a row out of the recap and forcing one back in are both
+	 * decisions an issuer default must not clobber. Introduced with the flag it
+	 * qualifies so no later migration has to invent the distinction retroactively.
+	 */
+	manualExcluded: Schema.optional(Schema.Boolean),
+	/**
 	 * Free-text note the user records against a single transaction (issue #38).
 	 * Optional; absent means no note. Capped at 1000 chars at the contract
 	 * boundary, so an over-long note fails decode (400) rather than reaching the
@@ -102,6 +123,8 @@ export const TransactionCreate = Schema.Struct({
 	anomalyFlags: Transaction.fields.anomalyFlags,
 	isDuplicateExcluded: Transaction.fields.isDuplicateExcluded,
 	duplicateNote: Transaction.fields.duplicateNote,
+	excludedFromRecap: Transaction.fields.excludedFromRecap,
+	manualExcluded: Transaction.fields.manualExcluded,
 	notes: Transaction.fields.notes,
 	importedAt: Transaction.fields.importedAt,
 	importMonth: Transaction.fields.importMonth,
@@ -151,6 +174,12 @@ export const TransactionFilters = {
 	endDate: Schema.optional(Schema.Date), // inclusive upper bound on `date`
 	isRefund: Schema.optional(BooleanFromString),
 	isDuplicateExcluded: Schema.optional(BooleanFromString),
+	// Recap exclusion (issue #67): `true` returns only the rows held out of spend
+	// totals, `false` only those that count, absent both. Matched against the same
+	// expression the projection reads (ADR 0008) — the guard against the ADR 0002
+	// drift, where a filter on the stored column silently dropped every row
+	// excluded by inheritance once #69 makes exclusion derivable through the issuer.
+	excludedFromRecap: Schema.optional(BooleanFromString),
 	// A free-text substring (case-insensitive) matched against the raw issuer
 	// string, the assigned issuer's name, the notes, and the amount as displayed
 	// (2 decimals, unsigned) — the union, so one box searches every human-readable

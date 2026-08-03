@@ -95,6 +95,21 @@ function isTransferLeg(txn: Transaction): boolean {
 }
 
 /**
+ * Is this transaction **excluded from recap** (issue #67)? An excluded row is a
+ * real bank row that is not real spending — an internal movement the transfer
+ * feature never caught, a correction, a row the user has decided is noise — so
+ * it is dropped before bucketing and contributes to no total. Unlike a transfer
+ * leg it is not summarised: there is no counterpart it nets against, and the
+ * money did not move between the user's own accounts.
+ *
+ * The flag is read straight off the wire, where the server has already resolved
+ * it (ADR 0008) — the client never re-derives exclusion.
+ */
+function isExcludedFromRecap(txn: Transaction): boolean {
+	return txn.excludedFromRecap === true;
+}
+
+/**
  * A running per-bucket accumulator: the total spent and the row count, keyed by
  * entity id (or `null` for the unassigned bucket).
  */
@@ -153,7 +168,9 @@ function bucketBy(
  * Internal-transfer legs (PRD #48) are partitioned out **before** bucketing, so
  * they never enter either breakdown nor the grand total (which only ever sums
  * the breakdowns). The netted-out legs are summarised separately as
- * {@link RecapSpend.transfers}.
+ * {@link RecapSpend.transfers}. Rows **excluded from recap** (issue #67) are
+ * dropped in the same pass, ahead of the transfer check, and are summarised
+ * nowhere — they are simply not part of the arithmetic.
  */
 export function aggregateSpend(
 	transactions: readonly Transaction[],
@@ -167,6 +184,9 @@ export function aggregateSpend(
 	const spendRows: Transaction[] = [];
 	const transfers: TransferSummary = { total: 0, count: 0 };
 	for (const txn of transactions) {
+		// Held out of every total, and out of the transfer summary too — the two
+		// exclusions answer different questions (issue #67).
+		if (isExcludedFromRecap(txn)) continue;
 		if (isTransferLeg(txn)) {
 			transfers.count += 1;
 			// The moved amount = the debit legs' magnitudes; a clean pair's credit

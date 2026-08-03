@@ -57,9 +57,17 @@ const TXNS = [
  */
 let listTotal = TXNS.length;
 
+/**
+ * The rows the mocked list hands back. Defaults to the canned pair; a test that
+ * needs a differently-shaped row (an **excluded from recap** one, say) swaps
+ * this before rendering rather than growing `TXNS` — a third permanent row would
+ * duplicate the issuer/category text every other test looks up by name.
+ */
+let listRows: Array<Record<string, unknown>> = TXNS;
+
 const listMock = vi.fn((params: Record<string, unknown>) => ({
 	queryKey: ["transactions", "list", params],
-	queryFn: async () => ({ items: TXNS, total: listTotal }),
+	queryFn: async () => ({ items: listRows, total: listTotal }),
 }));
 
 /**
@@ -152,6 +160,7 @@ async function renderView(initialEntry = "/transactions") {
 beforeEach(() => {
 	listMock.mockClear();
 	issuerByIdsMock.mockClear();
+	listRows = TXNS;
 	listTotal = TXNS.length;
 });
 
@@ -268,6 +277,70 @@ describe("TransactionsView", () => {
 		expect(listMock).toHaveBeenCalledWith(
 			expect.objectContaining({ accountId: 1, importMonth: "2026-01" }),
 		);
+	});
+
+	// **Excluded from recap** (issue #67): the filter is a three-way select, and
+	// both halves reach the query — the list is where the user goes to see what
+	// they have held out of their totals.
+	it("filters by recap exclusion state, in the URL and the query", async () => {
+		const router = await renderView();
+		const user = userEvent.setup();
+
+		await user.selectOptions(
+			screen.getByLabelText("Filter by recap exclusion"),
+			"excluded",
+		);
+
+		await waitFor(() => {
+			expect(router.state.location.search).toMatchObject({
+				excludedFromRecap: true,
+			});
+		});
+		expect(listMock).toHaveBeenCalledWith(
+			expect.objectContaining({ excludedFromRecap: true, offset: 0 }),
+		);
+
+		// The other half is a filter too, not the absence of one.
+		await user.selectOptions(
+			screen.getByLabelText("Filter by recap exclusion"),
+			"counted",
+		);
+		await waitFor(() => {
+			expect(router.state.location.search).toMatchObject({
+				excludedFromRecap: false,
+			});
+		});
+		expect(listMock).toHaveBeenCalledWith(
+			expect.objectContaining({ excludedFromRecap: false }),
+		);
+	});
+
+	// An excluded row stays fully visible — exclusion is about arithmetic, not
+	// visibility — so it must be legible *as* excluded at a glance (issue #67).
+	it("paints an excluded row in its own colour, distinct from the uncurated tint", async () => {
+		listRows = [{ ...TXNS[0], excludedFromRecap: true }, TXNS[1]];
+		await renderView();
+
+		const excludedRow = screen.getByText("SPOTIFY P2A34").closest("tr");
+		expect(excludedRow).toHaveAttribute("data-excluded", "true");
+		expect(excludedRow?.className).toContain("bg-gousse-muted");
+		// The uncurated (red) tint is a different state and must not double up.
+		expect(excludedRow?.className).not.toContain("bg-gousse-high");
+
+		// The unexcluded row carries neither marker.
+		const countedRow = screen.getAllByText("ACME PAYROLL")[0].closest("tr");
+		expect(countedRow).not.toHaveAttribute("data-excluded");
+	});
+
+	// An excluded row that is *also* bare would otherwise carry two washes; the
+	// exclusion is the stronger statement, so it wins (ADR 0008).
+	it("prefers the exclusion colour over the uncurated tint on a bare row", async () => {
+		listRows = [{ ...TXNS[1], excludedFromRecap: true }];
+		await renderView();
+
+		const row = screen.getAllByText("ACME PAYROLL")[0].closest("tr");
+		expect(row).toHaveAttribute("data-excluded", "true");
+		expect(row?.className).not.toContain("bg-gousse-high");
 	});
 
 	it("clears filters back to the full history", async () => {

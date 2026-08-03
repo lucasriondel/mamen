@@ -50,6 +50,12 @@ export function composeTransactionFilters(
 		...(search.importMonth != null ? { importMonth: search.importMonth } : {}),
 		...(search.search != null ? { search: search.search } : {}),
 		...(search.uncurated ? { uncurated: true } : {}),
+		// Both halves of the recap-exclusion filter reach the query (issue #67), so
+		// `false` — the rows that count — must survive this fold, not be read as
+		// "no filter" the way the uncurated toggle's off state is.
+		...(search.excludedFromRecap != null
+			? { excludedFromRecap: search.excludedFromRecap }
+			: {}),
 	};
 }
 
@@ -183,7 +189,8 @@ export function TransactionsSection({
 		search.accountId != null ||
 		search.importMonth != null ||
 		search.search != null ||
-		search.uncurated === true;
+		search.uncurated === true ||
+		search.excludedFromRecap != null;
 
 	return (
 		<>
@@ -198,6 +205,7 @@ export function TransactionsSection({
 						importMonth: search.importMonth,
 						search: search.search,
 						uncurated: search.uncurated,
+						excludedFromRecap: search.excludedFromRecap,
 					}}
 					onChange={onFiltersChange}
 				/>

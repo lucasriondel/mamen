@@ -240,6 +240,13 @@ export function TransactionsTable({
 							row.original.issuerId == null &&
 							row.original.categoryId == null &&
 							(row.original.notes == null || row.original.notes.trim() === "");
+						// **Excluded from recap** (issue #67): the row stays fully
+						// visible — exclusion is arithmetic, not visibility — but it is
+						// washed grey so a page reads at a glance as "this one is out of
+						// the totals". Grey, not the uncurated red: nothing is owed on it.
+						// It also *wins* over the uncurated tint (a bare excluded row is
+						// no longer a to-do), so the two washes never stack.
+						const isExcluded = row.original.excludedFromRecap === true;
 						const openDetail = () =>
 							navigate({
 								to: "/transactions/$transactionId",
@@ -248,6 +255,10 @@ export function TransactionsTable({
 						return (
 							<TableRow
 								key={row.id}
+								data-excluded={isExcluded ? "true" : undefined}
+								title={
+									isExcluded ? "Excluded from your recap spend" : undefined
+								}
 								onClick={openDetail}
 								onKeyDown={(event) => {
 									// Only the row itself activates. React synthetic events
@@ -267,10 +278,13 @@ export function TransactionsTable({
 								aria-label={`View transaction ${row.original.rawIssuerString}`}
 								className={cn(
 									"cursor-pointer transition-colors focus:outline-none focus-visible:bg-gousse-bg",
-									// The tint has to restate hover/focus too: `TableRow`'s own
+									// Each tint has to restate hover/focus too: `TableRow`'s own
 									// `hover:bg-gousse-bg` would otherwise wash it away on hover.
 									isUncurated &&
+										!isExcluded &&
 										"bg-gousse-high/5 hover:bg-gousse-high/10 focus-visible:bg-gousse-high/10",
+									isExcluded &&
+										"bg-gousse-muted/10 text-gousse-muted hover:bg-gousse-muted/15 focus-visible:bg-gousse-muted/15",
 								)}
 							>
 								{row.getVisibleCells().map((cell) => {
