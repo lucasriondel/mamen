@@ -190,6 +190,10 @@ export const TransactionFilters = {
 	// categorised through its issuer counts as curated, exactly like the tint the
 	// table paints those rows with. `false` returns only the complement (rows
 	// with at least one of the three), absent returns both.
+	// A row **excluded from recap** — by either route — is exempt from the whole
+	// question (issue #70): curating it moves no total, so neither value returns
+	// it. Unlike `excludedFromRecap` the two halves are therefore NOT exhaustive;
+	// absent is how you ask for the whole table.
 	uncurated: Schema.optional(BooleanFromString),
 } as const;
 

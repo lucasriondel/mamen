@@ -1332,6 +1332,43 @@ describe("derived recap exclusion through issuer", () => {
 			);
 		}).pipe(Effect.provide(HttpLive)),
 	);
+
+	// Issue #70: an excluded row is never a curation to-do — curating it moves no
+	// number — so the uncurated view drops it whichever way it became excluded. A
+	// red that can never be cleared teaches the user to stop reading red.
+	it.effect("the uncurated filter drops excluded rows, by either route", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const issuer = yield* issuerExcluded(true);
+			// Nothing curated on any of these three; only the last one counts.
+			yield* client.transactions.create({
+				payload: make({ issuerId: issuer.id, rawIssuerString: "INHERITED" }),
+			});
+			yield* client.transactions.create({
+				payload: make({
+					rawIssuerString: "HAND FLAGGED",
+					excludedFromRecap: true,
+					manualExcluded: true,
+				}),
+			});
+			yield* client.transactions.create({
+				payload: make({ rawIssuerString: "STILL A TODO" }),
+			});
+
+			const uncurated = yield* client.transactions.list({
+				urlParams: { limit: 50, offset: 0, direction: "desc", uncurated: true },
+			});
+			assert.deepStrictEqual(
+				uncurated.items.map((t) => t.rawIssuerString),
+				["STILL A TODO"],
+			);
+			assert.strictEqual(
+				(yield* client.transactions.count({ urlParams: { uncurated: true } }))
+					.count,
+				1,
+			);
+		}).pipe(Effect.provide(HttpLive)),
+	);
 });
 
 // The Leaf-assignable invariant (ADR 0003) at the transactions door: a

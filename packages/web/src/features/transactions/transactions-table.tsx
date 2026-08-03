@@ -232,21 +232,28 @@ export function TransactionsTable({
 				</TableHeader>
 				<TableBody>
 					{table.getRowModel().rows.map((row) => {
-						// A row with no issuer, no category and no note is entirely
-						// uncurated: nothing about it has been reviewed yet. Tint it in the
-						// `high` (red) token at low alpha so a page of them reads as a
-						// to-do pile without shouting over the resolved rows.
-						const isUncurated =
-							row.original.issuerId == null &&
-							row.original.categoryId == null &&
-							(row.original.notes == null || row.original.notes.trim() === "");
 						// **Excluded from recap** (issue #67): the row stays fully
 						// visible — exclusion is arithmetic, not visibility — but it is
 						// washed grey so a page reads at a glance as "this one is out of
 						// the totals". Grey, not the uncurated red: nothing is owed on it.
-						// It also *wins* over the uncurated tint (a bare excluded row is
-						// no longer a to-do), so the two washes never stack.
+						// The wire hands us one answer whether the row was flagged by hand
+						// or inherited its issuer's default (ADR 0008) — the table never
+						// re-derives it.
 						const isExcluded = row.original.excludedFromRecap === true;
+						// A row with no issuer, no category and no note is entirely
+						// uncurated: nothing about it has been reviewed yet. Tint it in the
+						// `high` (red) token at low alpha so a page of them reads as a
+						// to-do pile without shouting over the resolved rows. An excluded
+						// row is never uncurated (issue #70) — curating it moves no total,
+						// so it is not a to-do — which is also what settles the precedence
+						// between the two washes: they never stack. Same shape as the
+						// server's `uncurated` filter, so the tint and the filter agree
+						// about which rows are to-dos.
+						const isUncurated =
+							!isExcluded &&
+							row.original.issuerId == null &&
+							row.original.categoryId == null &&
+							(row.original.notes == null || row.original.notes.trim() === "");
 						const openDetail = () =>
 							navigate({
 								to: "/transactions/$transactionId",
@@ -281,7 +288,6 @@ export function TransactionsTable({
 									// Each tint has to restate hover/focus too: `TableRow`'s own
 									// `hover:bg-gousse-bg` would otherwise wash it away on hover.
 									isUncurated &&
-										!isExcluded &&
 										"bg-gousse-high/5 hover:bg-gousse-high/10 focus-visible:bg-gousse-high/10",
 									isExcluded &&
 										"bg-gousse-muted/10 text-gousse-muted hover:bg-gousse-muted/15 focus-visible:bg-gousse-muted/15",

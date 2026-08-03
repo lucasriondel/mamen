@@ -55,7 +55,9 @@ export type TransactionListParams = {
 	/**
 	 * Curation state. `true` narrows to rows nothing has been reviewed on — no
 	 * issuer, no *derived* category, no note (the rows the table tints); `false`
-	 * narrows to the complement; omitted returns both.
+	 * narrows to the complement; omitted returns both. A row **excluded from
+	 * recap** is exempt from both (issue #70): curating it moves no total, so it
+	 * is neither a to-do nor a curated row — only omitting the filter lists it.
 	 */
 	uncurated?: boolean;
 	orderBy?: "date";
