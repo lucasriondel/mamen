@@ -15,6 +15,7 @@ function txn(partial: {
 	issuerId?: number;
 	categoryId?: number;
 	transferGroupId?: number;
+	excludedFromRecap?: boolean;
 }): Transaction {
 	return {
 		id: nextId++,
@@ -25,6 +26,7 @@ function txn(partial: {
 		issuerId: partial.issuerId,
 		categoryId: partial.categoryId,
 		transferGroupId: partial.transferGroupId,
+		excludedFromRecap: partial.excludedFromRecap,
 		importedAt: new Date("2026-07-01"),
 		importMonth: "2026-07",
 	} as unknown as Transaction;
@@ -247,6 +249,40 @@ describe("aggregateSpend", () => {
 		);
 		expect(byIssuer).toEqual([]);
 		expect(transfers).toEqual({ total: 30, count: 1 });
+	});
+
+	// **Excluded from recap** (issue #67): a row the user has held out of spend
+	// totals never reaches a bucket, so it cannot contribute to any breakdown nor
+	// to the grand total the sections sum.
+	it("omits a row excluded from the recap from both breakdowns and the total", () => {
+		const { byIssuer, byCategory } = aggregateSpend(
+			[
+				txn({
+					amount: -50,
+					issuerId: 1,
+					categoryId: 10,
+					excludedFromRecap: true,
+				}),
+				txn({ amount: -10, issuerId: 2, categoryId: 20 }),
+			],
+			lookups,
+		);
+		expect(byName(byIssuer).Amazon).toBeUndefined();
+		expect(byName(byCategory).Groceries).toBeUndefined();
+		expect(byName(byIssuer).Netflix).toMatchObject({ spent: 10, count: 1 });
+
+		const grand = byIssuer.reduce((s, r) => s + r.spent, 0);
+		expect(grand).toBe(10);
+	});
+
+	it("does not count an excluded row as a transfer leg", () => {
+		// The two exclusions are different levers: an excluded row is simply out of
+		// the arithmetic, it is not money that moved between the user's accounts.
+		const { transfers } = aggregateSpend(
+			[txn({ amount: -50, issuerId: 1, excludedFromRecap: true })],
+			lookups,
+		);
+		expect(transfers).toEqual({ total: 0, count: 0 });
 	});
 
 	it("summarises only the debit legs' magnitudes across multiple groups", () => {

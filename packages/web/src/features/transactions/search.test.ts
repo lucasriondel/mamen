@@ -72,6 +72,35 @@ describe("validateTransactionsSearch", () => {
 		expect(validateTransactionsSearch({}).uncurated).toBeUndefined();
 	});
 
+	// The recap-exclusion filter is tri-state (issue #67): unlike the uncurated
+	// toggle, both halves are useful views — "what have I held out of my totals"
+	// and "what actually counts" — so `false` is a filter, not the absence of one.
+	it("accepts both sides of the excludedFromRecap filter, as boolean or string", () => {
+		expect(
+			validateTransactionsSearch({ excludedFromRecap: true }).excludedFromRecap,
+		).toBe(true);
+		expect(
+			validateTransactionsSearch({ excludedFromRecap: "true" })
+				.excludedFromRecap,
+		).toBe(true);
+		expect(
+			validateTransactionsSearch({ excludedFromRecap: false })
+				.excludedFromRecap,
+		).toBe(false);
+		expect(
+			validateTransactionsSearch({ excludedFromRecap: "false" })
+				.excludedFromRecap,
+		).toBe(false);
+	});
+
+	it("drops an absent or unparseable excludedFromRecap, showing every row", () => {
+		expect(validateTransactionsSearch({}).excludedFromRecap).toBeUndefined();
+		expect(
+			validateTransactionsSearch({ excludedFromRecap: "maybe" })
+				.excludedFromRecap,
+		).toBeUndefined();
+	});
+
 	it("only accepts asc/desc for direction", () => {
 		expect(validateTransactionsSearch({ direction: "asc" }).direction).toBe(
 			"asc",

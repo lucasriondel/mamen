@@ -13,6 +13,12 @@ export interface TransactionFilterValues {
 	search?: string;
 	/** Narrow to rows with no issuer, no derived category and no note. */
 	uncurated?: boolean;
+	/**
+	 * Narrow by **excluded from recap** state (issue #67): `true` shows only the
+	 * rows held out of spend totals, `false` only the rows that count, absent
+	 * shows both.
+	 */
+	excludedFromRecap?: boolean;
 }
 
 export interface TransactionsFiltersProps {
@@ -57,7 +63,8 @@ export function TransactionsFilters({
 		value.accountId != null ||
 		value.importMonth != null ||
 		value.search != null ||
-		value.uncurated === true;
+		value.uncurated === true ||
+		value.excludedFromRecap != null;
 
 	return (
 		<div className="flex flex-wrap items-center gap-3">
@@ -109,6 +116,39 @@ export function TransactionsFilters({
 				</select>
 			</label>
 
+			{/*
+			 * **Excluded from recap** (issue #67) — a three-way select rather than a
+			 * toggle like *Uncurated only*: both halves are views the user asks for
+			 * ("what have I held out of my totals?" and "what actually counts?"), so
+			 * neither can be the mere absence of the control.
+			 */}
+			<label className="flex items-center gap-2 text-sm text-gousse-muted">
+				Recap
+				<select
+					aria-label="Filter by recap exclusion"
+					className={inputClass}
+					value={
+						value.excludedFromRecap == null
+							? ""
+							: value.excludedFromRecap
+								? "excluded"
+								: "counted"
+					}
+					onChange={(e) =>
+						onChange({
+							excludedFromRecap:
+								e.target.value === ""
+									? undefined
+									: e.target.value === "excluded",
+						})
+					}
+				>
+					<option value="">All rows</option>
+					<option value="counted">Counted only</option>
+					<option value="excluded">Excluded only</option>
+				</select>
+			</label>
+
 			<UncuratedToggle
 				pressed={value.uncurated === true}
 				// `undefined` rather than `false` when cleared: the filter is a toggle,
@@ -128,6 +168,7 @@ export function TransactionsFilters({
 							importMonth: undefined,
 							search: undefined,
 							uncurated: undefined,
+							excludedFromRecap: undefined,
 						})
 					}
 				>

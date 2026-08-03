@@ -72,6 +72,52 @@ describe("TransactionsFilters — search box", () => {
 	});
 });
 
+// The **recap exclusion** filter (issue #67) is a three-way select, not a
+// toggle: "excluded only" and "counted only" are both views the user asks for,
+// so the off state is a third option rather than the absence of the control.
+describe("TransactionsFilters — recap exclusion", () => {
+	const selectRecap = (label: string) => {
+		const select = screen.getByLabelText(
+			"Filter by recap exclusion",
+		) as HTMLSelectElement;
+		const option = [...select.options].find((o) => o.text === label);
+		act(() => {
+			const setter = Object.getOwnPropertyDescriptor(
+				HTMLSelectElement.prototype,
+				"value",
+			)?.set;
+			setter?.call(select, option?.value);
+			select.dispatchEvent(new Event("change", { bubbles: true }));
+		});
+	};
+
+	it("emits the excluded-only view", () => {
+		const { onChange } = renderFilters();
+		selectRecap("Excluded only");
+		expect(onChange).toHaveBeenCalledWith({ excludedFromRecap: true });
+	});
+
+	it("emits the counted-only view — the other half, not 'no filter'", () => {
+		const { onChange } = renderFilters();
+		selectRecap("Counted only");
+		expect(onChange).toHaveBeenCalledWith({ excludedFromRecap: false });
+	});
+
+	it("goes back to every row", () => {
+		const { onChange } = renderFilters({ excludedFromRecap: true });
+		selectRecap("All rows");
+		expect(onChange).toHaveBeenCalledWith({ excludedFromRecap: undefined });
+	});
+
+	it("counts as an active filter, and Clear resets it too", () => {
+		const { onChange } = renderFilters({ excludedFromRecap: false });
+		screen.getByRole("button", { name: /clear/i }).click();
+		expect(onChange).toHaveBeenCalledWith(
+			expect.objectContaining({ excludedFromRecap: undefined }),
+		);
+	});
+});
+
 /** Set an input's value and dispatch a React-observed `input` event. */
 function fireInput(el: Element, value: string) {
 	const input = el as HTMLInputElement;

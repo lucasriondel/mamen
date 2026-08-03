@@ -43,6 +43,13 @@ export type TransactionListParams = {
 	endDate?: Date;
 	isRefund?: boolean;
 	isDuplicateExcluded?: boolean;
+	/**
+	 * **Excluded from recap** state (issue #67). `true` narrows to the rows held
+	 * out of spend totals, `false` to the rows that count, omitted returns both.
+	 * Matches the same expression the row's `excludedFromRecap` is read through
+	 * (ADR 0008), so the filter and the flag on screen can never disagree.
+	 */
+	excludedFromRecap?: boolean;
 	/** Free-text substring matched across issuer text/name, notes, amount (#40). */
 	search?: string;
 	/**

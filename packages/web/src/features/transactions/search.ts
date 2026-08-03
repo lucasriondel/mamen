@@ -30,6 +30,14 @@ export interface TransactionsSearch {
 	 * row; there is no "curated only" URL state, the control is a toggle.
 	 */
 	uncurated?: boolean;
+	/**
+	 * **Excluded from recap** state (issue #67), tri-state: `true` narrows to the
+	 * rows held out of spend totals, `false` to the rows that count, absent shows
+	 * both. Unlike {@link TransactionsSearch.uncurated} this is a real three-way
+	 * filter rather than a toggle — both halves answer a question the user asks
+	 * ("what have I held out?" and "what actually counts?").
+	 */
+	excludedFromRecap?: boolean;
 	/** Date sort order; defaults to `desc` (newest-first), matching the SDK. */
 	direction?: "asc" | "desc";
 	/**
@@ -84,6 +92,21 @@ export function validateTransactionsSearch(
 	// URL. A hand-typed `?uncurated=true` decodes like the boolean the toggle writes.
 	if (search.uncurated === true || search.uncurated === "true") {
 		result.uncurated = true;
+	}
+
+	// Both sides are representable here (unlike the uncurated toggle): the filter
+	// is a three-way choice, so an explicit `false` is its own view — the rows
+	// that do count — and belongs in the URL. Anything else is "no filter".
+	if (
+		search.excludedFromRecap === true ||
+		search.excludedFromRecap === "true"
+	) {
+		result.excludedFromRecap = true;
+	} else if (
+		search.excludedFromRecap === false ||
+		search.excludedFromRecap === "false"
+	) {
+		result.excludedFromRecap = false;
 	}
 
 	if (search.direction === "asc" || search.direction === "desc") {

@@ -380,6 +380,85 @@ describe("transactions endpoints", () => {
 		}).pipe(Effect.provide(HttpLive)),
 	);
 
+	// --- Recap exclusion (issue #67, ADR 0008) ----------------------------------
+
+	it.effect("excludedFromRecap + manualExcluded round-trip over the wire", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const created = yield* client.transactions.create({
+				payload: make({ excludedFromRecap: true, manualExcluded: true }),
+			});
+			assert.strictEqual(created.excludedFromRecap, true);
+			assert.strictEqual(created.manualExcluded, true);
+
+			const fetched = yield* client.transactions.getById({
+				path: { id: created.id },
+			});
+			assert.deepStrictEqual(fetched, created);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("update excludes a row and marks the decision deliberate", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const created = yield* client.transactions.create({
+				payload: make({ amount: -30 }),
+			});
+			assert.strictEqual(created.excludedFromRecap, undefined);
+
+			const excluded = yield* client.transactions.update({
+				path: { id: created.id },
+				payload: { excludedFromRecap: true, manualExcluded: true },
+			});
+			assert.strictEqual(excluded.excludedFromRecap, true);
+			assert.strictEqual(excluded.manualExcluded, true);
+
+			// Re-including is the same lever the other way, and stays deliberate.
+			const included = yield* client.transactions.update({
+				path: { id: created.id },
+				payload: { excludedFromRecap: false, manualExcluded: true },
+			});
+			assert.strictEqual(included.excludedFromRecap, undefined);
+			assert.strictEqual(included.manualExcluded, true);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect(
+		"excludedFromRecap boolean filter decodes from the query string",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				yield* client.transactions.create({
+					payload: make({
+						rawIssuerString: "EXCLUDED",
+						excludedFromRecap: true,
+						manualExcluded: true,
+					}),
+				});
+				yield* client.transactions.create({
+					payload: make({ rawIssuerString: "COUNTED" }),
+				});
+
+				const excluded = yield* client.transactions.list({
+					urlParams: {
+						limit: 50,
+						offset: 0,
+						direction: "desc",
+						excludedFromRecap: true,
+					},
+				});
+				assert.deepStrictEqual(
+					excluded.items.map((t) => t.rawIssuerString),
+					["EXCLUDED"],
+				);
+
+				const counted = yield* client.transactions.count({
+					urlParams: { excludedFromRecap: false },
+				});
+				assert.strictEqual(counted.count, 1);
+			}).pipe(Effect.provide(HttpLive)),
+	);
+
 	// --- NotFound (ticket AC) ---------------------------------------------------
 
 	it.effect("getById 404s on a missing id", () =>

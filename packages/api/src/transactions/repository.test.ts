@@ -294,6 +294,61 @@ describe("TransactionRepo", () => {
 		}).pipe(Effect.provide(RepoTest)),
 	);
 
+	// Recap exclusion (issue #67, ADR 0008): the two stored flags land through the
+	// same generic paths every other field uses — create, then a partial update —
+	// and, like `notes`/`transferGroupId`, must survive a later unrelated write
+	// (the whole-row re-write from the stored merge base).
+	it.effect(
+		"excludedFromRecap + manualExcluded round-trip through create",
+		() =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const created = yield* repo.create(
+					make({ excludedFromRecap: true, manualExcluded: true }),
+				);
+				assert.strictEqual(created.excludedFromRecap, true);
+				assert.strictEqual(created.manualExcluded, true);
+
+				const fetched = yield* repo.getById(created.id);
+				assert.strictEqual(fetched.excludedFromRecap, true);
+				assert.strictEqual(fetched.manualExcluded, true);
+			}).pipe(Effect.provide(RepoTest)),
+	);
+
+	it.effect(
+		"a row defaults to not-excluded, and update flips it both ways",
+		() =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const created = yield* repo.create(make());
+				// Both columns default to not-excluded, so an untouched row is absent on
+				// the wire exactly like the other 0/1 flags.
+				assert.strictEqual(created.excludedFromRecap, undefined);
+				assert.strictEqual(created.manualExcluded, undefined);
+
+				const excluded = yield* repo.update(created.id, {
+					excludedFromRecap: true,
+					manualExcluded: true,
+				});
+				assert.strictEqual(excluded.excludedFromRecap, true);
+				assert.strictEqual(excluded.manualExcluded, true);
+
+				// An unrelated later edit must not silently drop the exclusion.
+				const reamounted = yield* repo.update(created.id, { amount: 7 });
+				assert.strictEqual(reamounted.amount, 7);
+				assert.strictEqual(reamounted.excludedFromRecap, true);
+
+				// Re-including is the same lever in the other direction — and it stays a
+				// deliberate decision, so `manualExcluded` remains set (ADR 0008).
+				const included = yield* repo.update(created.id, {
+					excludedFromRecap: false,
+					manualExcluded: true,
+				});
+				assert.strictEqual(included.excludedFromRecap, undefined);
+				assert.strictEqual(included.manualExcluded, true);
+			}).pipe(Effect.provide(RepoTest)),
+	);
+
 	it.effect("remove deletes the row", () =>
 		Effect.gen(function* () {
 			const repo = yield* TransactionRepo;
@@ -782,6 +837,80 @@ describe("TransactionRepo", () => {
 					yield* seedCuration(repo);
 					assert.strictEqual((yield* repo.count({ uncurated: true })).count, 1);
 				}).pipe(Effect.provide(RepoAndSqlTest)),
+			);
+		});
+
+		// The `excludedFromRecap` filter (issue #67) — the list must be able to
+		// isolate the rows held out of spend totals, and their complement. The
+		// filter reads the SAME expression the projection does (ADR 0008), so the
+		// two cannot disagree; #69 widens both to the issuer-derived `CASE` at once.
+		describe("excludedFromRecap filter", () => {
+			const seedExclusion = (repo: TransactionRepo) =>
+				Effect.all([
+					repo.create(
+						make({
+							rawIssuerString: "EXCLUDED ROW",
+							excludedFromRecap: true,
+							manualExcluded: true,
+						}),
+					),
+					repo.create(make({ rawIssuerString: "COUNTED ROW" })),
+					repo.create(
+						make({ rawIssuerString: "OTHER ACCOUNT", accountId: asAccount(2) }),
+					),
+				]);
+
+			it.effect("true returns only the excluded rows", () =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* seedExclusion(repo);
+					const page = yield* repo.list({
+						...listAll,
+						excludedFromRecap: true,
+					});
+					assert.deepStrictEqual(
+						page.items.map((t) => t.rawIssuerString),
+						["EXCLUDED ROW"],
+					);
+					assert.strictEqual(page.total, 1);
+				}).pipe(Effect.provide(RepoTest)),
+			);
+
+			it.effect("false returns the complement, absent returns both", () =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* seedExclusion(repo);
+					assert.strictEqual(
+						(yield* repo.list({ ...listAll, excludedFromRecap: false })).total,
+						2,
+					);
+					assert.strictEqual((yield* repo.list(listAll)).total, 3);
+				}).pipe(Effect.provide(RepoTest)),
+			);
+
+			it.effect("combines with other filters (AND)", () =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* seedExclusion(repo);
+					// The one excluded row is on account 1, so account 2 has none.
+					const page = yield* repo.list({
+						...listAll,
+						excludedFromRecap: true,
+						accountId: asAccount(2),
+					});
+					assert.strictEqual(page.total, 0);
+				}).pipe(Effect.provide(RepoTest)),
+			);
+
+			it.effect("count honors the excludedFromRecap filter", () =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* seedExclusion(repo);
+					assert.strictEqual(
+						(yield* repo.count({ excludedFromRecap: true })).count,
+						1,
+					);
+				}).pipe(Effect.provide(RepoTest)),
 			);
 		});
 
