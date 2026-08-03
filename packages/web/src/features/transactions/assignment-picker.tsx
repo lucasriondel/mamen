@@ -1,7 +1,14 @@
 import type { Issuer, IssuerId, TransactionId } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, CircleHelp, Plus, Search, SquarePen } from "lucide-react";
+import {
+	ArrowLeft,
+	CircleHelp,
+	ExternalLink,
+	Plus,
+	Search,
+	SquarePen,
+} from "lucide-react";
 import { useState } from "react";
 import {
 	Command,
@@ -19,7 +26,10 @@ import {
 } from "@/components/ui/popover";
 import { IssuerAvatar } from "@/features/issuers/issuer-avatar";
 import { hasExactIssuerName } from "@/features/issuers/issuer-name";
+import { escapeRegex } from "@/features/rules/escape-regex";
+import { formatShortDate } from "@/lib/format";
 import { issuerQueries } from "@/lib/sdk";
+import { isPaypalRawIssuer, paypalActivityUrl } from "./paypal-activity";
 import { useAssignIssuer } from "./use-assign-issuer";
 
 export interface AssignmentPickerProps {
@@ -27,6 +37,8 @@ export interface AssignmentPickerProps {
 	transactionId: TransactionId;
 	/** The row's raw counterparty text — seeds the query and the pre-filled rule pattern. */
 	rawIssuerString: string;
+	/** The transaction's date — dates the PayPal activity lookup window. */
+	date: Date;
 }
 
 /** Which action an issuer selection performs. */
@@ -44,7 +56,7 @@ function matches(issuer: Issuer, query: string): boolean {
  *
  * 1. **Create issuer with a rule** — mint a new issuer from the raw counterparty
  *    string, then jump to its rule-create page with the raw name pre-filled as
- *    the pattern (`/issuers/$id/rules/new?pattern=<raw>`).
+ *    the pattern, regex-escaped (`/issuers/$id/rules/new?pattern=<escaped>`).
  * 2. **Add a rule to an existing issuer** — pick an existing issuer, then jump to
  *    that issuer's rule-create page with the pattern pre-filled.
  * 3. **Match an issuer** — assign an existing issuer to this one transaction
@@ -52,6 +64,9 @@ function matches(issuer: Issuer, query: string): boolean {
  * 4. **Search on Google** — open the raw counterparty string, quoted, in a new
  *    tab. Resolving a row often stalls on *who is this?* rather than on which
  *    issuer to pick, and the answer lives outside the app.
+ * 5. **Open PayPal activity** — for PayPal rows only, where the bank label names
+ *    PayPal instead of the merchant, so the answer lives in the PayPal feed
+ *    around the transaction's date.
  *
  * A `mode` switches what selecting an issuer row does: in `match` mode (default)
  * it assigns; in `add-rule` mode it navigates to the issuer's rule page. The
@@ -63,6 +78,7 @@ function matches(issuer: Issuer, query: string): boolean {
 export function AssignmentPicker({
 	transactionId,
 	rawIssuerString,
+	date,
 }: AssignmentPickerProps) {
 	const [open, setOpen] = useState(false);
 	const [mode, setMode] = useState<Mode>("match");
@@ -78,6 +94,7 @@ export function AssignmentPicker({
 	const trimmed = query.trim();
 	const canCreate = trimmed.length > 0 && !hasExactIssuerName(issuers, trimmed);
 	const pending = assignExisting.isPending || createIssuer.isPending;
+	const isPaypal = isPaypalRawIssuer(rawIssuerString);
 
 	const handleOpenChange = (next: boolean) => {
 		setOpen(next);
@@ -90,13 +107,18 @@ export function AssignmentPicker({
 
 	const close = () => setOpen(false);
 
-	/** Jump to an issuer's rule-create page, pattern pre-filled from the raw name. */
+	/**
+	 * Jump to an issuer's rule-create page, pattern pre-filled from the raw name.
+	 * The raw string is escaped: the field is regex source, and counterparty text
+	 * like `CARREFOUR (PARIS)` or `AMAZON*MKTPLACE` would otherwise over-match
+	 * (or, for a leading `*`, not compile at all).
+	 */
 	const goToNewRule = (issuerId: IssuerId) => {
 		close();
 		navigate({
 			to: "/issuers/$issuerId/rules/new",
 			params: { issuerId: String(issuerId) },
-			search: { pattern: rawIssuerString },
+			search: { pattern: escapeRegex(rawIssuerString) },
 		});
 	};
 
@@ -127,6 +149,17 @@ export function AssignmentPicker({
 			`"${rawIssuerString}"`,
 		)}`;
 		window.open(url, "_blank", "noopener,noreferrer");
+	};
+
+	/**
+	 * Open the PayPal activity feed, windowed around the transaction's date, in a
+	 * new tab. Offered only on PayPal rows: the bank label names PayPal, never the
+	 * merchant, so the feed is where the real issuer is identified.
+	 * `noopener,noreferrer` because the opened tab is untrusted.
+	 */
+	const openPaypalActivity = () => {
+		close();
+		window.open(paypalActivityUrl(date), "_blank", "noopener,noreferrer");
 	};
 
 	/** What selecting an issuer row does, per the current mode. */
@@ -267,6 +300,21 @@ export function AssignmentPicker({
 											Search “{rawIssuerString}” on Google
 										</span>
 									</CommandItem>
+									{isPaypal ? (
+										<CommandItem
+											value="__paypal_activity__"
+											onSelect={openPaypalActivity}
+										>
+											<ExternalLink
+												size={16}
+												className="shrink-0 text-gousse-muted"
+												aria-hidden
+											/>
+											<span className="truncate">
+												Open PayPal activity around {formatShortDate(date)}
+											</span>
+										</CommandItem>
+									) : null}
 								</CommandGroup>
 							</>
 						)}

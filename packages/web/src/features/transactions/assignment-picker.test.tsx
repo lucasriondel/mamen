@@ -65,7 +65,10 @@ beforeEach(() => {
 // that echoes the `?pattern=` it receives, so we can assert both the navigation
 // target and that the raw string rode along as the pattern. ----------------------
 
-function makeRouter() {
+function makeRouter(
+	rawIssuerString = "ACME PAYROLL",
+	date = new Date(2026, 0, 15),
+) {
 	const rootRoute = createRootRoute();
 	const pickerRoute = createRoute({
 		getParentRoute: () => rootRoute,
@@ -73,7 +76,8 @@ function makeRouter() {
 		component: () => (
 			<AssignmentPicker
 				transactionId={100 as never}
-				rawIssuerString="ACME PAYROLL"
+				rawIssuerString={rawIssuerString}
+				date={date}
 			/>
 		),
 	});
@@ -99,10 +103,12 @@ function makeRouter() {
 	});
 }
 
-async function open() {
-	render(<RouterProvider router={makeRouter()} />);
+async function open(rawIssuerString = "ACME PAYROLL", date?: Date) {
+	render(<RouterProvider router={makeRouter(rawIssuerString, date)} />);
 	const user = userEvent.setup();
-	await user.click(await screen.findByRole("button", { name: /ACME PAYROLL/ }));
+	await user.click(
+		await screen.findByRole("button", { name: rawIssuerString }),
+	);
 	// The command input opens pre-filled with the raw counterparty string.
 	await screen.findByLabelText("Search issuers");
 	return user;
@@ -164,6 +170,28 @@ describe("AssignmentPicker", () => {
 		expect(updateTransaction).not.toHaveBeenCalled();
 	});
 
+	it("escapes regex metacharacters in the pre-filled pattern", async () => {
+		// A pattern is compiled with `new RegExp(pattern, "i")`, so an unescaped
+		// `PAYPAL *EBAY (FR)` would not even compile ("Nothing to repeat").
+		const user = await open("PAYPAL *EBAY (FR)");
+
+		await user.click(
+			await screen.findByText("Add a rule to an existing issuer"),
+		);
+		await user.click(await screen.findByText("Spotify"));
+
+		const stub = await screen.findByText(/Rule page for issuer 10 pattern=/);
+		const pattern = stub.textContent?.replace(
+			/^Rule page for issuer 10 pattern=/,
+			"",
+		);
+		expect(pattern).toBe("PAYPAL \\*EBAY \\(FR\\)");
+		// The escaped pattern compiles and matches the literal it came from.
+		expect(new RegExp(pattern as string, "i").test("PAYPAL *EBAY (FR)")).toBe(
+			true,
+		);
+	});
+
 	it("searches the quoted raw string on Google in a new tab", async () => {
 		const openSpy = vi
 			.spyOn(window, "open")
@@ -181,5 +209,31 @@ describe("AssignmentPicker", () => {
 		expect(createIssuer).not.toHaveBeenCalled();
 		expect(updateTransaction).not.toHaveBeenCalled();
 		openSpy.mockRestore();
+	});
+
+	it("opens the PayPal activity feed windowed on the transaction date", async () => {
+		const openSpy = vi
+			.spyOn(window, "open")
+			.mockReturnValue(null as unknown as Window);
+		// A PayPal bank label never names the merchant, so the feed is the lookup.
+		const user = await open(
+			"PayPal Europe S.a.r.l. et Cie S.C.A",
+			new Date(2026, 0, 15),
+		);
+
+		await user.click(await screen.findByText(/Open PayPal activity/));
+
+		expect(openSpy).toHaveBeenCalledWith(
+			"https://www.paypal.com/myaccount/activities/?start_date=2026-01-10&end_date=2026-01-15",
+			"_blank",
+			"noopener,noreferrer",
+		);
+		openSpy.mockRestore();
+	});
+
+	it("offers the PayPal activity action only on PayPal rows", async () => {
+		await open("CARREFOUR PARIS");
+
+		expect(screen.queryByText(/Open PayPal activity/)).not.toBeInTheDocument();
 	});
 });
