@@ -32,8 +32,8 @@ export function RuleFormSkeleton() {
 			<div className="flex flex-col gap-1">
 				<Skeleton className="h-3 w-12" />
 				<div className="flex flex-wrap gap-1.5">
-					{TOKEN_CHIPS.map((key) => (
-						<Skeleton key={key} className="h-5 w-10" />
+					{TOKEN_CHIPS.map((id) => (
+						<Skeleton key={id} className="h-5 w-10" />
 					))}
 				</div>
 			</div>

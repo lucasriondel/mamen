@@ -34,8 +34,9 @@ function FolderSkeleton({ leaves }: { leaves: readonly string[] }) {
 			</div>
 
 			<ul className="mt-3 flex flex-col gap-2 border-gousse-line border-l pl-3">
-				{leaves.map((width) => (
-					<li key={width}>
+				{leaves.map((width, index) => (
+					// biome-ignore lint/suspicious/noArrayIndexKey: a static placeholder list — never reordered, and two leaves may share a width
+					<li key={index}>
 						<LeafSkeleton nameWidth={width} />
 					</li>
 				))}
@@ -54,8 +55,9 @@ const FOLDERS = [
 export function CategoriesTreeSkeleton() {
 	return (
 		<SkeletonScreen label="Loading categories…" className="flex flex-col gap-6">
-			{FOLDERS.map((leaves) => (
-				<FolderSkeleton key={leaves.join()} leaves={leaves} />
+			{FOLDERS.map((leaves, index) => (
+				// biome-ignore lint/suspicious/noArrayIndexKey: a static placeholder list — never reordered, and two folders may hold the same widths
+				<FolderSkeleton key={index} leaves={leaves} />
 			))}
 		</SkeletonScreen>
 	);

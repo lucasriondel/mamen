@@ -14,15 +14,19 @@ import {
  * layout doesn't shift when the rows arrive. `w-full` on the raw-issuer column
  * mirrors its free-text stretch; `ml-auto` right-aligns the amount as the real
  * cell does.
+ *
+ * `id` names the real column each placeholder stands for, and is what the cells
+ * are keyed on: two columns may legitimately share a width, so a width is not
+ * an identity.
  */
 const COLUMNS = [
-	{ head: "w-10", cell: "w-16" },
-	{ head: "w-14", cell: "w-20" },
-	{ head: "w-12", cell: "w-24" },
-	{ head: "w-20", cell: "w-full" },
-	{ head: "w-16", cell: "w-24" },
-	{ head: "w-14", cell: "w-16 ml-auto" },
-	{ head: "w-12", cell: "w-8" },
+	{ id: "date", head: "w-10", cell: "w-16" },
+	{ id: "account", head: "w-14", cell: "w-20" },
+	{ id: "issuer", head: "w-12", cell: "w-24" },
+	{ id: "rawIssuer", head: "w-20", cell: "w-full" },
+	{ id: "category", head: "w-16", cell: "w-24" },
+	{ id: "amount", head: "w-14", cell: "w-16 ml-auto" },
+	{ id: "notes", head: "w-12", cell: "w-8" },
 ] as const;
 
 export interface TransactionsTableSkeletonProps {
@@ -53,7 +57,7 @@ export function TransactionsTableSkeleton({
 			<TableHeader>
 				<TableRow>
 					{COLUMNS.map((column) => (
-						<TableHead key={column.head}>
+						<TableHead key={column.id}>
 							<Skeleton className={`h-3.5 ${column.head}`} />
 						</TableHead>
 					))}
@@ -63,7 +67,7 @@ export function TransactionsTableSkeleton({
 				{Array.from({ length: rows }, (_, index) => index).map((index) => (
 					<TableRow key={index}>
 						{COLUMNS.map((column) => (
-							<TableCell key={column.head}>
+							<TableCell key={column.id}>
 								<Skeleton className={`h-4 ${column.cell}`} />
 							</TableCell>
 						))}

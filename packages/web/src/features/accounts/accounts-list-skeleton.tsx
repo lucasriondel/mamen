@@ -11,9 +11,10 @@ const ROW_WIDTHS = ["w-40", "w-28", "w-36"] as const;
 export function AccountsListSkeleton() {
 	return (
 		<SkeletonScreen label="Loading accounts…" className="flex flex-col">
-			{ROW_WIDTHS.map((width) => (
+			{ROW_WIDTHS.map((width, index) => (
 				<div
-					key={width}
+					// biome-ignore lint/suspicious/noArrayIndexKey: a static placeholder list — never reordered, and two rows may share a width
+					key={index}
 					className="flex flex-wrap items-center justify-between gap-3 border-b border-gousse-line py-3"
 				>
 					<div className="flex items-baseline gap-3">

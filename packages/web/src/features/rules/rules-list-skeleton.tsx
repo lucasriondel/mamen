@@ -13,8 +13,9 @@ export function RulesListSkeleton() {
 			label="Loading rules…"
 			className="divide-y divide-gousse-line rounded-md border border-gousse-line"
 		>
-			{ROW_WIDTHS.map((width) => (
-				<div key={width} className="flex items-center gap-2 px-3 py-2">
+			{ROW_WIDTHS.map((width, index) => (
+				// biome-ignore lint/suspicious/noArrayIndexKey: a static placeholder list — never reordered, and two rows may share a width
+				<div key={index} className="flex items-center gap-2 px-3 py-2">
 					<Skeleton className={`h-4 ${width} min-w-0 flex-1`} />
 					<Skeleton className="h-3 w-16 shrink-0" />
 					<Skeleton className="size-7 shrink-0" />
