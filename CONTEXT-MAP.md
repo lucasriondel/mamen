@@ -72,7 +72,7 @@ repeated per package.
   so re-categorising an issuer reclassifies all its history for free. The
   exception is a **Category override** on a single transaction
   (`manualCategory` + `categoryId`), which wins over the issuer's default.
-  This is what powers the category-spend recap graphs.
+  This is what powers the category-spend **recap** graphs.
 
 - **Inherited category** — the display state of a transaction showing its
   **Issuer default category**: the common, quiet case, rendered plain. Contrasts
@@ -92,7 +92,7 @@ repeated per package.
   transaction to its issuer's default; it never forces the transaction to have no
   category. A transaction that should carry no meaningful category gets a real
   Category (e.g. *Uncategorised*) assigned to it, so the intent is explicit and
-  visible in the recap.
+  visible in the **recap**.
   _Avoid_: Clearing the category, unsetting (both suggest a null result).
   _Code note_: not `transactions.categoryOverride` — a vestigial free-text column
   no derivation ever read, dropped along with `subcategoryId` (which `parentId`
@@ -269,3 +269,96 @@ repeated per package.
   [ADR 0007](./docs/adr/0007-issuer-images-are-normalised-search-is-server-side.md).
   _Avoid_: image search (the intent is a logo), Google Images (no such API — it is
   Programmable Search with `searchType=image`).
+
+- **Recap** — the spend summary over a **period** (a month, a calendar year, or
+  all time), broken down by issuer and by category and narrowable by account. It
+  answers *where did the money go*, so it sums **spend only**: debits, shown as
+  positive magnitudes, ranked high→low. Not every row reaches it — a **transfer
+  group**'s legs, a transaction **excluded from recap**, and a **bundle member**
+  (its **bundle parent** stands in for it) are all held out. Which rows count is
+  one predicate, defined once beside the **derived category** expression, never
+  restated per surface: a second copy is a second definition of "counts toward
+  spend", and the two drift.
+  _Avoid_: dashboard, report, stats, overview.
+
+- **Excluded from recap** — a transaction that does not count toward spend
+  totals: a movement between the user's own accounts the **transfer group**
+  feature never caught, a correction, a row the user has decided is noise.
+  Excluded rows stay **fully visible** in the transactions list, carrying their
+  own row colour — exclusion is about arithmetic, not visibility. The state is
+  **derived through the issuer**, exactly as **derived category** is: a per-row
+  `manualExcluded` flag wins, else the row inherits its issuer's
+  `excludedFromRecap` default — see
+  [ADR 0008](./docs/adr/0008-recap-exclusion-is-derived-through-the-issuer.md).
+  An excluded row is never **uncurated**: there is no review owed on money that
+  is deliberately outside the totals.
+  _Avoid_: ignored, hidden, archived, disabled (each says the row leaves the
+  screen; only its money leaves the total). Distinct from `isDuplicateExcluded`,
+  which claims *this row is a duplicate of another*, not *this row is not
+  spending*.
+
+- **Curation** — the work of turning a raw bank row into a reviewed one: giving
+  it an issuer, a category, or a note. The user's day-to-day job in this app, and
+  what the transactions table is laid out around.
+  _Avoid_: tagging, cleaning, triage.
+
+- **Uncurated** — a transaction on which **none** of the three has happened: no
+  issuer, no **derived** category (so a row categorised through its issuer counts
+  as curated, and the tint matches what the row displays), and no note (a
+  whitespace-only note is not curation). Derived, never stored — one predicate in
+  the transactions repository backs both the *Uncurated only* filter and the red
+  row tint, so the filter and the tint cannot disagree. Narrower than
+  **Unassigned**, which is about the category alone: a row with an issuer but no
+  category is unassigned and *curated*.
+  _Avoid_: unreviewed, untouched, incomplete, dirty; and *uncategorised* (that
+  names a real Category, and curation is three fields, not one).
+
+- **Transfer group** — a set of transactions that are one internal movement
+  between the user's own accounts, linked by a shared `transferGroupId` (the
+  smallest member id, so every leg carries the same value). Its legs sum to
+  **zero** to the cent, which is what makes it safe to net out: the whole group
+  vanishes from the **recap** rather than counting as a debit and an income. A
+  leg belongs to at most one group; groups are suggested by date-and-amount
+  proximity but only ever created by an explicit confirmation, and a group that
+  falls below two legs is dissolved rather than left standing.
+  _Avoid_: transfer bundle (a **bundle** is the other grouping), internal
+  payment, move, self-payment.
+
+- **Transfer leg** — one transaction inside a **transfer group**: the debit leg
+  (money leaving) or the credit leg (money arriving). "Leg" is the unit the
+  zero-sum check, the suggestion pairs and the netted-out summary all count in.
+
+- **Bundle** — several transactions treated as **one** for the **recap**, for a
+  cost the bank tells in more than one row: 200 € of groceries on a weekend away
+  and 150 € paid back over the following week is one 50 € weekend, not a large
+  debit filed apart from an unexplained credit. A bundle has a **bundle parent**
+  carrying the label, issuer, category and notes, and two or more **bundle
+  members**, which are the real bank rows. It is **not** a **transfer group**:
+  a transfer nets to zero and disappears from the recap, while a bundle nets to
+  a non-zero amount and counts as exactly one line. The two are mutually
+  exclusive — a row that was both would be netted out by the transfer partition
+  while still displaying its share of the bundle's total, which is a number that
+  disagrees with itself.
+  _Avoid_: group (already reserved — see **Category folder**, **Transfer
+  group**), merge, combine, split.
+
+- **Bundle parent** — the row that stands for a **bundle**: a *synthetic*
+  transaction living in the `transactions` table beside the real ones (told apart
+  by a `kind` discriminator), so it sorts, pages, filters, searches and is edited
+  through every surface a transaction already has. It carries the bundle's
+  identity — label (in `rawIssuerString`, which already means *the human-readable
+  name of this row*), issuer, category, notes — and its amount is **always the
+  sum of its members**, never stored independently of them: a late refund joining
+  the bundle just changes the number. Its date defaults to the earliest member's
+  and may be overridden, because the cost belongs to when the money was spent,
+  not to when the last person settled up.
+  _Avoid_: virtual transaction, container, header row, master.
+
+- **Bundle member** — a real bank row pointing at its **bundle parent** through
+  `bundleId`. Members are hidden from the top level of the transactions list and
+  from its signed total, since the parent already accounts for them and showing
+  both double-counts; they stay reachable by expanding the parent, and are shown
+  there for reading, not counted again. Bundling never touches a member's own
+  issuer, category or notes, so dissolving a bundle returns each member exactly
+  as it was.
+  _Avoid_: child transaction, sub-transaction, line item.
