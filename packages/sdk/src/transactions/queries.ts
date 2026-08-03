@@ -45,6 +45,12 @@ export type TransactionListParams = {
 	isDuplicateExcluded?: boolean;
 	/** Free-text substring matched across issuer text/name, notes, amount (#40). */
 	search?: string;
+	/**
+	 * Curation state. `true` narrows to rows nothing has been reviewed on — no
+	 * issuer, no *derived* category, no note (the rows the table tints); `false`
+	 * narrows to the complement; omitted returns both.
+	 */
+	uncurated?: boolean;
 	orderBy?: "date";
 	direction?: "asc" | "desc";
 };

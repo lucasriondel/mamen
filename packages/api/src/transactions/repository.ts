@@ -252,6 +252,7 @@ type Filters = {
 	isRefund?: boolean;
 	isDuplicateExcluded?: boolean;
 	search?: string;
+	uncurated?: boolean;
 };
 
 /** The full `list` filter — the composable set plus pagination + ordering. */
@@ -381,6 +382,18 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 					conditions.push(
 						sql`(${contains(sql`t.rawIssuerString`)} OR ${contains(sql`i.name`)} OR ${contains(sql`t.notes`)} OR printf('%.2f', abs(t.amount)) LIKE ${amountLike} ESCAPE '\\')`,
 					);
+				}
+				// Curation state: a row is *uncurated* when nothing on it has been
+				// reviewed — no issuer, no derived category, no note. Built from the
+				// same `derivedCategory` fragment the projection uses, so a row
+				// categorised through its issuer counts as curated here exactly as it
+				// renders as categorised there. `trim(t.notes) = ''` matches the
+				// table's own `notes.trim() === ""`, so a whitespace-only note is not
+				// curation. `false` asks for the complement — rows with at least one
+				// of the three.
+				if (f.uncurated !== undefined) {
+					const isUncurated = sql`(t.issuerId IS NULL AND ${derivedCategory} IS NULL AND (t.notes IS NULL OR trim(t.notes) = ''))`;
+					conditions.push(f.uncurated ? isUncurated : sql`NOT ${isUncurated}`);
 				}
 				return conditions;
 			};

@@ -53,6 +53,25 @@ describe("validateTransactionsSearch", () => {
 		expect(validateTransactionsSearch({ search: 5 }).search).toBeUndefined();
 	});
 
+	it("accepts the uncurated toggle as a boolean or the URL's string", () => {
+		expect(validateTransactionsSearch({ uncurated: true }).uncurated).toBe(
+			true,
+		);
+		expect(validateTransactionsSearch({ uncurated: "true" }).uncurated).toBe(
+			true,
+		);
+	});
+
+	it("drops any non-true uncurated value, so off means no filter", () => {
+		expect(
+			validateTransactionsSearch({ uncurated: false }).uncurated,
+		).toBeUndefined();
+		expect(
+			validateTransactionsSearch({ uncurated: "false" }).uncurated,
+		).toBeUndefined();
+		expect(validateTransactionsSearch({}).uncurated).toBeUndefined();
+	});
+
 	it("only accepts asc/desc for direction", () => {
 		expect(validateTransactionsSearch({ direction: "asc" }).direction).toBe(
 			"asc",

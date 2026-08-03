@@ -4,12 +4,15 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { formatMonth } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { UncuratedToggle } from "./uncurated-toggle";
 
 /** The subset of filter state the controls read/write. */
 export interface TransactionFilterValues {
 	accountId?: number;
 	importMonth?: string;
 	search?: string;
+	/** Narrow to rows with no issuer, no derived category and no note. */
+	uncurated?: boolean;
 }
 
 export interface TransactionsFiltersProps {
@@ -53,7 +56,8 @@ export function TransactionsFilters({
 	const hasFilters =
 		value.accountId != null ||
 		value.importMonth != null ||
-		value.search != null;
+		value.search != null ||
+		value.uncurated === true;
 
 	return (
 		<div className="flex flex-wrap items-center gap-3">
@@ -105,6 +109,15 @@ export function TransactionsFilters({
 				</select>
 			</label>
 
+			<UncuratedToggle
+				pressed={value.uncurated === true}
+				// `undefined` rather than `false` when cleared: the filter is a toggle,
+				// so its off state is "no filter" and stays out of the URL.
+				onPressedChange={(pressed) =>
+					onChange({ uncurated: pressed ? true : undefined })
+				}
+			/>
+
 			{hasFilters ? (
 				<Button
 					variant="ghost"
@@ -114,6 +127,7 @@ export function TransactionsFilters({
 							accountId: undefined,
 							importMonth: undefined,
 							search: undefined,
+							uncurated: undefined,
 						})
 					}
 				>

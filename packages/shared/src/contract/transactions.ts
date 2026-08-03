@@ -156,6 +156,12 @@ export const TransactionFilters = {
 	// (2 decimals, unsigned) — the union, so one box searches every human-readable
 	// field of a row. AND-combined with the rest, like every sibling filter (#40).
 	search: Schema.optional(Schema.String),
+	// Curation state: `true` returns only rows nothing has been reviewed on —
+	// no issuer, no *derived* category, no note. Derived, not stored: a row
+	// categorised through its issuer counts as curated, exactly like the tint the
+	// table paints those rows with. `false` returns only the complement (rows
+	// with at least one of the three), absent returns both.
+	uncurated: Schema.optional(BooleanFromString),
 } as const;
 
 /**

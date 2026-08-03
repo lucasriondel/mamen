@@ -24,6 +24,12 @@ export interface TransactionsSearch {
 	importMonth?: string;
 	/** Free-text term matched across issuer text/name, notes, and amount (#40). */
 	search?: string;
+	/**
+	 * When `true`, narrow to rows nothing has been reviewed on — no issuer, no
+	 * derived category, no note (the rows the table tints). Absent shows every
+	 * row; there is no "curated only" URL state, the control is a toggle.
+	 */
+	uncurated?: boolean;
 	/** Date sort order; defaults to `desc` (newest-first), matching the SDK. */
 	direction?: "asc" | "desc";
 	/**
@@ -71,6 +77,13 @@ export function validateTransactionsSearch(
 	if (typeof search.search === "string") {
 		const term = search.search.trim();
 		if (term !== "") result.search = term;
+	}
+
+	// Only the `true` state is representable: the filter is a toggle, so an
+	// explicit `false` is the same view as no filter at all and stays out of the
+	// URL. A hand-typed `?uncurated=true` decodes like the boolean the toggle writes.
+	if (search.uncurated === true || search.uncurated === "true") {
+		result.uncurated = true;
 	}
 
 	if (search.direction === "asc" || search.direction === "desc") {

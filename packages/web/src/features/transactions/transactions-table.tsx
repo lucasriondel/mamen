@@ -124,6 +124,7 @@ export function TransactionsTable({
 						<AssignmentPicker
 							transactionId={row.original.id}
 							rawIssuerString={row.original.rawIssuerString}
+							date={row.original.date}
 						/>
 					);
 				},

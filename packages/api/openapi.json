@@ -1219,6 +1219,9 @@
                     "description": "an integer",
                     "title": "int"
                   },
+                  "notes": {
+                    "type": "string"
+                  },
                   "firstSeen": {
                     "$ref": "#/components/schemas/Date"
                   }
@@ -1364,6 +1367,16 @@
                         "type": "integer",
                         "description": "an integer",
                         "title": "int"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "notes": {
+                    "anyOf": [
+                      {
+                        "type": "string"
                       },
                       {
                         "type": "null"
@@ -1984,6 +1997,18 @@
             "required": false
           },
           {
+            "name": "uncurated",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "required": false
+          },
+          {
             "name": "orderBy",
             "in": "query",
             "schema": {
@@ -2303,6 +2328,18 @@
             "in": "query",
             "schema": {
               "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "uncurated",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
             },
             "required": false
           }
@@ -5342,6 +5379,9 @@
             "type": "integer",
             "description": "an integer",
             "title": "int"
+          },
+          "notes": {
+            "type": "string"
           },
           "createdAt": {
             "$ref": "#/components/schemas/Date"

@@ -690,6 +690,101 @@ describe("TransactionRepo", () => {
 			);
 		});
 
+		// The `uncurated` filter — rows nothing has been reviewed on. Every case
+		// below pins one of the three curation signals (issuer, DERIVED category,
+		// note) as enough to exclude a row.
+		describe("uncurated filter", () => {
+			// Four rows, one per curation state: bare, issuer-only, note-only, and
+			// one categorised *through its issuer* rather than by hand — the case a
+			// stored-column check would wrongly report as uncurated. Issuer 8 carries
+			// a `defaultCategoryId`; issuer 9 has none.
+			const seedCuration = (repo: TransactionRepo) =>
+				Effect.gen(function* () {
+					const sql = yield* SqlClient.SqlClient;
+					yield* sql`INSERT INTO issuers (id, name, defaultCategoryId, createdAt, firstSeen) VALUES (8, 'Spotify AB', 7, ${DATE.toISOString()}, ${DATE.toISOString()})`;
+					yield* sql`INSERT INTO issuers (id, name, createdAt, firstSeen) VALUES (9, 'Uncategorised Co', ${DATE.toISOString()}, ${DATE.toISOString()})`;
+					yield* repo.create(make({ rawIssuerString: "BARE ROW" }));
+					yield* repo.create(
+						make({ rawIssuerString: "ISSUER ONLY", issuerId: asIssuer(9) }),
+					);
+					yield* repo.create(
+						make({ rawIssuerString: "NOTE ONLY", notes: "check this" }),
+					);
+					yield* repo.create(
+						make({ rawIssuerString: "DERIVED CAT", issuerId: asIssuer(8) }),
+					);
+				});
+
+			it.effect("returns only the row with no issuer, category or note", () =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* seedCuration(repo);
+					const page = yield* repo.list({ ...listAll, uncurated: true });
+					assert.strictEqual(page.total, 1);
+					assert.strictEqual(page.items[0]?.rawIssuerString, "BARE ROW");
+				}).pipe(Effect.provide(RepoAndSqlTest)),
+			);
+
+			it.effect("counts an issuer-derived category as curated", () =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* seedCuration(repo);
+					// DERIVED CAT stores no `categoryId` of its own — it inherits one
+					// from issuer 8. Filtering on the stored column would return it.
+					const page = yield* repo.list({ ...listAll, uncurated: true });
+					assert.deepStrictEqual(
+						page.items.map((t) => t.rawIssuerString),
+						["BARE ROW"],
+					);
+				}).pipe(Effect.provide(RepoAndSqlTest)),
+			);
+
+			it.effect("treats a whitespace-only note as no note", () =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* repo.create(
+						make({ rawIssuerString: "BLANK NOTE", notes: "  " }),
+					);
+					const page = yield* repo.list({ ...listAll, uncurated: true });
+					assert.strictEqual(page.total, 1);
+				}).pipe(Effect.provide(RepoAndSqlTest)),
+			);
+
+			it.effect("false returns the complement, absent returns both", () =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* seedCuration(repo);
+					assert.strictEqual(
+						(yield* repo.list({ ...listAll, uncurated: false })).total,
+						3,
+					);
+					assert.strictEqual((yield* repo.list(listAll)).total, 4);
+				}).pipe(Effect.provide(RepoAndSqlTest)),
+			);
+
+			it.effect("combines with other filters (AND)", () =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* seedCuration(repo);
+					// The one uncurated row is on account 1, so account 2 has none.
+					const page = yield* repo.list({
+						...listAll,
+						uncurated: true,
+						accountId: asAccount(2),
+					});
+					assert.strictEqual(page.total, 0);
+				}).pipe(Effect.provide(RepoAndSqlTest)),
+			);
+
+			it.effect("count honors the uncurated filter", () =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* seedCuration(repo);
+					assert.strictEqual((yield* repo.count({ uncurated: true })).count, 1);
+				}).pipe(Effect.provide(RepoAndSqlTest)),
+			);
+		});
+
 		it.effect("count honors every filter list does", () =>
 			Effect.gen(function* () {
 				const repo = yield* TransactionRepo;
