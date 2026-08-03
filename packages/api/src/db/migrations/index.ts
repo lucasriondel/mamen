@@ -16,6 +16,7 @@ import categoryColourInheritLucideIcons from "./0015_category_colour_inherit_luc
 import addIssuersNotes from "./0016_add_issuers_notes";
 import dropRulesMatchCount from "./0017_drop_rules_match_count";
 import addTransactionsRecapExclusion from "./0018_add_transactions_recap_exclusion";
+import addIssuersRecapExclusion from "./0019_add_issuers_recap_exclusion";
 
 /**
  * The migration set, keyed `NNNN_name` (the Migrator parses the numeric prefix
@@ -42,4 +43,5 @@ export const migrations = {
 	"0016_add_issuers_notes": addIssuersNotes,
 	"0017_drop_rules_match_count": dropRulesMatchCount,
 	"0018_add_transactions_recap_exclusion": addTransactionsRecapExclusion,
+	"0019_add_issuers_recap_exclusion": addIssuersRecapExclusion,
 } as const;

@@ -1526,6 +1526,29 @@ describe("TransactionRepo", () => {
 				);
 			}).pipe(Effect.provide(RepoTest)),
 		);
+
+		// The candidate projection is a second read of the same rows, so it must
+		// derive exclusion through the candidate's OWN issuer exactly as it already
+		// derives the category (ADR 0008) — otherwise the same transaction reads
+		// excluded in the list and counted in the suggestion.
+		it.effect("a candidate derives exclusion through its own issuer", () =>
+			Effect.gen(function* () {
+				const sql = yield* SqlClient.SqlClient;
+				const repo = yield* TransactionRepo;
+				yield* sql`INSERT INTO issuers (id, name, excludedFromRecap, createdAt, firstSeen) VALUES (4, 'Joint account', 1, ${DATE.toISOString()}, ${DATE.toISOString()})`;
+				const target = yield* repo.create(make({ amount: -30 }));
+				yield* repo.create(
+					make({
+						amount: 30,
+						accountId: asAccount(2),
+						issuerId: asIssuer(4),
+					}),
+				);
+
+				const out = yield* repo.suggestTransfers(target.id);
+				assert.strictEqual(out[0]?.excludedFromRecap, true);
+			}).pipe(Effect.provide(RepoAndSqlTest)),
+		);
 	});
 
 	describe("transferCandidates (all detected pairs)", () => {
@@ -1593,6 +1616,24 @@ describe("TransactionRepo", () => {
 					assert.strictEqual(out[0].from.id, debit.id);
 					assert.strictEqual(out[0].to.id, match.id);
 				}).pipe(Effect.provide(RepoTest)),
+		);
+
+		// Both legs are projected from their OWN issuer, exclusion included — the
+		// same rule the list applies, so the Transfers page and the table cannot
+		// disagree about whether a row counts (ADR 0008).
+		it.effect("each leg derives exclusion through its own issuer", () =>
+			Effect.gen(function* () {
+				const sql = yield* SqlClient.SqlClient;
+				const repo = yield* TransactionRepo;
+				yield* sql`INSERT INTO issuers (id, name, excludedFromRecap, createdAt, firstSeen) VALUES (4, 'Joint account', 1, ${DATE.toISOString()}, ${DATE.toISOString()})`;
+				yield* repo.create(make({ amount: -30, issuerId: asIssuer(4) }));
+				yield* repo.create(make({ amount: 30, accountId: asAccount(2) }));
+
+				const out = yield* repo.transferCandidates();
+				assert.strictEqual(out[0]?.from.excludedFromRecap, true);
+				// The credit leg has no issuer, so it keeps counting.
+				assert.strictEqual(out[0]?.to.excludedFromRecap, undefined);
+			}).pipe(Effect.provide(RepoAndSqlTest)),
 		);
 
 		it.effect("excludes already-grouped and refund legs", () =>

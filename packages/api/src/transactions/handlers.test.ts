@@ -1127,6 +1127,213 @@ describe("derived category through issuer", () => {
 	);
 });
 
+// Derived **recap exclusion** (issue #69, ADR 0008): whether a row counts
+// toward spend totals is read *through* its issuer at query time — `CASE WHEN
+// t.manualExcluded = 1 THEN t.excludedFromRecap ELSE i.excludedFromRecap END` —
+// exactly as the category is. The per-row flag from #67 is the override, in
+// both directions. Asserted at the API boundary via the read endpoints, the
+// feature's seam.
+describe("derived recap exclusion through issuer", () => {
+	const FIRST_SEEN = new Date("2026-01-15T00:00:00.000Z");
+
+	/** An issuer whose rows default to excluded (or not). */
+	const issuerExcluded = (excluded: boolean) =>
+		Effect.flatMap(HttpApiClient.make(Api), (client) =>
+			client.issuers.create({
+				payload: {
+					name: excluded ? "Joint account" : "Amazon",
+					firstSeen: FIRST_SEEN,
+					excludedFromRecap: excluded,
+				},
+			}),
+		);
+
+	it.effect("a row with no manual flag inherits its issuer's exclusion", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const issuer = yield* issuerExcluded(true);
+			const created = yield* client.transactions.create({
+				payload: make({ issuerId: issuer.id }),
+			});
+
+			// Nothing was stamped on the row itself…
+			assert.strictEqual(created.excludedFromRecap, undefined);
+			// …yet every read path says it does not count.
+			assert.strictEqual(
+				(yield* client.transactions.getById({ path: { id: created.id } }))
+					.excludedFromRecap,
+				true,
+			);
+			const page = yield* client.transactions.list({
+				urlParams: { limit: 50, offset: 0, direction: "desc" },
+			});
+			assert.strictEqual(page.items[0]?.excludedFromRecap, true);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	// The property that makes deriving worth it: no import sweep, no backfill.
+	it.effect(
+		"a transaction created under an excluded issuer needs no re-run",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const issuer = yield* issuerExcluded(true);
+				const created = yield* client.transactions.create({
+					payload: make({ issuerId: issuer.id, rawIssuerString: "FRESH" }),
+				});
+
+				// Straight to the read — nothing ran in between.
+				assert.strictEqual(
+					(yield* client.transactions.getById({ path: { id: created.id } }))
+						.excludedFromRecap,
+					true,
+				);
+			}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("excluding an issuer holds its whole history out at once", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const issuer = yield* issuerExcluded(false);
+			const a = yield* client.transactions.create({
+				payload: make({ issuerId: issuer.id, rawIssuerString: "A" }),
+			});
+			const b = yield* client.transactions.create({
+				payload: make({ issuerId: issuer.id, rawIssuerString: "B" }),
+			});
+			assert.strictEqual(
+				(yield* client.transactions.getById({ path: { id: a.id } }))
+					.excludedFromRecap,
+				undefined,
+			);
+
+			// One issuer write, no transaction writes.
+			yield* client.issuers.update({
+				path: { id: issuer.id },
+				payload: { excludedFromRecap: true },
+			});
+
+			for (const id of [a.id, b.id]) {
+				assert.strictEqual(
+					(yield* client.transactions.getById({ path: { id } }))
+						.excludedFromRecap,
+					true,
+				);
+			}
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("a manually excluded row stays out under an included issuer", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const issuer = yield* issuerExcluded(false);
+			const created = yield* client.transactions.create({
+				payload: make({
+					issuerId: issuer.id,
+					excludedFromRecap: true,
+					manualExcluded: true,
+				}),
+			});
+			assert.strictEqual(
+				(yield* client.transactions.getById({ path: { id: created.id } }))
+					.excludedFromRecap,
+				true,
+			);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	// The half a stamped column could never keep: un-excluding an issuer must not
+	// clobber a row the user deliberately pulled back in, and vice versa.
+	it.effect(
+		"a manually included row keeps counting under an excluded issuer",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const issuer = yield* issuerExcluded(true);
+				const created = yield* client.transactions.create({
+					payload: make({
+						issuerId: issuer.id,
+						excludedFromRecap: false,
+						manualExcluded: true,
+					}),
+				});
+				assert.strictEqual(
+					(yield* client.transactions.getById({ path: { id: created.id } }))
+						.excludedFromRecap,
+					undefined,
+				);
+
+				// Dropping the override hands the row back to the issuer's default.
+				yield* client.transactions.update({
+					path: { id: created.id },
+					payload: { manualExcluded: false },
+				});
+				assert.strictEqual(
+					(yield* client.transactions.getById({ path: { id: created.id } }))
+						.excludedFromRecap,
+					true,
+				);
+			}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("a row with no issuer counts (nothing to inherit from)", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const created = yield* client.transactions.create({ payload: make() });
+			assert.strictEqual(
+				(yield* client.transactions.getById({ path: { id: created.id } }))
+					.excludedFromRecap,
+				undefined,
+			);
+			// And it is still reachable through the "counted only" filter — the
+			// LEFT JOIN's `NULL` must read as "counts", not as neither side.
+			const counted = yield* client.transactions.list({
+				urlParams: {
+					limit: 50,
+					offset: 0,
+					direction: "desc",
+					excludedFromRecap: false,
+				},
+			});
+			assert.strictEqual(counted.total, 1);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	// ADR 0002's failure, on the second field: a filter reading the stored column
+	// would return only hand-flagged rows and silently drop every inherited one.
+	it.effect("the excludedFromRecap filter matches the derivation", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const issuer = yield* issuerExcluded(true);
+			yield* client.transactions.create({
+				payload: make({ issuerId: issuer.id, rawIssuerString: "INHERITED" }),
+			});
+			yield* client.transactions.create({
+				payload: make({ rawIssuerString: "COUNTED" }),
+			});
+
+			const excluded = yield* client.transactions.list({
+				urlParams: {
+					limit: 50,
+					offset: 0,
+					direction: "desc",
+					excludedFromRecap: true,
+				},
+			});
+			assert.deepStrictEqual(
+				excluded.items.map((t) => t.rawIssuerString),
+				["INHERITED"],
+			);
+			assert.strictEqual(
+				(yield* client.transactions.count({
+					urlParams: { excludedFromRecap: false },
+				})).count,
+				1,
+			);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+});
+
 // The Leaf-assignable invariant (ADR 0003) at the transactions door: a
 // `categoryId` must be an assignable **leaf** (a node with no children), never a
 // **folder** — the same corruption the issuer door already rejects, arriving

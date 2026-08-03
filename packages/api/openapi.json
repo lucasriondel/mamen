@@ -1240,6 +1240,9 @@
                   "notes": {
                     "type": "string"
                   },
+                  "excludedFromRecap": {
+                    "type": "boolean"
+                  },
                   "firstSeen": {
                     "$ref": "#/components/schemas/Date"
                   }
@@ -1400,6 +1403,9 @@
                         "type": "null"
                       }
                     ]
+                  },
+                  "excludedFromRecap": {
+                    "type": "boolean"
                   },
                   "firstSeen": {
                     "$ref": "#/components/schemas/Date"
@@ -5435,6 +5441,9 @@
           },
           "notes": {
             "type": "string"
+          },
+          "excludedFromRecap": {
+            "type": "boolean"
           },
           "createdAt": {
             "$ref": "#/components/schemas/Date"

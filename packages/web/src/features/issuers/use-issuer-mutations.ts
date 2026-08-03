@@ -6,7 +6,7 @@ import type {
 } from "@mamen/shared/contract";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { issuerKeys, issuerMutations } from "@/lib/sdk";
+import { issuerKeys, issuerMutations, transactionKeys } from "@/lib/sdk";
 import { toErrorMessage } from "@/lib/sdk-error";
 
 /**
@@ -109,6 +109,26 @@ export function useIssuerMutations() {
 		onError,
 	});
 
+	// The bulk **recap exclusion** lever (issue #69, ADR 0008): hold every one of
+	// this issuer's transactions out of the spend totals, or put them all back.
+	// Like the default category it is a *default* read through the issuer, not a
+	// stamp — one write, no per-row writes, and future imports land already
+	// excluded. `false` is the other half of the same gesture, not the absence of
+	// one, so it is sent rather than omitted.
+	//
+	// This one invalidation reaches past the issuers family: whether a row counts
+	// is derived through the issuer, so the transactions table's colour and every
+	// recap total are stale the moment this lands.
+	const setExcludedFromRecap = useMutation({
+		mutationFn: ({ id, excluded }: { id: IssuerId; excluded: boolean }) =>
+			issuerMutations.update(id, { excludedFromRecap: excluded }),
+		onSuccess: () => {
+			invalidate();
+			queryClient.invalidateQueries({ queryKey: transactionKeys.all });
+		},
+		onError,
+	});
+
 	return {
 		create,
 		rename,
@@ -118,5 +138,6 @@ export function useIssuerMutations() {
 		remove,
 		setNotes,
 		setDefaultCategory,
+		setExcludedFromRecap,
 	};
 }

@@ -27,6 +27,9 @@ const IssuerRow = Schema.Struct({
 	// straight into `Issuer`'s encoded form (where the brand is a plain number).
 	defaultCategoryId: Schema.NullOr(Schema.Number),
 	notes: Schema.NullOr(Schema.String),
+	// The recap-exclusion default (issue #69, ADR 0008) — a 0/1 `INTEGER`, folded
+	// `1` → `true` / `0` → absent like the transaction flags it is read against.
+	excludedFromRecap: Schema.Number,
 	createdAt: Schema.String,
 	firstSeen: Schema.String,
 });
@@ -50,6 +53,7 @@ export const IssuerFromRow = Schema.transform(IssuerRow, Issuer, {
 			? { defaultCategoryId: row.defaultCategoryId }
 			: {}),
 		...(row.notes !== null ? { notes: row.notes } : {}),
+		...(row.excludedFromRecap === 1 ? { excludedFromRecap: true } : {}),
 		createdAt: row.createdAt,
 		firstSeen: row.firstSeen,
 	}),
@@ -59,6 +63,7 @@ export const IssuerFromRow = Schema.transform(IssuerRow, Issuer, {
 		imageUrl: m.imageUrl ?? null,
 		defaultCategoryId: m.defaultCategoryId ?? null,
 		notes: m.notes ?? null,
+		excludedFromRecap: m.excludedFromRecap === true ? 1 : 0,
 		createdAt: m.createdAt,
 		firstSeen: m.firstSeen,
 	}),
@@ -86,6 +91,7 @@ type WriteRow = {
 	imageUrl: string | null;
 	defaultCategoryId: number | null;
 	notes: string | null;
+	excludedFromRecap: number;
 	createdAt: string;
 	firstSeen: string;
 };
@@ -261,6 +267,7 @@ export class IssuerRepo extends Effect.Service<IssuerRepo>()("api/IssuerRepo", {
 			imageUrl: m.imageUrl ?? null,
 			defaultCategoryId: m.defaultCategoryId ?? null,
 			notes: m.notes ?? null,
+			excludedFromRecap: m.excludedFromRecap === true ? 1 : 0,
 			createdAt: m.createdAt.toISOString(),
 			firstSeen: m.firstSeen.toISOString(),
 		});
@@ -302,6 +309,7 @@ export class IssuerRepo extends Effect.Service<IssuerRepo>()("api/IssuerRepo", {
 								imageUrl: payload.imageUrl ?? null,
 								defaultCategoryId: payload.defaultCategoryId ?? null,
 								notes: payload.notes ?? null,
+								excludedFromRecap: payload.excludedFromRecap === true ? 1 : 0,
 								createdAt: now,
 								firstSeen: payload.firstSeen.toISOString(),
 							}),

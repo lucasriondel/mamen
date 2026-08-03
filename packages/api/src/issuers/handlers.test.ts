@@ -266,6 +266,43 @@ describe("issuers endpoints", () => {
 		}).pipe(Effect.provide(HttpLive)),
 	);
 
+	// --- Recap exclusion (issue #69, ADR 0008) ---------------------------------
+
+	it.effect("excludedFromRecap round-trips through create over the wire", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const created = yield* client.issuers.create({
+				payload: make({ name: "Joint account", excludedFromRecap: true }),
+			});
+			assert.strictEqual(created.excludedFromRecap, true);
+
+			const fetched = yield* client.issuers.getById({
+				path: { id: created.id },
+			});
+			assert.deepStrictEqual(fetched, created);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("update excludes an issuer and then puts it back", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const created = yield* client.issuers.create({ payload: make() });
+			assert.strictEqual(created.excludedFromRecap, undefined);
+
+			const excluded = yield* client.issuers.update({
+				path: { id: created.id },
+				payload: { excludedFromRecap: true },
+			});
+			assert.strictEqual(excluded.excludedFromRecap, true);
+
+			const included = yield* client.issuers.update({
+				path: { id: created.id },
+				payload: { excludedFromRecap: false },
+			});
+			assert.strictEqual(included.excludedFromRecap, undefined);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
 	// The Leaf-assignable invariant (ADR 0003) at the issuers door: a default
 	// category must be an assignable leaf (a node with no children), never a
 	// folder. A folder-assigned issuer would hang its transactions off a node the
