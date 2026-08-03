@@ -11,11 +11,14 @@ import { Paged, Pagination } from "./pagination";
 import { Transaction } from "./transactions";
 
 /**
- * Rule entity — the wire shape returned by every rules endpoint. A Matching Rule
- * assigns **only** an issuer (`issuerId`, the issuer this rule matches against);
- * category is derived *through* the issuer, never carried on the rule. `pattern`
- * is a regex over the raw issuer string; `matchCount` is bumped each time the
- * rule wins a row.
+ * Rule entity — a Matching Rule as **stored**. It assigns **only** an issuer
+ * (`issuerId`, the issuer this rule matches against); category is derived
+ * *through* the issuer, never carried on the rule. `pattern` is a regex over the
+ * raw issuer string.
+ *
+ * Every rules *endpoint* returns the richer {@link RuleView} (this plus the
+ * derived `ownedCount`); `Rule` is what the DB dump and the matching engine
+ * speak, i.e. the fields that actually live in a row.
  */
 export class Rule extends Schema.Class<Rule>("Rule")({
 	id: RuleId,
@@ -30,8 +33,23 @@ export class Rule extends Schema.Class<Rule>("Rule")({
 	 * compared as a magnitude, so a `6.99` rule matches a `-6.99` debit.
 	 */
 	matchValue: Schema.optional(Schema.Number.pipe(Schema.positive())),
-	matchCount: Schema.Number,
 	createdAt: Schema.Date,
+}) {}
+
+/**
+ * The wire shape of every rules endpoint: a stored {@link Rule} plus
+ * `ownedCount` — **how many transactions this rule currently owns**, i.e. the
+ * rows for which it is the specificity winner right now (issue #63).
+ *
+ * Derived on read from the live table, never stored: it falls when a
+ * more-specific sibling rule out-specifies the rule, when a row is hand-assigned
+ * away, or when a transaction is deleted. It is *not* a lifetime tally of import
+ * matches — that was the old stored `matchCount`, which no rule created against
+ * existing history ever accumulated, so every UI-created rule read "0 matches".
+ * Read-only: no write payload carries it.
+ */
+export class RuleView extends Rule.extend<RuleView>("RuleView")({
+	ownedCount: Schema.Number,
 }) {}
 
 /** Create payload — the server assigns `id` and `createdAt`. */
@@ -39,7 +57,6 @@ export const RuleCreate = Schema.Struct({
 	issuerId: Rule.fields.issuerId,
 	pattern: Rule.fields.pattern,
 	matchValue: Rule.fields.matchValue,
-	matchCount: Rule.fields.matchCount,
 });
 export type RuleCreate = typeof RuleCreate.Type;
 
@@ -56,7 +73,6 @@ export const RuleUpdate = Schema.Struct({
 	matchValue: Schema.optional(
 		Schema.NullOr(Schema.Number.pipe(Schema.positive())),
 	),
-	matchCount: Schema.optional(Rule.fields.matchCount),
 });
 export type RuleUpdate = typeof RuleUpdate.Type;
 
@@ -152,12 +168,16 @@ export type RuleDeletePreviewResult = typeof RuleDeletePreviewResult.Type;
  * `getById`/`getByIssuerPattern`/`update`/`remove` 404 on a missing rule;
  * `remove` → 204. `list`/`count` share the `issuerId?` filter. Dropped vs
  * today: `POST /rules/bulk-add`, `POST /rules/bulk-delete` (both client-only).
+ *
+ * Every rule-returning endpoint answers with a {@link RuleView} — the stored
+ * rule plus its derived `ownedCount` (issue #63) — so one shape covers reads and
+ * writes alike and a freshly-saved rule already reports the rows it just claimed.
  */
 export class RulesGroup extends HttpApiGroup.make("rules")
 	.add(
 		HttpApiEndpoint.get("list")`/rules`
 			.setUrlParams(Schema.Struct({ ...Pagination, ...RuleListFilters }))
-			.addSuccess(Paged(Rule)),
+			.addSuccess(Paged(RuleView)),
 	)
 	.add(
 		HttpApiEndpoint.get("count")`/rules/count`
@@ -168,14 +188,14 @@ export class RulesGroup extends HttpApiGroup.make("rules")
 		HttpApiEndpoint.get(
 			"getById",
 		)`/rules/${HttpApiSchema.param("id", numFromStr(RuleId))}`
-			.addSuccess(Rule)
+			.addSuccess(RuleView)
 			.addError(NotFound),
 	)
 	.add(
 		HttpApiEndpoint.get(
 			"getByIssuerPattern",
 		)`/rules/by-issuer-pattern/${HttpApiSchema.param("issuerId", numFromStr(IssuerId))}/${HttpApiSchema.param("pattern", Schema.String)}`
-			.addSuccess(Rule)
+			.addSuccess(RuleView)
 			.addError(NotFound),
 	)
 	.add(
@@ -200,14 +220,14 @@ export class RulesGroup extends HttpApiGroup.make("rules")
 	.add(
 		HttpApiEndpoint.post("create")`/rules`
 			.setPayload(RuleCreate)
-			.addSuccess(Rule, { status: 201 }),
+			.addSuccess(RuleView, { status: 201 }),
 	)
 	.add(
 		HttpApiEndpoint.put(
 			"update",
 		)`/rules/${HttpApiSchema.param("id", numFromStr(RuleId))}`
 			.setPayload(RuleUpdate)
-			.addSuccess(Rule)
+			.addSuccess(RuleView)
 			.addError(NotFound),
 	)
 	.add(

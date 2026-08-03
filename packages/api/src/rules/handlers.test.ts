@@ -37,7 +37,6 @@ const asTxId = Schema.decodeSync(TransactionId);
 const make = (over: Partial<RuleCreate> = {}): RuleCreate => ({
 	issuerId: asIssuer(1),
 	pattern: "ACME",
-	matchCount: 0,
 	...over,
 });
 
@@ -73,7 +72,8 @@ describe("rules endpoints", () => {
 			});
 			assert.strictEqual(created.pattern, "AMAZON");
 			assert.strictEqual(created.issuerId, asIssuer(3));
-			assert.strictEqual(created.matchCount, 0);
+			// Nothing imported yet, so the rule owns nothing.
+			assert.strictEqual(created.ownedCount, 0);
 
 			const fetched = yield* client.rules.getById({
 				path: { id: created.id },
@@ -177,13 +177,13 @@ describe("rules endpoints", () => {
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
 			const created = yield* client.rules.create({
-				payload: make({ pattern: "old", matchCount: 1 }),
+				payload: make({ pattern: "old", issuerId: asIssuer(1) }),
 			});
 			const updated = yield* client.rules.update({
 				path: { id: created.id },
-				payload: { matchCount: 9 },
+				payload: { issuerId: asIssuer(9) },
 			});
-			assert.strictEqual(updated.matchCount, 9);
+			assert.strictEqual(updated.issuerId, asIssuer(9));
 			assert.strictEqual(updated.pattern, "old");
 			assert.strictEqual(updated.id, created.id);
 			assert.strictEqual(
@@ -305,10 +305,10 @@ describe("rule preview (dry-run)", () => {
 				// Broadest → issuer 1; broad → issuer 2. The row lands on issuer 2
 				// (longer literal beats "A").
 				yield* client.rules.create({
-					payload: { issuerId: asIssuer(1), pattern: "A", matchCount: 0 },
+					payload: { issuerId: asIssuer(1), pattern: "A" },
 				});
 				yield* client.rules.create({
-					payload: { issuerId: asIssuer(2), pattern: "AMAZON", matchCount: 0 },
+					payload: { issuerId: asIssuer(2), pattern: "AMAZON" },
 				});
 				const [row] = yield* client.transactions.bulkCreate({
 					payload: { records: [tx({ rawIssuerString: "AMAZON EU SARL" })] },
@@ -371,7 +371,7 @@ describe("rule preview (dry-run)", () => {
 				const client = yield* HttpApiClient.make(Api);
 				// The issuer already owns a NETFLIX row via an existing rule.
 				yield* client.rules.create({
-					payload: { issuerId: asIssuer(5), pattern: "NETFLIX", matchCount: 0 },
+					payload: { issuerId: asIssuer(5), pattern: "NETFLIX" },
 				});
 				yield* client.transactions.bulkCreate({
 					payload: { records: [tx({ rawIssuerString: "NETFLIX.COM" })] },
@@ -398,7 +398,7 @@ describe("rule preview (dry-run)", () => {
 			Effect.gen(function* () {
 				const client = yield* HttpApiClient.make(Api);
 				const rule = yield* client.rules.create({
-					payload: { issuerId: asIssuer(1), pattern: "OLD", matchCount: 0 },
+					payload: { issuerId: asIssuer(1), pattern: "OLD" },
 				});
 				const [row] = yield* client.transactions.bulkCreate({
 					payload: { records: [tx({ rawIssuerString: "NEWPATTERN CO" })] },
@@ -476,7 +476,7 @@ describe("rule apply-on-save", () => {
 			);
 
 			yield* client.rules.create({
-				payload: { issuerId: asIssuer(42), pattern: "AMAZON", matchCount: 0 },
+				payload: { issuerId: asIssuer(42), pattern: "AMAZON" },
 			});
 
 			const after = yield* client.transactions.getById({
@@ -494,7 +494,7 @@ describe("rule apply-on-save", () => {
 			Effect.gen(function* () {
 				const client = yield* HttpApiClient.make(Api);
 				yield* client.rules.create({
-					payload: { issuerId: asIssuer(10), pattern: "AMAZON", matchCount: 0 },
+					payload: { issuerId: asIssuer(10), pattern: "AMAZON" },
 				});
 				const [row] = yield* client.transactions.bulkCreate({
 					payload: { records: [tx({ rawIssuerString: "AMAZON EU SARL" })] },
@@ -505,7 +505,6 @@ describe("rule apply-on-save", () => {
 					payload: {
 						issuerId: asIssuer(20),
 						pattern: "AMAZON EU SARL",
-						matchCount: 0,
 					},
 				});
 
@@ -532,7 +531,7 @@ describe("rule apply-on-save", () => {
 			});
 
 			yield* client.rules.create({
-				payload: { issuerId: asIssuer(10), pattern: "AMAZON", matchCount: 0 },
+				payload: { issuerId: asIssuer(10), pattern: "AMAZON" },
 			});
 
 			const after = yield* client.transactions.getById({
@@ -548,7 +547,7 @@ describe("rule apply-on-save", () => {
 			const client = yield* HttpApiClient.make(Api);
 			// Rule initially matches nothing; the row imports unmatched.
 			const rule = yield* client.rules.create({
-				payload: { issuerId: asIssuer(7), pattern: "OLD", matchCount: 0 },
+				payload: { issuerId: asIssuer(7), pattern: "OLD" },
 			});
 			const [row] = yield* client.transactions.bulkCreate({
 				payload: { records: [tx({ rawIssuerString: "NEWPATTERN CO" })] },
@@ -580,7 +579,7 @@ describe("remove manual issuer", () => {
 				const client = yield* HttpApiClient.make(Api);
 				// A rule exists but the row was assigned by hand to a different issuer.
 				yield* client.rules.create({
-					payload: { issuerId: asIssuer(10), pattern: "AMAZON", matchCount: 0 },
+					payload: { issuerId: asIssuer(10), pattern: "AMAZON" },
 				});
 				const [row] = yield* client.transactions.bulkCreate({
 					payload: {
@@ -663,13 +662,12 @@ describe("rule delete preview + re-eval", () => {
 				// Broad rule (issuer 1) + a more-specific rule (issuer 2) that wins the
 				// AMAZON row. A lone SPOTIFY row is owned only by the specific rule.
 				yield* client.rules.create({
-					payload: { issuerId: asIssuer(1), pattern: "AMAZON", matchCount: 0 },
+					payload: { issuerId: asIssuer(1), pattern: "AMAZON" },
 				});
 				const specific = yield* client.rules.create({
 					payload: {
 						issuerId: asIssuer(2),
 						pattern: "AMAZON EU SARL",
-						matchCount: 0,
 					},
 				});
 				const [amazon, spotify] = yield* client.transactions.bulkCreate({
@@ -704,7 +702,7 @@ describe("rule delete preview + re-eval", () => {
 			Effect.gen(function* () {
 				const client = yield* HttpApiClient.make(Api);
 				const only = yield* client.rules.create({
-					payload: { issuerId: asIssuer(9), pattern: "AMAZON", matchCount: 0 },
+					payload: { issuerId: asIssuer(9), pattern: "AMAZON" },
 				});
 				const [row] = yield* client.transactions.bulkCreate({
 					payload: { records: [tx({ rawIssuerString: "AMAZON EU SARL" })] },
@@ -723,7 +721,7 @@ describe("rule delete preview + re-eval", () => {
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
 			const rule = yield* client.rules.create({
-				payload: { issuerId: asIssuer(1), pattern: "AMAZON", matchCount: 0 },
+				payload: { issuerId: asIssuer(1), pattern: "AMAZON" },
 			});
 			yield* client.transactions.bulkCreate({
 				payload: {
@@ -762,13 +760,12 @@ describe("rule delete preview + re-eval", () => {
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
 			yield* client.rules.create({
-				payload: { issuerId: asIssuer(1), pattern: "AMAZON", matchCount: 0 },
+				payload: { issuerId: asIssuer(1), pattern: "AMAZON" },
 			});
 			const specific = yield* client.rules.create({
 				payload: {
 					issuerId: asIssuer(2),
 					pattern: "AMAZON EU SARL",
-					matchCount: 0,
 				},
 			});
 			const [row] = yield* client.transactions.bulkCreate({
@@ -791,7 +788,7 @@ describe("rule delete preview + re-eval", () => {
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
 			const only = yield* client.rules.create({
-				payload: { issuerId: asIssuer(9), pattern: "AMAZON", matchCount: 0 },
+				payload: { issuerId: asIssuer(9), pattern: "AMAZON" },
 			});
 			const [row] = yield* client.transactions.bulkCreate({
 				payload: { records: [tx({ rawIssuerString: "AMAZON EU SARL" })] },
@@ -811,7 +808,7 @@ describe("rule delete preview + re-eval", () => {
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
 			const rule = yield* client.rules.create({
-				payload: { issuerId: asIssuer(1), pattern: "AMAZON", matchCount: 0 },
+				payload: { issuerId: asIssuer(1), pattern: "AMAZON" },
 			});
 			const [row] = yield* client.transactions.bulkCreate({
 				payload: {
@@ -849,6 +846,143 @@ describe("rule delete preview + re-eval", () => {
 	);
 });
 
+// Owned-row counts (issue #63). A rule reports how many transactions it
+// *currently* owns — derived from the live table on every read, never a stored
+// tally, so it is right the moment anything else moves. Driven through the
+// client: seed history, write rules, and read the count back off the rule.
+describe("rule owned counts", () => {
+	it.effect(
+		"a rule created against existing history counts the rows it claims",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				// History first, rule second — the case a stored import-time tally missed.
+				yield* client.transactions.bulkCreate({
+					payload: {
+						records: [
+							tx({ rawIssuerString: "AMAZON EU SARL" }),
+							tx({ rawIssuerString: "AMAZON FRESH" }),
+							tx({ rawIssuerString: "SQ *BLUE BOTTLE" }),
+						],
+					},
+				});
+
+				const created = yield* client.rules.create({
+					payload: { issuerId: asIssuer(42), pattern: "AMAZON" },
+				});
+				assert.strictEqual(created.ownedCount, 2);
+
+				const page = yield* client.rules.list({
+					urlParams: { limit: 50, offset: 0 },
+				});
+				assert.deepStrictEqual(
+					page.items.map((r) => r.ownedCount),
+					[2],
+				);
+			}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("a row taken by a more specific sibling stops counting", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			yield* client.transactions.bulkCreate({
+				payload: { records: [tx({ rawIssuerString: "AMAZON EU SARL" })] },
+			});
+			const broad = yield* client.rules.create({
+				payload: { issuerId: asIssuer(1), pattern: "AMAZON" },
+			});
+			assert.strictEqual(broad.ownedCount, 1);
+
+			// A longer literal out-specifies it and takes the row.
+			const specific = yield* client.rules.create({
+				payload: { issuerId: asIssuer(2), pattern: "AMAZON EU SARL" },
+			});
+			assert.strictEqual(specific.ownedCount, 1);
+
+			const broadAfter = yield* client.rules.getById({
+				path: { id: broad.id },
+			});
+			assert.strictEqual(broadAfter.ownedCount, 0);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("a hand-assigned row stops counting for the rule that had it", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const [row] = yield* client.transactions.bulkCreate({
+				payload: { records: [tx({ rawIssuerString: "AMAZON EU SARL" })] },
+			});
+			const rule = yield* client.rules.create({
+				payload: { issuerId: asIssuer(1), pattern: "AMAZON" },
+			});
+			assert.strictEqual(rule.ownedCount, 1);
+
+			// A human picks a different issuer for the row: manual wins, so the rule
+			// no longer owns it.
+			yield* client.transactions.update({
+				path: { id: row?.id ?? asTxId(0) },
+				payload: { issuerId: asIssuer(5), manualIssuer: true },
+			});
+
+			const after = yield* client.rules.getById({ path: { id: rule.id } });
+			assert.strictEqual(after.ownedCount, 0);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("a deleted transaction stops counting", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const [first, second] = yield* client.transactions.bulkCreate({
+				payload: {
+					records: [
+						tx({ rawIssuerString: "AMAZON EU SARL" }),
+						tx({ rawIssuerString: "AMAZON FRESH" }),
+					],
+				},
+			});
+			const rule = yield* client.rules.create({
+				payload: { issuerId: asIssuer(1), pattern: "AMAZON" },
+			});
+			assert.strictEqual(rule.ownedCount, 2);
+
+			yield* client.transactions.remove({
+				path: { id: first?.id ?? asTxId(0) },
+			});
+
+			// The count follows the table down — a stored tally never could.
+			const after = yield* client.rules.getById({ path: { id: rule.id } });
+			assert.strictEqual(after.ownedCount, 1);
+			assert.ok(second);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	// A rule's count is decided against the *whole* rule set, so a page scoped to
+	// one issuer must still report what a rule outside that page took from it.
+	it.effect("an issuer-scoped list still counts against every rule", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			yield* client.transactions.bulkCreate({
+				payload: { records: [tx({ rawIssuerString: "AMAZON EU SARL" })] },
+			});
+			yield* client.rules.create({
+				payload: { issuerId: asIssuer(1), pattern: "AMAZON" },
+			});
+			// A rule of a *different* issuer wins the row.
+			yield* client.rules.create({
+				payload: { issuerId: asIssuer(2), pattern: "AMAZON EU SARL" },
+			});
+
+			const page = yield* client.rules.list({
+				urlParams: { limit: 50, offset: 0, issuerId: asIssuer(1) },
+			});
+			assert.deepStrictEqual(
+				page.items.map((r) => r.ownedCount),
+				[0],
+			);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+});
+
 // The optional Value matcher (issue #42, ADR 0004): a rule with a `matchValue`
 // forks one issuer-string by amount. Every assertion rides the rules + import API
 // seam — never the engine internals.
@@ -864,7 +998,7 @@ describe("rule value matcher", () => {
 				const client = yield* HttpApiClient.make(Api);
 				// A broad rule claims every AMAZON row for issuer 1.
 				yield* client.rules.create({
-					payload: { issuerId: asIssuer(1), pattern: "AMAZON", matchCount: 0 },
+					payload: { issuerId: asIssuer(1), pattern: "AMAZON" },
 				});
 				const [cheap, dear] = yield* client.transactions.bulkCreate({
 					payload: {
@@ -884,7 +1018,6 @@ describe("rule value matcher", () => {
 						issuerId: asIssuer(2),
 						pattern: "AMAZON",
 						matchValue: 6.99,
-						matchCount: 0,
 					},
 				});
 
@@ -914,11 +1047,10 @@ describe("rule value matcher", () => {
 						issuerId: asIssuer(2),
 						pattern: "AMAZON",
 						matchValue: 6.99,
-						matchCount: 0,
 					},
 				});
 				yield* client.rules.create({
-					payload: { issuerId: asIssuer(1), pattern: "AMAZON", matchCount: 0 },
+					payload: { issuerId: asIssuer(1), pattern: "AMAZON" },
 				});
 
 				const [row] = yield* client.transactions.bulkCreate({
@@ -941,7 +1073,6 @@ describe("rule value matcher", () => {
 					issuerId: asIssuer(7),
 					pattern: "AMAZON",
 					matchValue: 6.99,
-					matchCount: 0,
 				},
 			});
 			const [row] = yield* client.transactions.bulkCreate({
@@ -988,7 +1119,6 @@ describe("rule value matcher", () => {
 					issuerId: asIssuer(1),
 					pattern: "AMAZON",
 					matchValue: 6.99,
-					matchCount: 0,
 				},
 			});
 			assert.strictEqual(created.matchValue, 6.99);
@@ -1007,7 +1137,6 @@ describe("rule value matcher", () => {
 					issuerId: asIssuer(1),
 					pattern: "AMAZON",
 					matchValue: 6.99,
-					matchCount: 0,
 				},
 			});
 			assert.strictEqual(created.matchValue, 6.99);
@@ -1032,7 +1161,6 @@ describe("rule value matcher", () => {
 					issuerId: asIssuer(1),
 					pattern: "AMAZON",
 					matchValue: 6.99,
-					matchCount: 0,
 				},
 			});
 			const updated = yield* client.rules.update({

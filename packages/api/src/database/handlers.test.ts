@@ -72,7 +72,6 @@ const seed = Effect.gen(function* () {
 		payload: {
 			issuerId: issuer.id,
 			pattern: "STORE*",
-			matchCount: 3,
 		},
 	});
 	const transaction = yield* client.transactions.create({
@@ -177,7 +176,18 @@ describe("database endpoints", () => {
 				),
 			);
 			assert.deepStrictEqual(dump.issuers, [seeded.issuer]);
-			assert.deepStrictEqual(dump.rules, [seeded.rule]);
+			// The dump is *storage*, so a rule comes back as the stored `Rule` — the
+			// create echoed the richer `RuleView`, whose `ownedCount` is derived on
+			// read and never a column (issue #63). Compare the stored fields.
+			assert.strictEqual(dump.rules.length, 1);
+			const [dumpedRule] = dump.rules;
+			assert.strictEqual(dumpedRule?.id, seeded.rule.id);
+			assert.strictEqual(dumpedRule?.issuerId, seeded.rule.issuerId);
+			assert.strictEqual(dumpedRule?.pattern, seeded.rule.pattern);
+			assert.strictEqual(
+				dumpedRule?.createdAt.getTime(),
+				seeded.rule.createdAt.getTime(),
+			);
 			assert.deepStrictEqual(dump.transactions, [seeded.transaction]);
 			assert.deepStrictEqual(dump.subscriptions, [seeded.subscription]);
 			assert.deepStrictEqual(dump.settings, [seeded.setting]);

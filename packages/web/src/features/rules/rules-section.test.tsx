@@ -82,7 +82,7 @@ function rule(overrides: Partial<Rule> = {}): Rule {
 		id: 10 as Rule["id"],
 		issuerId: 1 as Rule["issuerId"],
 		pattern: "amazon",
-		matchCount: 3,
+		ownedCount: 3,
 		createdAt: new Date("2026-01-02"),
 		...overrides,
 	} as Rule;
@@ -138,11 +138,11 @@ beforeEach(() => {
 });
 
 describe("RulesSection — rule list", () => {
-	it("lists the issuer's Matching Rules with their pattern and match count", async () => {
+	it("lists the issuer's Matching Rules with their pattern and owned-row count", async () => {
 		renderSection();
 
 		expect(await screen.findByText("amazon")).toBeInTheDocument();
-		expect(screen.getByText(/3 matches/)).toBeInTheDocument();
+		expect(screen.getByText(/3 transactions/)).toBeInTheDocument();
 		expect(
 			screen.getByRole("heading", { name: "Matching Rules" }),
 		).toBeInTheDocument();

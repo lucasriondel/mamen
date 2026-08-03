@@ -220,7 +220,7 @@ function rule(overrides: Partial<Rule> = {}): Rule {
 		id: 10 as Rule["id"],
 		issuerId: 1 as Rule["issuerId"],
 		pattern: "SPOTIFY.*",
-		matchCount: 2,
+		ownedCount: 2,
 		createdAt: new Date("2026-01-01"),
 		...overrides,
 	} as Rule;

@@ -12,6 +12,7 @@ import {
 	NotFound,
 	Rule,
 	RuleId,
+	RuleView,
 	Transaction,
 	TransactionId,
 } from "@mamen/shared/contract";
@@ -39,9 +40,9 @@ type CompiledSet = {
 /**
  * The per-row match verdict from {@link derive}. `issuerId` is the resolved
  * issuer (`null` = unmatched); `matchedRuleId` is the winning rule (`null` when
- * manual or unmatched) — used only to bump `matchCount`, never stored on the row
- * (the engine is stateless: a row records *that* a rule set its issuer via
- * `manualIssuer = false`, not *which*).
+ * manual or unmatched) — used to tally each rule's owned rows
+ * ({@link ownedCounts}), never stored on the row (the engine is stateless: a row
+ * records *that* a rule set its issuer via `manualIssuer = false`, not *which*).
  */
 export type MatchOutcome = {
 	transactionId: typeof Transaction.Type.id;
@@ -51,8 +52,8 @@ export type MatchOutcome = {
 
 /**
  * A {@link MatchOutcome} a rule actually won: both `issuerId` and `matchedRuleId`
- * present. The subset that drives writes — an issuer assignment plus a
- * `matchCount` bump (manual and unmatched outcomes have no rule to book).
+ * present. The subset that drives the import path's issuer writes (manual and
+ * unmatched outcomes have no rule behind them).
  */
 type AssignedOutcome = MatchOutcome & {
 	issuerId: typeof IssuerId.Type;
@@ -179,6 +180,38 @@ export const derive = (
 	});
 	return { outcomes, skippedRuleIds };
 };
+
+/**
+ * Tally how many rows each rule *won*, keyed by rule id — every rule in `rules`
+ * is present (a rule that won nothing maps to `0`, never a missing key). Manual
+ * and unmatched outcomes carry no rule and so count for nobody.
+ */
+const tally = (
+	outcomes: ReadonlyArray<MatchOutcome>,
+	rules: ReadonlyArray<Rule>,
+): Map<number, number> => {
+	const counts = new Map<number, number>(rules.map((r) => [r.id as number, 0]));
+	for (const o of outcomes) {
+		if (o.matchedRuleId === null) continue;
+		counts.set(o.matchedRuleId, (counts.get(o.matchedRuleId) ?? 0) + 1);
+	}
+	return counts;
+};
+
+/**
+ * How many transactions each rule **currently owns** (issue #63): re-derive the
+ * whole table against the whole rule set and count the rows each rule wins.
+ *
+ * Derived, never stored — the number is a function of the rows and the rule set
+ * as they are *now*, so it falls of its own accord when a more specific sibling
+ * out-specifies the rule, a row is hand-assigned away, or a transaction is
+ * deleted. The whole rule set must be passed even when only some rules' counts
+ * are wanted: ownership is decided by specificity across every matching rule.
+ */
+export const ownedCounts = (
+	rows: ReadonlyArray<Transaction>,
+	rules: ReadonlyArray<Rule>,
+): Map<number, number> => tally(derive(rows, rules).outcomes, rules);
 
 /**
  * The three preview lists for one scoped pattern — `Transaction`s bucketed by how
@@ -311,8 +344,8 @@ export const deleteLists = (
  * stored transactions runs where the data lives). It owns the Issuer invariant
  * and the commit path; regex runs in JS (never SQL) so an invalid pattern is a
  * skipped rule, not a crash. Depends only on `SqlClient` — it reads the current
- * rule set and writes issuer assignments + `matchCount` bumps directly, so a
- * whole commit fits in one SQLite transaction.
+ * rule set and writes issuer assignments directly, so a whole commit fits in one
+ * SQLite transaction.
  *
  * Tested exclusively through the API boundary (import matching via `bulkCreate`),
  * per the PRD's single-seam bias — no isolated engine seam.
@@ -353,7 +386,6 @@ export class IssuerMatcher extends Effect.Service<IssuerMatcher>()(
 					issuerId: number;
 					pattern: string;
 					matchValue: number | null;
-					matchCount: number;
 					createdAt: string;
 				}>,
 				Result: RuleFromRow,
@@ -366,7 +398,6 @@ export class IssuerMatcher extends Effect.Service<IssuerMatcher>()(
 					issuerId: number;
 					pattern: string;
 					matchValue: number | null;
-					matchCount: number;
 					createdAt: string;
 				}>,
 				Result: RuleFromRow,
@@ -386,17 +417,14 @@ export class IssuerMatcher extends Effect.Service<IssuerMatcher>()(
 
 			/**
 			 * The `issuerId` writes that bring the whole table back to the Issuer
-			 * invariant against `rules` — one `UPDATE` per row whose derived issuer
-			 * differs from its stored one (a `null` winner clears the column). Manual
-			 * rows derive to their current issuer, so they never produce a write.
-			 * `matchCount` is intentionally left to the import bump path; this
-			 * retroactive recompute only settles issuer assignment.
+			 * invariant — one `UPDATE` per row whose derived issuer differs from its
+			 * stored one (a `null` winner clears the column). Manual rows derive to
+			 * their current issuer, so they never produce a write.
 			 */
 			const issuerWrites = (
 				rows: ReadonlyArray<Transaction>,
-				rules: ReadonlyArray<Rule>,
+				outcomes: ReadonlyArray<MatchOutcome>,
 			) => {
-				const { outcomes } = derive(rows, rules);
 				const current = new Map(
 					rows.map((r) => [r.id as number, r.issuerId ?? null]),
 				);
@@ -413,23 +441,68 @@ export class IssuerMatcher extends Effect.Service<IssuerMatcher>()(
 			 * set and apply the diff. Meant to run *inside* a caller's
 			 * `withTransaction` so the rule write and its retroactive fallout commit
 			 * atomically (all-or-nothing).
+			 *
+			 * Returns the settled owned-row tally ({@link ownedCounts}) — the same
+			 * derivation the writes come from, so the caller can report a saved rule's
+			 * `ownedCount` without a second pass over the table (issue #63).
 			 */
 			const recomputeIssuers = Effect.gen(function* () {
 				const rules = yield* allRulesQuery();
 				const rows = yield* allTransactionsQuery();
-				const writes = issuerWrites(rows, rules);
+				const { outcomes } = derive(rows, rules);
+				const writes = issuerWrites(rows, outcomes);
 				if (writes.length > 0) {
 					yield* Effect.all(writes, { discard: true });
 				}
+				return tally(outcomes, rules);
 			});
+
+			/**
+			 * The current owned-row tally for **every** rule, off one pass over the
+			 * table — the read-side half of issue #63. The whole rule set is read even
+			 * when one rule's count is wanted: ownership is decided by specificity
+			 * across every matching rule, so a rule outside the caller's page can
+			 * still be the reason this one owns nothing.
+			 *
+			 * Costs the same pass every rule write already makes; at current volumes
+			 * that beats keeping a cached column honest.
+			 */
+			const ownedCountsNow = Effect.gen(function* () {
+				const rules = yield* allRulesQuery();
+				const rows = yield* allTransactionsQuery();
+				return ownedCounts(rows, rules);
+			}).pipe(orDieSql);
+
+			/** A rule paired with its owned-row count — the {@link RuleView} on the wire. */
+			const toView = (rule: Rule, counts: Map<number, number>): RuleView =>
+				new RuleView({ ...rule, ownedCount: counts.get(rule.id) ?? 0 });
+
+			/**
+			 * Stamp each rule with the number of transactions it currently owns, the
+			 * shape every rules endpoint answers with. An empty input short-circuits,
+			 * so an issuer with no rules reads nothing.
+			 */
+			const withOwnedCounts = (
+				rules: ReadonlyArray<Rule>,
+			): Effect.Effect<ReadonlyArray<RuleView>> =>
+				rules.length === 0
+					? Effect.succeed([])
+					: ownedCountsNow.pipe(
+							Effect.map((counts) => rules.map((rule) => toView(rule, counts))),
+						);
+
+			/** {@link withOwnedCounts} for a single rule (the by-id style reads). */
+			const withOwnedCount = (rule: Rule): Effect.Effect<RuleView> =>
+				ownedCountsNow.pipe(Effect.map((counts) => toView(rule, counts)));
 
 			/**
 			 * Match a freshly-imported batch of rows against the current rule set and
 			 * apply the result atomically: every winning rule sets its row's
-			 * `issuerId` and its own `matchCount` is bumped once per row it won. All
-			 * writes run in a single `withTransaction` — all-or-nothing. Returns the
-			 * rows with their assigned issuers so the `bulkCreate` 201 body reflects
-			 * the DB state. A manual row (`manualIssuer = true`) is never reassigned.
+			 * `issuerId`. All writes run in a single `withTransaction` —
+			 * all-or-nothing. Returns the rows with their assigned issuers so the
+			 * `bulkCreate` 201 body reflects the DB state. A manual row
+			 * (`manualIssuer = true`) is never reassigned. Nothing is written *onto*
+			 * the rules: what each rule owns is derived on read (issue #63).
 			 */
 			const matchImported = (rows: ReadonlyArray<Transaction>) =>
 				Effect.gen(function* () {
@@ -438,34 +511,23 @@ export class IssuerMatcher extends Effect.Service<IssuerMatcher>()(
 					const rules = yield* allRulesQuery();
 					const { outcomes } = derive(rows, rules);
 
-					// The issuer writes (only rows a rule actually won) and the per-rule
-					// win tally, built from the derived outcomes.
+					// The issuer writes — only rows a rule actually won.
 					const assigned = outcomes.filter(
 						(o): o is AssignedOutcome =>
 							o.matchedRuleId !== null && o.issuerId !== null,
 					);
-					const bumps = new Map<number, number>();
-					for (const o of assigned) {
-						bumps.set(o.matchedRuleId, (bumps.get(o.matchedRuleId) ?? 0) + 1);
-					}
 
 					if (assigned.length > 0) {
 						yield* sql.withTransaction(
 							Effect.all(
-								[
-									...assigned.map(
-										// `manualIssuer = 0` is written alongside the issuer: a
-										// rule-assigned row is, by definition, not a manual pick
-										// (issue #10). Manual rows never reach here — `derive`
-										// filters them out (the Issuer invariant, step (a)).
-										(o) =>
-											sql`UPDATE transactions SET issuerId = ${o.issuerId}, manualIssuer = 0 WHERE id = ${o.transactionId}`,
-									),
-									...[...bumps].map(
-										([ruleId, n]) =>
-											sql`UPDATE rules SET matchCount = matchCount + ${n} WHERE id = ${ruleId}`,
-									),
-								],
+								assigned.map(
+									// `manualIssuer = 0` is written alongside the issuer: a
+									// rule-assigned row is, by definition, not a manual pick
+									// (issue #10). Manual rows never reach here — `derive`
+									// filters them out (the Issuer invariant, step (a)).
+									(o) =>
+										sql`UPDATE transactions SET issuerId = ${o.issuerId}, manualIssuer = 0 WHERE id = ${o.transactionId}`,
+								),
 								{ discard: true },
 							),
 						);
@@ -536,7 +598,6 @@ export class IssuerMatcher extends Effect.Service<IssuerMatcher>()(
 								issuerId: input.issuerId,
 								pattern: input.pattern,
 								matchValue: input.matchValue,
-								matchCount: 0,
 								createdAt: new Date(now),
 							});
 							return previewLists(rows, rules, prospective, false);
@@ -548,7 +609,8 @@ export class IssuerMatcher extends Effect.Service<IssuerMatcher>()(
 			 * Apply-on-save for a **create**: insert the rule and recompute the whole
 			 * table against the resulting rule set, all in one `withTransaction` (the
 			 * commit is atomic and recomputes from *current* state, never trusting a
-			 * stale preview). Returns the created rule.
+			 * stale preview). Returns the created rule already carrying the rows it
+			 * just claimed (`ownedCount`, straight off the recompute — issue #63).
 			 */
 			const applyRuleCreate = (payload: RuleCreate) =>
 				nowIso.pipe(
@@ -559,11 +621,10 @@ export class IssuerMatcher extends Effect.Service<IssuerMatcher>()(
 									issuerId: payload.issuerId,
 									pattern: payload.pattern,
 									matchValue: payload.matchValue ?? null,
-									matchCount: payload.matchCount,
 									createdAt: now,
 								});
-								yield* recomputeIssuers;
-								return created;
+								const counts = yield* recomputeIssuers;
+								return toView(created, counts);
 							}),
 						),
 					),
@@ -573,7 +634,9 @@ export class IssuerMatcher extends Effect.Service<IssuerMatcher>()(
 			/**
 			 * Apply-on-save for an **update**: merge `changes` onto the stored rule
 			 * (preserving `createdAt`), write it, and recompute the whole table — one
-			 * atomic `withTransaction`. 404s when `id` is missing (`getById` semantics).
+			 * atomic `withTransaction`. The returned rule carries the post-edit
+			 * `ownedCount` off that same recompute (issue #63). 404s when `id` is
+			 * missing (`getById` semantics).
 			 */
 			const applyRuleUpdate = (id: typeof RuleId.Type, changes: RuleUpdate) =>
 				ruleByIdQuery(id).pipe(
@@ -591,11 +654,10 @@ export class IssuerMatcher extends Effect.Service<IssuerMatcher>()(
 												issuerId: merged.issuerId,
 												pattern: merged.pattern,
 												matchValue: merged.matchValue ?? null,
-												matchCount: merged.matchCount,
 												createdAt: merged.createdAt.toISOString(),
 											});
-											yield* recomputeIssuers;
-											return updated;
+											const counts = yield* recomputeIssuers;
+											return toView(updated, counts);
 										}),
 									)
 									.pipe(orDieSql),
@@ -698,6 +760,8 @@ export class IssuerMatcher extends Effect.Service<IssuerMatcher>()(
 
 			return {
 				derive,
+				withOwnedCount,
+				withOwnedCounts,
 				matchImported,
 				preview,
 				previewDelete,

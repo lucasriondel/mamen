@@ -23,7 +23,6 @@ const DATE = new Date("2026-03-01T00:00:00.000Z");
 const make = (over: Partial<RuleCreate> = {}): RuleCreate => ({
 	issuerId: asIssuer(1),
 	pattern: "ACME",
-	matchCount: 0,
 	...over,
 });
 
@@ -40,14 +39,12 @@ describe("RuleFromRow storage codec", () => {
 			id: asRule(1),
 			issuerId: asIssuer(2),
 			pattern: "STARBUCKS",
-			matchCount: 3,
 			createdAt: DATE,
 		});
 		const row = encode(rule);
 		assert.strictEqual(row.issuerId, 2);
 		assert.strictEqual(row.pattern, "STARBUCKS");
 		assert.strictEqual(row.matchValue, null);
-		assert.strictEqual(row.matchCount, 3);
 		assert.deepStrictEqual(decode(row), rule);
 	});
 
@@ -60,7 +57,6 @@ describe("RuleFromRow storage codec", () => {
 			issuerId: asIssuer(2),
 			pattern: "AMAZON",
 			matchValue: 6.99,
-			matchCount: 0,
 			createdAt: DATE,
 		});
 		const row = encode(valueRule);
@@ -126,10 +122,10 @@ describe("RuleRepo", () => {
 				issuerId: asIssuer(1),
 			});
 			assert.strictEqual(page.total, 2);
-			assert.deepStrictEqual(
-				page.items.map((r) => r.pattern).sort(),
-				["a", "b"],
-			);
+			assert.deepStrictEqual(page.items.map((r) => r.pattern).sort(), [
+				"a",
+				"b",
+			]);
 		}).pipe(Effect.provide(RepoTest)),
 	);
 
@@ -152,40 +148,38 @@ describe("RuleRepo", () => {
 		Effect.gen(function* () {
 			const repo = yield* RuleRepo;
 			yield* repo.create(make({ issuerId: asIssuer(5), pattern: "NETFLIX" }));
-			const found = yield* repo.getByIssuerPattern(
-				asIssuer(5),
-				"NETFLIX",
-			);
+			const found = yield* repo.getByIssuerPattern(asIssuer(5), "NETFLIX");
 			assert.strictEqual(found.pattern, "NETFLIX");
 			assert.strictEqual(found.issuerId, asIssuer(5));
 		}).pipe(Effect.provide(RepoTest)),
 	);
 
-	it.effect("getByIssuerPattern is scoped by issuer (same pattern, other issuer)", () =>
-		Effect.gen(function* () {
-			const repo = yield* RuleRepo;
-			yield* repo.create(make({ issuerId: asIssuer(1), pattern: "SHARED" }));
-			const error = yield* repo
-				.getByIssuerPattern(asIssuer(2), "SHARED")
-				.pipe(Effect.flip);
-			assert.deepStrictEqual(
-				error,
-				new NotFound({ resource: "rule", id: "SHARED" }),
-			);
-		}).pipe(Effect.provide(RepoTest)),
+	it.effect(
+		"getByIssuerPattern is scoped by issuer (same pattern, other issuer)",
+		() =>
+			Effect.gen(function* () {
+				const repo = yield* RuleRepo;
+				yield* repo.create(make({ issuerId: asIssuer(1), pattern: "SHARED" }));
+				const error = yield* repo
+					.getByIssuerPattern(asIssuer(2), "SHARED")
+					.pipe(Effect.flip);
+				assert.deepStrictEqual(
+					error,
+					new NotFound({ resource: "rule", id: "SHARED" }),
+				);
+			}).pipe(Effect.provide(RepoTest)),
 	);
 
 	it.effect("update merges the partial and preserves createdAt", () =>
 		Effect.gen(function* () {
 			const repo = yield* RuleRepo;
-			const created = yield* repo.create(make({ pattern: "old", matchCount: 1 }));
+			const created = yield* repo.create(make({ pattern: "old" }));
 			const updated = yield* repo.update(created.id, {
 				pattern: "new",
-				matchCount: 5,
+				issuerId: asIssuer(9),
 			});
 			assert.strictEqual(updated.pattern, "new");
-			assert.strictEqual(updated.matchCount, 5);
-			assert.strictEqual(updated.issuerId, created.issuerId);
+			assert.strictEqual(updated.issuerId, asIssuer(9));
 			assert.strictEqual(
 				updated.createdAt.getTime(),
 				created.createdAt.getTime(),
