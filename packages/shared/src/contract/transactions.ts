@@ -99,6 +99,24 @@ export class Transaction extends Schema.Class<Transaction>("Transaction")({
 	 * `bundleId` — the two fields are the two halves of one relationship.
 	 */
 	bundleId: Schema.optional(TransactionId),
+	/**
+	 * Marks this row's `date` as the **user's**, not a derived default (issue
+	 * #72) — `manualDate` stands to `date` exactly as `manualCategory` stands to
+	 * `categoryId` and `manualExcluded` to `excludedFromRecap`.
+	 *
+	 * Only a **bundle parent** has a derivable date at all: it defaults to its
+	 * earliest member's, because the cost belongs to when the money was spent
+	 * rather than to when the last person settled up. That default is a starting
+	 * point, not a constraint — a weekend away can be dated the Friday even when
+	 * a member lands weeks later — so an overridden date is flagged here and
+	 * every later membership change recomputes *around* it (#74). On a bank row
+	 * the date is the bank's and nothing derives it, so the flag is simply absent.
+	 *
+	 * The amount deliberately has no counterpart flag: a bundle's cost is what
+	 * its members sum to, and an editable total could drift from the very bank
+	 * rows the app exists to reconcile against.
+	 */
+	manualDate: Schema.optional(Schema.Boolean),
 	anomalyFlags: Schema.optional(Schema.Array(AnomalyFlag)),
 	isDuplicateExcluded: Schema.optional(Schema.Boolean),
 	duplicateNote: Schema.optional(Schema.String),
@@ -160,6 +178,9 @@ export const TransactionCreate = Schema.Struct({
 	// `createBundle`, which builds the parent itself.
 	kind: Transaction.fields.kind,
 	bundleId: Transaction.fields.bundleId,
+	// Written through `update` when a bundle parent's date is overridden (#72);
+	// on a create it is only ever a faithful round-trip of a stored row.
+	manualDate: Transaction.fields.manualDate,
 	anomalyFlags: Transaction.fields.anomalyFlags,
 	isDuplicateExcluded: Transaction.fields.isDuplicateExcluded,
 	duplicateNote: Transaction.fields.duplicateNote,

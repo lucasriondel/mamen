@@ -9,9 +9,13 @@ import { BackLink } from "@/components/back-link";
 import { formatCurrency, formatMonth, formatShortDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { AnomalyFlags } from "./anomaly-flags";
+import { AssignmentPicker } from "./assignment-picker";
+import { BundleSection } from "./bundle-section";
+import { CategoryPicker } from "./category-picker";
 import { DetailField } from "./detail-field";
+import { IssuerPicker } from "./issuer-picker";
+import { NotesPicker } from "./notes-picker";
 import { RecapExclusionSection } from "./recap-exclusion-section";
-import { CategoryCell, IssuerCell } from "./transaction-cells";
 import { TransferSection } from "./transfer-section";
 
 /** Full date-time for the audit fields, where the day alone loses information. */
@@ -97,24 +101,35 @@ function CoreFields({
 			<DetailField label="Raw issuer text">
 				<span className="break-words">{txn.rawIssuerString}</span>
 			</DetailField>
+			{/*
+			 * Issuer, category and notes are **edited here**, through the very
+			 * controls the grid's cells are (issue #72): the same pickers, the same
+			 * writes, the same manual/derived ink. A row reached from the list and a
+			 * row reached by link are the same row, so curating one shouldn't mean
+			 * going back to the table to find it — and a **bundle parent**, which is
+			 * only ever met on this page, would otherwise be the one row in the app
+			 * with no way to name what it is.
+			 */}
 			<DetailField label="Issuer">
-				<IssuerCell
-					rawIssuerString={txn.rawIssuerString}
-					issuer={issuer}
-					isManual={txn.manualIssuer ?? false}
-				/>
+				{issuer ? (
+					<IssuerPicker transaction={txn} issuer={issuer} />
+				) : (
+					<AssignmentPicker
+						transactionId={txn.id}
+						rawIssuerString={txn.rawIssuerString}
+						date={txn.date}
+					/>
+				)}
 			</DetailField>
 			<DetailField label="Category">
-				<CategoryCell
+				<CategoryPicker
+					transaction={txn}
 					category={category}
-					isOverride={txn.manualCategory ?? false}
 					color={categoryColor}
 				/>
 			</DetailField>
 			<DetailField label="Notes">
-				{txn.notes?.trim() ? (
-					<span className="break-words whitespace-pre-wrap">{txn.notes}</span>
-				) : null}
+				<NotesPicker transaction={txn} />
 			</DetailField>
 		</dl>
 	);
@@ -252,6 +267,13 @@ export function TransactionDetailContent({
 				category={category}
 				categoryColor={categoryColor}
 			/>
+			{/*
+			 * Only a **bundle parent** has members to stand for and a date of its own
+			 * to override (issue #72); on a bank row the block would have nothing to
+			 * say. It sits directly under the core fields because it is the rest of
+			 * this row's identity, not an aside like the refund/anomaly blocks.
+			 */}
+			{txn.kind === "bundle" ? <BundleSection transaction={txn} /> : null}
 			<RefundDuplicateSection txn={txn} linkedRefund={linkedRefund} />
 			<RecapExclusionSection transaction={txn} />
 			<TransferSection transaction={txn} />

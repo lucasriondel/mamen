@@ -79,6 +79,7 @@ describe("TransactionFromRow storage codec", () => {
 			// — it comes back as the `bank` row it always was (see the bare case).
 			kind: "bank",
 			bundleId: asTx(8),
+			manualDate: true,
 			anomalyFlags: [
 				new AnomalyFlag({
 					type: "high-amount",
@@ -118,6 +119,7 @@ describe("TransactionFromRow storage codec", () => {
 		assert.strictEqual(row.issuerId, null);
 		assert.strictEqual(row.transferGroupId, null);
 		assert.strictEqual(row.bundleId, null);
+		assert.strictEqual(row.manualDate, 0);
 		assert.strictEqual(row.manualCategory, 0);
 		assert.strictEqual(row.manualIssuer, 0);
 		assert.strictEqual(row.anomalyFlags, null);
@@ -1507,6 +1509,150 @@ describe("TransactionRepo", () => {
 
 				assert.strictEqual((yield* repo.getById(a.id)).id, a.id);
 				assert.strictEqual((yield* repo.bulkGet([a.id, b.id])).length, 2);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+	});
+
+	// Curating a **bundle parent** (issue #72): the parent is a real row, so it is
+	// edited through the generic `update` and read through the same derivation and
+	// the same curation predicate as any other row — the whole argument for the
+	// `kind` discriminator. Only the date carries something of its own: an
+	// override, marked `manualDate`, that later membership changes must not undo.
+	describe("editing a bundle parent (issue #72)", () => {
+		it.effect("takes an issuer, a category and a note like any other row", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -200 }));
+				const b = yield* repo.create(make({ amount: 150 }));
+				const parent = yield* repo.createBundle([a.id, b.id], "Weekend away");
+
+				const curated = yield* repo.update(parent.id, {
+					issuerId: asIssuer(3),
+					manualIssuer: true,
+					categoryId: asCategory(7),
+					manualCategory: true,
+					notes: "Bretagne with the Dupont family",
+				});
+
+				assert.strictEqual(curated.issuerId, 3);
+				assert.strictEqual(curated.categoryId, 7);
+				assert.strictEqual(curated.notes, "Bretagne with the Dupont family");
+				// Curating the parent is not renaming it: the label and the derived
+				// amount are untouched by an issuer landing on the row.
+				assert.strictEqual(curated.rawIssuerString, "Weekend away");
+				assert.strictEqual(curated.amount, -50);
+				assert.strictEqual(curated.kind, "bundle");
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		// The normal rule, with no special case (issue #72): a fresh parent has a
+		// label and nothing else, so it is a to-do exactly like a bare bank row —
+		// and setting any one of the three moves it into the complement.
+		it.effect("a fresh parent is uncurated; an issuer curates it", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -200 }));
+				const b = yield* repo.create(make({ amount: 150 }));
+				const parent = yield* repo.createBundle([a.id, b.id], "Weekend away");
+
+				const todo = yield* repo.list({ ...listAll, uncurated: true });
+				assert.deepStrictEqual(
+					todo.items.map((t) => t.id),
+					[parent.id],
+				);
+
+				yield* repo.update(parent.id, {
+					issuerId: asIssuer(3),
+					manualIssuer: true,
+				});
+
+				assert.strictEqual(
+					(yield* repo.list({ ...listAll, uncurated: true })).total,
+					0,
+				);
+				const curated = yield* repo.list({ ...listAll, uncurated: false });
+				assert.deepStrictEqual(
+					curated.items.map((t) => t.id),
+					[parent.id],
+				);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("a note alone curates the parent", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -200 }));
+				const b = yield* repo.create(make({ amount: 150 }));
+				const parent = yield* repo.createBundle([a.id, b.id], "Weekend away");
+
+				yield* repo.update(parent.id, { notes: "Split four ways" });
+				assert.strictEqual(
+					(yield* repo.list({ ...listAll, uncurated: true })).total,
+					0,
+				);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect(
+			"stores a date override without touching the derived amount",
+			() =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					const a = yield* repo.create(
+						make({ amount: -200, date: new Date("2026-03-07T00:00:00.000Z") }),
+					);
+					const b = yield* repo.create(
+						make({ amount: 150, date: new Date("2026-03-12T00:00:00.000Z") }),
+					);
+					const parent = yield* repo.createBundle([a.id, b.id], "Weekend away");
+					assert.deepStrictEqual(
+						parent.date,
+						new Date("2026-03-07T00:00:00.000Z"),
+					);
+
+					const dated = yield* repo.update(parent.id, {
+						date: new Date("2026-02-14T00:00:00.000Z"),
+						manualDate: true,
+					});
+
+					assert.deepStrictEqual(
+						dated.date,
+						new Date("2026-02-14T00:00:00.000Z"),
+					);
+					// `manualDate` is what makes the override outlive the next recompute
+					// (#74) — without it the derivation would take the members' date back.
+					assert.strictEqual(dated.manualDate, true);
+					assert.strictEqual(dated.amount, -50);
+					assert.deepStrictEqual(
+						(yield* repo.getById(parent.id)).date,
+						new Date("2026-02-14T00:00:00.000Z"),
+					);
+				}).pipe(Effect.provide(RepoTest)),
+		);
+
+		// The members are the parent's business, never the other way round: dating
+		// the parent leaves every row it stands for exactly where the bank put it.
+		it.effect("a date override leaves the members' own dates alone", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(
+					make({ amount: -200, date: new Date("2026-03-07T00:00:00.000Z") }),
+				);
+				const b = yield* repo.create(
+					make({ amount: 150, date: new Date("2026-03-12T00:00:00.000Z") }),
+				);
+				const parent = yield* repo.createBundle([a.id, b.id], "Weekend away");
+
+				yield* repo.update(parent.id, {
+					date: new Date("2026-02-14T00:00:00.000Z"),
+					manualDate: true,
+				});
+
+				assert.deepStrictEqual(
+					(yield* repo.getById(a.id)).date,
+					new Date("2026-03-07T00:00:00.000Z"),
+				);
+				assert.strictEqual((yield* repo.getById(b.id)).manualDate, undefined);
 			}).pipe(Effect.provide(RepoTest)),
 		);
 	});
