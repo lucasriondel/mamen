@@ -107,7 +107,11 @@ vi.mock("@mamen/sdk", () => ({
 			queryFn: async () =>
 				params.bundleId === BUNDLE.id
 					? { items: MEMBERS, total: MEMBERS.length }
-					: { items: [], total: 0 },
+					: // The bundles a row may join (issue #74) — the parents, asked for
+						// by kind rather than by scanning the whole table for them.
+						params.kind === "bundle"
+						? { items: [BUNDLE], total: 1 }
+						: { items: [], total: 0 },
 		}),
 	},
 	accountQueries: {
@@ -231,10 +235,23 @@ describe("TransactionDetailPage", () => {
 		expect(screen.queryByLabelText(/amount/i)).toBeNull();
 	});
 
-	it("shows no bundle block on an ordinary bank row", async () => {
+	// A bank row gets the other side of the same block (issue #74): it has no
+	// members and no date of its own, but it has a bundle to join.
+	it("offers an ordinary bank row a bundle to join, not a parent's block", async () => {
 		render(<RouterProvider router={makeRouter()} />);
 
 		await screen.findByRole("heading", { name: "Spotify" });
 		expect(screen.queryByLabelText(/bundle date/i)).toBeNull();
+		expect(await screen.findByLabelText(/bundle to join/i)).toBeVisible();
+	});
+
+	// Dissolving is the parent's own action, and it is never offered on a row
+	// that merely belongs to one — a member leaves, a bundle dissolves.
+	it("offers dissolving only on the bundle parent", async () => {
+		render(<RouterProvider router={makeRouter(300)} />);
+
+		expect(
+			await screen.findByRole("button", { name: /dissolve bundle/i }),
+		).toBeVisible();
 	});
 });

@@ -58,6 +58,10 @@ const fromDateInputValue = (value: string) =>
  * more plainly than a disabled one. A member whose issuer/category the parent
  * *already* carries keeps its button, disabled — the row is not missing
  * anything, and hiding it would read as "this member has no issuer".
+ *
+ * The row also carries the way **out** of the bundle (issue #74) — the wrong row
+ * gets swept in, and the place to notice it is the list of what the bundle
+ * stands for. Leaving is not deleting: the row returns to the list as it was.
  */
 function MemberRow({
 	member,
@@ -66,6 +70,7 @@ function MemberRow({
 	category,
 	onCopyIssuer,
 	onCopyCategory,
+	onRemove,
 	disabled,
 }: {
 	member: Transaction;
@@ -74,6 +79,7 @@ function MemberRow({
 	category?: Category;
 	onCopyIssuer: (issuerId: IssuerId) => void;
 	onCopyCategory: (categoryId: CategoryId) => void;
+	onRemove: () => void;
 	disabled: boolean;
 }) {
 	const hasIssuer = member.issuerId != null;
@@ -133,6 +139,15 @@ function MemberRow({
 						Use category
 					</Button>
 				) : null}
+				<Button
+					variant="ghost"
+					size="sm"
+					disabled={disabled}
+					aria-label={`Remove ${member.rawIssuerString} from this bundle`}
+					onClick={onRemove}
+				>
+					Remove
+				</Button>
 			</div>
 		</li>
 	);
@@ -147,11 +162,16 @@ function MemberRow({
  * only a bundle has:
  *
  * - **The members it stands for**, each linking to its own page, each offering
- *   to copy its issuer or its category onto the parent ({@link MemberRow}).
+ *   to copy its issuer or its category onto the parent ({@link MemberRow}), and
+ *   each offering the way out of the bundle (#74).
  * - **The date**, which defaults to the earliest member's and may be overridden.
  *   The override is flagged `manualDate` so the recompute that every later
  *   membership change runs (#74) keeps it: the derived date is a starting point,
  *   not a constraint.
+ * - **Dissolving** the bundle (#74) — the parent row goes and every member comes
+ *   back to the list. The members are real bank rows, so this is never a delete;
+ *   the same thing happens by itself when a bundle would be left standing for a
+ *   single transaction.
  *
  * The **amount** is shown and never edited — not here, not anywhere. A bundle's
  * cost is what its members sum to; an editable total could drift from the very
@@ -166,7 +186,7 @@ export function BundleSection({
 }: {
 	transaction: Transaction;
 }) {
-	const { setBundleDate } = useBundle();
+	const { setBundleDate, removeFromBundle, dissolveBundle } = useBundle();
 	const { assignExisting } = useAssignIssuer();
 	const { setOverride } = useCategoryOverride();
 
@@ -209,7 +229,9 @@ export function BundleSection({
 	const pending =
 		assignExisting.isPending ||
 		setOverride.isPending ||
-		setBundleDate.isPending;
+		setBundleDate.isPending ||
+		removeFromBundle.isPending ||
+		dissolveBundle.isPending;
 
 	return (
 		<div className="flex flex-col gap-3 border-t border-gousse-line pt-6">
@@ -261,6 +283,9 @@ export function BundleSection({
 							onCopyCategory={(categoryId) =>
 								setOverride.mutate({ transactionId: txn.id, categoryId })
 							}
+							onRemove={() =>
+								removeFromBundle.mutate({ transactionId: member.id })
+							}
 						/>
 					))}
 				</ul>
@@ -301,6 +326,28 @@ export function BundleSection({
 					? "This date was set by hand, and stays put when members are added or removed."
 					: "This date follows its earliest member. Set one here to pin it instead."}
 			</p>
+
+			{/*
+			 * Dissolving is not deleting, and the copy says so before the button is
+			 * pressed: the members are the real bank rows, and they are exactly what
+			 * comes back. The parent — a synthetic row that only ever stood for them
+			 * — is the one thing that goes.
+			 */}
+			<div className="flex flex-col gap-2 border-t border-gousse-line pt-4">
+				<p className="text-sm text-gousse-muted">
+					Dissolving this bundle deletes this row and returns its members to the
+					list, exactly as they were.
+				</p>
+				<Button
+					variant="danger"
+					size="sm"
+					className="self-start"
+					disabled={pending}
+					onClick={() => dissolveBundle.mutate({ bundleId: txn.id })}
+				>
+					{dissolveBundle.isPending ? "Dissolving…" : "Dissolve bundle"}
+				</Button>
+			</div>
 		</div>
 	);
 }

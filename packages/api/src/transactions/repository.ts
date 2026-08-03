@@ -289,6 +289,7 @@ type Filters = {
 	linkedRefundId?: number;
 	transferGroupId?: number;
 	bundleId?: number;
+	kind?: TransactionKind;
 	importMonth?: string;
 	importBatchId?: string;
 	startDate?: Date;
@@ -472,6 +473,14 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 						? sql`t.bundleId = ${f.bundleId}`
 						: sql`t.bundleId IS NULL`,
 				);
+				// The row's **kind** (issue #74): `bundle` narrows to the parents, which
+				// is how a row is offered the bundles it may join. Orthogonal to
+				// `bundleId` above — that asks whose members, this asks which parents.
+				// A `bank` row is stored with the column set (never NULL), but read it
+				// COALESCEd anyway so a row predating migration 0020 answers as the
+				// bank row it is rather than falling out of both halves of the filter.
+				if (f.kind !== undefined)
+					conditions.push(sql`COALESCE(t.kind, 'bank') = ${f.kind}`);
 				if (f.importMonth !== undefined)
 					conditions.push(sql`t.importMonth = ${f.importMonth}`);
 				if (f.importBatchId !== undefined)
@@ -818,6 +827,18 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 					sql`SELECT ${readColumns} ${readFrom} WHERE ${sql.in("t.bundleId", parentIds)} ORDER BY t.date, t.id`,
 			});
 
+			// The **raw stored** rows of ONE bundle's members (issue #74) — the input
+			// to the recompute below, and the count the auto-dissolve rule reads. Raw
+			// rather than through `readColumns` on purpose: the derivation wants what
+			// the rows *hold* (amount, date, account, statement month), and a derived
+			// projection would join `issuers` for two columns nothing here looks at.
+			const bundleMembersOfQuery = SqlSchema.findAll({
+				Request: TransactionId,
+				Result: TransactionFromRow,
+				execute: (parentId) =>
+					sql`SELECT * FROM transactions WHERE bundleId = ${parentId}`,
+			});
+
 			// Reads a set of ids in one statement (partial existence allowed — the
 			// result holds only the ids that exist, order is arbitrary).
 			const bulkGetQuery = SqlSchema.findAll({
@@ -958,6 +979,98 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 			});
 
 			/**
+			 * Release every member of the given **bundle parents** — clear `bundleId`,
+			 * returning the rows to the top level of the list as ordinary transactions.
+			 * Bundling never touched a member's own issuer, category or notes, so a
+			 * released row comes back exactly as it went in. Returns how many were
+			 * released; an empty set touches no DB (`sql.in([])` renders an invalid
+			 * `IN ()`).
+			 */
+			const releaseBundleMembers = (
+				parentIds: ReadonlyArray<number>,
+			): Effect.Effect<number> =>
+				parentIds.length === 0
+					? Effect.succeed(0)
+					: sql<{
+							id: number;
+						}>`UPDATE transactions SET bundleId = NULL WHERE ${sql.in("bundleId", parentIds)} RETURNING id`.pipe(
+							orDieSql,
+							Effect.map((rows) => rows.length),
+						);
+
+			/**
+			 * Dissolve a **bundle** (issue #74): release every member and delete the
+			 * **bundle parent**. The members are real bank rows — the parent stands for
+			 * them, it does not own them — so they are never deleted with it, and they
+			 * keep the identity bundling never touched.
+			 *
+			 * Idempotent, like `unlinkTransfer`: an id that is unknown, or that names a
+			 * row which is not a parent, releases nothing and is not an error. The
+			 * `kind` check is also what keeps a bank row's id from deleting that row.
+			 */
+			const dissolveBundle = (
+				parentId: typeof TransactionId.Type,
+			): Effect.Effect<{ count: number }> =>
+				Effect.gen(function* () {
+					const found = yield* storedByIdQuery(parentId).pipe(orDieSql);
+					if (Option.isNone(found) || found.value.kind !== "bundle")
+						return { count: 0 };
+
+					const count = yield* releaseBundleMembers([parentId]);
+					yield* sql`DELETE FROM transactions WHERE id = ${parentId}`.pipe(
+						orDieSql,
+					);
+					return { count };
+				});
+
+			/**
+			 * Recompute a **bundle parent** from its members — the SINGLE point where a
+			 * bundle's number can go stale (issue #74), so every path that changes
+			 * membership goes through it: adding a member, removing one, and deleting a
+			 * member by any of the delete routes.
+			 *
+			 * The arithmetic itself is not restated here: it is
+			 * {@link deriveBundleParent}, the same pure routine `createBundle` writes
+			 * its first parent with, handed the parent's own row so a `manualDate`
+			 * override survives (#72 — the derived date is a starting point, not a
+			 * constraint).
+			 *
+			 * **Under two members the bundle dissolves** rather than being recomputed:
+			 * a parent standing for a single transaction is that transaction with extra
+			 * steps, and one standing for none has no number to hold at all. That is
+			 * the same rule `dissolveUndersizedGroups` applies to transfer legs, on the
+			 * grouping this file's other half owns.
+			 *
+			 * Returns whether the parent **survived** — `false` when it dissolved, and
+			 * also when the id names no parent at all (already deleted, or never one),
+			 * which is what makes calling this after a bulk delete safe.
+			 */
+			const recomputeBundleParent = (
+				parentId: typeof TransactionId.Type,
+			): Effect.Effect<boolean> =>
+				Effect.gen(function* () {
+					const found = yield* storedByIdQuery(parentId).pipe(orDieSql);
+					if (Option.isNone(found) || found.value.kind !== "bundle")
+						return false;
+
+					const members = yield* bundleMembersOfQuery(parentId).pipe(orDieSql);
+					if (members.length < 2) {
+						yield* dissolveBundle(parentId);
+						return false;
+					}
+
+					// Unreachable with ≥2 members in hand, and it means what the check
+					// above means: a bundle standing for nothing has nothing to derive.
+					const derived = deriveBundleParent(members, found.value);
+					if (derived === undefined) return false;
+
+					yield* sql`UPDATE transactions SET amount = ${derived.amount}, date = ${derived.date.toISOString()}, accountId = ${derived.accountId}, importMonth = ${derived.importMonth} WHERE id = ${parentId}`.pipe(
+						orDieSql,
+					);
+					return true;
+				});
+
+			/**
 			 * Auto-dissolve undersized transfer groups (PRD #48, issue #52). Given the
 			 * `transferGroupId`s of just-deleted legs, clear the column on every group
 			 * that now holds **fewer than 2** surviving legs — the survivor reverts to a
@@ -980,28 +1093,77 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 						)`.pipe(orDieSql, Effect.asVoid);
 			};
 
-			// A delete that also auto-dissolves transfer groups (PRD #48, issue #52):
-			// the statement must `DELETE ... RETURNING id, transferGroupId`, so every
-			// deleted leg's group is checked and any that drops below 2 legs has its
-			// survivor(s) cleared — one shared cleanup no delete path can skip. sqlite's
-			// `RETURNING` yields one row per deleted row, so its length is the exact
-			// affected count (taxonomy §5). The `SqlError` isn't client-actionable →
-			// dies as a 500 ({@link orDieSql}).
+			/**
+			 * What a delete has to know about the rows it removed for the grouping
+			 * cleanups below: which transfer group each leg was in, and which side of a
+			 * bundle it was on.
+			 */
+			type DeletedRow = {
+				id: number;
+				transferGroupId: number | null;
+				bundleId: number | null;
+				kind: string | null;
+			};
+
+			/**
+			 * The cleanup EVERY delete path runs, so no route can leave a grouping
+			 * half-standing. Both groupings are handled here, in the one place, rather
+			 * than by each caller (issue #52 for transfers, issue #74 for bundles):
+			 *
+			 * - a deleted **bundle parent** releases its members — the parent stands for
+			 *   them, it does not own them, so deleting it dissolves the bundle rather
+			 *   than deleting three bank rows;
+			 * - a deleted **bundle member** leaves a parent whose amount no longer
+			 *   matches the rows it stands for, so that parent is recomputed (and
+			 *   auto-dissolved if fewer than two members remain);
+			 * - a deleted **transfer leg** may drop its group below two legs, clearing
+			 *   the survivor(s).
+			 *
+			 * Parents deleted in the same breath are dropped from the recompute set:
+			 * their members were just released, and there is no row left to update.
+			 */
+			const cleanupAfterDelete = (
+				rows: ReadonlyArray<DeletedRow>,
+			): Effect.Effect<void> =>
+				Effect.gen(function* () {
+					const deletedParents = rows.flatMap((r) =>
+						r.kind === "bundle" ? [r.id] : [],
+					);
+					yield* releaseBundleMembers(deletedParents);
+
+					const gone = new Set(deletedParents);
+					const orphanedParents = [
+						...new Set(
+							rows.flatMap((r) => (r.bundleId !== null ? [r.bundleId] : [])),
+						),
+					].filter((id) => !gone.has(id));
+					yield* Effect.forEach(
+						orphanedParents,
+						(id) => recomputeBundleParent(TransactionId.make(id)),
+						{ discard: true },
+					);
+
+					yield* dissolveUndersizedGroups(
+						rows.flatMap((r) =>
+							r.transferGroupId !== null ? [r.transferGroupId] : [],
+						),
+					);
+				});
+
+			// A delete that also runs the shared grouping cleanup (PRD #48 issue #52,
+			// issue #74): the statement must `DELETE ... RETURNING` the four columns
+			// {@link DeletedRow} names, so every deleted row's transfer group and
+			// bundle role are seen by {@link cleanupAfterDelete} — one cleanup no
+			// delete path can skip. sqlite's `RETURNING` yields one row per deleted
+			// row, so its length is the exact affected count (taxonomy §5). The
+			// `SqlError` isn't client-actionable → dies as a 500 ({@link orDieSql}).
 			const deleteAndDissolve = <E, R>(
-				statement: Effect.Effect<
-					ReadonlyArray<{ id: number; transferGroupId: number | null }>,
-					E,
-					R
-				>,
+				statement: Effect.Effect<ReadonlyArray<DeletedRow>, E, R>,
 			) =>
 				statement.pipe(
 					orDieSql,
 					Effect.flatMap((rows) =>
-						dissolveUndersizedGroups(
-							rows.flatMap((r) =>
-								r.transferGroupId !== null ? [r.transferGroupId] : [],
-							),
-						).pipe(Effect.as({ count: rows.length })),
+						cleanupAfterDelete(rows).pipe(Effect.as({ count: rows.length })),
 					),
 				);
 
@@ -1145,19 +1307,25 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 					),
 				);
 
-			// Single delete: 404 if missing (via `getStoredById`), then delete and
-			// auto-dissolve the deleted leg's transfer group if it drops below 2 legs
-			// (PRD #48, issue #52) — the survivor of a two-leg group reverts to spend.
+			// Single delete: 404 if missing (via `getStoredById`), then the shared
+			// grouping cleanup (PRD #48 issue #52, issue #74) — the survivor of a
+			// two-leg transfer reverts to spend, a deleted bundle parent releases its
+			// members, and a deleted member's parent is recomputed. The stored row is
+			// already in hand, so the deleted row's facts come from it rather than
+			// from a `RETURNING` clause.
 			const remove = (id: typeof TransactionId.Type) =>
 				getStoredById(id).pipe(
 					Effect.flatMap((current) =>
 						orDieSql(sql`DELETE FROM transactions WHERE id = ${id}`).pipe(
 							Effect.andThen(
-								dissolveUndersizedGroups(
-									current.transferGroupId !== undefined
-										? [current.transferGroupId]
-										: [],
-								),
+								cleanupAfterDelete([
+									{
+										id: current.id,
+										transferGroupId: current.transferGroupId ?? null,
+										bundleId: current.bundleId ?? null,
+										kind: current.kind ?? "bank",
+									},
+								]),
 							),
 						),
 					),
@@ -1195,10 +1363,7 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				ids.length === 0
 					? Effect.succeed({ count: 0 })
 					: deleteAndDissolve(
-							sql<{
-								id: number;
-								transferGroupId: number | null;
-							}>`DELETE FROM transactions WHERE ${sql.in("id", ids)} RETURNING id, transferGroupId`,
+							sql<DeletedRow>`DELETE FROM transactions WHERE ${sql.in("id", ids)} RETURNING id, transferGroupId, bundleId, kind`,
 						);
 
 			// Read the given ids; only existing rows come back (partial existence),
@@ -1215,18 +1380,12 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				importMonth: string,
 			) =>
 				deleteAndDissolve(
-					sql<{
-						id: number;
-						transferGroupId: number | null;
-					}>`DELETE FROM transactions WHERE accountId = ${accountId} AND importMonth = ${importMonth} RETURNING id, transferGroupId`,
+					sql<DeletedRow>`DELETE FROM transactions WHERE accountId = ${accountId} AND importMonth = ${importMonth} RETURNING id, transferGroupId, bundleId, kind`,
 				);
 
 			const deleteByImportBatch = (batchId: string) =>
 				deleteAndDissolve(
-					sql<{
-						id: number;
-						transferGroupId: number | null;
-					}>`DELETE FROM transactions WHERE importBatchId = ${batchId} RETURNING id, transferGroupId`,
+					sql<DeletedRow>`DELETE FROM transactions WHERE importBatchId = ${batchId} RETURNING id, transferGroupId, bundleId, kind`,
 				);
 
 			/**
@@ -1347,6 +1506,14 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 						return yield* Effect.fail(
 							new BundleInvalid({ reason: "already-bundled" }),
 						);
+					// A bundle cannot contain a bundle (issue #74): the outer parent only
+					// recomputes when its OWN membership changes, so editing the inner one
+					// would leave the outer total stale — a second place a bundle's number
+					// could drift, which the single shared recompute exists to prevent.
+					if (members.some((m) => m.kind === "bundle"))
+						return yield* Effect.fail(
+							new BundleInvalid({ reason: "nested-bundle" }),
+						);
 
 					// The parent's number and its date come from the ONE derivation
 					// routine (issue #72), never a copy of it here: every later
@@ -1400,6 +1567,100 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				});
 
 			/**
+			 * Add an existing transaction to an existing **bundle** (issue #74). A
+			 * bundle is not finished at creation: the refund lands a week later, or
+			 * someone pays back in two instalments. One row at a time — this is also
+			 * the way past the table's page-scoped selection, so a member hundreds of
+			 * rows from the rest is reached from its own detail page.
+			 *
+			 * Refuses, writing nothing, when either id is unknown, when the target is
+			 * not a **bundle parent**, when the row already belongs to a bundle (a
+			 * member belongs to at most one: two parents each summing it would each be
+			 * right about a different number), or when the row is itself a parent —
+			 * nesting would put a bundle's total in two places, and only the inner one
+			 * would ever be recomputed.
+			 *
+			 * On success the parent is recomputed through the ONE routine and returned
+			 * as the list projects it, so the caller sees the number that moved.
+			 */
+			const addBundleMember = (
+				bundleId: typeof TransactionId.Type,
+				transactionId: typeof TransactionId.Type,
+			): Effect.Effect<Transaction, BundleInvalid> =>
+				Effect.gen(function* () {
+					const parent = yield* storedByIdQuery(bundleId).pipe(orDieSql);
+					if (Option.isNone(parent))
+						return yield* Effect.fail(
+							new BundleInvalid({ reason: "unknown-id" }),
+						);
+					if (parent.value.kind !== "bundle")
+						return yield* Effect.fail(
+							new BundleInvalid({ reason: "not-a-bundle" }),
+						);
+
+					const member = yield* storedByIdQuery(transactionId).pipe(orDieSql);
+					if (Option.isNone(member))
+						return yield* Effect.fail(
+							new BundleInvalid({ reason: "unknown-id" }),
+						);
+					// Covers adding a bundle to itself, which is the same rule.
+					if (member.value.kind === "bundle")
+						return yield* Effect.fail(
+							new BundleInvalid({ reason: "nested-bundle" }),
+						);
+					if (member.value.bundleId !== undefined)
+						return yield* Effect.fail(
+							new BundleInvalid({ reason: "already-bundled" }),
+						);
+
+					yield* sql`UPDATE transactions SET bundleId = ${bundleId} WHERE id = ${transactionId}`.pipe(
+						orDieSql,
+					);
+					// The set just grew, so it holds at least this row: a parent that does
+					// NOT survive the recompute had none before, which is a bundle there
+					// was nothing to join. The dissolve has already released this row.
+					const survived = yield* recomputeBundleParent(bundleId);
+					if (!survived)
+						return yield* Effect.fail(
+							new BundleInvalid({ reason: "too-few-members" }),
+						);
+					return yield* getById(bundleId).pipe(Effect.orDie);
+				});
+
+			/**
+			 * Remove a **bundle member** from its bundle (issue #74), returning it to
+			 * the list as an ordinary row — with the issuer, category and notes
+			 * bundling never touched, so it comes back exactly as it went in.
+			 *
+			 * The bundle is implied rather than named: a row belongs to at most one, so
+			 * a caller stating both could state a pair that disagrees. The parent is
+			 * recomputed through the ONE routine, which **dissolves** it if fewer than
+			 * two members are left — a bundle standing for a single transaction is that
+			 * transaction with extra steps.
+			 */
+			const removeBundleMember = (
+				transactionId: typeof TransactionId.Type,
+			): Effect.Effect<Transaction, BundleInvalid> =>
+				Effect.gen(function* () {
+					const member = yield* storedByIdQuery(transactionId).pipe(orDieSql);
+					if (Option.isNone(member))
+						return yield* Effect.fail(
+							new BundleInvalid({ reason: "unknown-id" }),
+						);
+					const parentId = member.value.bundleId;
+					if (parentId === undefined)
+						return yield* Effect.fail(
+							new BundleInvalid({ reason: "not-a-member" }),
+						);
+
+					yield* sql`UPDATE transactions SET bundleId = NULL WHERE id = ${transactionId}`.pipe(
+						orDieSql,
+					);
+					yield* recomputeBundleParent(parentId);
+					return yield* getById(transactionId).pipe(Effect.orDie);
+				});
+
+			/**
 			 * Dissolve a transfer group (PRD #48): clear `transferGroupId` on every leg
 			 * carrying the given group id, reverting them to normal transactions (they
 			 * count as spend again). Returns the count cleared — 0 for an unknown group
@@ -1433,6 +1694,9 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				linkTransfer,
 				unlinkTransfer,
 				createBundle,
+				addBundleMember,
+				removeBundleMember,
+				dissolveBundle,
 			} as const;
 		}),
 	},

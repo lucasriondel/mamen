@@ -2158,6 +2158,439 @@ describe("TransactionRepo", () => {
 		);
 	});
 
+	// A bundle is not finished at creation (issue #74): the refund lands a week
+	// later, someone pays back in two instalments, the wrong row got swept in.
+	// Every membership change moves the parent's derived amount and its default
+	// date, so all three paths — add, remove, dissolve — recompute through the ONE
+	// routine, and a bundle that drops below two members is dissolved rather than
+	// left standing for a single transaction.
+	describe("changing a bundle's membership (issue #74)", () => {
+		it.effect("adding a member recomputes the parent's amount and date", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const spend = yield* repo.create(
+					make({ amount: -200, date: new Date("2026-03-07T00:00:00.000Z") }),
+				);
+				const payback = yield* repo.create(
+					make({ amount: 150, date: new Date("2026-03-12T00:00:00.000Z") }),
+				);
+				const parent = yield* repo.createBundle(
+					[spend.id, payback.id],
+					"Weekend away",
+				);
+				assert.strictEqual(parent.amount, -50);
+
+				// The second instalment, arriving a fortnight after the bundle was made.
+				const late = yield* repo.create(
+					make({ amount: 30, date: new Date("2026-03-26T00:00:00.000Z") }),
+				);
+				const updated = yield* repo.addBundleMember(parent.id, late.id);
+
+				assert.strictEqual(updated.amount, -20);
+				assert.strictEqual((yield* repo.getById(late.id)).bundleId, parent.id);
+				// The date still belongs to the earliest member, which has not moved.
+				assert.deepStrictEqual(
+					updated.date,
+					new Date("2026-03-07T00:00:00.000Z"),
+				);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("a member joining earlier pulls the parent's date back", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(
+					make({ amount: -200, date: new Date("2026-03-07T00:00:00.000Z") }),
+				);
+				const b = yield* repo.create(
+					make({ amount: 150, date: new Date("2026-03-12T00:00:00.000Z") }),
+				);
+				const parent = yield* repo.createBundle([a.id, b.id], "Weekend away");
+				const earlier = yield* repo.create(
+					make({
+						amount: -30,
+						date: new Date("2026-03-01T00:00:00.000Z"),
+						accountId: asAccount(4),
+						importMonth: "2026-02",
+					}),
+				);
+
+				const updated = yield* repo.addBundleMember(parent.id, earlier.id);
+				assert.deepStrictEqual(
+					updated.date,
+					new Date("2026-03-01T00:00:00.000Z"),
+				);
+				// The parent sits where the row it takes its date from sits.
+				assert.strictEqual(updated.accountId, 4);
+				assert.strictEqual(updated.importMonth, "2026-02");
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		// The whole reason `manualDate` exists (#72): the derived date is a starting
+		// point, so an override the user typed outlives every later recompute.
+		it.effect("a recompute keeps the parent's overridden date", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(
+					make({ amount: -200, date: new Date("2026-03-07T00:00:00.000Z") }),
+				);
+				const b = yield* repo.create(
+					make({ amount: 150, date: new Date("2026-03-12T00:00:00.000Z") }),
+				);
+				const parent = yield* repo.createBundle([a.id, b.id], "Weekend away");
+				yield* repo.update(parent.id, {
+					date: new Date("2026-02-14T00:00:00.000Z"),
+					manualDate: true,
+				});
+
+				const earlier = yield* repo.create(
+					make({ amount: -30, date: new Date("2026-01-05T00:00:00.000Z") }),
+				);
+				const updated = yield* repo.addBundleMember(parent.id, earlier.id);
+
+				assert.deepStrictEqual(
+					updated.date,
+					new Date("2026-02-14T00:00:00.000Z"),
+				);
+				// The amount is derived all the same — only the date is the user's.
+				assert.strictEqual(updated.amount, -80);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("refuses to add a row that already belongs to a bundle", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -20 }));
+				const b = yield* repo.create(make({ amount: -5 }));
+				const c = yield* repo.create(make({ amount: -7 }));
+				const d = yield* repo.create(make({ amount: -3 }));
+				const first = yield* repo.createBundle([a.id, b.id], "First");
+				const second = yield* repo.createBundle([c.id, d.id], "Second");
+
+				const error = yield* repo
+					.addBundleMember(second.id, a.id)
+					.pipe(Effect.flip);
+				assert.deepStrictEqual(
+					error,
+					new BundleInvalid({ reason: "already-bundled" }),
+				);
+				// Refused means nothing moved: the row is still the first bundle's.
+				assert.strictEqual((yield* repo.getById(a.id)).bundleId, first.id);
+				assert.strictEqual((yield* repo.getById(second.id)).amount, -10);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("refuses an unknown bundle and an unknown transaction", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -20 }));
+				const b = yield* repo.create(make({ amount: -5 }));
+				const parent = yield* repo.createBundle([a.id, b.id], "Trip");
+				const loose = yield* repo.create(make({ amount: -7 }));
+
+				assert.deepStrictEqual(
+					yield* repo.addBundleMember(asTx(9999), loose.id).pipe(Effect.flip),
+					new BundleInvalid({ reason: "unknown-id" }),
+				);
+				assert.deepStrictEqual(
+					yield* repo.addBundleMember(parent.id, asTx(9999)).pipe(Effect.flip),
+					new BundleInvalid({ reason: "unknown-id" }),
+				);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("refuses to add to a row that is not a bundle parent", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const bank = yield* repo.create(make({ amount: -20 }));
+				const other = yield* repo.create(make({ amount: -5 }));
+
+				const error = yield* repo
+					.addBundleMember(bank.id, other.id)
+					.pipe(Effect.flip);
+				assert.deepStrictEqual(
+					error,
+					new BundleInvalid({ reason: "not-a-bundle" }),
+				);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		// A parent inside a parent would put a bundle's number in two places: the
+		// outer one only recomputes when its OWN membership changes, so editing the
+		// inner bundle would leave the outer total stale — the exact staleness this
+		// slice exists to close.
+		it.effect("refuses to nest one bundle parent inside another", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -20 }));
+				const b = yield* repo.create(make({ amount: -5 }));
+				const c = yield* repo.create(make({ amount: -7 }));
+				const d = yield* repo.create(make({ amount: -3 }));
+				const first = yield* repo.createBundle([a.id, b.id], "First");
+				const second = yield* repo.createBundle([c.id, d.id], "Second");
+
+				assert.deepStrictEqual(
+					yield* repo.addBundleMember(second.id, first.id).pipe(Effect.flip),
+					new BundleInvalid({ reason: "nested-bundle" }),
+				);
+				// Including into itself, which is the same rule.
+				assert.deepStrictEqual(
+					yield* repo.addBundleMember(first.id, first.id).pipe(Effect.flip),
+					new BundleInvalid({ reason: "nested-bundle" }),
+				);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect(
+			"removing a member returns it to the list and recomputes the parent",
+			() =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					const a = yield* repo.create(
+						make({ amount: -200, date: new Date("2026-03-07T00:00:00.000Z") }),
+					);
+					const b = yield* repo.create(
+						make({ amount: 150, date: new Date("2026-03-12T00:00:00.000Z") }),
+					);
+					const c = yield* repo.create(
+						make({ amount: 30, date: new Date("2026-03-26T00:00:00.000Z") }),
+					);
+					const parent = yield* repo.createBundle(
+						[a.id, b.id, c.id],
+						"Weekend away",
+					);
+					assert.strictEqual(parent.amount, -20);
+
+					const released = yield* repo.removeBundleMember(c.id);
+
+					assert.strictEqual(released.id, c.id);
+					assert.strictEqual(released.bundleId, undefined);
+					assert.strictEqual((yield* repo.getById(parent.id)).amount, -50);
+					// Back at the top level of the list, counted in its own right.
+					const page = yield* repo.list(listAll);
+					assert.ok(page.items.some((t) => t.id === c.id));
+				}).pipe(Effect.provide(RepoTest)),
+		);
+
+		// Bundling never touched the member's own identity, so releasing it gives
+		// back exactly the row that went in.
+		it.effect("a released member keeps its issuer, category and notes", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(
+					make({
+						amount: -200,
+						issuerId: asIssuer(3),
+						manualIssuer: true,
+						categoryId: asCategory(7),
+						manualCategory: true,
+						notes: "Half the shop was theirs",
+					}),
+				);
+				const b = yield* repo.create(make({ amount: 150 }));
+				const c = yield* repo.create(make({ amount: 30 }));
+				yield* repo.createBundle([a.id, b.id, c.id], "Weekend away");
+
+				const released = yield* repo.removeBundleMember(a.id);
+				assert.strictEqual(released.issuerId, 3);
+				assert.strictEqual(released.categoryId, 7);
+				assert.strictEqual(released.notes, "Half the shop was theirs");
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		// A bundle standing for one transaction is that transaction with extra
+		// steps, so it dissolves rather than surviving as a degenerate parent.
+		it.effect("a bundle dropping below two members dissolves itself", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -200 }));
+				const b = yield* repo.create(make({ amount: 150 }));
+				const parent = yield* repo.createBundle([a.id, b.id], "Weekend away");
+
+				yield* repo.removeBundleMember(b.id);
+
+				// The parent is gone and the survivor is an ordinary row again.
+				assert.deepStrictEqual(
+					yield* repo.getById(parent.id).pipe(Effect.flip),
+					new NotFound({ resource: "transaction", id: parent.id }),
+				);
+				assert.strictEqual((yield* repo.getById(a.id)).bundleId, undefined);
+				const page = yield* repo.list(listAll);
+				assert.deepStrictEqual(
+					[...page.items.map((t) => t.id)].sort((x, y) => x - y),
+					[a.id, b.id].sort((x, y) => x - y),
+				);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("refuses to remove a row that is in no bundle", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const loose = yield* repo.create(make({ amount: -20 }));
+
+				assert.deepStrictEqual(
+					yield* repo.removeBundleMember(loose.id).pipe(Effect.flip),
+					new BundleInvalid({ reason: "not-a-member" }),
+				);
+				assert.deepStrictEqual(
+					yield* repo.removeBundleMember(asTx(9999)).pipe(Effect.flip),
+					new BundleInvalid({ reason: "unknown-id" }),
+				);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("dissolving deletes the parent and releases every member", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(
+					make({ amount: -200, notes: "Bretagne", issuerId: asIssuer(3) }),
+				);
+				const b = yield* repo.create(make({ amount: 150 }));
+				const c = yield* repo.create(make({ amount: 30 }));
+				const parent = yield* repo.createBundle([a.id, b.id, c.id], "Weekend");
+
+				const result = yield* repo.dissolveBundle(parent.id);
+
+				assert.strictEqual(result.count, 3);
+				assert.deepStrictEqual(
+					yield* repo.getById(parent.id).pipe(Effect.flip),
+					new NotFound({ resource: "transaction", id: parent.id }),
+				);
+				// The members come back exactly as they were.
+				assert.strictEqual((yield* repo.getById(a.id)).bundleId, undefined);
+				assert.strictEqual((yield* repo.getById(a.id)).notes, "Bretagne");
+				assert.strictEqual((yield* repo.getById(a.id)).issuerId, 3);
+				assert.strictEqual((yield* repo.list(listAll)).total, 3);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		// Idempotent like `unlinkTransfer`: there is nothing to fail on, and a
+		// `kind` guard keeps a bank row's id from deleting the row itself.
+		it.effect("dissolving an unknown id or a bank row does nothing", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const bank = yield* repo.create(make({ amount: -20 }));
+
+				assert.strictEqual((yield* repo.dissolveBundle(asTx(9999))).count, 0);
+				assert.strictEqual((yield* repo.dissolveBundle(bank.id)).count, 0);
+				assert.strictEqual((yield* repo.getById(bank.id)).id, bank.id);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+	});
+
+	// Deleting a row that is part of a bundle goes through the SAME cleanup the
+	// transfer groups already use (issue #74), so no delete path can leave a
+	// parent summing a row that is gone, or a member pointing at a parent that is.
+	describe("bundles survive every delete path (issue #74)", () => {
+		it.effect("deleting a member recomputes the parent it left", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -200 }));
+				const b = yield* repo.create(make({ amount: 150 }));
+				const c = yield* repo.create(make({ amount: 30 }));
+				const parent = yield* repo.createBundle([a.id, b.id, c.id], "Weekend");
+
+				yield* repo.remove(c.id);
+
+				assert.strictEqual((yield* repo.getById(parent.id)).amount, -50);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("deleting the second-to-last member dissolves the bundle", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -200 }));
+				const b = yield* repo.create(make({ amount: 150 }));
+				const parent = yield* repo.createBundle([a.id, b.id], "Weekend");
+
+				yield* repo.remove(b.id);
+
+				assert.deepStrictEqual(
+					yield* repo.getById(parent.id).pipe(Effect.flip),
+					new NotFound({ resource: "transaction", id: parent.id }),
+				);
+				assert.strictEqual((yield* repo.getById(a.id)).bundleId, undefined);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		// The parent stands for its members; it does not own them. Deleting it is
+		// dissolving the bundle, not deleting three bank rows.
+		it.effect(
+			"deleting the parent releases its members, never deletes them",
+			() =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					const a = yield* repo.create(make({ amount: -200 }));
+					const b = yield* repo.create(make({ amount: 150 }));
+					const parent = yield* repo.createBundle([a.id, b.id], "Weekend");
+
+					yield* repo.remove(parent.id);
+
+					assert.strictEqual((yield* repo.getById(a.id)).bundleId, undefined);
+					assert.strictEqual((yield* repo.getById(b.id)).bundleId, undefined);
+					assert.strictEqual((yield* repo.list(listAll)).total, 2);
+				}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("bulkDelete of a member runs the same recompute", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -200 }));
+				const b = yield* repo.create(make({ amount: 150 }));
+				const c = yield* repo.create(make({ amount: 30 }));
+				const parent = yield* repo.createBundle([a.id, b.id, c.id], "Weekend");
+
+				assert.strictEqual((yield* repo.bulkDelete([c.id])).count, 1);
+				assert.strictEqual((yield* repo.getById(parent.id)).amount, -50);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		// Both halves at once: the parent's members are released, and the recompute
+		// asked for by the deleted member finds no parent left to update.
+		it.effect(
+			"a bulk delete of a parent AND a member leaves nothing dangling",
+			() =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					const a = yield* repo.create(make({ amount: -200 }));
+					const b = yield* repo.create(make({ amount: 150 }));
+					const parent = yield* repo.createBundle([a.id, b.id], "Weekend");
+
+					assert.strictEqual(
+						(yield* repo.bulkDelete([parent.id, b.id])).count,
+						2,
+					);
+					assert.strictEqual((yield* repo.getById(a.id)).bundleId, undefined);
+					assert.strictEqual((yield* repo.list(listAll)).total, 1);
+				}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect(
+			"deleteByAccountMonth releases the members of a deleted parent",
+			() =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					const a = yield* repo.create(
+						make({ amount: -200, importMonth: "2026-03" }),
+					);
+					const b = yield* repo.create(
+						make({ amount: 150, importMonth: "2026-03" }),
+					);
+					const parent = yield* repo.createBundle([a.id, b.id], "Weekend");
+					assert.strictEqual(parent.importMonth, "2026-03");
+
+					// The whole statement is re-imported: the parent goes with it (it was
+					// stamped with the earliest member's account + month) and so do both
+					// members, leaving nothing behind.
+					assert.strictEqual(
+						(yield* repo.deleteByAccountMonth(asAccount(1), "2026-03")).count,
+						3,
+					);
+					assert.strictEqual((yield* repo.list(listAll)).total, 0);
+				}).pipe(Effect.provide(RepoTest)),
+		);
+	});
+
 	// Auto-dissolve undersized transfer groups on leg deletion (PRD #48, issue
 	// #52). The grouping invariant (≥2 legs) must survive every delete path: a
 	// leg whose removal drops its group below 2 legs leaves the survivor(s)

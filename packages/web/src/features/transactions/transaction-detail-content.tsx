@@ -10,6 +10,7 @@ import { formatCurrency, formatMonth, formatShortDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { AnomalyFlags } from "./anomaly-flags";
 import { AssignmentPicker } from "./assignment-picker";
+import { BundleMembershipSection } from "./bundle-membership-section";
 import { BundleSection } from "./bundle-section";
 import { CategoryPicker } from "./category-picker";
 import { DetailField } from "./detail-field";
@@ -268,12 +269,18 @@ export function TransactionDetailContent({
 				categoryColor={categoryColor}
 			/>
 			{/*
-			 * Only a **bundle parent** has members to stand for and a date of its own
-			 * to override (issue #72); on a bank row the block would have nothing to
-			 * say. It sits directly under the core fields because it is the rest of
-			 * this row's identity, not an aside like the refund/anomaly blocks.
+			 * The two sides of a **bundle**, and a row is only ever one of them. A
+			 * **bundle parent** has members to stand for, a date of its own to
+			 * override and a bundle to dissolve (issues #72/#74); every other row has
+			 * a bundle to join or leave (#74). Both sit directly under the core
+			 * fields because membership is the rest of this row's identity, not an
+			 * aside like the refund/anomaly blocks.
 			 */}
-			{txn.kind === "bundle" ? <BundleSection transaction={txn} /> : null}
+			{txn.kind === "bundle" ? (
+				<BundleSection transaction={txn} />
+			) : (
+				<BundleMembershipSection transaction={txn} />
+			)}
 			<RefundDuplicateSection txn={txn} linkedRefund={linkedRefund} />
 			<RecapExclusionSection transaction={txn} />
 			<TransferSection transaction={txn} />

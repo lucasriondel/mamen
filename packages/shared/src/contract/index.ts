@@ -98,6 +98,9 @@ export {
 export {
 	AccountIdFilter,
 	BundleCreate,
+	BundleDissolve,
+	BundleMemberAdd,
+	BundleMemberRemove,
 	NOTES_MAX_LENGTH,
 	PagedTransactions,
 	RecapCategoryBucket,

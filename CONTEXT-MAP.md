@@ -358,7 +358,14 @@ repeated per package.
   a non-zero amount and counts as exactly one line. The two are mutually
   exclusive — a row that was both would be netted out by the transfer partition
   while still displaying its share of the bundle's total, which is a number that
-  disagrees with itself.
+  disagrees with itself. Membership is **mutable**: a row can join an existing
+  bundle or leave it, and every such change — including a member being deleted —
+  recomputes the parent through one shared routine, the single point where a
+  bundle's number could otherwise go stale. A bundle that would be left with
+  fewer than two members **dissolves** rather than standing for a single
+  transaction, exactly as an undersized **transfer group** does. A bundle never
+  contains a bundle: only the inner parent would ever be recomputed, so the
+  outer total would drift.
   _Avoid_: group (already reserved — see **Category folder**, **Transfer
   group**), merge, combine, split.
 
@@ -389,5 +396,9 @@ repeated per package.
   their parent — the list envelope's own `bundleMembers` field, beside `items`
   rather than among them — so expanding costs no request and changes no total. Bundling never touches a member's own
   issuer, category or notes, so dissolving a bundle returns each member exactly
-  as it was.
+  as it was. A member can leave on its own, and deleting one goes through the
+  same cleanup a deleted **transfer leg** does: the parent it left is
+  recomputed, never left summing a row that is gone. **Deleting the parent
+  releases its members rather than deleting them** — it stands for them, it does
+  not own them.
   _Avoid_: child transaction, sub-transaction, line item.

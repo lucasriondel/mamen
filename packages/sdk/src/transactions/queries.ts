@@ -6,6 +6,7 @@ import type {
 	TransactionBulkPut,
 	TransactionCreate,
 	TransactionId,
+	TransactionKind,
 	TransactionUpdate,
 } from "@mamen/shared/contract";
 import { PaginationDefaults } from "@mamen/shared/contract";
@@ -44,6 +45,13 @@ export type TransactionListParams = {
 	 * the rows *and* the signed total.
 	 */
 	bundleId?: TransactionId;
+	/**
+	 * The row's **kind** (issue #74). `"bundle"` narrows to the **bundle parents**
+	 * — how the detail page offers a row the bundles it may join; `"bank"` to the
+	 * real rows; omitted returns both. Orthogonal to `bundleId`: that asks whose
+	 * members, this asks which rows are parents.
+	 */
+	kind?: TransactionKind;
 	importMonth?: string;
 	importBatchId?: string;
 	startDate?: Date;
@@ -386,6 +394,49 @@ export const transactionMutations = {
 		runQuery(
 			Effect.flatMap(Client, (client) =>
 				client.transactions.createBundle({ payload: { ids, label } }),
+			),
+		),
+
+	/**
+	 * Add one existing transaction to one existing **bundle** (issue #74) → the
+	 * **recomputed parent**, whose amount and default date have just moved. Fails
+	 * `BundleInvalid` (422) when either id is unknown, the target is not a parent,
+	 * the row is already bundled, or the row is itself a parent. Invalidate
+	 * `transactionKeys.all` after: the row has left the top level of the list and
+	 * the parent's number has changed.
+	 */
+	addBundleMember: (bundleId: TransactionId, transactionId: TransactionId) =>
+		runQuery(
+			Effect.flatMap(Client, (client) =>
+				client.transactions.addBundleMember({
+					payload: { bundleId, transactionId },
+				}),
+			),
+		),
+
+	/**
+	 * Take a **bundle member** out of its bundle (issue #74) → the released row,
+	 * an ordinary transaction again, with the issuer, category and notes bundling
+	 * never touched. The bundle is implied — a row belongs to at most one. Its
+	 * parent is recomputed, and **dissolved** if fewer than two members remain, so
+	 * this call may remove a row from the list as well as return one to it.
+	 */
+	removeBundleMember: (transactionId: TransactionId) =>
+		runQuery(
+			Effect.flatMap(Client, (client) =>
+				client.transactions.removeBundleMember({ payload: { transactionId } }),
+			),
+		),
+
+	/**
+	 * Dissolve a **bundle** (issue #74) → `{ count }` members released. The parent
+	 * row is deleted; the members are bank rows and come back to the list exactly
+	 * as they were. Idempotent, like `unlinkTransfer`.
+	 */
+	dissolveBundle: (bundleId: TransactionId) =>
+		runQuery(
+			Effect.flatMap(Client, (client) =>
+				client.transactions.dissolveBundle({ payload: { bundleId } }),
 			),
 		),
 };

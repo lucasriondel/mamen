@@ -67,5 +67,71 @@ export function useBundle() {
 		},
 	});
 
-	return { createBundle, setBundleDate };
+	/**
+	 * Join an existing **bundle** (issue #74). A bundle is not finished at
+	 * creation: the refund lands a week later, or someone pays back twice. This is
+	 * also the way past the table's page-scoped selection — a row hundreds of rows
+	 * from the rest is added from its own page, one at a time.
+	 *
+	 * Nothing is computed here: the server recomputes the parent through its one
+	 * derivation routine and returns it. A client that guessed the new total would
+	 * be the second definition of what a bundle sums to.
+	 */
+	const addToBundle = useMutation({
+		mutationFn: ({
+			bundleId,
+			transactionId,
+		}: {
+			bundleId: TransactionId;
+			transactionId: TransactionId;
+		}) => transactionMutations.addBundleMember(bundleId, transactionId),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: transactionKeys.all });
+		},
+		onError: (error: unknown) => {
+			toast.error(toErrorMessage(error));
+		},
+	});
+
+	/**
+	 * Leave a bundle (issue #74) — the row returns to the list as an ordinary
+	 * transaction, keeping the issuer, category and notes bundling never touched.
+	 * The server may **dissolve** the bundle in the same breath if it would be
+	 * left standing for a single transaction, which is why the whole key family is
+	 * invalidated rather than the two rows involved.
+	 */
+	const removeFromBundle = useMutation({
+		mutationFn: ({ transactionId }: { transactionId: TransactionId }) =>
+			transactionMutations.removeBundleMember(transactionId),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: transactionKeys.all });
+		},
+		onError: (error: unknown) => {
+			toast.error(toErrorMessage(error));
+		},
+	});
+
+	/**
+	 * Dissolve a bundle (issue #74): the parent row goes, every member comes back
+	 * to the list as it was. The members are real bank rows — deleting them is
+	 * never what dissolving means.
+	 */
+	const dissolveBundle = useMutation({
+		mutationFn: ({ bundleId }: { bundleId: TransactionId }) =>
+			transactionMutations.dissolveBundle(bundleId),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: transactionKeys.all });
+		},
+		onError: (error: unknown) => {
+			toast.error(toErrorMessage(error));
+		},
+	});
+
+	return {
+		createBundle,
+		setBundleDate,
+		addToBundle,
+		removeFromBundle,
+		dissolveBundle,
+	};
 }

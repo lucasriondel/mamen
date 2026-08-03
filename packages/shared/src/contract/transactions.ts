@@ -235,6 +235,11 @@ export const TransactionFilters = {
 	// parent already accounts for it and showing both double-counts (in the rows
 	// and in the signed `total` beneath them). Mirrors `transferGroupId`.
 	bundleId: Schema.optional(numFromStr(TransactionId)),
+	// The row's **kind** (issue #74) — `bundle` lists the **bundle parents** and
+	// nothing else, which is how the detail page offers the bundles a row may
+	// join. Orthogonal to `bundleId`: that one asks "whose members?", this one
+	// asks "which rows are parents?". Absent returns every kind.
+	kind: Schema.optional(TransactionKind),
 	importMonth: Schema.optional(Schema.String), // "YYYY-MM"
 	importBatchId: Schema.optional(Schema.String),
 	startDate: Schema.optional(Schema.Date), // inclusive lower bound on `date`
@@ -493,6 +498,47 @@ export const BundleCreate = Schema.Struct({
 export type BundleCreate = typeof BundleCreate.Type;
 
 /**
+ * `bundle/add-member` payload (issue #74) — one existing transaction joining one
+ * existing **bundle**. A bundle is not finished at creation: the refund lands a
+ * week later, or someone pays back in two instalments. One row at a time rather
+ * than a set, because this is also the escape hatch for the table's page-scoped
+ * selection — a member hundreds of rows away from the rest is reached from its
+ * own detail page, not by scrolling the two into the same page.
+ *
+ * Refused (422) when either id is unknown, when `bundleId` is not a **bundle
+ * parent**, when the row already belongs to a bundle, or when the row is itself
+ * a parent. On success the parent's amount and default date are recomputed.
+ */
+export const BundleMemberAdd = Schema.Struct({
+	bundleId: TransactionId,
+	transactionId: TransactionId,
+});
+export type BundleMemberAdd = typeof BundleMemberAdd.Type;
+
+/**
+ * `bundle/remove-member` payload (issue #74) — the member leaving. Its bundle is
+ * implied: a row belongs to at most one, so naming it as well would let a caller
+ * state a pair that disagrees. The member returns to the list as an ordinary
+ * row, keeping the issuer, category and notes bundling never touched; the parent
+ * it left is recomputed, and **dissolved** if fewer than two members remain.
+ */
+export const BundleMemberRemove = Schema.Struct({
+	transactionId: TransactionId,
+});
+export type BundleMemberRemove = typeof BundleMemberRemove.Type;
+
+/**
+ * `bundle/dissolve` payload (issue #74) — the **bundle parent** to dissolve. The
+ * parent row is deleted and every member released; the members are bank rows and
+ * are never deleted with it. Idempotent, like `unlink-transfer`: an unknown id
+ * (or one that is not a parent) releases nothing and is not an error.
+ */
+export const BundleDissolve = Schema.Struct({
+	bundleId: TransactionId,
+});
+export type BundleDissolve = typeof BundleDissolve.Type;
+
+/**
  * One **detected** (not yet confirmed) internal-transfer pair (PRD #48) — the
  * row shape of the Transfers page. `from` is always the debit leg (the money
  * leaving, a negative amount) and `to` the credit leg (the money arriving, a
@@ -710,5 +756,35 @@ export class TransactionsGroup extends HttpApiGroup.make("transactions")
 			.setPayload(BundleCreate)
 			.addSuccess(Transaction, { status: 201 })
 			.addError(BundleInvalid),
+	)
+	// Membership is mutable (issue #74): a bundle is not finished at creation, so
+	// a row can join one, leave one, and the whole bundle can be dissolved. All
+	// three recompute the parent through the ONE derivation routine — the single
+	// point where a bundle's number could go stale — and a bundle left with fewer
+	// than two members is dissolved rather than kept as a parent standing for a
+	// single transaction.
+	//
+	// `add-member` returns the **recomputed parent** (the row whose number moved);
+	// `remove-member` returns the **released row**, now ordinary again. Both fail
+	// `BundleInvalid` (422). `dissolve` returns the count of members released and
+	// is idempotent, like `unlink-transfer`.
+	.add(
+		HttpApiEndpoint.post("addBundleMember")`/transactions/bundle/add-member`
+			.setPayload(BundleMemberAdd)
+			.addSuccess(Transaction)
+			.addError(BundleInvalid),
+	)
+	.add(
+		HttpApiEndpoint.post(
+			"removeBundleMember",
+		)`/transactions/bundle/remove-member`
+			.setPayload(BundleMemberRemove)
+			.addSuccess(Transaction)
+			.addError(BundleInvalid),
+	)
+	.add(
+		HttpApiEndpoint.post("dissolveBundle")`/transactions/bundle/dissolve`
+			.setPayload(BundleDissolve)
+			.addSuccess(TransactionAffected),
 	)
 	.annotateContext(OpenApi.annotations({ title: "Transactions" })) {}

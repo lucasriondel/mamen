@@ -156,21 +156,31 @@ export class TransferInvalid extends Schema.TaggedError<TransferInvalid>()(
 ) {}
 
 /**
- * A set of transactions could not be turned into a **bundle** (issue #68) —
- * several rows treated as **one** for the recap. Raised only by `createBundle`,
- * which validates the set atomically server-side: the multi-row invariants the
- * generic single-row create structurally cannot enforce. A dedicated error
- * rather than an overloaded `NotFound`, so the client can tell "one of these
- * rows is gone" from "one of them is already in a bundle". `reason` is the
+ * A **bundle** operation was refused (issues #68, #74) — a bundle being several
+ * rows treated as **one** for the recap. Raised by `createBundle` and by the
+ * membership changes (`addBundleMember` / `removeBundleMember`), each of which
+ * validates its set atomically server-side: the multi-row invariants the generic
+ * single-row create/update structurally cannot enforce. A dedicated error rather
+ * than an overloaded `NotFound`, so the client can tell "one of these rows is
+ * gone" from "one of them is already in a bundle". `reason` is the
  * machine-readable cause:
  *
  * - `too-few-members` — a bundle needs ≥2 distinct members. One row is already
  *   its own account of itself; a parent standing for it would only double the
- *   rows without changing a total.
+ *   rows without changing a total. (Reaching that state through a *removal* is
+ *   not an error but an **auto-dissolve**: the bundle goes, the row stays.)
  * - `unknown-id` — some id in the set doesn't exist.
  * - `already-bundled` — some row already carries a `bundleId`. A member belongs
  *   to at most one bundle: two parents each claiming to sum it would each be
  *   right about a different number.
+ * - `not-a-bundle` — the row named as the bundle to join is not a **bundle
+ *   parent**. Nothing derives from a bank row's members, because it has none.
+ * - `not-a-member` — the row asked to leave a bundle is in none.
+ * - `nested-bundle` — the row being added is itself a bundle parent (a bundle
+ *   cannot contain a bundle, nor itself). The outer parent only recomputes when
+ *   its OWN membership changes, so editing the inner one would leave the outer
+ *   total stale — the second place a bundle's number could go stale, which is
+ *   exactly what the single shared recompute exists to prevent.
  *
  * Mirrors {@link TransferInvalid}, the other multi-row grouping refusal — but is
  * its own error, because a bundle nets to a **non-zero** amount and so shares
@@ -179,7 +189,14 @@ export class TransferInvalid extends Schema.TaggedError<TransferInvalid>()(
 export class BundleInvalid extends Schema.TaggedError<BundleInvalid>()(
 	"BundleInvalid",
 	{
-		reason: Schema.Literal("too-few-members", "unknown-id", "already-bundled"),
+		reason: Schema.Literal(
+			"too-few-members",
+			"unknown-id",
+			"already-bundled",
+			"not-a-bundle",
+			"not-a-member",
+			"nested-bundle",
+		),
 	},
 	HttpApiSchema.annotations({ status: 422 }),
 ) {}

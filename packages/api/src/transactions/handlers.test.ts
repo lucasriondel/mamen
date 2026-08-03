@@ -1963,6 +1963,265 @@ describe("createBundle (issue #68)", () => {
 	);
 });
 
+// Membership over the wire (issue #74, epic #66): a bundle is not finished at
+// creation. The API seam, not the repository — the recompute rule and the
+// auto-dissolve are pinned there; what is verified here is that the three
+// endpoints exist, carry the recomputed row back, and refuse with a 422.
+describe("changing a bundle's membership (issue #74)", () => {
+	// The whole arc in one pass, as the user lives it: bundle the weekend, the
+	// second instalment lands, the wrong row goes out, and the bundle is dropped.
+	it.effect("adds a member and returns the recomputed parent", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const spend = yield* client.transactions.create({
+				payload: make({
+					amount: -200,
+					date: new Date("2026-03-07T00:00:00.000Z"),
+				}),
+			});
+			const payback = yield* client.transactions.create({
+				payload: make({
+					amount: 150,
+					date: new Date("2026-03-12T00:00:00.000Z"),
+				}),
+			});
+			const parent = yield* client.transactions.createBundle({
+				payload: { ids: [spend.id, payback.id], label: "Weekend away" },
+			});
+
+			const late = yield* client.transactions.create({
+				payload: make({
+					amount: 30,
+					date: new Date("2026-03-26T00:00:00.000Z"),
+				}),
+			});
+			const updated = yield* client.transactions.addBundleMember({
+				payload: { bundleId: parent.id, transactionId: late.id },
+			});
+
+			assert.strictEqual(updated.id, parent.id);
+			assert.strictEqual(updated.amount, -20);
+			// The late instalment has left the top level of the list; the parent
+			// standing for it carries the whole cost as one line.
+			const page = yield* client.transactions.list({
+				urlParams: { limit: 50, offset: 0, direction: "desc" },
+			});
+			assert.deepStrictEqual(
+				page.items.map((t) => t.id),
+				[parent.id],
+			);
+			assert.strictEqual(page.bundleMembers.length, 3);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("removes a member and returns it as an ordinary row", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const a = yield* client.transactions.create({
+				payload: make({ amount: -200, notes: "Half was theirs" }),
+			});
+			const b = yield* client.transactions.create({
+				payload: make({ amount: 150 }),
+			});
+			const c = yield* client.transactions.create({
+				payload: make({ amount: 30 }),
+			});
+			const parent = yield* client.transactions.createBundle({
+				payload: { ids: [a.id, b.id, c.id], label: "Weekend away" },
+			});
+
+			const released = yield* client.transactions.removeBundleMember({
+				payload: { transactionId: c.id },
+			});
+
+			assert.strictEqual(released.id, c.id);
+			assert.strictEqual(released.bundleId, undefined);
+			const after = yield* client.transactions.getById({
+				path: { id: parent.id },
+			});
+			assert.strictEqual(after.amount, -50);
+			// The note bundling never touched is still on the row it belongs to.
+			const kept = yield* client.transactions.getById({ path: { id: a.id } });
+			assert.strictEqual(kept.notes, "Half was theirs");
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("dissolves a bundle, releasing its members (200 + count)", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const a = yield* client.transactions.create({
+				payload: make({ amount: -200 }),
+			});
+			const b = yield* client.transactions.create({
+				payload: make({ amount: 150 }),
+			});
+			const parent = yield* client.transactions.createBundle({
+				payload: { ids: [a.id, b.id], label: "Weekend away" },
+			});
+
+			const result = yield* client.transactions.dissolveBundle({
+				payload: { bundleId: parent.id },
+			});
+			assert.strictEqual(result.count, 2);
+
+			// Both members are back in the list as ordinary rows, and the parent is
+			// gone — the signed total is the two real rows again.
+			const page = yield* client.transactions.list({
+				urlParams: { limit: 50, offset: 0, direction: "desc" },
+			});
+			assert.strictEqual(page.total, 2);
+			assert.ok(!page.items.some((t) => t.id === parent.id));
+			const counted = yield* client.transactions.count({ urlParams: {} });
+			assert.strictEqual(counted.total, -50);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("refuses a row that already belongs to a bundle with a 422", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const a = yield* client.transactions.create({
+				payload: make({ amount: -20 }),
+			});
+			const b = yield* client.transactions.create({
+				payload: make({ amount: -5 }),
+			});
+			const c = yield* client.transactions.create({
+				payload: make({ amount: -7 }),
+			});
+			const d = yield* client.transactions.create({
+				payload: make({ amount: -3 }),
+			});
+			yield* client.transactions.createBundle({
+				payload: { ids: [a.id, b.id], label: "First" },
+			});
+			const second = yield* client.transactions.createBundle({
+				payload: { ids: [c.id, d.id], label: "Second" },
+			});
+
+			const error = yield* client.transactions
+				.addBundleMember({
+					payload: { bundleId: second.id, transactionId: a.id },
+				})
+				.pipe(Effect.flip);
+			assert.ok(error instanceof BundleInvalid);
+			assert.strictEqual(error.reason, "already-bundled");
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("refuses a bundle that is not one, and a row in none", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const bank = yield* client.transactions.create({
+				payload: make({ amount: -20 }),
+			});
+			const other = yield* client.transactions.create({
+				payload: make({ amount: -5 }),
+			});
+
+			const notABundle = yield* client.transactions
+				.addBundleMember({
+					payload: { bundleId: bank.id, transactionId: other.id },
+				})
+				.pipe(Effect.flip);
+			assert.ok(notABundle instanceof BundleInvalid);
+			assert.strictEqual(notABundle.reason, "not-a-bundle");
+
+			const notAMember = yield* client.transactions
+				.removeBundleMember({ payload: { transactionId: bank.id } })
+				.pipe(Effect.flip);
+			assert.ok(notAMember instanceof BundleInvalid);
+			assert.strictEqual(notAMember.reason, "not-a-member");
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	// Deleting a member is a membership change like any other, and goes through
+	// the same recompute — so a parent can never sum a row that is gone.
+	it.effect("deleting a member recomputes the parent over the wire", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const a = yield* client.transactions.create({
+				payload: make({ amount: -200 }),
+			});
+			const b = yield* client.transactions.create({
+				payload: make({ amount: 150 }),
+			});
+			const c = yield* client.transactions.create({
+				payload: make({ amount: 30 }),
+			});
+			const parent = yield* client.transactions.createBundle({
+				payload: { ids: [a.id, b.id, c.id], label: "Weekend away" },
+			});
+
+			yield* client.transactions.remove({ path: { id: c.id } });
+
+			const after = yield* client.transactions.getById({
+				path: { id: parent.id },
+			});
+			assert.strictEqual(after.amount, -50);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	// The parent stands for its members; it does not own them. Deleting it is
+	// dissolving the bundle, not deleting the bank rows underneath.
+	it.effect("deleting a parent releases its members over the wire", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const a = yield* client.transactions.create({
+				payload: make({ amount: -200 }),
+			});
+			const b = yield* client.transactions.create({
+				payload: make({ amount: 150 }),
+			});
+			const parent = yield* client.transactions.createBundle({
+				payload: { ids: [a.id, b.id], label: "Weekend away" },
+			});
+
+			yield* client.transactions.remove({ path: { id: parent.id } });
+
+			const page = yield* client.transactions.list({
+				urlParams: { limit: 50, offset: 0, direction: "desc" },
+			});
+			assert.strictEqual(page.total, 2);
+			assert.ok(page.items.every((t) => t.bundleId === undefined));
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	// The `kind` filter (issue #74) is how the detail page offers the bundles a
+	// row may join: the parents, and nothing else.
+	it.effect("lists the bundle parents through the kind filter", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const a = yield* client.transactions.create({
+				payload: make({ amount: -200 }),
+			});
+			const b = yield* client.transactions.create({
+				payload: make({ amount: 150 }),
+			});
+			yield* client.transactions.create({
+				payload: make({ amount: -10, rawIssuerString: "COFFEE" }),
+			});
+			const parent = yield* client.transactions.createBundle({
+				payload: { ids: [a.id, b.id], label: "Weekend away" },
+			});
+
+			const bundles = yield* client.transactions.list({
+				urlParams: { limit: 50, offset: 0, direction: "desc", kind: "bundle" },
+			});
+			assert.deepStrictEqual(
+				bundles.items.map((t) => t.id),
+				[parent.id],
+			);
+
+			// And its complement: the bank rows, the members still hidden.
+			const bank = yield* client.transactions.list({
+				urlParams: { limit: 50, offset: 0, direction: "desc", kind: "bank" },
+			});
+			assert.strictEqual(bank.total, 1);
+			assert.ok(!bank.items.some((t) => t.id === parent.id));
+		}).pipe(Effect.provide(HttpLive)),
+	);
+});
+
 // The **recap** over the wire (issue #71, epic #66) — the API seam, not the
 // repository: the query string carries the period as `date` bounds and the
 // account selection as a repeated param, and the aggregation comes back already

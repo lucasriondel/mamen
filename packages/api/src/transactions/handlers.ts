@@ -65,6 +65,15 @@ export const TransactionsLive = HttpApiBuilder.group(
 				)
 				.handle("createBundle", (_) =>
 					repo.createBundle(_.payload.ids, _.payload.label),
+				)
+				.handle("addBundleMember", (_) =>
+					repo.addBundleMember(_.payload.bundleId, _.payload.transactionId),
+				)
+				.handle("removeBundleMember", (_) =>
+					repo.removeBundleMember(_.payload.transactionId),
+				)
+				.handle("dissolveBundle", (_) =>
+					repo.dissolveBundle(_.payload.bundleId),
 				);
 		}),
 ).pipe(Layer.provide([TransactionRepo.Default, IssuerMatcher.Default]));

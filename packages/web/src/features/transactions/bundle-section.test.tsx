@@ -60,6 +60,8 @@ function parent(over: Partial<Transaction> = {}): Transaction {
 
 const updateTransaction = vi.fn();
 const listTransactions = vi.fn();
+const removeBundleMember = vi.fn();
+const dissolveBundle = vi.fn();
 
 vi.mock("@mamen/sdk", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("@mamen/sdk")>();
@@ -100,6 +102,9 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
 		},
 		transactionMutations: {
 			update: (id: unknown, payload: unknown) => updateTransaction(id, payload),
+			removeBundleMember: (transactionId: unknown) =>
+				removeBundleMember(transactionId),
+			dissolveBundle: (bundleId: unknown) => dissolveBundle(bundleId),
 		},
 	};
 });
@@ -130,6 +135,8 @@ function renderSection(txn: Transaction) {
 
 beforeEach(() => {
 	updateTransaction.mockReset().mockResolvedValue({ id: 300 });
+	removeBundleMember.mockReset().mockResolvedValue({ id: 201 });
+	dissolveBundle.mockReset().mockResolvedValue({ count: 2 });
 	listTransactions.mockClear();
 });
 
@@ -244,5 +251,43 @@ describe("BundleSection (issue #72)", () => {
 
 		expect(screen.queryByRole("spinbutton")).toBeNull();
 		expect(screen.queryByLabelText(/bundle amount/i)).toBeNull();
+	});
+
+	// Issue #74 — membership is mutable from the row that owns it: the wrong row
+	// got swept in, and taking it out is one click from the bundle's own page.
+	it("takes a member out of the bundle", async () => {
+		renderSection(parent());
+		const user = userEvent.setup();
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: /remove carrefour market from this bundle/i,
+			}),
+		);
+
+		await waitFor(() => expect(removeBundleMember).toHaveBeenCalledWith(201));
+		// Removing a member is not deleting it: nothing here writes the row itself.
+		expect(updateTransaction).not.toHaveBeenCalled();
+	});
+
+	it("dissolves the whole bundle", async () => {
+		renderSection(parent());
+		const user = userEvent.setup();
+
+		await user.click(
+			await screen.findByRole("button", { name: /dissolve bundle/i }),
+		);
+
+		await waitFor(() => expect(dissolveBundle).toHaveBeenCalledWith(300));
+	});
+
+	// The members are real bank rows: dissolving gives them back, so the copy must
+	// not read as a delete.
+	it("says dissolving returns the members rather than deleting them", async () => {
+		renderSection(parent());
+
+		expect(
+			await screen.findByText(/returns .* to the list|come back/i),
+		).toBeVisible();
 	});
 });
