@@ -2021,6 +2021,32 @@ describe("TransactionRepo", () => {
 			}).pipe(Effect.provide(RepoTest)),
 		);
 
+		// The create side of the eligibility cascade `addBundleMember` shares
+		// (issue #83). A bundle cannot contain a bundle whichever path proposes it:
+		// the outer parent only recomputes when its OWN membership changes, so the
+		// inner one moving would leave the outer total stale.
+		it.effect("refuses a member that is itself a bundle parent", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -20 }));
+				const b = yield* repo.create(make({ amount: -5 }));
+				const c = yield* repo.create(make({ amount: -7 }));
+				const inner = yield* repo.createBundle([a.id, b.id], "Inner");
+
+				const error = yield* repo
+					.createBundle([inner.id, c.id], "Outer")
+					.pipe(Effect.flip);
+				assert.deepStrictEqual(
+					error,
+					new BundleInvalid({ reason: "nested-bundle" }),
+				);
+				// Refused means nothing moved: no outer parent, and the inner one is
+				// still the two rows it stood for.
+				assert.strictEqual((yield* repo.getById(inner.id)).bundleId, undefined);
+				assert.strictEqual((yield* repo.list(listAll)).total, 2);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
 		it.effect("a refused bundle writes nothing (no parent, no stamping)", () =>
 			Effect.gen(function* () {
 				const repo = yield* TransactionRepo;
