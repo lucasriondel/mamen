@@ -6443,7 +6443,8 @@
               "unbalanced",
               "unknown-id",
               "already-grouped",
-              "is-refund"
+              "is-refund",
+              "is-bundled"
             ]
           },
           "_tag": {
@@ -6470,7 +6471,8 @@
               "already-bundled",
               "not-a-bundle",
               "not-a-member",
-              "nested-bundle"
+              "nested-bundle",
+              "is-transfer-leg"
             ]
           },
           "_tag": {

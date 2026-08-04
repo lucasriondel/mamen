@@ -15,6 +15,8 @@ function txn(partial: {
 	transferGroupId?: number;
 	isRefund?: boolean;
 	linkedRefundId?: number;
+	bundleId?: number;
+	kind?: "bank" | "bundle";
 }): Transaction {
 	return {
 		id: nextId++,
@@ -25,6 +27,8 @@ function txn(partial: {
 		transferGroupId: partial.transferGroupId,
 		isRefund: partial.isRefund,
 		linkedRefundId: partial.linkedRefundId,
+		bundleId: partial.bundleId,
+		kind: partial.kind ?? "bank",
 		importedAt: new Date("2026-07-10"),
 		importMonth: "2026-07",
 	} as unknown as Transaction;
@@ -116,6 +120,25 @@ describe("suggestTransferCounterparts", () => {
 		expect(suggestTransferCounterparts(grouped, [match])).toEqual([]);
 		expect(suggestTransferCounterparts(refund, [match])).toEqual([]);
 		expect(suggestTransferCounterparts(refundPaired, [match])).toEqual([]);
+	});
+
+	// Bundle / transfer-group exclusivity (issue #75): a bundle member already
+	// contributes through its parent at a non-zero sum, and a parent's amount is
+	// derived from its members — neither can also be netted out as a transfer leg,
+	// so neither is ever offered. The server refuses both with `is-bundled`.
+	it("never offers a bundle member or a bundle parent", () => {
+		const target = txn({ amount: -30, accountId: 1 });
+		const member = txn({ amount: 30, accountId: 2, bundleId: 500 });
+		const parent = txn({ amount: 30, accountId: 3, kind: "bundle" });
+		expect(suggestTransferCounterparts(target, [member, parent])).toEqual([]);
+	});
+
+	it("returns nothing when the target is bundled or is a parent", () => {
+		const match = txn({ amount: 30, accountId: 2 });
+		const member = txn({ amount: -30, accountId: 1, bundleId: 500 });
+		const parent = txn({ amount: -30, accountId: 1, kind: "bundle" });
+		expect(suggestTransferCounterparts(member, [match])).toEqual([]);
+		expect(suggestTransferCounterparts(parent, [match])).toEqual([]);
 	});
 
 	it("never offers the target itself", () => {

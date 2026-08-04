@@ -747,6 +747,19 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 					sql`INSERT OR REPLACE INTO transactions ${sql.insert(row)} RETURNING id`,
 			});
 
+			// **Transfer-eligible**, under any of the self-join aliases below — ONE
+			// definition of "this row could be a leg", so the two suggestion queries
+			// cannot drift from each other or from `linkTransfer`'s re-validation: a
+			// pairing the user is offered must be one the confirm action accepts.
+			// A row is ineligible when it is already grouped, when it is a refund or
+			// refund-paired (a refund nets within one account; grouping it would net
+			// the same money out twice), and — issue #75 — when it belongs to a
+			// **bundle** or IS a **bundle parent**: the two groupings are mutually
+			// exclusive, so offering a bundled row could only earn a 422. `kind` is
+			// COALESCEd because a row written before the column reads as `bank`.
+			const transferEligibleFor = (a: "c" | "f") =>
+				sql`${sql.literal(a)}.transferGroupId IS NULL AND ${sql.literal(a)}.isRefund = 0 AND ${sql.literal(a)}.linkedRefundId IS NULL AND ${sql.literal(a)}.bundleId IS NULL AND COALESCE(${sql.literal(a)}.kind, 'bank') <> 'bundle'`;
+
 			// Internal-transfer counterpart suggestions (PRD #48), computed in SQL so
 			// they see the WHOLE dataset — not just a loaded page, the limit of the
 			// client-side scan. A self-join against the target row `t`: a candidate
@@ -775,9 +788,7 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 							ON c.id <> t.id
 							AND c.accountId <> t.accountId
 							AND ROUND(c.amount * 100) = -ROUND(t.amount * 100)
-							AND c.transferGroupId IS NULL
-							AND c.isRefund = 0
-							AND c.linkedRefundId IS NULL
+							AND ${transferEligibleFor("c")}
 							AND ABS(julianday(c.date) - julianday(t.date)) <= ${TRANSFER_DATE_WINDOW_DAYS}
 						LEFT JOIN issuers ci ON c.issuerId = ci.id
 						WHERE t.id = ${id}
@@ -817,12 +828,8 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 							AND c.amount > 0
 							AND ROUND(c.amount * 100) = -ROUND(f.amount * 100)
 							AND c.accountId <> f.accountId
-							AND f.transferGroupId IS NULL
-							AND f.isRefund = 0
-							AND f.linkedRefundId IS NULL
-							AND c.transferGroupId IS NULL
-							AND c.isRefund = 0
-							AND c.linkedRefundId IS NULL
+							AND ${transferEligibleFor("f")}
+							AND ${transferEligibleFor("c")}
 							AND ABS(julianday(c.date) - julianday(f.date)) <= ${TRANSFER_DATE_WINDOW_DAYS}
 						LEFT JOIN issuers fi ON f.issuerId = fi.id
 						LEFT JOIN issuers ci ON c.issuerId = ci.id
@@ -1327,13 +1334,14 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 			/**
 			 * Suggest the counterpart legs of an internal transfer for one row
 			 * (PRD #48). 404s an unknown id (via `getStoredById`). An **ineligible**
-			 * target — already grouped, a refund, refund-paired, or zero-amount —
-			 * yields an empty array without touching the suggestion query: there is
-			 * nothing to net against, and the client shows the group's legs (or
-			 * nothing) instead. The eligibility gate mirrors the web util's
-			 * `isTransferEligible` + the `amount !== 0` guard, and the SQL enforces the
-			 * *candidate* side of the same rule — so the pairing the user confirms will
-			 * pass `link-transfer`'s re-validation.
+			 * target — already grouped, a refund, refund-paired, **bundled** (a member
+			 * or a parent, issue #75), or zero-amount — yields an empty array without
+			 * touching the suggestion query: there is nothing to net against, and the
+			 * client shows the group's legs (or nothing) instead. The eligibility gate
+			 * mirrors the web util's `isTransferEligible` + the `amount !== 0` guard,
+			 * and {@link transferEligibleFor} enforces the *candidate* side of the same
+			 * rule — so the pairing the user confirms will pass `link-transfer`'s
+			 * re-validation.
 			 */
 			const suggestTransfers = (
 				id: typeof TransactionId.Type,
@@ -1343,6 +1351,10 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 						target.transferGroupId !== undefined ||
 						target.isRefund === true ||
 						target.linkedRefundId !== undefined ||
+						// A bundled row (member or parent) can never be linked, so it is
+						// never offered a counterpart either (issue #75).
+						target.bundleId !== undefined ||
+						target.kind === "bundle" ||
 						target.amount === 0
 							? Effect.succeed([] as ReadonlyArray<Transaction>)
 							: suggestTransfersQuery(id).pipe(orDieSql),
@@ -1532,6 +1544,8 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 			 *   rows come back from the read).
 			 * - `already-grouped` — some leg already carries a `transferGroupId`.
 			 * - `is-refund` — some leg is a refund (`isRefund` or `linkedRefundId`).
+			 * - `is-bundled` — some leg belongs to a **bundle** or is a **bundle
+			 *   parent** (issue #75): the two groupings are mutually exclusive.
 			 * - `unbalanced` — the legs' amounts don't sum to zero, compared in integer
 			 *   cents (`Σ round(amount·100) === 0`) — amounts are float euros, never
 			 *   compared as floats (the same discipline the value-matcher uses).
@@ -1562,6 +1576,16 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 					if (legs.some((l) => l.isRefund || l.linkedRefundId !== undefined))
 						return yield* Effect.fail(
 							new TransferInvalid({ reason: "is-refund" }),
+						);
+					// The other half of bundle/transfer exclusivity (issue #75), read from
+					// the transfer side. ONE reason covers both bundle roles because it is
+					// one rule: a **member** would be netted out here while its parent
+					// still displayed its share, and a **parent**'s amount is derived from
+					// its members — so the zero sum validated just below could stop being
+					// zero on the next membership change, with nothing said.
+					if (legs.some((l) => l.bundleId !== undefined || l.kind === "bundle"))
+						return yield* Effect.fail(
+							new TransferInvalid({ reason: "is-bundled" }),
 						);
 
 					// Sum in integer cents — amounts are float euros, never compared as
@@ -1613,9 +1637,11 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 			 * works on a transaction already works on this one.
 			 *
 			 * Fails {@link BundleInvalid} — never a partial write — on fewer than 2
-			 * **distinct** members, an unknown id, or a row already carrying a
-			 * `bundleId` (a member belongs to at most one bundle; two parents each
-			 * summing it would each be right about a different number).
+			 * **distinct** members, an unknown id, a row already carrying a `bundleId`
+			 * (a member belongs to at most one bundle; two parents each summing it
+			 * would each be right about a different number), or a row that is already
+			 * a **transfer leg** (issue #75 — the two groupings are mutually
+			 * exclusive, in both directions).
 			 */
 			const createBundle = (
 				rawIds: ReadonlyArray<typeof TransactionId.Type>,
@@ -1644,6 +1670,15 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 					if (members.some((m) => m.kind === "bundle"))
 						return yield* Effect.fail(
 							new BundleInvalid({ reason: "nested-bundle" }),
+						);
+					// A row is claimed by at most ONE grouping (issue #75). A transfer leg
+					// contributes nothing to the recap — its group nets to zero — while a
+					// member contributes through its parent at a non-zero sum, so a row
+					// holding both would be netted out by the transfer partition while
+					// this parent still displayed its share.
+					if (members.some((m) => m.transferGroupId !== undefined))
+						return yield* Effect.fail(
+							new BundleInvalid({ reason: "is-transfer-leg" }),
 						);
 
 					// The parent's number and its date come from the ONE derivation
@@ -1712,9 +1747,9 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 			 * Refuses, writing nothing, when either id is unknown, when the target is
 			 * not a **bundle parent**, when the row already belongs to a bundle (a
 			 * member belongs to at most one: two parents each summing it would each be
-			 * right about a different number), or when the row is itself a parent —
+			 * right about a different number), when the row is itself a parent —
 			 * nesting would put a bundle's total in two places, and only the inner one
-			 * would ever be recomputed.
+			 * would ever be recomputed — or when it is a **transfer leg** (issue #75).
 			 *
 			 * On success the parent is recomputed through the ONE routine and returned
 			 * as the list projects it, so the caller sees the number that moved.
@@ -1747,6 +1782,13 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 					if (member.value.bundleId !== undefined)
 						return yield* Effect.fail(
 							new BundleInvalid({ reason: "already-bundled" }),
+						);
+					// The same exclusivity `createBundle` enforces (issue #75): the two
+					// groupings decide how a row reaches the recap, and they decide it
+					// differently, so no row may hold both.
+					if (member.value.transferGroupId !== undefined)
+						return yield* Effect.fail(
+							new BundleInvalid({ reason: "is-transfer-leg" }),
 						);
 
 					yield* sql`UPDATE transactions SET bundleId = ${bundleId} WHERE id = ${transactionId}`.pipe(

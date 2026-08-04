@@ -1,4 +1,4 @@
-import type { TransactionId } from "@mamen/shared/contract";
+import type { Transaction } from "@mamen/shared/contract";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -20,7 +20,21 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
 // Imported after the mock so it binds to the mocked SDK surface.
 const { BundleActionBar } = await import("./bundle-action-bar");
 
-const ids = (...values: number[]) => values as unknown as TransactionId[];
+/** A selected row — the bar reads its id and whether anything else claims it. */
+const row = (id: number, over: Partial<Transaction> = {}): Transaction =>
+	({
+		id,
+		accountId: 1,
+		date: new Date("2026-03-01T00:00:00.000Z"),
+		amount: -20,
+		rawIssuerString: "ACME",
+		kind: "bank",
+		importedAt: new Date("2026-03-02T00:00:00.000Z"),
+		importMonth: "2026-03",
+		...over,
+	}) as Transaction;
+
+const rows = (...ids: number[]) => ids.map((id) => row(id));
 
 beforeEach(() => {
 	createBundle.mockReset().mockResolvedValue({ id: 500 });
@@ -29,14 +43,14 @@ beforeEach(() => {
 describe("BundleActionBar", () => {
 	it("renders nothing when no row is selected", () => {
 		const { container } = render(
-			<BundleActionBar selectedIds={[]} onClear={() => {}} />,
+			<BundleActionBar selected={[]} onClear={() => {}} />,
 		);
 		expect(container).toBeEmptyDOMElement();
 	});
 
 	it("sends the selected ids and the label, then clears the selection", async () => {
 		const onClear = vi.fn();
-		render(<BundleActionBar selectedIds={ids(100, 101)} onClear={onClear} />);
+		render(<BundleActionBar selected={rows(100, 101)} onClear={onClear} />);
 		const user = userEvent.setup();
 
 		await user.type(screen.getByLabelText("Bundle label"), "  Weekend away  ");
@@ -51,7 +65,7 @@ describe("BundleActionBar", () => {
 	});
 
 	it("refuses to submit without a label", async () => {
-		render(<BundleActionBar selectedIds={ids(100, 101)} onClear={() => {}} />);
+		render(<BundleActionBar selected={rows(100, 101)} onClear={() => {}} />);
 
 		expect(
 			screen.getByRole("button", { name: /create bundle/i }),
@@ -60,7 +74,7 @@ describe("BundleActionBar", () => {
 	});
 
 	it("refuses a single row, and says why", async () => {
-		render(<BundleActionBar selectedIds={ids(100)} onClear={() => {}} />);
+		render(<BundleActionBar selected={rows(100)} onClear={() => {}} />);
 		const user = userEvent.setup();
 
 		await user.type(screen.getByLabelText("Bundle label"), "Lonely");
@@ -72,7 +86,28 @@ describe("BundleActionBar", () => {
 	});
 
 	it("counts the selection", () => {
-		render(<BundleActionBar selectedIds={ids(1, 2, 3)} onClear={() => {}} />);
+		render(<BundleActionBar selected={rows(1, 2, 3)} onClear={() => {}} />);
 		expect(screen.getByText(/3 selected/i)).toBeVisible();
+	});
+
+	// Bundle / transfer-group exclusivity (issue #75): one transfer leg in the
+	// selection is enough — the server refuses the whole set atomically, so the
+	// bar refuses it here too rather than sending a request it knows will 422.
+	it("refuses a selection holding a transfer leg, and says why", async () => {
+		render(
+			<BundleActionBar
+				selected={[row(100), row(101, { transferGroupId: 77 } as Transaction)]}
+				onClear={() => {}}
+			/>,
+		);
+		const user = userEvent.setup();
+
+		await user.type(screen.getByLabelText("Bundle label"), "Weekend away");
+
+		expect(
+			screen.getByRole("button", { name: /create bundle/i }),
+		).toBeDisabled();
+		expect(screen.getByText(/transfer leg can't be bundled/i)).toBeVisible();
+		expect(createBundle).not.toHaveBeenCalled();
 	});
 });

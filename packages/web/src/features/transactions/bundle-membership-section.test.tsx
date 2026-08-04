@@ -159,6 +159,34 @@ describe("BundleMembershipSection (issue #74)", () => {
 		await waitFor(() => expect(removeBundleMember).toHaveBeenCalledWith(201));
 	});
 
+	// Bundle / transfer-group exclusivity (issue #75): a leg's transfer already
+	// nets it out of the recap, so bundling it would count the same row twice, two
+	// different ways. Said here, before the request — the server's 422 is the
+	// truth, but a disabled control with a reason beats a failed submit.
+	it("refuses a transfer leg, disabled and with the reason", async () => {
+		renderSection(bankRow({ transferGroupId: 77 } as Partial<Transaction>));
+
+		expect(
+			await screen.findByText(/transfer leg can't be bundled/i),
+		).toBeVisible();
+		expect(
+			screen.getByRole("button", { name: /add to bundle/i }),
+		).toBeDisabled();
+		expect(screen.getByLabelText(/bundle to join/i)).toBeDisabled();
+	});
+
+	// The refusal is about *joining*, not about being in one: a row that somehow
+	// holds both still gets its way out, which is how a user fixes it.
+	it("still offers the way out to a leg that is already bundled", async () => {
+		renderSection(
+			bankRow({ transferGroupId: 77, bundleId: 300 } as Partial<Transaction>),
+		);
+
+		expect(
+			await screen.findByRole("button", { name: /remove from bundle/i }),
+		).toBeEnabled();
+	});
+
 	// Bundling a bundle would put a total in two places, and only the inner one
 	// would ever be recomputed — so a parent is never offered this surface.
 	it("renders nothing for a bundle parent", () => {

@@ -68,6 +68,22 @@ const FLAGGED_BUNDLE = {
 	],
 } as unknown as Transaction;
 
+/**
+ * A row that is already a **transfer leg** (issue #75): its group nets it out of
+ * the recap, so nothing may also bundle it — the page has to say that where the
+ * bundling action is, rather than let the user earn a 422.
+ */
+const LEG = {
+	id: 500,
+	accountId: 1,
+	date: new Date("2026-03-20T00:00:00Z"),
+	amount: -30,
+	rawIssuerString: "VIREMENT COMPTE JOINT",
+	transferGroupId: 500,
+	importedAt: new Date(),
+	importMonth: "2026-03",
+} as unknown as Transaction;
+
 /** The two rows the bundle stands for — reachable only by `bundleId`. */
 const MEMBERS = [
 	{
@@ -127,7 +143,9 @@ vi.mock("@mamen/sdk", () => ({
 						? BUNDLE
 						: id === FLAGGED_BUNDLE.id
 							? FLAGGED_BUNDLE
-							: undefined,
+							: id === LEG.id
+								? LEG
+								: undefined,
 		}),
 		list: (params: Record<string, unknown>) => ({
 			queryKey: ["transactions", "list", params],
@@ -296,6 +314,35 @@ describe("TransactionDetailPage", () => {
 		expect(
 			screen.getByRole("button", { name: /dissolve bundle/i }),
 		).toBeVisible();
+	});
+
+	// Issue #75, both directions on the one page that shows both blocks. A parent
+	// stands for money the recap already counts at a non-zero sum, and its amount
+	// moves with its members — so the Transfer block offers it nothing.
+	it("tells a bundle parent it can't be part of a transfer", async () => {
+		render(<RouterProvider router={makeRouter(300)} />);
+
+		expect(
+			await screen.findByText(
+				/bundled transaction can't be part of a transfer/i,
+			),
+		).toBeVisible();
+		expect(
+			screen.queryByRole("button", { name: /link as transfer/i }),
+		).toBeNull();
+	});
+
+	// And the mirror: a transfer leg is offered the bundle picker disabled, with
+	// the reason beside it, instead of a request that comes back a 422.
+	it("tells a transfer leg it can't be bundled", async () => {
+		render(<RouterProvider router={makeRouter(500)} />);
+
+		expect(
+			await screen.findByText(/transfer leg can't be bundled/i),
+		).toBeVisible();
+		expect(
+			screen.getByRole("button", { name: /add to bundle/i }),
+		).toBeDisabled();
 	});
 
 	it("says so plainly when a row carries no anomaly", async () => {

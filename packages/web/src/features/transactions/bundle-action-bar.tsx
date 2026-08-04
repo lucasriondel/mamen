@@ -1,16 +1,25 @@
-import type { TransactionId } from "@mamen/shared/contract";
+import type { Transaction, TransactionId } from "@mamen/shared/contract";
 import { Layers } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+	BUNDLE_REFUSED_REASON,
+	isBundleEligible,
+} from "./grouping-eligibility";
 import { useBundle } from "./use-bundle";
 
 /** A bundle stands for **several** rows; one row is already its own account. */
 const MIN_BUNDLE_MEMBERS = 2;
 
 export interface BundleActionBarProps {
-	/** The transaction ids currently ticked in the table. */
-	selectedIds: ReadonlyArray<TransactionId>;
+	/**
+	 * The rows currently ticked in the table — the rows themselves, not just
+	 * their ids: the selection is page-scoped, so they are already on screen, and
+	 * whether one of them is a transfer leg is what decides if this bar can do
+	 * anything at all (issue #75).
+	 */
+	selected: ReadonlyArray<Transaction>;
 	/** Drop the selection (after a successful bundle, or on demand). */
 	onClear: () => void;
 }
@@ -26,24 +35,33 @@ export interface BundleActionBarProps {
  * `rawIssuerString` is its only human-readable identity, and a row named nothing
  * is a row nobody can find again.
  *
+ * A selection holding a **transfer leg** is refused outright (issue #75), with
+ * the reason where the count and the button already are: the server validates
+ * the set atomically, so one ineligible row refuses all of them — and dropping
+ * it silently would build a bundle other than the one the user picked.
+ *
  * The bar renders nothing at all when nothing is selected: a permanently visible
  * strip explaining what you could do with a selection you don't have is noise on
  * the app's landing surface.
  */
-export function BundleActionBar({
-	selectedIds,
-	onClear,
-}: BundleActionBarProps) {
+export function BundleActionBar({ selected, onClear }: BundleActionBarProps) {
 	const [label, setLabel] = useState("");
 	const { createBundle } = useBundle();
 
-	if (selectedIds.length === 0) return null;
+	if (selected.length === 0) return null;
 
+	const selectedIds = selected.map((txn) => txn.id as TransactionId);
 	const trimmed = label.trim();
-	// Both halves of the server's own refusal, checked here so the button explains
+	// ONE transfer leg refuses the whole set (issue #75), because the server
+	// validates the set atomically: a bundle that quietly dropped the leg would
+	// not be the bundle the user selected.
+	const legs = selected.filter((txn) => !isBundleEligible(txn));
+	// Every half of the server's own refusal, checked here so the button explains
 	// itself before it is pressed rather than after (the 422 remains the truth).
 	const canBundle =
-		selectedIds.length >= MIN_BUNDLE_MEMBERS && trimmed.length > 0;
+		selectedIds.length >= MIN_BUNDLE_MEMBERS &&
+		trimmed.length > 0 &&
+		legs.length === 0;
 
 	const submit = () => {
 		if (!canBundle) return;
@@ -86,7 +104,9 @@ export function BundleActionBar({
 					title={
 						selectedIds.length < MIN_BUNDLE_MEMBERS
 							? "Select at least two transactions"
-							: undefined
+							: legs.length > 0
+								? BUNDLE_REFUSED_REASON
+								: undefined
 					}
 				>
 					Create bundle
@@ -99,7 +119,9 @@ export function BundleActionBar({
 			<p className="w-full text-xs text-gousse-muted">
 				{selectedIds.length < MIN_BUNDLE_MEMBERS
 					? "A bundle needs at least two transactions — one row already stands for itself."
-					: "These rows will be replaced in the list by one row totalling them; each stays reachable, and none is counted twice."}
+					: legs.length > 0
+						? BUNDLE_REFUSED_REASON
+						: "These rows will be replaced in the list by one row totalling them; each stays reachable, and none is counted twice."}
 			</p>
 		</div>
 	);

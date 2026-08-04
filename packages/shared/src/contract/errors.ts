@@ -136,6 +136,16 @@ export class CategoryInUse extends Schema.TaggedError<CategoryInUse>()(
  *   belong to at most one transfer).
  * - `is-refund` — some leg is a refund (`isRefund` or `linkedRefundId` set); a
  *   refund credit must not be netted out twice.
+ * - `is-bundled` — some leg belongs to a **bundle** (a member) or stands for one
+ *   (a **bundle parent**) — issue #75. The two groupings are mutually exclusive:
+ *   a transfer leg contributes nothing to the recap (its group nets to zero)
+ *   while a bundle member contributes through its parent at a non-zero sum, so a
+ *   row holding both would be netted out by the transfer partition while its
+ *   parent still displayed its share — a number that disagrees with itself. One
+ *   reason covers both roles because it is one rule; which role the row holds is
+ *   on the row (`bundleId` vs `kind`). A parent is refused for a second reason
+ *   too: its amount is derived from its members, so a zero-sum group validated
+ *   at write time could silently stop summing to zero.
  *
  * The "≥2 distinct accounts" property is deliberately NOT enforced here — it is
  * a suggestion-only heuristic (a same-account zero-sum group the user confirmed
@@ -150,6 +160,7 @@ export class TransferInvalid extends Schema.TaggedError<TransferInvalid>()(
 			"unknown-id",
 			"already-grouped",
 			"is-refund",
+			"is-bundled",
 		),
 	},
 	HttpApiSchema.annotations({ status: 422 }),
@@ -181,6 +192,13 @@ export class TransferInvalid extends Schema.TaggedError<TransferInvalid>()(
  *   its OWN membership changes, so editing the inner one would leave the outer
  *   total stale — the second place a bundle's number could go stale, which is
  *   exactly what the single shared recompute exists to prevent.
+ * - `is-transfer-leg` — the row already belongs to a **transfer group** (issue
+ *   #75). The mirror of {@link TransferInvalid}'s `is-bundled`, and the same one
+ *   rule read from the other side: a transfer leg contributes nothing to the
+ *   recap (its group nets to zero) while a bundle member contributes through its
+ *   parent at a non-zero sum, so a row holding both would be netted out by the
+ *   transfer partition while its parent still displayed its share — a number
+ *   that disagrees with itself.
  *
  * Mirrors {@link TransferInvalid}, the other multi-row grouping refusal — but is
  * its own error, because a bundle nets to a **non-zero** amount and so shares
@@ -196,6 +214,7 @@ export class BundleInvalid extends Schema.TaggedError<BundleInvalid>()(
 			"not-a-bundle",
 			"not-a-member",
 			"nested-bundle",
+			"is-transfer-leg",
 		),
 	},
 	HttpApiSchema.annotations({ status: 422 }),

@@ -20,17 +20,12 @@ function time(date: Date | string): number {
 	return (typeof date === "string" ? new Date(date) : date).getTime();
 }
 
-/**
- * A row cannot be a transfer leg if it is already grouped, or if it is a refund
- * (a refund nets *within* one account; grouping it would net the same money out
- * twice — PRD story 19). The server enforces this too; the suggestion filter
- * applies it up front so an ineligible row is never offered.
- */
-export function isTransferEligible(txn: Transaction): boolean {
-	return (
-		txn.transferGroupId == null && !txn.isRefund && txn.linkedRefundId == null
-	);
-}
+// The eligibility rule lives beside its mirror in `grouping-eligibility`, one
+// rule stated once in both directions. Re-exported here for the same reason
+// `TRANSFER_DATE_WINDOW_DAYS` is: existing importers are unaffected.
+export { isTransferEligible } from "./grouping-eligibility";
+
+import { isTransferEligible } from "./grouping-eligibility";
 
 /**
  * Suggest the counterpart legs of an internal transfer (PRD #48) — a **pure**

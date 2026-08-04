@@ -3588,4 +3588,172 @@ describe("TransactionRepo", () => {
 			}).pipe(Effect.provide(RepoTest)),
 		);
 	});
+
+	// **Bundle / transfer-group exclusivity** (issue #75). The two groupings decide
+	// how a row reaches the recap, and they decide it differently: a transfer leg
+	// contributes nothing (its group nets to zero), a bundle member contributes
+	// through its parent at a non-zero sum. A row holding both would be netted out
+	// by the transfer partition while its parent still displayed its share — a
+	// number that disagrees with itself. Both write paths refuse, in both
+	// directions.
+	describe("bundle / transfer exclusivity (issue #75)", () => {
+		it.effect("refuses to bundle a transfer leg", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -30 }));
+				const b = yield* repo.create(
+					make({ amount: 30, accountId: asAccount(2) }),
+				);
+				yield* repo.linkTransfer([a.id, b.id]);
+				const c = yield* repo.create(make({ amount: -12 }));
+
+				const error = yield* repo
+					.createBundle([a.id, c.id], "Weekend")
+					.pipe(Effect.flip);
+				assert.deepStrictEqual(
+					error,
+					new BundleInvalid({ reason: "is-transfer-leg" }),
+				);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("a refused bundle writes nothing (no parent, no stamping)", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -30 }));
+				const b = yield* repo.create(
+					make({ amount: 30, accountId: asAccount(2) }),
+				);
+				yield* repo.linkTransfer([a.id, b.id]);
+				const c = yield* repo.create(make({ amount: -12 }));
+
+				yield* repo.createBundle([a.id, c.id], "Weekend").pipe(Effect.flip);
+				assert.strictEqual((yield* repo.getById(a.id)).bundleId, undefined);
+				assert.strictEqual((yield* repo.getById(c.id)).bundleId, undefined);
+				// Three rows: no parent was written.
+				assert.strictEqual((yield* repo.list(listAll)).total, 3);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("refuses to add a transfer leg to an existing bundle", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -20 }));
+				const b = yield* repo.create(make({ amount: -5 }));
+				const parent = yield* repo.createBundle([a.id, b.id], "Weekend");
+
+				const leg = yield* repo.create(make({ amount: -30 }));
+				const other = yield* repo.create(
+					make({ amount: 30, accountId: asAccount(2) }),
+				);
+				yield* repo.linkTransfer([leg.id, other.id]);
+
+				const error = yield* repo
+					.addBundleMember(parent.id, leg.id)
+					.pipe(Effect.flip);
+				assert.deepStrictEqual(
+					error,
+					new BundleInvalid({ reason: "is-transfer-leg" }),
+				);
+				// The parent still sums the two it had.
+				assert.strictEqual((yield* repo.getById(parent.id)).amount, -25);
+				assert.strictEqual((yield* repo.getById(leg.id)).bundleId, undefined);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("refuses to transfer-link a bundle member", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -30 }));
+				const b = yield* repo.create(make({ amount: -5 }));
+				yield* repo.createBundle([a.id, b.id], "Weekend");
+				const counterpart = yield* repo.create(
+					make({ amount: 30, accountId: asAccount(2) }),
+				);
+
+				const error = yield* repo
+					.linkTransfer([a.id, counterpart.id])
+					.pipe(Effect.flip);
+				assert.deepStrictEqual(
+					error,
+					new TransferInvalid({ reason: "is-bundled" }),
+				);
+				// Nothing was stamped: the refusal is atomic like every other one.
+				assert.strictEqual(
+					(yield* repo.getById(counterpart.id)).transferGroupId,
+					undefined,
+				);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		// A parent's amount is derived and moves with its members, so a zero-sum
+		// group validated at write time could silently stop summing to zero.
+		it.effect("refuses to transfer-link a bundle parent", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const a = yield* repo.create(make({ amount: -20 }));
+				const b = yield* repo.create(make({ amount: -10 }));
+				const parent = yield* repo.createBundle([a.id, b.id], "Weekend");
+				const counterpart = yield* repo.create(
+					make({ amount: 30, accountId: asAccount(2) }),
+				);
+
+				const error = yield* repo
+					.linkTransfer([parent.id, counterpart.id])
+					.pipe(Effect.flip);
+				assert.deepStrictEqual(
+					error,
+					new TransferInvalid({ reason: "is-bundled" }),
+				);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		// The suggestion side of the same rule: a pairing the user is offered must
+		// be one `link-transfer` will accept, so a bundled row is never suggested —
+		// neither as the target's counterpart nor as a detected pair.
+		it.effect("never suggests a bundled counterpart", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const target = yield* repo.create(make({ amount: -30 }));
+				const bundled = yield* repo.create(
+					make({ amount: 30, accountId: asAccount(2) }),
+				);
+				const sibling = yield* repo.create(
+					make({ amount: -5, accountId: asAccount(2) }),
+				);
+				yield* repo.createBundle([bundled.id, sibling.id], "Weekend");
+
+				assert.deepStrictEqual(yield* repo.suggestTransfers(target.id), []);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("returns [] for a bundled target (ineligible)", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const target = yield* repo.create(make({ amount: -30 }));
+				const sibling = yield* repo.create(make({ amount: -5 }));
+				yield* repo.createBundle([target.id, sibling.id], "Weekend");
+				// A would-be counterpart exists; the target is bundled, so it is moot.
+				yield* repo.create(make({ amount: 30, accountId: asAccount(2) }));
+
+				assert.deepStrictEqual(yield* repo.suggestTransfers(target.id), []);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("keeps bundled rows and parents out of the candidate pairs", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				// A -30 debit bundled with a small sibling, plus a matching +30 credit
+				// in another account: a pair on amount alone, but the debit is bundled.
+				const debit = yield* repo.create(make({ amount: -30 }));
+				const sibling = yield* repo.create(make({ amount: -5 }));
+				yield* repo.createBundle([debit.id, sibling.id], "Weekend");
+				yield* repo.create(make({ amount: 30, accountId: asAccount(2) }));
+				// And the parent itself (-35) against a +35 credit elsewhere.
+				yield* repo.create(make({ amount: 35, accountId: asAccount(3) }));
+
+				assert.deepStrictEqual(yield* repo.transferCandidates(), []);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+	});
 });

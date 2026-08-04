@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { formatCurrency, formatShortDate } from "@/lib/format";
 import { accountQueries, transactionQueries } from "@/lib/sdk";
 import { cn, indexById } from "@/lib/utils";
+import { TRANSFER_REFUSED_BUNDLE_REASON } from "./grouping-eligibility";
 import { TransferLegsSkeleton } from "./transfer-legs-skeleton";
 import {
 	isTransferEligible,
@@ -82,7 +83,10 @@ function LegRow({
  *   server-side.
  *
  * A refund (or refund-paired) row can't be a transfer leg, so it shows a short
- * note instead of suggestions — mirroring the server's `is-refund` refusal.
+ * note instead of suggestions — mirroring the server's `is-refund` refusal. So
+ * does a **bundled** row and a **bundle parent** (issue #75), mirroring
+ * `is-bundled`: both groupings decide how a row reaches the recap, and a row
+ * holding both would be netted out while its parent still displayed its share.
  *
  * Thin view wiring over the tested boundaries (the pure suggestion util + the
  * server's atomic validation), so it is intentionally not unit-seamed.
@@ -185,7 +189,9 @@ export function TransferSection({
 				<p className="text-sm text-gousse-muted italic">
 					{txn.isRefund || txn.linkedRefundId != null
 						? "A refund can't be grouped as an internal transfer."
-						: "This transaction can't be part of a transfer."}
+						: txn.bundleId != null || txn.kind === "bundle"
+							? TRANSFER_REFUSED_BUNDLE_REASON
+							: "This transaction can't be part of a transfer."}
 				</p>
 			) : candidatesQuery.isPending ? (
 				<TransferLegsSkeleton label="Looking for counterparts…" action />

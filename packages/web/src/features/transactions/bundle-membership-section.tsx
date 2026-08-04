@@ -7,6 +7,10 @@ import { Button } from "@/components/ui/button";
 import { formatCurrency, formatShortDate } from "@/lib/format";
 import { transactionQueries } from "@/lib/sdk";
 import { cn } from "@/lib/utils";
+import {
+	BUNDLE_REFUSED_REASON,
+	isBundleEligible,
+} from "./grouping-eligibility";
 import { useBundle } from "./use-bundle";
 
 /**
@@ -27,7 +31,10 @@ const selectClass = cn(
  * - **In a bundle** → a link to the **bundle parent** that stands for this row,
  *   and the way out. Leaving returns the row to the list exactly as it was:
  *   bundling never touched its issuer, category or notes.
- * - **In none** → the bundles it may join, and the action to join one.
+ * - **In none** → the bundles it may join, and the action to join one — offered
+ *   *disabled, with the reason*, when the row is a **transfer leg** (issue #75):
+ *   the two groupings are mutually exclusive, and a refusal a user only meets
+ *   after pressing the button is a refusal explained too late.
  *
  * This is also the escape hatch for the table's page-scoped selection (#68):
  * the refund that lands a week later, or the instalment sitting hundreds of rows
@@ -69,10 +76,59 @@ export function BundleMembershipSection({
 	if (isParent) return null;
 
 	const pending = addToBundle.isPending || removeFromBundle.isPending;
+	// A transfer leg cannot also be a member (issue #75) — its group already nets
+	// it out of the recap, so a bundle counting it again would count the same
+	// money twice, two different ways. The control is offered *disabled*, with the
+	// reason beside it: the server's 422 stays the truth, but a refusal a user
+	// meets after pressing the button is a refusal explained too late.
+	const canJoin = isBundleEligible(txn);
 	const parent =
 		txn.bundleId != null
 			? bundles.find((b) => b.id === txn.bundleId)
 			: undefined;
+
+	// One form, rendered in the ordinary case and — disabled — in the refused one,
+	// so the refusal is stated *on the control it refuses* rather than in place of
+	// it. A row that can't join is never told to go find some bundles first.
+	const joinForm = (
+		<form
+			className="flex flex-wrap items-end gap-2"
+			onSubmit={(event) => {
+				event.preventDefault();
+				if (pending || choice === "" || !canJoin) return;
+				addToBundle.mutate({
+					bundleId: Number(choice) as TransactionId,
+					transactionId: txn.id,
+				});
+			}}
+		>
+			<label className="flex flex-col gap-1 text-gousse-muted text-xs">
+				Bundle to join
+				<select
+					aria-label="Bundle to join"
+					className={selectClass}
+					value={choice}
+					disabled={!canJoin}
+					onChange={(event) => setChoice(event.target.value)}
+				>
+					<option value="">Pick a bundle…</option>
+					{bundles.map((bundle) => (
+						<option key={bundle.id} value={bundle.id}>
+							{bundle.rawIssuerString} · {formatCurrency(bundle.amount)} ·{" "}
+							{formatShortDate(bundle.date)}
+						</option>
+					))}
+				</select>
+			</label>
+			<Button
+				type="submit"
+				size="sm"
+				disabled={!canJoin || pending || choice === ""}
+			>
+				{addToBundle.isPending ? "Adding…" : "Add to bundle"}
+			</Button>
+		</form>
+	);
 
 	return (
 		<div className="flex flex-col gap-3 border-t border-gousse-line pt-6">
@@ -115,6 +171,13 @@ export function BundleMembershipSection({
 						come back exactly as they are.
 					</p>
 				</div>
+			) : !canJoin ? (
+				<div className="flex flex-col gap-3">
+					<p className="text-sm text-gousse-muted italic">
+						{BUNDLE_REFUSED_REASON}
+					</p>
+					{joinForm}
+				</div>
 			) : bundlesQuery.isPending ? (
 				<p className="text-sm text-gousse-muted italic">Loading bundles…</p>
 			) : bundlesQuery.isError ? (
@@ -127,38 +190,7 @@ export function BundleMembershipSection({
 					transactions list to make one.
 				</p>
 			) : (
-				<form
-					className="flex flex-wrap items-end gap-2"
-					onSubmit={(event) => {
-						event.preventDefault();
-						if (pending || choice === "") return;
-						addToBundle.mutate({
-							bundleId: Number(choice) as TransactionId,
-							transactionId: txn.id,
-						});
-					}}
-				>
-					<label className="flex flex-col gap-1 text-gousse-muted text-xs">
-						Bundle to join
-						<select
-							aria-label="Bundle to join"
-							className={selectClass}
-							value={choice}
-							onChange={(event) => setChoice(event.target.value)}
-						>
-							<option value="">Pick a bundle…</option>
-							{bundles.map((bundle) => (
-								<option key={bundle.id} value={bundle.id}>
-									{bundle.rawIssuerString} · {formatCurrency(bundle.amount)} ·{" "}
-									{formatShortDate(bundle.date)}
-								</option>
-							))}
-						</select>
-					</label>
-					<Button type="submit" size="sm" disabled={pending || choice === ""}>
-						{addToBundle.isPending ? "Adding…" : "Add to bundle"}
-					</Button>
-				</form>
+				joinForm
 			)}
 		</div>
 	);

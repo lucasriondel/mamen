@@ -340,7 +340,10 @@ repeated per package.
   vanishes from the **recap** rather than counting as a debit and an income. A
   leg belongs to at most one group; groups are suggested by date-and-amount
   proximity but only ever created by an explicit confirmation, and a group that
-  falls below two legs is dissolved rather than left standing.
+  falls below two legs is dissolved rather than left standing. A leg is never
+  also a **bundle member** — the two groupings are mutually exclusive and each
+  write path refuses the other's rows, so a row bundled or bundling is neither
+  suggested as a counterpart nor accepted as a leg.
   _Avoid_: transfer bundle (a **bundle** is the other grouping), internal
   payment, move, self-payment.
 
@@ -358,7 +361,14 @@ repeated per package.
   a non-zero amount and counts as exactly one line. The two are mutually
   exclusive — a row that was both would be netted out by the transfer partition
   while still displaying its share of the bundle's total, which is a number that
-  disagrees with itself. Membership is **mutable**: a row can join an existing
+  disagrees with itself — and the exclusion is **enforced on both write paths**:
+  bundling refuses a **transfer leg** and transfer-linking refuses a **bundle
+  member** *or* a **bundle parent** (a parent for a second reason too — its
+  amount moves with its members, so a zero-sum group validated at link time
+  could silently stop summing to zero). Each refusal reuses the error its own
+  grouping already raises, and every surface that offers either action shows it
+  disabled with the reason rather than letting the request fail. Membership is
+  **mutable**: a row can join an existing
   bundle or leave it, and every such change — including a member being deleted —
   recomputes the parent through one shared routine, the single point where a
   bundle's number could otherwise go stale. A bundle that would be left with

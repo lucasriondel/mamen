@@ -198,6 +198,14 @@ export function TransactionsSection({
 		[]) as readonly Transaction[];
 	const total = transactionsQuery.data?.total ?? 0;
 
+	// The ticked ROWS, not just their ids: the selection is page-scoped, so every
+	// ticked row is one of the rows on screen — and the action bar has to read
+	// them to know whether anything already claims one (issue #75).
+	const selectedRows = useMemo(
+		() => transactions.filter((t) => selectedIds.includes(t.id)),
+		[transactions, selectedIds],
+	);
+
 	// The issuers *this page* names — its rows' ids, not the issuer table. Reading
 	// a page of that table instead is what once rendered a correctly-matched row
 	// as unresolved, once the ids outgrew the page (#62).
@@ -266,7 +274,7 @@ export function TransactionsSection({
 			) : (
 				<>
 					<BundleActionBar
-						selectedIds={selectedIds}
+						selected={selectedRows}
 						onClear={() => setRowSelection({})}
 					/>
 					<TransactionsPagination

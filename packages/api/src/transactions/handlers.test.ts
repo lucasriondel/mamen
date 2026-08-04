@@ -17,6 +17,7 @@ import {
 	NotFound,
 	type TransactionCreate,
 	TransactionId,
+	TransferInvalid,
 } from "@mamen/shared/contract";
 import { Effect, Layer, Schema } from "effect";
 import { ApiLive } from "../api-live";
@@ -2526,6 +2527,150 @@ describe("a bundle that is not a cost (issue #76)", () => {
 			assert.deepStrictEqual(
 				(yield* client.transactions.recap({ urlParams: {} })).byIssuer,
 				[{ id: null, spent: 50, count: 1 }],
+			);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+});
+
+// **Bundle / transfer-group exclusivity** over the wire (issue #75, epic #66).
+// Both write paths refuse in both directions, each with the 422 its own grouping
+// already raises — no third error type for one rule. Pinned at the seam because
+// this is the boundary a client actually meets: the reason it reads is what its
+// UI turns into "you can't do that, here is why".
+describe("bundle / transfer exclusivity (issue #75)", () => {
+	it.effect("refuses to bundle a transfer leg with a 422", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const leg = yield* client.transactions.create({
+				payload: make({ amount: -30, accountId: asAccount(1) }),
+			});
+			const other = yield* client.transactions.create({
+				payload: make({ amount: 30, accountId: asAccount(2) }),
+			});
+			yield* client.transactions.linkTransfer({
+				payload: { ids: [leg.id, other.id] },
+			});
+			const plain = yield* client.transactions.create({
+				payload: make({ amount: -12 }),
+			});
+
+			const error = yield* client.transactions
+				.createBundle({
+					payload: { ids: [leg.id, plain.id], label: "Weekend" },
+				})
+				.pipe(Effect.flip);
+			assert.ok(error instanceof BundleInvalid);
+			assert.strictEqual(error.reason, "is-transfer-leg");
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("refuses to add a transfer leg to a bundle with a 422", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const a = yield* client.transactions.create({
+				payload: make({ amount: -20 }),
+			});
+			const b = yield* client.transactions.create({
+				payload: make({ amount: -5 }),
+			});
+			const parent = yield* client.transactions.createBundle({
+				payload: { ids: [a.id, b.id], label: "Weekend" },
+			});
+			const leg = yield* client.transactions.create({
+				payload: make({ amount: -30, accountId: asAccount(1) }),
+			});
+			const other = yield* client.transactions.create({
+				payload: make({ amount: 30, accountId: asAccount(2) }),
+			});
+			yield* client.transactions.linkTransfer({
+				payload: { ids: [leg.id, other.id] },
+			});
+
+			const error = yield* client.transactions
+				.addBundleMember({
+					payload: { bundleId: parent.id, transactionId: leg.id },
+				})
+				.pipe(Effect.flip);
+			assert.ok(error instanceof BundleInvalid);
+			assert.strictEqual(error.reason, "is-transfer-leg");
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	// The other direction, and both bundle roles: a member would be netted out
+	// while its parent still displayed its share, and a parent's amount moves
+	// with its members, so a zero sum validated now could stop being zero later.
+	it.effect("refuses to transfer-link a bundle member or its parent", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const member = yield* client.transactions.create({
+				payload: make({ amount: -30, accountId: asAccount(1) }),
+			});
+			const sibling = yield* client.transactions.create({
+				payload: make({ amount: -5, accountId: asAccount(1) }),
+			});
+			const parent = yield* client.transactions.createBundle({
+				payload: { ids: [member.id, sibling.id], label: "Weekend" },
+			});
+			const counterpart = yield* client.transactions.create({
+				payload: make({ amount: 30, accountId: asAccount(2) }),
+			});
+			const parentCounterpart = yield* client.transactions.create({
+				payload: make({ amount: 35, accountId: asAccount(2) }),
+			});
+
+			const onMember = yield* client.transactions
+				.linkTransfer({ payload: { ids: [member.id, counterpart.id] } })
+				.pipe(Effect.flip);
+			assert.ok(onMember instanceof TransferInvalid);
+			assert.strictEqual(onMember.reason, "is-bundled");
+
+			const onParent = yield* client.transactions
+				.linkTransfer({ payload: { ids: [parent.id, parentCounterpart.id] } })
+				.pipe(Effect.flip);
+			assert.ok(onParent instanceof TransferInvalid);
+			assert.strictEqual(onParent.reason, "is-bundled");
+
+			// Nothing was stamped by either refusal.
+			const untouched = yield* client.transactions.getById({
+				path: { id: counterpart.id },
+			});
+			assert.strictEqual(untouched.transferGroupId, undefined);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	// A pairing the user is offered must be one `link-transfer` accepts, so the
+	// suggestion reads apply the same rule rather than a looser one.
+	it.effect("never suggests a bundled row, and offers none to one", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const target = yield* client.transactions.create({
+				payload: make({ amount: -30, accountId: asAccount(1) }),
+			});
+			const bundled = yield* client.transactions.create({
+				payload: make({ amount: 30, accountId: asAccount(2) }),
+			});
+			const sibling = yield* client.transactions.create({
+				payload: make({ amount: -5, accountId: asAccount(2) }),
+			});
+			yield* client.transactions.createBundle({
+				payload: { ids: [bundled.id, sibling.id], label: "Weekend" },
+			});
+
+			assert.deepStrictEqual(
+				yield* client.transactions.transferSuggestions({
+					path: { id: target.id },
+				}),
+				[],
+			);
+			assert.deepStrictEqual(
+				yield* client.transactions.transferSuggestions({
+					path: { id: bundled.id },
+				}),
+				[],
+			);
+			assert.deepStrictEqual(
+				yield* client.transactions.transferCandidates(),
+				[],
 			);
 		}).pipe(Effect.provide(HttpLive)),
 	);
