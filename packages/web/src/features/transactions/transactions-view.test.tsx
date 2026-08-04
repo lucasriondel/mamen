@@ -18,7 +18,12 @@ const ACCOUNTS = [
 	{ id: 2, name: "Savings", type: "savings" },
 ];
 
-const ISSUERS = [{ id: 10, name: "Spotify" }];
+// Issuer 11 is named by a **bundle member** only — no top-level row points at
+// it, so it is resolvable only if members are part of what the page asks for.
+const ISSUERS = [
+	{ id: 10, name: "Spotify" },
+	{ id: 11, name: "Alan" },
+];
 
 const CATEGORIES = [
 	{ id: 1, name: "Life", slug: "life", parentId: null, sortOrder: 0 },
@@ -83,6 +88,8 @@ const BUNDLE_MEMBERS = [
 		date: new Date("2026-03-12T00:00:00Z"),
 		amount: 150,
 		rawIssuerString: "REVOLUT LUCAS",
+		// Matched to an issuer no top-level row names (see ISSUERS).
+		issuerId: 11,
 		bundleId: 200,
 		importedAt: new Date(),
 		importMonth: "2026-03",
@@ -656,6 +663,38 @@ describe("TransactionsView", () => {
 			expect(screen.getByLabelText("Pagination range")).toHaveTextContent(
 				"1–3 of 3",
 			);
+		});
+
+		// A member's issuer is resolved like any other row's (#62, one level down):
+		// the ids the page asks for must include the members', or an expanded member
+		// that matched perfectly renders as raw counterparty text under a parent
+		// that resolves fine.
+		it("resolves a member's issuer, not just the top-level rows'", async () => {
+			await renderWithBundle();
+			const user = userEvent.setup();
+
+			await user.click(
+				screen.getByRole("button", {
+					name: /show the 2 transactions in weekend away/i,
+				}),
+			);
+
+			// The member's issuer read went out with the member's id in it.
+			await waitFor(() => {
+				expect(
+					issuerByIdsMock.mock.calls.some(([ids]) => [...ids].includes(11)),
+				).toBe(true);
+			});
+
+			// And the Issuer cell names it, rather than falling back to raw text.
+			const member = screen.getAllByText("REVOLUT LUCAS")[0].closest("tr");
+			expect(await screen.findByText("Alan")).toBeVisible();
+			expect(member).toHaveTextContent("Alan");
+			// The unmatched sibling still reads as needing one.
+			const unmatched = screen.getAllByText("GROCERIES")[0].closest("tr");
+			expect(
+				unmatched?.querySelector("[data-unresolved='true']"),
+			).not.toBeNull();
 		});
 
 		// Three washes can apply to one row; the component settles the order rather
