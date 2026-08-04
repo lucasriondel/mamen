@@ -209,11 +209,23 @@ export function TransactionsSection({
 	// The issuers *this page* names — its rows' ids, not the issuer table. Reading
 	// a page of that table instead is what once rendered a correctly-matched row
 	// as unresolved, once the ids outgrew the page (#62).
+	//
+	// The **bundle members** are part of what this page names: expanding a parent
+	// shows them as rows, and a member whose issuer was never asked for renders
+	// unresolved under a parent that resolves fine — the same #62 symptom, one
+	// level down.
+	const issuerIds = useMemo(
+		() => [
+			...transactions.map((t) => t.issuerId),
+			...bundleMembers.map((t) => t.issuerId),
+		],
+		[transactions, bundleMembers],
+	);
 	const {
 		issuersById,
 		isPending: issuersPending,
 		isError: issuersError,
-	} = useIssuerLookup(transactions.map((t) => t.issuerId));
+	} = useIssuerLookup(issuerIds);
 
 	const accountsById = useMemo(() => indexById(accounts), [accounts]);
 	const categoriesById = useMemo(() => indexById(categories), [categories]);
