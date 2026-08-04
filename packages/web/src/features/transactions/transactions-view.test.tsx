@@ -5,7 +5,7 @@ import {
 	createRouter,
 	RouterProvider,
 } from "@tanstack/react-router";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { validateTransactionsSearch } from "./search";
@@ -193,9 +193,16 @@ vi.mock("@mamen/sdk", () => ({
 	issuerMutations: {},
 	categoryKeys: {},
 	categoryMutations: {},
+	ruleKeys: {},
 	transactionKeys: {},
-	transactionMutations: {},
+	// The one write this view makes on its own (issue #86): the selection's
+	// **bulk delete**. Everything else here is a read.
+	transactionMutations: {
+		bulkDelete: (ids: unknown) => bulkDeleteMock(ids),
+	},
 }));
+
+const bulkDeleteMock = vi.fn(async (_ids: unknown) => ({ count: 1 }));
 
 // ---- Router harness ---------------------------------------------------------
 
@@ -233,6 +240,7 @@ async function renderView(initialEntry = "/transactions") {
 beforeEach(() => {
 	listMock.mockClear();
 	issuerByIdsMock.mockClear();
+	bulkDeleteMock.mockClear();
 	listRows = TXNS;
 	listTotal = TXNS.length;
 	listMembers = [];
@@ -552,6 +560,39 @@ describe("TransactionsView", () => {
 			}),
 		);
 		expect(screen.getByText(/2 selected/i)).toBeVisible();
+	});
+
+	/**
+	 * **Bulk delete** (issue #86), through the real table: the ids the dialog
+	 * sends are the ids of the rows that were ticked, and the list re-reads on its
+	 * own afterwards. Deleting is not recoverable, so it goes through a
+	 * confirmation — and nothing is written until that confirmation is given.
+	 */
+	it("deletes the ticked rows once confirmed, and the list reflects it", async () => {
+		await renderView();
+		const user = userEvent.setup();
+
+		await user.click(
+			screen.getByRole("checkbox", { name: /select transaction SPOTIFY/i }),
+		);
+		await user.click(screen.getByRole("button", { name: /^delete$/i }));
+		expect(bulkDeleteMock).not.toHaveBeenCalled();
+
+		// What the server holds once the row is gone — the invalidated list re-reads
+		// it without anyone pressing anything.
+		listRows = [TXNS[1]];
+		listTotal = 1;
+
+		await user.click(
+			within(screen.getByRole("dialog")).getByRole("button", {
+				name: /^delete 1 transaction$/i,
+			}),
+		);
+
+		await waitFor(() => expect(bulkDeleteMock).toHaveBeenCalledWith([100]));
+		await waitFor(() => expect(screen.queryByText("SPOTIFY P2A34")).toBeNull());
+		// The selection went with the rows it named: the bar is gone.
+		expect(screen.queryByText(/1 selected/i)).toBeNull();
 	});
 
 	it("selects and clears every row on the page from the header checkbox", async () => {

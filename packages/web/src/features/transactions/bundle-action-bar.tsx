@@ -1,8 +1,9 @@
 import type { Transaction, TransactionId } from "@mamen/shared/contract";
-import { Layers } from "lucide-react";
+import { Layers, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DeleteSelectionDialog } from "./delete-selection-dialog";
 import {
 	BUNDLE_REFUSED_REASON,
 	isBundleEligible,
@@ -26,8 +27,16 @@ export type BundleActionBarProps = {
 
 /**
  * The selection action bar (issue #68) — what the transactions table offers once
- * rows are ticked. Today it offers exactly one thing: turning the selection into
- * a **bundle**, several transactions treated as one for the recap.
+ * rows are ticked. It offers two things: turning the selection into a **bundle**
+ * (several transactions treated as one for the recap), and **deleting** it
+ * (issue #86). The file keeps its name because bundling is still what it is
+ * mostly made of, and what the bundle-UI conventions test pins it by.
+ *
+ * The two actions are shaped differently on purpose. Bundling asks for its label
+ * inline and refuses sets it knows the server would refuse; delete asks for
+ * nothing, refuses nothing — any ticked row can go, one row included — but is
+ * confirmed through {@link DeleteSelectionDialog} first, because unlike a bundle
+ * it cannot be undone.
  *
  * The label is asked for **inline**, not behind a dialog: it is a single short
  * string, and a modal between "I picked these rows" and "here they are as one"
@@ -46,6 +55,10 @@ export type BundleActionBarProps = {
  */
 export function BundleActionBar({ selected, onClear }: BundleActionBarProps) {
 	const [label, setLabel] = useState("");
+	// Whether the delete confirmation is up. Held here rather than in the dialog
+	// so cancelling leaves the bar — and the selection it counts — exactly as it
+	// was: the only way out of the dialog that deletes anything is its own button.
+	const [confirmingDelete, setConfirmingDelete] = useState(false);
 	const { createBundle } = useBundle();
 
 	if (selected.length === 0) return null;
@@ -115,6 +128,25 @@ export function BundleActionBar({ selected, onClear }: BundleActionBarProps) {
 					Clear selection
 				</Button>
 			</form>
+
+			{/* Outside the bundling form: submitting a label must not be one Enter
+			    away from deleting the rows it was going to name. */}
+			<Button
+				type="button"
+				variant="danger"
+				size="sm"
+				onClick={() => setConfirmingDelete(true)}
+			>
+				<Trash2 size={14} aria-hidden />
+				Delete
+			</Button>
+
+			<DeleteSelectionDialog
+				selected={selected}
+				open={confirmingDelete}
+				onOpenChange={setConfirmingDelete}
+				onDeleted={onClear}
+			/>
 
 			<p className="w-full text-xs text-gousse-muted">
 				{selectedIds.length < MIN_BUNDLE_MEMBERS
