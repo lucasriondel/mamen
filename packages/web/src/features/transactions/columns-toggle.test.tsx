@@ -38,6 +38,7 @@ describe("ColumnsToggle", () => {
 			"Issuer",
 			"Raw issuer",
 			"Category",
+			"Excluded",
 			"Notes",
 		]);
 		for (const item of items) {

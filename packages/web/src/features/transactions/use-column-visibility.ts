@@ -15,6 +15,7 @@ export const TOGGLEABLE_COLUMNS = [
 	{ id: "issuer", label: "Issuer" },
 	{ id: "rawIssuer", label: "Raw issuer" },
 	{ id: "category", label: "Category" },
+	{ id: "excluded", label: "Excluded" },
 	{ id: "notes", label: "Notes" },
 ] as const;
 

@@ -306,6 +306,8 @@ describe("TransactionsView", () => {
 			"Amount",
 			// Screen-reader-only header for the transfer-badge column (PRD #48).
 			"Transfer",
+			// The per-row recap-exclusion checkbox (issues #67/#69, ADR 0008).
+			"Excluded",
 			"Notes",
 		]);
 
