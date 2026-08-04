@@ -85,9 +85,15 @@ vi.mock("@mamen/sdk", () => ({
 			queryKey: ["issuers", "list"],
 			queryFn: async () => ({ items: ISSUERS, total: ISSUERS.length }),
 		}),
-		all: () => ({
-			queryKey: ["issuers", "list"],
-			queryFn: async () => ({ items: ISSUERS, total: ISSUERS.length }),
+		// The picker read: a name search over the whole set, like the server (#79).
+		searchByName: (term: string) => ({
+			queryKey: ["issuers", "search", term.trim()],
+			queryFn: async () => {
+				const items = ISSUERS.filter((i) =>
+					i.name.toLowerCase().includes(term.trim().toLowerCase()),
+				);
+				return { items, total: items.length };
+			},
 		}),
 		// The resolution read: exactly the ids asked for, nothing else (#62).
 		byIds: (ids: Iterable<number>) => {

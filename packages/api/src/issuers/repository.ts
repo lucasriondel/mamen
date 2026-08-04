@@ -75,14 +75,16 @@ const PagedIssuer = Paged(Issuer);
 const CountResult = Schema.Struct({ count: Schema.Number });
 
 /**
- * The `list` filter, decoded from the query string (`orderBy`/`id` optional).
- * `id` is a single id or a set — the by-ids read (#62).
+ * The `list` filter, decoded from the query string (`orderBy`/`id`/`search`
+ * optional). `id` is a single id or a set — the by-ids read (#62); `search` is
+ * a name substring — the picker read (#79).
  */
 type ListFilter = {
 	limit: number;
 	offset: number;
 	orderBy?: "name";
 	id?: number | ReadonlyArray<number>;
+	search?: string;
 };
 
 /** A null-mapped write row (the shape bound into INSERT/UPDATE statements). */
@@ -127,14 +129,34 @@ export class IssuerRepo extends Effect.Service<IssuerRepo>()("api/IssuerRepo", {
 		// respectively, so both normalise to a set here. An empty set renders
 		// `1 = 0` rather than no predicate at all — asking to resolve nothing must
 		// return nothing, where dropping the filter would return everything
-		// (`sql.in([])` would also render an invalid `IN ()`). An unfiltered read
-		// contributes no WHERE, so the whole-table reads are untouched.
-		const whereClause = (id: ListFilter["id"]) => {
-			if (id === undefined) return sql``;
+		// (`sql.in([])` would also render an invalid `IN ()`).
+		const idCondition = (id: ListFilter["id"]) => {
 			const ids = Array.isArray(id) ? id : [id as number];
-			return ids.length === 0
-				? sql`WHERE 1 = 0`
-				: sql`WHERE ${sql.in("id", ids)}`;
+			return ids.length === 0 ? sql`1 = 0` : sql.in("id", ids);
+		};
+
+		// The `search` filter (#79): a case-insensitive substring of the name —
+		// what a picker asks as the user types. Same shape as the transactions
+		// free-text filter: `\` escapes the LIKE metachars `%` `_` so a user
+		// typing them means them literally, and every LIKE carries `ESCAPE '\'`.
+		// A blank term is *not* a predicate: an empty picker box asks for a page
+		// to browse, the opposite of an empty `id` set.
+		const searchCondition = (search: string) => {
+			const like = `%${search.replace(/[\\%_]/g, "\\$&")}%`;
+			return sql`name LIKE ${like} ESCAPE '\\'`;
+		};
+
+		// The filters AND: a caller may search *within* a set of ids. An
+		// unfiltered read contributes no WHERE at all, so the whole-table reads
+		// are untouched (`sql.and([])` would render an invalid `()`).
+		const whereClause = ({ id, search }: Pick<ListFilter, "id" | "search">) => {
+			const conditions = [
+				...(id !== undefined ? [idCondition(id)] : []),
+				...(search?.trim() ? [searchCondition(search.trim())] : []),
+			];
+			return conditions.length === 0
+				? sql``
+				: sql`WHERE ${sql.and(conditions)}`;
 		};
 
 		// `Request: Schema.Any` skips a redundant re-decode: the filter is
@@ -144,17 +166,17 @@ export class IssuerRepo extends Effect.Service<IssuerRepo>()("api/IssuerRepo", {
 		const listQuery = SqlSchema.findAll({
 			Request: Schema.Any as Schema.Schema<ListFilter>,
 			Result: IssuerFromRow,
-			execute: ({ limit, offset, orderBy, id }) =>
-				sql`SELECT * FROM issuers ${whereClause(id)} ${orderClause(orderBy)} LIMIT ${limit} OFFSET ${offset}`,
+			execute: ({ limit, offset, orderBy, id, search }) =>
+				sql`SELECT * FROM issuers ${whereClause({ id, search })} ${orderClause(orderBy)} LIMIT ${limit} OFFSET ${offset}`,
 		});
 
 		// Counts the *filtered* set, sharing `whereClause` with the read above so
 		// `total` can never describe a different set than `items` pages through.
 		const countQuery = SqlSchema.single({
-			Request: Schema.Any as Schema.Schema<Pick<ListFilter, "id">>,
+			Request: Schema.Any as Schema.Schema<Pick<ListFilter, "id" | "search">>,
 			Result: CountResult,
-			execute: ({ id }) =>
-				sql`SELECT COUNT(*) AS count FROM issuers ${whereClause(id)}`,
+			execute: (f) =>
+				sql`SELECT COUNT(*) AS count FROM issuers ${whereClause(f)}`,
 		});
 
 		const byIdQuery = SqlSchema.findOne({
@@ -275,7 +297,9 @@ export class IssuerRepo extends Effect.Service<IssuerRepo>()("api/IssuerRepo", {
 		const list = (filter: ListFilter) =>
 			Effect.all({
 				items: listQuery(filter),
-				total: countQuery({ id: filter.id }).pipe(Effect.map((r) => r.count)),
+				total: countQuery({ id: filter.id, search: filter.search }).pipe(
+					Effect.map((r) => r.count),
+				),
 			}).pipe(
 				Effect.map((paged) => PagedIssuer.make(paged)),
 				orDieSql,

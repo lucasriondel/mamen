@@ -1129,6 +1129,14 @@
               ]
             },
             "required": false
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
           }
         ],
         "security": [],

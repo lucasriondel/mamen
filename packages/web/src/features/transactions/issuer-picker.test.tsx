@@ -10,31 +10,61 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Mock the SDK boundary (PRD "Seam 2"): the picker reads the issuers `list` and
-// writes through transactions `update` (re-pick) + `removeManualIssuer` (drop a
-// hand pick). Real key factories are kept so invalidation resolves. cmdk's jsdom
-// shims (ResizeObserver, scrollIntoView) live in `src/test/setup.ts`.
+// Mock the SDK boundary (PRD "Seam 2"): the picker reads the issuers **name
+// search** and writes through transactions `update` (re-pick) +
+// `removeManualIssuer` (drop a hand pick). Real key factories are kept so
+// invalidation resolves. cmdk's jsdom shims (ResizeObserver, scrollIntoView)
+// live in `src/test/setup.ts`.
 const updateTransaction = vi.fn();
 const removeManualIssuer = vi.fn();
 
+/**
+ * A dataset far past any whole-list page (#79): 1500 filler issuers around the
+ * two the tests actually pick. `Spotify` sorts last by name *and* by id, so it
+ * is reachable only if the search really runs server-side over the whole table.
+ */
 const ISSUERS = [
 	{ id: 10, name: "MINT ENERGIE" },
-	{ id: 11, name: "Spotify" },
+	...Array.from({ length: 1500 }, (_, i) => ({
+		id: 100 + i,
+		name: `Filler ${String(i).padStart(4, "0")}`,
+	})),
+	{ id: 2000, name: "Spotify" },
 ];
+
+/** Every term the picker asked the server for. */
+const searchTerms: string[] = [];
+
+/** The page size the mocked server returns — the SDK's own search cap. */
+const SEARCH_LIMIT = 50;
 
 vi.mock("@mamen/sdk", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("@mamen/sdk")>();
 	return {
 		...actual,
 		issuerQueries: {
-			list: () => ({
-				queryKey: ["issuers", "list", "test"],
-				queryFn: async () => ({ items: ISSUERS, total: ISSUERS.length }),
-			}),
-			all: () => ({
-				queryKey: ["issuers", "list", "test"],
-				queryFn: async () => ({ items: ISSUERS, total: ISSUERS.length }),
-			}),
+			// Stands in for the server: matches a case-insensitive name substring
+			// over the WHOLE set, orders by name, returns one capped page.
+			searchByName: (term: string) => {
+				searchTerms.push(term);
+				return {
+					queryKey: ["issuers", "search", term.trim()],
+					queryFn: async () => {
+						const matches = ISSUERS.filter((issuer) =>
+							issuer.name.toLowerCase().includes(term.trim().toLowerCase()),
+						).sort((a, b) => a.name.localeCompare(b.name));
+						return {
+							items: matches.slice(0, SEARCH_LIMIT),
+							total: matches.length,
+						};
+					},
+				};
+			},
+			// A whole-list read is the very thing #79 removed — fail loudly rather
+			// than quietly answering from a page.
+			list: () => {
+				throw new Error("the picker read the whole issuer list");
+			},
 		},
 		transactionMutations: {
 			update: (id: unknown, payload: unknown) => updateTransaction(id, payload),
@@ -67,6 +97,7 @@ function tx(over: Partial<Transaction> = {}): Transaction {
 beforeEach(() => {
 	updateTransaction.mockReset().mockResolvedValue({ id: 100 });
 	removeManualIssuer.mockReset().mockResolvedValue({ id: 100 });
+	searchTerms.length = 0;
 });
 
 // ---- Router harness: the picker lives on a page; the issuer detail page is a
@@ -193,6 +224,9 @@ describe("IssuerPicker", () => {
 		expect(screen.queryByLabelText("Search issuers")).not.toBeInTheDocument();
 	});
 
+	// The row's issuer is already on screen, so the picker offers it from the
+	// row rather than hoping the search page happens to hold it — here it does
+	// not: 1500 issuers sort ahead of "MINT ENERGIE" by name.
 	it("marks the current issuer in the search list", async () => {
 		await openSearch(tx({ manualIssuer: false }));
 
@@ -206,14 +240,30 @@ describe("IssuerPicker", () => {
 	it("re-picks another issuer as a sticky hand pick", async () => {
 		const user = await openSearch(tx({ manualIssuer: false }));
 
+		await user.type(screen.getByLabelText("Search issuers"), "Spotify");
 		await user.click(await screen.findByText("Spotify"));
 
 		await waitFor(() =>
 			expect(updateTransaction).toHaveBeenCalledWith(100, {
-				issuerId: 11,
+				issuerId: 2000,
 				manualIssuer: true,
 			}),
 		);
+	});
+
+	// The cliff #79 removes: past 1000 issuers a whole-list read simply could not
+	// see this one, so it was unpickable however precisely its name was typed.
+	it("finds an issuer no whole-list page could hold", async () => {
+		const user = await openSearch(tx({ manualIssuer: false }));
+
+		// Not on the first (unsearched) page — that one is all fillers.
+		expect(screen.queryByText("Spotify")).not.toBeInTheDocument();
+
+		await user.type(screen.getByLabelText("Search issuers"), "spotif");
+
+		expect(await screen.findByText("Spotify")).toBeInTheDocument();
+		// The narrowing happened on the server, not over a page held client-side.
+		await waitFor(() => expect(searchTerms).toContain("spotif"));
 	});
 
 	it("removes a hand pick through the dedicated endpoint", async () => {

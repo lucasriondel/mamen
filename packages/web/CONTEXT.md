@@ -96,6 +96,13 @@ The act of attaching an Issuer to a single transaction (`update({ issuerId })`).
 Done by hand (a **manual assignment**, sets `manualIssuer`) or automatically by
 a **Matching Rule**. Manual assignments are sticky — rules never overwrite them.
 _Avoid_: Match, tag, categorize (as a bare verb).
+_Code note_: no transactions surface holds the issuer table. **Naming** a row's
+issuer asks for the ids on screen (`useIssuerLookup`, #62); **choosing** one
+asks for the row's own issuer plus the names matching what was typed, searched
+server-side (`useIssuerSearch`, #79). Only the issuers grid and the
+create-issuer duplicate-name guard read the whole list — they are *about* it.
+Anywhere else a whole-list read is a bug with a cliff at the page size: past it
+a row renders unresolved, or an issuer that plainly exists cannot be picked.
 
 **Matching Rule**:
 See [CONTEXT-MAP.md](../../CONTEXT-MAP.md). A single regex `pattern` owned by an

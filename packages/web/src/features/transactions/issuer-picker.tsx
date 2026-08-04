@@ -1,5 +1,4 @@
 import type { Issuer, Transaction } from "@mamen/shared/contract";
-import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { ExternalLink, Hand, SquarePen, Wand, X } from "lucide-react";
 import { useState } from "react";
@@ -20,7 +19,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { issuerQueries } from "@/lib/sdk";
+import { useIssuerSearch } from "@/features/issuers/use-issuer-search";
 import { IssuerSearchList } from "./issuer-search-list";
 import { IssuerCell } from "./transaction-cells";
 import { useAssignIssuer } from "./use-assign-issuer";
@@ -72,14 +71,15 @@ export function IssuerPicker({ transaction, issuer }: IssuerPickerProps) {
 	const navigate = useNavigate();
 	const { assignExisting, removeManualIssuer } = useAssignIssuer();
 
-	// Only fetch the issuer list once the search step is actually reached — the
-	// actions step never shows issuers, so opening the popover alone needn't pay
-	// for the list.
-	const issuersQuery = useQuery({
-		...issuerQueries.all(),
+	// Only search once the search step is actually reached — the actions step
+	// never shows issuers, so opening the popover alone needn't ask for any.
+	// The row's own issuer is pinned: it is on screen already, so it is offered
+	// (with its check) whatever the matching page holds.
+	const issuers = useIssuerSearch({
+		query,
 		enabled: open && mode === "search",
+		pinned: [issuer],
 	});
-	const issuers = (issuersQuery.data?.items ?? []) as readonly Issuer[];
 
 	const isManual = transaction.manualIssuer === true;
 	const pending = assignExisting.isPending || removeManualIssuer.isPending;

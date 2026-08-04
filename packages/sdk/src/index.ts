@@ -19,6 +19,7 @@ export { healthKeys, healthQueries } from "./health/queries";
 export { importMutations } from "./import/queries";
 export {
 	ISSUER_SCAN_LIMIT,
+	ISSUER_SEARCH_LIMIT,
 	type IssuerListParams,
 	issuerKeys,
 	issuerMutations,

@@ -247,6 +247,37 @@ describe("issuers endpoints", () => {
 		}).pipe(Effect.provide(HttpLive)),
 	);
 
+	// The picker read (#79): the name search runs server-side, so a name past
+	// the first page is still findable by typing it.
+	it.effect("list narrows to a name search over the wire", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			yield* client.issuers.create({ payload: make({ name: "MINT ENERGIE" }) });
+			yield* client.issuers.create({ payload: make({ name: "Spotify" }) });
+			yield* client.issuers.create({ payload: make({ name: "Netflix" }) });
+
+			// A page of one from the top of the id order can't hold Netflix…
+			const firstPage = yield* client.issuers.list({
+				urlParams: { limit: 1, offset: 0 },
+			});
+			assert.deepStrictEqual(
+				firstPage.items.map((m) => m.name),
+				["MINT ENERGIE"],
+			);
+
+			// …but typing its name does, case-insensitively, and `total` counts
+			// only the matches.
+			const page = yield* client.issuers.list({
+				urlParams: { limit: 1, offset: 0, search: "netfl" },
+			});
+			assert.deepStrictEqual(
+				page.items.map((m) => m.name),
+				["Netflix"],
+			);
+			assert.strictEqual(page.total, 1);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
 	it.effect("update applies a partial change and keeps createdAt", () =>
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
