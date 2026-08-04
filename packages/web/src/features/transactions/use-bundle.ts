@@ -1,24 +1,46 @@
 import type { TransactionId } from "@mamen/shared/contract";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { transactionKeys, transactionMutations } from "@/lib/sdk";
+import { ruleKeys, transactionKeys, transactionMutations } from "@/lib/sdk";
 import { toErrorMessage } from "@/lib/sdk-error";
 
 /**
- * The **bundle** creation mutation (issue #68): turn the selected rows into one
- * **bundle parent** carrying their summed amount and the label the user typed.
+ * The five **bundle** mutations behind the bundle action bar, the bundle section
+ * and the membership picker (issues #68, #72, #74).
  *
  * Everything about the parent is the server's to derive — the amount, the date,
  * the account — so nothing is computed here and nothing is sent optimistically:
  * a client that guessed the sum would be a second definition of what a bundle
  * totals, and the two would drift the first time a member changed.
  *
- * Invalidates the whole transactions key family, which is exactly the blast
- * radius: every member has just left the top level of the list, a new row has
- * joined it, and the signed total under both has moved.
+ * All five share ONE `invalidate` (issue #78), which names the transactions
+ * **and** the rules key families:
+ * - transactions, because that is the blast radius of every one of them — a
+ *   member has left the top level of the list or returned to it, a synthetic row
+ *   has joined it or gone, and the signed total under both has moved;
+ * - rules, because a rule's `ownedCount` is derived from the live transactions
+ *   table on every read (issue #63) and a **bundle parent is an ordinary row in
+ *   it**, carrying the label the user typed as its `rawIssuerString` — the very
+ *   string the matcher reads. Creating a bundle can therefore hand a rule a row
+ *   it never had, and dissolving one (by hand, or by a `remove` that leaves the
+ *   bundle standing for a single transaction) takes it away again.
+ *
+ * `setBundleDate` moves no row between rules, but it goes through the same
+ * helper rather than being the one exception: the rule is stated once here, so a
+ * mutation added later cannot quietly inherit the shorter list. Failures raise a
+ * `sonner` toast.
  */
 export function useBundle() {
 	const queryClient = useQueryClient();
+
+	const invalidate = () => {
+		queryClient.invalidateQueries({ queryKey: transactionKeys.all });
+		queryClient.invalidateQueries({ queryKey: ruleKeys.all });
+	};
+
+	const onError = (error: unknown) => {
+		toast.error(toErrorMessage(error));
+	};
 
 	const createBundle = useMutation({
 		mutationFn: ({
@@ -28,12 +50,8 @@ export function useBundle() {
 			ids: ReadonlyArray<TransactionId>;
 			label: string;
 		}) => transactionMutations.createBundle(ids, label.trim()),
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: transactionKeys.all });
-		},
-		onError: (error: unknown) => {
-			toast.error(toErrorMessage(error));
-		},
+		onSuccess: invalidate,
+		onError,
 	});
 
 	/**
@@ -59,12 +77,8 @@ export function useBundle() {
 			date: Date;
 		}) =>
 			transactionMutations.update(transactionId, { date, manualDate: true }),
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: transactionKeys.all });
-		},
-		onError: (error: unknown) => {
-			toast.error(toErrorMessage(error));
-		},
+		onSuccess: invalidate,
+		onError,
 	});
 
 	/**
@@ -85,12 +99,8 @@ export function useBundle() {
 			bundleId: TransactionId;
 			transactionId: TransactionId;
 		}) => transactionMutations.addBundleMember(bundleId, transactionId),
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: transactionKeys.all });
-		},
-		onError: (error: unknown) => {
-			toast.error(toErrorMessage(error));
-		},
+		onSuccess: invalidate,
+		onError,
 	});
 
 	/**
@@ -103,12 +113,8 @@ export function useBundle() {
 	const removeFromBundle = useMutation({
 		mutationFn: ({ transactionId }: { transactionId: TransactionId }) =>
 			transactionMutations.removeBundleMember(transactionId),
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: transactionKeys.all });
-		},
-		onError: (error: unknown) => {
-			toast.error(toErrorMessage(error));
-		},
+		onSuccess: invalidate,
+		onError,
 	});
 
 	/**
@@ -119,12 +125,8 @@ export function useBundle() {
 	const dissolveBundle = useMutation({
 		mutationFn: ({ bundleId }: { bundleId: TransactionId }) =>
 			transactionMutations.dissolveBundle(bundleId),
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: transactionKeys.all });
-		},
-		onError: (error: unknown) => {
-			toast.error(toErrorMessage(error));
-		},
+		onSuccess: invalidate,
+		onError,
 	});
 
 	return {

@@ -109,8 +109,11 @@ user-facing name only. Each rule row shows its **owned count** (see
 [CONTEXT-MAP.md](../../CONTEXT-MAP.md)) worded as what it counts — "3
 transactions", never "3 matches". Because that count is derived from the
 transactions table, any mutation that moves rows must invalidate `ruleKeys.all`
-too, not just `transactionKeys.all` — an assignment, a removed manual pick and
-an import commit all change what a rule owns without touching a rule.
+too, not just `transactionKeys.all` — an assignment, a removed manual pick, an
+import commit and every **bundle** mutation all change what a rule owns without
+touching a rule. Bundles count because the parent is an ordinary row carrying
+the user's label as its `rawIssuerString`, the string the matcher reads: making
+a bundle can hand a rule a row, dissolving one takes it back (issue #78).
 
 **Amount sign convention**:
 `amount` is a single signed number. A CSV `DEBIT` (money leaving) is stored
