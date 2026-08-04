@@ -18,7 +18,7 @@ import { TransactionRepo } from "./repository";
  *
  * `recap`/`recapPeriods` (issue #71) are delegates like the rest: the spend
  * summary is summed in SQL over the whole filtered set, and the one
- * `countsTowardRecap` predicate lives in the repository beside the derived
+ * `countsTowardRecap` predicate lives in `recap-predicate.ts` beside the derived
  * expressions it is built from — never restated here.
  *
  * `bulkCreate` is the exception: after inserting the rows it runs the
