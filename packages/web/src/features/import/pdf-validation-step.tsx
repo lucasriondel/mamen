@@ -5,9 +5,11 @@ import type {
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/format";
+import { AlreadyImportedMark } from "./already-imported-mark";
 import { CommitBar } from "./commit-bar";
 import type { ParsedTransaction } from "./parsers/types";
 import { reconcile } from "./reconcile";
+import { useDuplicateFlags } from "./use-duplicate-flags";
 import type { WizardAction } from "./wizard-reducer";
 
 /** A `Date` as the `YYYY-MM-DD` value an `<input type="date">` expects (UTC). */
@@ -28,6 +30,12 @@ function fromDateInputValue(value: string): Date {
  * missed ones in place — whatever the table holds at commit is what commits. A
  * soft **reconciliation check** flags (never blocks) a sum mismatch against the
  * statement's **declared totals**. Commit runs the shared rail via {@link CommitBar}.
+ *
+ * A row that looks **already imported** is marked here too (issue #89) — this is
+ * the preview where acting on the mark is one click, since every row already
+ * carries the × that drops it from the commit. The rows are index-aligned with
+ * `records` (each extracted row is enriched into exactly one), so one flag list
+ * serves the table and the bar's count.
  */
 export function PdfValidationStep({
 	records,
@@ -45,6 +53,7 @@ export function PdfValidationStep({
 	dispatch: (action: WizardAction) => void;
 }) {
 	const recon = reconcile(records, declaredTotals);
+	const duplicates = useDuplicateFlags(records);
 
 	return (
 		<div className="flex flex-col gap-6">
@@ -52,10 +61,18 @@ export function PdfValidationStep({
 
 			<div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
 				<PdfPane file={file} />
-				<ExtractedRows extracted={extracted} dispatch={dispatch} />
+				<ExtractedRows
+					extracted={extracted}
+					duplicateFlags={duplicates.flags}
+					dispatch={dispatch}
+				/>
 			</div>
 
-			<CommitBar records={records} onBack={onBack} />
+			<CommitBar
+				records={records}
+				duplicateCount={duplicates.count}
+				onBack={onBack}
+			/>
 		</div>
 	);
 }
@@ -82,9 +99,12 @@ function PdfPane({ file }: { file: File }) {
 /** The editable extracted-rows table: edit in place, delete a row, add a row. */
 function ExtractedRows({
 	extracted,
+	duplicateFlags,
 	dispatch,
 }: {
 	extracted: readonly ExtractedTransaction[];
+	/** Positional with `extracted`: does this row look already imported? */
+	duplicateFlags: readonly boolean[];
 	dispatch: (action: WizardAction) => void;
 }) {
 	return (
@@ -119,19 +139,22 @@ function ExtractedRows({
 									/>
 								</td>
 								<td className="px-2 py-1">
-									<input
-										type="text"
-										aria-label={`Raw issuer, row ${index + 1}`}
-										value={tx.rawIssuerString}
-										onChange={(event) =>
-											dispatch({
-												type: "edit-extracted",
-												index,
-												patch: { rawIssuerString: event.target.value },
-											})
-										}
-										className="w-full rounded border border-gousse-line bg-gousse-bg px-2 py-1 text-gousse-ink"
-									/>
+									<div className="flex flex-col items-start gap-1">
+										<input
+											type="text"
+											aria-label={`Raw issuer, row ${index + 1}`}
+											value={tx.rawIssuerString}
+											onChange={(event) =>
+												dispatch({
+													type: "edit-extracted",
+													index,
+													patch: { rawIssuerString: event.target.value },
+												})
+											}
+											className="w-full rounded border border-gousse-line bg-gousse-bg px-2 py-1 text-gousse-ink"
+										/>
+										{duplicateFlags[index] ? <AlreadyImportedMark /> : null}
+									</div>
 								</td>
 								<td className="px-2 py-1">
 									<AmountInput

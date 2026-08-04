@@ -26,5 +26,7 @@ contract/server/SDK churn to onboard a new bank format.
 - There is no server-side dedup, and no idempotency mechanism at all. The bank's
   transaction id (`N° transaction`) is dropped — the contract has no external-id
   field — so committing the same statement twice duplicates its rows. The guard
-  is advisory: the preview warns about rows that look already-imported and
-  removes nothing. Erasing rows is only ever the user's action.
+  is advisory: the preview marks rows that look already-imported and removes
+  nothing (issue #89 — a row matching a stored one on date, amount and the
+  normalised raw issuer string, all three, within the same account and month).
+  Erasing rows is only ever the user's action.
