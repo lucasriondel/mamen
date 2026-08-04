@@ -1,20 +1,13 @@
-import type {
-	Category,
-	CategoryId,
-	Issuer,
-	IssuerId,
-	Transaction,
-} from "@mamen/shared/contract";
+import type { Category, Transaction } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
 import { Layers } from "lucide-react";
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useIssuerLookup } from "@/features/issuers/use-issuer-lookup";
-import { formatCurrency, formatShortDate } from "@/lib/format";
+import { formatCurrency } from "@/lib/format";
 import { categoryQueries, transactionQueries } from "@/lib/sdk";
-import { cn, indexById } from "@/lib/utils";
+import { indexById } from "@/lib/utils";
+import { BundleDateForm } from "./bundle-date-form";
+import { BundleDissolveBlock } from "./bundle-dissolve-block";
+import { BundleMemberRow } from "./bundle-member-row";
 import { TransferLegsSkeleton } from "./transfer-legs-skeleton";
 import { useAssignIssuer } from "./use-assign-issuer";
 import { useBundle } from "./use-bundle";
@@ -27,151 +20,29 @@ const MEMBER_SCAN_LIMIT = 50;
 const CATEGORY_SCAN_LIMIT = 200;
 
 /**
- * The `<input type="date">` value for a stored date, and back.
- *
- * Both go through **UTC**, deliberately: the app stores `date` as an ISO string
- * and compares it lexicographically, and a bundle parent's date is copied
- * verbatim from a member's. Reading the local calendar day instead would shift
- * a row a day either side of midnight depending on where the reader sits, and
- * saving would then write a date nobody typed.
- */
-const toDateInputValue = (date: Date) => date.toISOString().slice(0, 10);
-const fromDateInputValue = (value: string) =>
-	new Date(`${value}T00:00:00.000Z`);
-
-/**
- * One **bundle member**, with the shortcuts that copy its identity onto the
- * parent. Most bundles are one merchant plus refunds — three charges at the same
- * supermarket, then two people paying you back — so the issuer and the category
- * the parent wants are usually already sitting on a member, and retyping them
- * is busywork.
- *
- * Copying is a plain curation write on the parent (`manualIssuer` /
- * `manualCategory`, the same mutations the table's pickers use), so nothing new
- * happens to the row: it is a hand pick that happens to have been *chosen* by
- * pointing at a member. The category offered is the member's **derived** one
- * (through its own issuer, ADR 0002) — what the user sees on that row is what
- * lands on the parent, rather than a stored column they were never shown. The label is untouched by either — a bundle can be named
- * "Weekend Bretagne" and still carry the issuer Carrefour.
- *
- * A member with neither offers neither: an absent button says "nothing to copy"
- * more plainly than a disabled one. A member whose issuer/category the parent
- * *already* carries keeps its button, disabled — the row is not missing
- * anything, and hiding it would read as "this member has no issuer".
- *
- * The row also carries the way **out** of the bundle (issue #74) — the wrong row
- * gets swept in, and the place to notice it is the list of what the bundle
- * stands for. Leaving is not deleting: the row returns to the list as it was.
- */
-function MemberRow({
-	member,
-	parent,
-	issuer,
-	category,
-	onCopyIssuer,
-	onCopyCategory,
-	onRemove,
-	disabled,
-}: {
-	member: Transaction;
-	parent: Transaction;
-	issuer?: Issuer;
-	category?: Category;
-	onCopyIssuer: (issuerId: IssuerId) => void;
-	onCopyCategory: (categoryId: CategoryId) => void;
-	onRemove: () => void;
-	disabled: boolean;
-}) {
-	const hasIssuer = member.issuerId != null;
-	const hasCategory = member.categoryId != null;
-	const sameIssuer = hasIssuer && parent.issuerId === member.issuerId;
-	const sameCategory = hasCategory && parent.categoryId === member.categoryId;
-
-	return (
-		<li className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-gousse-line px-3 py-2">
-			<Link
-				to="/transactions/$transactionId"
-				params={{ transactionId: String(member.id) }}
-				className="flex min-w-0 flex-col text-sm hover:underline"
-			>
-				<span
-					className={cn(
-						"font-medium tabular-nums",
-						member.amount < 0 && "text-gousse-high",
-						member.amount > 0 && "text-gousse-low",
-					)}
-				>
-					{formatCurrency(member.amount)}
-				</span>
-				<span className="truncate text-gousse-muted text-xs">
-					{formatShortDate(member.date)} · {member.rawIssuerString}
-				</span>
-			</Link>
-
-			<div className="flex shrink-0 items-center gap-2">
-				{hasIssuer ? (
-					<Button
-						variant="secondary"
-						size="sm"
-						disabled={disabled || sameIssuer}
-						aria-label={`Use ${issuer?.name ?? member.rawIssuerString} as this bundle's issuer`}
-						title={
-							sameIssuer ? "This bundle already carries this issuer" : undefined
-						}
-						onClick={() => onCopyIssuer(member.issuerId as IssuerId)}
-					>
-						Use issuer
-					</Button>
-				) : null}
-				{hasCategory ? (
-					<Button
-						variant="secondary"
-						size="sm"
-						disabled={disabled || sameCategory}
-						aria-label={`Use ${category?.name ?? "this member's category"} as this bundle's category`}
-						title={
-							sameCategory
-								? "This bundle already carries this category"
-								: undefined
-						}
-						onClick={() => onCopyCategory(member.categoryId as CategoryId)}
-					>
-						Use category
-					</Button>
-				) : null}
-				<Button
-					variant="ghost"
-					size="sm"
-					disabled={disabled}
-					aria-label={`Remove ${member.rawIssuerString} from this bundle`}
-					onClick={onRemove}
-				>
-					Remove
-				</Button>
-			</div>
-		</li>
-	);
-}
-
-/**
  * The **Bundle** block on a bundle parent's detail page (issue #72, epic #66) —
  * everything about the row that is *not* already a transaction field.
  *
  * The parent is a real transaction row, so its issuer, category and notes are
  * edited through the page's ordinary controls, above; what lives here is what
- * only a bundle has:
+ * only a bundle has, one named child per concern:
  *
  * - **The members it stands for**, each linking to its own page, each offering
- *   to copy its issuer or its category onto the parent ({@link MemberRow}), and
- *   each offering the way out of the bundle (#74).
- * - **The date**, which defaults to the earliest member's and may be overridden.
- *   The override is flagged `manualDate` so the recompute that every later
- *   membership change runs (#74) keeps it: the derived date is a starting point,
- *   not a constraint.
- * - **Dissolving** the bundle (#74) — the parent row goes and every member comes
- *   back to the list. The members are real bank rows, so this is never a delete;
- *   the same thing happens by itself when a bundle would be left standing for a
- *   single transaction.
+ *   to copy its issuer or its category onto the parent
+ *   ({@link BundleMemberRow}), and each offering the way out of the bundle
+ *   (#74).
+ * - **The date** ({@link BundleDateForm}), which defaults to the earliest
+ *   member's and may be overridden. The override is flagged `manualDate` so the
+ *   recompute that every later membership change runs (#74) keeps it: the
+ *   derived date is a starting point, not a constraint.
+ * - **Dissolving** the bundle ({@link BundleDissolveBlock}, #74) — the parent
+ *   row goes and every member comes back to the list. The members are real bank
+ *   rows, so this is never a delete; the same thing happens by itself when a
+ *   bundle would be left standing for a single transaction.
+ *
+ * This component is the one that knows what each of those writes: the children
+ * are presentational, and every mutation on the parent is fired from here, so
+ * the `pending` that disables them all is read in one place.
  *
  * The **amount** is shown and never edited — not here, not anywhere. A bundle's
  * cost is what its members sum to; an editable total could drift from the very
@@ -189,19 +60,6 @@ export function BundleSection({
 	const { setBundleDate, removeFromBundle, dissolveBundle } = useBundle();
 	const { assignExisting } = useAssignIssuer();
 	const { setOverride } = useCategoryOverride();
-
-	// The date field is a draft over the stored value, re-seeded *during render*
-	// whenever the stored date changes — after the user's own save, and after a
-	// recompute moves the derived date (#74). Without the re-seed the field would
-	// keep showing a date the row no longer has, and "Save" would read as a no-op
-	// while actually writing the stale one back.
-	const storedDate = toDateInputValue(txn.date);
-	const [draftDate, setDraftDate] = useState(storedDate);
-	const [seededFrom, setSeededFrom] = useState(storedDate);
-	if (seededFrom !== storedDate) {
-		setSeededFrom(storedDate);
-		setDraftDate(storedDate);
-	}
 
 	// The members, oldest first — the order the money moved in, which is how a
 	// bundle reads: the charge, then the paybacks. Asking by `bundleId` is the
@@ -262,7 +120,7 @@ export function BundleSection({
 			) : (
 				<ul className="flex flex-col gap-2">
 					{members.map((member) => (
-						<MemberRow
+						<BundleMemberRow
 							key={member.id}
 							member={member}
 							parent={txn}
@@ -291,63 +149,18 @@ export function BundleSection({
 				</ul>
 			)}
 
-			<form
-				className="flex flex-wrap items-end gap-2"
-				onSubmit={(event) => {
-					event.preventDefault();
-					if (pending || draftDate === "" || draftDate === storedDate) return;
-					setBundleDate.mutate({
-						transactionId: txn.id,
-						date: fromDateInputValue(draftDate),
-					});
-				}}
-			>
-				<label className="flex flex-col gap-1 text-gousse-muted text-xs">
-					Bundle date
-					<Input
-						type="date"
-						aria-label="Bundle date"
-						className="h-9 w-44 bg-gousse-bg"
-						value={draftDate}
-						onChange={(event) => setDraftDate(event.target.value)}
-					/>
-				</label>
-				<Button
-					type="submit"
-					size="sm"
-					disabled={pending || draftDate === "" || draftDate === storedDate}
-				>
-					Save date
-				</Button>
-			</form>
+			<BundleDateForm
+				date={txn.date}
+				manualDate={txn.manualDate === true}
+				disabled={pending}
+				onSave={(date) => setBundleDate.mutate({ transactionId: txn.id, date })}
+			/>
 
-			<p className="text-xs text-gousse-muted">
-				{txn.manualDate === true
-					? "This date was set by hand, and stays put when members are added or removed."
-					: "This date follows its earliest member. Set one here to pin it instead."}
-			</p>
-
-			{/*
-			 * Dissolving is not deleting, and the copy says so before the button is
-			 * pressed: the members are the real bank rows, and they are exactly what
-			 * comes back. The parent — a synthetic row that only ever stood for them
-			 * — is the one thing that goes.
-			 */}
-			<div className="flex flex-col gap-2 border-t border-gousse-line pt-4">
-				<p className="text-sm text-gousse-muted">
-					Dissolving this bundle deletes this row and returns its members to the
-					list, exactly as they were.
-				</p>
-				<Button
-					variant="danger"
-					size="sm"
-					className="self-start"
-					disabled={pending}
-					onClick={() => dissolveBundle.mutate({ bundleId: txn.id })}
-				>
-					{dissolveBundle.isPending ? "Dissolving…" : "Dissolve bundle"}
-				</Button>
-			</div>
+			<BundleDissolveBlock
+				disabled={pending}
+				isDissolving={dissolveBundle.isPending}
+				onDissolve={() => dissolveBundle.mutate({ bundleId: txn.id })}
+			/>
 		</div>
 	);
 }

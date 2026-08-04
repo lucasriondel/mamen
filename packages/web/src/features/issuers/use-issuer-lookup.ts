@@ -5,13 +5,13 @@ import { issuerQueries } from "@/lib/sdk";
 import { indexById } from "@/lib/utils";
 
 /** What {@link useIssuerLookup} hands back: the map, plus the read's state. */
-export interface IssuerLookup {
+export type IssuerLookup = {
 	/** The issuers asked for, indexed by id — the map a row resolves through. */
 	issuersById: ReadonlyMap<number, Issuer>;
 	/** True while the ids on screen are still being resolved. */
 	isPending: boolean;
 	isError: boolean;
-}
+};
 
 /**
  * Resolve **the issuers a surface is showing**, by the ids it is showing.

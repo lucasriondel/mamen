@@ -15,7 +15,7 @@ import { resolveCategoryColors } from "@/lib/category-tree";
  * fell in the bucket, shown alongside the total. Both are computed server-side
  * (issue #71); what this module adds is the bucket's visual identity.
  */
-export interface SpendRow {
+export type SpendRow = {
 	/** Stable key for React lists and sort tiebreaks — the entity id, or `null`. */
 	id: number | null;
 	/** The bucket's display name (the issuer/category name, or an "Unassigned" label). */
@@ -43,7 +43,7 @@ export interface SpendRow {
 	 * re-deriving one from a lookup it does not have.
 	 */
 	color?: string;
-}
+};
 
 /**
  * The internal-transfer movement excluded from the spend breakdowns (PRD #48).
@@ -54,12 +54,12 @@ export interface SpendRow {
 export type TransferSummary = RecapTransfers;
 
 /** The two spend breakdowns the recap page shows, each already summed per bucket. */
-export interface RecapSpend {
+export type RecapSpend = {
 	byIssuer: SpendRow[];
 	byCategory: SpendRow[];
 	/** The internal-transfer legs netted out of the breakdowns, summarised. */
 	transfers: TransferSummary;
-}
+};
 
 /** The label a spend row carries when a bucket has no issuer / category. */
 export const UNASSIGNED_LABEL = "Unassigned";
