@@ -127,9 +127,11 @@ export function ImportWizard({
 		stepContent = (
 			<PreviewStep
 				records={records}
+				skippedRows={state.skippedRows}
 				accountName={accountName}
 				parserLabel={sourceLabel}
 				onBack={() => dispatch({ type: "back-to-upload" })}
+				dispatch={dispatch}
 			/>
 		);
 	}

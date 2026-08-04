@@ -126,6 +126,18 @@ describe("CommitBar", () => {
 		);
 	});
 
+	// Every row skipped on the preview (epic #85) leaves nothing to write. The
+	// button refuses rather than posting an empty batch and reporting an import
+	// that wrote no rows.
+	it("refuses to commit when no row is left to write", async () => {
+		render(<CommitBar records={[]} duplicateCount={0} onBack={vi.fn()} />);
+
+		const button = await screen.findByRole("button", { name: "Commit import" });
+		expect(button).toBeDisabled();
+		button.click();
+		expect(mutate).not.toHaveBeenCalled();
+	});
+
 	it("says nothing when no row looks already imported", async () => {
 		render(
 			<CommitBar records={[record()]} duplicateCount={0} onBack={vi.fn()} />,

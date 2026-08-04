@@ -198,6 +198,76 @@ describe("ImportWizard", () => {
 		expect(bulkCreate.mock.calls[0][0]).toHaveLength(2);
 	});
 
+	// Epic #85: nothing is auto-excluded from a commit, and the recourse for a
+	// marked row is the user's own — a per-row skip, on the CSV preview as on the
+	// PDF one. Skipping the marked row leaves the commit with the other one.
+	it("skips a flagged row on the CSV preview so it never commits", async () => {
+		const user = userEvent.setup();
+		listTransactions.mockImplementation(
+			async (params: { importMonth: string }) =>
+				params.importMonth === "2026-01"
+					? { items: [STORED_SHOP_A], total: 1, bundleMembers: [] }
+					: { items: [], total: 0, bundleMembers: [] },
+		);
+		render(<RouterProvider router={makeRouter()} />);
+
+		await user.upload(
+			await screen.findByLabelText("CSV or PDF statement"),
+			new File([CSV], "statement.csv", { type: "text/csv" }),
+		);
+		await user.selectOptions(
+			await screen.findByLabelText("Target account"),
+			"1",
+		);
+		await user.click(
+			screen.getByRole("button", { name: "Continue to preview" }),
+		);
+
+		expect(await screen.findByRole("status")).toHaveTextContent(
+			"1 of these rows looks already imported.",
+		);
+
+		await user.click(screen.getByRole("button", { name: "Skip row 1" }));
+
+		// The row stays on screen — offering to take it back — and the count it was
+		// the whole of goes with it.
+		expect(screen.getByText("SHOP A")).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Restore row 1" }),
+		).toBeInTheDocument();
+		await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
+
+		await user.click(screen.getByRole("button", { name: "Commit import" }));
+		await waitFor(() => expect(bulkCreate).toHaveBeenCalledTimes(1));
+		const records = bulkCreate.mock.calls[0][0];
+		expect(records).toHaveLength(1);
+		expect(records[0]).toMatchObject({ rawIssuerString: "SHOP B" });
+	});
+
+	it("takes a skipped row back into the commit", async () => {
+		const user = userEvent.setup();
+		render(<RouterProvider router={makeRouter()} />);
+
+		await user.upload(
+			await screen.findByLabelText("CSV or PDF statement"),
+			new File([CSV], "statement.csv", { type: "text/csv" }),
+		);
+		await user.selectOptions(
+			await screen.findByLabelText("Target account"),
+			"1",
+		);
+		await user.click(
+			screen.getByRole("button", { name: "Continue to preview" }),
+		);
+
+		await user.click(await screen.findByRole("button", { name: "Skip row 2" }));
+		await user.click(screen.getByRole("button", { name: "Restore row 2" }));
+
+		await user.click(screen.getByRole("button", { name: "Commit import" }));
+		await waitFor(() => expect(bulkCreate).toHaveBeenCalledTimes(1));
+		expect(bulkCreate.mock.calls[0][0]).toHaveLength(2);
+	});
+
 	// A statement overlapping an already-imported month, but holding genuinely
 	// new rows, flags none of them — the everyday CCF case (epic #85).
 	it("flags nothing when the overlapping month's stored rows are different", async () => {

@@ -343,6 +343,64 @@ describe("wizardReducer — PDF extraction path", () => {
 	});
 });
 
+describe("wizardReducer — skipping previewed rows (CSV path)", () => {
+	const loaded = wizardReducer(initialWizardState, {
+		type: "file-parsed",
+		fileName: "statement.csv",
+		headers: HEADERS,
+		rows: ROWS,
+		detectedParserId: "green-got",
+	});
+
+	it("skips a previewed row and takes it back", () => {
+		let state = wizardReducer(loaded, { type: "skip-row", index: 2 });
+		expect(state.skippedRows).toEqual([2]);
+
+		state = wizardReducer(state, { type: "skip-row", index: 0 });
+		expect(state.skippedRows).toEqual([0, 2]);
+
+		state = wizardReducer(state, { type: "restore-row", index: 2 });
+		expect(state.skippedRows).toEqual([0]);
+	});
+
+	it("counts a row once however often it is skipped", () => {
+		const state = wizardReducer(
+			wizardReducer(loaded, { type: "skip-row", index: 1 }),
+			{ type: "skip-row", index: 1 },
+		);
+		expect(state.skippedRows).toEqual([1]);
+	});
+
+	it("restoring a row that was never skipped changes nothing", () => {
+		const state = wizardReducer(loaded, { type: "restore-row", index: 3 });
+		expect(state.skippedRows).toEqual([]);
+	});
+
+	// The indices name parsed records, and both of these mint a different set of
+	// them — a skip carried across would hold out whichever row landed at that
+	// position next.
+	it("clears the skipped rows when another file is parsed", () => {
+		const skipped = wizardReducer(loaded, { type: "skip-row", index: 0 });
+		const state = wizardReducer(skipped, {
+			type: "file-parsed",
+			fileName: "other.csv",
+			headers: HEADERS,
+			rows: ROWS,
+			detectedParserId: "green-got",
+		});
+		expect(state.skippedRows).toEqual([]);
+	});
+
+	it("clears the skipped rows when the parser changes", () => {
+		const skipped = wizardReducer(loaded, { type: "skip-row", index: 0 });
+		const state = wizardReducer(skipped, {
+			type: "select-parser",
+			parserId: "some-other-bank",
+		});
+		expect(state.skippedRows).toEqual([]);
+	});
+});
+
 describe("makeInitialWizardState", () => {
 	it("returns the empty state with no prefill", () => {
 		expect(makeInitialWizardState()).toBe(initialWizardState);

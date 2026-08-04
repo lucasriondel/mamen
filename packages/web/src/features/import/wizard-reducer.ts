@@ -42,6 +42,19 @@ export type WizardState = {
 	extracting: boolean;
 	/** The extracted candidate rows once a PDF extraction succeeds; `null` otherwise. */
 	extracted: readonly ExtractedTransaction[] | null;
+	/**
+	 * Which previewed rows the user held out of the commit, as ascending indices
+	 * into the **parsed records** (epic #85, CSV path). Empty for a PDF, whose
+	 * side-by-side view edits its **extracted transactions** directly.
+	 *
+	 * A skip is reversible and the row stays on screen struck through, unlike the
+	 * PDF path's delete: a CSV preview is derived from the dropped file, so a row
+	 * that vanished from it could only come back by dropping the file again.
+	 *
+	 * The indices name records, not CSV lines, so anything that mints a different
+	 * set of records — another file, another parser — clears them.
+	 */
+	skippedRows: readonly number[];
 	/** The statement's own declared totals, echoed by extraction (reconcile handle). */
 	declaredTotals: DeclaredTotals | null;
 	/**
@@ -90,7 +103,15 @@ export type WizardAction =
 	/** Delete one extracted row (the phantom-row case) — dropped from the commit. */
 	| { type: "delete-extracted"; index: number }
 	/** Append a blank extracted row (a missed operation the model didn't read). */
-	| { type: "add-extracted" };
+	| { type: "add-extracted" }
+	/**
+	 * Hold one previewed row out of the commit — the recourse for a row marked
+	 * **already imported** (epic #85). The row is not dropped from the preview,
+	 * only from what commits.
+	 */
+	| { type: "skip-row"; index: number }
+	/** Put a skipped row back into the commit. */
+	| { type: "restore-row"; index: number };
 
 export const initialWizardState: WizardState = {
 	step: "upload",
@@ -108,6 +129,7 @@ export const initialWizardState: WizardState = {
 	extracted: null,
 	declaredTotals: null,
 	extractionMs: null,
+	skippedRows: [],
 };
 
 /**
@@ -187,6 +209,8 @@ export function wizardReducer(
 				extracted: null,
 				declaredTotals: null,
 				extractionMs: null,
+				// The indices named the previous file's records.
+				skippedRows: [],
 			};
 		case "file-error":
 			// A failed drop must not leave a prior file previewable behind the error.
@@ -205,9 +229,12 @@ export function wizardReducer(
 				extracted: null,
 				declaredTotals: null,
 				extractionMs: null,
+				skippedRows: [],
 			};
 		case "select-parser":
-			return { ...state, parserId: action.parserId };
+			// Another parser reads the same file into different records, so an index
+			// kept here would hold out whichever row landed at that position.
+			return { ...state, parserId: action.parserId, skippedRows: [] };
 		case "select-account":
 			return { ...state, accountId: action.accountId };
 		case "go-to-preview":
@@ -231,6 +258,7 @@ export function wizardReducer(
 				rows: [],
 				parserId: null,
 				autoDetected: false,
+				skippedRows: [],
 			};
 		case "extract-success": {
 			const next: WizardState = {
@@ -278,6 +306,22 @@ export function wizardReducer(
 			};
 			return { ...state, extracted: [...(state.extracted ?? []), blank] };
 		}
+		case "skip-row": {
+			if (state.skippedRows.includes(action.index)) return state;
+			return {
+				...state,
+				// Kept ascending — the preview reads them as a set, so the order is for
+				// whoever reads the state, and row order is the order they are in.
+				skippedRows: [...state.skippedRows, action.index].sort((a, b) => a - b),
+			};
+		}
+		case "restore-row":
+			return {
+				...state,
+				skippedRows: state.skippedRows.filter(
+					(index) => index !== action.index,
+				),
+			};
 		default:
 			return state;
 	}

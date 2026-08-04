@@ -86,8 +86,9 @@ was already imported leaves the earlier rows — and every manual decision made 
 them — standing. It used to replace the month, which cost the previous statement
 its rows whenever two statements legitimately overlapped (the CCF case, epic
 #85). The consequence is that re-importing the same Statement **duplicates** it;
-the guard is the **already imported** mark in the preview, and removing rows is
-the user's action (bulk delete, issue #86). The `importMonth` (`"YYYY-MM"`) is derived per-row from each
+the guard is the **already imported** mark in the preview, and holding a row out
+is the user's action — a **skipped row** before the commit, bulk delete (issue
+#86) after it. The `importMonth` (`"YYYY-MM"`) is derived per-row from each
 transaction's date, so one Statement spanning a month boundary yields two
 Imports.
 _Avoid_: Batch, load, replace (an import replaces nothing).
@@ -114,11 +115,25 @@ stored row marks one previewed row, not both. Rows on other accounts are neither
 read nor compared: the same transaction on another account is not a duplicate.
 _Avoid_: Duplicate detection (nothing is detected and acted on), dedupe (there is
 no dedupe key — see epic #85), conflict.
+_See also_: **Skipped row** — what a user does about a marked row.
 _Code note_: the comparison is `import/duplicates.ts` (pure) and the reads are
 `useDuplicateFlags` — one list read per (account, month) the batch touches,
 capped at `DUPLICATE_SCAN_LIMIT`. Distinct from a transaction's
 `isDuplicateExcluded`, which is a stored decision about a row already in the
 table.
+
+**Skipped row**:
+A previewed row the user held out of the commit — the recourse for an **already
+imported** mark, and the only thing that ever keeps a parsed row from being
+written (epic #85). Offered per row on both preview paths: the CSV preview
+strikes the row through and keeps a restore control beside it, while the
+**side-by-side validation** view deletes it outright, since a PDF's rows are
+editable there anyway. A skip is a decision about *this* commit and nothing
+else: it writes nothing, stores nothing, and is gone when the wizard is.
+_Avoid_: Excluded (reserved for **excluded from recap**), ignored, deselected.
+_Code note_: `skippedRows` on the wizard state, ascending indices into the
+parsed records. They name records rather than CSV lines, so another file or
+another **Parser** clears them.
 
 **Raw issuer string**:
 The unparsed counterparty text on a transaction (`rawIssuerString`, e.g.

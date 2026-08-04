@@ -42,7 +42,10 @@ export function CommitBar({
 					variant="primary"
 					size="md"
 					onClick={() => commit.mutate({ records })}
-					disabled={commit.isPending}
+					// Nothing left to write — every previewed row was skipped (epic #85),
+					// or the statement parsed to no rows at all. Committing would post an
+					// empty batch and toast an import of nothing.
+					disabled={commit.isPending || records.length === 0}
 				>
 					{commit.isPending ? "Importing…" : "Commit import"}
 				</Button>
