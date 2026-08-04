@@ -29,4 +29,6 @@ contract/server/SDK churn to onboard a new bank format.
   is advisory: the preview marks rows that look already-imported and removes
   nothing (issue #89 — a row matching a stored one on date, amount and the
   normalised raw issuer string, all three, within the same account and month).
+  Acting on a mark is the user's: every previewed row carries a **skip** that
+  holds it out of this one commit (epic #85), on the CSV path as on the PDF one.
   Erasing rows is only ever the user's action.
