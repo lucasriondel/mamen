@@ -287,6 +287,18 @@ export const TransactionFilters = {
 	// join. Orthogonal to `bundleId`: that one asks "whose members?", this one
 	// asks "which rows are parents?". Absent returns every kind.
 	kind: Schema.optional(TransactionKind),
+	// The **month filter** (issue #87) — a `"YYYY-MM"` key matched against the
+	// month the transaction's own **`date`** falls in, NOT against the
+	// `importMonth` column of the same name. The two diverge whenever a date moves
+	// after import (a **bundle parent** dated by hand, a date corrected across a
+	// month boundary), and the row then answered for a month its date contradicted
+	// while the month it belonged to did not list it. The recap made the same
+	// correction at issue #71; `importMonth` is provenance, and provenance only.
+	//
+	// The name is kept **deliberately** so bookmarked and shared URLs keep
+	// working: a naming inconsistency traded for not breaking them. The one place
+	// the param still means the column is `deleteByAccountMonth`/`bundleImpact`
+	// below — they ask about a *statement*, not about a month of spending.
 	importMonth: Schema.optional(Schema.String), // "YYYY-MM"
 	importBatchId: Schema.optional(Schema.String),
 	startDate: Schema.optional(Schema.Date), // inclusive lower bound on `date`
@@ -633,6 +645,12 @@ export class TransferCandidate extends Schema.Class<TransferCandidate>(
  * Shared with `bundleImpact`, the pre-flight of that same delete (issue #77):
  * the warning and the delete must name the same statement, so they take the
  * same two params rather than each declaring their own.
+ *
+ * Here — unlike the list/count filter of the same name (issue #87) —
+ * `importMonth` really is the **column**: what these two routes act on is a
+ * *statement*, the set of rows one import produced, so the stamp is exactly the
+ * right key and a row dated outside it is still part of what the re-import
+ * replaces.
  */
 export const TransactionByAccountMonth = Schema.Struct({
 	accountId: numFromStr(AccountId),

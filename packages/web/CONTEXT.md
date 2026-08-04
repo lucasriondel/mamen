@@ -85,6 +85,12 @@ The result of committing a Statement for one account and one month, keyed
 `importMonth` (`"YYYY-MM"`) is derived per-row from each transaction's date, so
 one Statement spanning a month boundary yields two Imports.
 _Avoid_: Batch, load.
+_Code note_: `importMonth` is **provenance** — the statement a row came from —
+and it is the key of the Import alone. The transaction list's Month filter does
+*not* read it: it buckets a row by its own `date` (issue #87), because a date
+can move after import (a **bundle parent** dated by hand, a corrected date) and
+the row must be listed under the month it actually belongs to. The URL param is
+still spelled `importMonth`, kept so bookmarked views keep working.
 
 **Raw issuer string**:
 The unparsed counterparty text on a transaction (`rawIssuerString`, e.g.

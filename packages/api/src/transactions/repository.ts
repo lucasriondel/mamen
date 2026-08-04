@@ -323,6 +323,36 @@ type Filters = {
  */
 type RecapFilter = Pick<Filters, "accountId" | "startDate" | "endDate">;
 
+/**
+ * The half-open ISO bounds `[from, to)` of a `"YYYY-MM"` month — what the
+ * **month filter** matches a row's `date` against (issue #87) — or `undefined`
+ * when the key is not a month at all.
+ *
+ * A **range**, not `substr(t.date, 1, 7) = key`: the column holds an ISO instant
+ * as TEXT, so a bound compares lexicographically exactly as it does
+ * chronologically (the same property `startDate`/`endDate` rely on), and a bare
+ * column comparison is the only form sqlite can serve from the
+ * `(accountId, date)` index — a function of the column could not be. Half-open
+ * so the upper edge needs no knowledge of how long the month is, and so the last
+ * millisecond of it is inside rather than a whisker outside.
+ *
+ * A key that is not `YYYY-MM` (or names month 00/13) has no bounds rather than
+ * nonsensical ones: the filter is a free string on the wire, and the answer to
+ * "the rows of no month" is no rows.
+ */
+const monthBounds = (key: string): { from: string; to: string } | undefined => {
+	const match = /^(\d{4})-(\d{2})$/.exec(key);
+	if (match === null) return undefined;
+	const [, year, month] = match;
+	const monthNumber = Number(month);
+	if (monthNumber < 1 || monthNumber > 12) return undefined;
+	const next =
+		monthNumber === 12
+			? `${Number(year) + 1}-01`
+			: `${year}-${String(monthNumber + 1).padStart(2, "0")}`;
+	return { from: `${year}-${month}-01`, to: `${next}-01` };
+};
+
 /** The full `list` filter — the composable set plus pagination + ordering. */
 type ListFilter = Filters & {
 	limit: number;
@@ -505,8 +535,27 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				// bank row it is rather than falling out of both halves of the filter.
 				if (f.kind !== undefined)
 					conditions.push(sql`COALESCE(t.kind, 'bank') = ${f.kind}`);
-				if (f.importMonth !== undefined)
-					conditions.push(sql`t.importMonth = ${f.importMonth}`);
+				// The **month filter** (issue #87): the month the row's OWN `date`
+				// falls in, NOT the `importMonth` it was stamped with. The two diverge
+				// whenever a date moves after import — a **bundle parent** dated by
+				// hand (#72), a date corrected across a month boundary — and the row
+				// then appeared under a month its date contradicted while the month it
+				// belonged to did not show it. The recap made the same correction at
+				// issue #71; `importMonth` is provenance, and provenance only.
+				//
+				// The parameter keeps its name so bookmarked and shared URLs keep
+				// working: a deliberate naming inconsistency, traded for not breaking
+				// them. The column is still written on import and still read as
+				// provenance — by the detail page, and by the delete/impact routes,
+				// which ask about a *statement*, not about a month of spending.
+				if (f.importMonth !== undefined) {
+					const bounds = monthBounds(f.importMonth);
+					conditions.push(
+						bounds === undefined
+							? sql`1 = 0`
+							: sql`(t.date >= ${bounds.from} AND t.date < ${bounds.to})`,
+					);
+				}
 				if (f.importBatchId !== undefined)
 					conditions.push(sql`t.importBatchId = ${f.importBatchId}`);
 				if (f.startDate !== undefined)

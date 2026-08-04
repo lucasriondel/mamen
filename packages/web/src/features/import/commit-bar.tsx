@@ -67,6 +67,15 @@ export function CommitBar({
 /**
  * A per-month replacement notice: reads the account's existing row count for the
  * month and, when non-zero, warns that committing will replace those rows.
+ *
+ * The count is **approximate since issue #87**: `count`'s `importMonth` filter
+ * now buckets by the row's own `date`, while the delete this warns about still
+ * acts on the `importMonth` column — so a row whose date moved after import (a
+ * **bundle parent** dated by hand, a corrected date) is counted under one month
+ * and deleted under another. The number is advisory and the divergence is
+ * confined to rows whose two months disagree; the honest fix is epic #85's, which
+ * removes the delete this notice is about altogether — an import stops replacing
+ * anything, and the warning goes with it.
  */
 function MonthReplacement({
 	accountId,
