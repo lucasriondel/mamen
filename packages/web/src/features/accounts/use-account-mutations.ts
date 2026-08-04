@@ -37,11 +37,21 @@ export function useAccountMutations() {
 		onError,
 	});
 
+	// `color: null` is a meaningful value here, not an omission — it clears the
+	// stored colour and returns the account to the auto palette — so it is sent
+	// explicitly rather than stripped from the payload.
+	const recolor = useMutation({
+		mutationFn: ({ id, color }: { id: AccountId; color: string | null }) =>
+			accountMutations.update(id, { color }),
+		onSuccess: invalidate,
+		onError,
+	});
+
 	const remove = useMutation({
 		mutationFn: (id: AccountId) => accountMutations.remove(id),
 		onSuccess: invalidate,
 		onError,
 	});
 
-	return { create, rename, remove };
+	return { create, rename, recolor, remove };
 }

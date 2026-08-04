@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { transactionQueries } from "@/lib/sdk";
+import { resolveAccountColor } from "./account-color";
+import { AccountColorPicker } from "./account-color-picker";
 import { accountTypeLabel } from "./account-type";
 import { useAccountMutations } from "./use-account-mutations";
 
@@ -24,7 +26,7 @@ interface AccountRowProps {
  * an explanation instead of calling the mutation.
  */
 export function AccountRow({ account }: AccountRowProps) {
-	const { rename, remove } = useAccountMutations();
+	const { rename, recolor, remove } = useAccountMutations();
 	const [editing, setEditing] = useState(false);
 	const [draftName, setDraftName] = useState(account.name);
 
@@ -87,7 +89,17 @@ export function AccountRow({ account }: AccountRowProps) {
 					</Button>
 				</form>
 			) : (
-				<div className="flex items-baseline gap-3">
+				<div className="flex items-center gap-3">
+					{/* The swatch is the edit surface: it sits beside the name so the
+					    colour is changed where it is read, and it paints the resolved
+					    colour so an auto account still shows what its badge looks like. */}
+					<AccountColorPicker
+						label={account.name}
+						value={account.color}
+						resolved={resolveAccountColor(account)}
+						pending={recolor.isPending}
+						onSubmit={(color) => recolor.mutate({ id: account.id, color })}
+					/>
 					<span className="font-medium text-gousse-ink">{account.name}</span>
 					<span className="text-sm text-gousse-muted">
 						{accountTypeLabel(account.type)}

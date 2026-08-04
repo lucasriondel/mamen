@@ -15,6 +15,7 @@ const AccountRow = Schema.Struct({
 	id: Schema.Number,
 	name: Schema.String,
 	type: Schema.String,
+	color: Schema.NullOr(Schema.String),
 	createdAt: Schema.String,
 	updatedAt: Schema.String,
 });
@@ -123,6 +124,10 @@ export class AccountRepo extends Effect.Service<AccountRepo>()(
 						insertQuery({
 							name: payload.name,
 							type: payload.type,
+							// `color` is optional on the create payload; normalise the absent
+							// case to an explicit null so `sql.insert` always writes the
+							// column rather than omitting it from the statement.
+							color: payload.color ?? null,
 							createdAt: now,
 							updatedAt: now,
 						}),

@@ -30,11 +30,13 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { AccountBadge } from "@/features/accounts/account-badge";
 import { resolveCategoryColors } from "@/lib/category-tree";
 import { formatShortDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { AssignmentPicker } from "./assignment-picker";
 import { CategoryPicker } from "./category-picker";
+import { ExcludedCell } from "./excluded-cell";
 import { IssuerPicker } from "./issuer-picker";
 import { NotesPicker } from "./notes-picker";
 import { AmountCell, TransferBadge } from "./transaction-cells";
@@ -123,8 +125,8 @@ function SelectCheckbox({
 
 /**
  * The transactions data grid (columns **Date | Account | Issuer | Raw issuer |
- * Category | Amount | Notes**, behind the leading control columns — selection
- * and bundle expansion), rendered with TanStack Table onto the token-styled `Table`
+ * Category | Amount | Excluded | Notes**, behind the leading control columns —
+ * selection and bundle expansion), rendered with TanStack Table onto the token-styled `Table`
  * primitive. Sorting is server-driven: the Date header toggles `direction` in
  * the URL rather than reordering rows client-side, so the shown page always
  * matches the query. The Category column reads the row's *derived* `categoryId`
@@ -270,7 +272,12 @@ export function TransactionsTable({
 				// Explicit id so the columns toggle can address it as "account".
 				id: "account",
 				header: "Account",
-				cell: (info) => accountsById.get(info.getValue())?.name ?? "—",
+				// The badge owns the missing-account case (it renders the placeholder),
+				// so a deleted or not-yet-loaded account stays a dash rather than an
+				// empty pill.
+				cell: (info) => (
+					<AccountBadge account={accountsById.get(info.getValue())} />
+				),
 			}),
 			columnHelper.display({
 				id: "issuer",
@@ -340,6 +347,17 @@ export function TransactionsTable({
 				header: () => <span className="sr-only">Transfer</span>,
 				cell: ({ row }) =>
 					row.original.transferGroupId != null ? <TransferBadge /> : null,
+			}),
+			columnHelper.display({
+				id: "excluded",
+				header: "Excluded",
+				// Whether this row's money is held out of the recap, and the lever for
+				// it (ADR 0008) — the same gesture the detail page's Recap block
+				// offers, in the grid, so a page can be swept in one pass. Shown on a
+				// **bundle member** too: a member is out of the totals *structurally*
+				// (its parent stands for it), so its own flag is a fact about the row
+				// the reader can still see and set.
+				cell: ({ row }) => <ExcludedCell transaction={row.original} />,
 			}),
 			columnHelper.display({
 				id: "notes",
@@ -526,6 +544,7 @@ export function TransactionsTable({
 										cell.column.id === "expand" ||
 										cell.column.id === "issuer" ||
 										cell.column.id === "category" ||
+										cell.column.id === "excluded" ||
 										cell.column.id === "notes";
 									return (
 										<TableCell

@@ -9,19 +9,34 @@ import { NotFound } from "./errors";
 import { AccountId, numFromStr } from "./ids";
 import { Paged, Pagination } from "./pagination";
 
-/** Account entity — the wire shape returned by every accounts endpoint. */
+/**
+ * Account entity — the wire shape returned by every accounts endpoint.
+ *
+ * `color` is nullable and null means **auto**, not *absent*: accounts are a flat
+ * list with no parent to inherit from (unlike a Category — ADR 0006), so there
+ * is nothing to resolve up a tree. A null instead resolves to a stable palette
+ * entry derived from the account's `id`, which is why no migration backfills the
+ * column: every pre-existing account already paints a distinct badge, and a user
+ * who never opens the colour picker never sees an uncoloured account.
+ */
 export class Account extends Schema.Class<Account>("Account")({
 	id: AccountId,
 	name: Schema.String,
 	type: Schema.Literal("checking", "savings", "credit_card", "other"),
+	color: Schema.NullOr(Schema.String), // null = auto-derive from id
 	createdAt: Schema.Date,
 	updatedAt: Schema.Date,
 }) {}
 
-/** Create payload — the server assigns `id`, `createdAt`, `updatedAt`. */
+/**
+ * Create payload — the server assigns `id`, `createdAt`, `updatedAt`. `color` is
+ * optional here (rather than nullable-required) so existing callers that only
+ * send `name`/`type` stay valid; an omitted colour lands as null, i.e. auto.
+ */
 export const AccountCreate = Schema.Struct({
 	name: Account.fields.name,
 	type: Account.fields.type,
+	color: Schema.optional(Account.fields.color),
 });
 export type AccountCreate = typeof AccountCreate.Type;
 
