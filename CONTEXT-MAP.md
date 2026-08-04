@@ -291,7 +291,10 @@ repeated per package.
   question about netting (#65), not a fourth partition. Which rows count is
   one predicate, `countsTowardRecap`, defined once beside the **derived category**
   expression and never restated per surface: a second copy is a second definition
-  of "counts toward spend", and the two drift. The totals are summed **in SQL over
+  of "counts toward spend", and the two drift. It states **every** one of those
+  holdings-out itself, including the bundle one (#80) — a clause the predicate
+  leaves to a default of the query around it is a rule that happens to hold,
+  not one the predicate keeps. The totals are summed **in SQL over
   the whole period** (issue #71) — there is no page, no row cap and no partial
   answer; the client only names the buckets it is handed.
   A period is always a bound on the transaction **date**, never on the **import

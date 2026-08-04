@@ -1312,8 +1312,9 @@ describe("TransactionRepo", () => {
 		);
 
 		// A **bundle member** is accounted for by its parent, so counting both would
-		// show the same money twice. The hiding is `buildConditions`' default, which
-		// the recap inherits for free.
+		// show the same money twice. Stated by `countsTowardRecap` itself since
+		// issue #80 — `recap-predicate.test.ts` pins that clause with the predicate
+		// alone; this case pins the behaviour through the endpoint the user sees.
 		it.effect("counts the bundle parent once, never its members", () =>
 			Effect.gen(function* () {
 				const repo = yield* TransactionRepo;
@@ -1417,6 +1418,74 @@ describe("TransactionRepo", () => {
 					[asIssuer(5)],
 				);
 			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		// The **regression guard** for issue #80: moving the bundle rule into
+		// `countsTowardRecap` was meant to change what the predicate *says*, not
+		// what the recap *answers*. So one fixture holding a row of every partition
+		// — ordinary spend, a bundle, a transfer pair, both flavours of exclusion,
+		// income — with the whole summary asserted as one literal. Any drift in any
+		// bucket, in any direction, shows up here as a diff.
+		it.effect("answers the same summary for a fixture of every partition", () =>
+			Effect.gen(function* () {
+				const sql = yield* SqlClient.SqlClient;
+				const repo = yield* TransactionRepo;
+				yield* sql`INSERT INTO issuers (id, name, excludedFromRecap, createdAt, firstSeen) VALUES (10, 'Joint account', 1, ${DATE.toISOString()}, ${DATE.toISOString()})`;
+				// Ordinary spend, categorised by hand: 25 under issuer 1 / category 7.
+				const shop = { issuerId: asIssuer(1), categoryId: asCategory(7) };
+				yield* repo.create(
+					spent({ amount: -20, ...shop, manualCategory: true }),
+				);
+				yield* repo.create(
+					spent({ amount: -5, ...shop, manualCategory: true }),
+				);
+				// A bundle: the parent nets to -50 and stands for both members, which
+				// carry an issuer and a category of their own that must NOT surface.
+				const a = yield* repo.create(
+					spent({ amount: -200, ...shop, manualCategory: true }),
+				);
+				const b = yield* repo.create(spent({ amount: 150 }));
+				yield* repo.createBundle([a.id, b.id], "Weekend away");
+				// A transfer pair — out of the breakdowns, into the transfer line.
+				const debit = yield* repo.create(
+					spent({ amount: -30, issuerId: asIssuer(2) }),
+				);
+				const credit = yield* repo.create(
+					spent({ amount: 30, accountId: asAccount(2), issuerId: asIssuer(2) }),
+				);
+				yield* repo.linkTransfer([debit.id, credit.id]);
+				// Excluded by hand, excluded through the issuer, duplicate-excluded.
+				yield* repo.create(
+					spent({
+						amount: -50,
+						issuerId: asIssuer(1),
+						excludedFromRecap: true,
+						manualExcluded: true,
+					}),
+				);
+				yield* repo.create(spent({ amount: -70, issuerId: asIssuer(10) }));
+				yield* repo.create(
+					spent({
+						amount: -25,
+						issuerId: asIssuer(1),
+						isDuplicateExcluded: true,
+					}),
+				);
+				// Income: not spend, so it reaches no bucket.
+				yield* repo.create(spent({ amount: 100, issuerId: asIssuer(1) }));
+
+				assert.deepStrictEqual(yield* repo.recap({}), {
+					byIssuer: [
+						{ id: null, spent: 50, count: 1 },
+						{ id: asIssuer(1), spent: 25, count: 2 },
+					],
+					byCategory: [
+						{ id: null, spent: 50, count: 1 },
+						{ id: asCategory(7), spent: 25, count: 2 },
+					],
+					transfers: { total: 30, count: 2 },
+				});
+			}).pipe(Effect.provide(RepoAndSqlTest)),
 		);
 
 		// The correction at the heart of #71: the period is a bound on the

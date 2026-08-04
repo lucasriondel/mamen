@@ -285,8 +285,9 @@ export const AccountIdFilter = Schema.Union(
  * The **recap**'s filter set (issue #71) — deliberately narrow next to
  * {@link TransactionFilters}: a recap is a **period** and an account selection,
  * nothing else. Which rows *count* is not a filter the caller composes but the
- * server's `countsTowardRecap` predicate, defined once in the repository beside
- * the derived-category and derived-exclusion expressions.
+ * server's `countsTowardRecap` predicate, defined once (in the API's
+ * `recap-predicate` module) beside the derived-exclusion and bundle-membership
+ * expressions it is built from.
  *
  * `startDate`/`endDate` are inclusive bounds on the transaction's **`date`** —
  * the day the money moved. Every period (month, year, all time) is expressed as
@@ -640,10 +641,10 @@ export class TransactionsGroup extends HttpApiGroup.make("transactions")
 	// aggregated by issuer and by category over the WHOLE filtered set — no page,
 	// no row cap, no `truncated` caveat. Which rows count is the server's single
 	// `countsTowardRecap` predicate (not a transfer leg, not excluded, not
-	// duplicate-excluded), defined once beside the derived-category and
-	// derived-exclusion expressions, so the recap and the list can never disagree
-	// about what "counts toward spend" means. Another literal sub-path, declared
-	// before the `:id` route.
+	// duplicate-excluded, not a bundle member), defined once beside the
+	// derived-category and derived-exclusion expressions, so the recap and the
+	// list can never disagree about what "counts toward spend" means. Another
+	// literal sub-path, declared before the `:id` route.
 	.add(
 		HttpApiEndpoint.get("recap")`/transactions/recap`
 			.setUrlParams(Schema.Struct(RecapFilters))

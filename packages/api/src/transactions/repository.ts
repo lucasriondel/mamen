@@ -22,6 +22,7 @@ import {
 import { Clock, Effect, Option, Schema } from "effect";
 import { orDieSql } from "../db/errors";
 import { bundleAnomalyFlags, deriveBundleParent } from "./bundle-derivation";
+import { recapPredicates } from "./recap-predicate";
 
 /**
  * A stored transaction row. The seven "boolean" columns (`manualCategory`,
@@ -382,52 +383,23 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 			// 0002 records). Requires the `issuers` LEFT JOIN (`readFrom`) in scope.
 			const derivedCategory = sql`CASE WHEN t.manualCategory = 1 THEN t.categoryId ELSE i.defaultCategoryId END`;
 
-			// **Excluded from recap** (issues #67/#69, ADR 0008), defined ONCE beside
-			// the expression it mirrors and reused by the read projection AND the
-			// filter, so the two can never disagree — the ADR 0002 drift, on a second
-			// field. Same shape as `derivedCategory`, over the same `issuers` LEFT
-			// JOIN: a row the user decided about (`manualExcluded`) keeps its own
-			// stored flag, any other row inherits its issuer's default. So a
-			// transaction imported under an excluded issuer is excluded the moment it
-			// lands — nothing to re-run — and un-excluding an issuer cannot clobber a
-			// deliberate per-row decision in either direction.
-			//
-			// `COALESCE(i.excludedFromRecap, 0)` is where the LEFT JOIN's `NULL`
-			// lands: a row with no issuer (or an issuer predating migration 0019) has
-			// nothing to inherit, so it *counts*. Without it the read would decode a
-			// `NULL` into a non-nullable column and `WHERE … = 0` would drop every
-			// issuer-less row from the "counted only" view — neither side of the
-			// filter would list it.
-			const recapExclusion = sql`CASE WHEN t.manualExcluded = 1 THEN t.excludedFromRecap ELSE COALESCE(i.excludedFromRecap, 0) END`;
-
-			// **Counts toward recap** (issue #71) — the ONE definition of what the
-			// spend summary is computed over, built from the `recapExclusion` fragment
-			// above rather than restating any part of it. A row counts unless it is:
-			//
-			// - a **transfer group** leg — money moving between the user's own
-			//   accounts, not spending. Summarised separately (`recapTransfersQuery`)
-			//   because there IS a counterpart and the movement is worth a line.
-			// - **excluded from recap** — by its own flag or through its issuer.
-			// - **duplicate-excluded** — the same money already counted on another
-			//   row, so counting it again would overstate the period.
-			//
-			// **Bundle members** are absent from this list on purpose: they are hidden
-			// by `buildConditions`' `t.bundleId IS NULL` default, which the recap
-			// inherits for free — the parent already stands for them.
-			//
-			// A **bundle parent** is absent for the mirror reason (issue #76): it is
-			// an ordinary row here, so it counts once, for its summed amount, under
-			// the issuer and category the user curated onto it, and follows the sign
-			// rule below with no special case — a bundle that sums to a credit is
-			// income and reaches no bucket, exactly as any credit does. That it is
-			// probably a mis-bundling is said with an anomaly flag on the parent
-			// (`bundleAnomalyFlags`), never by bending the arithmetic.
-			//
-			// Every clause reads a column that is never NULL (`recapExclusion`
-			// COALESCEs the LEFT JOIN's away), so `NOT (…)` cannot swallow a row.
-			const isTransferLeg = sql`t.transferGroupId IS NOT NULL`;
-			const isRecapExcluded = sql`(${recapExclusion} = 1 OR t.isDuplicateExcluded = 1)`;
-			const countsTowardRecap = sql`(NOT ${isTransferLeg} AND NOT ${isRecapExcluded})`;
+			// The recap's fragments — **excluded from recap** (issues #67/#69, ADR
+			// 0008), the **bundle-membership** rule (#68) and the single
+			// `countsTowardRecap` predicate they compose into (#71) — all built in
+			// {@link recapPredicates}, over this file's `t`/`i` aliases. They live in
+			// a module of their own (issue #80) so the predicate can be run alone in a
+			// test, against rows, instead of only ever through the WHERE the list
+			// builds around it. `recapExclusion` is not recap-only: the read
+			// projection and the `excludedFromRecap` filter read the SAME fragment, so
+			// the row a filter selects and the row a projection shows can never
+			// disagree about being excluded.
+			const {
+				recapExclusion,
+				isTransferLeg,
+				isNotBundleMember,
+				isRecapExcluded,
+				countsTowardRecap,
+			} = recapPredicates(sql);
 
 			// The same expression under different table aliases, for the two
 			// self-join projections below (`suggestTransfers`, `transferCandidates`):
@@ -484,11 +456,15 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				// already accounts for them, so listing both would show the same money
 				// twice, in the rows and in the signed `total` the same WHERE drives.
 				// The default belongs here, not in each caller, so no surface can
-				// forget it (the drift ADR 0002 records, on the grouping axis).
+				// forget it (the drift ADR 0002 records, on the grouping axis) — and it
+				// is the SAME `isNotBundleMember` fragment `countsTowardRecap` states
+				// the rule with, not a second copy of it: the recap no longer *depends*
+				// on this default (issue #80), but it must not come to disagree with it
+				// either.
 				conditions.push(
 					f.bundleId !== undefined
 						? sql`t.bundleId = ${f.bundleId}`
-						: sql`t.bundleId IS NULL`,
+						: isNotBundleMember,
 				);
 				// The row's **kind** (issue #74): `bundle` narrows to the parents, which
 				// is how a row is offered the bundles it may join. Orthogonal to
@@ -639,7 +615,11 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 			// so only debits. Income nets a bucket down by never being counted, which
 			// is what makes a fully-refunded purchase read as its own charge and not
 			// as a negative bucket. `buildConditions` always contributes at least the
-			// bundle-member clause, so the fragment list is never empty.
+			// bundle-member clause, so the fragment list is never empty — but since
+			// issue #80 the recap no longer *leans* on that: `countsTowardRecap` states
+			// the bundle rule itself, so this WHERE would hold members out even if the
+			// caller's conditions were empty. The two say the same thing through the
+			// same fragment, so sqlite folds the repeat and the plan is unchanged.
 			const spendWhere = (f: Filters) =>
 				sql`WHERE ${sql.and([...buildConditions(f), countsTowardRecap, sql`t.amount < 0`])}`;
 
@@ -679,11 +659,18 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 			// every leg in the period, both sides. Legs that are excluded or
 			// duplicate-excluded are left out of this too — they are out of the
 			// arithmetic entirely, and unlike a transfer there is nothing to report.
+			//
+			// The complement half of `countsTowardRecap`, so it states its own row
+			// rule the same way (issue #80): the bundle clause is named here rather
+			// than inherited from the list default. It refuses nothing today — the two
+			// groupings are mutually exclusive (#75), so a leg carries no `bundleId` —
+			// which is exactly why it is worth saying instead of relying on a default
+			// that is not this query's to keep.
 			const recapTransfersQuery = SqlSchema.single({
 				Request: Schema.Any as Schema.Schema<Filters>,
 				Result: RecapTransfers,
 				execute: (f) =>
-					sql`SELECT COALESCE(SUM(CASE WHEN t.amount < 0 THEN ROUND(-t.amount * 100) ELSE 0 END), 0) / 100.0 AS total, COUNT(*) AS count ${readFrom} WHERE ${sql.and([...buildConditions(f), isTransferLeg, sql`NOT ${isRecapExcluded}`])}`,
+					sql`SELECT COALESCE(SUM(CASE WHEN t.amount < 0 THEN ROUND(-t.amount * 100) ELSE 0 END), 0) / 100.0 AS total, COUNT(*) AS count ${readFrom} WHERE ${sql.and([...buildConditions(f), isTransferLeg, sql`NOT ${isRecapExcluded}`, isNotBundleMember])}`,
 			});
 
 			// The months the data covers, newest first — the period picker's options.
@@ -691,14 +678,16 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 			// so the options are derived from the same field every period bound is
 			// (offering *import* months while filtering on the date is how the month
 			// and year views came to disagree). Bundle members are hidden like
-			// everywhere else; `countsTowardRecap` is deliberately NOT applied — a
-			// month exists because rows are dated in it, and hiding one whose money
-			// all happens to be excluded would leave the user unable to look at it.
+			// everywhere else — through the shared `isNotBundleMember` fragment, so
+			// this is the same rule and not a third hand-written copy of it;
+			// `countsTowardRecap` is deliberately NOT applied — a month exists because
+			// rows are dated in it, and hiding one whose money all happens to be
+			// excluded would leave the user unable to look at it.
 			const recapPeriodsQuery = SqlSchema.findAll({
 				Request: Schema.Void,
 				Result: Schema.Struct({ month: Schema.String }),
 				execute: () =>
-					sql`SELECT DISTINCT substr(t.date, 1, 7) AS month FROM transactions t WHERE t.bundleId IS NULL ORDER BY month DESC`,
+					sql`SELECT DISTINCT substr(t.date, 1, 7) AS month FROM transactions t WHERE ${isNotBundleMember} ORDER BY month DESC`,
 			});
 
 			const byIdQuery = SqlSchema.findOne({
@@ -1305,8 +1294,11 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 			 * rows per account and reduced them in the browser — past that cap the
 			 * totals were simply wrong, and every exclusion rule had to be restated in
 			 * that reducer alongside the SQL that already expressed it for the list.
-			 * Here there is one predicate, `countsTowardRecap`, defined once beside
-			 * the derived-category and derived-exclusion expressions it is built from.
+			 * Here there is one predicate, `countsTowardRecap` ({@link recapPredicates}),
+			 * defined once beside the derived-exclusion and bundle-membership fragments
+			 * it is built from — and stating every clause itself (issue #80), so what
+			 * reaches the recap is readable in one place rather than assembled from a
+			 * predicate plus whichever defaults the surrounding WHERE happens to add.
 			 *
 			 * The three queries share one filter object, so the breakdowns and the
 			 * transfer line can never be computed over different row sets.
