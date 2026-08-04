@@ -1,15 +1,8 @@
 import type { Category, Issuer, Transaction } from "@mamen/shared/contract";
-import {
-	createMemoryHistory,
-	createRootRoute,
-	createRoute,
-	createRouter,
-	RouterProvider,
-} from "@tanstack/react-router";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { BundleMemberRow } from "./bundle-member-row";
+import { BundleMemberActions } from "./bundle-member-actions";
 
 const ISSUER = { id: 10, name: "Carrefour" } as unknown as Issuer;
 const CATEGORY = { id: 7, name: "Groceries" } as unknown as Category;
@@ -45,56 +38,17 @@ function parent(over: Partial<Transaction> = {}): Transaction {
 	} as Transaction;
 }
 
-/** The row links to the member's own page, so it needs a router around it. */
-function renderRow(ui: React.ReactElement) {
-	const rootRoute = createRootRoute();
-	const rowRoute = createRoute({
-		getParentRoute: () => rootRoute,
-		path: "/",
-		component: () => <ul>{ui}</ul>,
-	});
-	const detailRoute = createRoute({
-		getParentRoute: () => rootRoute,
-		path: "/transactions/$transactionId",
-		component: () => <div>member page</div>,
-	});
-	const router = createRouter({
-		routeTree: rootRoute.addChildren([rowRoute, detailRoute]),
-		history: createMemoryHistory({ initialEntries: ["/"] }),
-	});
-	render(<RouterProvider router={router} />);
-}
-
 const handlers = () => ({
 	onCopyIssuer: vi.fn(),
 	onCopyCategory: vi.fn(),
 	onRemove: vi.fn(),
 });
 
-describe("BundleMemberRow (issue #82)", () => {
-	it("names the member and links to its own page", async () => {
-		renderRow(
-			<BundleMemberRow
-				member={member()}
-				parent={parent()}
-				issuer={ISSUER}
-				category={CATEGORY}
-				disabled={false}
-				{...handlers()}
-			/>,
-		);
-
-		expect(await screen.findByText(/CARREFOUR MARKET/)).toBeVisible();
-		expect(screen.getByRole("link")).toHaveAttribute(
-			"href",
-			"/transactions/201",
-		);
-	});
-
+describe("BundleMemberActions (issue #82)", () => {
 	it("copies the member's issuer and category onto the parent", async () => {
 		const spies = handlers();
-		renderRow(
-			<BundleMemberRow
+		render(
+			<BundleMemberActions
 				member={member()}
 				parent={parent()}
 				issuer={ISSUER}
@@ -115,9 +69,9 @@ describe("BundleMemberRow (issue #82)", () => {
 	});
 
 	// An absent button says "nothing to copy" more plainly than a disabled one.
-	it("offers no shortcut for a member carrying neither", async () => {
-		renderRow(
-			<BundleMemberRow
+	it("offers no shortcut for a member carrying neither", () => {
+		render(
+			<BundleMemberActions
 				member={member({
 					issuerId: null,
 					categoryId: null,
@@ -128,16 +82,19 @@ describe("BundleMemberRow (issue #82)", () => {
 			/>,
 		);
 
-		await screen.findByText(/CARREFOUR MARKET/);
 		expect(
 			screen.queryByRole("button", { name: /use .* as this/i }),
 		).toBeNull();
+		// The way out is never conditional: any member can leave.
+		expect(
+			screen.getByRole("button", { name: /remove .* from this bundle/i }),
+		).toBeVisible();
 	});
 
 	// The row is not missing anything, so the button stays — disabled, saying why.
-	it("keeps but disables a shortcut the parent already carries", async () => {
-		renderRow(
-			<BundleMemberRow
+	it("keeps but disables a shortcut the parent already carries", () => {
+		render(
+			<BundleMemberActions
 				member={member()}
 				parent={parent({ issuerId: 10 } as Partial<Transaction>)}
 				issuer={ISSUER}
@@ -148,7 +105,7 @@ describe("BundleMemberRow (issue #82)", () => {
 		);
 
 		expect(
-			await screen.findByRole("button", { name: /use carrefour as/i }),
+			screen.getByRole("button", { name: /use carrefour as/i }),
 		).toBeDisabled();
 		expect(
 			screen.getByRole("button", { name: /use groceries as/i }),
@@ -157,8 +114,8 @@ describe("BundleMemberRow (issue #82)", () => {
 
 	it("offers the way out of the bundle", async () => {
 		const spies = handlers();
-		renderRow(
-			<BundleMemberRow
+		render(
+			<BundleMemberActions
 				member={member()}
 				parent={parent()}
 				issuer={ISSUER}
@@ -178,9 +135,9 @@ describe("BundleMemberRow (issue #82)", () => {
 		expect(spies.onRemove).toHaveBeenCalled();
 	});
 
-	it("disables every control while a write is in flight", async () => {
-		renderRow(
-			<BundleMemberRow
+	it("disables every control while a write is in flight", () => {
+		render(
+			<BundleMemberActions
 				member={member()}
 				parent={parent()}
 				issuer={ISSUER}
@@ -190,7 +147,7 @@ describe("BundleMemberRow (issue #82)", () => {
 			/>,
 		);
 
-		for (const button of await screen.findAllByRole("button")) {
+		for (const button of screen.getAllByRole("button")) {
 			expect(button).toBeDisabled();
 		}
 	});

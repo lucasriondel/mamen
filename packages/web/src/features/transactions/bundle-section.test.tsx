@@ -144,8 +144,12 @@ describe("BundleSection (issue #72)", () => {
 	it("lists the members the parent stands for", async () => {
 		renderSection(parent());
 
-		expect(await screen.findByText(/CARREFOUR MARKET/)).toBeVisible();
-		expect(screen.getByText(/VIREMENT LUCAS/)).toBeVisible();
+		// Each member is a row of the ordinary transactions grid, so it is named by
+		// the **Raw issuer** column — and, on an uncurated row, by the assignment
+		// picker offering to resolve that same string. `getAllBy` because both are
+		// the row being there, which is what this asserts.
+		expect((await screen.findAllByText(/CARREFOUR MARKET/))[0]).toBeVisible();
+		expect(screen.getAllByText(/VIREMENT LUCAS/)[0]).toBeVisible();
 		// Asked for by bundle — the only way the list reaches a member at all.
 		expect(listTransactions).toHaveBeenCalledWith(
 			expect.objectContaining({ bundleId: 300 }),
@@ -193,7 +197,7 @@ describe("BundleSection (issue #72)", () => {
 
 	it("offers no shortcut for a member that carries neither", async () => {
 		renderSection(parent());
-		await screen.findByText(/VIREMENT LUCAS/);
+		await screen.findAllByText(/VIREMENT LUCAS/);
 
 		// Exactly one of each: the payback row has no issuer and no category, so
 		// there is nothing on it to adopt.

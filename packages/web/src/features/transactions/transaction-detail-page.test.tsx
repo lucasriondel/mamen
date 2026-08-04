@@ -287,8 +287,11 @@ describe("TransactionDetailPage", () => {
 	it("shows a bundle parent the members it stands for", async () => {
 		render(<RouterProvider router={makeRouter(300)} />);
 
-		expect(await screen.findByText(/CARREFOUR MARKET/)).toBeVisible();
-		expect(screen.getByText(/VIREMENT LUCAS/)).toBeVisible();
+		// The members are rows of the ordinary transactions grid, so each is named
+		// by the **Raw issuer** column and — while uncurated — by the assignment
+		// picker offering to resolve that same string.
+		expect((await screen.findAllByText(/CARREFOUR MARKET/))[0]).toBeVisible();
+		expect(screen.getAllByText(/VIREMENT LUCAS/)[0]).toBeVisible();
 		// The date is the bundle's own to override; the amount is the members' sum
 		// and has no control anywhere on the page.
 		expect(screen.getByLabelText(/bundle date/i)).toBeVisible();
