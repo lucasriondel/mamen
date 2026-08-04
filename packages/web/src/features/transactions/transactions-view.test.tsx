@@ -5,7 +5,7 @@ import {
 	createRouter,
 	RouterProvider,
 } from "@tanstack/react-router";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { validateTransactionsSearch } from "./search";
@@ -358,6 +358,36 @@ describe("TransactionsView", () => {
 		expect(listMock).toHaveBeenCalledWith(
 			expect.objectContaining({ accountId: 1, importMonth: "2026-01" }),
 		);
+	});
+
+	// The month options are minted from the same field the filter now matches
+	// (issue #87): the row's own `date`. Derived from the import stamp instead,
+	// a row whose date moved after import would be unreachable — the dropdown
+	// would offer the month it was filed under, and picking that month would
+	// return everything except it.
+	it("offers months derived from the rows' dates, not their import stamp", async () => {
+		listRows = [
+			...TXNS,
+			// Filed with the March statement, dated in April: the statement that runs
+			// from day 5 of one month to day 6 of the next (epic #85).
+			{
+				...TXNS[1],
+				id: 102,
+				rawIssuerString: "EDF",
+				date: new Date("2026-04-02T00:00:00Z"),
+				importMonth: "2026-03",
+			},
+		];
+		listTotal = listRows.length;
+		await renderView();
+
+		const month = screen.getByLabelText("Filter by month");
+		expect(
+			within(month).getByRole("option", { name: "Apr 2026" }),
+		).toBeInTheDocument();
+		expect(
+			within(month).queryByRole("option", { name: "Mar 2026" }),
+		).toBeNull();
 	});
 
 	// **Excluded from recap** (issue #67): the filter is a three-way select, and

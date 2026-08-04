@@ -1160,6 +1160,157 @@ describe("TransactionRepo", () => {
 		);
 	});
 
+	// The **month filter** buckets a row by its OWN date (issue #87, epic #85),
+	// not by the `importMonth` it was stamped with when it was parsed. The two
+	// diverge whenever a row's date moves after import — a **bundle parent** dated
+	// by hand into another month, a date corrected across a month boundary — and
+	// the row then showed under a month its own date contradicted while being
+	// absent from the month it belonged to. The recap stopped bucketing by the
+	// stamp at issue #71; this is the same correction on the list.
+	//
+	// The parameter keeps its name (`importMonth`) so bookmarked URLs keep
+	// working, and the column keeps being written — as provenance, which is all it
+	// ever meant.
+	describe("the month filter buckets by the row's own date (issue #87)", () => {
+		it.effect(
+			"returns the rows dated in the month, not those stamped with it",
+			() =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					// The reported case (epic #85): a statement running from day 5 of one
+					// month to day 6 of the next carries rows dated outside the month it
+					// was filed under.
+					const spillover = yield* repo.create(
+						make({
+							date: new Date("2026-04-02T00:00:00.000Z"),
+							importMonth: "2026-03",
+						}),
+					);
+					const march = yield* repo.create(
+						make({
+							date: new Date("2026-03-20T00:00:00.000Z"),
+							importMonth: "2026-03",
+						}),
+					);
+
+					const april = yield* repo.list({
+						...listAll,
+						importMonth: "2026-04",
+					});
+					assert.deepStrictEqual(
+						april.items.map((t) => t.id),
+						[spillover.id],
+					);
+
+					const marchPage = yield* repo.list({
+						...listAll,
+						importMonth: "2026-03",
+					});
+					assert.deepStrictEqual(
+						marchPage.items.map((t) => t.id),
+						[march.id],
+					);
+
+					// `count` runs the same WHERE, so the number under the table and the
+					// rows in it cannot disagree (ADR 0002).
+					assert.strictEqual(
+						(yield* repo.count({ importMonth: "2026-04" })).count,
+						1,
+					);
+				}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("bounds the month at its first and last instant", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const first = yield* repo.create(
+					make({ date: new Date("2026-03-01T00:00:00.000Z") }),
+				);
+				const last = yield* repo.create(
+					make({ date: new Date("2026-03-31T23:59:59.999Z") }),
+				);
+				// The instants either side, which must fall out.
+				yield* repo.create(
+					make({ date: new Date("2026-02-28T23:59:59.999Z") }),
+				);
+				yield* repo.create(
+					make({ date: new Date("2026-04-01T00:00:00.000Z") }),
+				);
+
+				const page = yield* repo.list({ ...listAll, importMonth: "2026-03" });
+				assert.deepStrictEqual(
+					page.items.map((t) => t.id),
+					[first.id, last.id],
+				);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect(
+			"follows a bundle parent's overridden date into another month",
+			() =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					const a = yield* repo.create(
+						make({
+							amount: -200,
+							date: new Date("2026-03-07T00:00:00.000Z"),
+							importMonth: "2026-03",
+						}),
+					);
+					const b = yield* repo.create(
+						make({
+							amount: 150,
+							date: new Date("2026-03-12T00:00:00.000Z"),
+							importMonth: "2026-03",
+						}),
+					);
+					const parent = yield* repo.createBundle([a.id, b.id], "Weekend away");
+					yield* repo.update(parent.id, {
+						date: new Date("2026-02-14T00:00:00.000Z"),
+						manualDate: true,
+					});
+
+					// The stamp still names the statement that produced the members (#72):
+					// the override says when the cost belongs, not which statement it came
+					// from. So the two fields genuinely disagree here.
+					assert.strictEqual(
+						(yield* repo.getById(parent.id)).importMonth,
+						"2026-03",
+					);
+
+					const february = yield* repo.list({
+						...listAll,
+						importMonth: "2026-02",
+					});
+					assert.deepStrictEqual(
+						february.items.map((t) => t.id),
+						[parent.id],
+					);
+					// And March no longer shows it: the members stay hidden behind their
+					// parent, so the month it was stamped with lists nothing at all.
+					assert.strictEqual(
+						(yield* repo.list({ ...listAll, importMonth: "2026-03" })).total,
+						0,
+					);
+				}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("a key that is not a YYYY-MM month matches nothing", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				yield* repo.create(make());
+
+				for (const key of ["2026", "2026-13", "2026-00", "not-a-month"]) {
+					assert.strictEqual(
+						(yield* repo.list({ ...listAll, importMonth: key })).total,
+						0,
+						key,
+					);
+				}
+			}).pipe(Effect.provide(RepoTest)),
+		);
+	});
+
 	// The **recap** (issue #71): spend aggregated in SQL over the WHOLE filtered
 	// set — the thing the old client-side scan could only approximate past its row
 	// cap. Every case below pins one clause of the single `countsTowardRecap`

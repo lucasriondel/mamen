@@ -318,6 +318,39 @@ describe("transactions endpoints", () => {
 		}).pipe(Effect.provide(HttpLive)),
 	);
 
+	// The same param, the other field (issue #87): it selects the rows *dated* in
+	// the month, not the ones stamped with it at import. Pinned at the seam too
+	// because the name is now the one thing that does NOT say which field it
+	// matches — kept only so bookmarked URLs keep working.
+	it.effect("importMonth selects by the row's own date over the wire", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			yield* client.transactions.create({
+				payload: make({
+					date: new Date("2026-04-02T00:00:00.000Z"),
+					importMonth: "2026-03",
+				}),
+			});
+
+			const april = yield* client.transactions.list({
+				urlParams: {
+					limit: 50,
+					offset: 0,
+					direction: "desc",
+					importMonth: "2026-04",
+				},
+			});
+			assert.strictEqual(april.total, 1);
+			// The stamp it still carries — provenance, and only that.
+			assert.strictEqual(april.items[0]?.importMonth, "2026-03");
+
+			const march = yield* client.transactions.count({
+				urlParams: { importMonth: "2026-03" },
+			});
+			assert.strictEqual(march.count, 0);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
 	it.effect("startDate alone filters over the wire", () =>
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);

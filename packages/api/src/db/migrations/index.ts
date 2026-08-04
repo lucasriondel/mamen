@@ -20,6 +20,7 @@ import addIssuersRecapExclusion from "./0019_add_issuers_recap_exclusion";
 import addTransactionsBundle from "./0020_add_transactions_bundle";
 import addTransactionsManualDate from "./0021_add_transactions_manual_date";
 import addAccountsColor from "./0022_add_accounts_color";
+import addTransactionsAccountDateIndex from "./0023_add_transactions_account_date_index";
 
 /**
  * The migration set, keyed `NNNN_name` (the Migrator parses the numeric prefix
@@ -50,4 +51,5 @@ export const migrations = {
 	"0020_add_transactions_bundle": addTransactionsBundle,
 	"0021_add_transactions_manual_date": addTransactionsManualDate,
 	"0022_add_accounts_color": addAccountsColor,
+	"0023_add_transactions_account_date_index": addTransactionsAccountDateIndex,
 } as const;

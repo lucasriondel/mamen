@@ -10,6 +10,7 @@ import type { RowSelectionState } from "@tanstack/react-table";
 import { useMemo, useState } from "react";
 import { Empty } from "@/components/ui/empty";
 import { useIssuerLookup } from "@/features/issuers/use-issuer-lookup";
+import { monthKey } from "@/lib/month";
 import {
 	accountQueries,
 	categoryQueries,
@@ -230,9 +231,15 @@ export function TransactionsSection({
 	const accountsById = useMemo(() => indexById(accounts), [accounts]);
 	const categoriesById = useMemo(() => indexById(categories), [categories]);
 
+	// Minted from each row's own **date**, the field the month filter matches
+	// (issue #87) — never from the `importMonth` stamp, which is provenance and
+	// can name another month entirely once a date has been overridden or
+	// corrected. Options derived from the stamp would offer a month the query no
+	// longer returns anything for, and would leave the month the row is actually
+	// in missing from the list: the row would be unreachable from this control.
 	const months = useMemo(() => {
 		const items = (monthsQuery.data?.items ?? []) as readonly Transaction[];
-		return [...new Set(items.map((t) => t.importMonth))].sort().reverse();
+		return [...new Set(items.map((t) => monthKey(t.date)))].sort().reverse();
 	}, [monthsQuery.data]);
 
 	const hasFilters =
