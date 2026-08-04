@@ -145,7 +145,10 @@ export class CategoryInUse extends Schema.TaggedError<CategoryInUse>()(
  *   reason covers both roles because it is one rule; which role the row holds is
  *   on the row (`bundleId` vs `kind`). A parent is refused for a second reason
  *   too: its amount is derived from its members, so a zero-sum group validated
- *   at write time could silently stop summing to zero.
+ *   at write time could silently stop summing to zero. The mirror refusal —
+ *   bundling a transfer leg — is {@link BundleInvalid}'s `is-transfer-leg`: one
+ *   rule, told from each side in the vocabulary of the endpoint being called.
+ *   Issue #81 settled that split; the reasoning is on {@link BundleInvalid}.
  *
  * The "≥2 distinct accounts" property is deliberately NOT enforced here — it is
  * a suggestion-only heuristic (a same-account zero-sum group the user confirmed
@@ -203,6 +206,35 @@ export class TransferInvalid extends Schema.TaggedError<TransferInvalid>()(
  * Mirrors {@link TransferInvalid}, the other multi-row grouping refusal — but is
  * its own error, because a bundle nets to a **non-zero** amount and so shares
  * none of the transfer's balance rules.
+ *
+ * ## Why the mutual exclusion is TWO error types (issue #81)
+ *
+ * One rule, two refusals, each raised by the grouping the caller asked for:
+ * `is-transfer-leg` here, `is-bundled` on {@link TransferInvalid}. #75's AC read
+ * as asking for a single reused type; #81 decided against it and for this split,
+ * because:
+ *
+ * - The `_tag` is the **client's discriminant**, and every endpoint declares
+ *   exactly the errors it can produce. Raising `TransferInvalid` from
+ *   `create-bundle` would put a transfer error in a bundle endpoint's union, so
+ *   every bundle client would have to handle a type whose other reasons
+ *   (`too-few-legs`, `unbalanced`, `already-grouped`, `is-refund`) it can never
+ *   receive — a wider surface than the rule needs.
+ * - What #75 was actually guarding against is a **third, parallel type** for one
+ *   rule, and there is none: each direction reuses the 422 its own grouping
+ *   already raises, adding one `reason` to an enum that already existed.
+ * - The caller speaks one of the two vocabularies. `create-bundle` is told *that
+ *   row is a transfer leg*; `link-transfer` is told *that row is bundled*. The
+ *   two enums already mirror each other exactly — `already-bundled` /
+ *   `already-grouped` for the within-domain clash, `is-transfer-leg` /
+ *   `is-bundled` for the cross-domain one.
+ * - Both are 422 with a `reason` literal, so a client that wants to treat the
+ *   two refusals identically still can, without either type having to know the
+ *   other's rules.
+ *
+ * Pinned by `api/src/transactions/grouping-refusal-surface.test.ts`: each
+ * grouping endpoint declares only its own error, each enum carries only its own
+ * side of the exclusivity, and no third type carries either reason.
  */
 export class BundleInvalid extends Schema.TaggedError<BundleInvalid>()(
 	"BundleInvalid",

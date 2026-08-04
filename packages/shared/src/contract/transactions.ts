@@ -760,8 +760,9 @@ export class TransactionsGroup extends HttpApiGroup.make("transactions")
 	// the generic single-row `update` cannot express. `linkTransfer` validates
 	// the set server-side and fails `TransferInvalid` (422) — a dedicated error,
 	// not an overloaded `NotFound` — on any of: <2 legs, a non-zero cent sum, an
-	// unknown id, a leg already grouped, or a refund leg. Both return the count
-	// of legs stamped/cleared.
+	// unknown id, a leg already grouped, a refund leg, or a leg that is bundled
+	// (`is-bundled`, either bundle role — the transfer side of the exclusivity,
+	// issue #75). Both return the count of legs stamped/cleared.
 	.add(
 		HttpApiEndpoint.post("linkTransfer")`/transactions/link-transfer`
 			.setPayload(TransferLink)
@@ -779,7 +780,10 @@ export class TransactionsGroup extends HttpApiGroup.make("transactions")
 	// point, since a bundle nets to a non-zero amount that needs somewhere to
 	// live. Fails `BundleInvalid` (422) — its own error, not `TransferInvalid`:
 	// none of the transfer's balance rules apply — on <2 distinct members, an
-	// unknown id, or a row already bundled.
+	// unknown id, a row already bundled, a row that is itself a parent, or a row
+	// that is a transfer leg (`is-transfer-leg`, the bundling side of the same
+	// exclusivity — the two directions keep their own error type by the decision
+	// on issue #81, recorded on `BundleInvalid`).
 	.add(
 		HttpApiEndpoint.post("createBundle")`/transactions/bundle`
 			.setPayload(BundleCreate)
