@@ -349,7 +349,9 @@ repeated per package.
   falls below two legs is dissolved rather than left standing. A leg is never
   also a **bundle member** — the two groupings are mutually exclusive and each
   write path refuses the other's rows, so a row bundled or bundling is neither
-  suggested as a counterpart nor accepted as a leg.
+  suggested as a counterpart nor accepted as a leg. Linking one is refused with
+  `TransferInvalid` / `is-bundled`; the refusal from the other side carries the
+  bundle's own error — see **Bundle**.
   _Avoid_: transfer bundle (a **bundle** is the other grouping), internal
   payment, move, self-payment.
 
@@ -399,9 +401,16 @@ repeated per package.
   bundling refuses a **transfer leg** and transfer-linking refuses a **bundle
   member** *or* a **bundle parent** (a parent for a second reason too — its
   amount moves with its members, so a zero-sum group validated at link time
-  could silently stop summing to zero). Each refusal reuses the error its own
-  grouping already raises, and every surface that offers either action shows it
-  disabled with the reason rather than letting the request fail. Membership is
+  could silently stop summing to zero). One rule, **two refusals**: each
+  direction is answered by the error its own grouping already raises —
+  `BundleInvalid` / `is-transfer-leg` from the bundling endpoints,
+  `TransferInvalid` / `is-bundled` from `link-transfer` — never a third type for
+  the one rule, and never one grouping's error raised by the other's endpoint.
+  That split is deliberate (issue #81): the error tag is the client's
+  discriminant and each endpoint declares only the errors it can produce, so a
+  caller is told the refusal in the vocabulary of the endpoint it called. Every
+  surface that offers either action shows it disabled with the reason rather
+  than letting the request fail. Membership is
   **mutable**: a row can join an existing
   bundle or leave it, and every such change — including a member being deleted —
   recomputes the parent through one shared routine, the single point where a
