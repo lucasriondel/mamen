@@ -17,6 +17,7 @@ export {
 	categoryMutations,
 	categoryQueries,
 	ISSUER_SCAN_LIMIT,
+	ISSUER_SEARCH_LIMIT,
 	type IssuerListParams,
 	importMutations,
 	issuerKeys,

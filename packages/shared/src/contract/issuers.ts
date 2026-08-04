@@ -121,13 +121,27 @@ export const IssuerIdFilter = Schema.Union(
 
 /**
  * `list` filter (contract §2.4): `orderBy: "name"` orders by name (else natural
- * insertion order), `id` narrows to a set of ids (see {@link IssuerIdFilter}).
- * Spread alongside `Pagination`. `total` counts the filtered set, as everywhere
- * else.
+ * insertion order), `id` narrows to a set of ids (see {@link IssuerIdFilter}),
+ * `search` narrows to a name substring. Spread alongside `Pagination`. `total`
+ * counts the filtered set, as everywhere else. The filters AND: a caller may
+ * search *within* a set of ids.
+ *
+ * `search` is the other half of the by-ids read (#79). `id` answers "name the
+ * issuers I am already showing"; `search` answers "which issuers could I show
+ * next" — the question a **picker** asks. A picker used to answer it by reading
+ * the table and filtering the page it got, which made every name past the page
+ * unfindable however precisely it was typed. Matching server-side has no such
+ * cliff: it searches the whole table and returns a page of *matches*.
+ *
+ * A case-insensitive substring of `name`, in the shape the transactions filter
+ * of the same name already uses — a blank/whitespace-only term contributes no
+ * predicate (an empty search box asks for a page to browse, not for nothing),
+ * and the LIKE metacharacters are literal.
  */
 export const IssuerListFilters = {
 	orderBy: Schema.optional(Schema.Literal("name")),
 	id: Schema.optional(IssuerIdFilter),
+	search: Schema.optional(Schema.String),
 } as const;
 
 /**

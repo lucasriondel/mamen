@@ -132,6 +132,21 @@ const issuerListMock = vi.fn(() => ({
 	queryFn: async () => ({ items: [] as typeof ISSUERS, total: 500 }),
 }));
 
+/**
+ * The **name search** — the picker read (#79). Matches a case-insensitive name
+ * substring over the whole set, like the server, so a picker never needs the
+ * list read above.
+ */
+const issuerSearchMock = vi.fn((term: string) => ({
+	queryKey: ["issuers", "search", term.trim()],
+	queryFn: async () => {
+		const items = ISSUERS.filter((i) =>
+			i.name.toLowerCase().includes(term.trim().toLowerCase()),
+		);
+		return { items, total: items.length };
+	},
+}));
+
 /** The by-ids read — answers with exactly the issuers asked for, and no others. */
 const issuerByIdsMock = vi.fn((ids: Iterable<number>) => {
 	const wanted = [...new Set(ids)].sort((a, b) => a - b);
@@ -156,7 +171,7 @@ vi.mock("@mamen/sdk", () => ({
 	},
 	issuerQueries: {
 		list: () => issuerListMock(),
-		all: () => issuerListMock(),
+		searchByName: (term: string) => issuerSearchMock(term),
 		byIds: (ids: Iterable<number>) => issuerByIdsMock(ids),
 	},
 	categoryQueries: {

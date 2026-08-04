@@ -110,12 +110,15 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
 				queryKey: ["issuers", "detail", id],
 				queryFn: async () => issuersById[id],
 			}),
-			all: () => ({
-				queryKey: ["issuers", "list"],
-				queryFn: async () => ({
-					items: issuersList,
-					total: issuersList.length,
-				}),
+			// The picker read: a name search over the whole set, like the server (#79).
+			searchByName: (term: string) => ({
+				queryKey: ["issuers", "search", term.trim()],
+				queryFn: async () => {
+					const items = issuersList.filter((i) =>
+						i.name.toLowerCase().includes(term.trim().toLowerCase()),
+					);
+					return { items, total: items.length };
+				},
 			}),
 			list: () => ({
 				queryKey: ["issuers", "list"],

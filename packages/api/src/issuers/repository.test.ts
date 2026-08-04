@@ -201,6 +201,94 @@ describe("IssuerRepo", () => {
 		}).pipe(Effect.provide(RepoTest)),
 	);
 
+	// The picker read (#79): a picker offers a choice among issuers it never
+	// holds all of, so it asks the server for the names matching what was typed.
+	it.effect("list narrows to a case-insensitive name substring", () =>
+		Effect.gen(function* () {
+			const repo = yield* IssuerRepo;
+			yield* repo.create(make({ name: "MINT ENERGIE" }));
+			yield* repo.create(make({ name: "Spotify" }));
+			yield* repo.create(make({ name: "Mintaka" }));
+
+			const page = yield* repo.list({ limit: 50, offset: 0, search: "mint" });
+			assert.deepStrictEqual(page.items.map((m) => m.name).sort(), [
+				"MINT ENERGIE",
+				"Mintaka",
+			]);
+			// `total` describes the searched set, not the table.
+			assert.strictEqual(page.total, 2);
+		}).pipe(Effect.provide(RepoTest)),
+	);
+
+	it.effect("list treats LIKE metacharacters in the search as literals", () =>
+		Effect.gen(function* () {
+			const repo = yield* IssuerRepo;
+			yield* repo.create(make({ name: "100% Pure" }));
+			yield* repo.create(make({ name: "Spotify" }));
+
+			const page = yield* repo.list({ limit: 50, offset: 0, search: "0% P" });
+			assert.deepStrictEqual(
+				page.items.map((m) => m.name),
+				["100% Pure"],
+			);
+		}).pipe(Effect.provide(RepoTest)),
+	);
+
+	it.effect("list with a blank search returns the whole set", () =>
+		Effect.gen(function* () {
+			// An empty picker box asks for a page to browse, not for nothing — the
+			// opposite of an empty `id` set, which asks to resolve nothing.
+			const repo = yield* IssuerRepo;
+			yield* repo.create(make({ name: "a" }));
+			yield* repo.create(make({ name: "b" }));
+
+			const page = yield* repo.list({ limit: 50, offset: 0, search: "  " });
+			assert.strictEqual(page.total, 2);
+		}).pipe(Effect.provide(RepoTest)),
+	);
+
+	it.effect("list ANDs the search with the id filter", () =>
+		Effect.gen(function* () {
+			const repo = yield* IssuerRepo;
+			const mint = yield* repo.create(make({ name: "MINT ENERGIE" }));
+			yield* repo.create(make({ name: "Mintaka" }));
+
+			const page = yield* repo.list({
+				limit: 50,
+				offset: 0,
+				id: [mint.id],
+				search: "mint",
+			});
+			assert.deepStrictEqual(
+				page.items.map((m) => m.name),
+				["MINT ENERGIE"],
+			);
+			assert.strictEqual(page.total, 1);
+		}).pipe(Effect.provide(RepoTest)),
+	);
+
+	// The cliff this read exists to remove: a picker that paged the table saw
+	// only the first N issuers, so a name past that page was unfindable however
+	// precisely it was typed (#79).
+	it.effect("list finds a name that sorts outside the first page", () =>
+		Effect.gen(function* () {
+			const repo = yield* IssuerRepo;
+			for (let i = 0; i < 20; i++) {
+				yield* repo.create(make({ name: `filler ${i}` }));
+			}
+			yield* repo.create(make({ name: "Zephyr Energy" }));
+
+			const firstPage = yield* repo.list({ limit: 5, offset: 0 });
+			assert.ok(!firstPage.items.some((m) => m.name === "Zephyr Energy"));
+
+			const page = yield* repo.list({ limit: 5, offset: 0, search: "zephyr" });
+			assert.deepStrictEqual(
+				page.items.map((m) => m.name),
+				["Zephyr Energy"],
+			);
+		}).pipe(Effect.provide(RepoTest)),
+	);
+
 	it.effect("getByName matches exactly (case-sensitive)", () =>
 		Effect.gen(function* () {
 			const repo = yield* IssuerRepo;

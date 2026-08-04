@@ -9,34 +9,48 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Mock the SDK boundary (PRD "Seam 2"): the picker reads the issuers `list` and
-// writes through the issuers `create` (mint a new issuer for the rule flow) +
-// transactions `update` (match). We keep the real key factories (so invalidation
-// works) and stub just those surfaces. cmdk's jsdom shims (ResizeObserver,
-// scrollIntoView) live in `src/test/setup.ts`.
+// Mock the SDK boundary (PRD "Seam 2"): the picker reads the issuers **name
+// search** and writes through the issuers `create` (mint a new issuer for the
+// rule flow) + transactions `update` (match). We keep the real key factories (so
+// invalidation works) and stub just those surfaces. cmdk's jsdom shims
+// (ResizeObserver, scrollIntoView) live in `src/test/setup.ts`.
 const createIssuer = vi.fn();
 const updateTransaction = vi.fn();
 let issuersList: Array<{ id: number; name: string }>;
+/** Every term the picker asked the server for. */
+const searchTerms: string[] = [];
+/** The page size the mocked server returns — the SDK's own search cap. */
+const SEARCH_LIMIT = 50;
 
 vi.mock("@mamen/sdk", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("@mamen/sdk")>();
 	return {
 		...actual,
 		issuerQueries: {
-			all: () => ({
-				queryKey: ["issuers", "list", "test"],
-				queryFn: async () => ({
-					items: issuersList,
-					total: issuersList.length,
-				}),
-			}),
-			list: () => ({
-				queryKey: ["issuers", "list", "test"],
-				queryFn: async () => ({
-					items: issuersList,
-					total: issuersList.length,
-				}),
-			}),
+			// Stands in for the server: matches a case-insensitive name substring
+			// over the WHOLE set, orders by name, returns one capped page.
+			searchByName: (term: string) => {
+				searchTerms.push(term);
+				return {
+					queryKey: ["issuers", "search", term.trim()],
+					queryFn: async () => {
+						const matches = issuersList
+							.filter((issuer) =>
+								issuer.name.toLowerCase().includes(term.trim().toLowerCase()),
+							)
+							.sort((a, b) => a.name.localeCompare(b.name));
+						return {
+							items: matches.slice(0, SEARCH_LIMIT),
+							total: matches.length,
+						};
+					},
+				};
+			},
+			// A whole-list read is the very thing #79 removed — fail loudly rather
+			// than quietly answering from a page.
+			list: () => {
+				throw new Error("the picker read the whole issuer list");
+			},
 		},
 		issuerMutations: {
 			create: (payload: unknown) => createIssuer(payload),
@@ -59,7 +73,22 @@ beforeEach(() => {
 	});
 	updateTransaction.mockReset().mockResolvedValue({ id: 100 });
 	issuersList = [{ id: 10, name: "Spotify" }];
+	searchTerms.length = 0;
 });
+
+/**
+ * A dataset far past any whole-list page (#79): 1500 filler issuers plus the one
+ * a test goes looking for, which sorts last by name *and* by id.
+ */
+function withCrowdedIssuerTable() {
+	issuersList = [
+		...Array.from({ length: 1500 }, (_, i) => ({
+			id: 100 + i,
+			name: `Filler ${String(i).padStart(4, "0")}`,
+		})),
+		{ id: 2000, name: "Zephyr Energy" },
+	];
+}
 
 // ---- Router harness: the picker lives on a page; the rule-create page is a stub
 // that echoes the `?pattern=` it receives, so we can assert both the navigation
@@ -235,5 +264,41 @@ describe("AssignmentPicker", () => {
 		await open("CARREFOUR PARIS");
 
 		expect(screen.queryByText(/Open PayPal activity/)).not.toBeInTheDocument();
+	});
+
+	// The cliff #79 removes: past 1000 issuers a whole-list read simply could not
+	// see this one, so it was unmatchable however precisely its name was typed.
+	it("matches an issuer no whole-list page could hold", async () => {
+		withCrowdedIssuerTable();
+		const user = await open();
+
+		const input = screen.getByLabelText("Search issuers");
+		await user.clear(input);
+		await user.type(input, "zephyr");
+		await user.click(await screen.findByText("Zephyr Energy"));
+
+		await waitFor(() =>
+			expect(updateTransaction).toHaveBeenCalledWith(100, {
+				issuerId: 2000,
+				manualIssuer: true,
+			}),
+		);
+		// The narrowing happened on the server, not over a page held client-side.
+		expect(searchTerms).toContain("zephyr");
+	});
+
+	it("hides 'create' when the typed name already exists", async () => {
+		// The guard reads the matches for the very text it would create, so it
+		// sees the duplicate even in a table no page could hold.
+		withCrowdedIssuerTable();
+		issuersList.push({ id: 3000, name: "ACME PAYROLL" });
+		await open();
+
+		expect(
+			await screen.findByRole("option", { name: "ACME PAYROLL" }),
+		).toBeInTheDocument();
+		expect(
+			screen.queryByText(/Create issuer .* with a rule/),
+		).not.toBeInTheDocument();
 	});
 });

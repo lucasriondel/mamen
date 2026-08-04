@@ -9,11 +9,13 @@ import { queryOptions } from "@tanstack/react-query";
 import { Effect } from "effect";
 import { Client, runQuery } from "../runtime";
 
-/** The `list` filter — `orderBy` optional, mirroring the contract. */
+/** The `list` filter — `orderBy`/`search` optional, mirroring the contract. */
 export type IssuerListParams = {
 	limit?: number;
 	offset?: number;
 	orderBy?: "name";
+	/** A case-insensitive name substring — the picker read (#79). */
+	search?: string;
 };
 
 /** The paged envelope every issuers list read resolves to. */
@@ -61,37 +63,57 @@ export const issuerKeys = {
 const LOGO_SEARCH_CACHE_MS = 24 * 60 * 60 * 1000;
 
 /**
- * The page size {@link issuerQueries.all} asks for — high enough to hold a
- * single user's whole issuer set in one response.
+ * The page size the whole-set reads ask for — high enough to hold a single
+ * user's whole issuer set in one response.
  *
- * This is the limit for the surfaces that are *about* the whole set: the issuers
- * grid, the duplicate-name guard, and the pickers, which offer a choice among
- * every issuer and filter client-side. Those are bounded by the user's own
- * issuer count and there is nothing narrower to ask for.
+ * Only two surfaces still ask for it, and both are *about* the whole set: the
+ * issuers grid (which sorts and filters it client-side) and the create-issuer
+ * duplicate-name guard. Both are bounded by the user's own issuer count and
+ * there is nothing narrower for them to ask for.
  *
- * **Naming** a row's issuer is not one of them — that asks for the ids on screen
- * via {@link issuerQueries.byIds} and has no ceiling at all (#62). It used to
- * come through here, which is why this number is so far above a realistic issuer
- * count: a short page silently resolved only the issuers it happened to contain,
- * so past the cap a row pointing at a newer issuer rendered as unresolved and a
- * rule that had matched correctly looked broken.
+ * Everything else asks a narrower question and so has no ceiling at all:
+ * **naming** a row's issuer asks for the ids on screen ({@link
+ * issuerQueries.byIds}, #62), and **choosing** one asks for the names matching
+ * what was typed ({@link issuerQueries.searchByName}, #79). Both used to come
+ * through here, which is why this number is so far above a realistic issuer
+ * count — and the cap still bit at 1000: a short page silently resolved (or
+ * offered) only the issuers it happened to contain, so past it a row pointing at
+ * a newer issuer rendered as unresolved and a picker could not find an issuer
+ * that plainly existed.
  */
 export const ISSUER_SCAN_LIMIT = 1000;
+
+/**
+ * How many matches a **name search** returns — a page of a picker's list, not a
+ * scan. The list is read top-down by a user who narrows it by typing, so past
+ * this many matches the answer is "type more", never a longer list.
+ */
+export const ISSUER_SEARCH_LIMIT = 50;
 
 /** tanstack-query read options for the issuers resource. */
 export const issuerQueries = {
 	/**
-	 * **Every issuer**, in one query — the read for surfaces that offer a choice
-	 * among all of them: the issuer pickers, which show a searchable list and
-	 * filter it client-side. There is nothing narrower for those to ask for, and
-	 * the set is bounded by the user's own issuer count.
+	 * **The issuers whose name matches `term`** — the picker read (#79).
 	 *
-	 * Not for *naming* a row's issuer — that is {@link issuerQueries.byIds},
-	 * which asks for the ids on screen and so has no page to fall off (#62).
+	 * The counterpart of {@link issuerQueries.byIds}: that one names the issuers a
+	 * surface is *already showing*, this one offers the ones it could show next. A
+	 * picker used to answer that by reading the issuer table and filtering the
+	 * page it got back, which put a cliff under the choice — past the page, an
+	 * issuer that plainly existed simply could not be picked, however precisely
+	 * its name was typed. Matching server-side has no cliff: the whole table is
+	 * searched and a page of *matches* comes back.
 	 *
-	 * `list` stays for genuinely paginated/ordered reads (the issuers grid).
+	 * A blank term is a legitimate read, not a skipped one: an empty search box
+	 * asks for a page to browse. It is ordered by name so that page is the same
+	 * one every time and reads alphabetically, and capped at
+	 * {@link ISSUER_SEARCH_LIMIT} — the way past a full page is a narrower term.
 	 */
-	all: () => issuerQueries.list({ limit: ISSUER_SCAN_LIMIT }),
+	searchByName: (term: string) =>
+		issuerQueries.list({
+			search: term.trim(),
+			orderBy: "name",
+			limit: ISSUER_SEARCH_LIMIT,
+		}),
 
 	/**
 	 * **The issuers with these ids** — the resolution read.

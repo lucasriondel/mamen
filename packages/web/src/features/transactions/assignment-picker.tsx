@@ -1,5 +1,4 @@
-import type { Issuer, IssuerId, TransactionId } from "@mamen/shared/contract";
-import { useQuery } from "@tanstack/react-query";
+import type { IssuerId, TransactionId } from "@mamen/shared/contract";
 import { useNavigate } from "@tanstack/react-router";
 import {
 	ArrowLeft,
@@ -26,9 +25,9 @@ import {
 } from "@/components/ui/popover";
 import { IssuerAvatar } from "@/features/issuers/issuer-avatar";
 import { hasExactIssuerName } from "@/features/issuers/issuer-name";
+import { useIssuerSearch } from "@/features/issuers/use-issuer-search";
 import { escapeRegex } from "@/features/rules/escape-regex";
 import { formatShortDate } from "@/lib/format";
-import { issuerQueries } from "@/lib/sdk";
 import { isPaypalRawIssuer, paypalActivityUrl } from "./paypal-activity";
 import { useAssignIssuer } from "./use-assign-issuer";
 
@@ -43,11 +42,6 @@ export interface AssignmentPickerProps {
 
 /** Which action an issuer selection performs. */
 type Mode = "match" | "add-rule";
-
-/** Case-insensitive substring match of an issuer name against the query. */
-function matches(issuer: Issuer, query: string): boolean {
-	return issuer.name.toLowerCase().includes(query.trim().toLowerCase());
-}
 
 /**
  * The issuer **assignment picker** — the click-to-resolve interaction on an
@@ -74,6 +68,10 @@ function matches(issuer: Issuer, query: string): boolean {
  * string, so the common "this counterparty is new" case is close at hand.
  * `cmdk`'s own filtering is disabled (`shouldFilter={false}`) so every action is
  * always reachable and ordering is deterministic.
+ *
+ * The issuers offered are the ones the *server* matched on what is typed
+ * (`useIssuerSearch`), never a page of the table filtered here: past that page
+ * an issuer that plainly existed could not be picked (#79).
  */
 export function AssignmentPicker({
 	transactionId,
@@ -86,12 +84,17 @@ export function AssignmentPicker({
 	const navigate = useNavigate();
 	const { assignExisting, createIssuer } = useAssignIssuer();
 
-	// Only fetch the issuer list once the picker is opened.
-	const issuersQuery = useQuery({ ...issuerQueries.all(), enabled: open });
-	const issuers = (issuersQuery.data?.items ?? []) as readonly Issuer[];
+	// Only search once the picker is opened. The row is unresolved, so it puts no
+	// issuer on screen to pin — every candidate comes from the search (#79),
+	// already narrowed to what is typed.
+	const issuers = useIssuerSearch({ query, enabled: open });
 
-	const filtered = issuers.filter((issuer) => matches(issuer, query));
 	const trimmed = query.trim();
+	// The duplicate-name guard reads the matches for the very text it would
+	// create, so the name it looks for is the one the server was asked about —
+	// where a page of the table only ever held it by luck. Still a UX nicety, not
+	// an invariant (the contract enforces no uniqueness): a duplicate can hide
+	// when more issuers than one page contain the name as a substring.
 	const canCreate = trimmed.length > 0 && !hasExactIssuerName(issuers, trimmed);
 	const pending = assignExisting.isPending || createIssuer.isPending;
 	const isPaypal = isPaypalRawIssuer(rawIssuerString);
@@ -170,7 +173,8 @@ export function AssignmentPicker({
 
 	/**
 	 * Enter "add a rule to an existing issuer" mode and clear the query — the raw
-	 * string seeds the *match* search, but here the user browses all issuers.
+	 * string seeds the *match* search, but here the user is looking for an issuer
+	 * it plainly doesn't name, so the box starts empty and browses from the top.
 	 */
 	const enterAddRule = () => {
 		setMode("add-rule");
@@ -209,20 +213,20 @@ export function AssignmentPicker({
 						aria-label="Search issuers"
 					/>
 					<CommandList>
-						{mode === "add-rule" && filtered.length === 0 ? (
+						{mode === "add-rule" && issuers.length === 0 ? (
 							<CommandEmpty>No issuers to add a rule to.</CommandEmpty>
 						) : null}
-						{mode === "match" && !canCreate && filtered.length === 0 ? (
+						{mode === "match" && !canCreate && issuers.length === 0 ? (
 							<CommandEmpty>No issuers yet.</CommandEmpty>
 						) : null}
 
-						{filtered.length > 0 ? (
+						{issuers.length > 0 ? (
 							<CommandGroup
 								heading={
 									mode === "add-rule" ? "Add a rule to…" : "Match an issuer"
 								}
 							>
-								{filtered.map((issuer) => (
+								{issuers.map((issuer) => (
 									<CommandItem
 										key={issuer.id}
 										value={`issuer-${issuer.id}`}
@@ -241,7 +245,7 @@ export function AssignmentPicker({
 
 						{mode === "add-rule" ? (
 							<>
-								{filtered.length > 0 ? <CommandSeparator /> : null}
+								{issuers.length > 0 ? <CommandSeparator /> : null}
 								<CommandGroup>
 									<CommandItem value="__back__" onSelect={backToMatch}>
 										<ArrowLeft

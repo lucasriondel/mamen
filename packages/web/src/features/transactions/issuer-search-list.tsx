@@ -9,14 +9,14 @@ import {
 } from "@/components/ui/command";
 import { IssuerAvatar } from "@/features/issuers/issuer-avatar";
 
-/** Case-insensitive substring match of an issuer name against the query. */
-function matches(issuer: Issuer, query: string): boolean {
-	return issuer.name.toLowerCase().includes(query.trim().toLowerCase());
-}
-
 export interface IssuerSearchListProps {
-	/** Every issuer to search across (already fetched by the parent). */
+	/**
+	 * The issuers to offer, already narrowed to `query` by the parent
+	 * (`useIssuerSearch`) — the row's own plus the current search page. Never
+	 * "every issuer": there is no page that holds them all (#79).
+	 */
 	issuers: readonly Issuer[];
+	/** What is typed. Displayed here; the *matching* is the parent's (#79). */
 	query: string;
 	onQueryChange: (next: string) => void;
 	/** The row's current issuer — marked with a check, not hidden. */
@@ -28,16 +28,17 @@ export interface IssuerSearchListProps {
 }
 
 /**
- * The **search step** of {@link IssuerPicker}: a search box over every issuer,
- * with **Back** to the row actions. The same shape as the assignment picker's
- * "Match an issuer" step, so re-pointing a resolved row and resolving an
- * unresolved one look and behave alike.
+ * The **search step** of {@link IssuerPicker}: a search box over the issuers the
+ * parent resolved, with **Back** to the row actions. The same shape as the
+ * assignment picker's "Match an issuer" step, so re-pointing a resolved row and
+ * resolving an unresolved one look and behave alike.
  *
- * Filtering is ours, not `cmdk`'s (`shouldFilter={false}` on the parent
- * `Command`), so ordering stays deterministic and **Back** is always reachable
- * regardless of the query. The current issuer stays in the list with a check
- * rather than being filtered out — seeing it marked is what makes the list read
- * as "which issuer is this?" rather than "what else could it be?".
+ * Filtering is neither ours nor `cmdk`'s (`shouldFilter={false}` on the parent
+ * `Command`): the parent hands over the issuers that match, so ordering stays
+ * deterministic and **Back** is always reachable regardless of the query. The
+ * current issuer stays in the list with a check rather than being filtered out —
+ * seeing it marked is what makes the list read as "which issuer is this?" rather
+ * than "what else could it be?".
  */
 export function IssuerSearchList({
 	issuers,
@@ -48,8 +49,6 @@ export function IssuerSearchList({
 	onBack,
 	disabled,
 }: IssuerSearchListProps) {
-	const filtered = issuers.filter((candidate) => matches(candidate, query));
-
 	return (
 		<>
 			<CommandInput
@@ -61,15 +60,15 @@ export function IssuerSearchList({
 			<CommandList>
 				{/* A plain node, not `CommandEmpty` — that renders off cmdk's own
 				    filtering, which `shouldFilter={false}` turns off. */}
-				{filtered.length === 0 ? (
+				{issuers.length === 0 ? (
 					<p className="px-3 py-4 text-center text-gousse-muted text-sm">
 						No issuers found.
 					</p>
 				) : null}
 
-				{filtered.length > 0 ? (
+				{issuers.length > 0 ? (
 					<CommandGroup heading="Set another issuer">
-						{filtered.map((candidate) => (
+						{issuers.map((candidate) => (
 							<CommandItem
 								key={candidate.id}
 								value={`issuer-${candidate.id}`}
@@ -93,7 +92,7 @@ export function IssuerSearchList({
 					</CommandGroup>
 				) : null}
 
-				{filtered.length > 0 ? <CommandSeparator /> : null}
+				{issuers.length > 0 ? <CommandSeparator /> : null}
 				<CommandGroup>
 					<CommandItem value="__back__" onSelect={onBack}>
 						<ArrowLeft
