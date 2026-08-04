@@ -285,7 +285,10 @@ repeated per package.
   answers *where did the money go*, so it sums **spend only**: debits, shown as
   positive magnitudes, ranked high→low. Not every row reaches it — a **transfer
   group**'s legs, a transaction **excluded from recap**, and a **bundle member**
-  (its **bundle parent** stands in for it) are all held out. Which rows count is
+  (its **bundle parent** stands in for it) are all held out. A **refund** is held
+  out by nothing: its credit is simply not a debit, so the spend-only rule
+  already drops it — whether it should also *reduce* the debit it repays is a
+  question about netting (#65), not a fourth partition. Which rows count is
   one predicate, `countsTowardRecap`, defined once beside the **derived category**
   expression and never restated per surface: a second copy is a second definition
   of "counts toward spend", and the two drift. The totals are summed **in SQL over
@@ -350,6 +353,34 @@ repeated per package.
 - **Transfer leg** — one transaction inside a **transfer group**: the debit leg
   (money leaving) or the credit leg (money arriving). "Leg" is the unit the
   zero-sum check, the suggestion pairs and the netted-out summary all count in.
+  A leg's **counterpart** is another leg of the same movement — the word the
+  suggestion path already uses (`suggestTransferCounterparts`).
+  _Avoid_: side, half, pair member (a group is **two or more** legs, never fixed
+  at two, so any word implying exactly two mis-states the shape); transfer
+  transaction (every leg is one — *leg* is the word carrying the information).
+
+- **Refund** — a credit that repays an earlier debit: a reimbursement from a
+  person, a returned purchase. Two fields carry the pairing — `isRefund` marks a
+  row as one, `linkedRefundId` names the row it repays. Which side holds them is
+  **not yet settled**: a single `linkedRefundId` fits the **credit** carrying
+  both, with the debit found through the reverse filter that already exists, but
+  #65 owns the choice. It is deliberately **not** a **transfer group**: a
+  transfer moves the user's own money between their own accounts and nets to
+  zero, while a refund is money arriving from outside and may be **partial**
+  (20 € back against a 50 € spend), so the pair cannot simply be dropped the way
+  a transfer is — 30 € of real spend survives it. Whether the **recap** nets
+  that remainder inside the debit's own issuer and category buckets or drops
+  both rows is likewise open (#65). Same-account is the ordinary case — the
+  reimbursement lands where the spend left — and it is exactly what the transfer
+  suggestion cannot express, since that only ever pairs rows in two *different*
+  accounts. The two are kept disjoint at the write path: a row with either refund
+  field set is refused as a **transfer leg** (`is-refund`), so a credit is never
+  netted out twice. Modelled but not yet acted on — the columns, contract fields,
+  list filters and detail-page display exist, while nothing sets the flags and
+  the **recap** ignores them; issue #65 owns the write path and the netting rule.
+  _Avoid_: reversal, chargeback, credit note (each names a bank-side mechanism,
+  not the user's pairing), refund group (**group** is reserved — see **Category
+  folder**), negative spend.
 
 - **Bundle** — several transactions treated as **one** for the **recap**, for a
   cost the bank tells in more than one row: 200 € of groceries on a weekend away
