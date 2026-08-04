@@ -1,4 +1,4 @@
-import type { AccountId, TransactionCreate } from "@mamen/shared/contract";
+import type { TransactionCreate } from "@mamen/shared/contract";
 import { transactionMutations } from "@/lib/sdk";
 import type { ParsedTransaction } from "./parsers/types";
 
@@ -16,29 +16,35 @@ export type CommitResult = {
 };
 
 /**
- * Idempotently commit a parsed statement (per ADR 0001). For each distinct month
- * in the batch, delete the account's existing rows for that month, then
- * bulk-create the month's parsed rows (stamped with a single `importedAt`). A
- * statement spanning months therefore produces one delete + one insert per
- * month, and re-importing a month replaces rather than duplicates it.
+ * Commit a parsed statement: bulk-create every parsed row, stamped with a single
+ * `importedAt`. **Nothing is deleted** (epic #85, issue #88) — a commit adds to
+ * what is stored and never replaces it, so a statement overlapping a month that
+ * was already imported leaves the earlier rows, and every manual decision made
+ * on them, standing.
  *
- * Known non-transactional edge (ADR 0001): a crash between a month's delete and
- * insert can leave that month partially wiped; re-importing fixes it.
+ * ONE insert for the whole batch: the per-month loop this used to run existed
+ * only to scope the per-month delete, and each row already carries the month it
+ * was stamped with at parse time — so a statement straddling a month boundary
+ * still lands its rows in the right months without the commit sorting them.
+ *
+ * Two consequences, both accepted:
+ * - Re-importing the same statement **duplicates** its rows. The guard against
+ *   that is advisory (a preview warning) and lands in the next slice; removing
+ *   rows is the user's action, through the list's bulk delete (issue #86).
+ * - The insert is not transactional, so a mid-batch failure leaves some rows
+ *   written. Recoverable through that same bulk delete — and strictly better
+ *   than the failure mode it replaces, a month wiped with nothing reinserted.
  */
 export async function commitImport(
 	records: readonly ParsedTransaction[],
-	accountId: AccountId,
 ): Promise<CommitResult> {
 	const importedAt = new Date();
-	const months = distinctMonths(records);
+	const toCreate: TransactionCreate[] = records.map((r) => ({
+		...r,
+		importedAt,
+	}));
 
-	for (const month of months) {
-		await transactionMutations.deleteByAccountMonth(accountId, month);
-		const monthRecords: TransactionCreate[] = records
-			.filter((r) => r.importMonth === month)
-			.map((r) => ({ ...r, importedAt }));
-		await transactionMutations.bulkCreate(monthRecords);
-	}
+	await transactionMutations.bulkCreate(toCreate);
 
-	return { months, count: records.length };
+	return { months: distinctMonths(records), count: records.length };
 }

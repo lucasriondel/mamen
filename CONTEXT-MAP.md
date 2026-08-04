@@ -298,10 +298,10 @@ repeated per package.
   the whole period** (issue #71) — there is no page, no row cap and no partial
   answer; the client only names the buckets it is handed.
   A period is always a bound on the transaction **date**, never on the **import
-  month**: import month is provenance (it keys the delete-then-insert that makes
-  re-import idempotent, and it is per-account-per-statement), while spend happens
-  when the transaction happens. Bucketing the month view by it made the same row
-  land in different buckets in the month and year views.
+  month**: import month is provenance (the statement a row arrived on, which is
+  per-account-per-statement), while spend happens when the transaction happens.
+  Bucketing the month view by it made the same row land in different buckets in
+  the month and year views.
   _Avoid_: dashboard, report, stats, overview.
 
 - **Excluded from recap** — a transaction that does not count toward spend
@@ -424,15 +424,14 @@ repeated per package.
   — it simply reaches no spend bucket — but it usually means a *mis-bundling*,
   so the parent carries an **anomaly flag** saying so. The flag warns and
   nothing more: the amount stays whatever the members say, and the fix is to add
-  or remove a member. A bundle also **does not survive a re-import** of any
-  statement it touches: import is idempotent by deleting everything for an
-  account and month and re-inserting the parsed rows, so the members become
-  different rows. Every touched bundle is dissolved — including one only
-  *partly* inside the statement, whose parent may sit in another month or
-  account entirely — and the count is reported *before* the user commits.
-  Re-attaching the members afterwards is manual: a transaction has no dedup key
-  to re-match them by, and inventing one would silently mis-match a statement
-  that genuinely changed.
+  or remove a member. A bundle also **does not survive a delete** that takes any
+  of its rows: every bundle the deleted scope touches is dissolved — including
+  one only *partly* inside it, whose parent may sit in another month or account
+  entirely — and the count is reported *before* the rows go. Re-attaching the
+  members afterwards is manual: a transaction has no dedup key to re-match them
+  by, and inventing one would silently mis-match a statement that genuinely
+  changed. An **import** never triggers this (issue #88): committing one only
+  ever adds rows.
   _Avoid_: group (already reserved — see **Category folder**, **Transfer
   group**), merge, combine, split.
 

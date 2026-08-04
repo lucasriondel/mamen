@@ -3647,67 +3647,6 @@
         }
       }
     },
-    "/api/transactions/by-account-month": {
-      "delete": {
-        "tags": [
-          "Transactions"
-        ],
-        "operationId": "transactions.deleteByAccountMonth",
-        "parameters": [
-          {
-            "name": "accountId",
-            "in": "query",
-            "schema": {
-              "$ref": "#/components/schemas/NumberFromString"
-            },
-            "required": true
-          },
-          {
-            "name": "importMonth",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            },
-            "required": true
-          }
-        ],
-        "security": [],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "count"
-                  ],
-                  "properties": {
-                    "count": {
-                      "type": "number"
-                    }
-                  },
-                  "additionalProperties": false
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "The request did not match the expected schema",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HttpApiDecodeError"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "InternalServerError"
-          }
-        }
-      }
-    },
     "/api/transactions/by-import-batch/{batchId}": {
       "delete": {
         "tags": [

@@ -297,8 +297,8 @@ export const TransactionFilters = {
 	//
 	// The name is kept **deliberately** so bookmarked and shared URLs keep
 	// working: a naming inconsistency traded for not breaking them. The one place
-	// the param still means the column is `deleteByAccountMonth`/`bundleImpact`
-	// below — they ask about a *statement*, not about a month of spending.
+	// the param still means the column is `bundleImpact` below — it asks about a
+	// *statement*, not about a month of spending.
 	importMonth: Schema.optional(Schema.String), // "YYYY-MM"
 	importBatchId: Schema.optional(Schema.String),
 	startDate: Schema.optional(Schema.Date), // inclusive lower bound on `date`
@@ -338,10 +338,10 @@ export const TransactionFilters = {
  *
  * `startDate`/`endDate` are inclusive bounds on the transaction's **`date`** —
  * the day the money moved. Every period (month, year, all time) is expressed as
- * a bound on that one field: `importMonth` is provenance (it keys the
- * delete-then-insert that makes re-import idempotent, and is
- * per-account-per-statement), so bucketing a month by it made the same row land
- * in different buckets depending on which period you were looking at.
+ * a bound on that one field: `importMonth` is provenance (the statement a row
+ * arrived on, per-account-per-statement), so bucketing a month by it made the
+ * same row land in different buckets depending on which period you were looking
+ * at.
  */
 export const RecapFilters = {
 	accountId: Schema.optional(AccountIdFilter),
@@ -637,20 +637,15 @@ export class TransferCandidate extends Schema.Class<TransferCandidate>(
 }) {}
 
 /**
- * `deleteByAccountMonth` query params — both **required** (a targeted bulk
- * delete, not a filtered list): `accountId` decodes a branded id from the query
- * string, `importMonth` is the `"YYYY-MM"` string. A missing param fails decode
- * → `HttpApiDecodeError (400)`.
- *
- * Shared with `bundleImpact`, the pre-flight of that same delete (issue #77):
- * the warning and the delete must name the same statement, so they take the
- * same two params rather than each declaring their own.
+ * `bundleImpact` query params — both **required** (a targeted question about one
+ * statement, not a filtered list): `accountId` decodes a branded id from the
+ * query string, `importMonth` is the `"YYYY-MM"` string. A missing param fails
+ * decode → `HttpApiDecodeError (400)`.
  *
  * Here — unlike the list/count filter of the same name (issue #87) —
- * `importMonth` really is the **column**: what these two routes act on is a
+ * `importMonth` really is the **column**: what this route asks about is a
  * *statement*, the set of rows one import produced, so the stamp is exactly the
- * right key and a row dated outside it is still part of what the re-import
- * replaces.
+ * right key and a row dated outside it is still part of that statement.
  */
 export const TransactionByAccountMonth = Schema.Struct({
 	accountId: numFromStr(AccountId),
@@ -658,17 +653,21 @@ export const TransactionByAccountMonth = Schema.Struct({
 });
 
 /**
- * `bundle-impact` success body (issue #77) — how many **bundles** committing an
- * import for one account + month would **dissolve**.
+ * `bundle-impact` success body (issue #77) — how many **bundles** hold a row of
+ * one account + month, i.e. how many would be **dissolved** by deleting that
+ * statement's rows.
  *
- * Import is idempotent by structure: committing a statement deletes everything
- * for that account and month, then inserts the parsed rows. A **bundle parent**
- * is a row in that same table, so a re-import destroys the bundling — and a
- * bundle spanning two months or two accounts is only *partly* inside the target,
- * which is why this is a server-side count and not something the wizard can
- * infer from the page it happens to have fetched. Re-attaching members
- * afterwards is manual (there is no dedup key on a transaction to re-match them
- * by), so the number is shown *before* the user commits.
+ * A **bundle parent** is a row in the transactions table like any other, so a
+ * delete that takes its members takes the bundling with it — and a bundle
+ * spanning two months or two accounts is only *partly* inside the target, which
+ * is why this is a server-side count and not something a client can infer from
+ * the page it happens to have fetched. Re-attaching members afterwards is manual
+ * (there is no dedup key on a transaction to re-match them by), so the number is
+ * meant to be shown *before* the rows go.
+ *
+ * It is no longer an import pre-flight: committing an import deletes nothing
+ * (issue #88), so nothing about a commit dissolves a bundle. It stays as the
+ * pre-flight of a **deliberate** delete of a statement's rows.
  */
 export const BundleImpact = Schema.Struct({ count: Schema.Number });
 
@@ -676,8 +675,8 @@ export const BundleImpact = Schema.Struct({ count: Schema.Number });
  * Transactions group (contract §2.5), prefix `/transactions` — the **core**:
  * composable `list`/`count`, `getById`, `create`, `update`, `remove`. The bulk +
  * targeted-delete endpoints (bulkCreate/bulkPut/bulkDelete/bulkGet,
- * deleteByAccountMonth, deleteByImportBatch) are added to this same group by the
- * follow-up "Port transactions bulk" ticket, which builds on this handler layer.
+ * deleteByImportBatch) are added to this same group by the follow-up "Port
+ * transactions bulk" ticket, which builds on this handler layer.
  *
  * No transaction field has a DB uniqueness constraint, so writes declare no
  * `Conflict`. `getById`/`update`/`remove` 404 on a missing id; `remove` → 204.
@@ -742,11 +741,10 @@ export class TransactionsGroup extends HttpApiGroup.make("transactions")
 			RecapPeriods,
 		),
 	)
-	// The pre-flight of `deleteByAccountMonth` (issue #77): how many **bundles**
-	// re-importing that statement would dissolve, asked before the user commits
-	// so the bundling is never destroyed silently. A read, so `GET` with the
-	// same required params the delete takes — and another literal sub-path,
-	// declared before the `:id` route.
+	// The pre-flight of deleting a statement's rows (issue #77): how many
+	// **bundles** hold a row of that account + month, asked before the rows go so
+	// the bundling is never destroyed silently. A read, so `GET` — and another
+	// literal sub-path, declared before the `:id` route.
 	.add(
 		HttpApiEndpoint.get("bundleImpact")`/transactions/bundle-impact`
 			.setUrlParams(TransactionByAccountMonth)
@@ -829,12 +827,10 @@ export class TransactionsGroup extends HttpApiGroup.make("transactions")
 			.setPayload(TransactionBulkIds)
 			.addSuccess(Schema.Array(Transaction)),
 	)
-	// Targeted bulk deletes — both required-param, both return the deleted count.
-	.add(
-		HttpApiEndpoint.del("deleteByAccountMonth")`/transactions/by-account-month`
-			.setUrlParams(TransactionByAccountMonth)
-			.addSuccess(TransactionAffected),
-	)
+	// Drop a whole **import batch** — the one targeted delete left, and the one
+	// undo an import has. There is deliberately no delete-an-account-month route
+	// (issue #88): it existed only for the import commit, which now deletes
+	// nothing, and keeping it would leave the data loss it caused one caller away.
 	.add(
 		HttpApiEndpoint.del(
 			"deleteByImportBatch",

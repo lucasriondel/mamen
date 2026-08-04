@@ -1,5 +1,4 @@
 import type {
-	AccountId,
 	DeclaredTotals,
 	ExtractedTransaction,
 } from "@mamen/shared/contract";
@@ -35,7 +34,6 @@ export function PdfValidationStep({
 	extracted,
 	declaredTotals,
 	file,
-	accountId,
 	onBack,
 	dispatch,
 }: {
@@ -43,7 +41,6 @@ export function PdfValidationStep({
 	extracted: readonly ExtractedTransaction[];
 	declaredTotals: DeclaredTotals;
 	file: File;
-	accountId: AccountId;
 	onBack: () => void;
 	dispatch: (action: WizardAction) => void;
 }) {
@@ -58,7 +55,7 @@ export function PdfValidationStep({
 				<ExtractedRows extracted={extracted} dispatch={dispatch} />
 			</div>
 
-			<CommitBar records={records} accountId={accountId} onBack={onBack} />
+			<CommitBar records={records} onBack={onBack} />
 		</div>
 	);
 }

@@ -55,11 +55,10 @@ export function currentMonthPeriod(today: Date): Period {
  *
  * The month used to filter on `importMonth` instead, which made the same row land
  * in different buckets depending on whether you were looking at the month or the
- * year: import month is **provenance** — it keys the delete-then-insert that
- * makes re-import idempotent, and it is per-account-per-statement — while spend
- * happens when the transaction happens. A late statement or a month-boundary row
- * therefore moves; that is the correction, and statement-level reconciliation is
- * already handled at import time.
+ * year: import month is **provenance** — the statement a row arrived on, which is
+ * per-account-per-statement — while spend happens when the transaction happens. A
+ * late statement or a month-boundary row therefore moves; that is the correction,
+ * and statement-level reconciliation is already handled at import time.
  *
  * The bounds are built in UTC so they match the wire `date` (an ISO instant)
  * rather than drifting by the viewer's offset. `endDate` is the last millisecond

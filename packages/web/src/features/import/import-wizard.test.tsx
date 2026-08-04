@@ -10,7 +10,8 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // A two-row Green-Got statement spanning a month boundary (Jan debit + Feb
-// credit) so the commit must produce a delete+create for each month.
+// credit) — the shape that used to cost the earlier month its rows, and that the
+// commit now lands in one insert (issue #88).
 const CSV = [
 	'"Statut","Date","Montant","Direction","Intitulé"',
 	'"COMPLETE","2026-01-15T10:00:00.000Z","10","DEBIT","SHOP A"',
@@ -19,9 +20,11 @@ const CSV = [
 
 const ACCOUNTS = [{ id: 1, name: "Checking", type: "checking" }];
 
-// SDK-boundary seam: mock the account read + the transactions count/mutations
-// the wizard touches, keeping the rest of the SDK (keys) real for invalidation.
-const deleteByAccountMonth = vi.fn();
+// SDK-boundary seam: mock the account read + the writes the wizard makes,
+// keeping the rest of the SDK (keys) real for invalidation. `transactionMutations`
+// is replaced wholesale rather than spread over: committing is purely additive
+// (issue #88), so a delete reached for anywhere on this path fails the run as a
+// missing function.
 const bulkCreate = vi.fn();
 const extractPdf = vi.fn();
 
@@ -35,23 +38,7 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
 				queryFn: async () => ({ items: ACCOUNTS, total: ACCOUNTS.length }),
 			}),
 		},
-		transactionQueries: {
-			...actual.transactionQueries,
-			count: (params: unknown) => ({
-				queryKey: ["transactions", "count", params],
-				queryFn: async () => ({ count: 0 }),
-			}),
-			// The commit bar's second per-month read (issue #77) — stubbed to "no
-			// bundle at risk" so the wizard's own flow is what these tests see.
-			bundleImpact: (params: unknown) => ({
-				queryKey: ["transactions", "bundle-impact", params],
-				queryFn: async () => ({ count: 0 }),
-			}),
-		},
 		transactionMutations: {
-			...actual.transactionMutations,
-			deleteByAccountMonth: (accountId: unknown, month: unknown) =>
-				deleteByAccountMonth(accountId, month),
 			bulkCreate: (records: unknown) => bulkCreate(records),
 		},
 		importMutations: {
@@ -86,13 +73,12 @@ function makeRouter() {
 }
 
 beforeEach(() => {
-	deleteByAccountMonth.mockReset().mockResolvedValue({ count: 0 });
 	bulkCreate.mockReset().mockResolvedValue([]);
 	extractPdf.mockReset();
 });
 
 describe("ImportWizard", () => {
-	it("drops a CSV, previews, and commits a delete+create per month", async () => {
+	it("drops a CSV, previews, and commits both months in one insert", async () => {
 		const user = userEvent.setup();
 		render(<RouterProvider router={makeRouter()} />);
 
@@ -117,21 +103,21 @@ describe("ImportWizard", () => {
 		});
 		await user.click(commitButton);
 
-		// One delete per distinct month, both for the chosen account.
-		await waitFor(() =>
-			expect(deleteByAccountMonth).toHaveBeenCalledWith(1, "2026-01"),
-		);
-		expect(deleteByAccountMonth).toHaveBeenCalledWith(1, "2026-02");
-		expect(deleteByAccountMonth).toHaveBeenCalledTimes(2);
-
-		// One bulkCreate per month, with signed amounts (debit negative).
-		expect(bulkCreate).toHaveBeenCalledTimes(2);
-		const janRecords = bulkCreate.mock.calls[0][0];
-		expect(janRecords[0]).toMatchObject({
+		// ONE bulkCreate carrying both months, with signed amounts (debit negative)
+		// — and no delete anywhere on the path.
+		await waitFor(() => expect(bulkCreate).toHaveBeenCalledTimes(1));
+		const records = bulkCreate.mock.calls[0][0];
+		expect(records).toHaveLength(2);
+		expect(records[0]).toMatchObject({
 			accountId: 1,
 			amount: -10,
 			rawIssuerString: "SHOP A",
 			importMonth: "2026-01",
+		});
+		expect(records[1]).toMatchObject({
+			amount: 20,
+			rawIssuerString: "SHOP B",
+			importMonth: "2026-02",
 		});
 
 		// On success it navigates to the transactions view.
@@ -208,18 +194,15 @@ describe("ImportWizard", () => {
 			screen.getByRole("button", { name: "Continue to preview" }),
 		);
 
-		// Step 2 — commit runs the same delete+create per derived month.
+		// Step 2 — commit runs the same single-insert rail as the CSV path.
 		await user.click(
 			await screen.findByRole("button", { name: "Commit import" }),
 		);
 
-		await waitFor(() =>
-			expect(deleteByAccountMonth).toHaveBeenCalledWith(1, "2026-01"),
-		);
-		expect(deleteByAccountMonth).toHaveBeenCalledWith(1, "2026-02");
-		expect(bulkCreate).toHaveBeenCalledTimes(2);
-		const janRecords = bulkCreate.mock.calls[0][0];
-		expect(janRecords[0]).toMatchObject({
+		await waitFor(() => expect(bulkCreate).toHaveBeenCalledTimes(1));
+		const records = bulkCreate.mock.calls[0][0];
+		expect(records).toHaveLength(2);
+		expect(records[0]).toMatchObject({
 			accountId: 1,
 			amount: -10,
 			rawIssuerString: "SHOP A",

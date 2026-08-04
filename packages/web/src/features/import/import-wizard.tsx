@@ -119,7 +119,6 @@ export function ImportWizard({
 				extracted={state.extracted}
 				declaredTotals={state.declaredTotals}
 				file={state.file}
-				accountId={state.accountId}
 				onBack={() => dispatch({ type: "back-to-upload" })}
 				dispatch={dispatch}
 			/>
@@ -128,7 +127,6 @@ export function ImportWizard({
 		stepContent = (
 			<PreviewStep
 				records={records}
-				accountId={state.accountId}
 				accountName={accountName}
 				parserLabel={sourceLabel}
 				onBack={() => dispatch({ type: "back-to-upload" })}
@@ -147,7 +145,7 @@ export function ImportWizard({
 				<p className="mt-1 text-gousse-muted">
 					{state.step === "upload"
 						? "Drop a CSV or PDF statement, pick its account, and preview before committing."
-						: "Review what will be written — committing replaces each month."}
+						: "Review what will be written — committing adds these rows to the account."}
 				</p>
 			</header>
 

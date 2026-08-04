@@ -209,18 +209,22 @@ export const bundleWrites = ({
 
 	/**
 	 * Dissolve every bundle touching `scope`, through the shared
-	 * {@link dissolveBundle} — so a re-import leaves no parent standing for a
-	 * set that silently shrank, and no member pointing at a parent that is
+	 * {@link dissolveBundle} — so a scoped delete leaves no parent standing for
+	 * a set that silently shrank, and no member pointing at a parent that is
 	 * gone. Run BEFORE the delete: afterwards the rows in scope are ordinary,
-	 * and what the statement removes is exactly the bank rows it replaces.
+	 * and what goes is exactly the bank rows the scope named.
 	 *
 	 * Dissolving is the honest option of the three (issue #77). Exempting
 	 * parents from the delete would leave them summing member ids that no
 	 * longer exist; re-attaching members by fingerprint would invent an
-	 * identity transactions do not have, and would silently mis-match a
-	 * statement that genuinely changed. Re-bundling is manual, which is
-	 * acceptable because re-importing an already-curated month is rare — but
-	 * only because the repository's `bundleImpact` says so first.
+	 * identity transactions do not have. Re-bundling is manual, which is
+	 * acceptable because deleting a curated statement's rows is a deliberate,
+	 * rare act — but only because the repository's `bundleImpact` says what it
+	 * costs first.
+	 *
+	 * No import path reaches here any more: committing an import inserts and
+	 * deletes nothing (issue #88), so nothing an import does can dissolve a
+	 * bundle.
 	 */
 	const dissolveBundlesTouching = (scope: Fragment): Effect.Effect<void> =>
 		bundlesTouching(scope).pipe(

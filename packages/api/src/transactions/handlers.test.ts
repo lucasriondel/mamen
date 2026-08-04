@@ -732,48 +732,36 @@ describe("transactions bulk endpoints", () => {
 		}).pipe(Effect.provide(HttpLive)),
 	);
 
-	it.effect(
-		"deleteByAccountMonth deletes only the matching account+month",
-		() =>
-			Effect.gen(function* () {
-				const client = yield* HttpApiClient.make(Api);
-				// Two rows in acct 1 / 2026-03, one in acct 1 / 2026-04, one in acct 2.
-				yield* client.transactions.create({
-					payload: make({ accountId: asAccount(1), importMonth: "2026-03" }),
-				});
-				yield* client.transactions.create({
-					payload: make({ accountId: asAccount(1), importMonth: "2026-03" }),
-				});
-				yield* client.transactions.create({
-					payload: make({ accountId: asAccount(1), importMonth: "2026-04" }),
-				});
-				yield* client.transactions.create({
-					payload: make({ accountId: asAccount(2), importMonth: "2026-03" }),
-				});
+	// The delete-an-account-month route is GONE (issue #88). It existed for one
+	// caller — the import commit, which deleted the month it was about to insert
+	// — and epic #85 makes import purely additive. Leaving it unused would keep
+	// "import does not erase" a convention rather than a property: anything that
+	// found it later could reintroduce the data loss. Erasing rows is the user's
+	// action now, through `bulkDelete` (issue #86) or the import-batch route.
+	it.effect("no route deletes an account's month", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const http = yield* HttpClient.HttpClient;
+			yield* client.transactions.create({
+				payload: make({ accountId: asAccount(1), importMonth: "2026-03" }),
+			});
+			yield* client.transactions.create({
+				payload: make({ accountId: asAccount(1), importMonth: "2026-03" }),
+			});
 
-				const result = yield* client.transactions.deleteByAccountMonth({
-					urlParams: { accountId: asAccount(1), importMonth: "2026-03" },
-				});
-				assert.strictEqual(result.count, 2);
+			const res = yield* http.execute(
+				HttpClientRequest.del(
+					"/api/transactions/by-account-month?accountId=1&importMonth=2026-03",
+				),
+			);
+			// Nothing serves that path any more. What answers is the `:id` route it
+			// now falls through to, refusing `"by-account-month"` as a transaction id
+			// — never a success, and never a delete.
+			assert.strictEqual(res.status, 400);
 
-				const remaining = yield* client.transactions.count({ urlParams: {} });
-				assert.strictEqual(remaining.count, 2);
-			}).pipe(Effect.provide(HttpLive)),
-	);
-
-	it.effect(
-		"deleteByAccountMonth requires both query params (missing → 400)",
-		() =>
-			Effect.gen(function* () {
-				const http = yield* HttpClient.HttpClient;
-				// Only `accountId` sent — `importMonth` is required, so decode fails.
-				const res = yield* http.execute(
-					HttpClientRequest.del(
-						"/api/transactions/by-account-month?accountId=1",
-					),
-				);
-				assert.strictEqual(res.status, 400);
-			}).pipe(Effect.provide(HttpLive)),
+			const remaining = yield* client.transactions.count({ urlParams: {} });
+			assert.strictEqual(remaining.count, 2);
+		}).pipe(Effect.provide(HttpLive)),
 	);
 
 	it.effect("deleteByImportBatch deletes only the matching batch", () =>
@@ -796,6 +784,84 @@ describe("transactions bulk endpoints", () => {
 
 			const remaining = yield* client.transactions.count({ urlParams: {} });
 			assert.strictEqual(remaining.count, 1);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+});
+
+// An import is **additive** (epic #85, issue #88): committing a statement is a
+// `bulkCreate` and nothing else, so a statement overlapping a month that was
+// already imported adds to it. The bug this closes: statements that run from day
+// 5 of one month to day 6 of the next legitimately overlap, and importing the
+// later one wiped the earlier one's rows — with everything the user had done to
+// them.
+describe("an overlapping import adds rows rather than replacing them", () => {
+	it.effect("keeps the earlier rows and the curation on them", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			// The June statement, already imported and since curated: a note on one
+			// row, and the two of them bundled.
+			const [june1, june2] = yield* client.transactions.bulkCreate({
+				payload: {
+					records: [
+						make({ rawIssuerString: "JUNE A", importBatchId: "batch-1" }),
+						make({
+							rawIssuerString: "JUNE B",
+							amount: -12,
+							importBatchId: "batch-1",
+						}),
+					],
+				},
+			});
+			assert.ok(june1 && june2);
+			yield* client.transactions.update({
+				path: { id: june1.id },
+				payload: { notes: "split rent" },
+			});
+			const parent = yield* client.transactions.createBundle({
+				payload: { ids: [june1.id, june2.id], label: "Weekend away" },
+			});
+
+			// The July statement is committed. It carries a row dated back in June —
+			// the straddle that used to cost June everything.
+			yield* client.transactions.bulkCreate({
+				payload: {
+					records: [
+						make({ rawIssuerString: "JULY A", importBatchId: "batch-2" }),
+						make({
+							rawIssuerString: "JULY B",
+							date: new Date("2026-03-30T00:00:00.000Z"),
+							importBatchId: "batch-2",
+						}),
+					],
+				},
+			});
+
+			// Both June rows are still there, still bundled, still carrying the note.
+			const kept = yield* client.transactions.getById({
+				path: { id: june1.id },
+			});
+			assert.strictEqual(kept.notes, "split rent");
+			assert.strictEqual(kept.bundleId, parent.id);
+			assert.strictEqual(
+				(yield* client.transactions.getById({ path: { id: june2.id } }))
+					.bundleId,
+				parent.id,
+			);
+
+			// Three top-level rows: the surviving bundle parent (its members ride
+			// beside the page) and the two July rows.
+			const rows = yield* client.transactions.list({
+				urlParams: { limit: 50, offset: 0, direction: "desc" },
+			});
+			assert.strictEqual(rows.total, 3);
+			assert.ok(rows.items.some((t) => t.id === parent.id));
+			assert.deepStrictEqual(
+				rows.items
+					.map((t) => t.rawIssuerString)
+					.filter((s) => s.startsWith("JULY"))
+					.sort(),
+				["JULY A", "JULY B"],
+			);
 		}).pipe(Effect.provide(HttpLive)),
 	);
 });
@@ -2301,12 +2367,13 @@ describe("changing a bundle's membership (issue #74)", () => {
 	);
 });
 
-// The re-import warning over the wire (issue #77): the pre-flight count the
-// import wizard reads, and the delete it precedes. What is pinned here is the
-// seam — the query string carries the same two required params the targeted
-// delete does, and committing really does take the bundle with it.
-describe("warning before a re-import dissolves bundles (issue #77)", () => {
-	it.effect("reports the bundles a re-import would dissolve", () =>
+// The warning before a statement's rows are deleted (issue #77): the pre-flight
+// count, and the delete it precedes. What is pinned here is the seam — the query
+// string carries both required params, and a delete really does take the bundle
+// with it. Since issue #88 the delete on the other side is the import-batch one:
+// committing an import removes nothing, so no commit dissolves a bundle.
+describe("warning before a delete dissolves bundles (issue #77)", () => {
+	it.effect("reports the bundles a statement's rows are caught in", () =>
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
 			const a = yield* client.transactions.create({
@@ -2352,30 +2419,30 @@ describe("warning before a re-import dissolves bundles (issue #77)", () => {
 		}).pipe(Effect.provide(HttpLive)),
 	);
 
-	it.effect("committing the re-import dissolves the warned-about bundle", () =>
+	it.effect("dropping a batch dissolves the warned-about bundle", () =>
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
 			const a = yield* client.transactions.create({
-				payload: make({ amount: -200, importMonth: "2026-03" }),
+				payload: make({ amount: -200, importBatchId: "batch-1" }),
 			});
 			const b = yield* client.transactions.create({
-				payload: make({ amount: -30, importMonth: "2026-03" }),
+				payload: make({ amount: -30, importBatchId: "batch-1" }),
 			});
 			const c = yield* client.transactions.create({
 				payload: make({
 					amount: 150,
 					date: new Date("2026-04-02T00:00:00.000Z"),
-					importMonth: "2026-04",
+					importBatchId: "batch-2",
 				}),
 			});
 			const parent = yield* client.transactions.createBundle({
 				payload: { ids: [a.id, b.id, c.id], label: "Weekend away" },
 			});
 
-			// April is re-imported: one row goes, and so does the bundle — the two
-			// March members come back as ordinary rows, not as a shrunken bundle.
-			const deleted = yield* client.transactions.deleteByAccountMonth({
-				urlParams: { accountId: asAccount(1), importMonth: "2026-04" },
+			// The second batch is dropped: one row goes, and so does the bundle — the
+			// two survivors come back as ordinary rows, not as a shrunken bundle.
+			const deleted = yield* client.transactions.deleteByImportBatch({
+				path: { batchId: "batch-2" },
 			});
 			assert.strictEqual(deleted.count, 1);
 

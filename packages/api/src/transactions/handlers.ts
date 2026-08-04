@@ -8,13 +8,17 @@ import { TransactionRepo } from "./repository";
  * Implements the whole `transactions` group on {@link TransactionRepo}: the core
  * (composable `list`/`count`, `getById`, `create`, `update`, `remove`) plus the
  * bulk + targeted-delete endpoints (`bulkCreate`/`bulkPut`/`bulkDelete`/`bulkGet`,
- * `deleteByAccountMonth`/`deleteByImportBatch`). Each handler is a thin delegate;
- * status codes / success bodies are set by the contract, not here.
+ * `deleteByImportBatch`). Each handler is a thin delegate; status codes / success
+ * bodies are set by the contract, not here.
  *
- * `bundleImpact` (issue #77) is the pre-flight of `deleteByAccountMonth`: how
- * many **bundles** re-importing that statement would dissolve. It reads through
- * the same repository routine the delete dissolves through, so the warning and
- * the commit can never disagree about what is about to go.
+ * `bundleImpact` (issue #77) is the pre-flight of deleting a statement's rows:
+ * how many **bundles** hold a row of that account + month. It reads through the
+ * same repository routine every delete dissolves through, so the warning and the
+ * delete can never disagree about what is about to go.
+ *
+ * No handler here deletes a month. `bulkCreate` is the whole of an import commit
+ * (issue #88): the rows are inserted and nothing is removed, which is why the
+ * account-month delete this group used to carry is gone rather than unused.
  *
  * `recap`/`recapPeriods` (issue #71) are delegates like the rest: the spend
  * summary is summed in SQL over the whole filtered set, and the one
@@ -60,12 +64,6 @@ export const TransactionsLive = HttpApiBuilder.group(
 				)
 				.handle("bulkDelete", (_) => repo.bulkDelete(_.payload.ids))
 				.handle("bulkGet", (_) => repo.bulkGet(_.payload.ids))
-				.handle("deleteByAccountMonth", (_) =>
-					repo.deleteByAccountMonth(
-						_.urlParams.accountId,
-						_.urlParams.importMonth,
-					),
-				)
 				.handle("deleteByImportBatch", (_) =>
 					repo.deleteByImportBatch(_.path.batchId),
 				)

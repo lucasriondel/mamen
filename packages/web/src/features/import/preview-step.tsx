@@ -1,4 +1,3 @@
-import type { AccountId } from "@mamen/shared/contract";
 import { formatCurrency, formatMonth, formatShortDate } from "@/lib/format";
 import { distinctMonths } from "./commit";
 import { CommitBar } from "./commit-bar";
@@ -10,19 +9,16 @@ const PREVIEW_ROWS = 8;
 /**
  * Step 2 (CSV path) — the mandatory, never-skippable preview. Shows the detected
  * format, target account, the month(s) found, and the row count, then a read-only
- * table of the first rows, and the shared {@link CommitBar} (per-month replacement
- * warning + commit). The PDF path uses its own side-by-side validation view; both
- * converge on the same commit rail.
+ * table of the first rows, and the shared {@link CommitBar}. The PDF path uses
+ * its own side-by-side validation view; both converge on the same commit rail.
  */
 export function PreviewStep({
 	records,
-	accountId,
 	accountName,
 	parserLabel,
 	onBack,
 }: {
 	records: readonly ParsedTransaction[];
-	accountId: AccountId;
 	accountName: string;
 	parserLabel: string;
 	onBack: () => void;
@@ -40,7 +36,7 @@ export function PreviewStep({
 
 			<PreviewTable records={records} />
 
-			<CommitBar records={records} accountId={accountId} onBack={onBack} />
+			<CommitBar records={records} onBack={onBack} />
 		</div>
 	);
 }

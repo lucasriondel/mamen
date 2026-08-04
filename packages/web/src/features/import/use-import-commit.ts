@@ -1,4 +1,3 @@
-import type { AccountId } from "@mamen/shared/contract";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
@@ -16,31 +15,30 @@ function successMessage(result: CommitResult): string {
 }
 
 /**
- * The import commit mutation. Runs {@link commitImport} (delete-then-create per
- * month), then — per the PRD — invalidates the transactions and accounts query
+ * The import commit mutation. Runs {@link commitImport} (one bulk insert, no
+ * delete), then — per the PRD — invalidates the transactions and accounts query
  * families (plus rules, whose owned counts are derived from the rows that just
- * moved), raises a success toast, and navigates to the transactions view.
+ * landed), raises a success toast, and navigates to the transactions view.
  * Failures (bad file already filtered out; network errors here) surface via a
  * `sonner` error toast keyed off the SDK tagged error.
+ *
+ * The target account is not a variable of the mutation: every parsed row already
+ * carries the `accountId` the wizard stamped it with, and with no month to
+ * delete there is nothing left for the commit to scope.
  */
 export function useImportCommit() {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 
 	return useMutation({
-		mutationFn: ({
-			records,
-			accountId,
-		}: {
-			records: readonly ParsedTransaction[];
-			accountId: AccountId;
-		}) => commitImport(records, accountId),
+		mutationFn: ({ records }: { records: readonly ParsedTransaction[] }) =>
+			commitImport(records),
 		onSuccess: (result) => {
 			queryClient.invalidateQueries({ queryKey: transactionKeys.all });
 			queryClient.invalidateQueries({ queryKey: accountKeys.all });
 			// A rule's `ownedCount` is derived from the live table (issue #63), and
-			// an import moves it both ways: the month's old rows are deleted and the
-			// new ones are claimed by whichever rules match them at import time.
+			// the rows an import lands are claimed by whichever rules match them at
+			// import time.
 			queryClient.invalidateQueries({ queryKey: ruleKeys.all });
 			toast.success(successMessage(result));
 			navigate({ to: "/transactions" });

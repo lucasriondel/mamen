@@ -14,8 +14,10 @@ export type CellState = "imported" | "available" | "disabled";
  * - **available** — a droppable, clickable dropzone. Dropping a CSV parses it and
  *   hands it to the wizard pre-filled with this account; clicking opens the same
  *   wizard empty.
- * - **imported** — the month already has rows. Still droppable, because a re-drop
- *   *replaces* the month (imports are idempotent), but marked so the user knows.
+ * - **imported** — the month already has rows. Still droppable, because a second
+ *   statement can legitimately cover part of the month, but marked so the user
+ *   knows: a commit *adds* to what is there (issue #88), so re-dropping the same
+ *   statement duplicates its rows rather than replacing them.
  * - **disabled** — the current or a future month: inert, no statement to import
  *   yet.
  */
@@ -78,7 +80,7 @@ export function MonthCell({
 			}}
 			onDragLeave={() => setDragging(false)}
 			onDrop={onDrop}
-			aria-label={`Import ${monthLabel} — ${imported ? "already imported, drop to replace" : "available"}`}
+			aria-label={`Import ${monthLabel} — ${imported ? "already imported, drop to add more rows" : "available"}`}
 			className={`flex cursor-pointer flex-col items-center justify-center gap-0.5 rounded-md border px-2 py-3 text-center text-xs outline-none transition-[transform,background-color,border-color,color] active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-gousse-accent ${
 				dragging
 					? "border-gousse-accent bg-gousse-panel"

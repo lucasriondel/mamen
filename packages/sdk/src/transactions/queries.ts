@@ -115,9 +115,9 @@ export type RecapParams = {
 };
 
 /**
- * The `bundleImpact` params (issue #77) — the statement about to be re-imported,
- * named exactly as `deleteByAccountMonth` names it. Both are required: this is a
- * pre-flight of one targeted delete, not a filtered read.
+ * The `bundleImpact` params (issue #77) — the statement whose rows are about to
+ * be deleted. Both are required: this is a pre-flight of one targeted delete,
+ * not a filtered read.
  */
 export type BundleImpactParams = {
 	accountId: AccountId;
@@ -287,16 +287,19 @@ export const transactionQueries = {
 		}),
 
 	/**
-	 * How many **bundles** committing an import for one account + month would
-	 * dissolve (issue #77) — the import wizard's pre-flight, read before the user
-	 * commits so the bundling is never destroyed silently.
+	 * How many **bundles** hold a row of one account + month (issue #77) — the
+	 * pre-flight of deleting that statement's rows, read before they go so the
+	 * bundling is never destroyed silently.
 	 *
 	 * Server-side by necessity, not by preference: a bundle spanning two months or
-	 * two accounts is only *partly* inside the statement being replaced, so the
-	 * count cannot be inferred from whatever page the client happens to hold. The
-	 * commit dissolves through the same query this counts through. Any write that
-	 * creates, dissolves or re-scopes a bundle moves this number, so invalidate
+	 * two accounts is only *partly* inside the statement, so the count cannot be
+	 * inferred from whatever page the client happens to hold. A delete dissolves
+	 * through the same query this counts through. Any write that creates,
+	 * dissolves or re-scopes a bundle moves this number, so invalidate
 	 * `transactionKeys.all` after one.
+	 *
+	 * It has no caller since issue #88 — the import wizard was it, and an import
+	 * commit no longer deletes anything, so it warns about nothing.
 	 */
 	bundleImpact: (params: BundleImpactParams) =>
 		queryOptions({
@@ -392,17 +395,11 @@ export const transactionMutations = {
 			),
 		),
 
-	/** Targeted delete of one account's import month → `{ count }` deleted. */
-	deleteByAccountMonth: (accountId: AccountId, importMonth: string) =>
-		runQuery(
-			Effect.flatMap(Client, (client) =>
-				client.transactions.deleteByAccountMonth({
-					urlParams: { accountId, importMonth },
-				}),
-			),
-		),
-
-	/** Targeted delete of one import batch → `{ count }` deleted. */
+	/**
+	 * Targeted delete of one import batch → `{ count }` deleted. The only scoped
+	 * delete the SDK offers: the account-month one went with the import commit
+	 * that was its sole caller (issue #88), so nothing here can erase a month.
+	 */
 	deleteByImportBatch: (batchId: string) =>
 		runQuery(
 			Effect.flatMap(Client, (client) =>

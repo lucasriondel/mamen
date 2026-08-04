@@ -14,8 +14,10 @@ import { Effect } from "effect";
  * inequality, so `(accountId, date)` covers both halves and the reverse would
  * cover only one.
  *
- * `idx_tx_account_month` stays: `importMonth` is still what the delete-by-month
- * and bundle-impact routes ask about — a *statement*, not a month of spending.
+ * `idx_tx_account_month` stays: `importMonth` is still what the bundle-impact
+ * route asks about — a *statement*, not a month of spending. The delete-by-month
+ * route that was its other reader is gone (issue #88), an import having stopped
+ * replacing the month it writes into.
  */
 export default Effect.flatMap(SqlClient.SqlClient, (sql) =>
 	sql`CREATE INDEX IF NOT EXISTS idx_tx_account_date ON transactions(accountId, date)`.pipe(

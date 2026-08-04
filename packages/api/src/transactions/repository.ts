@@ -1136,7 +1136,7 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				encodeFlags,
 			});
 
-			/** The rows one re-imported statement replaces: one account, one month. */
+			/** The rows one statement produced: one account, one import month. */
 			const accountMonthScope = (
 				accountId: typeof AccountId.Type,
 				importMonth: string,
@@ -1460,21 +1460,22 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 					: bulkGetQuery(ids).pipe(orDieSql);
 
 			/**
-			 * The targeted deletes behind the delete-then-reinsert shape: re-importing
-			 * a statement (account + month) and dropping an import batch. Both take
-			 * the same two steps in the same order (issue #77):
+			 * A **scoped** delete — a whole set of rows named by a predicate rather
+			 * than by id. Its one caller is {@link deleteByImportBatch}, dropping an
+			 * import batch; the account-month delete that shared it went with the
+			 * import commit's month-wipe (issue #88). Two steps, in this order
+			 * (issue #77):
 			 *
 			 * 1. **dissolve** every bundle the scope touches, through the shared
 			 *    {@link dissolveBundle} — the delete is unconditional and a bundle
-			 *    parent is a row in this table like any other, so without this a
-			 *    re-import wipes the parents and reinserts the members ungrouped, the
-			 *    recap quietly reverting to the gross rows with nothing said;
+			 *    parent is a row in this table like any other, so without this the
+			 *    parents go and the members are left ungrouped, the recap quietly
+			 *    reverting to the gross rows with nothing said;
 			 * 2. **delete** the scope, which by then holds only ordinary rows.
 			 *
-			 * The count is therefore the **bank rows** the statement replaces: a
-			 * parent inside the scope was already dissolved, and it was never a row
-			 * the import produced. {@link bundleImpact} is the pre-flight of step 1,
-			 * over the same scope fragment.
+			 * The count is therefore the **bank rows** the scope named: a parent
+			 * inside it was already dissolved, and it was never a row an import
+			 * produced. {@link bundleImpact} is the pre-flight of step 1.
 			 */
 			const deleteScope = (scope: Fragment) =>
 				dissolveBundlesTouching(scope).pipe(
@@ -1485,26 +1486,24 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 					),
 				);
 
-			// Targeted delete: both params required at the boundary. Returns the
+			// Targeted delete: the batch id is required at the boundary. Returns the
 			// deleted count (was `{ ok: true }` in the old server; taxonomy §5).
-			const deleteByAccountMonth = (
-				accountId: typeof AccountId.Type,
-				importMonth: string,
-			) => deleteScope(accountMonthScope(accountId, importMonth));
-
 			const deleteByImportBatch = (batchId: string) =>
 				deleteScope(sql`t.importBatchId = ${batchId}`);
 
 			/**
-			 * How many **bundles** committing an import for one account + month would
-			 * dissolve — the pre-flight the import wizard shows before the user
-			 * commits, so the bundling is never destroyed silently (issue #77).
+			 * How many **bundles** hold a row of one account + month — i.e. how many
+			 * deleting that statement's rows would dissolve, asked before they go so
+			 * the bundling is never destroyed silently (issue #77).
 			 *
-			 * Read-only, and read through the SAME {@link bundlesTouching} the commit
-			 * dissolves through, over the same scope fragment: the number on screen is
-			 * the number of bundles that will go, not a second estimate of it. Counts
-			 * bundles only *partly* inside the target, since re-importing takes their
-			 * members whatever month or account the parent happens to sit in.
+			 * Read-only, and read through the SAME {@link bundlesTouching} every
+			 * scoped delete dissolves through: the number on screen is the number of
+			 * bundles that will go, not a second estimate of it. Counts bundles only
+			 * *partly* inside the target, since a delete takes their members whatever
+			 * month or account the parent happens to sit in.
+			 *
+			 * It is no longer an import pre-flight: an import commit deletes nothing
+			 * (issue #88), so no commit dissolves a bundle.
 			 */
 			const bundleImpact = (
 				accountId: typeof AccountId.Type,
@@ -1622,7 +1621,6 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				bulkPut,
 				bulkDelete,
 				bulkGet,
-				deleteByAccountMonth,
 				deleteByImportBatch,
 				bundleImpact,
 				linkTransfer,

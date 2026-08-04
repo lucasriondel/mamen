@@ -1,11 +1,13 @@
 import type { AccountId } from "@mamen/shared/contract";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ParsedTransaction } from "./parsers/types";
 
-// SDK-boundary seam: the bar reads two per-month numbers — how many rows the
-// commit replaces, and how many BUNDLES it dissolves (issue #77) — and owns the
-// commit action. Mock the reads; the commit itself is `use-import-commit`'s.
+// SDK-boundary seam. The bar used to read two per-month numbers — how many rows
+// the commit replaces, and how many BUNDLES it dissolves — and warn about each.
+// Committing is purely additive now (issue #88), so it must read neither: both
+// stubs answer with a number that would produce a notice, and the point of the
+// suite is that no notice appears and neither read is made.
 const count = vi.fn();
 const bundleImpact = vi.fn();
 
@@ -49,83 +51,45 @@ function record(overrides: Partial<ParsedTransaction> = {}): ParsedTransaction {
 }
 
 beforeEach(() => {
-	count.mockReset().mockResolvedValue({ count: 0, total: 0 });
-	bundleImpact.mockReset().mockResolvedValue({ count: 0 });
+	count.mockReset().mockResolvedValue({ count: 4, total: -40 });
+	bundleImpact.mockReset().mockResolvedValue({ count: 2 });
 	mutate.mockReset();
 });
 
-describe("CommitBar bundle warning (issue #77)", () => {
-	it("warns how many bundles the commit dissolves, and that re-bundling is manual", async () => {
-		bundleImpact.mockResolvedValue({ count: 2 });
+describe("CommitBar", () => {
+	it("commits the parsed records", async () => {
+		const records = [record(), record({ importMonth: "2026-02" })];
+		render(<CommitBar records={records} onBack={vi.fn()} />);
 
-		render(
-			<CommitBar
-				records={[record()]}
-				accountId={ACCOUNT_ID}
-				onBack={vi.fn()}
-			/>,
-		);
+		(await screen.findByRole("button", { name: /commit import/i })).click();
 
-		const warning = await screen.findByText(/2 bundles/i);
-		expect(warning).toHaveAttribute("role", "alert");
-		expect(warning.textContent).toMatch(/manual/i);
+		expect(mutate).toHaveBeenCalledWith({ records });
 	});
 
-	// The count is asked per month, for the account being imported into — the
-	// same statement the commit's delete names.
-	it("asks the server per month of the batch", async () => {
+	// A warning about a loss that can no longer happen is worse than none: it
+	// teaches the user to fear an import that is now safe.
+	it("warns about neither replacement nor dissolution", async () => {
 		render(
 			<CommitBar
 				records={[record(), record({ importMonth: "2026-02" })]}
-				accountId={ACCOUNT_ID}
 				onBack={vi.fn()}
 			/>,
 		);
 
 		await screen.findByRole("button", { name: /commit import/i });
-		expect(bundleImpact).toHaveBeenCalledWith({
-			accountId: ACCOUNT_ID,
-			importMonth: "2026-01",
-		});
-		expect(bundleImpact).toHaveBeenCalledWith({
-			accountId: ACCOUNT_ID,
-			importMonth: "2026-02",
-		});
-	});
-
-	// Nothing bundled in the month → no warning at all. The bar must not imply a
-	// loss that is not coming.
-	it("says nothing when the commit dissolves no bundle", async () => {
-		count.mockResolvedValue({ count: 4, total: -40 });
-
-		render(
-			<CommitBar
-				records={[record()]}
-				accountId={ACCOUNT_ID}
-				onBack={vi.fn()}
-			/>,
-		);
-
-		// The row-replacement notice still shows; the bundle one does not.
-		await screen.findByText(/replace 4 existing rows/i);
+		// The stubs would answer 4 rows and 2 bundles — nothing on screen says so.
+		await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+		expect(screen.queryByText(/replace/i)).toBeNull();
 		expect(screen.queryByText(/bundle/i)).toBeNull();
 	});
 
-	// The two notices are independent reads: a bundle can be dissolved by a month
-	// whose replacement notice is showing, and each must stand on its own answer.
-	it("shows the bundle warning beside the row-replacement notice", async () => {
-		count.mockResolvedValue({ count: 3, total: -30 });
-		bundleImpact.mockResolvedValue({ count: 1 });
+	// Not merely unrendered — unasked. The notices were the only reason the
+	// preview knew which account it was writing into.
+	it("asks the server nothing", async () => {
+		render(<CommitBar records={[record()]} onBack={vi.fn()} />);
 
-		render(
-			<CommitBar
-				records={[record()]}
-				accountId={ACCOUNT_ID}
-				onBack={vi.fn()}
-			/>,
-		);
-
-		await screen.findByText(/replace 3 existing rows/i);
-		await screen.findByText(/1 bundle\b/i);
+		await screen.findByRole("button", { name: /commit import/i });
+		expect(count).not.toHaveBeenCalled();
+		expect(bundleImpact).not.toHaveBeenCalled();
 	});
 });

@@ -8,8 +8,8 @@ const routeApi = getRouteApi("/import");
  * Import view — the CSV import surface (PRD #7).
  *
  * Thin wrapper around the {@link ImportWizard}: the whole 3-step flow (file drop
- * + parser auto-detect + account selection, mandatory preview, idempotent
- * commit) lives in the wizard so the route stays a one-liner. When reached from
+ * + parser auto-detect + account selection, mandatory preview, additive commit)
+ * lives in the wizard so the route stays a one-liner. When reached from
  * the accounts import grid, the route carries an `accountId` search param that
  * pre-selects the wizard's target account.
  */

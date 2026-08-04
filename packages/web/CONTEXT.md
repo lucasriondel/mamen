@@ -80,11 +80,17 @@ _Avoid_: Diff view, comparison.
 
 **Import**:
 The result of committing a Statement for one account and one month, keyed
-`(accountId, importMonth)`. Re-importing the same key **replaces** it
-(delete-month-then-insert) — imports are idempotent, not additive. The
-`importMonth` (`"YYYY-MM"`) is derived per-row from each transaction's date, so
-one Statement spanning a month boundary yields two Imports.
-_Avoid_: Batch, load.
+`(accountId, importMonth)`. Committing is **additive**: it inserts the parsed
+rows and deletes nothing (issue #88), so a Statement overlapping a month that
+was already imported leaves the earlier rows — and every manual decision made on
+them — standing. It used to replace the month, which cost the previous statement
+its rows whenever two statements legitimately overlapped (the CCF case, epic
+#85). The consequence is that re-importing the same Statement **duplicates** it;
+the guard is a preview warning, and removing rows is the user's action (bulk
+delete, issue #86). The `importMonth` (`"YYYY-MM"`) is derived per-row from each
+transaction's date, so one Statement spanning a month boundary yields two
+Imports.
+_Avoid_: Batch, load, replace (an import replaces nothing).
 _Code note_: `importMonth` is **provenance** — the statement a row came from —
 and it is the key of the Import alone. The transaction list's Month filter does
 *not* read it: it buckets a row by its own `date` (issue #87), because a date
