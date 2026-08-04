@@ -25,6 +25,7 @@ const NO_SPEND: RecapSpend = {
 	byIssuer: [],
 	byCategory: [],
 	transfers: { total: 0, count: 0 },
+	excluded: { total: 0, count: 0 },
 };
 
 /**

@@ -9,7 +9,10 @@ import type {
 	TransactionKind,
 	TransactionUpdate,
 } from "@mamen/shared/contract";
-import { PaginationDefaults } from "@mamen/shared/contract";
+import {
+	PaginationDefaults,
+	type UNASSIGNED_FILTER,
+} from "@mamen/shared/contract";
 import { queryOptions } from "@tanstack/react-query";
 import { Effect } from "effect";
 import { Client, runQuery } from "../runtime";
@@ -22,15 +25,29 @@ import { Client, runQuery } from "../runtime";
 export type TransactionListParams = {
 	limit?: number;
 	offset?: number;
-	accountId?: AccountId;
-	issuerId?: IssuerId;
 	/**
-	 * One category id, or a **set** of them (ADR 0002). A leaf page passes a lone
-	 * id; a folder page passes all of its leaves' ids so their transactions come
-	 * back in one query. The filter matches the *derived* category, so it includes
-	 * issuer-categorised rows, not only hand-overridden ones.
+	 * One account id, or a **set** of them. The set form is what carries the recap
+	 * page's multi-select selection into a drill-down (issue #86): a detail page
+	 * whose account scope widened to every account would show rows the recap row it
+	 * came from never counted.
 	 */
-	categoryId?: CategoryId | ReadonlyArray<CategoryId>;
+	accountId?: AccountId | ReadonlyArray<AccountId>;
+	/**
+	 * One issuer id, or {@link UNASSIGNED_FILTER} for the rows no issuer is matched
+	 * to — the recap's *Unassigned* by-issuer bucket (issue #86). Omitted means any.
+	 */
+	issuerId?: IssuerId | typeof UNASSIGNED_FILTER;
+	/**
+	 * One category id, a **set** of them (ADR 0002), or {@link UNASSIGNED_FILTER}.
+	 * A leaf page passes a lone id; a folder page passes all of its leaves' ids so
+	 * their transactions come back in one query. The filter matches the *derived*
+	 * category, so it includes issuer-categorised rows, not only hand-overridden
+	 * ones — and `"none"` therefore means "no category by either route" (#86).
+	 */
+	categoryId?:
+		| CategoryId
+		| ReadonlyArray<CategoryId>
+		| typeof UNASSIGNED_FILTER;
 	linkedRefundId?: TransactionId;
 	/**
 	 * Transfer-group membership (PRD #48) — narrows to the legs of one internal

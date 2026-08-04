@@ -377,6 +377,51 @@ describe("transactions endpoints", () => {
 		}).pipe(Effect.provide(HttpLive)),
 	);
 
+	// The recap's *Unassigned* buckets and its multi-account selection, both
+	// reachable from `list`/`count` (issue #86). Over the wire, because the whole
+	// point is that they survive a URL: `?issuerId=none` must decode as its own
+	// value rather than as a cleared filter, and a repeated `?accountId=` as a set.
+	it.effect("issuerId=none and categoryId=none decode over the wire", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			yield* seed(client);
+
+			// Rows 2 and 3 carry no issuer; row 1 does.
+			const noIssuer = yield* client.transactions.list({
+				urlParams: {
+					limit: 50,
+					offset: 0,
+					direction: "desc",
+					issuerId: "none",
+				},
+			});
+			assert.strictEqual(noIssuer.total, 2);
+
+			// Every seed row carries an overridden category, so nothing is
+			// category-unassigned — the filter is applied, not dropped.
+			const noCategory = yield* client.transactions.count({
+				urlParams: { categoryId: "none" },
+			});
+			assert.strictEqual(noCategory.count, 0);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("a repeated accountId decodes as a set over the wire", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			yield* seed(client);
+			const page = yield* client.transactions.list({
+				urlParams: {
+					limit: 50,
+					offset: 0,
+					direction: "desc",
+					accountId: [asAccount(1), asAccount(2)],
+				},
+			});
+			assert.strictEqual(page.total, 3);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
 	it.effect("isRefund boolean filter decodes from the query string", () =>
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
@@ -2446,6 +2491,10 @@ describe("recap aggregation (issue #71)", () => {
 				{ id: null, spent: 20, count: 2 },
 			]);
 			assert.deepStrictEqual(recap.transfers, { total: 30, count: 2 });
+			// What was held out is reported rather than silently absent (issue #87):
+			// the -100 excluded by hand, the -200 inherited from the excluded issuer,
+			// and the -300 duplicate — one line the user can open.
+			assert.deepStrictEqual(recap.excluded, { total: 600, count: 3 });
 		}).pipe(Effect.provide(HttpLive)),
 	);
 

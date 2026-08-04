@@ -1,6 +1,7 @@
 import type {
 	Category,
 	Issuer,
+	RecapExcluded,
 	RecapSummary,
 	RecapTransfers,
 } from "@mamen/shared/contract";
@@ -59,10 +60,26 @@ export type RecapSpend = {
 	byCategory: SpendRow[];
 	/** The internal-transfer legs netted out of the breakdowns, summarised. */
 	transfers: TransferSummary;
+	/** The spend held out of the breakdowns by an exclusion decision (issue #87). */
+	excluded: ExcludedSummary;
 };
+
+/**
+ * The spend **held out** of the breakdowns (issue #87) — `total` is the sum of the
+ * excluded **debit** magnitudes, so the line reads as money out that is not in the
+ * total above; `count` is every excluded row in the period.
+ */
+export type ExcludedSummary = RecapExcluded;
 
 /** The label a spend row carries when a bucket has no issuer / category. */
 export const UNASSIGNED_LABEL = "Unassigned";
+
+/**
+ * How the money **held out** of the recap is named (issue #87) — on the summary
+ * line the recap shows it on, and as the heading of the detail page that lists it.
+ * One constant, so the line the user clicks and the page they land on agree.
+ */
+export const EXCLUDED_LABEL = "Excluded from recap";
 
 /**
  * Name the buckets the server summed (issue #71).
@@ -119,5 +136,10 @@ export function toSpendRows(
 		};
 	});
 
-	return { byIssuer, byCategory, transfers: summary.transfers };
+	return {
+		byIssuer,
+		byCategory,
+		transfers: summary.transfers,
+		excluded: summary.excluded,
+	};
 }

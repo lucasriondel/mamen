@@ -102,9 +102,12 @@ export {
 	BundleImpact,
 	BundleMemberAdd,
 	BundleMemberRemove,
+	CategoryIdFilter,
+	IssuerIdFilter,
 	NOTES_MAX_LENGTH,
 	PagedTransactions,
 	RecapCategoryBucket,
+	RecapExcluded,
 	RecapFilters,
 	RecapIssuerBucket,
 	RecapPeriods,
@@ -127,4 +130,5 @@ export {
 	TransferCandidate,
 	TransferLink,
 	TransferUnlink,
+	UNASSIGNED_FILTER,
 } from "./transactions";

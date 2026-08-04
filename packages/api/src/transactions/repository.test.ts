@@ -566,6 +566,90 @@ describe("TransactionRepo", () => {
 			}).pipe(Effect.provide(RepoTest)),
 		);
 
+		it.effect(
+			"accountId accepts a set (the recap's selection, issue #86)",
+			() =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* seed(repo);
+					// Both accounts, as one filter — what a recap detail page carries over
+					// from a multi-select account picker.
+					const both = yield* repo.list({
+						...listAll,
+						accountId: [asAccount(1), asAccount(2)],
+					});
+					assert.strictEqual(both.total, 3);
+					const one = yield* repo.list({
+						...listAll,
+						accountId: [asAccount(2)],
+					});
+					assert.strictEqual(one.total, 1);
+				}).pipe(Effect.provide(RepoTest)),
+		);
+
+		// The **Unassigned** buckets the recap reports, made reachable (issue #86).
+		// `"none"` is its own value, not the absent filter: absent means "any".
+		describe("unassigned filters (issue #86)", () => {
+			it.effect("issuerId=none returns only the rows with no issuer", () =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* seed(repo);
+					// Only row 1 carries an issuer, so the other two are unassigned.
+					const page = yield* repo.list({ ...listAll, issuerId: "none" });
+					assert.strictEqual(page.total, 2);
+					assert.ok(page.items.every((t) => t.issuerId == null));
+
+					const count = yield* repo.count({ issuerId: "none" });
+					assert.strictEqual(count.count, 2);
+				}).pipe(Effect.provide(RepoTest)),
+			);
+
+			it.effect(
+				"categoryId=none reads the DERIVED category, so an issuer-categorised row is not unassigned",
+				() =>
+					Effect.gen(function* () {
+						const repo = yield* TransactionRepo;
+						const sql = yield* SqlClient.SqlClient;
+						// Issuer 8 defaults to category 7; issuer 9 has no default.
+						yield* sql`INSERT INTO issuers (id, name, defaultCategoryId, createdAt, firstSeen) VALUES (8, 'Spotify AB', 7, ${DATE.toISOString()}, ${DATE.toISOString()})`;
+						yield* sql`INSERT INTO issuers (id, name, createdAt, firstSeen) VALUES (9, 'Uncategorised Co', ${DATE.toISOString()}, ${DATE.toISOString()})`;
+						// Categorised through its issuer — NOT unassigned, even though its
+						// own `categoryId` column is null.
+						yield* repo.create(make({ issuerId: asIssuer(8) }));
+						// An issuer with no default → no derived category at all.
+						yield* repo.create(make({ issuerId: asIssuer(9) }));
+						// No issuer and no stored category → unassigned.
+						yield* repo.create(make({}));
+						// A hand-overridden row → its own stored id stands.
+						yield* repo.create(
+							make({ categoryId: asCategory(4), manualCategory: true }),
+						);
+
+						const page = yield* repo.list({ ...listAll, categoryId: "none" });
+						assert.strictEqual(page.total, 2);
+
+						const count = yield* repo.count({ categoryId: "none" });
+						assert.strictEqual(count.count, 2);
+					}).pipe(Effect.provide(RepoAndSqlTest)),
+			);
+
+			it.effect("the unassigned filters AND-compose with a period", () =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* seed(repo);
+					// Rows 2 and 3 have no issuer; only row 3 falls in March.
+					const page = yield* repo.list({
+						...listAll,
+						issuerId: "none",
+						startDate: new Date("2026-03-01T00:00:00.000Z"),
+						endDate: new Date("2026-03-31T23:59:59.999Z"),
+					});
+					assert.strictEqual(page.total, 1);
+					assert.strictEqual(page.items[0]?.importMonth, "2026-03");
+				}).pipe(Effect.provide(RepoTest)),
+			);
+		});
+
 		it.effect("orderBy date asc / desc orders the page", () =>
 			Effect.gen(function* () {
 				const repo = yield* TransactionRepo;
@@ -1484,9 +1568,156 @@ describe("TransactionRepo", () => {
 						{ id: asCategory(7), spent: 25, count: 2 },
 					],
 					transfers: { total: 30, count: 2 },
+					// The three excluded rows, by all three routes: -50 by hand, -70
+					// inherited from the issuer, -25 as a duplicate (issue #87).
+					excluded: { total: 145, count: 3 },
 				});
 			}).pipe(Effect.provide(RepoAndSqlTest)),
 		);
+
+		// The excluded line (issue #87) — the complement of the exclusion clause of
+		// `countsTowardRecap`, so what it reports is exactly what the breakdowns
+		// dropped. Its own tests, because the partition fixture above pins the happy
+		// path but not the rows that could land on two lines at once, or on none.
+		describe("excluded summary (issue #87)", () => {
+			it.effect("reports nothing when nothing is held out", () =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* repo.create(spent({ amount: -20 }));
+					const recap = yield* repo.recap({});
+					assert.deepStrictEqual(recap.excluded, { total: 0, count: 0 });
+				}).pipe(Effect.provide(RepoTest)),
+			);
+
+			// An excluded leg is absent from the transfer line (which requires `NOT
+			// isRecapExcluded`), so it has to be reported HERE — otherwise the row is
+			// on neither line and its money is simply unaccounted for. Exclusion wins
+			// over the transfer rule, being the statement the user made deliberately.
+			it.effect(
+				"claims an excluded transfer leg, which no other line reports",
+				() =>
+					Effect.gen(function* () {
+						const repo = yield* TransactionRepo;
+						const debit = yield* repo.create(
+							spent({ amount: -30, issuerId: asIssuer(2) }),
+						);
+						const credit = yield* repo.create(
+							spent({
+								amount: 30,
+								accountId: asAccount(2),
+								issuerId: asIssuer(2),
+							}),
+						);
+						yield* repo.linkTransfer([debit.id, credit.id]);
+						// Exclude the debit leg by hand, after the pairing.
+						yield* repo.update(debit.id, {
+							excludedFromRecap: true,
+							manualExcluded: true,
+						});
+
+						const recap = yield* repo.recap({});
+						// The pair no longer reads as a clean transfer: only the credit leg
+						// remains on that line, and the excluded debit is reported here.
+						assert.deepStrictEqual(recap.excluded, { total: 30, count: 1 });
+						assert.strictEqual(recap.transfers.count, 1);
+						assert.strictEqual(recap.transfers.total, 0);
+					}).pipe(Effect.provide(RepoTest)),
+			);
+
+			// The parent carries the exclusion decision the user made; counting its
+			// members too would report the same money twice.
+			it.effect("holds bundle members out, reporting the parent only", () =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					const a = yield* repo.create(spent({ amount: -20 }));
+					const b = yield* repo.create(spent({ amount: -30 }));
+					const parent = yield* repo.createBundle([a.id, b.id], "Weekend");
+					yield* repo.update(parent.id, {
+						excludedFromRecap: true,
+						manualExcluded: true,
+					});
+
+					const recap = yield* repo.recap({});
+					// The parent's -50, once — not the members' -20 and -30 on top.
+					assert.deepStrictEqual(recap.excluded, { total: 50, count: 1 });
+				}).pipe(Effect.provide(RepoTest)),
+			);
+
+			// `total` sums debit magnitudes, like the transfer line: the figure reads
+			// as "money out that isn't in the total above", so a credit must not
+			// cancel it — but the row is still counted, because it was held out.
+			it.effect("sums debits only, while counting every excluded row", () =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* repo.create(
+						spent({
+							amount: -40,
+							excludedFromRecap: true,
+							manualExcluded: true,
+						}),
+					);
+					yield* repo.create(
+						spent({
+							amount: 15,
+							excludedFromRecap: true,
+							manualExcluded: true,
+						}),
+					);
+					const recap = yield* repo.recap({});
+					assert.deepStrictEqual(recap.excluded, { total: 40, count: 2 });
+				}).pipe(Effect.provide(RepoTest)),
+			);
+
+			it.effect(
+				"follows the period and account filters like every other line",
+				() =>
+					Effect.gen(function* () {
+						const repo = yield* TransactionRepo;
+						const excludedIn = {
+							excludedFromRecap: true,
+							manualExcluded: true,
+						} as const;
+						yield* repo.create(
+							spent({
+								amount: -10,
+								date: new Date("2026-01-10T00:00:00.000Z"),
+								...excludedIn,
+							}),
+						);
+						yield* repo.create(
+							spent({
+								amount: -20,
+								date: new Date("2026-02-10T00:00:00.000Z"),
+								...excludedIn,
+							}),
+						);
+						yield* repo.create(
+							spent({
+								amount: -40,
+								accountId: asAccount(2),
+								date: new Date("2026-02-10T00:00:00.000Z"),
+								...excludedIn,
+							}),
+						);
+
+						const february = yield* repo.recap({
+							startDate: new Date("2026-02-01T00:00:00.000Z"),
+							endDate: new Date("2026-02-28T23:59:59.999Z"),
+						});
+						assert.deepStrictEqual(february.excluded, { total: 60, count: 2 });
+
+						const oneAccount = yield* repo.recap({
+							accountId: [asAccount(2)],
+							startDate: new Date("2026-02-01T00:00:00.000Z"),
+							endDate: new Date("2026-02-28T23:59:59.999Z"),
+						});
+						assert.deepStrictEqual(oneAccount.excluded, {
+							total: 40,
+							count: 1,
+						});
+					}).pipe(Effect.provide(RepoTest)),
+			);
+		});
 
 		// The correction at the heart of #71: the period is a bound on the
 		// transaction **date**, so a row whose statement landed in another month

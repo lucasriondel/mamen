@@ -7,6 +7,7 @@ import {
 	NotFound,
 	PagedTransactions,
 	RecapCategoryBucket,
+	RecapExcluded,
 	RecapIssuerBucket,
 	RecapTransfers,
 	TRANSFER_DATE_WINDOW_DAYS,
@@ -17,6 +18,7 @@ import {
 	type TransactionUpdate,
 	TransferCandidate,
 	TransferInvalid,
+	UNASSIGNED_FILTER,
 } from "@mamen/shared/contract";
 import { Effect, Option, Schema } from "effect";
 import { orDieSql } from "../db/errors";
@@ -293,8 +295,10 @@ const CountResult = Schema.Struct({
  */
 type Filters = {
 	accountId?: number | ReadonlyArray<number>;
-	issuerId?: number;
-	categoryId?: number | ReadonlyArray<number>;
+	/** One issuer id, or `"none"` for the rows no issuer is matched to (#86). */
+	issuerId?: number | typeof UNASSIGNED_FILTER;
+	/** Ids, or `"none"` for the rows with no *derived* category (#86). */
+	categoryId?: number | ReadonlyArray<number> | typeof UNASSIGNED_FILTER;
 	linkedRefundId?: number;
 	transferGroupId?: number;
 	bundleId?: number;
@@ -440,21 +444,36 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 						ids.length === 0 ? sql`1 = 0` : sql`t.accountId IN ${sql.in(ids)}`,
 					);
 				}
+				// `"none"` asks for the rows no issuer is matched to — the recap's
+				// *Unassigned* by-issuer bucket, made reachable so the biggest number on
+				// the page can be drilled into rather than only read (issue #86). It is
+				// its own value, not the absent filter: absent means "any issuer".
 				if (f.issuerId !== undefined)
-					conditions.push(sql`t.issuerId = ${f.issuerId}`);
+					conditions.push(
+						f.issuerId === UNASSIGNED_FILTER
+							? sql`t.issuerId IS NULL`
+							: sql`t.issuerId = ${f.issuerId}`,
+					);
 				// Filter on the DERIVED category, not the stored column (ADR 0002): an
 				// issuer-categorised row (the common case) must match, not only a
 				// hand-overridden one. The filter accepts a **set** — a folder page
-				// lists all its leaves in one query; an empty set matches nothing.
+				// lists all its leaves in one query; an empty set matches nothing —
+				// or `"none"`, the rows whose derived category is null. `IS NULL` on
+				// the same fragment, so a row categorised *through its issuer* is
+				// correctly NOT unassigned, exactly as the projection shows it (#86).
 				if (f.categoryId !== undefined) {
-					const ids = Array.isArray(f.categoryId)
-						? f.categoryId
-						: [f.categoryId];
-					conditions.push(
-						ids.length === 0
-							? sql`1 = 0`
-							: sql`${derivedCategory} IN ${sql.in(ids)}`,
-					);
+					if (f.categoryId === UNASSIGNED_FILTER) {
+						conditions.push(sql`${derivedCategory} IS NULL`);
+					} else {
+						const ids = Array.isArray(f.categoryId)
+							? f.categoryId
+							: [f.categoryId];
+						conditions.push(
+							ids.length === 0
+								? sql`1 = 0`
+								: sql`${derivedCategory} IN ${sql.in(ids)}`,
+						);
+					}
 				}
 				if (f.linkedRefundId !== undefined)
 					conditions.push(sql`t.linkedRefundId = ${f.linkedRefundId}`);
@@ -683,6 +702,33 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				Result: RecapTransfers,
 				execute: (f) =>
 					sql`SELECT COALESCE(SUM(CASE WHEN t.amount < 0 THEN ROUND(-t.amount * 100) ELSE 0 END), 0) / 100.0 AS total, COUNT(*) AS count ${readFrom} WHERE ${sql.and([...buildConditions(f), isTransferLeg, sql`NOT ${isRecapExcluded}`, isNotBundleMember])}`,
+			});
+
+			// The spend held out of the breakdowns by an exclusion decision (issue
+			// #87), summarised: `total` sums the DEBIT magnitudes like the transfer
+			// line above, so the figure reads as "money out that isn't in the total"
+			// rather than a net a refund could cancel; `count` is every excluded row.
+			//
+			// The complement of the exclusion clause of `countsTowardRecap`, stated
+			// through the same `isRecapExcluded` fragment — so what this line reports
+			// is exactly what the breakdowns dropped for that reason, and the two
+			// cannot drift.
+			//
+			// Transfer legs are deliberately NOT held out, unlike everywhere else the
+			// two rules meet: the transfer line requires `NOT isRecapExcluded`, so an
+			// excluded leg never appears there — and excluding it here as well would
+			// leave the row on NEITHER line, its money absent from the page with
+			// nothing to say where it went. Exclusion is the stronger statement (the
+			// user made it deliberately), so the excluded line claims those rows.
+			//
+			// Bundle members are held out for the usual reason — their **bundle
+			// parent** stands for them, and it is the parent that carries the exclusion
+			// decision the user made.
+			const recapExcludedQuery = SqlSchema.single({
+				Request: Schema.Any as Schema.Schema<Filters>,
+				Result: RecapExcluded,
+				execute: (f) =>
+					sql`SELECT COALESCE(SUM(CASE WHEN t.amount < 0 THEN ROUND(-t.amount * 100) ELSE 0 END), 0) / 100.0 AS total, COUNT(*) AS count ${readFrom} WHERE ${sql.and([...buildConditions(f), isRecapExcluded, isNotBundleMember])}`,
 			});
 
 			// The months the data covers, newest first — the period picker's options.
@@ -1191,14 +1237,19 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 			 * reaches the recap is readable in one place rather than assembled from a
 			 * predicate plus whichever defaults the surrounding WHERE happens to add.
 			 *
-			 * The three queries share one filter object, so the breakdowns and the
-			 * transfer line can never be computed over different row sets.
+			 * The four queries share one filter object, so the breakdowns, the transfer
+			 * line and the excluded line can never be computed over different row sets.
+			 * The last two are the complements of the two reasons `countsTowardRecap`
+			 * drops a row, so between them the period's money is accounted for: what
+			 * counted, what moved between the user's own accounts, and what was held
+			 * out on purpose (issue #87).
 			 */
 			const recap = (filter: RecapFilter) =>
 				Effect.all({
 					byIssuer: recapByIssuerQuery(filter),
 					byCategory: recapByCategoryQuery(filter),
 					transfers: recapTransfersQuery(filter),
+					excluded: recapExcludedQuery(filter),
 				}).pipe(orDieSql);
 
 			/** Every `"YYYY-MM"` the data covers, newest first (the period picker). */

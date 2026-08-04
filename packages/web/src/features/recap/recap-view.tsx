@@ -2,6 +2,7 @@ import { getRouteApi } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { Empty } from "@/components/ui/empty";
 import { AccountMultiSelect } from "./account-multi-select";
+import { ExcludedSummaryLine } from "./excluded-summary-line";
 import type { Period } from "./period";
 import { PeriodSelector } from "./period-selector";
 import { RecapSkeleton } from "./recap-skeleton";
@@ -121,22 +122,36 @@ export function RecapView() {
 					{spend.transfers.count > 0 ? (
 						<TransferSummaryLine transfers={spend.transfers} />
 					) : null}
+					{/* What was held out of the totals, and a way into it (issue #87). */}
+					{spend.excluded.count > 0 ? (
+						<ExcludedSummaryLine
+							excluded={spend.excluded}
+							period={period}
+							accountIds={accountIds}
+						/>
+					) : null}
 					<div className="grid gap-6 lg:grid-cols-2">
 						<SpendSection
 							title="By issuer"
 							sortLabel="Sort issuers"
+							axis="issuer"
 							rows={byIssuer}
 							total={sumSpent(byIssuer)}
 							sort={sort}
 							onSortChange={setSort}
+							period={period}
+							accountIds={accountIds}
 						/>
 						<SpendSection
 							title="By category"
 							sortLabel="Sort categories"
+							axis="category"
 							rows={byCategory}
 							total={sumSpent(byCategory)}
 							sort={sort}
 							onSortChange={setSort}
+							period={period}
+							accountIds={accountIds}
 						/>
 					</div>
 				</>

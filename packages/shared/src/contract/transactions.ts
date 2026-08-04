@@ -198,16 +198,61 @@ export const TransactionUpdate = Schema.partial(TransactionCreate);
 export type TransactionUpdate = typeof TransactionUpdate.Type;
 
 /**
- * The `categoryId` filter — a single id **or a set** (ADR 0002). A folder's
- * category page lists all of its leaves' transactions in one query, so the
- * filter accepts several category ids at once (repeated `?categoryId=`), while a
- * leaf page still passes a lone id. A single query value decodes to one branded
- * id; a repeated one to an array — the repository normalises both to a set. The
- * filter matches the **derived** category, not the stored column (ADR 0002).
+ * The **unassigned** filter value — the one id filters accept that is not an id.
+ * `?issuerId=none` narrows to the rows with no issuer, `?categoryId=none` to
+ * those with no *derived* category: the two buckets the recap reports as
+ * *Unassigned* rather than dropping, since unattributed spend is still spend
+ * (issue #86). Absent means "any", which is why the empty string cannot carry
+ * this: absent and unassigned are different questions, and an omitted filter
+ * already means the first.
+ *
+ * A literal rather than a `null`/empty encoding so the sentinel survives the
+ * round trip through a URL, where every value is a string and `?issuerId=` is
+ * indistinguishable from a cleared control.
+ */
+export const UNASSIGNED_FILTER = "none" as const;
+
+/**
+ * The `categoryId` filter — a single id, **a set** (ADR 0002), or
+ * {@link UNASSIGNED_FILTER}. A folder's category page lists all of its leaves'
+ * transactions in one query, so the filter accepts several category ids at once
+ * (repeated `?categoryId=`), while a leaf page still passes a lone id. A single
+ * query value decodes to one branded id; a repeated one to an array — the
+ * repository normalises both to a set. `none` matches the rows with no derived
+ * category at all — the recap's *Unassigned* bucket, drilled into (issue #86).
+ * The filter matches the **derived** category, not the stored column (ADR 0002).
  */
 export const CategoryIdFilter = Schema.Union(
+	Schema.Literal(UNASSIGNED_FILTER),
 	numFromStr(CategoryId),
 	Schema.Array(numFromStr(CategoryId)),
+);
+
+/**
+ * The `issuerId` filter — one id or {@link UNASSIGNED_FILTER}. Unlike the
+ * category filter there is no set form: an issuer has no hierarchy to merge, so
+ * no page ever asks about several at once. `none` narrows to the rows no issuer
+ * has been matched to — the recap's *Unassigned* by-issuer bucket (issue #86).
+ */
+export const IssuerIdFilter = Schema.Union(
+	Schema.Literal(UNASSIGNED_FILTER),
+	numFromStr(IssuerId),
+);
+
+/**
+ * The `accountId` filter — one account id, or a repeated set of them. The recap
+ * page's account picker is multi-select and the aggregation runs in ONE query
+ * over the whole selection: fanning out one query per account and merging
+ * client-side is what forced the old scan-and-reduce. The **recap detail** page
+ * (issue #86) carries that same selection into `list`/`count`, which is why the
+ * set form belongs on {@link TransactionFilters} too, not only on
+ * {@link RecapFilters} — a drill-down whose account scope silently widened to
+ * every account would show rows the recap row it came from never counted.
+ * Absent means every account.
+ */
+export const AccountIdFilter = Schema.Union(
+	numFromStr(AccountId),
+	Schema.Array(numFromStr(AccountId)),
 );
 
 /**
@@ -217,12 +262,14 @@ export const CategoryIdFilter = Schema.Union(
  * reuses the identical set; `list` adds `Pagination` + `orderBy`/`direction`.
  * Branded-id filters decode a query string via `numFromStr`; the two boolean
  * filters via `BooleanFromString`; `startDate`/`endDate` are inclusive bounds on
- * the entity's `date` (encoded to ISO strings in the URL). `categoryId` accepts
- * a **set** (see {@link CategoryIdFilter}) and matches the derived category.
+ * the entity's `date` (encoded to ISO strings in the URL). `accountId` and
+ * `categoryId` accept a **set** (see {@link AccountIdFilter} /
+ * {@link CategoryIdFilter}), the latter matching the derived category; the two
+ * id filters also accept {@link UNASSIGNED_FILTER} for the rows that have none.
  */
 export const TransactionFilters = {
-	accountId: Schema.optional(numFromStr(AccountId)),
-	issuerId: Schema.optional(numFromStr(IssuerId)),
+	accountId: Schema.optional(AccountIdFilter),
+	issuerId: Schema.optional(IssuerIdFilter),
 	categoryId: Schema.optional(CategoryIdFilter),
 	linkedRefundId: Schema.optional(numFromStr(TransactionId)),
 	// Transfer-group membership (PRD #48): returns only the legs of one internal
@@ -268,18 +315,6 @@ export const TransactionFilters = {
 	// absent is how you ask for the whole table.
 	uncurated: Schema.optional(BooleanFromString),
 } as const;
-
-/**
- * The **recap**'s account filter (issue #71) — one account id, or a repeated set
- * of them. The recap page's account picker is multi-select, and the aggregation
- * runs in ONE query over the whole selection: fanning out one query per account
- * and merging client-side is what forced the old scan-and-reduce. Same shape as
- * {@link CategoryIdFilter}; absent means every account.
- */
-export const AccountIdFilter = Schema.Union(
-	numFromStr(AccountId),
-	Schema.Array(numFromStr(AccountId)),
-);
 
 /**
  * The **recap**'s filter set (issue #71) — deliberately narrow next to
@@ -339,6 +374,36 @@ export const RecapTransfers = Schema.Struct({
 });
 
 /**
+ * The spend **held out of the recap** by an exclusion decision (issue #87) —
+ * reported rather than silently absent, exactly as the transfer legs are.
+ *
+ * Money the user (or an issuer default) deliberately kept out of their totals is
+ * still money they may want to look at: a shared account, a reimbursed expense, a
+ * row marked as a duplicate. Left unreported, the only evidence of it was the
+ * absence of a number, so a bad exclusion rule was invisible until the totals
+ * looked wrong for no visible reason.
+ *
+ * `total` sums the **debit** magnitudes, matching {@link RecapTransfers}, so the
+ * line reads as "money out that isn't in the total above" rather than a net that a
+ * refund could quietly cancel. `count` is every excluded row in the period. The
+ * two reasons — the derived `excludedFromRecap` flag and `isDuplicateExcluded` —
+ * are summed together, because they answer the same user question ("what did I
+ * hold out?") and the detail page lists them under one filter.
+ *
+ * A row that is BOTH excluded and a transfer leg is reported here, and only here:
+ * the transfer line holds excluded legs out, so this is the one line that can
+ * account for it — reporting it on neither would leave its money absent from the
+ * page with nothing to say where it went. Exclusion is the stronger statement,
+ * being one the user made deliberately. Bundle members are held out — their
+ * **bundle parent** stands for them, so counting both would show the same money
+ * twice.
+ */
+export const RecapExcluded = Schema.Struct({
+	total: Schema.Number,
+	count: Schema.Number,
+});
+
+/**
  * `recap` success body (issue #71) — spend for a period, aggregated **over the
  * whole filtered set** rather than a page. There is no row cap and no partial
  * answer: the sums are computed in SQL, through the one `countsTowardRecap`
@@ -354,11 +419,13 @@ export const RecapSummary = Schema.Struct({
 	byIssuer: Schema.Array(RecapIssuerBucket),
 	byCategory: Schema.Array(RecapCategoryBucket),
 	transfers: RecapTransfers,
+	excluded: RecapExcluded,
 });
 export type RecapSummary = typeof RecapSummary.Type;
 export type RecapIssuerBucket = typeof RecapIssuerBucket.Type;
 export type RecapCategoryBucket = typeof RecapCategoryBucket.Type;
 export type RecapTransfers = typeof RecapTransfers.Type;
+export type RecapExcluded = typeof RecapExcluded.Type;
 
 /**
  * `recap-periods` success body — every `"YYYY-MM"` month the data covers,

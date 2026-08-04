@@ -104,6 +104,7 @@ function summary(over: Partial<RecapSummary> = {}): RecapSummary {
 		byIssuer: [],
 		byCategory: [],
 		transfers: { total: 0, count: 0 },
+		excluded: { total: 0, count: 0 },
 		...over,
 	} as RecapSummary;
 }
@@ -278,6 +279,47 @@ describe("RecapView", () => {
 		expect(within(issuerSection).queryByText(/40,00/)).not.toBeInTheDocument();
 	});
 
+	// What was held out is reported rather than evidenced only by a missing number,
+	// and — unlike a transfer, which has a counterpart and needs no review — the
+	// figure opens the rows behind it (issue #87).
+	it("shows an Excluded from recap line, linking to the rows held out", async () => {
+		recapFor = () =>
+			summary({
+				byIssuer: [{ id: 10, spent: 10, count: 1 }],
+				excluded: { total: 145, count: 3 },
+			} as Partial<RecapSummary>);
+
+		renderRecap("/recap?period=month&month=2026-07&accountIds=2");
+
+		const link = await screen.findByRole("link", {
+			name: /Excluded from recap/,
+		});
+		expect(link).toHaveTextContent("3 transactions");
+		expect(link).toHaveTextContent(/145,00/);
+
+		const href = link.getAttribute("href") ?? "";
+		expect(href).toContain("/recap-detail");
+		expect(href).toContain("excluded=true");
+		// The other side of the same filter, so the detail's filter bar shows
+		// *Excluded only* rather than contradicting the page it opened.
+		expect(href).toContain("excludedFromRecap=true");
+		// Over the very period and accounts the line reported.
+		expect(href).toContain("month=2026-07");
+		expect(decodeURIComponent(href)).toContain("accountIds=[2]");
+		// No bucket: the excluded rows are the complement of the spend, not a slice.
+		expect(href).not.toContain("by=");
+	});
+
+	it("hides the Excluded from recap line when nothing is held out", async () => {
+		recapFor = () =>
+			summary({
+				byIssuer: [{ id: 10, spent: 10, count: 1 }],
+			} as Partial<RecapSummary>);
+		renderRecap();
+		await findSection("By issuer");
+		expect(screen.queryByText("Excluded from recap")).not.toBeInTheDocument();
+	});
+
 	it("hides the Internal transfers line when no legs are present", async () => {
 		recapFor = () =>
 			summary({
@@ -301,6 +343,55 @@ describe("RecapView", () => {
 		expect(within(issuerSection).getByText("Unassigned")).toBeInTheDocument();
 		// Once on the row, once in the section total it is part of.
 		expect(within(issuerSection).getAllByText(/14,00/)).toHaveLength(2);
+	});
+
+	// The number is the question ("what is that 40 €?"), so the row itself answers
+	// it — carrying the axis, the bucket, and the scope the row was summed over so
+	// the drill-down describes the same set (issue #86).
+	it("links each bucket to its detail page, carrying the period and accounts", async () => {
+		recapFor = () =>
+			summary({
+				byIssuer: [{ id: 10, spent: 40, count: 2 }],
+				byCategory: [{ id: 100, spent: 40, count: 2 }],
+			} as Partial<RecapSummary>);
+
+		renderRecap("/recap?period=month&month=2026-07&accountIds=2");
+
+		const issuerSection = await findSection("By issuer");
+		const link = within(issuerSection).getByRole("link", { name: /Amazon/ });
+		const href = link.getAttribute("href") ?? "";
+		expect(href).toContain("/recap-detail");
+		expect(href).toContain("by=issuer");
+		expect(href).toContain("bucket=10");
+		expect(href).toContain("month=2026-07");
+		// The router serializes the selection as a JSON array (`accountIds=[2]`).
+		expect(decodeURIComponent(href)).toContain("accountIds=[2]");
+		// The counted rows — the half of the recap's predicate the list can state.
+		expect(href).toContain("excludedFromRecap=false");
+
+		const categorySection = await findSection("By category");
+		expect(
+			within(categorySection)
+				.getByRole("link", { name: /Shopping/ })
+				.getAttribute("href"),
+		).toContain("by=category");
+	});
+
+	// On a fresh import this is usually the biggest row on the page, and opening it
+	// is the whole point — so its `null` id has to travel as something a URL carries.
+	it("links the Unassigned bucket too, as the none filter value", async () => {
+		recapFor = () =>
+			summary({
+				byIssuer: [{ id: null, spent: 14, count: 2 }],
+			} as Partial<RecapSummary>);
+
+		renderRecap();
+		const section = await findSection("By issuer");
+		expect(
+			within(section)
+				.getByRole("link", { name: /Unassigned/ })
+				.getAttribute("href"),
+		).toContain("bucket=none");
 	});
 
 	it("shows an empty message when there is no spend in the period", async () => {
