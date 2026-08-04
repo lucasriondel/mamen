@@ -1,7 +1,11 @@
 import { Skeleton, SkeletonScreen } from "@/components/ui/skeleton";
 
-/** Placeholder chips standing in for the regex-token authoring aids. */
-const TOKEN_CHIPS = ["a", "b", "c", "d", "e"] as const;
+/**
+ * How many placeholder chips stand in for the regex-token authoring aids. The
+ * chips are interchangeable — same size, no label — so they have nothing to be
+ * keyed on but their position.
+ */
+const TOKEN_CHIPS = 5;
 
 /**
  * Loading shape for the Matching Rule form page, shown while an edit fetches
@@ -32,9 +36,11 @@ export function RuleFormSkeleton() {
 			<div className="flex flex-col gap-1">
 				<Skeleton className="h-3 w-12" />
 				<div className="flex flex-wrap gap-1.5">
-					{TOKEN_CHIPS.map((id) => (
-						<Skeleton key={id} className="h-5 w-10" />
-					))}
+					{Array.from({ length: TOKEN_CHIPS }, (_, index) => index).map(
+						(index) => (
+							<Skeleton key={index} className="h-5 w-10" />
+						),
+					)}
 				</div>
 			</div>
 
