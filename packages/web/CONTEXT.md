@@ -86,8 +86,8 @@ was already imported leaves the earlier rows — and every manual decision made 
 them — standing. It used to replace the month, which cost the previous statement
 its rows whenever two statements legitimately overlapped (the CCF case, epic
 #85). The consequence is that re-importing the same Statement **duplicates** it;
-the guard is a preview warning, and removing rows is the user's action (bulk
-delete, issue #86). The `importMonth` (`"YYYY-MM"`) is derived per-row from each
+the guard is the **already imported** mark in the preview, and removing rows is
+the user's action (bulk delete, issue #86). The `importMonth` (`"YYYY-MM"`) is derived per-row from each
 transaction's date, so one Statement spanning a month boundary yields two
 Imports.
 _Avoid_: Batch, load, replace (an import replaces nothing).
@@ -97,6 +97,28 @@ and it is the key of the Import alone. The transaction list's Month filter does
 can move after import (a **bundle parent** dated by hand, a corrected date) and
 the row must be listed under the month it actually belongs to. The URL param is
 still spelled `importMonth`, kept so bookmarked views keep working.
+
+**Already imported**:
+A previewed row that matches a row already stored on the same account and month
+on *all three* of date, amount and **raw issuer string** — the last compared
+after collapsing whitespace runs, trimming and uppercasing, and after nothing
+else (issue #89). Purely advisory: the mark is shown per row and counted in the
+commit bar, and a marked row still commits. It is what an **Import** has instead
+of idempotency, now that committing replaces nothing.
+
+Deliberately strict, and strict in one direction: a missed duplicate costs the
+user one delete, while a wrongly marked row risks them deleting a real
+transaction on the app's say-so — so no prefix matching, no fuzzy matching, no
+amount tolerance. Two genuinely identical rows on one day are real, so one
+stored row marks one previewed row, not both. Rows on other accounts are neither
+read nor compared: the same transaction on another account is not a duplicate.
+_Avoid_: Duplicate detection (nothing is detected and acted on), dedupe (there is
+no dedupe key — see epic #85), conflict.
+_Code note_: the comparison is `import/duplicates.ts` (pure) and the reads are
+`useDuplicateFlags` — one list read per (account, month) the batch touches,
+capped at `DUPLICATE_SCAN_LIMIT`. Distinct from a transaction's
+`isDuplicateExcluded`, which is a stored decision about a row already in the
+table.
 
 **Raw issuer string**:
 The unparsed counterparty text on a transaction (`rawIssuerString`, e.g.

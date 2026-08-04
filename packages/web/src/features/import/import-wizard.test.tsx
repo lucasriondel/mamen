@@ -5,7 +5,7 @@ import {
 	createRouter,
 	RouterProvider,
 } from "@tanstack/react-router";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -27,6 +27,8 @@ const ACCOUNTS = [{ id: 1, name: "Checking", type: "checking" }];
 // missing function.
 const bulkCreate = vi.fn();
 const extractPdf = vi.fn();
+// The per-month read behind the preview's already-imported marks (issue #89).
+const listTransactions = vi.fn();
 
 vi.mock("@mamen/sdk", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("@mamen/sdk")>();
@@ -36,6 +38,12 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
 			list: () => ({
 				queryKey: ["accounts", "list", "test"],
 				queryFn: async () => ({ items: ACCOUNTS, total: ACCOUNTS.length }),
+			}),
+		},
+		transactionQueries: {
+			list: (params: Record<string, unknown>) => ({
+				queryKey: ["transactions", "list", params],
+				queryFn: async () => listTransactions(params),
 			}),
 		},
 		transactionMutations: {
@@ -75,7 +83,23 @@ function makeRouter() {
 beforeEach(() => {
 	bulkCreate.mockReset().mockResolvedValue([]);
 	extractPdf.mockReset();
+	listTransactions
+		.mockReset()
+		.mockResolvedValue({ items: [], total: 0, bundleMembers: [] });
 });
+
+/** A stored row the re-import cases compare against, as the list returns it. */
+const STORED_SHOP_A = {
+	id: 1,
+	accountId: 1,
+	// Spaced and cased differently from the file — the one normalisation the
+	// duplicate check does (issue #89).
+	rawIssuerString: "  shop   a ",
+	date: new Date("2026-01-15T10:00:00.000Z"),
+	amount: -10,
+	importMonth: "2026-01",
+	importedAt: new Date("2026-01-20T10:00:00.000Z"),
+};
 
 describe("ImportWizard", () => {
 	it("drops a CSV, previews, and commits both months in one insert", async () => {
@@ -122,6 +146,91 @@ describe("ImportWizard", () => {
 
 		// On success it navigates to the transactions view.
 		expect(await screen.findByText("Transactions page")).toBeInTheDocument();
+	});
+
+	// Issue #89: import is additive, so re-importing the same statement duplicates
+	// it. The preview marks the rows that look already imported — and commits them
+	// all the same, because removing a row is the user's call.
+	it("marks the already-imported rows in the CSV preview and commits them anyway", async () => {
+		const user = userEvent.setup();
+		listTransactions.mockImplementation(
+			async (params: { importMonth: string }) =>
+				params.importMonth === "2026-01"
+					? { items: [STORED_SHOP_A], total: 1, bundleMembers: [] }
+					: { items: [], total: 0, bundleMembers: [] },
+		);
+		render(<RouterProvider router={makeRouter()} />);
+
+		await user.upload(
+			await screen.findByLabelText("CSV or PDF statement"),
+			new File([CSV], "statement.csv", { type: "text/csv" }),
+		);
+		await user.selectOptions(
+			await screen.findByLabelText("Target account"),
+			"1",
+		);
+		await user.click(
+			screen.getByRole("button", { name: "Continue to preview" }),
+		);
+
+		// The January row is marked; the February one — genuinely new — is not.
+		const flaggedRow = (await screen.findByText("SHOP A")).closest("tr");
+		expect(flaggedRow).not.toBeNull();
+		await waitFor(() =>
+			expect(
+				within(flaggedRow as HTMLElement).getByText("Already imported"),
+			).toBeInTheDocument(),
+		);
+		const newRow = screen.getByText("SHOP B").closest("tr") as HTMLElement;
+		expect(within(newRow).queryByText("Already imported")).toBeNull();
+
+		// The bar states the count, and the read was scoped to the account.
+		expect(await screen.findByRole("status")).toHaveTextContent(
+			"1 of these rows looks already imported.",
+		);
+		expect(listTransactions).toHaveBeenCalledWith(
+			expect.objectContaining({ accountId: 1, importMonth: "2026-01" }),
+		);
+
+		// Nothing is dropped on the app's judgement: both rows commit.
+		await user.click(screen.getByRole("button", { name: "Commit import" }));
+		await waitFor(() => expect(bulkCreate).toHaveBeenCalledTimes(1));
+		expect(bulkCreate.mock.calls[0][0]).toHaveLength(2);
+	});
+
+	// A statement overlapping an already-imported month, but holding genuinely
+	// new rows, flags none of them — the everyday CCF case (epic #85).
+	it("flags nothing when the overlapping month's stored rows are different", async () => {
+		const user = userEvent.setup();
+		listTransactions.mockResolvedValue({
+			items: [
+				{
+					...STORED_SHOP_A,
+					rawIssuerString: "SHOP A",
+					date: new Date("2026-01-14T10:00:00.000Z"),
+				},
+			],
+			total: 1,
+			bundleMembers: [],
+		});
+		render(<RouterProvider router={makeRouter()} />);
+
+		await user.upload(
+			await screen.findByLabelText("CSV or PDF statement"),
+			new File([CSV], "statement.csv", { type: "text/csv" }),
+		);
+		await user.selectOptions(
+			await screen.findByLabelText("Target account"),
+			"1",
+		);
+		await user.click(
+			screen.getByRole("button", { name: "Continue to preview" }),
+		);
+
+		await screen.findByText("SHOP A");
+		await waitFor(() => expect(listTransactions).toHaveBeenCalled());
+		expect(screen.queryByText("Already imported")).toBeNull();
+		expect(screen.queryByRole("status")).toBeNull();
 	});
 
 	it("opens pre-filled from a grid handoff — account chosen, file already parsed", async () => {
@@ -254,6 +363,58 @@ describe("ImportWizard", () => {
 			rawIssuerString: "SHOP A",
 			importMonth: "2026-01",
 		});
+	});
+
+	// The PDF path marks the same rows in the side-by-side view, where the row's
+	// existing × is the way to act on the mark.
+	it("marks an already-imported row in the side-by-side validation view", async () => {
+		const user = userEvent.setup();
+		extractPdf.mockResolvedValue({
+			transactions: [
+				{
+					date: new Date("2026-01-15T10:00:00.000Z"),
+					amount: -10,
+					rawIssuerString: "SHOP A",
+				},
+				{
+					date: new Date("2026-01-16T10:00:00.000Z"),
+					amount: -20,
+					rawIssuerString: "SHOP B",
+				},
+			],
+			declaredTotals: { debit: 30, credit: 0 },
+		});
+		listTransactions.mockResolvedValue({
+			items: [STORED_SHOP_A],
+			total: 1,
+			bundleMembers: [],
+		});
+		render(<RouterProvider router={makeRouter()} />);
+
+		await user.upload(
+			await screen.findByLabelText("CSV or PDF statement"),
+			new File(["%PDF-1.7"], "statement.pdf", { type: "application/pdf" }),
+		);
+		await user.selectOptions(
+			await screen.findByLabelText("Target account"),
+			"1",
+		);
+		await user.click(
+			screen.getByRole("button", { name: "Continue to preview" }),
+		);
+
+		const firstRow = (
+			await screen.findByLabelText("Raw issuer, row 1")
+		).closest("tr") as HTMLElement;
+		await waitFor(() =>
+			expect(
+				within(firstRow).getByText("Already imported"),
+			).toBeInTheDocument(),
+		);
+		const secondRow = screen
+			.getByLabelText("Raw issuer, row 2")
+			.closest("tr") as HTMLElement;
+		expect(within(secondRow).queryByText("Already imported")).toBeNull();
 	});
 
 	it("warns on a reconciliation mismatch but still lets the user commit", async () => {

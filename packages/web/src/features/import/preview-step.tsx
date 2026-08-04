@@ -1,7 +1,9 @@
 import { formatCurrency, formatMonth, formatShortDate } from "@/lib/format";
+import { AlreadyImportedMark } from "./already-imported-mark";
 import { distinctMonths } from "./commit";
 import { CommitBar } from "./commit-bar";
 import type { ParsedTransaction } from "./parsers/types";
+import { useDuplicateFlags } from "./use-duplicate-flags";
 
 /** How many parsed rows to show in the preview table (the rest are summarized). */
 const PREVIEW_ROWS = 8;
@@ -11,6 +13,13 @@ const PREVIEW_ROWS = 8;
  * format, target account, the month(s) found, and the row count, then a read-only
  * table of the first rows, and the shared {@link CommitBar}. The PDF path uses
  * its own side-by-side validation view; both converge on the same commit rail.
+ *
+ * Rows that look **already imported** are marked (issue #89) and counted in the
+ * bar. The table shows only the first {@link PREVIEW_ROWS}, so a mark past that
+ * window is stated as a number rather than shown — which is exactly what the
+ * bar's line is for. Nothing here removes a row: on this path the recourse is
+ * the list's bulk delete after the fact (the PDF preview, which edits its rows,
+ * carries a per-row ×).
  */
 export function PreviewStep({
 	records,
@@ -24,6 +33,7 @@ export function PreviewStep({
 	onBack: () => void;
 }) {
 	const months = distinctMonths(records);
+	const duplicates = useDuplicateFlags(records);
 
 	return (
 		<div className="flex flex-col gap-6">
@@ -34,9 +44,13 @@ export function PreviewStep({
 				<Fact label="Rows" value={String(records.length)} />
 			</dl>
 
-			<PreviewTable records={records} />
+			<PreviewTable records={records} duplicateFlags={duplicates.flags} />
 
-			<CommitBar records={records} onBack={onBack} />
+			<CommitBar
+				records={records}
+				duplicateCount={duplicates.count}
+				onBack={onBack}
+			/>
 		</div>
 	);
 }
@@ -52,7 +66,14 @@ function Fact({ label, value }: { label: string; value: string }) {
 }
 
 /** A short table of the first parsed rows so the user can eyeball the mapping. */
-function PreviewTable({ records }: { records: readonly ParsedTransaction[] }) {
+function PreviewTable({
+	records,
+	duplicateFlags,
+}: {
+	records: readonly ParsedTransaction[];
+	/** Positional with `records`: does this row look already imported? */
+	duplicateFlags: readonly boolean[];
+}) {
 	const shown = records.slice(0, PREVIEW_ROWS);
 
 	return (
@@ -77,7 +98,10 @@ function PreviewTable({ records }: { records: readonly ParsedTransaction[] }) {
 								</span>
 							</td>
 							<td className="px-3 py-2 text-gousse-ink">
-								{record.rawIssuerString}
+								<span className="flex flex-wrap items-center gap-2">
+									{record.rawIssuerString}
+									{duplicateFlags[index] ? <AlreadyImportedMark /> : null}
+								</span>
 							</td>
 							<td
 								className={`px-3 py-2 text-right tabular-nums ${

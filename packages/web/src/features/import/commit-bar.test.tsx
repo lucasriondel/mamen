@@ -59,7 +59,7 @@ beforeEach(() => {
 describe("CommitBar", () => {
 	it("commits the parsed records", async () => {
 		const records = [record(), record({ importMonth: "2026-02" })];
-		render(<CommitBar records={records} onBack={vi.fn()} />);
+		render(<CommitBar records={records} duplicateCount={0} onBack={vi.fn()} />);
 
 		(await screen.findByRole("button", { name: /commit import/i })).click();
 
@@ -72,6 +72,7 @@ describe("CommitBar", () => {
 		render(
 			<CommitBar
 				records={[record(), record({ importMonth: "2026-02" })]}
+				duplicateCount={0}
 				onBack={vi.fn()}
 			/>,
 		);
@@ -84,12 +85,53 @@ describe("CommitBar", () => {
 	});
 
 	// Not merely unrendered — unasked. The notices were the only reason the
-	// preview knew which account it was writing into.
+	// preview knew which account it was writing into. The duplicate count is a
+	// prop: the preview reads it (the same number marks its rows), the bar states
+	// it.
 	it("asks the server nothing", async () => {
-		render(<CommitBar records={[record()]} onBack={vi.fn()} />);
+		render(
+			<CommitBar records={[record()]} duplicateCount={0} onBack={vi.fn()} />,
+		);
 
 		await screen.findByRole("button", { name: /commit import/i });
 		expect(count).not.toHaveBeenCalled();
 		expect(bundleImpact).not.toHaveBeenCalled();
+	});
+
+	// The slot the replacement notice left (issue #89): how many previewed rows
+	// look already imported — stated as advice, and saying in as many words that
+	// they will be imported anyway.
+	it("reports how many previewed rows look already imported", async () => {
+		render(
+			<CommitBar
+				records={[record(), record({ rawIssuerString: "SHOP B" })]}
+				duplicateCount={2}
+				onBack={vi.fn()}
+			/>,
+		);
+
+		const notice = await screen.findByRole("status");
+		expect(notice).toHaveTextContent(
+			"2 of these rows look already imported. They will be imported again unless you remove them.",
+		);
+	});
+
+	it("singularises the notice for one flagged row", async () => {
+		render(
+			<CommitBar records={[record()]} duplicateCount={1} onBack={vi.fn()} />,
+		);
+
+		expect(await screen.findByRole("status")).toHaveTextContent(
+			"1 of these rows looks already imported. It will be imported again unless you remove it.",
+		);
+	});
+
+	it("says nothing when no row looks already imported", async () => {
+		render(
+			<CommitBar records={[record()]} duplicateCount={0} onBack={vi.fn()} />,
+		);
+
+		await screen.findByRole("button", { name: /commit import/i });
+		expect(screen.queryByRole("status")).toBeNull();
 	});
 });
