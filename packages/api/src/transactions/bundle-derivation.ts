@@ -6,21 +6,21 @@ import { AnomalyFlag } from "@mamen/shared/contract";
  * stored row, a wire entity or a test fixture without any of them having to be
  * the others.
  */
-export interface BundleMemberFacts {
+export type BundleMemberFacts = {
 	id: number;
 	date: Date;
 	amount: number;
 	accountId: number;
 	importMonth: string;
-}
+};
 
 /** The parent's own derived columns — everything a membership change moves. */
-export interface BundleParentFacts {
+export type BundleParentFacts = {
 	amount: number;
 	date: Date;
 	accountId: number;
 	importMonth: string;
-}
+};
 
 /**
  * The parent as it stands *today*, read for its **date override** (issue #72).
@@ -28,10 +28,10 @@ export interface BundleParentFacts {
  * other column of the parent — its label, issuer, category, notes — is its own
  * and is never derived from a member.
  */
-export interface BundleParentDate {
+export type BundleParentDate = {
 	date: Date;
 	manualDate?: boolean;
-}
+};
 
 /**
  * Derive a **bundle parent**'s row from its members — the ONE place a bundle's

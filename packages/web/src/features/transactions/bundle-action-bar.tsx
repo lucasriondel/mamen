@@ -12,7 +12,7 @@ import { useBundle } from "./use-bundle";
 /** A bundle stands for **several** rows; one row is already its own account. */
 const MIN_BUNDLE_MEMBERS = 2;
 
-export interface BundleActionBarProps {
+export type BundleActionBarProps = {
 	/**
 	 * The rows currently ticked in the table — the rows themselves, not just
 	 * their ids: the selection is page-scoped, so they are already on screen, and
@@ -22,7 +22,7 @@ export interface BundleActionBarProps {
 	selected: ReadonlyArray<Transaction>;
 	/** Drop the selection (after a successful bundle, or on demand). */
 	onClear: () => void;
-}
+};
 
 /**
  * The selection action bar (issue #68) — what the transactions table offers once
