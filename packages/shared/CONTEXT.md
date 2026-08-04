@@ -1,0 +1,117 @@
+# shared — glossary
+
+The HTTP API **contract** (`src/contract/`) plus the shared domain types
+(`src/types/`). Source of truth for the domain entities: `@mamen/api` implements
+the contract, `@mamen/sdk` derives its client from it, and
+`packages/api/openapi.json` is emitted from it. Pure schema values — no
+handlers, no I/O, no database and no DOM; the only dependencies are `effect` and
+`@effect/platform`, and nothing here may acquire a runtime one.
+
+The conventions below were settled once in
+[`docs/research/api-contract.md`](../../docs/research/api-contract.md) and
+[`docs/research/error-taxonomy.md`](../../docs/research/error-taxonomy.md); the
+`contract §2.x` / `taxonomy §N` references scattered through the source point
+back at them.
+
+See [CONTEXT-MAP.md](../../CONTEXT-MAP.md) for cross-context terms (**Issuer**,
+**Recap**, **Bundle**, **Transfer group**, …). They are defined once there and
+never restated per package — this file names only what is specific to
+*declaring* the contract.
+
+## Language
+
+**Contract**:
+The single `Api` value (`src/contract/api.ts`) — an `HttpApi` assembled from one
+**group** per resource, prefixed `/api`. It has exactly three consumers: the
+server implementation, the derived client, and the emitted OpenAPI spec. Because
+all three read the same value, an endpoint cannot exist in one and not the
+others; adding one here is what makes it callable everywhere.
+_Avoid_: schema package, types package, API definition (the contract is a value,
+not a document).
+
+**Group**:
+One `HttpApiGroup` per resource (`accounts`, `transactions`, …), carrying its
+endpoints, its `.prefix`ed path and its OpenAPI title, added to the **contract**
+in `api.ts`. The unit a server layer implements and a client namespace mirrors:
+`client.accounts.list`.
+_Avoid_: router, controller, module (each names an implementation, and the group
+has none).
+
+**Entity schema**:
+The wire shape every endpoint of a group returns, declared as a `Schema.Class`
+(`Account`, `Transaction`, `Rule`). It is the shape *on the wire*, not the shape
+in sqlite — the storage row is the api package's business and may differ freely
+(ISO TEXT dates, `0`/`1` booleans). Datetime fields are `Schema.Date`;
+date-only / month / opaque strings stay `Schema.String`.
+_Avoid_: model, DTO, row.
+
+**Create payload / Update payload**:
+The other two thirds of every resource's trio. `XCreate` omits what the server
+assigns (`id`, `createdAt`, `updatedAt`); `XUpdate` is `Schema.partial(XCreate)`
+— every field optional, so a partial update is expressible without a second
+schema. Both reference `X.fields.name` rather than restating a field's type, so
+a widened entity field cannot leave its payload behind.
+
+**Branded id**:
+`Schema.Int.pipe(Schema.brand("AccountId"))`, one per resource (`src/contract/ids.ts`).
+Ids are plain sqlite integers; the brand exists so an `IssuerId` cannot be passed
+where an `AccountId` is expected. There is **no DB-level foreign-key
+enforcement** anywhere in this project — the brand is a compile-time and
+contract-level guard only, never a runtime referential check. `numFromStr(Id)`
+is the decoder for the positions where an id arrives as text: path params
+(`HttpApiSchema.param`) and query filters. A non-numeric segment then fails
+schema decode into a `400`, which is why there is no hand-written "invalid id"
+error.
+
+**Filter set**:
+A plain object of optional url params (`TransactionFilters`, `RuleListFilters`,
+…) spread into a group's `urlParams` struct beside `Pagination`. Every present
+field `AND`-combines server-side; an absent one contributes nothing. It is
+*composable* by construction — the redesign that replaced an either/or fan-out
+where one filter dominated and the rest were unreachable. Query params are
+always strings, so a boolean filter decodes through `BooleanFromString` and a
+branded-id filter through `numFromStr`.
+_Avoid_: query object, search params (they name the transport, not the set).
+
+**Paged envelope**:
+`Paged(X)` = `{ items, total }`, the success schema of every list endpoint.
+`items` is the current page; `total` is the count of the **whole filtered set**
+before `limit`/`offset`, so the caller can page. `PaginationDefaults` (`limit:
+50`, `offset: 0`) is exported because the server applies it to a raw caller and
+the derived client — whose decoded params are required — must fill the same
+window; one default, not two.
+
+**Domain error**:
+A `Schema.TaggedError` with a fixed HTTP status pinned via
+`HttpApiSchema.annotations` (`src/contract/errors.ts`). The wire body is its
+fields plus the `_tag` discriminant, flat, with no wrapper key — the same grain
+as the framework's own errors, so the client `switch`es on `_tag` with real
+fields rather than parsing prose out of a message. An endpoint declares only the
+errors it can actually produce (`.addError`). `HttpApiDecodeError (400)` and an
+untyped `500` are implicit on every endpoint and are **not** members of this
+set: nothing declares them, and nothing should invent a typed error for either.
+A `SqlError` never appears here at all — it is caught at the api package's
+service boundary.
+_Avoid_: exception, validation error (schema decode already owns validation).
+
+**Refusal reason**:
+The `reason` field on the multi-row grouping errors (`TransferInvalid`,
+`BundleInvalid`) — a literal union naming the machine-readable cause
+(`unbalanced`, `already-bundled`, `is-transfer-leg`, …), so a client can tell
+"a row is missing" from "the rows don't balance" and word its own refusal. A
+dedicated error per grouping rather than an overloaded `NotFound`, and one
+`reason` per rule rather than one per surface: when the same rule is enforced
+from both sides, each side reuses the error its own grouping already raises.
+_Avoid_: error code, message (the reason is not display text — the client owns
+the wording).
+
+**Legacy domain type**:
+The plain TypeScript types under `src/types/`, exported from the package root
+(`@mamen/shared`) as opposed to `@mamen/shared/contract`. They pre-date the
+contract, carry no branding and no decoder, and the **contract is authoritative
+wherever the two disagree**. Only `CategoryTreeNode` is still imported anywhere,
+and it is built on the *contract* `Category` precisely so its ids keep their
+brand. Nothing new should be added here.
+_Avoid_: shared types (ambiguous — the contract schemas are shared too).
+
+<!-- Terms are added here as they are resolved during design. -->
