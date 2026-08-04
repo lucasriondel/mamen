@@ -73,14 +73,18 @@ const KEY_EXPRESSION = /key=\{([^}]*)\}/g;
 
 /**
  * What a placeholder may be keyed on: the array index (these lists are static,
- * never reordered and never keyed across a data change), or an explicit `id`
+ * never reordered and never keyed across a data change), or an entry's `id`
  * field naming the column it stands for.
  *
  * Anything else in these files is presentation — a Tailwind width class — and
  * two columns are allowed to be the same width, so keying on one is a
  * duplicate-key error waiting for the next edit.
+ *
+ * A bare `id` is deliberately *not* accepted: it would let any value pass by
+ * renaming the binding, which is presentation wearing an identity's name. An
+ * id has to be a field on the entry being rendered.
  */
-const IDENTITY_KEY = /^(index|id|[A-Za-z]+\.id)$/;
+const IDENTITY_KEY = /^(index|[A-Za-z]+\.id)$/;
 
 describe("skeleton keys", () => {
 	it("covers every skeleton module in the app", () => {
