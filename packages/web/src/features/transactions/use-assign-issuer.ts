@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import {
 	issuerKeys,
 	issuerMutations,
+	ruleKeys,
 	transactionKeys,
 	transactionMutations,
 } from "@/lib/sdk";
@@ -30,9 +31,13 @@ import { toErrorMessage } from "@/lib/sdk-error";
  *   dedicated endpoint is the only way to actually clear the column.
  *
  * ("Add a rule to an existing issuer" is pure navigation, no mutation.) Each
- * mutation owns its invalidation: the transactions **and** issuers key families
- * (a new issuer changes the grid; an assignment changes the table). Failures
- * raise a `sonner` toast.
+ * mutation owns its invalidation: the transactions, issuers **and** rules key
+ * families (a new issuer changes the grid; an assignment changes the table).
+ * Rules are in that list because a rule's `ownedCount` is derived from the live
+ * transactions table on every read (issue #63) — hand-assigning a row takes it
+ * away from whichever rule held it, and dropping a hand pick gives it back — so
+ * a cached rules list would otherwise keep rendering a count that no longer
+ * matches what the server would say. Failures raise a `sonner` toast.
  */
 export function useAssignIssuer() {
 	const queryClient = useQueryClient();
@@ -40,6 +45,7 @@ export function useAssignIssuer() {
 	const invalidate = () => {
 		queryClient.invalidateQueries({ queryKey: transactionKeys.all });
 		queryClient.invalidateQueries({ queryKey: issuerKeys.all });
+		queryClient.invalidateQueries({ queryKey: ruleKeys.all });
 	};
 
 	const onError = (error: unknown) => {

@@ -107,7 +107,10 @@ through the issuer (**derived category**), never off the rule.
 _Code note_: the entity is `Rule` in the contract/DB/SDK; "Matching Rule" is the
 user-facing name only. Each rule row shows its **owned count** (see
 [CONTEXT-MAP.md](../../CONTEXT-MAP.md)) worded as what it counts — "3
-transactions", never "3 matches".
+transactions", never "3 matches". Because that count is derived from the
+transactions table, any mutation that moves rows must invalidate `ruleKeys.all`
+too, not just `transactionKeys.all` — an assignment, a removed manual pick and
+an import commit all change what a rule owns without touching a rule.
 
 **Amount sign convention**:
 `amount` is a single signed number. A CSV `DEBIT` (money leaving) is stored
