@@ -21,6 +21,11 @@ import { TransactionRepo } from "./repository";
  * `countsTowardRecap` predicate lives in `recap-predicate.ts` beside the derived
  * expressions it is built from — never restated here.
  *
+ * The bundle endpoints (`createBundle`/`addBundleMember`/`removeBundleMember`/
+ * `dissolveBundle`) are delegates too, twice over: the repository forwards them
+ * to `bundle-writes.ts` (issue #83), where the eligibility cascade the create and
+ * add-member paths share is stated once.
+ *
  * `bulkCreate` is the exception: after inserting the rows it runs the
  * {@link IssuerMatcher} over them so a freshly-imported statement arrives with
  * `issuerId` already resolved against the current Matching Rules (PRD #8; import

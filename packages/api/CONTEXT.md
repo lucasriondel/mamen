@@ -35,8 +35,22 @@ rules a single row's schema cannot express. It depends **only** on the generic
 against the Bun production client and the `:memory:` test client. It is also the
 only place a multi-row invariant is enforced — the generic single-row
 create/update structurally cannot check that a set balances, or that a row is
-free to be grouped.
+free to be grouped. Parts of it that change for their own reasons move out to a
+**rule module**; the repository keeps the storage and delegates.
 _Avoid_: DAO, service, store.
+
+**Rule module**:
+A module beside a **repository** holding one rule of its domain, extracted so it
+can be read and tested without the repository's SQL closure around it —
+`bundle-derivation.ts` (what a **bundle parent**'s number is), `recap-predicate.ts`
+(the **fragments** the recap is computed over) and `bundle-writes.ts` (the bundle
+write paths, issue #83). The test is not tidiness but *reason to change*: a
+1900-line repository that changes for listing, recap, transfer and bundling
+reasons has four of them. A rule module is either pure (the derivation) or takes
+the table reads and writes it needs as an argument (the write paths) — never a
+second `SqlClient` consumer, so there is still one place that says how a row is
+stored. The value dependency points one way, repository → rule module; a type the
+module needs from the repository is imported `import type`, which erases.
 
 **Data layer**:
 The sqlite client plus its applied **migrations**, as one layer.
