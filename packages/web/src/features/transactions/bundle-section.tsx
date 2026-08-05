@@ -1,14 +1,16 @@
-import type { Category, Transaction } from "@mamen/shared/contract";
+import type { Account, Category, Transaction } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
 import { Layers } from "lucide-react";
+import { useCallback, useMemo } from "react";
 import { useIssuerLookup } from "@/features/issuers/use-issuer-lookup";
 import { formatCurrency } from "@/lib/format";
-import { categoryQueries, transactionQueries } from "@/lib/sdk";
+import { accountQueries, categoryQueries, transactionQueries } from "@/lib/sdk";
 import { indexById } from "@/lib/utils";
 import { BundleDateForm } from "./bundle-date-form";
 import { BundleDissolveBlock } from "./bundle-dissolve-block";
-import { BundleMemberRow } from "./bundle-member-row";
-import { TransferLegsSkeleton } from "./transfer-legs-skeleton";
+import { BundleMemberActions } from "./bundle-member-actions";
+import { TransactionsTable } from "./transactions-table";
+import { TransactionsTableSkeleton } from "./transactions-table-skeleton";
 import { useAssignIssuer } from "./use-assign-issuer";
 import { useBundle } from "./use-bundle";
 import { useCategoryOverride } from "./use-category-override";
@@ -20,6 +22,18 @@ const MEMBER_SCAN_LIMIT = 50;
 const CATEGORY_SCAN_LIMIT = 200;
 
 /**
+ * The members read oldest first — the order the money moved in, which is how a
+ * bundle reads: the charge, then the paybacks. Fixed rather than a control: this
+ * is a handful of rows on a detail page, not a list to be surveyed, and the
+ * table's sort is server-driven so a toggle here would mean re-querying the
+ * bundle to reorder five rows.
+ */
+const MEMBER_ORDER = "asc";
+
+/** The inert sort toggle — see {@link MEMBER_ORDER}. */
+function noop() {}
+
+/**
  * The **Bundle** block on a bundle parent's detail page (issue #72, epic #66) —
  * everything about the row that is *not* already a transaction field.
  *
@@ -27,10 +41,13 @@ const CATEGORY_SCAN_LIMIT = 200;
  * edited through the page's ordinary controls, above; what lives here is what
  * only a bundle has, one named child per concern:
  *
- * - **The members it stands for**, each linking to its own page, each offering
- *   to copy its issuer or its category onto the parent
- *   ({@link BundleMemberRow}), and each offering the way out of the bundle
- *   (#74).
+ * - **The members it stands for**, in the app's own {@link TransactionsTable} —
+ *   the same grid, the same columns, the same curation cells as the list they
+ *   were bundled out of, so a bundle's contents read the way transactions read
+ *   everywhere else and nothing about them has to be re-learned. What the table
+ *   does not have is a place to act on a *member as a member*, so it takes one
+ *   extra column: **Actions** ({@link BundleMemberActions}) — copy this member's
+ *   issuer or category onto the parent, or take it out of the bundle (#74).
  * - **The date** ({@link BundleDateForm}), which defaults to the earliest
  *   member's and may be overridden. The override is flagged `manualDate` so the
  *   recompute that every later membership change runs (#74) keeps it: the
@@ -61,27 +78,41 @@ export function BundleSection({
 	const { assignExisting } = useAssignIssuer();
 	const { setOverride } = useCategoryOverride();
 
-	// The members, oldest first — the order the money moved in, which is how a
-	// bundle reads: the charge, then the paybacks. Asking by `bundleId` is the
-	// only way `list` reaches a member at all (issue #68).
+	// The members. Asking by `bundleId` is the only way `list` reaches a member at
+	// all (issue #68).
 	const membersQuery = useQuery(
 		transactionQueries.list({
 			bundleId: txn.id,
 			limit: MEMBER_SCAN_LIMIT,
 			orderBy: "date",
-			direction: "asc",
+			direction: MEMBER_ORDER,
 		}),
 	);
 	const members = (membersQuery.data?.items ?? []) as readonly Transaction[];
 
 	// The issuers of the rows on screen, by their ids (#62) — never the issuer
 	// table, whose first page may not hold the one a member points at.
-	const { issuersById } = useIssuerLookup(members.map((m) => m.issuerId));
+	const {
+		issuersById,
+		isPending: issuersPending,
+		isError: issuersError,
+	} = useIssuerLookup(members.map((m) => m.issuerId));
 	const categoriesQuery = useQuery(
 		categoryQueries.list({ limit: CATEGORY_SCAN_LIMIT }),
 	);
-	const categoriesById = indexById(
-		(categoriesQuery.data?.items ?? []) as readonly Category[],
+	// Memoised — the table rebuilds its column set on any lookup's identity, so a
+	// fresh map every render would rebuild it on every render.
+	const categoriesById = useMemo(
+		() => indexById((categoriesQuery.data?.items ?? []) as readonly Category[]),
+		[categoriesQuery.data],
+	);
+	// The accounts the table's Account column reads. A bundle's members are
+	// ordinary bank rows and may well span two accounts — the charge on one card,
+	// the payback into the current account — so the column earns its place here.
+	const accountsQuery = useQuery(accountQueries.list());
+	const accountsById = useMemo(
+		() => indexById((accountsQuery.data?.items ?? []) as readonly Account[]),
+		[accountsQuery.data],
 	);
 
 	const pending =
@@ -90,6 +121,44 @@ export function BundleSection({
 		setBundleDate.isPending ||
 		removeFromBundle.isPending ||
 		dissolveBundle.isPending;
+
+	// The **Actions** column's contents, per member. Stable across renders: the
+	// table rebuilds its whole column set whenever this identity changes, and a
+	// fresh closure every render would do that on every keystroke elsewhere on the
+	// page. This component is the one that knows what each control writes.
+	const renderMemberActions = useCallback(
+		(member: Transaction) => (
+			<BundleMemberActions
+				member={member}
+				parent={txn}
+				issuer={
+					member.issuerId != null ? issuersById.get(member.issuerId) : undefined
+				}
+				category={
+					member.categoryId != null
+						? categoriesById.get(member.categoryId)
+						: undefined
+				}
+				disabled={pending}
+				onCopyIssuer={(issuerId) =>
+					assignExisting.mutate({ transactionId: txn.id, issuerId })
+				}
+				onCopyCategory={(categoryId) =>
+					setOverride.mutate({ transactionId: txn.id, categoryId })
+				}
+				onRemove={() => removeFromBundle.mutate({ transactionId: member.id })}
+			/>
+		),
+		[
+			txn,
+			issuersById,
+			categoriesById,
+			pending,
+			assignExisting,
+			setOverride,
+			removeFromBundle,
+		],
+	);
 
 	return (
 		<div className="flex flex-col gap-3 border-t border-gousse-line pt-6">
@@ -107,46 +176,32 @@ export function BundleSection({
 				the members and it follows.
 			</p>
 
-			{membersQuery.isPending ? (
-				<TransferLegsSkeleton label="Loading this bundle's members…" action />
-			) : membersQuery.isError ? (
+			{membersQuery.isError || issuersError ? (
 				<p className="text-sm text-gousse-high italic">
 					Couldn't load this bundle's members. Retry in a moment.
 				</p>
+			) : /* Held until the issuer lookup lands too: it reads the ids of the
+			      rows, so it resolves a beat after them, and a member rendered
+			      before its issuer arrives is a member rendered as *unresolved*. */
+			membersQuery.isPending || issuersPending ? (
+				<TransactionsTableSkeleton rows={3} />
 			) : members.length === 0 ? (
 				<p className="text-sm text-gousse-muted italic">
 					This bundle has no members left.
 				</p>
 			) : (
-				<ul className="flex flex-col gap-2">
-					{members.map((member) => (
-						<BundleMemberRow
-							key={member.id}
-							member={member}
-							parent={txn}
-							issuer={
-								member.issuerId != null
-									? issuersById.get(member.issuerId)
-									: undefined
-							}
-							category={
-								member.categoryId != null
-									? categoriesById.get(member.categoryId)
-									: undefined
-							}
-							disabled={pending}
-							onCopyIssuer={(issuerId) =>
-								assignExisting.mutate({ transactionId: txn.id, issuerId })
-							}
-							onCopyCategory={(categoryId) =>
-								setOverride.mutate({ transactionId: txn.id, categoryId })
-							}
-							onRemove={() =>
-								removeFromBundle.mutate({ transactionId: member.id })
-							}
-						/>
-					))}
-				</ul>
+				<TransactionsTable
+					transactions={members}
+					accountsById={accountsById}
+					issuersById={issuersById}
+					categoriesById={categoriesById}
+					direction={MEMBER_ORDER}
+					// The order is fixed (see `MEMBER_ORDER`), so the Date header's
+					// toggle has nothing to do — it stays inert rather than re-querying
+					// the bundle to reorder a handful of rows.
+					onToggleSort={noop}
+					renderActions={renderMemberActions}
+				/>
 			)}
 
 			<BundleDateForm

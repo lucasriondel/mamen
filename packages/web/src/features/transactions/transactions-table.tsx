@@ -84,6 +84,16 @@ export interface TransactionsTableProps {
 	 * parent (or that has nothing to attach) omits it and every row is a leaf.
 	 */
 	bundleMembers?: readonly Transaction[];
+	/**
+	 * Per-row controls for a trailing **Actions** column. Optional: a caller with
+	 * nothing to offer omits it and the column does not exist at all, rather than
+	 * standing empty on every row.
+	 *
+	 * The table stays ignorant of what the controls do — it renders what it is
+	 * handed at the end of the row, having stopped the click from reaching the
+	 * row's navigation, exactly as it does for the inline curation cells.
+	 */
+	renderActions?: (transaction: Transaction) => React.ReactNode;
 }
 
 const columnHelper = createColumnHelper<Transaction>();
@@ -126,7 +136,9 @@ function SelectCheckbox({
 /**
  * The transactions data grid (columns **Date | Account | Issuer | Raw issuer |
  * Category | Amount | Excluded | Notes**, behind the leading control columns —
- * selection and bundle expansion), rendered with TanStack Table onto the token-styled `Table`
+ * selection and bundle expansion, and before an optional trailing **Actions**
+ * column a caller fills with per-row controls), rendered with TanStack Table onto
+ * the token-styled `Table`
  * primitive. Sorting is server-driven: the Date header toggles `direction` in
  * the URL rather than reordering rows client-side, so the shown page always
  * matches the query. The Category column reads the row's *derived* `categoryId`
@@ -159,6 +171,7 @@ export function TransactionsTable({
 	rowSelection = NOTHING_SELECTED,
 	onRowSelectionChange,
 	bundleMembers = NO_BUNDLE_MEMBERS,
+	renderActions,
 }: TransactionsTableProps) {
 	// Selection only exists where something can be done with it (issue #68).
 	const selectable = onRowSelectionChange !== undefined;
@@ -366,8 +379,31 @@ export function TransactionsTable({
 				// which writes a free-text note to this one row (issue #38).
 				cell: ({ row }) => <NotesPicker transaction={row.original} />,
 			}),
+			// The trailing **Actions** column — only where a caller has something to
+			// put in it. Last, after every field: the row is read left to right and
+			// what can be *done* to it comes after what it *is*.
+			...(renderActions !== undefined
+				? [
+						columnHelper.display({
+							id: "actions",
+							header: () => <span className="sr-only">Actions</span>,
+							cell: ({ row }) => (
+								<div className="flex items-center justify-end gap-2">
+									{renderActions(row.original)}
+								</div>
+							),
+						}),
+					]
+				: []),
 		],
-		[accountsById, issuersById, categoriesById, categoryColorById, selectable],
+		[
+			accountsById,
+			issuersById,
+			categoriesById,
+			categoryColorById,
+			selectable,
+			renderActions,
+		],
 	);
 
 	const table = useReactTable({
@@ -535,17 +571,19 @@ export function TransactionsTable({
 								{row.getVisibleCells().map((cell) => {
 									// The issuer/category/notes cells are inline curation surfaces
 									// (their own click targets), the select cell is the selection
-									// surface and the expand cell opens the bundle in place; a
-									// click in any of them acts on the row where it is, so it
-									// must not also navigate to the detail page. Stop the event
-									// before it bubbles to the row's navigation handler.
+									// surface, the expand cell opens the bundle in place and the
+									// actions cell holds the caller's own controls; a click in
+									// any of them acts on the row where it is, so it must not
+									// also navigate to the detail page. Stop the event before it
+									// bubbles to the row's navigation handler.
 									const isOwnClickTarget =
 										cell.column.id === "select" ||
 										cell.column.id === "expand" ||
 										cell.column.id === "issuer" ||
 										cell.column.id === "category" ||
 										cell.column.id === "excluded" ||
-										cell.column.id === "notes";
+										cell.column.id === "notes" ||
+										cell.column.id === "actions";
 									return (
 										<TableCell
 											key={cell.id}

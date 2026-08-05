@@ -33,7 +33,7 @@ describe("bundle UI conventions (issue #82)", () => {
 			"./bundle-action-bar.tsx",
 			"./bundle-date-form.tsx",
 			"./bundle-dissolve-block.tsx",
-			"./bundle-member-row.tsx",
+			"./bundle-member-actions.tsx",
 			"./bundle-membership-section.tsx",
 			"./bundle-section.tsx",
 		]);
