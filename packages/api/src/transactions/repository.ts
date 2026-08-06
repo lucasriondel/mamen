@@ -17,10 +17,12 @@ import {
 	TransactionKind,
 	type TransactionUpdate,
 	TransferCandidate,
+	TransferCounterpart,
 	TransferInvalid,
+	type TransferPair,
 	UNASSIGNED_FILTER,
 } from "@mamen/shared/contract";
-import { Effect, Option, Schema } from "effect";
+import { Clock, Effect, Option, Schema } from "effect";
 import { orDieSql } from "../db/errors";
 import { bundleWrites } from "./bundle-writes";
 import { recapPredicates } from "./recap-predicate";
@@ -174,7 +176,12 @@ const decodeTransactionRow = Schema.decodeSync(TransactionFromRow);
  * The flat row shape returned by the transfer-candidates self-join: every column
  * of the debit leg aliased `f_*`, every column of the credit leg aliased `t_*`,
  * plus the integer `daysApart`. A pragmatic mirror of {@link TransactionRow}
- * twice over — the transform below splits it back into two nested `Transaction`s.
+ * twice over — the transform below splits it back into two `Transaction`s.
+ *
+ * The projection stays **one row per pair** even though the wire shape is now
+ * grouped (issue #91): a self-join produces pairs, and collapsing them into a
+ * leg's counterpart list is a fold over an ordered result set, not something SQL
+ * should be asked to shape. Only the wire type changed.
  */
 const TransferCandidateRow = Schema.Struct({
 	f_id: Schema.Number,
@@ -268,15 +275,40 @@ const legFromRow = (
 	});
 };
 
-/** Assemble a wire {@link TransferCandidate} from one aliased join row. */
-const candidateFromRow = (
-	row: typeof TransferCandidateRow.Type,
-): TransferCandidate =>
-	new TransferCandidate({
-		from: legFromRow(row, "f"),
-		to: legFromRow(row, "t"),
-		daysApart: row.daysApart,
-	});
+/**
+ * Fold the pair rows into the grouped wire shape (issue #91): one
+ * {@link TransferCandidate} per debit leg, carrying every credit that might be
+ * its counterpart.
+ *
+ * Order is inherited from the result set, which is sorted by day gap first — so
+ * a leg's counterparts come out closest-date first, and the legs themselves come
+ * out ordered by their *closest* counterpart, since that is the row that first
+ * introduces them. A `Map` is what preserves both: it keeps first-insertion
+ * order, so nothing has to be re-sorted here and the SQL stays the single place
+ * ranking is decided.
+ */
+const groupCandidates = (
+	rows: ReadonlyArray<typeof TransferCandidateRow.Type>,
+): ReadonlyArray<TransferCandidate> => {
+	const byLeg = new Map<
+		number,
+		{ leg: Transaction; counterparts: TransferCounterpart[] }
+	>();
+	for (const row of rows) {
+		let entry = byLeg.get(row.f_id);
+		if (entry === undefined) {
+			entry = { leg: legFromRow(row, "f"), counterparts: [] };
+			byLeg.set(row.f_id, entry);
+		}
+		entry.counterparts.push(
+			new TransferCounterpart({
+				transaction: legFromRow(row, "t"),
+				daysApart: row.daysApart,
+			}),
+		);
+	}
+	return [...byLeg.values()].map((entry) => new TransferCandidate(entry));
+};
 
 /**
  * A `count` result: the filtered row `count` and the signed net `total` (the
@@ -874,6 +906,13 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 			// counts. Ordered nearest-date first, then id, so the closest match
 			// leads. The target's own eligibility is checked in the method, not here —
 			// an ineligible target simply never runs this query.
+			//
+			// A **dismissed pair** is excluded here too (issue #91). "Never
+			// reappears" is a property of the *pairing*, not of the endpoint that
+			// asked, so a refusal made on the grouped read has to hold on this one.
+			// Both orientations are checked because the target can be either side:
+			// the pair is stored debit-first, and this query's target may be the
+			// credit.
 			const suggestTransfersQuery = SqlSchema.findAll({
 				Request: TransactionId,
 				Result: TransactionFromRow,
@@ -886,6 +925,7 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 							AND ROUND(c.amount * 100) = -ROUND(t.amount * 100)
 							AND ${transferEligibleFor("c")}
 							AND ABS(julianday(c.date) - julianday(t.date)) <= ${TRANSFER_DATE_WINDOW_DAYS}
+							AND NOT EXISTS (SELECT 1 FROM transfer_dismissals d WHERE (d.debitId = t.id AND d.creditId = c.id) OR (d.debitId = c.id AND d.creditId = t.id))
 						LEFT JOIN issuers ci ON c.issuerId = ci.id
 						WHERE t.id = ${id}
 						ORDER BY ABS(julianday(c.date) - julianday(t.date)), c.id`,
@@ -904,8 +944,16 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 			// the julian delta). Each leg reads its OWN issuer's derived category and
 			// derived recap exclusion (two LEFT JOINs, `fi`/`ci`), so a leg reads the
 			// same here as in the list. Ordered closest-date first, then by the leg ids
-			// for a stable page. The projection aliases every column `f_*` / `t_*` so
-			// the flat row decodes into the two nested `Transaction`s below.
+			// for a stable page — the order {@link groupCandidates} then inherits.
+			// The projection aliases every column `f_*` / `t_*` so the flat row decodes
+			// into the two `Transaction`s below.
+			//
+			// A **dismissed pair** (issue #91) is excluded outright: detection is
+			// re-derived on every read, so without this the same refused coincidence
+			// would be re-offered forever. `NOT EXISTS` over the pair's primary key,
+			// so the check is an index seek per candidate row and the refusal is a
+			// property of the *query*, not of a client-side filter some surface could
+			// forget to apply.
 			const candidateColumns = (
 				a: "f" | "c",
 				issuerAlias: "fi" | "ci",
@@ -927,9 +975,25 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 							AND ${transferEligibleFor("f")}
 							AND ${transferEligibleFor("c")}
 							AND ABS(julianday(c.date) - julianday(f.date)) <= ${TRANSFER_DATE_WINDOW_DAYS}
+							AND NOT EXISTS (SELECT 1 FROM transfer_dismissals d WHERE d.debitId = f.id AND d.creditId = c.id)
 						LEFT JOIN issuers fi ON f.issuerId = fi.id
 						LEFT JOIN issuers ci ON c.issuerId = ci.id
 						ORDER BY ABS(julianday(c.date) - julianday(f.date)), f.id, c.id`,
+			});
+
+			// Store one **dismissed pair** (issue #91). `OR IGNORE` leans on the
+			// composite primary key for idempotence, and `RETURNING` is what tells a
+			// newly-stored pair from an already-stored one: the ignored row returns
+			// nothing, so the caller's count is "pairs this call actually added".
+			const dismissPairQuery = SqlSchema.findAll({
+				Request: Schema.Struct({
+					debitId: Schema.Number,
+					creditId: Schema.Number,
+					dismissedAt: Schema.String,
+				}),
+				Result: Schema.Struct({ debitId: Schema.Number }),
+				execute: (row) =>
+					sql`INSERT OR IGNORE INTO transfer_dismissals ${sql.insert(row)} RETURNING debitId`,
 			});
 
 			// The **bundle members** of a set of **bundle parents** (issue #73) — the
@@ -1167,6 +1231,25 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 			};
 
 			/**
+			 * Drop every **dismissed pair** naming one of the just-deleted rows (issue
+			 * #91) — the FK cascade this schema does not have. Both sides are checked,
+			 * since a deleted row may have been the debit of one pair and the credit of
+			 * another. An empty set touches no DB (`sql.in([])` renders an invalid
+			 * `IN ()`).
+			 */
+			const forgetDismissals = (
+				ids: ReadonlyArray<number>,
+			): Effect.Effect<void> => {
+				const gone = [...new Set(ids)];
+				return gone.length === 0
+					? Effect.void
+					: sql`DELETE FROM transfer_dismissals WHERE ${sql.in("debitId", gone)} OR ${sql.in("creditId", gone)}`.pipe(
+							orDieSql,
+							Effect.asVoid,
+						);
+			};
+
+			/**
 			 * What a delete has to know about the rows it removed for the grouping
 			 * cleanups below: which transfer group each leg was in, and which side of a
 			 * bundle it was on.
@@ -1190,7 +1273,13 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 			 *   matches the rows it stands for, so that parent is recomputed (and
 			 *   auto-dissolved if fewer than two members remain);
 			 * - a deleted **transfer leg** may drop its group below two legs, clearing
-			 *   the survivor(s).
+			 *   the survivor(s);
+			 * - a deleted row of any kind takes the **dismissed pairs** naming it
+			 *   (issue #91) with it — the cascade the schema declares no foreign key
+			 *   for, since it enables no `PRAGMA foreign_keys` for one to act under.
+			 *   Left behind, a dismissal would go on suppressing a pairing between two
+			 *   rows that no longer exist, and would suppress the wrong one entirely
+			 *   once sqlite handed the id to a new row.
 			 *
 			 * Parents deleted in the same breath are dropped from the recompute set:
 			 * their members were just released, and there is no row left to update.
@@ -1221,6 +1310,8 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 							r.transferGroupId !== null ? [r.transferGroupId] : [],
 						),
 					);
+
+					yield* forgetDismissals(rows.map((r) => r.id));
 				});
 
 			// A delete that also runs the shared grouping cleanup (PRD #48 issue #52,
@@ -1345,19 +1436,56 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				);
 
 			/**
-			 * Every detected internal-transfer pair across the whole dataset (PRD
-			 * #48) — the Transfers page's data source. Runs the one self-join and maps
-			 * each flat row into a {@link TransferCandidate} (two nested `Transaction`s
-			 * + the whole-day gap). Read-only and side-effect-free: a pair is a
-			 * *suggestion*, confirmed only when the user links it.
+			 * Every detected internal transfer across the whole dataset (PRD #48,
+			 * reshaped by issue #91) — read once and shared by every surface that
+			 * marks or lists suggestions. Runs the one self-join, minus the
+			 * **dismissed pairs**, and folds the flat pair rows into one
+			 * {@link TransferCandidate} per debit leg.
+			 *
+			 * Read-only and side-effect-free, and deliberately **not** materialised:
+			 * a stored candidate is wrong the moment either leg is hand-linked,
+			 * deleted, marked a refund or bundled. A pair is a *suggestion*, confirmed
+			 * only when the user links it — and refused only when the user says so.
 			 */
 			const transferCandidates = (): Effect.Effect<
 				ReadonlyArray<TransferCandidate>
 			> =>
-				transferCandidatesQuery().pipe(
-					Effect.map((rows) => rows.map(candidateFromRow)),
-					orDieSql,
-				);
+				transferCandidatesQuery().pipe(Effect.map(groupCandidates), orDieSql);
+
+			/**
+			 * Refuse a set of detected pairs (issue #91) → the number **newly**
+			 * stored. `INSERT OR IGNORE` against the composite primary key makes
+			 * re-dismissal a no-op rather than an error: the client sends the pairs it
+			 * displayed, and two panels can legitimately have displayed the same one.
+			 *
+			 * Nothing is validated. A pair naming a row that has since been deleted or
+			 * linked simply never matches the detection query, so the worst an unknown
+			 * id can do is occupy a row — a poor reason to 422 an action whose entire
+			 * purpose is to make suggestions go away. An empty list touches no DB.
+			 */
+			const dismissTransferPairs = (
+				pairs: ReadonlyArray<TransferPair>,
+			): Effect.Effect<{ count: number }> =>
+				pairs.length === 0
+					? Effect.succeed({ count: 0 })
+					: Effect.gen(function* () {
+							// One stamp for the whole batch, off the Effect `Clock` like every
+							// other timestamp this codebase writes — a group dismissal is one
+							// gesture, so its pairs share one moment.
+							const dismissedAt = new Date(
+								yield* Clock.currentTimeMillis,
+							).toISOString();
+							const written = yield* Effect.forEach(pairs, (pair) =>
+								dismissPairQuery({
+									debitId: pair.debitId,
+									creditId: pair.creditId,
+									dismissedAt,
+								}),
+							);
+							return {
+								count: written.reduce((n, rows) => n + rows.length, 0),
+							};
+						}).pipe(orDieSql);
 
 			// The raw stored row (no derivation) — merge base + existence check for the
 			// write paths, so an update never persists a *derived* category back onto
@@ -1614,6 +1742,7 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				getById,
 				suggestTransfers,
 				transferCandidates,
+				dismissTransferPairs,
 				create,
 				update,
 				remove,

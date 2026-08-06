@@ -3586,6 +3586,35 @@ describe("TransactionRepo", () => {
 		const day = (n: number) =>
 			new Date(`2026-03-${String(n).padStart(2, "0")}T00:00:00.000Z`);
 
+		// A **dismissed pair** is refused everywhere, not only on the grouped read
+		// (issue #91 story 17): "never reappears" is a property of the pairing, so
+		// it cannot depend on which endpoint asked. Both orientations, since the
+		// target here can be either side of the stored pair.
+		it.effect("never suggests a dismissed counterpart, from either side", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const debit = yield* repo.create(make({ amount: -30 }));
+				const credit = yield* repo.create(
+					make({ amount: 30, accountId: asAccount(2) }),
+				);
+				const kept = yield* repo.create(
+					make({ amount: 30, accountId: asAccount(3) }),
+				);
+
+				yield* repo.dismissTransferPairs([
+					{ debitId: debit.id, creditId: credit.id },
+				]);
+
+				// Asking as the debit: the refused credit is gone, the other stays.
+				assert.deepStrictEqual(
+					(yield* repo.suggestTransfers(debit.id)).map((t) => t.id),
+					[kept.id],
+				);
+				// Asking as the credit: the same pairing, refused the same way.
+				assert.deepStrictEqual(yield* repo.suggestTransfers(credit.id), []);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
 		it.effect(
 			"suggests an opposite-sign, equal-magnitude, cross-account leg",
 			() =>
@@ -3807,29 +3836,59 @@ describe("TransactionRepo", () => {
 		);
 	});
 
-	describe("transferCandidates (all detected pairs)", () => {
+	describe("transferCandidates (detected transfers, grouped by debit leg)", () => {
 		const day = (n: number) =>
 			new Date(`2026-03-${String(n).padStart(2, "0")}T00:00:00.000Z`);
 
+		it.effect("groups each pair under its debit leg, oriented by sign", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const debit = yield* repo.create(
+					make({ amount: -30, accountId: asAccount(1) }),
+				);
+				const credit = yield* repo.create(
+					make({ amount: 30, accountId: asAccount(2) }),
+				);
+
+				const out = yield* repo.transferCandidates();
+				assert.strictEqual(out.length, 1);
+				assert.strictEqual(out[0].leg.id, debit.id);
+				assert.ok(out[0].leg.amount < 0);
+				assert.strictEqual(out[0].counterparts.length, 1);
+				assert.strictEqual(out[0].counterparts[0].transaction.id, credit.id);
+				assert.ok(out[0].counterparts[0].transaction.amount > 0);
+				assert.strictEqual(out[0].counterparts[0].daysApart, 0);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		// The whole reason the shape changed (issue #91): three near-identical
+		// rows were three readings of ONE decision.
 		it.effect(
-			"returns each debit⇄credit pair once, oriented from=debit / to=credit",
+			"a debit matching several credits is one entry with several counterparts",
 			() =>
 				Effect.gen(function* () {
 					const repo = yield* TransactionRepo;
 					const debit = yield* repo.create(
-						make({ amount: -30, accountId: asAccount(1) }),
+						make({ amount: -30, accountId: asAccount(1), date: day(10) }),
 					);
-					const credit = yield* repo.create(
-						make({ amount: 30, accountId: asAccount(2) }),
+					const near = yield* repo.create(
+						make({ amount: 30, accountId: asAccount(2), date: day(11) }),
+					);
+					const far = yield* repo.create(
+						make({ amount: 30, accountId: asAccount(3), date: day(14) }),
 					);
 
 					const out = yield* repo.transferCandidates();
 					assert.strictEqual(out.length, 1);
-					assert.strictEqual(out[0].from.id, debit.id);
-					assert.strictEqual(out[0].to.id, credit.id);
-					assert.ok(out[0].from.amount < 0);
-					assert.ok(out[0].to.amount > 0);
-					assert.strictEqual(out[0].daysApart, 0);
+					assert.strictEqual(out[0].leg.id, debit.id);
+					// Closest-date first: the most likely match needs the least reading.
+					assert.deepStrictEqual(
+						out[0].counterparts.map((c) => [c.transaction.id, c.daysApart]),
+						[
+							[near.id, 1],
+							[far.id, 4],
+						],
+					);
 				}).pipe(Effect.provide(RepoTest)),
 		);
 
@@ -3843,7 +3902,7 @@ describe("TransactionRepo", () => {
 
 				const out = yield* repo.transferCandidates();
 				assert.strictEqual(out.length, 1);
-				assert.strictEqual(out[0].daysApart, 3);
+				assert.strictEqual(out[0].counterparts[0].daysApart, 3);
 			}).pipe(Effect.provide(RepoTest)),
 		);
 
@@ -3869,8 +3928,11 @@ describe("TransactionRepo", () => {
 
 					const out = yield* repo.transferCandidates();
 					assert.strictEqual(out.length, 1);
-					assert.strictEqual(out[0].from.id, debit.id);
-					assert.strictEqual(out[0].to.id, match.id);
+					assert.strictEqual(out[0].leg.id, debit.id);
+					assert.deepStrictEqual(
+						out[0].counterparts.map((c) => c.transaction.id),
+						[match.id],
+					);
 				}).pipe(Effect.provide(RepoTest)),
 		);
 
@@ -3886,9 +3948,12 @@ describe("TransactionRepo", () => {
 				yield* repo.create(make({ amount: 30, accountId: asAccount(2) }));
 
 				const out = yield* repo.transferCandidates();
-				assert.strictEqual(out[0]?.from.excludedFromRecap, true);
+				assert.strictEqual(out[0]?.leg.excludedFromRecap, true);
 				// The credit leg has no issuer, so it keeps counting.
-				assert.strictEqual(out[0]?.to.excludedFromRecap, undefined);
+				assert.strictEqual(
+					out[0]?.counterparts[0].transaction.excludedFromRecap,
+					undefined,
+				);
 			}).pipe(Effect.provide(RepoAndSqlTest)),
 		);
 
@@ -3910,7 +3975,7 @@ describe("TransactionRepo", () => {
 			}).pipe(Effect.provide(RepoTest)),
 		);
 
-		it.effect("orders candidates closest-date first", () =>
+		it.effect("orders legs by their closest counterpart", () =>
 			Effect.gen(function* () {
 				const repo = yield* TransactionRepo;
 				// Pair A: 1 day apart. Pair B: 4 days apart.
@@ -3928,9 +3993,8 @@ describe("TransactionRepo", () => {
 				);
 
 				const out = yield* repo.transferCandidates();
-				assert.strictEqual(out.length, 2);
 				assert.deepStrictEqual(
-					out.map((c) => [c.from.id, c.to.id]),
+					out.map((c) => [c.leg.id, c.counterparts[0].transaction.id]),
 					[
 						[aDebit.id, aCredit.id],
 						[bDebit.id, bCredit.id],
@@ -3946,6 +4010,187 @@ describe("TransactionRepo", () => {
 				const out = yield* repo.transferCandidates();
 				assert.deepStrictEqual(out, []);
 			}).pipe(Effect.provide(RepoTest)),
+		);
+	});
+
+	// **Dismissed pairs** (issue #91) — the user's refusal, the one thing the
+	// suggestion path persists. Detection stays live; a dismissal is what makes
+	// clearing a coincidence permanent work rather than a chore repeated on every
+	// read.
+	describe("dismissTransferPairs", () => {
+		const day = (n: number) =>
+			new Date(`2026-03-${String(n).padStart(2, "0")}T00:00:00.000Z`);
+
+		it.effect("a dismissed pair is absent from every later read", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const debit = yield* repo.create(
+					make({ amount: -30, accountId: asAccount(1) }),
+				);
+				const credit = yield* repo.create(
+					make({ amount: 30, accountId: asAccount(2) }),
+				);
+
+				const written = yield* repo.dismissTransferPairs([
+					{ debitId: debit.id, creditId: credit.id },
+				]);
+				assert.deepStrictEqual(written, { count: 1 });
+				assert.deepStrictEqual(yield* repo.transferCandidates(), []);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		// The scope rule: dismissal removes exactly the pairs it names, never more.
+		it.effect("dismissing one pair leaves the leg's other pairs present", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				const debit = yield* repo.create(
+					make({ amount: -30, accountId: asAccount(1), date: day(10) }),
+				);
+				const dismissed = yield* repo.create(
+					make({ amount: 30, accountId: asAccount(2), date: day(11) }),
+				);
+				const kept = yield* repo.create(
+					make({ amount: 30, accountId: asAccount(3), date: day(12) }),
+				);
+
+				yield* repo.dismissTransferPairs([
+					{ debitId: debit.id, creditId: dismissed.id },
+				]);
+
+				const out = yield* repo.transferCandidates();
+				assert.strictEqual(out.length, 1);
+				assert.deepStrictEqual(
+					out[0].counterparts.map((c) => c.transaction.id),
+					[kept.id],
+				);
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		// A credit's panel clears that credit's pairs with each listed debit; the
+		// debits' pairs with OTHER credits survive.
+		it.effect(
+			"dismissing one credit's pairs leaves another credit's alone",
+			() =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					const debitA = yield* repo.create(
+						make({ amount: -30, accountId: asAccount(1), date: day(10) }),
+					);
+					const debitB = yield* repo.create(
+						make({ amount: -30, accountId: asAccount(4), date: day(10) }),
+					);
+					const credit = yield* repo.create(
+						make({ amount: 30, accountId: asAccount(2), date: day(11) }),
+					);
+					const otherCredit = yield* repo.create(
+						make({ amount: 30, accountId: asAccount(3), date: day(11) }),
+					);
+
+					// The credit's own panel showed two debits; refuse both.
+					yield* repo.dismissTransferPairs([
+						{ debitId: debitA.id, creditId: credit.id },
+						{ debitId: debitB.id, creditId: credit.id },
+					]);
+
+					const out = yield* repo.transferCandidates();
+					assert.deepStrictEqual(
+						out.map((c) => [
+							c.leg.id,
+							c.counterparts.map((x) => x.transaction.id),
+						]),
+						[
+							[debitA.id, [otherCredit.id]],
+							[debitB.id, [otherCredit.id]],
+						],
+					);
+				}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect(
+			"is idempotent — re-dismissing a stored pair writes nothing",
+			() =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					const debit = yield* repo.create(make({ amount: -30 }));
+					const credit = yield* repo.create(
+						make({ amount: 30, accountId: asAccount(2) }),
+					);
+					const pair = [{ debitId: debit.id, creditId: credit.id }];
+
+					assert.deepStrictEqual(yield* repo.dismissTransferPairs(pair), {
+						count: 1,
+					});
+					assert.deepStrictEqual(yield* repo.dismissTransferPairs(pair), {
+						count: 0,
+					});
+				}).pipe(Effect.provide(RepoTest)),
+		);
+
+		it.effect("an empty list writes nothing and is not an error", () =>
+			Effect.gen(function* () {
+				const repo = yield* TransactionRepo;
+				assert.deepStrictEqual(yield* repo.dismissTransferPairs([]), {
+					count: 0,
+				});
+			}).pipe(Effect.provide(RepoTest)),
+		);
+
+		// The cascade, run explicitly in the shared post-delete cleanup: the schema
+		// declares no foreign keys and never enables `PRAGMA foreign_keys`, so a
+		// stored dismissal naming a deleted row would outlive it and silently
+		// suppress a pairing between two rows that no longer exist — or, once the
+		// id is reused, between two that never met.
+		it.effect("deleting a leg deletes the dismissals naming it", () =>
+			Effect.gen(function* () {
+				const sql = yield* SqlClient.SqlClient;
+				const repo = yield* TransactionRepo;
+				const debit = yield* repo.create(make({ amount: -30 }));
+				const credit = yield* repo.create(
+					make({ amount: 30, accountId: asAccount(2) }),
+				);
+				const other = yield* repo.create(
+					make({ amount: -50, accountId: asAccount(1) }),
+				);
+				const otherCredit = yield* repo.create(
+					make({ amount: 50, accountId: asAccount(2) }),
+				);
+				yield* repo.dismissTransferPairs([
+					{ debitId: debit.id, creditId: credit.id },
+					{ debitId: other.id, creditId: otherCredit.id },
+				]);
+
+				yield* repo.remove(credit.id);
+
+				const left = yield* sql<{
+					debitId: number;
+					creditId: number;
+				}>`SELECT debitId, creditId FROM transfer_dismissals`;
+				assert.deepStrictEqual(
+					left.map((r) => [r.debitId, r.creditId]),
+					[[other.id, otherCredit.id]],
+				);
+			}).pipe(Effect.provide(RepoAndSqlTest)),
+		);
+
+		it.effect("a bulk delete takes its rows' dismissals too", () =>
+			Effect.gen(function* () {
+				const sql = yield* SqlClient.SqlClient;
+				const repo = yield* TransactionRepo;
+				const debit = yield* repo.create(make({ amount: -30 }));
+				const credit = yield* repo.create(
+					make({ amount: 30, accountId: asAccount(2) }),
+				);
+				yield* repo.dismissTransferPairs([
+					{ debitId: debit.id, creditId: credit.id },
+				]);
+
+				yield* repo.bulkDelete([debit.id]);
+
+				const left = yield* sql<{
+					n: number;
+				}>`SELECT COUNT(*) AS n FROM transfer_dismissals`;
+				assert.strictEqual(left[0].n, 0);
+			}).pipe(Effect.provide(RepoAndSqlTest)),
 		);
 	});
 

@@ -619,22 +619,75 @@ export const BundleDissolve = Schema.Struct({
 export type BundleDissolve = typeof BundleDissolve.Type;
 
 /**
- * One **detected** (not yet confirmed) internal-transfer pair (PRD #48) — the
- * row shape of the Transfers page. `from` is always the debit leg (the money
- * leaving, a negative amount) and `to` the credit leg (the money arriving, a
- * positive amount) — the server orients them by sign so each real pair is
- * surfaced **exactly once** (never both A→B and B→A). `daysApart` is the whole
- * number of days between the two dates, so the UI can show "2 days apart" and
- * rank the closest matches first. Both legs are eligible and ungrouped by
- * construction; confirming a pair calls `link-transfer`, which re-validates it.
+ * One candidate counterpart of a debit leg (issue #91): the credit row itself
+ * plus `daysApart`, the whole number of days between the two dates — the signal
+ * that ranks one candidate above another ("same day" beats "4 days apart") and
+ * the reason the list is ordered the way it is.
+ */
+export class TransferCounterpart extends Schema.Class<TransferCounterpart>(
+	"TransferCounterpart",
+)({
+	transaction: Transaction,
+	daysApart: Schema.Number,
+}) {}
+
+/**
+ * One **detected** (not yet confirmed) internal transfer (PRD #48, reshaped by
+ * issue #91): a debit `leg` together with every credit that might be its
+ * counterpart, closest-date first.
+ *
+ * It used to be a flat pair (`from`/`to`/`daysApart`), one entry per pair. A
+ * debit matching three credits then read as three near-identical rows, when it
+ * is **one decision** — the user picks at most one of the three, and picking one
+ * settles the other two. Grouping is therefore the shape both surfaces want, and
+ * deriving it client-side in two places is duplication that drifts.
+ *
+ * `leg` is **always the debit** (a negative amount): the server orients by sign
+ * so each real pair is surfaced exactly once, never both A→B and B→A. A credit
+ * consequently never appears as a `leg` — the client indexes the same payload
+ * both ways to mark credit rows too. Every row here is eligible and ungrouped by
+ * construction; confirming a pair calls `link-transfer`, which re-validates it,
+ * and a **dismissed pair** ({@link TransferDismiss}) is never offered again.
  */
 export class TransferCandidate extends Schema.Class<TransferCandidate>(
 	"TransferCandidate",
 )({
-	from: Transaction,
-	to: Transaction,
-	daysApart: Schema.Number,
+	leg: Transaction,
+	counterparts: Schema.Array(TransferCounterpart),
 }) {}
+
+/**
+ * One **dismissed pair** (issue #91) — a (debit, credit) pairing the user has
+ * refused as a transfer. Ordered debit-first, matching the stored orientation:
+ * the client normalises before sending, so the server never has to guess which
+ * id is which side.
+ */
+export const TransferPair = Schema.Struct({
+	debitId: TransactionId,
+	creditId: TransactionId,
+});
+export type TransferPair = typeof TransferPair.Type;
+
+/**
+ * `dismiss-transfer-pairs` payload (issue #91) — the pairs the user has just
+ * refused. Detection itself stays live (a fresh server-side query on every
+ * read); what becomes persistent is the **refusal**, so a coincidence cleared
+ * once stays cleared instead of being re-derived forever.
+ *
+ * An **array**, not a single leg id, for two reasons. Dismissal is a group-level
+ * action — the panel showed N counterparts, so one gesture writes N pairs in one
+ * request — and the client sends the exact pairs it **displayed**: expanding a
+ * "group" server-side from one leg id would let the server's idea of the group
+ * differ from what was on screen if the data moved between the read and the
+ * write. An empty array writes nothing and is not an error.
+ *
+ * Idempotent: re-dismissing a stored pair is a no-op, so the returned `count` is
+ * the number of pairs **newly** stored.
+ */
+export const TransferDismiss = Schema.Struct({
+	pairs: Schema.Array(TransferPair),
+});
+export type TransferDismiss = typeof TransferDismiss.Type;
 
 /**
  * `bundleImpact` query params — both **required** (a targeted question about one
@@ -706,14 +759,17 @@ export class TransactionsGroup extends HttpApiGroup.make("transactions")
 			.setUrlParams(Schema.Struct(TransactionFilters))
 			.addSuccess(TransactionCount),
 	)
-	// Every DETECTED (not yet confirmed) internal-transfer pair across the whole
-	// dataset (PRD #48) — the Transfers page's data source. One SQL self-join
-	// pairs each ungrouped, non-refund debit with its ungrouped, non-refund
-	// credit of equal magnitude (to the cent), a different account, and a date
-	// within `TRANSFER_DATE_WINDOW_DAYS`. Oriented by sign (`from` = debit, `to`
-	// = credit) so each real pair is returned exactly once, never both ways.
-	// Ordered closest-date first. A literal sub-path, declared before the `:id`
-	// route so it is never shadowed by it.
+	// Every DETECTED (not yet confirmed) internal transfer across the whole
+	// dataset (PRD #48) — read once and shared by the Transfers page, the
+	// transactions table's row indicator and the detail page (issue #91). One SQL
+	// self-join pairs each ungrouped, non-refund debit with its ungrouped,
+	// non-refund credit of equal magnitude (to the cent), a different account, and
+	// a date within `TRANSFER_DATE_WINDOW_DAYS`, then groups the pairs under their
+	// debit leg. Oriented by sign (`leg` = debit) so each real pair is returned
+	// exactly once, never both ways. **Dismissed pairs are excluded** — that is
+	// what makes a refusal permanent rather than a per-session filter. Legs
+	// ordered by their closest counterpart, counterparts closest-date first. A
+	// literal sub-path, declared before the `:id` route so it is never shadowed.
 	.add(
 		HttpApiEndpoint.get(
 			"transferCandidates",
@@ -761,10 +817,17 @@ export class TransactionsGroup extends HttpApiGroup.make("transactions")
 	// #48): the server scans the DB for rows with the opposite sign, an equal
 	// magnitude to the cent, a different account, no existing transfer group, no
 	// refund involvement, and a date within `TRANSFER_DATE_WINDOW_DAYS` of this
-	// row's — the same rule the web suggestion util applies, run in SQL so it
-	// sees the whole dataset (not just a loaded page). 404s an unknown id; an
-	// **ineligible** row (already grouped, or a refund) yields an empty array —
-	// there is nothing to suggest, which is not an error. Nearest-date first.
+	// row's — run in SQL so it sees the whole dataset (not just a loaded page).
+	// 404s an unknown id; an **ineligible** row (already grouped, or a refund)
+	// yields an empty array — there is nothing to suggest, which is not an error.
+	// Nearest-date first, and **dismissed pairs** are excluded here exactly as
+	// they are from `transferCandidates`: a refusal is about the pairing, not
+	// about which endpoint asked.
+	//
+	// No web caller since issue #91 — every surface reads the grouped
+	// `transferCandidates` instead, so the three of them cannot disagree. Kept as
+	// the single-row form of the same question, and kept honest about dismissals
+	// so it stays safe to pick up.
 	.add(
 		HttpApiEndpoint.get(
 			"transferSuggestions",
@@ -854,6 +917,22 @@ export class TransactionsGroup extends HttpApiGroup.make("transactions")
 	.add(
 		HttpApiEndpoint.post("unlinkTransfer")`/transactions/unlink-transfer`
 			.setPayload(TransferUnlink)
+			.addSuccess(TransactionAffected),
+	)
+	// Refuse a set of detected pairs (issue #91) → `{ count }` newly stored. The
+	// only *write* the suggestion path has that is not a link: detection is
+	// recomputed on every read, so the sole thing worth persisting is the user's
+	// refusal. A dismissed pair drops out of `transferCandidates` for good.
+	//
+	// A POST rather than a DELETE: it *creates* **dismissed pair** rows. Nothing
+	// is validated beyond the ids being ids — a pair naming a row that has since
+	// gone simply never matches anything, and an unknown id is not worth a 422 for
+	// an action whose whole job is to make suggestions go away.
+	.add(
+		HttpApiEndpoint.post(
+			"dismissTransferPairs",
+		)`/transactions/dismiss-transfer-pairs`
+			.setPayload(TransferDismiss)
 			.addSuccess(TransactionAffected),
 	)
 	// Create a **bundle** from a set of rows (issue #68) — the other atomic

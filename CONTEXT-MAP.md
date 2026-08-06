@@ -376,7 +376,8 @@ repeated per package.
   **zero** to the cent, which is what makes it safe to net out: the whole group
   vanishes from the **recap** rather than counting as a debit and an income. A
   leg belongs to at most one group; groups are suggested by date-and-amount
-  proximity but only ever created by an explicit confirmation, and a group that
+  proximity (see **Transfer candidate**, and **Dismissed pair** for refusing one)
+  but only ever created by an explicit confirmation, and a group that
   falls below two legs is dissolved rather than left standing. A leg is never
   also a **bundle member** — the two groupings are mutually exclusive and each
   write path refuses the other's rows, so a row bundled or bundling is neither
@@ -390,10 +391,38 @@ repeated per package.
   (money leaving) or the credit leg (money arriving). "Leg" is the unit the
   zero-sum check, the suggestion pairs and the netted-out summary all count in.
   A leg's **counterpart** is another leg of the same movement — the word the
-  suggestion path already uses (`suggestTransferCounterparts`).
+  suggestion path uses throughout. The word is also used *before* confirmation,
+  of a **transfer candidate**'s counterparts: they are the rows that would become
+  legs if the pairing were confirmed.
   _Avoid_: side, half, pair member (a group is **two or more** legs, never fixed
   at two, so any word implying exactly two mis-states the shape); transfer
   transaction (every leg is one — *leg* is the word carrying the information).
+
+- **Transfer candidate** — a **debit** transaction together with the credit rows
+  that might be its counterpart, ranked closest-date first. One entry is one
+  *decision*: a debit matching three credits is a single question with three
+  answers, not three questions. Always oriented debit-first, so each real pairing
+  is surfaced exactly once (never both A→B and B→A); a client that needs to mark
+  the credit side too indexes the same payload both ways rather than asking for
+  it twice. Candidates are **derived, never stored** — a fresh server-side query
+  on every read — so nothing about them can go stale. Confirming one calls
+  `link-transfer`, which re-validates the pairing.
+  _Supersedes_ the earlier flat-pair meaning (`from` / `to` / `daysApart`), which
+  is gone. See [ADR 0010](./docs/adr/0010-transfer-suggestions-are-live-refusals-are-stored.md).
+  _Avoid_: transfer suggestion for the *entity* (that is the feature, not the
+  shape); match, proposal.
+
+- **Dismissed pair** — a (debit, credit) pairing the user has explicitly refused
+  as a transfer. Stored in its own table, keyed on the ordered pair, and excluded
+  from every later detection read — which is what makes clearing a coincidence
+  permanent work rather than a chore repeated on every read. It is the **only**
+  part of the suggestion path that is persisted: detection is a derivation, a
+  refusal is a decision. Pair-keyed, never leg-keyed: one salary credit can
+  legitimately pair with a real transfer *and* with a coincidence. Currently
+  irreversible — there is no undismiss — and the UI says so. Deleting either
+  transaction deletes the pair. See [ADR 0010](./docs/adr/0010-transfer-suggestions-are-live-refusals-are-stored.md).
+  _Avoid_: rejected, ignored, hidden, blacklisted (none of which the codebase
+  uses); *excluded* (that is taken — it means held out of the **recap**).
 
 - **Refund** — a credit that repays an earlier debit: a reimbursement from a
   person, a returned purchase. Two fields carry the pairing — `isRefund` marks a

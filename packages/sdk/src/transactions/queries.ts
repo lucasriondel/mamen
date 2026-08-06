@@ -230,10 +230,20 @@ export const transactionQueries = {
 		}),
 
 	/**
-	 * Every detected internal-transfer pair across the whole dataset (PRD #48) —
-	 * the Transfers page's data source. Each pair comes back once, oriented
-	 * `from` = debit / `to` = credit, closest-date first, with a `daysApart`.
-	 * Linking a pair regroups its legs, so invalidate `transactionKeys.all` after.
+	 * Every detected internal transfer across the whole dataset (PRD #48,
+	 * reshaped by issue #91) — **one cache entry serving every surface**: the
+	 * Transfers page, the transactions table's per-row indicator and the
+	 * transaction detail page all read this, so they can never disagree about the
+	 * same pair, and opening a row's panel costs no request.
+	 *
+	 * Each entry is a debit `leg` plus its candidate `counterparts`, closest-date
+	 * first. A credit never appears as a `leg` (the payload is oriented by sign so
+	 * a pair surfaces once); a client that needs to mark credit rows indexes this
+	 * same payload both ways rather than asking for it twice.
+	 *
+	 * Unfiltered and unpaged on purpose: a pair straddling a page boundary is
+	 * still a pair. Linking or dismissing changes what this returns, so invalidate
+	 * `transactionKeys.all` after either.
 	 */
 	transferCandidates: () =>
 		queryOptions({
@@ -429,6 +439,27 @@ export const transactionMutations = {
 		runQuery(
 			Effect.flatMap(Client, (client) =>
 				client.transactions.unlinkTransfer({ payload: { transferGroupId } }),
+			),
+		),
+
+	/**
+	 * Refuse a set of detected transfer pairs (issue #91) → `{ count }` **newly**
+	 * stored **dismissed pairs**. Each pair is ordered debit-first, matching the
+	 * stored orientation — the caller normalises before sending, since it is the
+	 * side that knows which row it displayed as which.
+	 *
+	 * Group-level by design: the caller sends the exact pairs its panel showed, in
+	 * one request, so the blast radius is what the user could see. Idempotent, and
+	 * currently **permanent** — there is no undismiss endpoint. Invalidate
+	 * `transactionKeys.all` after: the dismissed pairs leave every suggestion
+	 * surface at once.
+	 */
+	dismissTransferPairs: (
+		pairs: ReadonlyArray<{ debitId: TransactionId; creditId: TransactionId }>,
+	) =>
+		runQuery(
+			Effect.flatMap(Client, (client) =>
+				client.transactions.dismissTransferPairs({ payload: { pairs } }),
 			),
 		),
 

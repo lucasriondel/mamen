@@ -146,6 +146,12 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
 			}),
 		},
 		transactionQueries: {
+			// The shared transfer-suggestion read (issue #91) — every transactions table
+			// asks for it to mark its rows. Nothing here is a candidate.
+			transferCandidates: () => ({
+				queryKey: ["transactions", "transfer-candidates"],
+				queryFn: async () => [],
+			}),
 			list: (params: { issuerId?: number }) => {
 				listSpy(params);
 				return {

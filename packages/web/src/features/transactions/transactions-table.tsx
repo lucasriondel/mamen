@@ -40,6 +40,7 @@ import { ExcludedCell } from "./excluded-cell";
 import { IssuerPicker } from "./issuer-picker";
 import { NotesPicker } from "./notes-picker";
 import { AmountCell, TransferBadge } from "./transaction-cells";
+import { TransferSuggestionCell } from "./transfer-suggestion-popover";
 
 export interface TransactionsTableProps {
 	transactions: readonly Transaction[];
@@ -355,11 +356,21 @@ export function TransactionsTable({
 			}),
 			columnHelper.display({
 				id: "transfer",
-				// Header intentionally blank (screen-reader only) — the badge is a
-				// per-row marker, not a sortable/labelled dimension.
+				// Header intentionally blank (screen-reader only) — the marker is a
+				// per-row state, not a sortable/labelled dimension.
 				header: () => <span className="sr-only">Transfer</span>,
+				// One column, two mutually exclusive states (issue #91): a **settled**
+				// row wears the badge, an **unsettled** one wears the suggestion
+				// indicator. They cannot both apply — a grouped row is ineligible, so
+				// the server never suggests one a counterpart — and putting them in one
+				// column is what makes a settled row read as settled instead of sitting
+				// beside an empty column that once offered something.
 				cell: ({ row }) =>
-					row.original.transferGroupId != null ? <TransferBadge /> : null,
+					row.original.transferGroupId != null ? (
+						<TransferBadge />
+					) : (
+						<TransferSuggestionCell transaction={row.original} />
+					),
 			}),
 			columnHelper.display({
 				id: "excluded",
@@ -571,11 +582,12 @@ export function TransactionsTable({
 								{row.getVisibleCells().map((cell) => {
 									// The issuer/category/notes cells are inline curation surfaces
 									// (their own click targets), the select cell is the selection
-									// surface, the expand cell opens the bundle in place and the
-									// actions cell holds the caller's own controls; a click in
-									// any of them acts on the row where it is, so it must not
-									// also navigate to the detail page. Stop the event before it
-									// bubbles to the row's navigation handler.
+									// surface, the expand cell opens the bundle in place, the
+									// transfer cell opens the suggestion panel and the actions
+									// cell holds the caller's own controls; a click in any of them
+									// acts on the row where it is, so it must not also navigate to
+									// the detail page. Stop the event before it bubbles to the
+									// row's navigation handler.
 									const isOwnClickTarget =
 										cell.column.id === "select" ||
 										cell.column.id === "expand" ||
@@ -583,6 +595,7 @@ export function TransactionsTable({
 										cell.column.id === "category" ||
 										cell.column.id === "excluded" ||
 										cell.column.id === "notes" ||
+										cell.column.id === "transfer" ||
 										cell.column.id === "actions";
 									return (
 										<TableCell
