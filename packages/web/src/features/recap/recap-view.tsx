@@ -1,7 +1,7 @@
 import { getRouteApi } from "@tanstack/react-router";
 import { useMemo } from "react";
+import { AccountMultiSelect } from "@/components/ui/account-multi-select";
 import { Empty } from "@/components/ui/empty";
-import { AccountMultiSelect } from "./account-multi-select";
 import { ExcludedSummaryLine } from "./excluded-summary-line";
 import type { Period } from "./period";
 import { PeriodSelector } from "./period-selector";
@@ -119,10 +119,14 @@ export function RecapView() {
 				<RecapSkeleton />
 			) : (
 				<>
+					{/* Both lines open their own rows in the transactions list (issue #87). */}
 					{spend.transfers.count > 0 ? (
-						<TransferSummaryLine transfers={spend.transfers} />
+						<TransferSummaryLine
+							transfers={spend.transfers}
+							period={period}
+							accountIds={accountIds}
+						/>
 					) : null}
-					{/* What was held out of the totals, and a way into it (issue #87). */}
 					{spend.excluded.count > 0 ? (
 						<ExcludedSummaryLine
 							excluded={spend.excluded}

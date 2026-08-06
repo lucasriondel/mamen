@@ -18,10 +18,27 @@ export const TRANSACTIONS_PAGE_SIZE = 50;
  * defaults, so at runtime those two are effectively always present.
  */
 export interface TransactionsSearch {
-	/** Filter to one account (its numeric id), or all accounts when absent. */
-	accountId?: number;
+	/**
+	 * Filter to a **set** of accounts (their numeric ids), or all accounts when
+	 * absent. A set rather than one id because the recap's account picker is
+	 * multi-select and its summary lines link here carrying that selection whole:
+	 * narrowing it to one account would show a total the line never claimed, and
+	 * dropping it would show every account's rows under a header naming a few.
+	 * A single id still decodes (one-element set), so existing bookmarks hold.
+	 */
+	accountId?: number[];
 	/** Filter to one `YYYY-MM` import month, or all months when absent. */
 	importMonth?: string;
+	/**
+	 * Inclusive lower/upper bounds on the transaction's own **`date`**, as ISO
+	 * strings. How a **recap period** travels here (month, year and all-time are
+	 * all one date range — see `periodToFilter`), which `importMonth` could not
+	 * express: it names a single month, so a year or all-time recap had no way to
+	 * open its rows. AND-combined with `importMonth` like every other filter,
+	 * though a link writes one or the other, never both.
+	 */
+	startDate?: string;
+	endDate?: string;
 	/** Free-text term matched across issuer text/name, notes, and amount (#40). */
 	search?: string;
 	/**
@@ -36,8 +53,29 @@ export interface TransactionsSearch {
 	 * both. Unlike {@link TransactionsSearch.uncurated} this is a real three-way
 	 * filter rather than a toggle — both halves answer a question the user asks
 	 * ("what have I held out?" and "what actually counts?").
+	 *
+	 * "Held out" is the server's `isRecapExcluded` — the exclusion flag **or** a
+	 * duplicate-exclusion — matching what the recap's *Excluded from recap* line
+	 * sums, since that line links here.
 	 */
 	excludedFromRecap?: boolean;
+	/**
+	 * **Transfer legs** — `true` narrows to money moved between the user's own
+	 * accounts, `false` to everything else, absent shows both. Tri-state for the
+	 * same reason `excludedFromRecap` is: both halves are questions the user asks.
+	 * What the recap's *Internal transfers* line opens.
+	 */
+	isTransferLeg?: boolean;
+	/**
+	 * The row **kind** — only `"bundle"` is representable, narrowing to the
+	 * **bundle parents**: the rows that stand for a group, one per bundle, each
+	 * expandable in place to the transactions it covers (the table already ships
+	 * members with their parent). Absent shows every kind.
+	 *
+	 * A toggle rather than a tri-state: "not a bundle parent" is not a view anyone
+	 * asks for, so its off state is the absent filter.
+	 */
+	kind?: "bundle";
 	/** Date sort order; defaults to `desc` (newest-first), matching the SDK. */
 	direction?: "asc" | "desc";
 	/**
@@ -47,6 +85,21 @@ export interface TransactionsSearch {
 	 * offset-paginated SDK call needs.
 	 */
 	page?: number;
+}
+
+/**
+ * Coerce a raw URL search value — a scalar, a repeated param's array, or absent
+ * — into a numeric id list, dropping anything unparseable. Shared so every
+ * surface that reads an id set from a URL agrees on what one looks like.
+ */
+export function toIdList(raw: unknown): number[] {
+	const values = Array.isArray(raw) ? raw : raw == null ? [] : [raw];
+	const ids: number[] = [];
+	for (const value of values) {
+		const n = Number(value);
+		if (value !== "" && Number.isFinite(n)) ids.push(n);
+	}
+	return ids;
 }
 
 /** The row offset a 1-based `page` starts at, for the offset-paginated SDK list. */
@@ -69,17 +122,29 @@ export function validateTransactionsSearch(
 ): TransactionsSearch {
 	const result: TransactionsSearch = { direction: "desc", page: 1 };
 
-	const accountId = Number(search.accountId);
-	if (
-		search.accountId != null &&
-		search.accountId !== "" &&
-		Number.isFinite(accountId)
-	) {
-		result.accountId = accountId;
-	}
+	// A repeated param decodes to an array, a single one to a scalar — both land
+	// as a set here, so a one-account bookmark written before the filter went
+	// multi-select still resolves to the same view.
+	const accountIds = toIdList(search.accountId);
+	if (accountIds.length > 0) result.accountId = accountIds;
 
 	if (typeof search.importMonth === "string" && search.importMonth !== "") {
 		result.importMonth = search.importMonth;
+	}
+
+	// Date bounds are kept as the ISO strings they arrive as, and only when they
+	// parse: a malformed bound would otherwise reach the query as `Invalid Date`
+	// and silently match nothing, which reads as "no transactions" rather than as
+	// the bad URL it is.
+	for (const key of ["startDate", "endDate"] as const) {
+		const raw = search[key];
+		if (
+			typeof raw === "string" &&
+			raw !== "" &&
+			!Number.isNaN(Date.parse(raw))
+		) {
+			result[key] = raw;
+		}
 	}
 
 	if (typeof search.search === "string") {
@@ -107,6 +172,23 @@ export function validateTransactionsSearch(
 		search.excludedFromRecap === "false"
 	) {
 		result.excludedFromRecap = false;
+	}
+
+	// Tri-state like `excludedFromRecap` above, and for the same reason: both
+	// "transfers only" and "everything else" are views the user asks for.
+	if (search.isTransferLeg === true || search.isTransferLeg === "true") {
+		result.isTransferLeg = true;
+	} else if (
+		search.isTransferLeg === false ||
+		search.isTransferLeg === "false"
+	) {
+		result.isTransferLeg = false;
+	}
+
+	// Only `"bundle"` is representable: the filter offers the **bundle parents**,
+	// and its off state is the absent filter rather than a second view.
+	if (search.kind === "bundle") {
+		result.kind = "bundle";
 	}
 
 	if (search.direction === "asc" || search.direction === "desc") {

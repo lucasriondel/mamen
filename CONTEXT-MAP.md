@@ -319,6 +319,33 @@ repeated per package.
   screen; only its money leaves the total). Distinct from `isDuplicateExcluded`,
   which claims *this row is a duplicate of another*, not *this row is not
   spending*.
+  _Code note_: the `excludedFromRecap` **filter** is wider than the field of the
+  same name — it matches the recap's `isRecapExcluded` (the derived flag **or**
+  `isDuplicateExcluded`), because that is what the *Excluded from recap*
+  **recap summary line** sums and that line links into the filter. So its `false`
+  side means "counted" in the `countsTowardRecap` sense, dropping
+  duplicate-excluded rows too. `isDuplicateExcluded` remains a filter of its own
+  for the narrower question.
+
+- **Recap summary line** — one of the two figures the **recap** reports beside
+  its breakdowns rather than inside them: *Internal transfers* and *Excluded from
+  recap*, the money held out of the spend totals. Each is a **link into the
+  transactions list**, carrying the recap's period (as inclusive `date` bounds —
+  the only form a year or all-time period has) and its account selection, plus
+  the filter that names its own rows. So a figure the user cannot otherwise
+  account for opens onto the transactions behind it.
+
+  The two lines **partition**: transfers is summed as `isTransferLeg AND NOT
+  isRecapExcluded`, so a leg the user has also excluded is reported on the
+  excluded line, and the transfers link carries the same `NOT` clause. A line
+  that opened onto more rows than it counted would be a number disagreeing with
+  itself one click later.
+
+  They link to `/transactions` rather than the **recap detail** page: neither is
+  a slice of the spend, and both are expressible there as ordinary filter values
+  the filter bar can *show* and the user can widen. The recap detail page is for
+  buckets — one issuer, one category — which are.
+  _Avoid_: drill-down (reserve for the recap detail page), breakdown row.
 
 - **Curation** — the work of turning a raw bank row into a reviewed one: giving
   it an issuer, a category, or a note. The user's day-to-day job in this app, and

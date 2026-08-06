@@ -279,9 +279,55 @@ describe("RecapView", () => {
 		expect(within(issuerSection).queryByText(/40,00/)).not.toBeInTheDocument();
 	});
 
+	// The transfers line opens its own rows too (issue #87). "Which transactions is
+	// this?" is worth answering about any figure on the page — a mis-linked pair is
+	// exactly what a user would want to find — and a number with no way into its
+	// rows is one they have to take on trust.
+	it("links the Internal transfers line to the legs it summed", async () => {
+		recapFor = () =>
+			summary({
+				byIssuer: [{ id: 10, spent: 10, count: 1 }],
+				transfers: { total: 30, count: 2 },
+			} as Partial<RecapSummary>);
+
+		renderRecap("/recap?period=month&month=2026-07&accountIds=2");
+
+		const link = await screen.findByRole("link", {
+			name: /Internal transfers/,
+		});
+		const href = decodeURIComponent(link.getAttribute("href") ?? "");
+		expect(href).toContain("/transactions");
+		expect(href).toContain("isTransferLeg=true");
+		// The line is summed as `isTransferLeg AND NOT isRecapExcluded`: an excluded
+		// leg is counted on the *Excluded from recap* line instead, so without this
+		// clause the page would open on a bigger number than the one clicked.
+		expect(href).toContain("excludedFromRecap=false");
+		expect(href).toContain("startDate=2026-07-01T00:00:00.000Z");
+		expect(href).toContain("accountId=[2]");
+	});
+
+	// An all-time recap has no date bounds at all — the unbounded window is the
+	// absent filter, not a range that happens to cover everything.
+	it("carries no date bounds when the period is all time", async () => {
+		recapFor = () =>
+			summary({
+				byIssuer: [{ id: 10, spent: 10, count: 1 }],
+				transfers: { total: 30, count: 2 },
+			} as Partial<RecapSummary>);
+
+		renderRecap("/recap?period=all");
+
+		const link = await screen.findByRole("link", {
+			name: /Internal transfers/,
+		});
+		const href = link.getAttribute("href") ?? "";
+		expect(href).toContain("isTransferLeg=true");
+		expect(href).not.toContain("startDate");
+		expect(href).not.toContain("endDate");
+	});
+
 	// What was held out is reported rather than evidenced only by a missing number,
-	// and — unlike a transfer, which has a counterpart and needs no review — the
-	// figure opens the rows behind it (issue #87).
+	// and the figure opens the rows behind it (issue #87).
 	it("shows an Excluded from recap line, linking to the rows held out", async () => {
 		recapFor = () =>
 			summary({
@@ -297,17 +343,18 @@ describe("RecapView", () => {
 		expect(link).toHaveTextContent("3 transactions");
 		expect(link).toHaveTextContent(/145,00/);
 
-		const href = link.getAttribute("href") ?? "";
-		expect(href).toContain("/recap-detail");
-		expect(href).toContain("excluded=true");
-		// The other side of the same filter, so the detail's filter bar shows
-		// *Excluded only* rather than contradicting the page it opened.
+		// The transactions list, not a drill-down page of its own: the narrowing
+		// arrives as filter values the bar can show and the user can widen.
+		const href = decodeURIComponent(link.getAttribute("href") ?? "");
+		expect(href).toContain("/transactions");
+		// The rows held out — the *Excluded only* half of the filter, so the bar
+		// spells the page's subject out rather than contradicting it.
 		expect(href).toContain("excludedFromRecap=true");
-		// Over the very period and accounts the line reported.
-		expect(href).toContain("month=2026-07");
-		expect(decodeURIComponent(href)).toContain("accountIds=[2]");
-		// No bucket: the excluded rows are the complement of the spend, not a slice.
-		expect(href).not.toContain("by=");
+		// Over the very period and accounts the line reported — the period as date
+		// bounds, which is how a year or all-time recap travels at all.
+		expect(href).toContain("startDate=2026-07-01T00:00:00.000Z");
+		expect(href).toContain("endDate=2026-07-31T23:59:59.999Z");
+		expect(href).toContain("accountId=[2]");
 	});
 
 	it("hides the Excluded from recap line when nothing is held out", async () => {

@@ -1132,6 +1132,159 @@ describe("TransactionRepo", () => {
 					);
 				}).pipe(Effect.provide(RepoTest)),
 			);
+
+			// The filter means the recap's `isRecapExcluded` — the derived flag OR
+			// `isDuplicateExcluded` — because the recap's *Excluded from recap* line
+			// sums exactly that and now links into this filter. Matching the flag
+			// alone opened the line onto fewer rows than it had just counted.
+			it.effect("true also returns duplicate-excluded rows", () =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* repo.create(
+						make({
+							rawIssuerString: "EXCLUDED ROW",
+							excludedFromRecap: true,
+							manualExcluded: true,
+						}),
+					);
+					yield* repo.create(
+						make({
+							rawIssuerString: "DUPLICATE ROW",
+							isDuplicateExcluded: true,
+						}),
+					);
+					yield* repo.create(make({ rawIssuerString: "COUNTED ROW" }));
+
+					const page = yield* repo.list({
+						...listAll,
+						excludedFromRecap: true,
+					});
+					assert.deepStrictEqual(
+						page.items.map((t) => t.rawIssuerString).sort(),
+						["DUPLICATE ROW", "EXCLUDED ROW"],
+					);
+				}).pipe(Effect.provide(RepoTest)),
+			);
+
+			// The mirror, and the deliberate behaviour change: "counted" is now the
+			// complement of the union, so a duplicate-excluded row is not in it —
+			// which is what `countsTowardRecap` has always meant by counting.
+			it.effect("false excludes duplicate-excluded rows too", () =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* repo.create(
+						make({
+							rawIssuerString: "DUPLICATE ROW",
+							isDuplicateExcluded: true,
+						}),
+					);
+					yield* repo.create(make({ rawIssuerString: "COUNTED ROW" }));
+
+					const page = yield* repo.list({
+						...listAll,
+						excludedFromRecap: false,
+					});
+					assert.deepStrictEqual(
+						page.items.map((t) => t.rawIssuerString),
+						["COUNTED ROW"],
+					);
+				}).pipe(Effect.provide(RepoTest)),
+			);
+		});
+
+		// The `isTransferLeg` filter — the bulk form of `transferGroupId`, so the
+		// recap's *Internal transfers* line can open the rows it summed. Built from
+		// the same fragment `countsTowardRecap` nets those rows out with, so what
+		// the recap removes and what this lists stay one set.
+		describe("isTransferLeg filter", () => {
+			const seedLegs = (repo: TransactionRepo) =>
+				Effect.gen(function* () {
+					const debit = yield* repo.create(
+						make({ rawIssuerString: "LEG OUT", amount: -30 }),
+					);
+					const credit = yield* repo.create(
+						make({
+							rawIssuerString: "LEG IN",
+							amount: 30,
+							accountId: asAccount(2),
+						}),
+					);
+					yield* repo.linkTransfer([debit.id, credit.id]);
+					yield* repo.create(make({ rawIssuerString: "ORDINARY ROW" }));
+				});
+
+			it.effect("true returns only the legs, of every group", () =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* seedLegs(repo);
+					const page = yield* repo.list({ ...listAll, isTransferLeg: true });
+					assert.deepStrictEqual(
+						page.items.map((t) => t.rawIssuerString).sort(),
+						["LEG IN", "LEG OUT"],
+					);
+					assert.strictEqual(page.total, 2);
+				}).pipe(Effect.provide(RepoTest)),
+			);
+
+			it.effect("false returns the complement, absent returns both", () =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* seedLegs(repo);
+					const page = yield* repo.list({ ...listAll, isTransferLeg: false });
+					assert.deepStrictEqual(
+						page.items.map((t) => t.rawIssuerString),
+						["ORDINARY ROW"],
+					);
+					assert.strictEqual((yield* repo.list(listAll)).total, 3);
+				}).pipe(Effect.provide(RepoTest)),
+			);
+
+			// The combination the recap's transfers link actually writes: the line
+			// reports `isTransferLeg AND NOT isRecapExcluded`, so an excluded leg is
+			// counted on the *excluded* line instead and must not appear here.
+			it.effect("AND-combines with excludedFromRecap, as the recap does", () =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* seedLegs(repo);
+					const debit = yield* repo.create(
+						make({
+							rawIssuerString: "EXCLUDED LEG OUT",
+							amount: -40,
+							excludedFromRecap: true,
+							manualExcluded: true,
+						}),
+					);
+					const credit = yield* repo.create(
+						make({
+							rawIssuerString: "EXCLUDED LEG IN",
+							amount: 40,
+							accountId: asAccount(2),
+						}),
+					);
+					yield* repo.linkTransfer([debit.id, credit.id]);
+
+					const page = yield* repo.list({
+						...listAll,
+						isTransferLeg: true,
+						excludedFromRecap: false,
+					});
+					assert.deepStrictEqual(
+						page.items.map((t) => t.rawIssuerString).sort(),
+						["EXCLUDED LEG IN", "LEG IN", "LEG OUT"],
+					);
+				}).pipe(Effect.provide(RepoTest)),
+			);
+
+			it.effect("count honors the isTransferLeg filter", () =>
+				Effect.gen(function* () {
+					const repo = yield* TransactionRepo;
+					yield* seedLegs(repo);
+					assert.strictEqual(
+						(yield* repo.count({ isTransferLeg: true })).count,
+						2,
+					);
+				}).pipe(Effect.provide(RepoTest)),
+			);
 		});
 
 		it.effect("count honors every filter list does", () =>

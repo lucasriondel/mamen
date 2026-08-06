@@ -295,67 +295,15 @@ describe("RecapDetailView", () => {
 		});
 	});
 
-	// The other line the recap can open (issue #87): the rows held out of the
-	// totals, which have no issuer or category scope because they are the
-	// complement of the spend rather than a slice of it.
-	describe("the excluded view (issue #87)", () => {
-		it("lists the rows held out, with no issuer or category scope", async () => {
-			renderView(
-				"/recap-detail?excluded=true&period=month&month=2026-07&excludedFromRecap=true",
-			);
+	// The excluded summary used to open this page (issue #87) and now links to
+	// `/transactions` instead, so an old bookmark names no bucket. It must land on
+	// the empty state rather than query unscoped — the same protection a
+	// hand-edited URL gets, since that is now what it is.
+	it("shows the empty state for an old excluded link, and never queries", async () => {
+		renderView("/recap-detail?excluded=true&period=all&excludedFromRecap=true");
 
-			expect(
-				await screen.findByRole("heading", { name: /Excluded from recap/ }),
-			).toBeInTheDocument();
-
-			// The paged list call, not the month-scan the filter bar's options come
-			// from (which is scoped but carries no user filters).
-			const params = pagedListParams();
-			expect(params).toMatchObject({
-				excludedFromRecap: true,
-				startDate: new Date("2026-07-01T00:00:00.000Z"),
-				endDate: new Date("2026-07-31T23:59:59.999Z"),
-			});
-			expect(params).not.toHaveProperty("issuerId");
-			expect(params).not.toHaveProperty("categoryId");
-		});
-
-		it("says why its rows are here rather than naming an entity kind", async () => {
-			renderView("/recap-detail?excluded=true&period=all&accountIds=2");
-
-			await screen.findByRole("heading", { name: /Excluded from recap/ });
-			// The accounts read resolves a beat after the header renders.
-			await waitFor(() =>
-				expect(screen.getByText(/Held out of the recap/)).toHaveTextContent(
-					"Savings",
-				),
-			);
-		});
-
-		// The excluded rows are not a slice of a bucket — asking for "this issuer's
-		// excluded rows" is the filter bar's job, so the excluded view wins here.
-		it("stays the excluded view even if a bucket rides in the same URL", async () => {
-			renderView("/recap-detail?excluded=true&by=issuer&bucket=10&period=all");
-
-			expect(
-				await screen.findByRole("heading", { name: /Excluded from recap/ }),
-			).toBeInTheDocument();
-			expect(pagedListParams()).not.toHaveProperty("issuerId");
-		});
-
-		it("carries the recap's account selection like a bucket page does", async () => {
-			renderView(
-				"/recap-detail?excluded=true&period=all&accountIds=1&accountIds=2&excludedFromRecap=true",
-			);
-
-			await screen.findByRole("heading", { name: /Excluded from recap/ });
-			expect(listMock).toHaveBeenCalledWith(
-				expect.objectContaining({ accountId: [1, 2] }),
-			);
-			expect(countMock).toHaveBeenCalledWith(
-				expect.objectContaining({ accountId: [1, 2] }),
-			);
-		});
+		expect(await screen.findByText(/nothing to show/i)).toBeInTheDocument();
+		expect(listMock).not.toHaveBeenCalled();
 	});
 
 	// Only reachable by hand-editing the URL. Querying unscoped would show the whole

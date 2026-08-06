@@ -76,20 +76,8 @@ describe("TransactionsFilters — search box", () => {
 // toggle: "excluded only" and "counted only" are both views the user asks for,
 // so the off state is a third option rather than the absence of the control.
 describe("TransactionsFilters — recap exclusion", () => {
-	const selectRecap = (label: string) => {
-		const select = screen.getByLabelText(
-			"Filter by recap exclusion",
-		) as HTMLSelectElement;
-		const option = [...select.options].find((o) => o.text === label);
-		act(() => {
-			const setter = Object.getOwnPropertyDescriptor(
-				HTMLSelectElement.prototype,
-				"value",
-			)?.set;
-			setter?.call(select, option?.value);
-			select.dispatchEvent(new Event("change", { bubbles: true }));
-		});
-	};
+	const selectRecap = (label: string) =>
+		selectByLabel("Filter by recap exclusion", label);
 
 	it("emits the excluded-only view", () => {
 		const { onChange } = renderFilters();
@@ -117,6 +105,87 @@ describe("TransactionsFilters — recap exclusion", () => {
 		);
 	});
 });
+
+// The **transfers** filter (issue #87) is three-way for the same reason the recap
+// one is: "money I moved between my own accounts" and "everything that isn't
+// that" are both views the user asks for. This is what the recap's *Internal
+// transfers* line opens.
+describe("TransactionsFilters — transfers", () => {
+	const selectTransfers = (label: string) =>
+		selectByLabel("Filter by transfer", label);
+
+	it("emits the transfers-only view", () => {
+		const { onChange } = renderFilters();
+		selectTransfers("Transfers only");
+		expect(onChange).toHaveBeenCalledWith({ isTransferLeg: true });
+	});
+
+	it("emits the exclude-transfers view — the other half, not 'no filter'", () => {
+		const { onChange } = renderFilters();
+		selectTransfers("Exclude transfers");
+		expect(onChange).toHaveBeenCalledWith({ isTransferLeg: false });
+	});
+
+	it("goes back to every row", () => {
+		const { onChange } = renderFilters({ isTransferLeg: true });
+		selectTransfers("All rows");
+		expect(onChange).toHaveBeenCalledWith({ isTransferLeg: undefined });
+	});
+
+	it("counts as an active filter, and Clear resets it too", () => {
+		const { onChange } = renderFilters({ isTransferLeg: false });
+		screen.getByRole("button", { name: /clear/i }).click();
+		expect(onChange).toHaveBeenCalledWith(
+			expect.objectContaining({ isTransferLeg: undefined }),
+		);
+	});
+});
+
+// The **grouped** filter is a toggle, not a tri-state: "show me my bundles" is a
+// view, but "show me everything that is not a bundle parent" is not one anyone
+// asks for, so its off state is the absent filter.
+describe("TransactionsFilters — grouped", () => {
+	const groupedToggle = () => screen.getByRole("button", { name: /grouped/i });
+
+	it("asks for the bundle parents", () => {
+		const { onChange } = renderFilters();
+		act(() => groupedToggle().click());
+		expect(onChange).toHaveBeenCalledWith({ kind: "bundle" });
+	});
+
+	it("clears to no filter rather than to a second view", () => {
+		const { onChange } = renderFilters({ kind: "bundle" });
+		act(() => groupedToggle().click());
+		expect(onChange).toHaveBeenCalledWith({ kind: undefined });
+	});
+
+	it("reflects the applied state, and Clear resets it too", () => {
+		const { onChange } = renderFilters({ kind: "bundle" });
+		expect(groupedToggle()).toHaveAttribute("aria-pressed", "true");
+		screen.getByRole("button", { name: /clear/i }).click();
+		expect(onChange).toHaveBeenCalledWith(
+			expect.objectContaining({ kind: undefined }),
+		);
+	});
+});
+
+/**
+ * Pick a `<select>` option by its visible text, dispatching the change event
+ * React observes. Shared by the three-way filters, which differ only in which
+ * control and which option they drive.
+ */
+function selectByLabel(ariaLabel: string, optionText: string) {
+	const select = screen.getByLabelText(ariaLabel) as HTMLSelectElement;
+	const option = [...select.options].find((o) => o.text === optionText);
+	act(() => {
+		const setter = Object.getOwnPropertyDescriptor(
+			HTMLSelectElement.prototype,
+			"value",
+		)?.set;
+		setter?.call(select, option?.value);
+		select.dispatchEvent(new Event("change", { bubbles: true }));
+	});
+}
 
 /** Set an input's value and dispatch a React-observed `input` event. */
 function fireInput(el: Element, value: string) {

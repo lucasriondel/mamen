@@ -237,6 +237,21 @@ async function renderView(initialEntry = "/transactions") {
 	return router;
 }
 
+/**
+ * Tick accounts in the multi-select: open the popover, then click each name. The
+ * checkboxes are visually hidden behind their label, so the label is what a user
+ * (and this helper) clicks.
+ */
+async function pickAccounts(
+	user: ReturnType<typeof userEvent.setup>,
+	names: readonly string[],
+) {
+	await user.click(screen.getByRole("button", { name: /All accounts/ }));
+	for (const name of names) {
+		await user.click(await screen.findByLabelText(name));
+	}
+}
+
 beforeEach(() => {
 	listMock.mockClear();
 	issuerByIdsMock.mockClear();
@@ -333,17 +348,34 @@ describe("TransactionsView", () => {
 		expect(screen.getByText("Unassigned")).toBeInTheDocument();
 	});
 
-	it("writes accountId to the URL and calls list with that filter", async () => {
+	// The account filter is a **set** (issue #87): the recap's picker is
+	// multi-select and its summary lines link here carrying that selection whole,
+	// so this bar has to be able to show one.
+	it("writes accountId to the URL as a set and calls list with it", async () => {
 		const router = await renderView();
 		const user = userEvent.setup();
 
-		await user.selectOptions(screen.getByLabelText("Filter by account"), "1");
+		await pickAccounts(user, ["Checking"]);
 
 		await waitFor(() => {
-			expect(router.state.location.search).toMatchObject({ accountId: 1 });
+			expect(router.state.location.search).toMatchObject({ accountId: [1] });
 		});
 		expect(listMock).toHaveBeenCalledWith(
-			expect.objectContaining({ accountId: 1, offset: 0 }),
+			expect.objectContaining({ accountId: [1], offset: 0 }),
+		);
+	});
+
+	it("narrows to several accounts at once", async () => {
+		const router = await renderView();
+		const user = userEvent.setup();
+
+		await pickAccounts(user, ["Checking", "Savings"]);
+
+		await waitFor(() => {
+			expect(router.state.location.search).toMatchObject({ accountId: [1, 2] });
+		});
+		expect(listMock).toHaveBeenCalledWith(
+			expect.objectContaining({ accountId: [1, 2] }),
 		);
 	});
 
@@ -351,7 +383,7 @@ describe("TransactionsView", () => {
 		const router = await renderView();
 		const user = userEvent.setup();
 
-		await user.selectOptions(screen.getByLabelText("Filter by account"), "1");
+		await pickAccounts(user, ["Checking"]);
 		await user.selectOptions(
 			screen.getByLabelText("Filter by month"),
 			"2026-01",
@@ -359,12 +391,12 @@ describe("TransactionsView", () => {
 
 		await waitFor(() => {
 			expect(router.state.location.search).toMatchObject({
-				accountId: 1,
+				accountId: [1],
 				importMonth: "2026-01",
 			});
 		});
 		expect(listMock).toHaveBeenCalledWith(
-			expect.objectContaining({ accountId: 1, importMonth: "2026-01" }),
+			expect.objectContaining({ accountId: [1], importMonth: "2026-01" }),
 		);
 	});
 
@@ -512,11 +544,32 @@ describe("TransactionsView", () => {
 		);
 	});
 
+	// A bookmark written before the account filter became a set carries a single
+	// scalar id. It has to keep resolving to the same view, so the scalar decodes
+	// as the one-element set it means.
 	it("reproduces a bookmarked filtered view from the URL on load", async () => {
 		await renderView("/transactions?accountId=2&importMonth=2026-02");
 
 		expect(listMock).toHaveBeenCalledWith(
-			expect.objectContaining({ accountId: 2, importMonth: "2026-02" }),
+			expect.objectContaining({ accountId: [2], importMonth: "2026-02" }),
+		);
+	});
+
+	// The recap's summary lines link here with the period as date bounds, which is
+	// how a year or all-time recap travels at all — `importMonth` names one month.
+	it("reproduces a recap link's period and account set from the URL", async () => {
+		await renderView(
+			"/transactions?startDate=2026-07-01T00:00:00.000Z&endDate=2026-07-31T23:59:59.999Z&accountId=1&accountId=2&isTransferLeg=true&excludedFromRecap=false",
+		);
+
+		expect(listMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				startDate: new Date("2026-07-01T00:00:00.000Z"),
+				endDate: new Date("2026-07-31T23:59:59.999Z"),
+				accountId: [1, 2],
+				isTransferLeg: true,
+				excludedFromRecap: false,
+			}),
 		);
 	});
 

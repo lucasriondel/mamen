@@ -72,17 +72,6 @@ describe("validateRecapDetailSearch", () => {
 			}),
 		).toMatchObject({ excludedFromRecap: false, search: "amazon" });
 	});
-
-	// Only the `true` state is representable: it is what makes this page the
-	// excluded view, and its absence is the ordinary bucket drill-down.
-	it("keeps the excluded flag, from a boolean or a hand-typed string", () => {
-		expect(validateRecapDetailSearch({ excluded: true }).excluded).toBe(true);
-		expect(validateRecapDetailSearch({ excluded: "true" }).excluded).toBe(true);
-		expect(
-			validateRecapDetailSearch({ excluded: "false" }).excluded,
-		).toBeUndefined();
-		expect(validateRecapDetailSearch({}).excluded).toBeUndefined();
-	});
 });
 
 describe("toDetailTarget", () => {
@@ -104,17 +93,12 @@ describe("toDetailTarget", () => {
 		});
 	});
 
-	it("resolves the excluded view, which carries no axis or bucket", () => {
-		expect(toDetailTarget({ excluded: true })).toEqual({ kind: "excluded" });
-	});
-
-	// "this issuer's excluded rows" is not a view this page offers — the filter
-	// bar's *Excluded only* option is how you ask that of a bucket. Deciding it in
-	// one place keeps two readers from disagreeing about the same URL.
-	it("lets the excluded view win over a bucket in the same URL", () => {
-		expect(
-			toDetailTarget({ excluded: true, by: "issuer", bucket: 10 }),
-		).toEqual({ kind: "excluded" });
+	// The excluded summary used to open this page on an `excluded=true` target; it
+	// now links to `/transactions`. An old bookmark therefore names no bucket and
+	// must report no target, so the view offers its way back to the recap rather
+	// than querying unscoped under a header claiming to be one line's rows.
+	it("reports no target for an old excluded link", () => {
+		expect(toDetailTarget({ excluded: true } as never)).toBeUndefined();
 	});
 
 	it("reports no target when the axis or the bucket is missing", () => {

@@ -1,6 +1,7 @@
 import { UNASSIGNED_FILTER } from "@mamen/shared/contract";
 import {
 	type TransactionsSearch,
+	toIdList,
 	validateTransactionsSearch,
 } from "@/features/transactions/search";
 import type { PeriodKind } from "../period";
@@ -18,17 +19,18 @@ import type { RecapSearch } from "../search";
  * - the transactions view's {@link TransactionsSearch} — the filter bar, the date
  *   sort, and the page — so the detail is the same table with the same controls.
  *
- * On top of those it adds the *target*, in one of two forms:
+ * On top of those it adds the *target*: a **bucket** on a breakdown — which one
+ * the user clicked (`by`) and which bucket (`bucket`). `bucket` is a numeric id,
+ * or {@link UNASSIGNED_FILTER} for the recap's **Unassigned** bucket — the biggest
+ * number on the page for a fresh import, so it must be reachable, and its "no id"
+ * state has to survive a URL where every value is a string.
  *
- * - a **bucket** on a breakdown — which one the user clicked (`by`) and which
- *   bucket (`bucket`). `bucket` is a numeric id, or {@link UNASSIGNED_FILTER} for
- *   the recap's **Unassigned** bucket — the biggest number on the page for a fresh
- *   import, so it must be reachable, and its "no id" state has to survive a URL
- *   where every value is a string.
- * - the **excluded** rows (`excluded=true`), the money held out of the totals
- *   altogether (issue #87). It has no axis and no bucket: it is not a slice of the
- *   spend but the complement of it, so it is its own kind of target rather than a
- *   third value of `by`.
+ * The recap's two summary lines used to open this page as well, on an `excluded`
+ * target with no bucket. They now link straight to `/transactions` with their
+ * narrowing as filter values, which is the same table with controls that can show
+ * and widen what was applied — so this page is bucket-drill-down only, and each
+ * page here is about a bucket rather than sometimes about the complement of every
+ * bucket.
  */
 export type RecapDetailSearch = TransactionsSearch &
 	Pick<RecapSearch, "period" | "month" | "year" | "accountIds"> & {
@@ -36,47 +38,29 @@ export type RecapDetailSearch = TransactionsSearch &
 		by?: RecapDetailAxis;
 		/** The bucket: an entity id, or `"none"` for the Unassigned bucket. */
 		bucket?: number | typeof UNASSIGNED_FILTER;
-		/**
-		 * When `true`, the page lists the rows **held out** of the recap rather than a
-		 * bucket of it (issue #87). Only the `true` state is representable: it is what
-		 * makes this page the excluded view, and its absence is the ordinary
-		 * bucket-drill-down, not a second view.
-		 */
-		excluded?: boolean;
 	};
 
 /** The two recap breakdowns a detail page can drill into. */
 export type RecapDetailAxis = "issuer" | "category";
 
 /**
- * The resolved target of a detail page — one of the two things the recap page can
- * open (issue #87):
+ * The resolved target of a detail page: a slice of the spend — an axis plus the
+ * bucket on it. A `bucket` of `null` is the **Unassigned** bucket (the rows with
+ * no issuer / no derived category), a real target distinct from "no target at
+ * all" (an unusable URL, which {@link toDetailTarget} reports as `undefined`).
  *
- * - `bucket` — a slice of the spend: an axis plus the bucket on it. A `bucket` of
- *   `null` is the **Unassigned** bucket (the rows with no issuer / no derived
- *   category), a real target distinct from "no target at all" (an unusable URL,
- *   which {@link toDetailTarget} reports as `undefined`).
- * - `excluded` — the rows held out of the totals. Carries no axis and no bucket,
- *   which is exactly why it is a separate member rather than a nullable axis: every
- *   reader has to decide what to do about it rather than fall through a default.
+ * Kept as a tagged member rather than flattened to `{ axis, bucket }` now that it
+ * is the only one: `kind` is what every reader switches on, and re-adding a second
+ * target should not mean rewriting them.
  */
-export type RecapDetailTarget =
-	| { kind: "bucket"; axis: RecapDetailAxis; bucket: number | null }
-	| { kind: "excluded" };
+export type RecapDetailTarget = {
+	kind: "bucket";
+	axis: RecapDetailAxis;
+	bucket: number | null;
+};
 
 const AXES: ReadonlyArray<RecapDetailAxis> = ["issuer", "category"];
 const PERIOD_KINDS: ReadonlyArray<PeriodKind> = ["month", "year", "all"];
-
-/** Coerce a raw search value (string, array, or absent) into a numeric id list. */
-function toIdList(raw: unknown): number[] {
-	const values = Array.isArray(raw) ? raw : raw == null ? [] : [raw];
-	const ids: number[] = [];
-	for (const value of values) {
-		const n = Number(value);
-		if (value !== "" && Number.isFinite(n)) ids.push(n);
-	}
-	return ids;
-}
 
 /**
  * Normalize raw URL search into {@link RecapDetailSearch}. The transactions half
@@ -97,14 +81,6 @@ export function validateRecapDetailSearch(
 
 	if (AXES.includes(search.by as RecapDetailAxis)) {
 		result.by = search.by as RecapDetailAxis;
-	}
-
-	// Only the `true` state is representable (issue #87): it is what makes this page
-	// the excluded view, and its absence is the ordinary bucket drill-down rather
-	// than a second view. A hand-typed `?excluded=true` decodes like the boolean the
-	// recap's link writes.
-	if (search.excluded === true || search.excluded === "true") {
-		result.excluded = true;
 	}
 
 	if (search.bucket === UNASSIGNED_FILTER) {
@@ -147,13 +123,10 @@ export function validateRecapDetailSearch(
 
 /**
  * Read the search back as a resolved {@link RecapDetailTarget}, or `undefined`
- * when the URL names neither a usable bucket nor the excluded view.
- *
- * `excluded=true` wins over a bucket that happens to be in the URL as well: the
- * excluded rows are the complement of the spend, so "this issuer's excluded rows"
- * is not a view this page offers — the filter bar's *Excluded only* option is how
- * you ask that of a bucket. Deciding it here rather than in the view keeps the two
- * readings from disagreeing about the same URL.
+ * when the URL names no usable bucket — including an old `?excluded=true` link,
+ * which now has no target here and lands on the view's empty state with the way
+ * back to the recap. (Its live equivalent is `/transactions` with
+ * `excludedFromRecap=true`, which the recap's own line writes.)
  *
  * `"none"` becomes `null` — the shape the rest of the feature reasons about,
  * matching the `null` bucket id the recap summary itself reports for unattributed
@@ -162,7 +135,6 @@ export function validateRecapDetailSearch(
 export function toDetailTarget(
 	search: RecapDetailSearch,
 ): RecapDetailTarget | undefined {
-	if (search.excluded === true) return { kind: "excluded" };
 	if (search.by === undefined || search.bucket === undefined) return undefined;
 	return {
 		kind: "bucket",
