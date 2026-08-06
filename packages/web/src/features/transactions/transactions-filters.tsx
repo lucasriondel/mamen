@@ -1,15 +1,21 @@
 import type { Account } from "@mamen/shared/contract";
 import { Search, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { AccountMultiSelect } from "@/components/ui/account-multi-select";
 import { Button } from "@/components/ui/button";
 import { formatMonth } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { GroupedToggle } from "./grouped-toggle";
 import { UncuratedToggle } from "./uncurated-toggle";
 
 /** The subset of filter state the controls read/write. */
 export interface TransactionFilterValues {
-	accountId?: number;
+	/** The selected accounts; empty or absent means all of them. */
+	accountId?: number[];
 	importMonth?: string;
+	/** ISO date bounds — set by a link from the recap, not by a control here. */
+	startDate?: string;
+	endDate?: string;
 	search?: string;
 	/** Narrow to rows with no issuer, no derived category and no note. */
 	uncurated?: boolean;
@@ -19,6 +25,10 @@ export interface TransactionFilterValues {
 	 * shows both.
 	 */
 	excludedFromRecap?: boolean;
+	/** Narrow to **transfer legs** (`true`) or to everything else (`false`). */
+	isTransferLeg?: boolean;
+	/** `"bundle"` narrows to the **bundle parents**; absent shows every kind. */
+	kind?: "bundle";
 }
 
 export interface TransactionsFiltersProps {
@@ -59,12 +69,21 @@ export function TransactionsFilters({
 	value,
 	onChange,
 }: TransactionsFiltersProps) {
+	// The date bounds count as an active filter even though no control here shows
+	// them: a recap link sets them to pin the period it was opened for, and a
+	// narrowing the user can neither see nor undo is worse than one they can only
+	// undo. Clear therefore drops them too — which is the honest reading of a
+	// button labelled *Clear*, and the period is one Back away.
 	const hasFilters =
-		value.accountId != null ||
+		(value.accountId != null && value.accountId.length > 0) ||
 		value.importMonth != null ||
+		value.startDate != null ||
+		value.endDate != null ||
 		value.search != null ||
 		value.uncurated === true ||
-		value.excludedFromRecap != null;
+		value.excludedFromRecap != null ||
+		value.isTransferLeg != null ||
+		value.kind != null;
 
 	return (
 		<div className="flex flex-wrap items-center gap-3">
@@ -73,27 +92,18 @@ export function TransactionsFilters({
 				onChange={(search) => onChange({ search })}
 			/>
 
-			<label className="flex items-center gap-2 text-sm text-gousse-muted">
-				Account
-				<select
-					aria-label="Filter by account"
-					className={inputClass}
-					value={value.accountId ?? ""}
-					onChange={(e) =>
-						onChange({
-							accountId:
-								e.target.value === "" ? undefined : Number(e.target.value),
-						})
-					}
-				>
-					<option value="">All accounts</option>
-					{accounts.map((account) => (
-						<option key={account.id} value={account.id}>
-							{account.name}
-						</option>
-					))}
-				</select>
-			</label>
+			{/*
+			 * Multi-select, sharing the recap's control: the recap's summary lines link
+			 * here carrying a multi-account selection, so this bar has to be able to
+			 * show one. An empty selection is the absent filter (all accounts).
+			 */}
+			<AccountMultiSelect
+				accounts={accounts}
+				selected={value.accountId ?? []}
+				onChange={(ids) =>
+					onChange({ accountId: ids.length > 0 ? ids : undefined })
+				}
+			/>
 
 			<label className="flex items-center gap-2 text-sm text-gousse-muted">
 				Month
@@ -149,6 +159,53 @@ export function TransactionsFilters({
 				</select>
 			</label>
 
+			{/*
+			 * **Transfers** — three-way for the same reason *Recap* is: "money I moved
+			 * between my own accounts" and "everything that isn't that" are both views
+			 * the user asks for, so neither can be the absence of the control. This is
+			 * what the recap's *Internal transfers* line opens.
+			 */}
+			<label className="flex items-center gap-2 text-sm text-gousse-muted">
+				Transfers
+				<select
+					aria-label="Filter by transfer"
+					className={inputClass}
+					value={
+						value.isTransferLeg == null
+							? ""
+							: value.isTransferLeg
+								? "transfers"
+								: "other"
+					}
+					onChange={(e) =>
+						onChange({
+							isTransferLeg:
+								e.target.value === ""
+									? undefined
+									: e.target.value === "transfers",
+						})
+					}
+				>
+					<option value="">All rows</option>
+					<option value="transfers">Transfers only</option>
+					<option value="other">Exclude transfers</option>
+				</select>
+			</label>
+
+			{/*
+			 * **Grouped** — a toggle, not a tri-state: "show me my bundles" is a view,
+			 * but "show me everything that isn't a bundle parent" is not one anyone
+			 * asks for. Each row it returns expands in place to the transactions it
+			 * stands for, so the filter answers *which* groups exist and *what* is in
+			 * them with one control.
+			 */}
+			<GroupedToggle
+				pressed={value.kind === "bundle"}
+				onPressedChange={(pressed) =>
+					onChange({ kind: pressed ? "bundle" : undefined })
+				}
+			/>
+
 			<UncuratedToggle
 				pressed={value.uncurated === true}
 				// `undefined` rather than `false` when cleared: the filter is a toggle,
@@ -166,9 +223,13 @@ export function TransactionsFilters({
 						onChange({
 							accountId: undefined,
 							importMonth: undefined,
+							startDate: undefined,
+							endDate: undefined,
 							search: undefined,
 							uncurated: undefined,
 							excludedFromRecap: undefined,
+							isTransferLeg: undefined,
+							kind: undefined,
 						})
 					}
 				>

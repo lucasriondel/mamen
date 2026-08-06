@@ -276,6 +276,20 @@ export const TransactionFilters = {
 	// transfer, so the detail page can list a group's other legs and the table
 	// can badge legs without client-side scanning. Mirrors `linkedRefundId`.
 	transferGroupId: Schema.optional(numFromStr(TransactionId)),
+	// **Is a transfer leg** — the bulk counterpart of `transferGroupId` above:
+	// that one names ONE group, this one asks the yes/no question about every row
+	// ("is this money moving between the user's own accounts?"). `true` returns
+	// only legs, `false` only non-legs, absent both. It is what lets the recap's
+	// *Internal transfers* line open the rows it summed, which `transferGroupId`
+	// could not express — a line spans many groups.
+	//
+	// Matched against the same `isTransferLeg` fragment `countsTowardRecap` is
+	// built from, never a second copy of `transferGroupId IS NOT NULL`: the recap
+	// nets a set of rows out of the totals and this filter lists that same set, so
+	// the two coming to mean different things is the ADR 0002 drift on a third
+	// field. Unlike `bundleId`, asking for legs does not invert a default —
+	// `list` has never hidden them.
+	isTransferLeg: Schema.optional(BooleanFromString),
 	// **Bundle** membership (issue #68) — returns the members of one bundle, so a
 	// parent can list what it stands for. It is also the ONLY way to reach a
 	// member through `list`: absent, the list hides every bundled row, because the
@@ -310,6 +324,18 @@ export const TransactionFilters = {
 	// expression the projection reads (ADR 0008) — the guard against the ADR 0002
 	// drift, where a filter on the stored column silently dropped every row
 	// excluded by inheritance once #69 makes exclusion derivable through the issuer.
+	//
+	// "Held out" means the recap's `isRecapExcluded` — the derived
+	// `excludedFromRecap` flag **OR** `isDuplicateExcluded` — not the flag alone.
+	// The two are one question to the user ("why isn't this in my total?") and the
+	// recap's *Excluded from recap* line already sums both, so a filter matching
+	// only the flag opened that line onto fewer rows than it counted. Widened when
+	// the line became a link into `list`. The consequence on the `false` side is
+	// deliberate too: "counted" now also drops duplicate-excluded rows, which is
+	// what `countsTowardRecap` has always meant by it.
+	//
+	// `isDuplicateExcluded` above stays reachable on its own for the narrower
+	// question — this is the union, that is one of its halves.
 	excludedFromRecap: Schema.optional(BooleanFromString),
 	// A free-text substring (case-insensitive) matched against the raw issuer
 	// string, the assigned issuer's name, the notes, and the amount as displayed

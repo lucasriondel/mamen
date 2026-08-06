@@ -7,18 +7,28 @@ import { cn } from "@/lib/utils";
 export interface AccountMultiSelectProps {
 	/** All accounts to offer. */
 	accounts: readonly Account[];
-	/** The currently-selected account ids; empty means "all accounts". */
-	selected: readonly number[];
+	/**
+	 * The currently-selected account ids; empty means "all accounts". A bare id is
+	 * accepted as the one-account selection, so a caller still holding the
+	 * transactions URL's old scalar `accountId` renders rather than crashes.
+	 */
+	selected: readonly number[] | number;
 	/** Emit the new selection; empty array clears the filter (all accounts). */
 	onChange: (selected: number[]) => void;
 }
 
 /**
- * A checkbox multi-select for the recap account filter (issue #35). Unlike the
- * transactions bar's single `<select>`, spend can be reviewed across several
- * accounts at once, so this is a small popover of checkboxes. An empty selection
- * means **all accounts** (no filter) — the resting, most-common state — so the
- * trigger reads "All accounts" until the user narrows it.
+ * A checkbox multi-select for filtering by account (issue #35). Spend can be
+ * reviewed across several accounts at once, so this is a small popover of
+ * checkboxes rather than a single `<select>`. An empty selection means **all
+ * accounts** (no filter) — the resting, most-common state — so the trigger reads
+ * "All accounts" until the user narrows it.
+ *
+ * Shared by the recap and the transactions filter bar: the recap's summary lines
+ * link into the transactions list carrying their account selection whole, so the
+ * page they open has to be able to *show* a multi-account filter, not just apply
+ * one. A single `<select>` there would have had to lie about the narrowing or
+ * drop it.
  *
  * Kept deliberately lightweight (a native details-free popover toggled by a
  * button, closed on outside click / Escape) — there is no shared popover in the
@@ -49,7 +59,13 @@ export function AccountMultiSelect({
 		};
 	}, [open]);
 
-	const selectedSet = new Set(selected);
+	// Tolerate a bare id as well as a list: the transactions URL took a single
+	// `accountId` before this control replaced its `<select>`, so a caller (or an
+	// old bookmark that skipped the validator) can still hand one over. Rendering
+	// it as the one-account selection it plainly is beats crashing the filter bar.
+	const selectedSet = new Set(
+		typeof selected === "number" ? [selected] : selected,
+	);
 	const toggle = (id: number) => {
 		const next = new Set(selectedSet);
 		if (next.has(id)) next.delete(id);

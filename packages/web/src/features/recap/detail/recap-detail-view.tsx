@@ -27,9 +27,10 @@ const routeApi = getRouteApi("/recap-detail");
  * user clicked over the recap's own period and account selection
  * ({@link toDetailScope}) — so the rows here are the rows that line summed.
  *
- * Two kinds of line open it: a **bucket** on either breakdown, and the **excluded**
- * summary (issue #87) — the money held out of the totals, which has no bucket
- * because it is the complement of the spend rather than a slice of it.
+ * One kind of line opens it: a **bucket** on either breakdown. The recap's two
+ * summary lines — internal transfers and excluded-from-recap — go straight to
+ * `/transactions` instead, since neither is a slice of the spend and both are
+ * expressible there as ordinary filter values the user can see and widen.
  *
  * The scope is pinned, not editable: period and accounts arrive in the URL from
  * the recap and are stated in the header, because changing them would quietly make
@@ -98,9 +99,10 @@ export function RecapDetailView() {
 		navigate({ search: (prev: RecapDetailSearch) => ({ ...prev, page }) });
 	};
 
-	// The URL names neither a usable bucket nor the excluded view — only reachable
-	// by hand-editing it. There is nothing to scope by, and querying unscoped would
-	// show the whole table under a header claiming to be one line's rows.
+	// The URL names no usable bucket — a hand-edited link, or an old `?excluded=true`
+	// one from when the excluded summary opened this page. There is nothing to scope
+	// by, and querying unscoped would show the whole table under a header claiming
+	// to be one line's rows.
 	if (target === undefined || scope === undefined) {
 		return (
 			<section className="flex flex-col gap-6">
@@ -112,7 +114,7 @@ export function RecapDetailView() {
 				</Link>
 				<Empty
 					title="Nothing to show"
-					description="This link doesn't name an issuer, a category, or the excluded rows. Open a line from the recap to see its transactions."
+					description="This link doesn't name an issuer or a category. Open a line from the recap to see its transactions."
 				/>
 			</section>
 		);
@@ -126,11 +128,7 @@ export function RecapDetailView() {
 				onFiltersChange={applyFilters}
 				onToggleSort={toggleSort}
 				onPageChange={goToPage}
-				emptyDescription={
-					target.kind === "excluded"
-						? "Nothing was held out of the recap in this period."
-						: "Nothing counted toward this recap row in the period."
-				}
+				emptyDescription="Nothing counted toward this recap row in the period."
 			>
 				<RecapDetailHeader
 					target={target}

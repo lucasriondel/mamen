@@ -230,10 +230,10 @@ describe("CategoryTransactionsView", () => {
 
 		expect(await screen.findByText("Carrefour")).toBeInTheDocument();
 		expect(listMock).toHaveBeenCalledWith(
-			expect.objectContaining({ categoryId: [5], accountId: 1 }),
+			expect.objectContaining({ categoryId: [5], accountId: [1] }),
 		);
 		expect(countMock).toHaveBeenCalledWith(
-			expect.objectContaining({ categoryId: [5], accountId: 1 }),
+			expect.objectContaining({ categoryId: [5], accountId: [1] }),
 		);
 	});
 

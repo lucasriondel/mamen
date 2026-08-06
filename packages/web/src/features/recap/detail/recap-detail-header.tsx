@@ -7,18 +7,13 @@ import type { RecapSearch } from "../search";
 import type { RecapDetailAxis, RecapDetailTarget } from "./search";
 import type { BucketIdentity } from "./use-bucket-identity";
 
-/**
- * What kind of thing the page is about, for the scope subtitle. The excluded view
- * says why its rows are here ("Held out of the recap") rather than naming an entity
- * kind, because there is no entity — that is the whole distinction (issue #87).
- */
+/** What kind of thing the page is about, for the scope subtitle. */
 function targetLabel(target: RecapDetailTarget): string {
-	if (target.kind === "excluded") return "Held out of the recap";
 	return target.axis === "issuer" ? "Issuer" : "Category";
 }
 
 export interface RecapDetailHeaderProps {
-	/** What this page is about — a bucket on a breakdown, or the excluded rows. */
+	/** What this page is about — a bucket on one of the recap's breakdowns. */
 	target: RecapDetailTarget;
 	/** The target's resolved name and glyph. */
 	identity: BucketIdentity;
@@ -63,9 +58,7 @@ export function RecapDetailHeader({
 			<div className="flex items-baseline justify-between gap-4">
 				<div className="min-w-0">
 					<h1 className="flex items-center gap-2 text-balance font-semibold text-2xl text-gousse-ink">
-						{target.kind === "bucket" ? (
-							<BucketGlyph axis={target.axis} identity={identity} />
-						) : null}
+						<BucketGlyph axis={target.axis} identity={identity} />
 						<span className="truncate">{identity.name}</span>
 					</h1>
 					<p className="mt-1 text-gousse-muted text-sm">

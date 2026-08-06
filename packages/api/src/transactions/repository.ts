@@ -333,6 +333,8 @@ type Filters = {
 	categoryId?: number | ReadonlyArray<number> | typeof UNASSIGNED_FILTER;
 	linkedRefundId?: number;
 	transferGroupId?: number;
+	/** Every leg, of any group — the bulk form of `transferGroupId`. */
+	isTransferLeg?: boolean;
 	bundleId?: number;
 	kind?: TransactionKind;
 	importMonth?: string;
@@ -543,6 +545,18 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				// internal transfer. Mirrors `linkedRefundId`, rides its own index.
 				if (f.transferGroupId !== undefined)
 					conditions.push(sql`t.transferGroupId = ${f.transferGroupId}`);
+				// **Is a transfer leg** — the same question over every group, so the
+				// recap's *Internal transfers* line can open the rows it summed. The
+				// SAME `isTransferLeg` fragment `countsTowardRecap` nets those rows out
+				// with, not a second `transferGroupId IS NOT NULL`: what the recap
+				// removes from the totals and what this lists must stay one set.
+				//
+				// No default either way — a leg is an ordinary row to `list`, unlike a
+				// bundle member above, because nothing else already stands for it.
+				if (f.isTransferLeg !== undefined)
+					conditions.push(
+						f.isTransferLeg ? isTransferLeg : sql`NOT ${isTransferLeg}`,
+					);
 				// **Bundle** membership (issue #68). Asked for, it narrows to one
 				// bundle's members — the only way `list` reaches a member at all.
 				// NOT asked for, it *hides* every bundled row: the **bundle parent**
@@ -604,9 +618,24 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()(
 				// projection reads (ADR 0008), never a second copy of the rule — that
 				// is exactly how the category filter once dropped every issuer-derived
 				// row while looking like it worked.
+				//
+				// The fragment is `isRecapExcluded` — the derived flag OR
+				// `isDuplicateExcluded` — and not the bare `recapExclusion` it is built
+				// from, because that is what the recap's *Excluded from recap* line sums
+				// (`recapExcludedQuery` below composes the very same fragment). The
+				// line is a link into this filter, so matching the flag alone opened it
+				// onto fewer rows than it had just counted: a number that disagrees
+				// with itself one click later.
+				//
+				// `false` is therefore stricter than it was: it now also drops
+				// duplicate-excluded rows. That is the reading `countsTowardRecap` has
+				// always had — a row whose money is already counted elsewhere does not
+				// "count" — so the two sides of this filter now partition the table the
+				// way the recap does. A caller wanting only the narrower flag question
+				// has `isDuplicateExcluded` above.
 				if (f.excludedFromRecap !== undefined)
 					conditions.push(
-						sql`${recapExclusion} = ${f.excludedFromRecap ? 1 : 0}`,
+						f.excludedFromRecap ? isRecapExcluded : sql`NOT ${isRecapExcluded}`,
 					);
 				// Free-text search (#40): a case-insensitive substring matched against
 				// the union of every human-readable field of a row — raw issuer text,

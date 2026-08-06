@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { useIssuerLookup } from "@/features/issuers/use-issuer-lookup";
 import { resolveCategoryColors } from "@/lib/category-tree";
 import { categoryQueries } from "@/lib/sdk";
-import { EXCLUDED_LABEL, UNASSIGNED_LABEL } from "../spend-rows";
+import { UNASSIGNED_LABEL } from "../spend-rows";
 import type { RecapDetailTarget } from "./search";
 
 /**
@@ -47,10 +47,9 @@ export type BucketIdentity = {
 export function useBucketIdentity(
 	target: RecapDetailTarget | undefined,
 ): BucketIdentity {
-	const bucket = target?.kind === "bucket" ? target : undefined;
-	const isIssuer = bucket?.axis === "issuer";
-	const isCategory = bucket?.axis === "category";
-	const id = bucket?.bucket ?? null;
+	const isIssuer = target?.axis === "issuer";
+	const isCategory = target?.axis === "category";
+	const id = target?.bucket ?? null;
 
 	const {
 		issuersById,
@@ -68,11 +67,6 @@ export function useBucketIdentity(
 	return useMemo(() => {
 		if (target === undefined) {
 			return { name: UNASSIGNED_LABEL, isPending: false, isError: false };
-		}
-		// The **excluded** target names itself (issue #87) — it is not an entity, so
-		// there is nothing to resolve and no glyph to paint.
-		if (target.kind === "excluded") {
-			return { name: EXCLUDED_LABEL, isPending: false, isError: false };
 		}
 		if (target.bucket === null) {
 			return { name: UNASSIGNED_LABEL, isPending: false, isError: false };

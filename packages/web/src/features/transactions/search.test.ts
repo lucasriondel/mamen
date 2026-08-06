@@ -13,9 +13,18 @@ describe("validateTransactionsSearch", () => {
 		});
 	});
 
-	it("parses a numeric accountId filter", () => {
-		expect(validateTransactionsSearch({ accountId: "7" }).accountId).toBe(7);
-		expect(validateTransactionsSearch({ accountId: 7 }).accountId).toBe(7);
+	// The filter is a set now — the recap's account picker is multi-select and its
+	// summary lines link here carrying that selection whole. A single id still
+	// decodes, as a one-element set, so bookmarks written before the widening land
+	// on the same view.
+	it("parses an accountId filter as a set, from one id or many", () => {
+		expect(validateTransactionsSearch({ accountId: "7" }).accountId).toEqual([
+			7,
+		]);
+		expect(validateTransactionsSearch({ accountId: 7 }).accountId).toEqual([7]);
+		expect(
+			validateTransactionsSearch({ accountId: ["1", "2"] }).accountId,
+		).toEqual([1, 2]);
 	});
 
 	it("drops a blank or non-numeric accountId", () => {
@@ -25,6 +34,50 @@ describe("validateTransactionsSearch", () => {
 		expect(
 			validateTransactionsSearch({ accountId: "nope" }).accountId,
 		).toBeUndefined();
+	});
+
+	// How a **recap period** travels here: month, year and all-time are all one
+	// date range, which `importMonth` (a single month) could not express.
+	it("keeps parseable ISO date bounds", () => {
+		const search = validateTransactionsSearch({
+			startDate: "2026-07-01T00:00:00.000Z",
+			endDate: "2026-07-31T23:59:59.999Z",
+		});
+		expect(search.startDate).toBe("2026-07-01T00:00:00.000Z");
+		expect(search.endDate).toBe("2026-07-31T23:59:59.999Z");
+	});
+
+	// An unparseable bound would reach the query as `Invalid Date` and silently
+	// match nothing, which reads as "no transactions" rather than as a bad URL.
+	it("drops a blank or unparseable date bound", () => {
+		expect(
+			validateTransactionsSearch({ startDate: "nope" }).startDate,
+		).toBeUndefined();
+		expect(validateTransactionsSearch({ endDate: "" }).endDate).toBeUndefined();
+		expect(validateTransactionsSearch({}).startDate).toBeUndefined();
+	});
+
+	// Tri-state like the recap-exclusion filter, and for the same reason: both
+	// "transfers only" and "everything else" are views the user asks for.
+	it("accepts both sides of the isTransferLeg filter, as boolean or string", () => {
+		expect(
+			validateTransactionsSearch({ isTransferLeg: true }).isTransferLeg,
+		).toBe(true);
+		expect(
+			validateTransactionsSearch({ isTransferLeg: "true" }).isTransferLeg,
+		).toBe(true);
+		expect(
+			validateTransactionsSearch({ isTransferLeg: "false" }).isTransferLeg,
+		).toBe(false);
+		expect(validateTransactionsSearch({}).isTransferLeg).toBeUndefined();
+	});
+
+	// A toggle, not a tri-state: "everything that is not a bundle parent" is not a
+	// view anyone asks for, so its off state is the absent filter.
+	it("keeps only the bundle kind, and treats anything else as no filter", () => {
+		expect(validateTransactionsSearch({ kind: "bundle" }).kind).toBe("bundle");
+		expect(validateTransactionsSearch({ kind: "bank" }).kind).toBeUndefined();
+		expect(validateTransactionsSearch({}).kind).toBeUndefined();
 	});
 
 	it("keeps a non-empty importMonth string", () => {

@@ -48,10 +48,19 @@ export function composeTransactionFilters(
 ): TransactionCountParams {
 	return {
 		...scope,
-		...(search.accountId != null
-			? { accountId: search.accountId as AccountId }
+		// An empty set is the absent filter, not "the accounts in an empty set":
+		// passing `[]` through would ask for nothing and return nothing.
+		...(search.accountId != null && search.accountId.length > 0
+			? { accountId: search.accountId as unknown as ReadonlyArray<AccountId> }
 			: {}),
 		...(search.importMonth != null ? { importMonth: search.importMonth } : {}),
+		// The recap period, as bounds on the row's own date. Parsed here because
+		// the URL carries strings and the SDK filter takes `Date`s; the validator
+		// has already rejected anything unparseable.
+		...(search.startDate != null
+			? { startDate: new Date(search.startDate) }
+			: {}),
+		...(search.endDate != null ? { endDate: new Date(search.endDate) } : {}),
 		...(search.search != null ? { search: search.search } : {}),
 		...(search.uncurated ? { uncurated: true } : {}),
 		// Both halves of the recap-exclusion filter reach the query (issue #67), so
@@ -60,6 +69,11 @@ export function composeTransactionFilters(
 		...(search.excludedFromRecap != null
 			? { excludedFromRecap: search.excludedFromRecap }
 			: {}),
+		// Tri-state too, so `false` survives the fold for the same reason.
+		...(search.isTransferLeg != null
+			? { isTransferLeg: search.isTransferLeg }
+			: {}),
+		...(search.kind != null ? { kind: search.kind } : {}),
 	};
 }
 
@@ -243,11 +257,15 @@ export function TransactionsSection({
 	}, [monthsQuery.data]);
 
 	const hasFilters =
-		search.accountId != null ||
+		(search.accountId != null && search.accountId.length > 0) ||
 		search.importMonth != null ||
+		search.startDate != null ||
+		search.endDate != null ||
 		search.search != null ||
 		search.uncurated === true ||
-		search.excludedFromRecap != null;
+		search.excludedFromRecap != null ||
+		search.isTransferLeg != null ||
+		search.kind != null;
 
 	return (
 		<>
@@ -263,6 +281,8 @@ export function TransactionsSection({
 						search: search.search,
 						uncurated: search.uncurated,
 						excludedFromRecap: search.excludedFromRecap,
+						isTransferLeg: search.isTransferLeg,
+						kind: search.kind,
 					}}
 					onChange={onFiltersChange}
 				/>
