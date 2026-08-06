@@ -7,6 +7,7 @@ import {
 	Rule,
 	type RuleCreate,
 	RuleId,
+	RuleSign,
 	type RuleUpdate,
 } from "@mamen/shared/contract";
 import { Clock, Effect, Option, Schema } from "effect";
@@ -15,15 +16,19 @@ import { orDieSql } from "../db/errors";
 /**
  * A stored rule row. `createdAt` is ISO-8601 TEXT; the branded ids come back as
  * plain numbers. {@link RuleFromRow} decodes it into the wire `Rule` (a Matching
- * Rule assigns only an issuer — there is no category column). The one nullable
- * column is `matchValue` (the optional Value matcher, issue #42): SQL `NULL`
- * folds to an absent wire field.
+ * Rule assigns only an issuer — there is no category column). The nullable
+ * columns are the three optional predicates — `matchValue` (issue #42),
+ * `matchAccountId` and `matchSign` (issue #90): each SQL `NULL` folds to an
+ * absent wire field. `matchSign` is TEXT in sqlite (no enum type), so this codec
+ * is what constrains it to the two {@link RuleSign} values.
  */
 const RuleRow = Schema.Struct({
 	id: Schema.Number,
 	issuerId: Schema.Number,
 	pattern: Schema.String,
 	matchValue: Schema.NullOr(Schema.Number),
+	matchAccountId: Schema.NullOr(Schema.Number),
+	matchSign: Schema.NullOr(RuleSign),
 	createdAt: Schema.String,
 });
 
@@ -42,8 +47,13 @@ export const RuleFromRow = Schema.transform(RuleRow, Rule, {
 		id: row.id,
 		issuerId: row.issuerId,
 		pattern: row.pattern,
-		// `NULL` matchValue folds to an absent wire field (a regex-only rule).
+		// A `NULL` predicate column folds to an absent wire field — a rule with
+		// none of the three is a plain regex rule.
 		...(row.matchValue !== null ? { matchValue: row.matchValue } : {}),
+		...(row.matchAccountId !== null
+			? { matchAccountId: row.matchAccountId }
+			: {}),
+		...(row.matchSign !== null ? { matchSign: row.matchSign } : {}),
 		createdAt: row.createdAt,
 	}),
 	encode: (r) => ({
@@ -51,6 +61,8 @@ export const RuleFromRow = Schema.transform(RuleRow, Rule, {
 		issuerId: r.issuerId,
 		pattern: r.pattern,
 		matchValue: r.matchValue ?? null,
+		matchAccountId: r.matchAccountId ?? null,
+		matchSign: r.matchSign ?? null,
 		createdAt: r.createdAt,
 	}),
 });
@@ -72,6 +84,8 @@ type WriteRow = {
 	issuerId: number;
 	pattern: string;
 	matchValue: number | null;
+	matchAccountId: number | null;
+	matchSign: RuleSign | null;
 	createdAt: string;
 };
 
@@ -167,6 +181,8 @@ export class RuleRepo extends Effect.Service<RuleRepo>()("api/RuleRepo", {
 			issuerId: r.issuerId,
 			pattern: r.pattern,
 			matchValue: r.matchValue ?? null,
+			matchAccountId: r.matchAccountId ?? null,
+			matchSign: r.matchSign ?? null,
 		});
 
 		const list = (filter: ListFilter) =>

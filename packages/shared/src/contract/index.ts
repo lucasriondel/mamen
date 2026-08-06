@@ -81,6 +81,7 @@ export {
 	RuleListFilters,
 	RulePreviewInput,
 	RulePreviewResult,
+	RuleSign,
 	RulesGroup,
 	RuleUpdate,
 	RuleView,

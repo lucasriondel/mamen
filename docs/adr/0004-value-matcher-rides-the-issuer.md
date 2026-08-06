@@ -1,5 +1,13 @@
 # The Value matcher rides the issuer
 
+> **Amended by [ADR 0009](./0009-account-and-sign-matchers-ride-the-rule.md)
+> (issue #90).** Two statements below no longer hold as written: "the sign lives
+> on the transaction, not the rule" — sign may now ride the rule, as its own
+> **Sign matcher**, though `matchValue` itself stays a sign-agnostic magnitude;
+> and the value tier at the top of the comparator is now the *count* of optional
+> predicates a rule carries, which decides identically for every rule set that
+> uses `matchValue` alone. Everything else stands.
+
 A Matching Rule gains an optional **Value matcher** — a positive amount magnitude
 `matchValue`. When set, the rule matches a row only if its `pattern` matches the
 raw issuer string **and** the row's amount magnitude equals `matchValue` to the

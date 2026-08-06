@@ -1,9 +1,16 @@
-import type { IssuerId, Rule, Transaction } from "@mamen/shared/contract";
+import type {
+	Account,
+	AccountId,
+	IssuerId,
+	Rule,
+	RuleSign,
+	Transaction,
+} from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
 import { type FormEvent, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useIssuerLookup } from "@/features/issuers/use-issuer-lookup";
-import { ruleKeys, ruleMutations } from "@/lib/sdk";
+import { accountQueries, ruleKeys, ruleMutations } from "@/lib/sdk";
 import { useDebouncedValue } from "@/lib/use-debounced-value";
 import { RulePreviewLists } from "./rule-preview-lists";
 import { RulePreviewSkeleton } from "./rule-preview-skeleton";
@@ -117,6 +124,79 @@ function ValueMatcherField({
 	);
 }
 
+/**
+ * The optional Account matcher field (issue #90): a select whose first entry is
+ * **"Any account"** — the opt-out is a visible, selectable choice rather than a
+ * blank, since an unselected select reads as *incomplete* rather than as
+ * *deliberately unscoped*. One account, never a set: a row lives in exactly one
+ * account, so several accounts are several rules.
+ */
+function AccountMatcherField({
+	value,
+	accounts,
+	onChange,
+}: {
+	value: string;
+	accounts: ReadonlyArray<Account>;
+	onChange: (next: string) => void;
+}) {
+	return (
+		<label className="flex flex-col gap-1 text-sm text-gousse-muted">
+			Account
+			<select
+				className={INPUT_CLASS}
+				value={value}
+				onChange={(event) => onChange(event.target.value)}
+				aria-label="Matching Rule account"
+			>
+				<option value="">Any account</option>
+				{accounts.map((account) => (
+					<option key={account.id} value={account.id}>
+						{account.name}
+					</option>
+				))}
+			</select>
+			<span className="text-xs text-gousse-muted">
+				Optional — also require the transaction to live in this account.
+			</span>
+		</label>
+	);
+}
+
+/**
+ * The optional Sign matcher field (issue #90): **Any / Money in / Money out**.
+ * The wording follows the statement rather than the sign, matching how the app
+ * already frames an Issuer as bidirectional. A zero-amount row (a bundle that
+ * nets out) is neither, so it is claimable only by a rule left on **Any**.
+ */
+function SignMatcherField({
+	value,
+	onChange,
+}: {
+	value: string;
+	onChange: (next: string) => void;
+}) {
+	return (
+		<label className="flex flex-col gap-1 text-sm text-gousse-muted">
+			Direction
+			<select
+				className={INPUT_CLASS}
+				value={value}
+				onChange={(event) => onChange(event.target.value)}
+				aria-label="Matching Rule direction"
+			>
+				<option value="">Any</option>
+				<option value="positive">Money in</option>
+				<option value="negative">Money out</option>
+			</select>
+			<span className="text-xs text-gousse-muted">
+				Optional — also require the transaction's direction. A row of exactly
+				zero is neither.
+			</span>
+		</label>
+	);
+}
+
 export interface RuleFormProps {
 	issuerId: IssuerId;
 	/** The rule being edited; omit to create a new one. */
@@ -138,6 +218,12 @@ export interface RuleFormProps {
  * deliberate action; the server recomputes on commit, so the preview is
  * advisory, never a stale write.
  *
+ * The three optional predicates — **Value**, **Account** and **Sign** matchers
+ * (issues #42/#43, #90) — all thread into that same debounced preview, so the
+ * lists narrow as the rule does and the user sees the consequence before saving.
+ * Each states its own opt-out ("Any account", "Any", a blank value); an update
+ * always sends all three so opting one out clears it rather than dropping a key.
+ *
  * Each manual-collision row offers a "remove manual issuer" action (story 10):
  * clearing the flag makes the row rule-eligible again, and the preview refetches
  * to reflect it.
@@ -153,8 +239,20 @@ export function RuleForm({
 	const [value, setValue] = useState(
 		rule?.matchValue != null ? String(rule.matchValue) : "",
 	);
+	// The two selects hold their opt-out ("Any account" / "Any") as the empty
+	// string, so an edited rule pre-fills from its stored predicate or from the
+	// opt-out when it carries none.
+	const [account, setAccount] = useState(
+		rule?.matchAccountId != null ? String(rule.matchAccountId) : "",
+	);
+	const [sign, setSign] = useState<string>(rule?.matchSign ?? "");
 	const inputRef = useRef<HTMLInputElement>(null);
 	const { create, update, removeManualIssuer } = useRuleMutations();
+
+	// The accounts the Account matcher offers. A failed/pending read leaves the
+	// select with its opt-out alone — the rest of the form still works.
+	const accountsQuery = useQuery(accountQueries.list());
+	const accounts = accountsQuery.data?.items ?? [];
 
 	const trimmedPattern = pattern.trim();
 	const patternError = useMemo(
@@ -173,6 +271,11 @@ export function RuleForm({
 			? "Value must be a positive number."
 			: null;
 	const matchValue = valueError === null ? parsedValue : null;
+
+	// The two new predicates (issue #90). Each is the committed value or `null` =
+	// explicitly none; the empty option is the deliberate opt-out, not a blank.
+	const matchAccountId = account === "" ? null : (Number(account) as AccountId);
+	const matchSign = sign === "" ? null : (sign as RuleSign);
 
 	/** Splice a helper token into the pattern at the caret (or append). */
 	const insertToken = (token: string) => {
@@ -198,13 +301,23 @@ export function RuleForm({
 		matchValue,
 		PREVIEW_DEBOUNCE_MS,
 	);
+	const debouncedMatchAccountId = useDebouncedValue(
+		matchAccountId,
+		PREVIEW_DEBOUNCE_MS,
+	);
+	const debouncedMatchSign = useDebouncedValue(matchSign, PREVIEW_DEBOUNCE_MS);
 	const previewInput = {
 		...(rule ? { ruleId: rule.id } : {}),
 		issuerId,
 		pattern: debouncedPattern,
-		// A present value narrows the dry-run to rows of that amount magnitude;
-		// omitted entirely when blank so the request stays regex-only.
+		// Each present predicate narrows the dry-run — to rows of that amount
+		// magnitude, in that account, of that direction. Omitted entirely when
+		// opted out, so the request stays exactly as broad as the rule.
 		...(debouncedMatchValue != null ? { matchValue: debouncedMatchValue } : {}),
+		...(debouncedMatchAccountId != null
+			? { matchAccountId: debouncedMatchAccountId }
+			: {}),
+		...(debouncedMatchSign != null ? { matchSign: debouncedMatchSign } : {}),
 	};
 
 	const previewQuery = useQuery({
@@ -230,10 +343,15 @@ export function RuleForm({
 		const trimmed = pattern.trim();
 		if (trimmed.length === 0 || saving || valueError !== null) return;
 		if (rule) {
-			// On update always send `matchValue` so blanking it clears the matcher;
-			// `null` is the explicit clear sentinel (a dropped key would leave it set).
+			// On update always send all three predicates so opting one out clears it;
+			// `null` is the explicit clear sentinel (a dropped key would leave it
+			// set). The form holds the rule's whole prospective state, so nothing it
+			// sends is a partial patch.
 			update.mutate(
-				{ id: rule.id, patch: { pattern: trimmed, matchValue } },
+				{
+					id: rule.id,
+					patch: { pattern: trimmed, matchValue, matchAccountId, matchSign },
+				},
 				{ onSuccess: onDone },
 			);
 		} else {
@@ -242,6 +360,8 @@ export function RuleForm({
 					issuerId,
 					pattern: trimmed,
 					...(matchValue != null ? { matchValue } : {}),
+					...(matchAccountId != null ? { matchAccountId } : {}),
+					...(matchSign != null ? { matchSign } : {}),
 				},
 				{ onSuccess: onDone },
 			);
@@ -275,6 +395,14 @@ export function RuleForm({
 			</label>
 
 			<ValueMatcherField value={value} onChange={setValue} error={valueError} />
+
+			<AccountMatcherField
+				value={account}
+				accounts={accounts}
+				onChange={setAccount}
+			/>
+
+			<SignMatcherField value={sign} onChange={setSign} />
 
 			{/* Readable rendering of the regex the matcher will actually run, plus
 			    live validity feedback so a broken pattern is caught before save. */}

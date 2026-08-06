@@ -149,15 +149,12 @@ export class AccountRepo extends Effect.Service<AccountRepo>()(
 					),
 				);
 
-			const remove = (id: typeof AccountId.Type) =>
-				getById(id).pipe(
-					Effect.flatMap(() =>
-						orDieSql(sql`DELETE FROM accounts WHERE id = ${id}`),
-					),
-					Effect.asVoid,
-				);
-
-			return { list, getById, getByName, create, update, remove } as const;
+			// No `remove` here: deleting an account cascades into the Matching Rules
+			// scoped to it and re-derives the rows they had won, all in one
+			// transaction, so the delete lives on the `IssuerMatcher`
+			// (`applyAccountDelete`, issue #90). A bare delete left on the repository
+			// would be a way to bypass the cascade and strand rows on a dead issuer.
+			return { list, getById, getByName, create, update } as const;
 		}),
 	},
 ) {}

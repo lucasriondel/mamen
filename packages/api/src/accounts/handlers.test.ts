@@ -1,7 +1,14 @@
 import { HttpApiBuilder, HttpApiClient } from "@effect/platform";
 import { NodeHttpServer } from "@effect/platform-node";
 import { assert, describe, it } from "@effect/vitest";
-import { AccountId, Api, NotFound } from "@mamen/shared/contract";
+import {
+	AccountId,
+	Api,
+	IssuerId,
+	NotFound,
+	type TransactionCreate,
+	TransactionId,
+} from "@mamen/shared/contract";
 import { Effect, Layer, Schema } from "effect";
 import { ApiLive } from "../api-live";
 import { DatabaseTest } from "../db/test";
@@ -21,6 +28,21 @@ const HttpLive = HttpApiBuilder.serve().pipe(
 );
 
 const asId = Schema.decodeSync(AccountId);
+const asIssuer = Schema.decodeSync(IssuerId);
+const asTxId = Schema.decodeSync(TransactionId);
+
+const DATE = new Date("2026-03-01T00:00:00.000Z");
+
+/** A valid transaction-create payload; override any field per test. */
+const txn = (over: Partial<TransactionCreate> = {}): TransactionCreate => ({
+	accountId: asId(1),
+	date: DATE,
+	amount: -900,
+	rawIssuerString: "RAW",
+	importedAt: DATE,
+	importMonth: "2026-03",
+	...over,
+});
 
 describe("accounts endpoints", () => {
 	it.effect("list is empty initially", () =>
@@ -187,6 +209,105 @@ describe("accounts endpoints", () => {
 				error,
 				new NotFound({ resource: "account", id: asId(999) }),
 			);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+});
+
+// Deleting an account cascades into the Matching Rules scoped to it (issue #90).
+// A rule whose **Account matcher** names a dead account could never match
+// anything again, and leaving it would also leave the rows it had won holding an
+// issuer no surviving rule justifies — so the delete removes those rules AND
+// re-derives the whole table, atomically.
+describe("account delete cascades into its Matching Rules", () => {
+	it.effect(
+		"removes the rules scoped to it and re-derives the rows they won",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const account = yield* client.accounts.create({
+					payload: { name: "Joint", type: "checking" },
+				});
+
+				// A broad rule (issuer 1) any VIREMENT row falls back to, and an
+				// account-scoped rule (issuer 2) that out-specifies it on this account.
+				yield* client.rules.create({
+					payload: { issuerId: asIssuer(1), pattern: "VIREMENT" },
+				});
+				const scoped = yield* client.rules.create({
+					payload: {
+						issuerId: asIssuer(2),
+						pattern: "LOYER",
+						matchAccountId: account.id,
+					},
+				});
+
+				const [both, only] = yield* client.transactions.bulkCreate({
+					payload: {
+						records: [
+							txn({
+								accountId: account.id,
+								rawIssuerString: "VIREMENT LOYER",
+							}),
+							// Matches the scoped rule alone — nothing survives to claim it.
+							txn({ accountId: account.id, rawIssuerString: "LOYER MARS" }),
+						],
+					},
+				});
+				assert.strictEqual(both?.issuerId, asIssuer(2));
+				assert.strictEqual(only?.issuerId, asIssuer(2));
+
+				yield* client.accounts.remove({ path: { id: account.id } });
+
+				// The scoped rule is gone with the account…
+				const error = yield* client.rules
+					.getById({ path: { id: scoped.id } })
+					.pipe(Effect.flip);
+				assert.deepStrictEqual(
+					error,
+					new NotFound({ resource: "rule", id: scoped.id }),
+				);
+				const remaining = yield* client.rules.list({
+					urlParams: { limit: 50, offset: 0 },
+				});
+				assert.strictEqual(remaining.total, 1);
+
+				// …and the rows it had won are re-derived: one falls back to the broad
+				// rule, the other becomes unmatched.
+				const afterBoth = yield* client.transactions.getById({
+					path: { id: both?.id ?? asTxId(0) },
+				});
+				const afterOnly = yield* client.transactions.getById({
+					path: { id: only?.id ?? asTxId(0) },
+				});
+				assert.strictEqual(afterBoth.issuerId, asIssuer(1));
+				assert.strictEqual(afterOnly.issuerId, undefined);
+			}).pipe(Effect.provide(HttpLive)),
+	);
+
+	// A rule scoped to a *different* account is none of this delete's business.
+	it.effect("leaves rules scoped to another account alone", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const doomed = yield* client.accounts.create({
+				payload: { name: "Old", type: "checking" },
+			});
+			const kept = yield* client.accounts.create({
+				payload: { name: "New", type: "checking" },
+			});
+			const survivor = yield* client.rules.create({
+				payload: {
+					issuerId: asIssuer(3),
+					pattern: "LOYER",
+					matchAccountId: kept.id,
+				},
+			});
+
+			yield* client.accounts.remove({ path: { id: doomed.id } });
+
+			const fetched = yield* client.rules.getById({
+				path: { id: survivor.id },
+			});
+			assert.strictEqual(fetched.matchAccountId, kept.id);
 		}).pipe(Effect.provide(HttpLive)),
 	);
 });
