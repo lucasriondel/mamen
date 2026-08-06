@@ -6,9 +6,19 @@ import {
 } from "@effect/platform";
 import { Schema } from "effect";
 import { NotFound } from "./errors";
-import { IssuerId, numFromStr, RuleId } from "./ids";
+import { AccountId, IssuerId, numFromStr, RuleId } from "./ids";
 import { Paged, Pagination } from "./pagination";
 import { Transaction } from "./transactions";
+
+/**
+ * The **Sign matcher**'s two values (issue #90, ADR 0009): `"positive"` matches
+ * money-in rows (`amount > 0`), `"negative"` money-out rows (`amount < 0`). A
+ * **zero amount matches neither** — a bundle that nets out is not income, and
+ * falling through to the user's sign-less rule is the safe direction. There is
+ * deliberately no `"zero"` value: nothing motivates one.
+ */
+export const RuleSign = Schema.Literal("positive", "negative");
+export type RuleSign = typeof RuleSign.Type;
 
 /**
  * Rule entity — a Matching Rule as **stored**. It assigns **only** an issuer
@@ -33,6 +43,22 @@ export class Rule extends Schema.Class<Rule>("Rule")({
 	 * compared as a magnitude, so a `6.99` rule matches a `-6.99` debit.
 	 */
 	matchValue: Schema.optional(Schema.Number.pipe(Schema.positive())),
+	/**
+	 * The optional **Account matcher** (issue #90, ADR 0009): when present the
+	 * rule matches a row only if the row lives in that account — so the same raw
+	 * issuer string can route to a different issuer per account. **One** account,
+	 * never a set: a row lives in exactly one account, so N rules cover N accounts
+	 * and never compete for a row. No FK; deleting the account deletes the rule.
+	 */
+	matchAccountId: Schema.optional(AccountId),
+	/**
+	 * The optional **Sign matcher** (issue #90, ADR 0009): when present the rule
+	 * matches only money-in (`positive`) or only money-out (`negative`) rows, so a
+	 * purchase and its refund can carry different issuers. A zero amount matches
+	 * neither ({@link RuleSign}). Independent of {@link Rule.matchValue}, which
+	 * stays a sign-agnostic magnitude (ADR 0004).
+	 */
+	matchSign: Schema.optional(RuleSign),
 	createdAt: Schema.Date,
 }) {}
 
@@ -57,15 +83,19 @@ export const RuleCreate = Schema.Struct({
 	issuerId: Rule.fields.issuerId,
 	pattern: Rule.fields.pattern,
 	matchValue: Rule.fields.matchValue,
+	matchAccountId: Rule.fields.matchAccountId,
+	matchSign: Rule.fields.matchSign,
 });
 export type RuleCreate = typeof RuleCreate.Type;
 
 /**
- * Update payload — every field optional (partial update). The Value matcher is
- * the one field with a three-way patch (issue #43): **absent** leaves it
- * unchanged, an explicit **`null`** clears it back to a regex-only rule, and a
- * positive number sets it. `null` is the wire-expressible clear sentinel that
- * `undefined` can't be (JSON drops undefined keys) — this is what #42 deferred.
+ * Update payload — every field optional (partial update). Each of the three
+ * optional predicates carries the same **three-way patch** (issue #43, extended
+ * to the new pair by #90): **absent** leaves it unchanged, an explicit **`null`**
+ * clears it, and a value sets it. `null` is the wire-expressible clear sentinel
+ * that `undefined` can't be (JSON drops undefined keys). Absent-means-clear was
+ * rejected outright: it would make every partial update silently drop predicates
+ * the caller never mentioned, which is data loss in a PUT.
  */
 export const RuleUpdate = Schema.Struct({
 	issuerId: Schema.optional(Rule.fields.issuerId),
@@ -73,23 +103,42 @@ export const RuleUpdate = Schema.Struct({
 	matchValue: Schema.optional(
 		Schema.NullOr(Schema.Number.pipe(Schema.positive())),
 	),
+	matchAccountId: Schema.optional(Schema.NullOr(AccountId)),
+	matchSign: Schema.optional(Schema.NullOr(RuleSign)),
 });
 export type RuleUpdate = typeof RuleUpdate.Type;
 
 /**
  * Apply a {@link RuleUpdate} patch onto the stored `current` rule, returning the
- * full merged entity to re-write. Implements the three-way Value-matcher
- * semantics (issue #43): an absent `matchValue` keeps the current one, an
- * explicit `null` clears it, a number sets it. The `null` clear sentinel is
- * folded to `undefined` because `Rule.matchValue` is an optional positive number
- * and can't hold `null`.
+ * full merged entity to re-write. Implements the three-way patch (issue #43,
+ * #90) for each optional predicate: an absent key keeps the current value, an
+ * explicit `null` clears it, a value sets it. Each `null` clear sentinel is
+ * folded to `undefined` because the `Rule` fields are optionals and can't hold
+ * `null`.
+ *
+ * The three branches stay written out rather than extracted into a shared
+ * helper: the patch semantics are the point, and they read at a glance here.
  */
 export const mergeRuleUpdate = (current: Rule, changes: RuleUpdate): Rule => {
 	const matchValue =
 		changes.matchValue === undefined
 			? current.matchValue
 			: (changes.matchValue ?? undefined);
-	return new Rule({ ...current, ...changes, matchValue });
+	const matchAccountId =
+		changes.matchAccountId === undefined
+			? current.matchAccountId
+			: (changes.matchAccountId ?? undefined);
+	const matchSign =
+		changes.matchSign === undefined
+			? current.matchSign
+			: (changes.matchSign ?? undefined);
+	return new Rule({
+		...current,
+		...changes,
+		matchValue,
+		matchAccountId,
+		matchSign,
+	});
 };
 
 /**
@@ -109,15 +158,18 @@ export const RuleCount = Schema.Struct({ count: Schema.Number });
  * whether it exists yet. `ruleId` present ⇒ an **update** (that rule's pattern /
  * issuer are being changed to these values, its `createdAt` preserved); absent ⇒
  * a **create** (a brand-new, therefore newest, rule). `issuerId` + `pattern` +
- * `matchValue?` are the rule's prospective state (a present `matchValue` narrows
- * the scope to rows of that amount magnitude). The preview is scoped to this one
- * pattern, never the issuer's whole rule set (PRD #8 stories 7–11).
+ * the three optional predicates are the rule's prospective state — each present
+ * one narrows the scope (to rows of that amount magnitude, in that account, of
+ * that direction). The preview is scoped to this one pattern, never the issuer's
+ * whole rule set (PRD #8 stories 7–11).
  */
 export const RulePreviewInput = Schema.Struct({
 	ruleId: Schema.optional(RuleId),
 	issuerId: Rule.fields.issuerId,
 	pattern: Rule.fields.pattern,
 	matchValue: Rule.fields.matchValue,
+	matchAccountId: Rule.fields.matchAccountId,
+	matchSign: Rule.fields.matchSign,
 });
 export type RulePreviewInput = typeof RulePreviewInput.Type;
 

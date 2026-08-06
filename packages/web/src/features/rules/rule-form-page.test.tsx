@@ -1,4 +1,5 @@
 import type {
+	Account,
 	Issuer,
 	IssuerId,
 	Rule,
@@ -19,15 +20,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock the SDK seam: the page reads the issuer lookup (`issuerQueries.list`) and,
 // when editing, the rule to pre-fill from (`ruleQueries.getById`); the embedded
-// form previews via `ruleMutations.preview`, commits via `create`/`update`, and
-// the manual-collision row calls `transactionMutations.removeManualIssuer`. Real
-// key factories are kept so the mutations' invalidation resolves.
+// form reads the accounts the **Account matcher** select offers
+// (`accountQueries.list`), previews via `ruleMutations.preview`, commits via
+// `create`/`update`, and the manual-collision row calls
+// `transactionMutations.removeManualIssuer`. Real key factories are kept so the
+// mutations' invalidation resolves.
 const createRule = vi.fn();
 const updateRule = vi.fn();
 const previewRule = vi.fn();
 const removeManualIssuer = vi.fn();
 
 let issuersList: Issuer[];
+let accountsList: Account[];
 let rulesById: Record<number, Rule>;
 
 vi.mock("@mamen/sdk", async (importOriginal) => {
@@ -57,6 +61,15 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
 				};
 			},
 		},
+		accountQueries: {
+			list: () => ({
+				queryKey: ["accounts", "list", "test"],
+				queryFn: async () => ({
+					items: accountsList,
+					total: accountsList.length,
+				}),
+			}),
+		},
 		ruleQueries: {
 			getById: (id: number) => ({
 				queryKey: ["rules", "detail", id],
@@ -84,6 +97,17 @@ function issuer(overrides: Partial<Issuer> = {}): Issuer {
 		firstSeen: new Date("2026-01-01"),
 		...overrides,
 	} as Issuer;
+}
+
+function account(overrides: Partial<Account> = {}): Account {
+	return {
+		id: 1 as Account["id"],
+		name: "Joint",
+		type: "checking",
+		createdAt: new Date("2026-01-01"),
+		updatedAt: new Date("2026-01-01"),
+		...overrides,
+	} as Account;
 }
 
 function rule(overrides: Partial<Rule> = {}): Rule {
@@ -161,6 +185,10 @@ beforeEach(() => {
 	previewRule.mockReset().mockResolvedValue(emptyPreview());
 	removeManualIssuer.mockReset().mockResolvedValue(txn());
 	issuersList = [issuer(), issuer({ id: 2 as Issuer["id"], name: "AWS" })];
+	accountsList = [
+		account(),
+		account({ id: 2 as Account["id"], name: "Personal" }),
+	];
 	rulesById = { 10: rule() };
 });
 
@@ -278,6 +306,86 @@ describe("RuleFormPage — create", () => {
 		);
 	});
 
+	it("threads the account and direction into the preview and persists them on create", async () => {
+		const user = userEvent.setup();
+		renderAt("/issuers/1/rules/new");
+
+		await user.type(
+			await screen.findByLabelText("Matching Rule pattern"),
+			"virement",
+		);
+		await user.selectOptions(
+			await screen.findByLabelText("Matching Rule account"),
+			"2",
+		);
+		await user.selectOptions(
+			screen.getByLabelText("Matching Rule direction"),
+			"negative",
+		);
+
+		// Both predicates narrow the live preview alongside the pattern.
+		await waitFor(() =>
+			expect(previewRule).toHaveBeenCalledWith(
+				expect.objectContaining({
+					issuerId: 1,
+					pattern: "virement",
+					matchAccountId: 2,
+					matchSign: "negative",
+				}),
+			),
+		);
+
+		await user.click(screen.getByRole("button", { name: "Create rule" }));
+		await waitFor(() =>
+			expect(createRule).toHaveBeenCalledWith({
+				issuerId: 1,
+				pattern: "virement",
+				matchAccountId: 2,
+				matchSign: "negative",
+			}),
+		);
+	});
+
+	it("keeps 'Any account' and 'Any' direction out of the preview and create", async () => {
+		const user = userEvent.setup();
+		renderAt("/issuers/1/rules/new");
+
+		await user.type(
+			await screen.findByLabelText("Matching Rule pattern"),
+			"amazon",
+		);
+		// The opt-outs are visible, selectable choices — not blanks.
+		expect(
+			await screen.findByRole("option", { name: "Any account" }),
+		).toBeInTheDocument();
+		expect(screen.getByRole("option", { name: "Any" })).toBeInTheDocument();
+
+		await waitFor(() => expect(previewRule).toHaveBeenCalled());
+		expect(previewRule).toHaveBeenLastCalledWith(
+			expect.not.objectContaining({ matchAccountId: expect.anything() }),
+		);
+		expect(previewRule).toHaveBeenLastCalledWith(
+			expect.not.objectContaining({ matchSign: expect.anything() }),
+		);
+
+		await user.click(screen.getByRole("button", { name: "Create rule" }));
+		await waitFor(() =>
+			expect(createRule).toHaveBeenCalledWith({
+				issuerId: 1,
+				pattern: "amazon",
+			}),
+		);
+	});
+
+	// The direction reads as the user's statement does, not as the sign does.
+	it("labels the direction options Money in / Money out", async () => {
+		renderAt("/issuers/1/rules/new");
+
+		const direction = await screen.findByLabelText("Matching Rule direction");
+		expect(direction).toHaveTextContent("Money in");
+		expect(direction).toHaveTextContent("Money out");
+	});
+
 	it("pre-fills the pattern from defaultPattern (the ?pattern= query param)", async () => {
 		function SeededNewRulePage() {
 			return (
@@ -381,11 +489,14 @@ describe("RuleFormPage — edit", () => {
 		await user.type(input, "amzn");
 		await user.click(screen.getByRole("button", { name: "Save rule" }));
 
-		// A blank value field on a regex-only rule saves as an explicit clear (null).
+		// An opted-out predicate on a plain regex rule saves as an explicit clear
+		// (null) — a dropped key would leave a stored predicate set.
 		await waitFor(() =>
 			expect(updateRule).toHaveBeenCalledWith(10, {
 				pattern: "amzn",
 				matchValue: null,
+				matchAccountId: null,
+				matchSign: null,
 			}),
 		);
 		expect(await screen.findByText("Issuer detail page")).toBeInTheDocument();
@@ -407,6 +518,8 @@ describe("RuleFormPage — edit", () => {
 			expect(updateRule).toHaveBeenCalledWith(10, {
 				pattern: "amazon",
 				matchValue: null,
+				matchAccountId: null,
+				matchSign: null,
 			}),
 		);
 	});
@@ -425,6 +538,85 @@ describe("RuleFormPage — edit", () => {
 			expect(updateRule).toHaveBeenCalledWith(10, {
 				pattern: "amazon",
 				matchValue: 12.5,
+				matchAccountId: null,
+				matchSign: null,
+			}),
+		);
+	});
+
+	it("pre-fills the account and direction from the stored rule", async () => {
+		rulesById = {
+			10: rule({
+				matchAccountId: 2 as Rule["matchAccountId"],
+				matchSign: "positive",
+			}),
+		};
+		renderAt("/issuers/1/rules/10");
+
+		// The account select can only hold the stored id once the accounts read
+		// has handed back the option naming it.
+		await waitFor(() =>
+			expect(screen.getByLabelText("Matching Rule account")).toHaveValue("2"),
+		);
+		expect(screen.getByLabelText("Matching Rule direction")).toHaveValue(
+			"positive",
+		);
+	});
+
+	// Widening a too-narrow rule: back to the opt-out, saved as a clear.
+	it("setting the account and direction back to Any saves a clear", async () => {
+		rulesById = {
+			10: rule({
+				matchAccountId: 2 as Rule["matchAccountId"],
+				matchSign: "positive",
+			}),
+		};
+		const user = userEvent.setup();
+		renderAt("/issuers/1/rules/10");
+
+		await user.selectOptions(
+			await screen.findByLabelText("Matching Rule account"),
+			"",
+		);
+		await user.selectOptions(
+			screen.getByLabelText("Matching Rule direction"),
+			"",
+		);
+		await user.click(screen.getByRole("button", { name: "Save rule" }));
+
+		await waitFor(() =>
+			expect(updateRule).toHaveBeenCalledWith(10, {
+				pattern: "amazon",
+				matchValue: null,
+				matchAccountId: null,
+				matchSign: null,
+			}),
+		);
+	});
+
+	// Editing one predicate must not silently drop the others.
+	it("keeps the untouched predicates when only the pattern is edited", async () => {
+		rulesById = {
+			10: rule({
+				matchValue: 6.99,
+				matchAccountId: 2 as Rule["matchAccountId"],
+				matchSign: "negative",
+			}),
+		};
+		const user = userEvent.setup();
+		renderAt("/issuers/1/rules/10");
+
+		const input = await screen.findByLabelText("Matching Rule pattern");
+		await user.clear(input);
+		await user.type(input, "amzn");
+		await user.click(screen.getByRole("button", { name: "Save rule" }));
+
+		await waitFor(() =>
+			expect(updateRule).toHaveBeenCalledWith(10, {
+				pattern: "amzn",
+				matchValue: 6.99,
+				matchAccountId: 2,
+				matchSign: "negative",
 			}),
 		);
 	});

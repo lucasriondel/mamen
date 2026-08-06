@@ -4252,6 +4252,18 @@
                     "description": "a positive number",
                     "title": "positive",
                     "exclusiveMinimum": 0
+                  },
+                  "matchAccountId": {
+                    "type": "integer",
+                    "description": "an integer",
+                    "title": "int"
+                  },
+                  "matchSign": {
+                    "type": "string",
+                    "enum": [
+                      "positive",
+                      "negative"
+                    ]
                   }
                 },
                 "additionalProperties": false
@@ -4441,6 +4453,32 @@
                         "description": "a positive number",
                         "title": "positive",
                         "exclusiveMinimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "matchAccountId": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "description": "an integer",
+                        "title": "int"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "matchSign": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "positive",
+                          "negative"
+                        ]
                       },
                       {
                         "type": "null"
@@ -4664,6 +4702,18 @@
                     "description": "a positive number",
                     "title": "positive",
                     "exclusiveMinimum": 0
+                  },
+                  "matchAccountId": {
+                    "type": "integer",
+                    "description": "an integer",
+                    "title": "int"
+                  },
+                  "matchSign": {
+                    "type": "string",
+                    "enum": [
+                      "positive",
+                      "negative"
+                    ]
                   }
                 },
                 "additionalProperties": false
@@ -6560,6 +6610,18 @@
             "title": "positive",
             "exclusiveMinimum": 0
           },
+          "matchAccountId": {
+            "type": "integer",
+            "description": "an integer",
+            "title": "int"
+          },
+          "matchSign": {
+            "type": "string",
+            "enum": [
+              "positive",
+              "negative"
+            ]
+          },
           "createdAt": {
             "$ref": "#/components/schemas/Date"
           },
@@ -6776,6 +6838,18 @@
             "description": "a positive number",
             "title": "positive",
             "exclusiveMinimum": 0
+          },
+          "matchAccountId": {
+            "type": "integer",
+            "description": "an integer",
+            "title": "int"
+          },
+          "matchSign": {
+            "type": "string",
+            "enum": [
+              "positive",
+              "negative"
+            ]
           },
           "createdAt": {
             "$ref": "#/components/schemas/Date"

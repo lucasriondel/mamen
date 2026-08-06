@@ -25,10 +25,11 @@ repeated per package.
   rent received). The rename is total: contract, DB, SDK, and web all say
   *issuer* / `IssuerId`.
 
-- **Matching Rule** — a regex `pattern`, optionally paired with a **Value
-  matcher**, owned by one Issuer that auto-assigns that Issuer to any transaction
-  whose **raw issuer string** matches (and whose amount matches, when a value is
-  set). An Issuer may own several; together they are the Issuer's rule set. *In
+- **Matching Rule** — a regex `pattern`, optionally narrowed by any combination
+  of a **Value matcher**, an **Account matcher** and a **Sign matcher**, owned by
+  one Issuer that auto-assigns that Issuer to any transaction whose **raw issuer
+  string** matches (and which satisfies every predicate the rule carries). An
+  Issuer may own several; together they are the Issuer's rule set. *In
   code the entity is `Rule` / `RuleId` / `rules` — the "Matching Rule" name is
   UI/glossary-only, chosen so users don't confuse it with other kinds of rule.* A
   rule assigns **only an issuer**, never a category (category is derived — see
@@ -59,6 +60,31 @@ repeated per package.
   _Avoid_: amount matcher, price rule (the field is a match predicate, not the
   transaction's amount).
 
+- **Account matcher** — an optional predicate on a **Matching Rule**
+  (`matchAccountId`): when set, the rule matches a row only if that row lives in
+  the named account. Its opt-out is stated out loud in the form as **"Any
+  account"**, not as a blank. **One** account, never a set — a row lives in
+  exactly one account, so N accounts are N rules and they never compete for a
+  row. Its purpose is that the same raw issuer string means different things per
+  account: a `virement` on the joint account is rent, the same string on the
+  personal one is a transfer to savings. A rule scoped to an account is **deleted
+  with that account** (a rule that can never match again is worse than no rule),
+  and the rows it had won are re-derived in the same transaction — see
+  [ADR 0009](./docs/adr/0009-account-and-sign-matchers-ride-the-rule.md).
+  _Avoid_: account filter (it is a match predicate, not a view filter).
+
+- **Sign matcher** — an optional predicate on a **Matching Rule** (`matchSign`,
+  `"positive"` or `"negative"`): when set, the rule matches only **money-in**
+  rows (`amount > 0`) or only **money-out** rows (`amount < 0`), so a purchase
+  and its refund can carry different Issuers. Its opt-out is **Any**. A **zero
+  amount matches neither** — a **bundle** that nets to zero is not income, so it
+  falls through to the user's sign-less rule rather than being claimed by a wrong
+  narrow one; there is deliberately no `zero` value. Distinct from the **Value
+  matcher**, which stays a sign-agnostic magnitude: direction and magnitude are
+  separate predicates, and either can be set without the other.
+  _Avoid_: direction matcher in code (`matchSign` is the field), positive/negative
+  in the UI (the control reads Money in / Money out).
+
 - **Manual assignment** — a human directly choosing a transaction's issuer or
   category, recorded by the `manualIssuer` / `manualCategory` flags. Manual
   assignments are **sticky**: Matching Rules never overwrite them. The issuer
@@ -67,15 +93,20 @@ repeated per package.
 - **Issuer invariant** — a transaction's issuer is, in priority order: its
   **manual assignment** if `manualIssuer` is set; else the **specificity-winner**
   among all Matching Rules that match the row (pattern matches the raw issuer
-  string **and**, if the rule has a **Value matcher**, the amount matches too);
-  else **unmatched** (no issuer). Specificity, in order: a rule *with* a value
-  matcher outranks one without (a value predicate matches a strict subset, so it
+  string **and** every predicate the rule carries admits the row — **Value
+  matcher**, **Account matcher**, **Sign matcher**); else **unmatched** (no
+  issuer). Specificity, in order: the rule carrying **more optional predicates**
+  outranks the one carrying fewer (each predicate matches a strict subset, so it
   is more specific); then longest literal (regex metachars stripped); then newest
-  rule. This ordering is what lets a value-rule (Amazon + `6.99`) win over the
+  rule. This ordering is what lets a narrow rule (Amazon + `6.99`) win over the
   broad regex-only rule (Amazon) it shares a literal length with, robustly rather
-  than by createdAt luck. The invariant holds after every operation — import, and
-  rule create / edit / delete — each of which re-derives the affected rows and
-  (except manual) makes the table reflect the best current rule.
+  than by createdAt luck. Two rules carrying the same *number* of *different*
+  predicates tie and fall through to literal length, then `createdAt` — neither
+  matched set is a subset of the other, so there is no correct winner to compute.
+  The invariant holds after every operation — import, rule create / edit /
+  delete, and the account delete that cascades into rules — each of which
+  re-derives the affected rows and (except manual) makes the table reflect the
+  best current rule.
 
 - **Derived category** — a transaction's category is read *through* its issuer
   (`issuer.defaultCategoryId`) at query time, not copied onto the transaction —

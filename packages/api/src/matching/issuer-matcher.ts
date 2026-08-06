@@ -8,10 +8,12 @@ import type {
 	RuleUpdate,
 } from "@mamen/shared/contract";
 import {
+	AccountId,
 	mergeRuleUpdate,
 	NotFound,
 	Rule,
 	RuleId,
+	type RuleSign,
 	RuleView,
 	Transaction,
 	TransactionId,
@@ -70,12 +72,19 @@ const literalLength = (pattern: string): number =>
 /** An amount magnitude in whole cents — the sign-agnostic key value-matching compares. */
 const cents = (amount: number): number => Math.round(Math.abs(amount) * 100);
 
-/** A rule carries a Value matcher iff `matchValue` is present (issue #42). */
-const hasValueMatcher = (rule: Rule): boolean => rule.matchValue != null;
+/**
+ * How many of the three optional predicates a rule carries (0–3) — the
+ * comparator's top tier (issue #90). Each one narrows the rule's matched set to
+ * a strict subset, so more predicates means more specific.
+ */
+const predicateCount = (rule: Rule): number =>
+	(rule.matchValue != null ? 1 : 0) +
+	(rule.matchAccountId != null ? 1 : 0) +
+	(rule.matchSign != null ? 1 : 0);
 
 /**
- * Whether a rule's Value matcher admits a row's amount: a regex-only rule admits
- * every amount; a value-rule admits only amounts whose magnitude equals
+ * Whether a rule's Value matcher admits a row's amount: a rule without one
+ * admits every amount; a value-rule admits only amounts whose magnitude equals
  * `matchValue` to the cent (never a float `===`; sign-agnostic — magnitude vs
  * magnitude). Issue #42 / ADR 0004.
  */
@@ -83,16 +92,43 @@ const valueMatches = (rule: Rule, amount: number): boolean =>
 	rule.matchValue == null || cents(amount) === cents(rule.matchValue);
 
 /**
- * Order two matching rules by specificity: a Value-matcher rule outranks a
- * regex-only one (it matches a strict subset — issue #42), *above* literal
+ * Whether a rule's Account matcher admits a row's account: a rule without one
+ * admits every account; an account-rule admits only its own. The account is part
+ * of the *match*, not merely of a query scope, so a rule can never claim a row
+ * outside the account it names (issue #90).
+ */
+const accountMatches = (
+	rule: Rule,
+	accountId: typeof Transaction.Type.accountId,
+): boolean => rule.matchAccountId == null || rule.matchAccountId === accountId;
+
+/**
+ * Whether a rule's Sign matcher admits a row's amount: a rule without one admits
+ * every amount; `positive` admits `amount > 0`, `negative` admits `amount < 0`.
+ * **Zero matches neither** — a bundle netting out is not income, so it falls
+ * through to the user's sign-less rule (issue #90 / ADR 0009).
+ */
+const signMatches = (rule: Rule, amount: number): boolean =>
+	rule.matchSign == null ||
+	(rule.matchSign === "positive" ? amount > 0 : amount < 0);
+
+/**
+ * Order two matching rules by specificity: the rule carrying **more optional
+ * predicates** outranks the one carrying fewer (it matches a strict subset —
+ * issue #90's generalisation of #42's binary value-tier), *above* literal
  * length; then the longer literal; then the newer rule (`createdAt`). `< 0` means
- * `a` wins, `> 0` means `b` wins. Extends the pre-#42 comparator with the
- * value-tier at the top.
+ * `a` wins, `> 0` means `b` wins.
+ *
+ * Two rules with the same pattern and the same *number* of *different*
+ * predicates (`amazon`+account vs `amazon`+sign) tie here and fall through to
+ * literal length, then `createdAt`. Accepted: neither matched set is a subset of
+ * the other, so there is no correct winner to compute, and a declared priority
+ * between predicate kinds would hide an arbitrary choice in a constant.
  */
 const compareSpecificity = (a: Rule, b: Rule): number => {
-	const va = hasValueMatcher(a);
-	const vb = hasValueMatcher(b);
-	if (va !== vb) return va ? -1 : 1;
+	const pa = predicateCount(a);
+	const pb = predicateCount(b);
+	if (pa !== pb) return pb - pa;
 	const la = literalLength(a.pattern);
 	const lb = literalLength(b.pattern);
 	if (la !== lb) return lb - la;
@@ -117,27 +153,40 @@ const compile = (rules: ReadonlyArray<Rule>): CompiledSet => {
 };
 
 /**
- * Whether a compiled rule matches a row: its pattern matches the raw issuer
- * string **and** its Value matcher (if any) admits the row's amount magnitude
- * (issue #42). The two-part predicate every match path routes through.
+ * The row fields the match predicate reads — the raw issuer string plus the two
+ * columns the optional predicates ask about. A whole `Transaction` satisfies it;
+ * naming it keeps the predicate from growing another positional parameter each
+ * time a predicate is added.
  */
-const ruleMatchesRow = (
-	c: CompiledRule,
-	raw: string,
-	amount: number,
-): boolean => c.regex.test(raw) && valueMatches(c.rule, amount);
+type MatchRow = Pick<
+	typeof Transaction.Type,
+	"rawIssuerString" | "amount" | "accountId"
+>;
 
 /**
- * The specificity-winner among the rules that match a row (pattern **and** value,
- * see {@link ruleMatchesRow}), or `undefined` when none match. Pure — the core of
+ * Whether a compiled rule matches a row — the **four-part** predicate every
+ * match path routes through (issue #90, extending #42's two-part one): the
+ * pattern matches the raw issuer string, **and** the Value matcher admits the
+ * amount magnitude, **and** the Account matcher admits the row's account,
+ * **and** the Sign matcher admits the amount's sign. An absent predicate admits
+ * everything.
+ */
+const ruleMatchesRow = (c: CompiledRule, row: MatchRow): boolean =>
+	c.regex.test(row.rawIssuerString) &&
+	valueMatches(c.rule, row.amount) &&
+	accountMatches(c.rule, row.accountId) &&
+	signMatches(c.rule, row.amount);
+
+/**
+ * The specificity-winner among the rules that match a row (see
+ * {@link ruleMatchesRow}), or `undefined` when none match. Pure — the core of
  * the Issuer invariant's step (b).
  */
 const winnerFor = (
-	raw: string,
-	amount: number,
+	row: MatchRow,
 	compiled: ReadonlyArray<CompiledRule>,
 ): Rule | undefined => {
-	const matching = compiled.filter((c) => ruleMatchesRow(c, raw, amount));
+	const matching = compiled.filter((c) => ruleMatchesRow(c, row));
 	if (matching.length === 0) return undefined;
 	return matching.reduce((best, cur) =>
 		compareSpecificity(best.rule, cur.rule) <= 0 ? best : cur,
@@ -169,7 +218,7 @@ export const derive = (
 				matchedRuleId: null,
 			};
 		}
-		const winner = winnerFor(row.rawIssuerString, row.amount, compiled);
+		const winner = winnerFor(row, compiled);
 		return winner === undefined
 			? { transactionId: row.id, issuerId: null, matchedRuleId: null } // (c)
 			: {
@@ -271,19 +320,19 @@ export const previewLists = (
 	const willReassign: Array<Transaction> = [];
 	const manualCollisions: Array<Transaction> = [];
 	for (const row of rows) {
-		// Scope: only rows this one rule matches — pattern AND its Value matcher, if
-		// any (issue #42) — are ever in a bucket. A present `matchValue` narrows the
-		// scope to rows of that amount magnitude, leaving the three buckets as-is.
-		if (!ruleMatchesRow(prospectiveEntry, row.rawIssuerString, row.amount))
-			continue;
+		// Scope: only rows this one rule matches — pattern AND each predicate it
+		// carries (issues #42, #90) — are ever in a bucket. A present predicate
+		// narrows the scope, leaving the three buckets as-is; a rule that is empty
+		// by construction (say, a pattern scoped to an account holding no such rows)
+		// previews as three empty lists, not as a skipped rule.
+		if (!ruleMatchesRow(prospectiveEntry, row)) continue;
 		if (row.manualIssuer) {
 			manualCollisions.push(row);
 			continue;
 		}
 		// The full-set winner must be *this* rule, else the edit changes nothing
 		// for the row (a more-specific rule already/still owns it).
-		if (winnerFor(row.rawIssuerString, row.amount, compiled) !== prospective)
-			continue;
+		if (winnerFor(row, compiled) !== prospective) continue;
 		if (row.issuerId == null) {
 			willMatch.push(row);
 		} else if (row.issuerId !== prospective.issuerId) {
@@ -345,7 +394,9 @@ export const deleteLists = (
  * and the commit path; regex runs in JS (never SQL) so an invalid pattern is a
  * skipped rule, not a crash. Depends only on `SqlClient` — it reads the current
  * rule set and writes issuer assignments directly, so a whole commit fits in one
- * SQLite transaction.
+ * SQLite transaction. The **account** delete lives here too (issue #90): it
+ * cascades into the rules scoped to that account, and the recompute those rule
+ * deletes require is this service's own.
  *
  * Tested exclusively through the API boundary (import matching via `bulkCreate`),
  * per the PRD's single-seam bias — no isolated engine seam.
@@ -381,28 +432,39 @@ export class IssuerMatcher extends Effect.Service<IssuerMatcher>()(
 
 			// The rule insert/update mirror `RuleRepo`'s, but live here so a rule
 			// write and the recompute it triggers share one `withTransaction`.
+			// The written columns: the rule's own fields, each optional predicate
+			// null-folded (issues #42, #90).
+			type RuleWriteRow = {
+				issuerId: number;
+				pattern: string;
+				matchValue: number | null;
+				matchAccountId: number | null;
+				matchSign: RuleSign | null;
+				createdAt: string;
+			};
+
 			const insertRuleQuery = SqlSchema.single({
-				Request: Schema.Any as Schema.Schema<{
-					issuerId: number;
-					pattern: string;
-					matchValue: number | null;
-					createdAt: string;
-				}>,
+				Request: Schema.Any as Schema.Schema<RuleWriteRow>,
 				Result: RuleFromRow,
 				execute: (row) => sql`INSERT INTO rules ${sql.insert(row)} RETURNING *`,
 			});
 
 			const updateRuleQuery = SqlSchema.single({
-				Request: Schema.Any as Schema.Schema<{
-					id: typeof RuleId.Type;
-					issuerId: number;
-					pattern: string;
-					matchValue: number | null;
-					createdAt: string;
-				}>,
+				Request: Schema.Any as Schema.Schema<
+					RuleWriteRow & { id: typeof RuleId.Type }
+				>,
 				Result: RuleFromRow,
 				execute: (row) =>
 					sql`UPDATE rules SET ${sql.update(row, ["id"])} WHERE id = ${row.id} RETURNING *`,
+			});
+
+			// The account lookup behind the cascading delete's 404 — it lives here
+			// (like the rule insert/update above) so the account delete, the rule
+			// deletes it cascades into and the recompute share one `withTransaction`.
+			const accountByIdQuery = SqlSchema.findOne({
+				Request: AccountId,
+				Result: Schema.Struct({ id: Schema.Number }),
+				execute: (id) => sql`SELECT id FROM accounts WHERE id = ${id}`,
 			});
 
 			const txByIdQuery = SqlSchema.findOne({
@@ -581,9 +643,11 @@ export class IssuerMatcher extends Effect.Service<IssuerMatcher>()(
 									issuerId: input.issuerId,
 									pattern: input.pattern,
 									// The input carries the rule's whole prospective state, so an
-									// absent `matchValue` means the edited rule has no Value matcher
-									// (not "keep the stored one") — issue #42.
+									// absent predicate means the edited rule doesn't carry it (not
+									// "keep the stored one") — issues #42, #90.
 									matchValue: input.matchValue,
+									matchAccountId: input.matchAccountId,
+									matchSign: input.matchSign,
 								});
 								return previewLists(rows, rules, prospective, true);
 							}
@@ -598,6 +662,8 @@ export class IssuerMatcher extends Effect.Service<IssuerMatcher>()(
 								issuerId: input.issuerId,
 								pattern: input.pattern,
 								matchValue: input.matchValue,
+								matchAccountId: input.matchAccountId,
+								matchSign: input.matchSign,
 								createdAt: new Date(now),
 							});
 							return previewLists(rows, rules, prospective, false);
@@ -621,6 +687,8 @@ export class IssuerMatcher extends Effect.Service<IssuerMatcher>()(
 									issuerId: payload.issuerId,
 									pattern: payload.pattern,
 									matchValue: payload.matchValue ?? null,
+									matchAccountId: payload.matchAccountId ?? null,
+									matchSign: payload.matchSign ?? null,
 									createdAt: now,
 								});
 								const counts = yield* recomputeIssuers;
@@ -654,6 +722,8 @@ export class IssuerMatcher extends Effect.Service<IssuerMatcher>()(
 												issuerId: merged.issuerId,
 												pattern: merged.pattern,
 												matchValue: merged.matchValue ?? null,
+												matchAccountId: merged.matchAccountId ?? null,
+												matchSign: merged.matchSign ?? null,
 												createdAt: merged.createdAt.toISOString(),
 											});
 											const counts = yield* recomputeIssuers;
@@ -717,6 +787,44 @@ export class IssuerMatcher extends Effect.Service<IssuerMatcher>()(
 				);
 
 			/**
+			 * Delete the account `id`, cascading into the Matching Rules whose
+			 * **Account matcher** names it, and recompute the whole table — the
+			 * account delete, the rule deletes and `recomputeIssuers` in **one**
+			 * `withTransaction` (all-or-nothing), so the Issuer invariant never holds
+			 * transiently-wrong state (issue #90).
+			 *
+			 * The recompute is the load-bearing half: `applyRuleDelete` already pairs
+			 * every rule delete with one precisely so the rows that rule had won fall
+			 * back to the next-best rule or become unmatched. A cascade that deleted
+			 * rules without recomputing would leave those rows holding a stale
+			 * `issuerId` no surviving rule justifies.
+			 *
+			 * Rules are matched by column, not by the caller's list, so a rule scoped
+			 * to any other account is untouched. 404s when `id` is missing (the
+			 * pre-cascade `remove` semantics). Returns void (204).
+			 */
+			const applyAccountDelete = (id: typeof AccountId.Type) =>
+				accountByIdQuery(id).pipe(
+					orDieSql,
+					Effect.flatMap((found) =>
+						Option.match(found, {
+							onNone: () =>
+								Effect.fail(new NotFound({ resource: "account", id })),
+							onSome: () =>
+								sql
+									.withTransaction(
+										Effect.gen(function* () {
+											yield* sql`DELETE FROM accounts WHERE id = ${id}`;
+											yield* sql`DELETE FROM rules WHERE matchAccountId = ${id}`;
+											yield* recomputeIssuers;
+										}),
+									)
+									.pipe(orDieSql, Effect.asVoid),
+						}),
+					),
+				);
+
+			/**
 			 * The preview's per-row "remove manual issuer" action (PRD #8 story 10):
 			 * clear the row's manual flag, then re-derive *that row* against the
 			 * current rule set — it becomes unmatched, or is claimed by an existing
@@ -768,6 +876,7 @@ export class IssuerMatcher extends Effect.Service<IssuerMatcher>()(
 				applyRuleCreate,
 				applyRuleUpdate,
 				applyRuleDelete,
+				applyAccountDelete,
 				removeManualIssuer,
 			} as const;
 		}),

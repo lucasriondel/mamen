@@ -80,18 +80,10 @@ describe("AccountRepo", () => {
 		}).pipe(Effect.provide(RepoTest)),
 	);
 
-	it.effect("remove deletes the row", () =>
-		Effect.gen(function* () {
-			const repo = yield* AccountRepo;
-			const created = yield* repo.create({ name: "Temp", type: "other" });
-			yield* repo.remove(created.id);
-			const error = yield* repo.getById(created.id).pipe(Effect.flip);
-			assert.deepStrictEqual(
-				error,
-				new NotFound({ resource: "account", id: created.id }),
-			);
-		}).pipe(Effect.provide(RepoTest)),
-	);
+	// The delete is not on this repository: it cascades into the Matching Rules
+	// scoped to the account and re-derives the rows they won, so it lives on the
+	// `IssuerMatcher` (issue #90). Both halves — the row going, and the 404 on a
+	// missing id — are covered end-to-end in `accounts/handlers.test.ts`.
 
 	it.effect("getById fails NotFound on a missing id", () =>
 		Effect.gen(function* () {
@@ -110,17 +102,6 @@ describe("AccountRepo", () => {
 			const error = yield* repo
 				.update(asId(404), { name: "X" })
 				.pipe(Effect.flip);
-			assert.deepStrictEqual(
-				error,
-				new NotFound({ resource: "account", id: asId(404) }),
-			);
-		}).pipe(Effect.provide(RepoTest)),
-	);
-
-	it.effect("remove fails NotFound on a missing id", () =>
-		Effect.gen(function* () {
-			const repo = yield* AccountRepo;
-			const error = yield* repo.remove(asId(404)).pipe(Effect.flip);
 			assert.deepStrictEqual(
 				error,
 				new NotFound({ resource: "account", id: asId(404) }),

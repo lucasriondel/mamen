@@ -10,9 +10,9 @@ const TOKEN_CHIPS = 5;
 /**
  * Loading shape for the Matching Rule form page, shown while an edit fetches
  * the rule it pre-fills from. Mirrors {@link RuleForm}'s `gap-4` column — the
- * pattern field, the value matcher, the "Runs as" line, the token row, the
- * preview box, and the save/cancel actions — so the fields don't jump into
- * place once the rule lands.
+ * pattern field, the three optional predicates (value, account, sign), the "Runs
+ * as" line, the token row, the preview box, and the save/cancel actions — so the
+ * fields don't jump into place once the rule lands.
  */
 export function RuleFormSkeleton() {
 	return (
@@ -23,8 +23,19 @@ export function RuleFormSkeleton() {
 				<Skeleton className="h-3 w-72" />
 			</div>
 
+			{/* The three optional predicates: value, account, sign. */}
 			<div className="flex flex-col gap-1">
 				<Skeleton className="h-3.5 w-28" />
+				<Skeleton className="h-9 w-40" />
+			</div>
+
+			<div className="flex flex-col gap-1">
+				<Skeleton className="h-3.5 w-20" />
+				<Skeleton className="h-9 w-40" />
+			</div>
+
+			<div className="flex flex-col gap-1">
+				<Skeleton className="h-3.5 w-24" />
 				<Skeleton className="h-9 w-40" />
 			</div>
 

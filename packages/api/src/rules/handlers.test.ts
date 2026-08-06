@@ -1172,3 +1172,427 @@ describe("rule value matcher", () => {
 		}).pipe(Effect.provide(HttpLive)),
 	);
 });
+
+// The behaviour-preservation guard, written *before* the comparator changed
+// (issue #90): a rule set using only the Value matcher must pick exactly the
+// winners it picked when the top tier was the binary has-`matchValue` flag.
+// Predicate-counting generalises that tier; this pins that it generalises it
+// without moving anyone.
+describe("rule specificity is preserved for value-only rule sets", () => {
+	it.effect("a matchValue-only rule set picks the same winners as before", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			// Older value-rule → issuer 2; newer regex-only rule, same pattern (equal
+			// literal length) → issuer 1; a longer regex-only rule → issuer 3.
+			yield* client.rules.create({
+				payload: { issuerId: asIssuer(2), pattern: "AMAZON", matchValue: 6.99 },
+			});
+			yield* client.rules.create({
+				payload: { issuerId: asIssuer(1), pattern: "AMAZON" },
+			});
+			yield* client.rules.create({
+				payload: { issuerId: asIssuer(3), pattern: "AMAZON EU" },
+			});
+
+			const [cheap, dear] = yield* client.transactions.bulkCreate({
+				payload: {
+					records: [
+						tx({ rawIssuerString: "AMAZON EU SARL", amount: -6.99 }),
+						tx({ rawIssuerString: "AMAZON EU SARL", amount: -20 }),
+					],
+				},
+			});
+			// The value-rule beats both regex-only rules on the amount it names…
+			assert.strictEqual(cheap?.issuerId, asIssuer(2));
+			// …and the longer literal wins the row it doesn't.
+			assert.strictEqual(dear?.issuerId, asIssuer(3));
+		}).pipe(Effect.provide(HttpLive)),
+	);
+});
+
+describe("rule account matcher", () => {
+	const ids = (rows: ReadonlyArray<{ id: unknown }>) => rows.map((r) => r.id);
+
+	it.effect("create echoes matchAccountId and getById round-trips it", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const created = yield* client.rules.create({
+				payload: {
+					issuerId: asIssuer(1),
+					pattern: "VIREMENT",
+					matchAccountId: asAccount(2),
+				},
+			});
+			assert.strictEqual(created.matchAccountId, asAccount(2));
+			const fetched = yield* client.rules.getById({ path: { id: created.id } });
+			assert.strictEqual(fetched.matchAccountId, asAccount(2));
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	// The headline AC: the same raw issuer string routes to a different issuer
+	// depending on the account the row landed in.
+	it.effect("an account-scoped rule claims only that account's rows", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			yield* client.rules.create({
+				payload: { issuerId: asIssuer(1), pattern: "VIREMENT" },
+			});
+			yield* client.rules.create({
+				payload: {
+					issuerId: asIssuer(2),
+					pattern: "VIREMENT",
+					matchAccountId: asAccount(7),
+				},
+			});
+
+			const [joint, personal] = yield* client.transactions.bulkCreate({
+				payload: {
+					records: [
+						tx({ rawIssuerString: "VIREMENT LOYER", accountId: asAccount(7) }),
+						tx({ rawIssuerString: "VIREMENT LOYER", accountId: asAccount(8) }),
+					],
+				},
+			});
+			// Import matching itself routes the fresh rows by account.
+			assert.strictEqual(joint?.issuerId, asIssuer(2));
+			assert.strictEqual(personal?.issuerId, asIssuer(1));
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect(
+		"preview with matchAccountId narrows the buckets to the account",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const [mine] = yield* client.transactions.bulkCreate({
+					payload: {
+						records: [
+							tx({
+								rawIssuerString: "VIREMENT LOYER",
+								accountId: asAccount(7),
+							}),
+							tx({
+								rawIssuerString: "VIREMENT LOYER",
+								accountId: asAccount(8),
+							}),
+						],
+					},
+				});
+
+				const preview = yield* client.rules.preview({
+					payload: {
+						issuerId: asIssuer(3),
+						pattern: "VIREMENT",
+						matchAccountId: asAccount(7),
+					},
+				});
+				assert.strictEqual(preview.skipped, false);
+				assert.deepStrictEqual(ids(preview.willMatch), [mine?.id]);
+				assert.deepStrictEqual(preview.willReassign, []);
+				assert.deepStrictEqual(preview.manualCollisions, []);
+			}).pipe(Effect.provide(HttpLive)),
+	);
+
+	// An over-narrow rule is an *empty* result, not a skipped one: the pattern
+	// compiled fine, the account simply holds no matching rows.
+	it.effect(
+		"a rule narrowed to an empty account previews as three empty lists",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				yield* client.transactions.bulkCreate({
+					payload: {
+						records: [
+							tx({
+								rawIssuerString: "AMAZON EU SARL",
+								accountId: asAccount(1),
+							}),
+						],
+					},
+				});
+
+				const preview = yield* client.rules.preview({
+					payload: {
+						issuerId: asIssuer(3),
+						pattern: "AMAZON",
+						matchAccountId: asAccount(99),
+					},
+				});
+				assert.strictEqual(preview.skipped, false);
+				assert.deepStrictEqual(preview.willMatch, []);
+				assert.deepStrictEqual(preview.willReassign, []);
+				assert.deepStrictEqual(preview.manualCollisions, []);
+			}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("update clears matchAccountId when sent an explicit null", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const created = yield* client.rules.create({
+				payload: {
+					issuerId: asIssuer(1),
+					pattern: "VIREMENT",
+					matchAccountId: asAccount(7),
+				},
+			});
+			const cleared = yield* client.rules.update({
+				path: { id: created.id },
+				payload: { matchAccountId: null },
+			});
+			assert.strictEqual(cleared.matchAccountId, undefined);
+			const fetched = yield* client.rules.getById({ path: { id: created.id } });
+			assert.strictEqual(fetched.matchAccountId, undefined);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect(
+		"update leaves matchAccountId untouched when the key is absent",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const created = yield* client.rules.create({
+					payload: {
+						issuerId: asIssuer(1),
+						pattern: "VIREMENT",
+						matchAccountId: asAccount(7),
+					},
+				});
+				const updated = yield* client.rules.update({
+					path: { id: created.id },
+					payload: { pattern: "VIRMT" },
+				});
+				assert.strictEqual(updated.pattern, "VIRMT");
+				assert.strictEqual(updated.matchAccountId, asAccount(7));
+			}).pipe(Effect.provide(HttpLive)),
+	);
+});
+
+describe("rule sign matcher", () => {
+	const ids = (rows: ReadonlyArray<{ id: unknown }>) => rows.map((r) => r.id);
+
+	it.effect("create echoes matchSign and getById round-trips it", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const created = yield* client.rules.create({
+				payload: {
+					issuerId: asIssuer(1),
+					pattern: "CARTE",
+					matchSign: "negative",
+				},
+			});
+			assert.strictEqual(created.matchSign, "negative");
+			const fetched = yield* client.rules.getById({ path: { id: created.id } });
+			assert.strictEqual(fetched.matchSign, "negative");
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	// A purchase and its refund share a raw issuer string; the two sign-scoped
+	// rules split them at import.
+	it.effect("sign-scoped rules split a purchase from its refund", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			yield* client.rules.create({
+				payload: {
+					issuerId: asIssuer(4),
+					pattern: "CARTE FNAC",
+					matchSign: "negative",
+				},
+			});
+			yield* client.rules.create({
+				payload: {
+					issuerId: asIssuer(5),
+					pattern: "CARTE FNAC",
+					matchSign: "positive",
+				},
+			});
+
+			const [spend, refund] = yield* client.transactions.bulkCreate({
+				payload: {
+					records: [
+						tx({ rawIssuerString: "CARTE FNAC PARIS", amount: -40 }),
+						tx({ rawIssuerString: "CARTE FNAC PARIS", amount: 40 }),
+					],
+				},
+			});
+			assert.strictEqual(spend?.issuerId, asIssuer(4));
+			assert.strictEqual(refund?.issuerId, asIssuer(5));
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	// Zero is neither money in nor money out (a bundle netting out, a fully
+	// refunded purchase): it falls through to the user's broader rule.
+	it.effect("a zero-amount row is claimed only by the sign-less rule", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			yield* client.rules.create({
+				payload: {
+					issuerId: asIssuer(4),
+					pattern: "CARTE FNAC",
+					matchSign: "negative",
+				},
+			});
+			yield* client.rules.create({
+				payload: {
+					issuerId: asIssuer(5),
+					pattern: "CARTE FNAC",
+					matchSign: "positive",
+				},
+			});
+
+			const [netted] = yield* client.transactions.bulkCreate({
+				payload: {
+					records: [tx({ rawIssuerString: "CARTE FNAC PARIS", amount: 0 })],
+				},
+			});
+			// Neither sign-scoped rule claims it…
+			assert.strictEqual(netted?.issuerId, undefined);
+
+			// …but a broader rule with no Sign matcher does, retroactively.
+			yield* client.rules.create({
+				payload: { issuerId: asIssuer(6), pattern: "CARTE FNAC" },
+			});
+			const after = yield* client.transactions.getById({
+				path: { id: netted?.id ?? asTxId(0) },
+			});
+			assert.strictEqual(after.issuerId, asIssuer(6));
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("preview with matchSign narrows the buckets to the direction", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const [spend] = yield* client.transactions.bulkCreate({
+				payload: {
+					records: [
+						tx({ rawIssuerString: "CARTE FNAC PARIS", amount: -40 }),
+						tx({ rawIssuerString: "CARTE FNAC PARIS", amount: 40 }),
+					],
+				},
+			});
+
+			const preview = yield* client.rules.preview({
+				payload: {
+					issuerId: asIssuer(3),
+					pattern: "CARTE FNAC",
+					matchSign: "negative",
+				},
+			});
+			assert.strictEqual(preview.skipped, false);
+			assert.deepStrictEqual(ids(preview.willMatch), [spend?.id]);
+			assert.deepStrictEqual(preview.willReassign, []);
+			assert.deepStrictEqual(preview.manualCollisions, []);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("update clears matchSign when sent an explicit null", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const created = yield* client.rules.create({
+				payload: {
+					issuerId: asIssuer(1),
+					pattern: "CARTE",
+					matchSign: "negative",
+				},
+			});
+			const cleared = yield* client.rules.update({
+				path: { id: created.id },
+				payload: { matchSign: null },
+			});
+			assert.strictEqual(cleared.matchSign, undefined);
+			const fetched = yield* client.rules.getById({ path: { id: created.id } });
+			assert.strictEqual(fetched.matchSign, undefined);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("update leaves matchSign untouched when the key is absent", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const created = yield* client.rules.create({
+				payload: {
+					issuerId: asIssuer(1),
+					pattern: "CARTE",
+					matchSign: "negative",
+				},
+			});
+			const updated = yield* client.rules.update({
+				path: { id: created.id },
+				payload: { pattern: "CB" },
+			});
+			assert.strictEqual(updated.pattern, "CB");
+			assert.strictEqual(updated.matchSign, "negative");
+		}).pipe(Effect.provide(HttpLive)),
+	);
+});
+
+describe("rule predicate-counting specificity", () => {
+	// A two-predicate rule beats a one-predicate rule on the same pattern, and it
+	// is created FIRST (older) so only the predicate count can explain the win.
+	it.effect(
+		"a two-predicate rule beats a one-predicate rule on the same pattern",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				yield* client.rules.create({
+					payload: {
+						issuerId: asIssuer(2),
+						pattern: "AMAZON",
+						matchValue: 6.99,
+						matchSign: "negative",
+					},
+				});
+				yield* client.rules.create({
+					payload: {
+						issuerId: asIssuer(1),
+						pattern: "AMAZON",
+						matchValue: 6.99,
+					},
+				});
+
+				const [row] = yield* client.transactions.bulkCreate({
+					payload: {
+						records: [tx({ rawIssuerString: "AMAZON EU SARL", amount: -6.99 })],
+					},
+				});
+				assert.strictEqual(row?.issuerId, asIssuer(2));
+			}).pipe(Effect.provide(HttpLive)),
+	);
+
+	// A manual assignment outranks every rule, however many predicates it carries.
+	it.effect(
+		"a manual assignment survives a rule carrying the new predicates",
+		() =>
+			Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const [row] = yield* client.transactions.bulkCreate({
+					payload: {
+						records: [
+							tx({
+								rawIssuerString: "VIREMENT LOYER",
+								accountId: asAccount(7),
+								amount: -900,
+							}),
+						],
+					},
+				});
+				yield* client.transactions.update({
+					path: { id: row?.id ?? asTxId(0) },
+					payload: { issuerId: asIssuer(9), manualIssuer: true },
+				});
+
+				yield* client.rules.create({
+					payload: {
+						issuerId: asIssuer(2),
+						pattern: "VIREMENT",
+						matchAccountId: asAccount(7),
+						matchSign: "negative",
+					},
+				});
+
+				const after = yield* client.transactions.getById({
+					path: { id: row?.id ?? asTxId(0) },
+				});
+				assert.strictEqual(after.issuerId, asIssuer(9));
+				assert.strictEqual(after.manualIssuer, true);
+			}).pipe(Effect.provide(HttpLive)),
+	);
+});
