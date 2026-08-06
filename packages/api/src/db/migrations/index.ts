@@ -22,6 +22,7 @@ import addTransactionsManualDate from "./0021_add_transactions_manual_date";
 import addAccountsColor from "./0022_add_accounts_color";
 import addTransactionsAccountDateIndex from "./0023_add_transactions_account_date_index";
 import addRulesMatchAccountAndSign from "./0024_add_rules_match_account_and_sign";
+import createTransferDismissals from "./0025_create_transfer_dismissals";
 
 /**
  * The migration set, keyed `NNNN_name` (the Migrator parses the numeric prefix
@@ -54,4 +55,5 @@ export const migrations = {
 	"0022_add_accounts_color": addAccountsColor,
 	"0023_add_transactions_account_date_index": addTransactionsAccountDateIndex,
 	"0024_add_rules_match_account_and_sign": addRulesMatchAccountAndSign,
+	"0025_create_transfer_dismissals": createTransferDismissals,
 } as const;

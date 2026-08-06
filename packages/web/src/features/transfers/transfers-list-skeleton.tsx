@@ -1,38 +1,26 @@
 import { Skeleton, SkeletonScreen } from "@/components/ui/skeleton";
 
-/** One leg of a candidate pair: amount above date · account. */
-function CandidateLegSkeleton() {
-	return (
-		<div className="flex min-w-0 flex-1 flex-col gap-1.5">
-			<Skeleton className="h-4 w-20" />
-			<Skeleton className="h-3 w-32" />
-		</div>
-	);
-}
-
 /**
- * Loading shape for the transfers candidates list — debit leg, the day-gap
- * marker, credit leg, and the link action, on {@link TransferCandidateRow}'s
- * bordered row.
+ * Loading shape for the Transfers table (issue #91) — one row per **debit leg**:
+ * date, account, raw issuer, amount, and the suggestion indicator that opens the
+ * panel. Matches the real table's columns so nothing shifts when the rows land.
  */
 export function TransfersListSkeleton({ rows = 3 }: { rows?: number }) {
 	return (
 		<SkeletonScreen
 			label="Looking for transfers…"
-			className="flex flex-col gap-3"
+			className="overflow-hidden rounded-lg border border-gousse-line"
 		>
 			{Array.from({ length: rows }, (_, index) => index).map((index) => (
 				<div
 					key={index}
-					className="flex items-center gap-4 rounded-lg border border-gousse-line px-4 py-3"
+					className="flex items-center gap-4 border-gousse-line border-b px-4 py-3 last:border-b-0"
 				>
-					<CandidateLegSkeleton />
-					<div className="flex shrink-0 flex-col items-center gap-1">
-						<Skeleton className="size-4" />
-						<Skeleton className="h-3 w-14" />
-					</div>
-					<CandidateLegSkeleton />
-					<Skeleton className="h-8 w-32 shrink-0" />
+					<Skeleton className="h-4 w-20 shrink-0" />
+					<Skeleton className="h-5 w-24 shrink-0 rounded-full" />
+					<Skeleton className="h-3 flex-1" />
+					<Skeleton className="h-4 w-16 shrink-0" />
+					<Skeleton className="h-5 w-8 shrink-0" />
 				</div>
 			))}
 		</SkeletonScreen>

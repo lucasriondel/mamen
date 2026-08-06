@@ -96,6 +96,57 @@ const BUNDLE_MEMBERS = [
 	},
 ];
 
+/**
+ * A **transfer suggestion** (issue #91): 500 € leaving Checking, and two credits
+ * of the same amount in Savings that might be its other half. One debit, two
+ * candidates, ONE decision — the shape the grouped payload exists for.
+ */
+const TRANSFER_DEBIT = {
+	id: 300,
+	accountId: 1,
+	date: new Date("2026-04-01T00:00:00Z"),
+	amount: -500,
+	rawIssuerString: "VIR SEPA VERS LIVRET A",
+	importedAt: new Date(),
+	importMonth: "2026-04",
+};
+
+const TRANSFER_CREDIT_NEAR = {
+	id: 301,
+	accountId: 2,
+	date: new Date("2026-04-02T00:00:00Z"),
+	amount: 500,
+	rawIssuerString: "VIREMENT RECU LUCAS",
+	importedAt: new Date(),
+	importMonth: "2026-04",
+};
+
+const TRANSFER_CREDIT_FAR = {
+	id: 302,
+	accountId: 2,
+	date: new Date("2026-04-04T00:00:00Z"),
+	amount: 500,
+	rawIssuerString: "VIREMENT DIVERS",
+	importedAt: new Date(),
+	importMonth: "2026-04",
+};
+
+/**
+ * The grouped candidate payload, as the server orients it: `leg` is always the
+ * debit, counterparts closest-date first. The credit rows appear only *inside*
+ * it — the client is what indexes them back the other way so they get an
+ * indicator too.
+ */
+const TRANSFER_CANDIDATES = [
+	{
+		leg: TRANSFER_DEBIT,
+		counterparts: [
+			{ transaction: TRANSFER_CREDIT_NEAR, daysApart: 1 },
+			{ transaction: TRANSFER_CREDIT_FAR, daysApart: 3 },
+		],
+	},
+];
+
 // ---- SDK seam mock ----------------------------------------------------------
 
 /**
@@ -166,9 +217,22 @@ const issuerByIdsMock = vi.fn((ids: Iterable<number>) => {
 	};
 });
 
+/**
+ * The **transfer candidates** the mocked read hands back — one shared entry for
+ * the whole dataset (issue #91). Empty for every test that isn't about
+ * suggestions, which is what a table of ordinary rows gets.
+ */
+let candidateRows: Array<Record<string, unknown>> = [];
+
+const candidatesMock = vi.fn(() => ({
+	queryKey: ["transactions", "transfer-candidates"],
+	queryFn: async () => candidateRows,
+}));
+
 vi.mock("@mamen/sdk", () => ({
 	transactionQueries: {
 		list: (p: Record<string, unknown> = {}) => listMock(p),
+		transferCandidates: () => candidatesMock(),
 	},
 	accountQueries: {
 		list: () => ({
@@ -199,10 +263,14 @@ vi.mock("@mamen/sdk", () => ({
 	// **bulk delete**. Everything else here is a read.
 	transactionMutations: {
 		bulkDelete: (ids: unknown) => bulkDeleteMock(ids),
+		linkTransfer: (ids: unknown) => linkTransferMock(ids),
+		dismissTransferPairs: (pairs: unknown) => dismissPairsMock(pairs),
 	},
 }));
 
 const bulkDeleteMock = vi.fn(async (_ids: unknown) => ({ count: 1 }));
+const linkTransferMock = vi.fn(async (_ids: unknown) => ({ count: 2 }));
+const dismissPairsMock = vi.fn(async (_pairs: unknown) => ({ count: 1 }));
 
 // ---- Router harness ---------------------------------------------------------
 
@@ -241,9 +309,12 @@ beforeEach(() => {
 	listMock.mockClear();
 	issuerByIdsMock.mockClear();
 	bulkDeleteMock.mockClear();
+	linkTransferMock.mockClear();
+	dismissPairsMock.mockClear();
 	listRows = TXNS;
 	listTotal = TXNS.length;
 	listMembers = [];
+	candidateRows = [];
 });
 
 describe("TransactionsView", () => {
@@ -862,5 +933,240 @@ describe("TransactionsView", () => {
 			expect(router.state.location.pathname).toBe("/transactions");
 			expect(router.state.location.search).toMatchObject({ page: 3 });
 		});
+	});
+});
+
+/**
+ * **Transfer suggestions in the table** (issue #91). A **transfer group** nets
+ * out of the recap, so an unconfirmed internal transfer inflates both spend and
+ * income by the same amount. Before this, the only place to confirm one was a
+ * page the user had to remember existed; now the row itself says so, and the
+ * pairing can be refused from where the user already is.
+ */
+describe("TransactionsView — transfer suggestions", () => {
+	/** The three transfer rows plus one ordinary row `renderView` waits on. */
+	function useTransferFixture() {
+		listRows = [
+			TRANSFER_DEBIT,
+			TRANSFER_CREDIT_NEAR,
+			TRANSFER_CREDIT_FAR,
+			TXNS[1],
+		];
+		listTotal = 4;
+		candidateRows = TRANSFER_CANDIDATES;
+	}
+
+	/**
+	 * The debit row's indicator. Awaited: the candidate read lands a beat after
+	 * the rows, so the marker appears on a later paint than the table.
+	 */
+	const debitIndicator = () =>
+		screen.findByRole("button", {
+			name: /2 possible transfer matches for VIR SEPA VERS LIVRET A/,
+		});
+
+	it("marks a debit row that has candidate counterparts", async () => {
+		useTransferFixture();
+		await renderView();
+
+		expect(await debitIndicator()).toBeInTheDocument();
+	});
+
+	// The symmetric half (story 3): the payload only ever names a credit *inside*
+	// a debit's group, so a savings account full of incoming transfers would be a
+	// blank list of unmarked rows unless the client indexes it both ways.
+	it("marks a credit row too, from the same payload", async () => {
+		useTransferFixture();
+		await renderView();
+
+		expect(
+			await screen.findByRole("button", {
+				name: /1 possible transfer match for VIREMENT RECU LUCAS/,
+			}),
+		).toBeInTheDocument();
+	});
+
+	// A row the server judged ineligible never appears in the payload, so it never
+	// gets an indicator — the client re-derives nothing. An ordinary unmatched row
+	// is the same case.
+	it("leaves a row with no candidates unmarked", async () => {
+		useTransferFixture();
+		await renderView();
+
+		await debitIndicator();
+		const acmeRow = screen.getAllByText("ACME PAYROLL")[0].closest("tr");
+		expect(
+			within(acmeRow as HTMLElement).queryByRole("button", {
+				name: /possible transfer/,
+			}),
+		).toBeNull();
+	});
+
+	// A settled row reads as settled: the badge and the indicator share one
+	// column, and a grouped row is ineligible so it can never be offered a pair.
+	it("shows the transfer badge, not an indicator, on a grouped row", async () => {
+		listRows = [{ ...TRANSFER_DEBIT, transferGroupId: 300 }, TXNS[1]];
+		listTotal = 2;
+		candidateRows = [];
+		await renderView();
+
+		expect(
+			screen.getByTitle(/Part of an internal transfer/),
+		).toBeInTheDocument();
+		expect(
+			screen.queryByRole("button", { name: /possible transfer/ }),
+		).toBeNull();
+	});
+
+	it("lists every counterpart with amount, date, account, raw label and gap", async () => {
+		useTransferFixture();
+		const user = userEvent.setup();
+		await renderView();
+
+		await user.click(await debitIndicator());
+		await screen.findByText("Possible transfer");
+
+		// The nearer candidate's own entry, found by the bank's raw label — the
+		// field a user judges a transfer by, and the one the popover exists to show.
+		const entry = screen
+			.getAllByText("VIREMENT RECU LUCAS")
+			.map((node) => node.closest("li"))
+			.find((node): node is HTMLLIElement => node !== null) as HTMLElement;
+
+		expect(within(entry).getByText(/500,00/)).toBeInTheDocument();
+		// Date and account, together on one line.
+		expect(within(entry).getByText(/2 Apr 2026.*Savings/)).toBeInTheDocument();
+		// The day gap, which is why this candidate outranks the other.
+		expect(within(entry).getByText("1 day apart")).toBeInTheDocument();
+		expect(screen.getByText("3 days apart")).toBeInTheDocument();
+	});
+
+	it("orders counterparts closest-date first", async () => {
+		useTransferFixture();
+		const user = userEvent.setup();
+		await renderView();
+
+		await user.click(await debitIndicator());
+		await screen.findByText("Possible transfer");
+		const labels = screen
+			.getAllByText(/VIREMENT (RECU LUCAS|DIVERS)/)
+			// The panel's copies only — the Raw issuer column shows them too.
+			.filter((node) => node.className.includes("font-mono"));
+		expect(labels.map((node) => node.textContent)).toEqual([
+			"VIREMENT RECU LUCAS",
+			"VIREMENT DIVERS",
+			// The table's own Raw issuer cells follow, in row order.
+			"VIREMENT RECU LUCAS",
+			"VIREMENT DIVERS",
+		]);
+	});
+
+	it("confirms exactly the counterpart that was clicked", async () => {
+		useTransferFixture();
+		const user = userEvent.setup();
+		await renderView();
+
+		await user.click(await debitIndicator());
+		const buttons = await screen.findAllByRole("button", {
+			name: "Link as transfer",
+		});
+		// The second one — the *far* candidate — so a positional mistake shows.
+		await user.click(buttons[1]);
+
+		await waitFor(() =>
+			expect(linkTransferMock).toHaveBeenCalledWith([
+				TRANSFER_DEBIT.id,
+				TRANSFER_CREDIT_FAR.id,
+			]),
+		);
+		// And the panel closes, acknowledging the decision.
+		await waitFor(() =>
+			expect(screen.queryByText("Possible transfer")).toBeNull(),
+		);
+	});
+
+	// A button's placement must not lie about its blast radius: dismissal is
+	// group-level, so it is rendered ONCE, at the foot of the panel.
+	it("renders one group-level dismiss, not one per counterpart", async () => {
+		useTransferFixture();
+		const user = userEvent.setup();
+		await renderView();
+
+		await user.click(await debitIndicator());
+		await screen.findByText("Possible transfer");
+
+		expect(
+			screen.getAllByRole("button", { name: "Link as transfer" }),
+		).toHaveLength(2);
+		expect(
+			screen.getAllByRole("button", { name: /Not a transfer/ }),
+		).toHaveLength(1);
+	});
+
+	it("dismisses exactly the pairs the panel displayed, debit-first", async () => {
+		useTransferFixture();
+		const user = userEvent.setup();
+		await renderView();
+
+		await user.click(await debitIndicator());
+		await user.click(
+			await screen.findByRole("button", { name: /Not a transfer/ }),
+		);
+
+		await waitFor(() =>
+			expect(dismissPairsMock).toHaveBeenCalledWith([
+				{ debitId: TRANSFER_DEBIT.id, creditId: TRANSFER_CREDIT_NEAR.id },
+				{ debitId: TRANSFER_DEBIT.id, creditId: TRANSFER_CREDIT_FAR.id },
+			]),
+		);
+	});
+
+	// Standing in a credit's panel, the same gesture clears that credit's pairs
+	// with each listed debit — and normalises them debit-first, whichever side
+	// the user happened to be on.
+	it("normalises a credit's own dismissal to debit-first", async () => {
+		useTransferFixture();
+		const user = userEvent.setup();
+		await renderView();
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: /1 possible transfer match for VIREMENT RECU LUCAS/,
+			}),
+		);
+		await user.click(
+			await screen.findByRole("button", { name: /Not a transfer/ }),
+		);
+
+		await waitFor(() =>
+			expect(dismissPairsMock).toHaveBeenCalledWith([
+				{ debitId: TRANSFER_DEBIT.id, creditId: TRANSFER_CREDIT_NEAR.id },
+			]),
+		);
+	});
+
+	// A popover, not a tooltip, precisely so this works: the trigger is a real
+	// button, so it is tabbable and opens on Enter.
+	it("opens and operates by keyboard", async () => {
+		useTransferFixture();
+		const user = userEvent.setup();
+		await renderView();
+
+		(await debitIndicator()).focus();
+		await user.keyboard("{Enter}");
+		await screen.findByText("Possible transfer");
+
+		const confirm = screen.getAllByRole("button", {
+			name: "Link as transfer",
+		})[0];
+		confirm.focus();
+		await user.keyboard("{Enter}");
+
+		await waitFor(() =>
+			expect(linkTransferMock).toHaveBeenCalledWith([
+				TRANSFER_DEBIT.id,
+				TRANSFER_CREDIT_NEAR.id,
+			]),
+		);
 	});
 });

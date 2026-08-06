@@ -129,7 +129,10 @@ export {
 	TransactionsGroup,
 	TransactionUpdate,
 	TransferCandidate,
+	TransferCounterpart,
+	TransferDismiss,
 	TransferLink,
+	TransferPair,
 	TransferUnlink,
 	UNASSIGNED_FILTER,
 } from "./transactions";

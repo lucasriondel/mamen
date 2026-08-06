@@ -7,6 +7,7 @@ import {
 	RouterProvider,
 } from "@tanstack/react-router";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // ---- Canned SDK data --------------------------------------------------------
@@ -147,6 +148,23 @@ const issuerByIdsMock = vi.fn((ids: Iterable<number>) => {
 	};
 });
 
+/**
+ * A candidate counterpart for `TXN` (issue #91) — the credit half of the same
+ * 9,99 € movement, in the other account. Empty for every test that isn't about
+ * suggestions.
+ */
+const COUNTERPART = {
+	id: 900,
+	accountId: 2,
+	date: new Date("2026-01-21T00:00:00Z"),
+	amount: 9.99,
+	rawIssuerString: "VIREMENT RECU",
+	importedAt: new Date(),
+	importMonth: "2026-01",
+} as unknown as Transaction;
+
+let candidateRows: Array<Record<string, unknown>> = [];
+
 vi.mock("@mamen/sdk", () => ({
 	transactionQueries: {
 		getById: (id: number) => ({
@@ -173,6 +191,13 @@ vi.mock("@mamen/sdk", () => ({
 						? { items: [BUNDLE], total: 1 }
 						: { items: [], total: 0 },
 		}),
+		// The shared transfer-suggestion read (issue #91) — the Transfer block now
+		// reads its counterparts out of this one cache entry instead of scanning
+		// whatever rows the page happened to have loaded.
+		transferCandidates: () => ({
+			queryKey: ["transactions", "transfer-candidates"],
+			queryFn: async () => candidateRows,
+		}),
 	},
 	accountQueries: {
 		list: () => ({
@@ -198,7 +223,10 @@ vi.mock("@mamen/sdk", () => ({
 	categoryKeys: {},
 	categoryMutations: {},
 	transactionKeys: {},
-	transactionMutations: {},
+	transactionMutations: {
+		linkTransfer: (ids: unknown) => linkTransferMock(ids),
+		dismissTransferPairs: (pairs: unknown) => dismissPairsMock(pairs),
+	},
 	ruleKeys: {},
 	ruleMutations: {},
 	ruleQueries: {
@@ -240,8 +268,14 @@ function makeRouter(id = 100) {
 	});
 }
 
+const linkTransferMock = vi.fn(async (_ids: unknown) => ({ count: 2 }));
+const dismissPairsMock = vi.fn(async (_pairs: unknown) => ({ count: 1 }));
+
 beforeEach(() => {
 	issuerByIdsMock.mockClear();
+	linkTransferMock.mockClear();
+	dismissPairsMock.mockClear();
+	candidateRows = [];
 });
 
 describe("TransactionDetailPage", () => {
@@ -367,5 +401,40 @@ describe("TransactionDetailPage", () => {
 		render(<RouterProvider router={makeRouter(300)} />);
 
 		expect(await screen.findByText("No anomaly flags.")).toBeVisible();
+	});
+
+	// Story 35 (issue #91): the detail page's suggestions come from the SAME cache
+	// entry as the table's, so the two surfaces can never disagree about a pair.
+	// It used to run a client-side scan over whatever rows it had loaded — a
+	// second, weaker answer to a question the server already decides.
+	it("reads its counterparts from the shared candidate cache", async () => {
+		candidateRows = [
+			{ leg: TXN, counterparts: [{ transaction: COUNTERPART, daysApart: 1 }] },
+		];
+		render(<RouterProvider router={makeRouter()} />);
+
+		expect(await screen.findByText("VIREMENT RECU")).toBeVisible();
+		expect(screen.getByText(/1 day apart/)).toBeVisible();
+		expect(
+			screen.getByRole("button", { name: /link as transfer/i }),
+		).toBeVisible();
+	});
+
+	// One group-level refusal here too, worded the same as the table's panel — a
+	// per-suggestion button would lie about what it clears.
+	it("offers one group-level dismissal, normalised debit-first", async () => {
+		const user = userEvent.setup();
+		candidateRows = [
+			{ leg: TXN, counterparts: [{ transaction: COUNTERPART, daysApart: 1 }] },
+		];
+		render(<RouterProvider router={makeRouter()} />);
+
+		await user.click(
+			await screen.findByRole("button", { name: /not a transfer/i }),
+		);
+
+		expect(dismissPairsMock).toHaveBeenCalledWith([
+			{ debitId: TXN.id, creditId: COUNTERPART.id },
+		]);
 	});
 });

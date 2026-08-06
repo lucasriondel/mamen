@@ -114,7 +114,9 @@ describe("transactions endpoints", () => {
 			}).pipe(Effect.provide(HttpLive)),
 	);
 
-	it.effect("transferCandidates returns detected pairs over the wire", () =>
+	// Deliberately thin — the exhaustive cases live in the repository suite. These
+	// two only prove the endpoint is wired and the grouped schema decodes.
+	it.effect("transferCandidates returns the grouped shape over the wire", () =>
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
 			const debit = yield* client.transactions.create({
@@ -123,6 +125,11 @@ describe("transactions endpoints", () => {
 			const credit = yield* client.transactions.create({
 				payload: make({ amount: 30, accountId: asAccount(2) }),
 			});
+			// A second credit in a third account: one debit, one decision, two
+			// counterparts — the reshape issue #91 exists for.
+			const other = yield* client.transactions.create({
+				payload: make({ amount: 30, accountId: asAccount(3) }),
+			});
 			// Noise: a same-account row that must not pair.
 			yield* client.transactions.create({
 				payload: make({ amount: 30, accountId: asAccount(1) }),
@@ -130,9 +137,41 @@ describe("transactions endpoints", () => {
 
 			const out = yield* client.transactions.transferCandidates();
 			assert.strictEqual(out.length, 1);
-			assert.strictEqual(out[0].from.id, debit.id);
-			assert.strictEqual(out[0].to.id, credit.id);
-			assert.strictEqual(out[0].daysApart, 0);
+			assert.strictEqual(out[0].leg.id, debit.id);
+			assert.deepStrictEqual(
+				out[0].counterparts.map((c) => [c.transaction.id, c.daysApart]),
+				[
+					[credit.id, 0],
+					[other.id, 0],
+				],
+			);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	it.effect("dismissing pairs omits them from the next read", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const debit = yield* client.transactions.create({
+				payload: make({ amount: -30, accountId: asAccount(1) }),
+			});
+			const credit = yield* client.transactions.create({
+				payload: make({ amount: 30, accountId: asAccount(2) }),
+			});
+			const kept = yield* client.transactions.create({
+				payload: make({ amount: 30, accountId: asAccount(3) }),
+			});
+
+			const written = yield* client.transactions.dismissTransferPairs({
+				payload: { pairs: [{ debitId: debit.id, creditId: credit.id }] },
+			});
+			assert.deepStrictEqual(written, { count: 1 });
+
+			const out = yield* client.transactions.transferCandidates();
+			assert.strictEqual(out.length, 1);
+			assert.deepStrictEqual(
+				out[0].counterparts.map((c) => c.transaction.id),
+				[kept.id],
+			);
 		}).pipe(Effect.provide(HttpLive)),
 	);
 

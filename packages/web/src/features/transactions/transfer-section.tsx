@@ -11,37 +11,39 @@ import { Button } from "@/components/ui/button";
 import { formatCurrency, formatShortDate } from "@/lib/format";
 import { accountQueries, transactionQueries } from "@/lib/sdk";
 import { cn, indexById } from "@/lib/utils";
-import { TRANSFER_REFUSED_BUNDLE_REASON } from "./grouping-eligibility";
-import { TransferLegsSkeleton } from "./transfer-legs-skeleton";
 import {
 	isTransferEligible,
-	suggestTransferCounterparts,
-	TRANSFER_DATE_WINDOW_DAYS,
-} from "./transfer-suggestions";
+	TRANSFER_REFUSED_BUNDLE_REASON,
+} from "./grouping-eligibility";
+import { TransferLegsSkeleton } from "./transfer-legs-skeleton";
 import { useTransfer } from "./use-transfer";
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-/**
- * How many rows to scan for counterpart suggestions. The suggestion util is pure
- * over the already-fetched set (PRD #48) — the confirm action re-validates
- * server-side, so a capped/stale scan can never corrupt state. The set is
- * already narrowed to a small date window, so this cap is comfortable headroom.
- */
-const CANDIDATE_SCAN_LIMIT = 1000;
+import {
+	dayGapLabel,
+	toTransferPair,
+	useTransferSuggestion,
+} from "./use-transfer-candidates";
 
 /** How many legs of a group to fetch when listing "the other legs". */
 const GROUP_SCAN_LIMIT = 50;
 
-/** One leg of a transfer — a link to its detail page plus account + amount. */
+/**
+ * One leg of a transfer — a link to its detail page plus account + amount, and,
+ * for a *suggested* counterpart, the two fields that let the user judge it
+ * without leaving the page: the bank's own **raw issuer string** (a label like
+ * `VIR SEPA VERS LIVRET A` usually settles it outright) and how many days apart
+ * it is. A confirmed leg of an existing group needs neither — the pairing is
+ * already decided — so both are omitted when `daysApart` is absent.
+ */
 function LegRow({
 	leg,
 	accountsById,
 	action,
+	daysApart,
 }: {
 	leg: Transaction;
 	accountsById: ReadonlyMap<number, Account>;
 	action?: ReactNode;
+	daysApart?: number;
 }) {
 	return (
 		<li className="flex items-center justify-between gap-3 rounded-md border border-gousse-line px-3 py-2">
@@ -62,7 +64,13 @@ function LegRow({
 				<span className="truncate text-gousse-muted text-xs">
 					{formatShortDate(leg.date)} ·{" "}
 					{accountsById.get(leg.accountId)?.name ?? `Account #${leg.accountId}`}
+					{daysApart !== undefined ? ` · ${dayGapLabel(daysApart)}` : ""}
 				</span>
+				{daysApart !== undefined ? (
+					<span className="truncate font-mono text-gousse-muted text-xs">
+						{leg.rawIssuerString}
+					</span>
+				) : null}
 			</Link>
 			{action}
 		</li>
@@ -76,11 +84,17 @@ function LegRow({
  *
  * - **Grouped** (the row carries a `transferGroupId`) → lists the group's other
  *   legs with a link to each, and an **Unlink** action that dissolves the group.
- * - **Ungrouped & eligible** → scans the surrounding days for counterpart legs
- *   (opposite sign, equal magnitude, a different account — {@link
- *   suggestTransferCounterparts}) and offers a **Link as transfer** action per
+ * - **Ungrouped & eligible** → reads the row's counterparts out of the **shared
+ *   candidate cache** (issue #91) and offers a **Link as transfer** action per
  *   suggestion. Confirming calls `link-transfer`, which re-validates the pairing
  *   server-side.
+ *
+ * The suggestions used to come from a client-side scan over whatever rows this
+ * page happened to have fetched — a second source of truth for a question the
+ * server already answers, and the weaker one, since it could only see a window
+ * it had loaded and knew nothing about **dismissed pairs**. It now reads the
+ * same cache entry the transactions table and the Transfers page read, so the
+ * three surfaces cannot disagree about the same pair.
  *
  * A refund (or refund-paired) row can't be a transfer leg, so it shows a short
  * note instead of suggestions — mirroring the server's `is-refund` refusal. So
@@ -96,11 +110,11 @@ export function TransferSection({
 }: {
 	transaction: Transaction;
 }) {
-	const { link, unlink } = useTransfer();
+	const { link, unlink, dismiss } = useTransfer();
 	const isGrouped = txn.transferGroupId != null;
-	// Reuse the pure suggestion util's eligibility rule so the section's gating can
-	// never drift from what actually gets suggested; a zero-amount row has no
-	// counterpart to net against, so it is never offered a link.
+	// The shared eligibility rule, so the section's gating can never drift from
+	// what actually gets suggested; a zero-amount row has no counterpart to net
+	// against, so it is never offered a link.
 	const isEligible = isTransferEligible(txn) && txn.amount !== 0;
 
 	const accountsQuery = useQuery(accountQueries.list());
@@ -121,29 +135,12 @@ export function TransferSection({
 		(groupQuery.data?.items ?? []) as readonly Transaction[]
 	).filter((leg) => leg.id !== txn.id);
 
-	// Ungrouped & eligible: scan a small date window for counterparts. The window
-	// mirrors the suggestion util's, so the client-side filter can only ever
-	// narrow the fetched set, never need rows outside it.
-	const targetTime = new Date(txn.date).getTime();
-	const windowMs = TRANSFER_DATE_WINDOW_DAYS * DAY_MS;
-	const candidatesQuery = useQuery({
-		...transactionQueries.list({
-			startDate: new Date(targetTime - windowMs),
-			endDate: new Date(targetTime + windowMs),
-			limit: CANDIDATE_SCAN_LIMIT,
-		}),
-		enabled: isEligible,
-	});
-	const suggestions = useMemo(
-		() =>
-			isEligible
-				? suggestTransferCounterparts(
-						txn,
-						(candidatesQuery.data?.items ?? []) as readonly Transaction[],
-					)
-				: [],
-		[isEligible, txn, candidatesQuery.data],
-	);
+	// Ungrouped & eligible: the row's counterparts, out of the shared candidate
+	// cache — the same entry the transactions table's indicator reads. The query
+	// is kept in hand for its loading/error states; the index is what answers
+	// "which rows, in which order".
+	const candidatesQuery = useQuery(transactionQueries.transferCandidates());
+	const suggestions = useTransferSuggestion(txn)?.counterparts ?? [];
 
 	return (
 		<div className="flex flex-col gap-3 border-t border-gousse-line pt-6">
@@ -205,22 +202,26 @@ export function TransferSection({
 			) : suggestions.length > 0 ? (
 				<div className="flex flex-col gap-3">
 					<p className="text-sm text-gousse-muted">
-						These look like the other side of this money movement. Link them to
-						net the transfer out of your recap.
+						These look like the other side of this money movement, closest date
+						first. Link one to net the transfer out of your recap.
 					</p>
 					<ul className="flex flex-col gap-2">
-						{suggestions.map((leg) => (
+						{suggestions.map((counterpart) => (
 							<LegRow
-								key={leg.id}
-								leg={leg}
+								key={counterpart.transaction.id}
+								leg={counterpart.transaction}
 								accountsById={accountsById}
+								daysApart={counterpart.daysApart}
 								action={
 									<Button
 										variant="secondary"
 										size="sm"
-										disabled={link.isPending}
+										disabled={link.isPending || dismiss.isPending}
 										onClick={() =>
-											link.mutate([txn.id, leg.id] as TransactionId[])
+											link.mutate([
+												txn.id,
+												counterpart.transaction.id,
+											] as TransactionId[])
 										}
 									>
 										Link as transfer
@@ -229,6 +230,34 @@ export function TransferSection({
 							/>
 						))}
 					</ul>
+					{/* One group-level refusal, exactly as the table's panel offers —
+					    never one button per suggestion. It writes a **dismissed pair**
+					    for each row listed above and nothing else, so its blast radius
+					    is what the user can see, and it is currently permanent. */}
+					<div className="flex flex-col gap-1">
+						<Button
+							variant="secondary"
+							size="sm"
+							className="self-start"
+							disabled={link.isPending || dismiss.isPending}
+							onClick={() =>
+								dismiss.mutate(
+									suggestions.map((counterpart) =>
+										toTransferPair(txn, counterpart.transaction),
+									),
+								)
+							}
+						>
+							{suggestions.length === 1
+								? "Not a transfer"
+								: `Not a transfer (${suggestions.length})`}
+						</Button>
+						<p className="text-gousse-muted text-xs">
+							{suggestions.length === 1
+								? "Clears this suggestion for good — there's no undo yet."
+								: `Clears all ${suggestions.length} suggestions above for good — there's no undo yet.`}
+						</p>
+					</div>
 				</div>
 			) : (
 				<p className="text-sm text-gousse-muted italic">

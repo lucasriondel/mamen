@@ -3843,6 +3843,89 @@
         }
       }
     },
+    "/api/transactions/dismiss-transfer-pairs": {
+      "post": {
+        "tags": [
+          "Transactions"
+        ],
+        "operationId": "transactions.dismissTransferPairs",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "count"
+                  ],
+                  "properties": {
+                    "count": {
+                      "type": "number"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "pairs"
+                ],
+                "properties": {
+                  "pairs": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "debitId",
+                        "creditId"
+                      ],
+                      "properties": {
+                        "debitId": {
+                          "type": "integer",
+                          "description": "an integer",
+                          "title": "int"
+                        },
+                        "creditId": {
+                          "type": "integer",
+                          "description": "an integer",
+                          "title": "int"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
     "/api/transactions/bundle": {
       "post": {
         "tags": [
@@ -6509,15 +6592,30 @@
       "TransferCandidate": {
         "type": "object",
         "required": [
-          "from",
-          "to",
+          "leg",
+          "counterparts"
+        ],
+        "properties": {
+          "leg": {
+            "$ref": "#/components/schemas/Transaction"
+          },
+          "counterparts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TransferCounterpart"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "TransferCounterpart": {
+        "type": "object",
+        "required": [
+          "transaction",
           "daysApart"
         ],
         "properties": {
-          "from": {
-            "$ref": "#/components/schemas/Transaction"
-          },
-          "to": {
+          "transaction": {
             "$ref": "#/components/schemas/Transaction"
           },
           "daysApart": {
