@@ -158,8 +158,9 @@ See [CONTEXT-MAP.md](../../CONTEXT-MAP.md). A single regex `pattern` owned by an
 Issuer that auto-assigns that Issuer to matching transactions. The user manages
 these to turn cryptic raw issuer strings into known Issuers in bulk. Create /
 edit / delete each previews its effect (which transactions gain, change, or lose
-an issuer) before applying on save. Assigns **only** an issuer — category flows
-through the issuer (**derived category**), never off the rule.
+an issuer) before applying on save, as does a **rule move**. Assigns **only** an
+issuer — category flows through the issuer (**derived category**), never off the
+rule.
 _Code note_: the entity is `Rule` in the contract/DB/SDK; "Matching Rule" is the
 user-facing name only. Each rule row shows its **owned count** (see
 [CONTEXT-MAP.md](../../CONTEXT-MAP.md)) worded as what it counts — "3
@@ -170,6 +171,31 @@ import commit and every **bundle** mutation all change what a rule owns without
 touching a rule. Bundles count because the parent is an ordinary row carrying
 the user's label as its `rawIssuerString`, the string the matcher reads: making
 a bundle can hand a rule a row, dissolving one takes it back (issue #78).
+
+**Rule move**:
+Re-homing a **Matching Rule** from the Issuer that owns it onto another one, in
+place on the issuer detail page (issue #94). The rule keeps its identity — its
+pattern and its value / account / sign matchers travel with it — so the write is
+a rule update carrying **only** `issuerId`, and the rows it owns re-home
+atomically with it (and may change category, which is derived through the
+issuer). Two stages in one growing panel: search for the target (the rule's own
+issuer is never offerable — moving it there is a no-op), then read the dry-run
+and confirm. The dry-run is the ordinary rule preview pointed at the prospective
+issuer, of which the panel shows two lists: **will reassign**, and
+**manual collisions** read-only, since a hand-assigned row will not follow the
+rule and dropping its hand pick already has two homes elsewhere.
+_Avoid_: **transfer** (that is a matched pair of transactions between accounts —
+see [CONTEXT-MAP.md](../../CONTEXT-MAP.md) — and a term means one thing
+everywhere; the row's icon is `Replace`, deliberately not `ArrowRightLeft`),
+reassign (that names what happens to the *transactions*, not to the rule).
+_Code note_: frontend-only — the whole write path already existed. The panel
+warns, client-side, when the target already owns a rule with the identical
+pattern: nothing breaks (specificity still picks a winner) but the target would
+gain a duplicate reading "0 transactions", indistinguishable from a broken rule.
+The warning informs and never blocks, and no conflict error was added to the
+contract. A move is also the one rule write whose outcome is invisible on the
+page you stay on — the row simply leaves — so it raises a **success** toast
+naming the target, departing from `useRuleMutations`' errors-only style.
 
 **Amount sign convention**:
 `amount` is a single signed number. A CSV `DEBIT` (money leaving) is stored
