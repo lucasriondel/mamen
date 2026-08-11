@@ -1,12 +1,12 @@
 # gousse-ui theming under Tailwind v4
 
-> **Superseded in part (issue #92).** The three stylesheets below are no longer
-> read out of the npm package's `exports` map: they are **vendored source** under
-> `src/styles/gousse/`, installed from gousse's shadcn registry (the `@gousse`
-> namespace in `components.json`). The token contract and every consequence
-> listed here are unchanged — only the distribution channel moved. The
-> primitives still come from npm. Issue #98 rewrites this ADR around the
-> registry once they follow.
+> **Superseded in part (issues #92, #95).** The three stylesheets below are no
+> longer read out of the npm package's `exports` map: they are **vendored
+> source** under `src/styles/gousse/`, installed from gousse's shadcn registry
+> (the `@gousse` namespace in `components.json`). The token contract and every
+> consequence listed here are unchanged — only the distribution channel moved.
+> `Sidebar` followed the same way (#95); every other primitive still comes from
+> npm. Issue #98 rewrites this ADR around the registry once they all have.
 
 `@lucasriondel/gousse-ui` is the primary component kit (Base UI under the hood),
 but it ships a **Tailwind v3** artifact — a JS `preset.js` consumed via
@@ -47,10 +47,13 @@ restyled onto the same `--gousse-*` tokens so the two primitive systems (Base UI
   has no `icon`/`children` slots, both of which mamen's call-sites use; the
   adapters keep mamen's surface and delegate look and press/hover behaviour to
   the primitive. Collapse them if gousse ever grows those props.
-- `src/components/ui/sidebar.tsx` is still a local stand-in. gousse ships a
-  `Sidebar`, but under a different surface (`SidebarContent` / `SidebarGroup` /
-  `SidebarItem` vs the local `SidebarNav` / `SidebarNavItem`), so swapping it is
-  its own change.
+- `src/components/ui/sidebar.tsx` is **gousse's own source, vendored** from the
+  registry (issue #95) — the first primitive to arrive that way rather than
+  through the npm package. The local stand-in is deleted; call sites moved from
+  `SidebarNav` / `SidebarNavItem` to `SidebarContent` / `SidebarItem`, and the
+  router link is grafted on with TanStack's `createLink`, since `SidebarItem`
+  renders the `<a>` itself. Like the vendored stylesheets it is excluded from
+  biome, so the next `shadcn add` is not reformatted into a diff.
 - gousse-ui `0.4.0`'s `dist` is `"type": "module"` but uses extensionless
   relative imports, which Node's ESM resolver rejects. `vite build` tolerates
   it; Vitest does not, so `vitest.config.ts` inlines the package via
