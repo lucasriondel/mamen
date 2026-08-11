@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * The shared text-input primitive — a shadcn-style `input` restyled onto the
- * `--gousse-*` tokens (ADR 0002: gap-fill for what gousse doesn't ship).
+ * `--gousse-*` tokens (ADR 0003: gap-fill for what gousse doesn't ship).
  *
  * Forms across the app each repeat some near-copy of
  * `rounded-full border border-gousse-line bg-gousse-bg px-4 py-2 …` in a local `INPUT_CLASS`

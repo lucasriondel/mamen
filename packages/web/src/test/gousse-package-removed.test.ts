@@ -52,8 +52,14 @@ const PRUNED = new Set([
 /** Resolved dependency graphs — asserted separately, and megabytes each. */
 const LOCKFILES = new Set(["bun.lock", "package-lock.json"]);
 
-/** This file — it names what it forbids, so it cannot scan itself. */
-const SELF = "packages/web/src/test/gousse-package-removed.test.ts";
+/**
+ * The tests that name what they forbid, so the scan cannot read them: this one
+ * and its sibling, which holds prose to the same rule (issue #98).
+ */
+const SELF = new Set([
+	"packages/web/src/test/gousse-package-removed.test.ts",
+	"packages/web/src/test/gousse-adr.test.ts",
+]);
 
 /** Every non-pruned file in the repo, as `[repo-relative path, contents]`. */
 function repoFiles(dir = "../..", prefix = ""): Array<[string, string]> {
@@ -69,7 +75,7 @@ function repoFiles(dir = "../..", prefix = ""): Array<[string, string]> {
 			out.push(...repoFiles(path, relative));
 			continue;
 		}
-		if (LOCKFILES.has(relative) || relative === SELF) continue;
+		if (LOCKFILES.has(relative) || SELF.has(relative)) continue;
 
 		out.push([relative, read(path)]);
 	}
@@ -102,11 +108,12 @@ describe("the private registry credential", () => {
 	});
 
 	it("is referenced by no build or deploy path left in the repo", () => {
-		// Prose is exempt and scanned separately: ADR 0002 still *names* the
-		// variable, because a decision record that erased the credential it once
-		// required would be a worse record. Nothing in `.md` runs; the one
-		// operational document that could mislead an operator — the runbook — has
-		// its own assertion below.
+		// Prose is exempt here and scanned in `gousse-adr.test.ts`, which holds it
+		// to a tighter rule: exactly one document may name the variable — the
+		// superseded ADR 0002, whose subject *is* the era that needed it, and a
+		// decision record that erased the credential it once required would be a
+		// worse record. Nothing in `.md` runs; the one operational document that
+		// could mislead an operator — the runbook — has its own assertion below.
 		const offenders = repoFiles()
 			.filter(([path]) => !path.endsWith(".md"))
 			.filter(([, body]) => body.includes(TOKEN))

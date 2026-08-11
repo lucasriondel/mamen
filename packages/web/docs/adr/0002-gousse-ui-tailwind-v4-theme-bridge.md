@@ -1,18 +1,22 @@
 # gousse-ui theming under Tailwind v4
 
-> **Superseded in part (issues #92, #93, #95, #96).** Nothing below arrives
-> through the npm package's `exports` map any more. The three stylesheets are
-> **vendored source** under `src/styles/gousse/` (#92); the four primitives
-> mamen uses — `Button`, `Empty`, `Textarea`, `Checkbox` — are **vendored
-> source** under `src/components/ui/` (#93); and `Sidebar` followed the same way
-> (#95). All are installed from gousse's shadcn registry (the `@gousse`
-> namespace in `components.json`). The token contract and every consequence
-> listed here are unchanged — only the distribution channel moved.
-> **`@lucasriondel/gousse-ui` is no longer a dependency at all** (#96): it is
-> out of the manifest and the lockfile, and with it went the `.npmrc` scope
-> configuration, the `NODE_AUTH_TOKEN` the web image took as a build arg, and
-> the Vitest `server.deps.inline` workaround. #98 rewrites this ADR around the
-> registry.
+> **Status: superseded by [ADR 0003](./0003-gousse-is-vendored-from-a-shadcn-registry.md).**
+> gousse is a shadcn registry now, not a package: the theme layers and the
+> primitives are vendored source under `src/styles/gousse/` and
+> `src/components/ui/`, and the dependency, its `.npmrc`, the build credential
+> and the Vitest inline workaround are all gone (issues #92, #93, #95, #96,
+> #97).
+>
+> The text below is the decision **as taken**, restored. Each migration slice
+> amended it in place because there was no successor record to hold the new
+> state; ADR 0003 is that record, so this one goes back to being what it is —
+> history. Nothing below describes this repo. What survives the reversal is the
+> half ADR 0003 inherits: gousse tokens are the theme source of truth, they are
+> rgb channel triples under a `*-gousse-*` namespace, mamen retints the accent,
+> and two primitive systems meet at the token layer. What changed is the
+> distribution channel, and with it the reason the adapters and the stand-in
+> below had to exist at all — a published build cannot be edited, and vendored
+> source can.
 
 `@lucasriondel/gousse-ui` is the primary component kit (Base UI under the hood),
 but it ships a **Tailwind v3** artifact — a JS `preset.js` consumed via
@@ -26,10 +30,9 @@ token to `--color-gousse-*` / shadow / animation utilities). The existing v3
 `@lucasriondel/gousse-ui@^0.4.0` from the GitHub registry and `@import`s
 `tokens.css` + `theme.css` + `effects.css`.
 
-Access to the private registry *was* configured by a repo-root `.npmrc`
+Access to the private registry is configured by a repo-root `.npmrc`
 (`@lucasriondel:registry=https://npm.pkg.github.com`) reading `NODE_AUTH_TOKEN`
-from the environment, so the token was never committed. Both files are gone
-(#96): every install path now resolves from the public registry alone.
+from the environment, so the token is never committed.
 
 gousse tokens are the theme source of truth; the few shadcn/Radix gap-fill
 components (Table, Dialog, Command, Popover — things gousse does not ship) are
@@ -49,42 +52,17 @@ restyled onto the same `--gousse-*` tokens so the two primitive systems (Base UI
   taking gousse's warm-orange default, so the two apps read as one language.
 - Two primitive systems (Base UI via gousse, Radix via shadcn gap-fills)
   coexist. Accepted for velocity; the seam is the token layer.
-- `Button`, `Empty`, `Textarea` and `Checkbox` are gousse primitives **vendored
-  into `src/components/ui/`** (#93), not wrapped. Three of them used to carry a
-  thin local adapter — `Button`'s `size` scale and focus ring, `Empty`'s
-  `icon`/`children` slots, `Textarea`'s focus/disabled/invalid states — for one
-  reason only: an npm build cannot be edited. Owning the source removed the
-  reason, so each concern now lives in the component itself (`size` as a second
-  cva axis beside `variant`, `icon` as a real prop). Call-sites were untouched.
-  Keep them on the token utilities so a retheme stays a token-level edit.
-- `src/components/ui/sidebar.tsx` is **gousse's own source, vendored** from the
-  registry (issue #95). The local stand-in is deleted; call sites moved from
-  `SidebarNav` / `SidebarNavItem` to `SidebarContent` / `SidebarItem`, and the
-  router link is grafted on with TanStack's `createLink`, since `SidebarItem`
-  renders the `<a>` itself. Like the vendored stylesheets it is excluded from
-  biome, so the next `shadcn add` is not reformatted into a diff — unlike the
-  four above, which were edited in place and so stay on the repo's formatting.
-- The token layer is not the only contract the two systems share: **shape** is
-  one too (issue #97). gousse's primitives are round — `Button`, `Input`,
-  `SidebarItem` are pills, `Textarea` takes a generous corner — and the
-  gap-fills were still drawn on the smaller `rounded-sm`/`md`/`lg` steps, so a
-  square dialog framed pill buttons. The scale now, everywhere:
-  **`rounded-full`** for anything control-shaped (fields, selects, toggles,
-  segmented options, menu and list rows, chips, badges, icon-only targets, and
-  the focus ring of a control with no background of its own); **`rounded-2xl`**
-  for panels, cards, overlays and the outer frame of a table or list;
-  **`rounded-xl`** for a box nested inside one of those, one step down so the
-  corners nest rather than collide. Rounding widens: a pill spends its own
-  horizontal padding on the arc, so `px-2`/`px-3` insets became `px-4` (`px-3`
-  on the dense `text-xs` tier), and a narrow numeric field is centred rather
-  than pushed against the end. `Input` reads its radius from `FIELD_PILL` in the
-  vendored `lib/field-chrome.ts` — the same module `Textarea` takes `FIELD_BOX`
-  from — so the two systems cannot drift apart on the one axis they must agree
-  on. `src/lib/shape-contract.test.ts` enforces the rest as text and lists the
-  four elements still allowed a smaller corner, all of them glyph-sized marks.
-- gousse-ui `0.4.0`'s `dist` was `"type": "module"` but used extensionless
-  relative imports, which Node's ESM resolver rejects. `vite build` tolerated
-  it; Vitest did not, so `vitest.config.ts` inlined the package via
-  `server.deps.inline`. That workaround is gone with the package itself (#96) —
-  vendored source is bundled like any other file under `src/`, so there is
-  nothing left to inline.
+- `Button` and `Empty` are gousse primitives wrapped by thin local adapters in
+  `src/components/ui/`. gousse's `Button` has no `size` prop and gousse's `Empty`
+  has no `icon`/`children` slots, both of which mamen's call-sites use; the
+  adapters keep mamen's surface and delegate look and press/hover behaviour to
+  the primitive. Collapse them if gousse ever grows those props.
+- `src/components/ui/sidebar.tsx` is still a local stand-in. gousse ships a
+  `Sidebar`, but under a different surface (`SidebarContent` / `SidebarGroup` /
+  `SidebarItem` vs the local `SidebarNav` / `SidebarNavItem`), so swapping it is
+  its own change.
+- gousse-ui `0.4.0`'s `dist` is `"type": "module"` but uses extensionless
+  relative imports, which Node's ESM resolver rejects. `vite build` tolerates
+  it; Vitest does not, so `vitest.config.ts` inlines the package via
+  `server.deps.inline`. Remove that once gousse-ui emits extensioned
+  specifiers.

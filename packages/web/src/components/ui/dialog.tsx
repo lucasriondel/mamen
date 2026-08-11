@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * Dialog primitives — a gap-fill over Radix `Dialog`, restyled onto the
- * `--gousse-*` tokens (ADR 0002). Hosts the issuer edit dialog (PRD): editing an
+ * `--gousse-*` tokens (ADR 0003). Hosts the issuer edit dialog (PRD): editing an
  * issuer is a dialog over the grid, not a route change.
  *
  * The panel is a **container, not a control**, so it takes the box corner

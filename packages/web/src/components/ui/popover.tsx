@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * Popover primitives — a gap-fill over Radix `Popover`, restyled onto the
- * `--gousse-*` tokens (ADR 0002). Anchors the issuer assignment picker to the
+ * `--gousse-*` tokens (ADR 0003). Anchors the issuer assignment picker to the
  * clicked transaction cell (PRD).
  */
 
