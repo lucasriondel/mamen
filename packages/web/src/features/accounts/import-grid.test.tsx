@@ -63,10 +63,19 @@ const importRoute = createRoute({
 	path: "/import",
 	component: () => <div>import page</div>,
 });
+const transactionsRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/transactions",
+	component: () => <div>transactions page</div>,
+});
 
 function renderGrid() {
 	const router = createRouter({
-		routeTree: rootRoute.addChildren([accountsRoute, importRoute]),
+		routeTree: rootRoute.addChildren([
+			accountsRoute,
+			importRoute,
+			transactionsRoute,
+		]),
 		history: createMemoryHistory({ initialEntries: ["/"] }),
 	});
 	render(<RouterProvider router={router} />);
@@ -118,9 +127,41 @@ describe("ImportGrid", () => {
 		renderGrid();
 		expect(
 			await screen.findByRole("button", {
-				name: /Import May — already imported/,
+				name: /May — already imported/,
 			}),
 		).toBeInTheDocument();
+	});
+
+	it("opens an imported month's rows in the transactions list", async () => {
+		scan = [{ accountId: 1, importMonth: "2026-05" }];
+		const router = renderGrid();
+		const cell = await screen.findByRole("button", {
+			name: /May — already imported/,
+		});
+
+		const { fireEvent } = await import("@testing-library/react");
+		fireEvent.click(cell);
+
+		await waitFor(() =>
+			expect(router.state.location.pathname).toBe("/transactions"),
+		);
+		expect(router.state.location.search).toMatchObject({
+			accountId: [1],
+			importMonth: "2026-05",
+		});
+	});
+
+	it("opens the wizard from a month with nothing imported yet", async () => {
+		const router = renderGrid();
+		const cell = await screen.findByRole("button", {
+			name: /Import Jun — available/,
+		});
+
+		const { fireEvent } = await import("@testing-library/react");
+		fireEvent.click(cell);
+
+		await waitFor(() => expect(router.state.location.pathname).toBe("/import"));
+		expect(router.state.location.search).toMatchObject({ accountId: 1 });
 	});
 
 	it("disables the current and future months (no button)", async () => {

@@ -153,6 +153,7 @@ function AccountRowCells({
 				<MonthCell
 					key={month}
 					accountId={account.id}
+					month={month}
 					monthLabel={MONTH_LABELS[index]}
 					state={cellState(account.id, month)}
 				/>
