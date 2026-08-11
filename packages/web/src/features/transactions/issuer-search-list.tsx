@@ -21,8 +21,22 @@ export interface IssuerSearchListProps {
 	onQueryChange: (next: string) => void;
 	/** The row's current issuer — marked with a check, not hidden. */
 	currentIssuerId: Issuer["id"];
+	/**
+	 * What the check on that row means. Defaults to the assignment reading; the
+	 * rule move panel marks its *chosen target* instead, and a check announcing
+	 * "Current issuer" there would name the wrong end of the move.
+	 */
+	currentLabel?: string;
 	onPick: (issuerId: Issuer["id"]) => void;
-	onBack: () => void;
+	/**
+	 * Back to whatever step led here. **Optional**: a surface that reaches the
+	 * search directly (the rule move panel, whose way out is Cancel) has no step
+	 * to go back to, and an inert "Back" row would be a lie about the shape of the
+	 * flow. Omitted ⇒ the row isn't rendered at all.
+	 */
+	onBack?: () => void;
+	/** Heading over the offered issuers — the question this list is answering. */
+	heading?: string;
 	/** True while a mutation is in flight; every row goes inert. */
 	disabled: boolean;
 }
@@ -45,8 +59,10 @@ export function IssuerSearchList({
 	query,
 	onQueryChange,
 	currentIssuerId,
+	currentLabel = "Current issuer",
 	onPick,
 	onBack,
+	heading = "Set another issuer",
 	disabled,
 }: IssuerSearchListProps) {
 	return (
@@ -67,7 +83,7 @@ export function IssuerSearchList({
 				) : null}
 
 				{issuers.length > 0 ? (
-					<CommandGroup heading="Set another issuer">
+					<CommandGroup heading={heading}>
 						{issuers.map((candidate) => (
 							<CommandItem
 								key={candidate.id}
@@ -84,7 +100,7 @@ export function IssuerSearchList({
 									<Check
 										size={14}
 										className="ml-auto shrink-0 text-gousse-accent"
-										aria-label="Current issuer"
+										aria-label={currentLabel}
 									/>
 								) : null}
 							</CommandItem>
@@ -92,17 +108,21 @@ export function IssuerSearchList({
 					</CommandGroup>
 				) : null}
 
-				{issuers.length > 0 ? <CommandSeparator /> : null}
-				<CommandGroup>
-					<CommandItem value="__back__" onSelect={onBack}>
-						<ArrowLeft
-							size={16}
-							className="shrink-0 text-gousse-muted"
-							aria-hidden
-						/>
-						<span className="truncate">Back</span>
-					</CommandItem>
-				</CommandGroup>
+				{onBack ? (
+					<>
+						{issuers.length > 0 ? <CommandSeparator /> : null}
+						<CommandGroup>
+							<CommandItem value="__back__" onSelect={onBack}>
+								<ArrowLeft
+									size={16}
+									className="shrink-0 text-gousse-muted"
+									aria-hidden
+								/>
+								<span className="truncate">Back</span>
+							</CommandItem>
+						</CommandGroup>
+					</>
+				) : null}
 			</CommandList>
 		</>
 	);

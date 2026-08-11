@@ -412,7 +412,9 @@ repeated per package.
   `TransferInvalid` / `is-bundled`; the refusal from the other side carries the
   bundle's own error — see **Bundle**.
   _Avoid_: transfer bundle (a **bundle** is the other grouping), internal
-  payment, move, self-payment.
+  payment, move, self-payment. The reverse holds too: *transfer* is not a word
+  for re-homing anything else — re-pointing a **Matching Rule** at another Issuer
+  is a **rule move** (`packages/web/CONTEXT.md`), a different action entirely.
 
 - **Transfer leg** — one transaction inside a **transfer group**: the debit leg
   (money leaving) or the credit leg (money arriving). "Leg" is the unit the
