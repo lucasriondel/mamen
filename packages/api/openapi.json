@@ -2011,6 +2011,18 @@
             "required": false
           },
           {
+            "name": "isTransferLeg",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "required": false
+          },
+          {
             "name": "bundleId",
             "in": "query",
             "schema": {
@@ -2428,6 +2440,18 @@
             "in": "query",
             "schema": {
               "$ref": "#/components/schemas/NumberFromString"
+            },
+            "required": false
+          },
+          {
+            "name": "isTransferLeg",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
             },
             "required": false
           },
