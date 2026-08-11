@@ -1,16 +1,18 @@
 # gousse-ui theming under Tailwind v4
 
-> **Superseded in part (issues #92, #93, #95).** Nothing below arrives through
-> the npm package's `exports` map any more. The three stylesheets are
+> **Superseded in part (issues #92, #93, #95, #96).** Nothing below arrives
+> through the npm package's `exports` map any more. The three stylesheets are
 > **vendored source** under `src/styles/gousse/` (#92); the four primitives
 > mamen uses — `Button`, `Empty`, `Textarea`, `Checkbox` — are **vendored
 > source** under `src/components/ui/` (#93); and `Sidebar` followed the same way
 > (#95). All are installed from gousse's shadcn registry (the `@gousse`
 > namespace in `components.json`). The token contract and every consequence
-> listed here are unchanged — only the distribution channel moved. No file
-> imports `@lucasriondel/gousse-ui`; the dependency itself, its auth token and
-> the Vitest inlining workaround go with #96, and #98 rewrites this ADR around
-> the registry.
+> listed here are unchanged — only the distribution channel moved.
+> **`@lucasriondel/gousse-ui` is no longer a dependency at all** (#96): it is
+> out of the manifest and the lockfile, and with it went the `.npmrc` scope
+> configuration, the `NODE_AUTH_TOKEN` the web image took as a build arg, and
+> the Vitest `server.deps.inline` workaround. #98 rewrites this ADR around the
+> registry.
 
 `@lucasriondel/gousse-ui` is the primary component kit (Base UI under the hood),
 but it ships a **Tailwind v3** artifact — a JS `preset.js` consumed via
@@ -24,9 +26,10 @@ token to `--color-gousse-*` / shadow / animation utilities). The existing v3
 `@lucasriondel/gousse-ui@^0.4.0` from the GitHub registry and `@import`s
 `tokens.css` + `theme.css` + `effects.css`.
 
-Access to the private registry is configured by a repo-root `.npmrc`
+Access to the private registry *was* configured by a repo-root `.npmrc`
 (`@lucasriondel:registry=https://npm.pkg.github.com`) reading `NODE_AUTH_TOKEN`
-from the environment, so the token is never committed.
+from the environment, so the token was never committed. Both files are gone
+(#96): every install path now resolves from the public registry alone.
 
 gousse tokens are the theme source of truth; the few shadcn/Radix gap-fill
 components (Table, Dialog, Command, Popover — things gousse does not ship) are
@@ -61,8 +64,9 @@ restyled onto the same `--gousse-*` tokens so the two primitive systems (Base UI
   renders the `<a>` itself. Like the vendored stylesheets it is excluded from
   biome, so the next `shadcn add` is not reformatted into a diff — unlike the
   four above, which were edited in place and so stay on the repo's formatting.
-- gousse-ui `0.4.0`'s `dist` is `"type": "module"` but uses extensionless
-  relative imports, which Node's ESM resolver rejects. `vite build` tolerates
-  it; Vitest does not, so `vitest.config.ts` inlines the package via
-  `server.deps.inline`. Remove that once gousse-ui emits extensioned
-  specifiers.
+- gousse-ui `0.4.0`'s `dist` was `"type": "module"` but used extensionless
+  relative imports, which Node's ESM resolver rejects. `vite build` tolerated
+  it; Vitest did not, so `vitest.config.ts` inlined the package via
+  `server.deps.inline`. That workaround is gone with the package itself (#96) —
+  vendored source is bundled like any other file under `src/`, so there is
+  nothing left to inline.
