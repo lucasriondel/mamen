@@ -1,15 +1,16 @@
 # gousse-ui theming under Tailwind v4
 
-> **Superseded in part (issues #92, #93).** Nothing below arrives through the
-> npm package's `exports` map any more. The three stylesheets are **vendored
-> source** under `src/styles/gousse/` (#92) and the four primitives mamen uses —
-> `Button`, `Empty`, `Textarea`, `Checkbox` — are **vendored source** under
-> `src/components/ui/` (#93), all installed from gousse's shadcn registry (the
-> `@gousse` namespace in `components.json`). The token contract and every
-> consequence listed here are unchanged — only the distribution channel moved.
-> No file imports `@lucasriondel/gousse-ui`; the dependency itself, its auth
-> token and the Vitest inlining workaround go with #96, and #98 rewrites this
-> ADR around the registry.
+> **Superseded in part (issues #92, #93, #95).** Nothing below arrives through
+> the npm package's `exports` map any more. The three stylesheets are
+> **vendored source** under `src/styles/gousse/` (#92); the four primitives
+> mamen uses — `Button`, `Empty`, `Textarea`, `Checkbox` — are **vendored
+> source** under `src/components/ui/` (#93); and `Sidebar` followed the same way
+> (#95). All are installed from gousse's shadcn registry (the `@gousse`
+> namespace in `components.json`). The token contract and every consequence
+> listed here are unchanged — only the distribution channel moved. No file
+> imports `@lucasriondel/gousse-ui`; the dependency itself, its auth token and
+> the Vitest inlining workaround go with #96, and #98 rewrites this ADR around
+> the registry.
 
 `@lucasriondel/gousse-ui` is the primary component kit (Base UI under the hood),
 but it ships a **Tailwind v3** artifact — a JS `preset.js` consumed via
@@ -53,10 +54,13 @@ restyled onto the same `--gousse-*` tokens so the two primitive systems (Base UI
   reason, so each concern now lives in the component itself (`size` as a second
   cva axis beside `variant`, `icon` as a real prop). Call-sites were untouched.
   Keep them on the token utilities so a retheme stays a token-level edit.
-- `src/components/ui/sidebar.tsx` is still a local stand-in. gousse ships a
-  `Sidebar`, but under a different surface (`SidebarContent` / `SidebarGroup` /
-  `SidebarItem` vs the local `SidebarNav` / `SidebarNavItem`), so swapping it is
-  its own change.
+- `src/components/ui/sidebar.tsx` is **gousse's own source, vendored** from the
+  registry (issue #95). The local stand-in is deleted; call sites moved from
+  `SidebarNav` / `SidebarNavItem` to `SidebarContent` / `SidebarItem`, and the
+  router link is grafted on with TanStack's `createLink`, since `SidebarItem`
+  renders the `<a>` itself. Like the vendored stylesheets it is excluded from
+  biome, so the next `shadcn add` is not reformatted into a diff — unlike the
+  four above, which were edited in place and so stay on the repo's formatting.
 - gousse-ui `0.4.0`'s `dist` is `"type": "module"` but uses extensionless
   relative imports, which Node's ESM resolver rejects. `vite build` tolerates
   it; Vitest does not, so `vitest.config.ts` inlines the package via

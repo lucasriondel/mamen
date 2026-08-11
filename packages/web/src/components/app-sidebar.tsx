@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { createLink } from "@tanstack/react-router";
 import {
 	ArrowLeftRight,
 	ArrowRightLeft,
@@ -12,10 +12,21 @@ import {
 import { ThemeToggle } from "@/components/theme-toggle";
 import {
 	Sidebar,
+	SidebarContent,
+	SidebarFooter,
+	SidebarGroup,
 	SidebarHeader,
-	SidebarNav,
-	SidebarNavItem,
+	SidebarItem,
 } from "@/components/ui/sidebar";
+
+/**
+ * `SidebarItem` renders the `<a>` itself and forwards every anchor prop, which
+ * is exactly the slot TanStack's `createLink` asks for: the router builds the
+ * `href`, owns the click, and merges `activeProps` into the props the row
+ * receives. That is how the row keeps both halves of the active mark — the
+ * router's `aria-current`, and gousse's own `active` styling variant.
+ */
+const SidebarLink = createLink(SidebarItem);
 
 interface NavLink {
 	to: string;
@@ -36,13 +47,17 @@ const NAV_LINKS: readonly NavLink[] = [
 
 /**
  * The app's left navigation: brand, links to the feature surfaces, and the
- * theme toggle pinned to the bottom. The active route is highlighted via
- * TanStack Router's `activeProps`.
+ * theme toggle pinned to the bottom. One unlabelled `SidebarGroup` holds the
+ * whole nav — the destinations are a single flat list, and splitting them into
+ * labelled sections would be new navigation structure, not a migration.
  */
 export function AppSidebar() {
 	return (
-		<Sidebar>
-			<SidebarHeader className="flex items-center gap-2">
+		// gousse's shell is layout-agnostic — it sizes itself and stops there. The
+		// root lays it out as a flex row beside a scrolling `main`, so pinning it
+		// against shrink is the call site's job, as it was on the stand-in.
+		<Sidebar className="shrink-0">
+			<SidebarHeader>
 				<img
 					src="/icon-192x192.png"
 					alt=""
@@ -51,23 +66,23 @@ export function AppSidebar() {
 				/>
 				<span>mamen</span>
 			</SidebarHeader>
-			<SidebarNav>
-				{NAV_LINKS.map(({ to, label, icon: Icon }) => (
-					<SidebarNavItem key={to}>
-						<Link
+			<SidebarContent>
+				<SidebarGroup>
+					{NAV_LINKS.map(({ to, label, icon: Icon }) => (
+						<SidebarLink
+							key={to}
 							to={to}
-							className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-gousse-muted transition-colors hover:bg-gousse-bg hover:text-gousse-ink"
-							activeProps={{
-								className: "bg-gousse-bg font-medium text-gousse-ink",
-							}}
+							icon={<Icon size={16} />}
+							activeProps={{ active: true }}
 						>
-							<Icon size={16} />
-							<span>{label}</span>
-						</Link>
-					</SidebarNavItem>
-				))}
-			</SidebarNav>
-			<ThemeToggle />
+							{label}
+						</SidebarLink>
+					))}
+				</SidebarGroup>
+			</SidebarContent>
+			<SidebarFooter>
+				<ThemeToggle className="w-full" />
+			</SidebarFooter>
 		</Sidebar>
 	);
 }
