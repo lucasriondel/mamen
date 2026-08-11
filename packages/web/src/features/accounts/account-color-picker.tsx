@@ -106,7 +106,7 @@ export function AccountColorPicker({
 					aria-label={`Change ${label} colour`}
 					title={`Change ${label} colour`}
 					className={cn(
-						"shrink-0 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-gousse-accent focus-visible:ring-offset-1 focus-visible:ring-offset-gousse-panel",
+						"cursor-pointer shrink-0 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-gousse-accent focus-visible:ring-offset-1 focus-visible:ring-offset-gousse-panel",
 						className,
 					)}
 				>
@@ -137,7 +137,7 @@ export function AccountColorPicker({
 										onClick={() => commit(preset)}
 										style={{ backgroundColor: preset }}
 										className={cn(
-											"size-6 rounded-full border outline-none transition-transform hover:scale-110 focus-visible:ring-2 focus-visible:ring-gousse-accent focus-visible:ring-offset-1 focus-visible:ring-offset-gousse-panel disabled:opacity-50",
+											"cursor-pointer size-6 rounded-full border outline-none transition-transform hover:scale-110 focus-visible:ring-2 focus-visible:ring-gousse-accent focus-visible:ring-offset-1 focus-visible:ring-offset-gousse-panel disabled:opacity-50",
 											selected
 												? "border-gousse-ink ring-2 ring-gousse-ink ring-offset-1 ring-offset-gousse-panel"
 												: "border-gousse-line",

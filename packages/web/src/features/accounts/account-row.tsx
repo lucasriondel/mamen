@@ -74,6 +74,7 @@ export function AccountRow({ account }: AccountRowProps) {
 						variant="secondary"
 						size="sm"
 						disabled={rename.isPending}
+						className="cursor-pointer"
 					>
 						Save
 					</Button>
@@ -84,6 +85,7 @@ export function AccountRow({ account }: AccountRowProps) {
 							setDraftName(account.name);
 							setEditing(false);
 						}}
+						className="cursor-pointer"
 					>
 						Cancel
 					</Button>
@@ -122,6 +124,7 @@ export function AccountRow({ account }: AccountRowProps) {
 							setDraftName(account.name);
 							setEditing(true);
 						}}
+						className="cursor-pointer"
 					>
 						Rename
 					</Button>
@@ -135,6 +138,7 @@ export function AccountRow({ account }: AccountRowProps) {
 								? "This account still has transactions"
 								: undefined
 						}
+						className="cursor-pointer"
 					>
 						Delete
 					</Button>
