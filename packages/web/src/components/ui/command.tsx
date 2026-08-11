@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * Command palette primitives — a gap-fill over `cmdk`, restyled onto the
- * `--gousse-*` tokens (ADR 0002) so it reads as one visual language with the
+ * `--gousse-*` tokens (ADR 0003) so it reads as one visual language with the
  * gousse kit. Used by the issuer assignment picker (PRD): fuzzy-search existing
  * issuers, with a "create new issuer" action when nothing matches.
  *

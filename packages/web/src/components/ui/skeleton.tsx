@@ -2,7 +2,7 @@ import type * as React from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * Skeleton primitive — a token-styled placeholder block (ADR 0002: gap-fill for
+ * Skeleton primitive — a token-styled placeholder block (ADR 0003: gap-fill for
  * what gousse doesn't ship). Feature-level skeletons compose these into the
  * shape of the content that is loading, so a view's first paint has the same
  * layout as its settled state and nothing jumps when the data lands.

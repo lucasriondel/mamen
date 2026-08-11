@@ -1,7 +1,7 @@
 /**
  * Global stylesheet.
  *
- * Tailwind v4 first, then the real gousse theme layers (ADR 0002). gousse owns
+ * Tailwind v4 first, then the real gousse theme layers (ADR 0003). gousse owns
  * the token contract end to end:
  *
  * - `tokens.css`  — the `--gousse-*` channel triples + `.dark` ramp
