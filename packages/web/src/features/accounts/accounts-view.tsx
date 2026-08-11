@@ -50,7 +50,7 @@ function AccountsList({
 
 	if (query.isError) {
 		return (
-			<div className="rounded-md border border-gousse-line bg-gousse-panel p-6 text-center">
+			<div className="rounded-2xl border border-gousse-line bg-gousse-panel p-6 text-center">
 				<p className="font-medium text-gousse-ink">
 					Couldn't load your accounts.
 				</p>
@@ -68,7 +68,7 @@ function AccountsList({
 
 	if (query.data.items.length === 0) {
 		return (
-			<div className="rounded-md border border-gousse-line bg-gousse-panel p-6 text-center text-gousse-muted">
+			<div className="rounded-2xl border border-gousse-line bg-gousse-panel p-6 text-center text-gousse-muted">
 				No accounts yet. Add one above to start importing statements.
 			</div>
 		);

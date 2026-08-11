@@ -53,13 +53,15 @@ export function IssuersFilterInput({
 		<div className="relative flex items-center">
 			<Search
 				size={14}
-				className="pointer-events-none absolute left-2.5 text-gousse-muted"
+				className="pointer-events-none absolute left-3 text-gousse-muted"
 				aria-hidden
 			/>
 			<Input
 				type="search"
 				aria-label="Filter issuers by name"
 				placeholder="Filter issuers…"
+				// `pl-8` clears the leading icon, which sits further in now that the
+				// field is a pill (issue #97) — the arc would otherwise crowd it.
 				className="w-56 pl-8"
 				value={text}
 				onChange={(event) => setText(event.target.value)}

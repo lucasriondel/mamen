@@ -91,7 +91,7 @@ function PdfPane({ file }: { file: File }) {
 		<iframe
 			title="PDF statement"
 			src={url ?? undefined}
-			className="h-[85vh] w-full rounded-md border border-gousse-line bg-gousse-panel"
+			className="h-[85vh] w-full rounded-2xl border border-gousse-line bg-gousse-panel"
 		/>
 	);
 }
@@ -108,7 +108,7 @@ function ExtractedRows({
 	dispatch: (action: WizardAction) => void;
 }) {
 	return (
-		<div className="flex flex-col gap-3 overflow-hidden rounded-md border border-gousse-line">
+		<div className="flex flex-col gap-3 overflow-hidden rounded-2xl border border-gousse-line">
 			<div className="max-h-[85vh] overflow-y-auto">
 				<table className="w-full text-sm">
 					<thead className="sticky top-0 bg-gousse-panel text-gousse-muted">
@@ -135,7 +135,7 @@ function ExtractedRows({
 												patch: { date: fromDateInputValue(event.target.value) },
 											})
 										}
-										className="w-full rounded border border-gousse-line bg-gousse-bg px-2 py-1 text-gousse-ink"
+										className="w-full rounded-full border border-gousse-line bg-gousse-bg px-3 py-1 text-gousse-ink"
 									/>
 								</td>
 								<td className="px-2 py-1">
@@ -151,7 +151,7 @@ function ExtractedRows({
 													patch: { rawIssuerString: event.target.value },
 												})
 											}
-											className="w-full rounded border border-gousse-line bg-gousse-bg px-2 py-1 text-gousse-ink"
+											className="w-full rounded-full border border-gousse-line bg-gousse-bg px-3 py-1 text-gousse-ink"
 										/>
 										{duplicateFlags[index] ? <AlreadyImportedMark /> : null}
 									</div>
@@ -231,7 +231,7 @@ function AmountInput({
 				if (Number.isFinite(n)) onChange(n);
 			}}
 			onBlur={() => setDraft(null)}
-			className="w-24 rounded border border-gousse-line bg-gousse-bg px-2 py-1 text-right text-gousse-ink tabular-nums"
+			className="w-24 rounded-full border border-gousse-line bg-gousse-bg px-3 py-1 text-center text-gousse-ink tabular-nums"
 		/>
 	);
 }
@@ -249,7 +249,7 @@ function ReconciliationBanner({
 	return (
 		<div
 			role="alert"
-			className="flex flex-col gap-2 rounded-md border border-gousse-high bg-gousse-panel p-4 text-sm"
+			className="flex flex-col gap-2 rounded-2xl border border-gousse-high bg-gousse-panel p-4 text-sm"
 		>
 			<p className="font-medium text-gousse-high">
 				Reconciliation mismatch — the extracted rows don't match the statement's

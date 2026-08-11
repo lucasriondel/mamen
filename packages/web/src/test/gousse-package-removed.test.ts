@@ -31,8 +31,14 @@ const webPackageJson = JSON.parse(read("package.json")) as {
 	devDependencies?: Record<string, string>;
 };
 
-/** Directories a source scan must never descend into. */
+/**
+ * Directories a source scan must never descend into: build output, dependency
+ * trees, and `.claude`, whose worktrees are whole checkouts of other branches —
+ * a hit there is that branch's copy of the file, not a path this repo builds or
+ * deploys from.
+ */
 const PRUNED = new Set([
+	".claude",
 	".git",
 	".turbo",
 	"coverage",

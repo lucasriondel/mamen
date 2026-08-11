@@ -20,7 +20,7 @@ import { useBundle } from "./use-bundle";
 const BUNDLE_SCAN_LIMIT = 100;
 
 const selectClass = cn(
-	"h-9 rounded-md border border-gousse-line bg-gousse-panel px-2 text-sm text-gousse-ink",
+	"h-9 rounded-full border border-gousse-line bg-gousse-panel px-4 text-sm text-gousse-ink",
 	"focus:outline-none focus:ring-2 focus:ring-gousse-accent",
 );
 

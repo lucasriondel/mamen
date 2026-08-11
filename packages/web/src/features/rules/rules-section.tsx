@@ -56,7 +56,7 @@ export function RulesSection({ issuer }: RulesSectionProps) {
 				<Link
 					to="/issuers/$issuerId/rules/new"
 					params={{ issuerId: String(issuer.id) }}
-					className="flex items-center gap-1 rounded-md border border-gousse-line px-2 py-1 text-xs text-gousse-ink"
+					className="flex items-center gap-1 rounded-full border border-gousse-line px-3 py-1 text-xs text-gousse-ink"
 				>
 					<Plus size={14} aria-hidden />
 					Add rule
@@ -74,7 +74,7 @@ export function RulesSection({ issuer }: RulesSectionProps) {
 					No Matching Rules yet — add one to auto-assign this issuer.
 				</p>
 			) : (
-				<ul className="divide-y divide-gousse-line rounded-md border border-gousse-line">
+				<ul className="divide-y divide-gousse-line rounded-2xl border border-gousse-line">
 					{rules.map((rule) => (
 						<li key={rule.id} className="flex flex-col">
 							<div className="flex items-center gap-2 px-3 py-2 text-sm">
@@ -84,7 +84,7 @@ export function RulesSection({ issuer }: RulesSectionProps) {
 										issuerId: String(issuer.id),
 										ruleId: String(rule.id),
 									}}
-									className="flex min-w-0 flex-1 items-center gap-2 rounded transition-colors hover:text-gousse-ink"
+									className="flex min-w-0 flex-1 items-center gap-2 rounded-full transition-colors hover:text-gousse-ink"
 									aria-label={`Edit rule ${rule.pattern}`}
 								>
 									<code className="min-w-0 flex-1 truncate font-mono text-gousse-ink">

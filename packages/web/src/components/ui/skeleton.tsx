@@ -15,6 +15,12 @@ import { cn } from "@/lib/utils";
  * - the pulse is CSS-only (`animate-pulse`), and Tailwind's `motion-safe`
  *   variant drops it under `prefers-reduced-motion`, matching the policy in
  *   `lib/motion.ts` for the framer-motion side of the app.
+ *
+ * A block is a **pill** (issue #97). Nearly every call-site is standing in for a
+ * line of text or for a control — `h-3.5 w-24`, `h-8 w-28`, `size-7` — and the
+ * pill is what makes the placeholder read as the thing it replaces rather than
+ * as a grey brick. A block standing in for a panel passes the box corner
+ * through `className`, as the round avatars already did.
  */
 export function Skeleton({
 	className,
@@ -24,7 +30,7 @@ export function Skeleton({
 		<div
 			aria-hidden
 			className={cn(
-				"motion-safe:animate-pulse rounded-md bg-gousse-line",
+				"motion-safe:animate-pulse rounded-full bg-gousse-line",
 				className,
 			)}
 			{...props}

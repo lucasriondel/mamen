@@ -291,7 +291,7 @@ function LogoMosaic({
 						disabled={picking}
 						title={result.title || result.imageUrl}
 						className={cn(
-							"flex aspect-square w-full items-center justify-center overflow-hidden rounded-md",
+							"flex aspect-square w-full items-center justify-center overflow-hidden rounded-xl",
 							"border border-gousse-line bg-gousse-bg p-1 transition-colors",
 							"hover:border-gousse-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gousse-accent",
 							"disabled:opacity-50",

@@ -10,7 +10,7 @@ import { useAccountMutations } from "@/features/accounts/use-account-mutations";
 import { accountQueries } from "@/lib/sdk";
 
 const INPUT_CLASS =
-	"rounded-md border border-gousse-line bg-gousse-bg px-3 py-2 text-sm text-gousse-ink outline-none focus:border-gousse-accent";
+	"rounded-full border border-gousse-line bg-gousse-bg px-4 py-2 text-sm text-gousse-ink outline-none focus:border-gousse-accent";
 
 /**
  * Target-account chooser for the import wizard: a `<select>` of existing accounts
@@ -75,7 +75,7 @@ export function InlineAccountSelect({
 			{creating ? (
 				<form
 					onSubmit={handleCreate}
-					className="flex flex-wrap items-end gap-3 rounded-md border border-gousse-line bg-gousse-panel p-3"
+					className="flex flex-wrap items-end gap-3 rounded-2xl border border-gousse-line bg-gousse-panel p-3"
 					aria-label="Create account"
 				>
 					<label className="flex flex-col gap-1 text-sm text-gousse-muted">
@@ -123,7 +123,7 @@ export function InlineAccountSelect({
 				<button
 					type="button"
 					onClick={() => setCreating(true)}
-					className="self-start text-sm text-gousse-accent underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-gousse-accent rounded-sm outline-none"
+					className="self-start text-sm text-gousse-accent underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-gousse-accent rounded-full outline-none"
 				>
 					+ Create a new account
 				</button>

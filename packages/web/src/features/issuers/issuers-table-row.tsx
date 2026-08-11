@@ -46,7 +46,7 @@ export function IssuersTableRow({
 					<Link
 						to="/issuers/$issuerId"
 						params={{ issuerId: String(issuer.id) }}
-						className="font-medium text-gousse-ink outline-none after:absolute after:inset-0 after:rounded-sm group-hover:text-gousse-accent focus-visible:after:ring-2 focus-visible:after:ring-gousse-accent"
+						className="font-medium text-gousse-ink outline-none after:absolute after:inset-0 after:rounded-xl group-hover:text-gousse-accent focus-visible:after:ring-2 focus-visible:after:ring-gousse-accent"
 					>
 						{issuer.name}
 					</Link>

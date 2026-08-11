@@ -42,7 +42,11 @@ export function PopoverContent({
 				align={align}
 				sideOffset={sideOffset}
 				className={cn(
-					"z-50 w-72 rounded-md border border-gousse-line bg-gousse-panel text-gousse-ink shadow-lg outline-none",
+					// A container, not a control: the box corner, never the kit's pill
+					// (issue #97). Pill-shaped rows inside it (`CommandItem`, the column
+					// menu) sit correctly against it — a pill has no corner of its own to
+					// disagree with the surface's.
+					"z-50 w-72 rounded-2xl border border-gousse-line bg-gousse-panel text-gousse-ink shadow-lg outline-none",
 					// Origin-aware entrance: scale in from the trigger, not the centre
 					// (emil-design-eng). Radix sets the transform-origin var per side.
 					"origin-(--radix-popover-content-transform-origin)",

@@ -102,7 +102,7 @@ export function IssuerNameField({ issuer }: IssuerNameFieldProps) {
 				onBlur={stopEditing}
 				onKeyDown={handleKeyDown}
 				aria-label="Issuer name"
-				className={`${HEADING_CLASS} -mx-1 rounded-md border border-gousse-line bg-gousse-bg px-1 outline-none focus:border-gousse-accent`}
+				className={`${HEADING_CLASS} -mx-3 rounded-full border border-gousse-line bg-gousse-bg px-3 outline-none focus:border-gousse-accent`}
 			/>
 		);
 	}
@@ -112,7 +112,7 @@ export function IssuerNameField({ issuer }: IssuerNameFieldProps) {
 			type="button"
 			onClick={() => setIsEditing(true)}
 			title="Rename issuer"
-			className={`${HEADING_CLASS} -mx-1 rounded-md border border-transparent px-1 text-left transition-colors hover:border-gousse-line`}
+			className={`${HEADING_CLASS} -mx-3 rounded-full border border-transparent px-3 text-left transition-colors hover:border-gousse-line`}
 		>
 			{issuer.name}
 		</button>

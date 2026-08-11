@@ -64,6 +64,24 @@ restyled onto the same `--gousse-*` tokens so the two primitive systems (Base UI
   renders the `<a>` itself. Like the vendored stylesheets it is excluded from
   biome, so the next `shadcn add` is not reformatted into a diff — unlike the
   four above, which were edited in place and so stay on the repo's formatting.
+- The token layer is not the only contract the two systems share: **shape** is
+  one too (issue #97). gousse's primitives are round — `Button`, `Input`,
+  `SidebarItem` are pills, `Textarea` takes a generous corner — and the
+  gap-fills were still drawn on the smaller `rounded-sm`/`md`/`lg` steps, so a
+  square dialog framed pill buttons. The scale now, everywhere:
+  **`rounded-full`** for anything control-shaped (fields, selects, toggles,
+  segmented options, menu and list rows, chips, badges, icon-only targets, and
+  the focus ring of a control with no background of its own); **`rounded-2xl`**
+  for panels, cards, overlays and the outer frame of a table or list;
+  **`rounded-xl`** for a box nested inside one of those, one step down so the
+  corners nest rather than collide. Rounding widens: a pill spends its own
+  horizontal padding on the arc, so `px-2`/`px-3` insets became `px-4` (`px-3`
+  on the dense `text-xs` tier), and a narrow numeric field is centred rather
+  than pushed against the end. `Input` reads its radius from `FIELD_PILL` in the
+  vendored `lib/field-chrome.ts` — the same module `Textarea` takes `FIELD_BOX`
+  from — so the two systems cannot drift apart on the one axis they must agree
+  on. `src/lib/shape-contract.test.ts` enforces the rest as text and lists the
+  four elements still allowed a smaller corner, all of them glyph-sized marks.
 - gousse-ui `0.4.0`'s `dist` was `"type": "module"` but used extensionless
   relative imports, which Node's ESM resolver rejects. `vite build` tolerated
   it; Vitest did not, so `vitest.config.ts` inlined the package via

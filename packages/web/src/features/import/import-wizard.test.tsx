@@ -422,6 +422,15 @@ describe("ImportWizard", () => {
 
 		// Correct the amount in place, then commit — the edit must be committed.
 		const amount = screen.getByLabelText("Amount, row 1");
+
+		// Shape contract (issue #97): the narrow numeric field is a pill, and its
+		// value is centred rather than pushed against the corner arc — the
+		// right-alignment that read as a column of digits before is what a pill
+		// makes look broken.
+		expect(amount.className).toContain("rounded-full");
+		expect(amount.className).toContain("text-center");
+		expect(amount.className).not.toContain("text-right");
+
 		await user.clear(amount);
 		await user.type(amount, "-42");
 

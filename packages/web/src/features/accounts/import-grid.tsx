@@ -86,7 +86,7 @@ export function ImportGrid({
 				<label className="flex items-center gap-2 text-sm text-gousse-muted">
 					Year
 					<select
-						className="rounded-md border border-gousse-line bg-gousse-bg px-3 py-1.5 text-sm text-gousse-ink outline-none focus:border-gousse-accent"
+						className="rounded-full border border-gousse-line bg-gousse-bg px-4 py-1.5 text-sm text-gousse-ink outline-none focus:border-gousse-accent"
 						value={year}
 						onChange={(event) => setYear(Number(event.target.value))}
 						aria-label="Grid year"

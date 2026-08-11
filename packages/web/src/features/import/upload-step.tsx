@@ -113,7 +113,7 @@ export function UploadStep({
 				}}
 				onDragLeave={() => setDragging(false)}
 				onDrop={onDrop}
-				className={`flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed p-10 text-center transition-colors ${
+				className={`flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed p-10 text-center transition-colors ${
 					dragging
 						? "border-gousse-accent bg-gousse-panel"
 						: "border-gousse-line"
@@ -140,7 +140,7 @@ export function UploadStep({
 			{state.extracting ? (
 				<p
 					role="status"
-					className="flex items-center gap-2 rounded-md border border-gousse-line bg-gousse-panel p-4 text-sm text-gousse-muted"
+					className="flex items-center gap-2 rounded-2xl border border-gousse-line bg-gousse-panel p-4 text-sm text-gousse-muted"
 				>
 					<span className="font-medium text-gousse-ink">{state.fileName}</span>{" "}
 					— extracting transactions from the PDF…
@@ -154,7 +154,7 @@ export function UploadStep({
 			) : null}
 
 			{!state.extracting && (state.rows.length > 0 || state.extracted) ? (
-				<div className="flex flex-col gap-4 rounded-md border border-gousse-line bg-gousse-panel p-4">
+				<div className="flex flex-col gap-4 rounded-2xl border border-gousse-line bg-gousse-panel p-4">
 					<p className="text-sm text-gousse-muted">
 						<span className="font-medium text-gousse-ink">
 							{state.fileName}

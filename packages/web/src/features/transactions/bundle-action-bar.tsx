@@ -90,7 +90,7 @@ export function BundleActionBar({ selected, onClear }: BundleActionBarProps) {
 	};
 
 	return (
-		<div className="flex flex-wrap items-center gap-3 rounded-lg border border-gousse-line bg-gousse-panel px-3 py-2">
+		<div className="flex flex-wrap items-center gap-3 rounded-2xl border border-gousse-line bg-gousse-panel px-4 py-2">
 			<span className="flex items-center gap-2 text-sm text-gousse-ink">
 				<Layers size={16} aria-hidden className="text-gousse-muted" />
 				{selectedIds.length} selected

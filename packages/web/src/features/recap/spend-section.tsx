@@ -50,7 +50,7 @@ export function SpendSection({
 	accountIds,
 }: SpendSectionProps) {
 	return (
-		<section className="flex flex-col gap-3 rounded-lg border border-gousse-line bg-gousse-panel p-5">
+		<section className="flex flex-col gap-3 rounded-2xl border border-gousse-line bg-gousse-panel p-5">
 			<header className="flex flex-wrap items-center justify-between gap-3">
 				<div>
 					<h2 className="text-lg font-semibold text-gousse-ink text-balance">
@@ -112,7 +112,7 @@ function SpendRowItem({ row, axis, period, accountIds }: SpendRowItemProps) {
 			<Link
 				to="/recap-detail"
 				search={toDetailSearch(axis, row.id, period, accountIds)}
-				className="-mx-2 flex items-center justify-between gap-4 rounded-md px-2 py-2.5 transition-colors hover:bg-gousse-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gousse-accent"
+				className="-mx-3 flex items-center justify-between gap-4 rounded-full px-3 py-2.5 transition-colors hover:bg-gousse-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gousse-accent"
 			>
 				<div className="flex min-w-0 items-center gap-3">
 					<SpendRowAvatar row={row} />

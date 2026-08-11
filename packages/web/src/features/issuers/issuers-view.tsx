@@ -145,7 +145,7 @@ export function IssuersView() {
 					) : null}
 					<Link
 						to="/issuers/new"
-						className="flex items-center gap-1.5 rounded-md bg-gousse-accent px-3 py-1.5 text-sm font-medium text-gousse-bg"
+						className="flex items-center gap-1.5 rounded-full bg-gousse-accent px-4 py-1.5 text-sm font-medium text-gousse-bg"
 					>
 						<Plus size={16} aria-hidden />
 						Create issuer
@@ -167,7 +167,7 @@ export function IssuersView() {
 				>
 					<Link
 						to="/issuers/new"
-						className="mt-2 flex items-center gap-1.5 rounded-md bg-gousse-accent px-3 py-1.5 text-sm font-medium text-gousse-bg"
+						className="mt-2 flex items-center gap-1.5 rounded-full bg-gousse-accent px-4 py-1.5 text-sm font-medium text-gousse-bg"
 					>
 						<Plus size={16} aria-hidden />
 						Create your first issuer

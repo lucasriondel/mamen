@@ -66,7 +66,7 @@ export function ColumnsToggle({
 								aria-checked={visible}
 								onClick={() => onToggle(column.id, !visible)}
 								className={cn(
-									"flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-gousse-ink",
+									"flex w-full items-center gap-2 rounded-full px-3 py-1.5 text-left text-sm text-gousse-ink",
 									"outline-none transition-colors hover:bg-gousse-bg focus-visible:bg-gousse-bg",
 								)}
 							>

@@ -129,13 +129,13 @@ export function RuleMovePanel({ rule, onDone, onCancel }: RuleMovePanelProps) {
 		<div className="flex flex-col gap-4">
 			<p className="text-sm text-gousse-muted">
 				Move the rule{" "}
-				<code className="rounded bg-gousse-panel px-1 py-0.5 font-mono text-gousse-ink">
+				<code className="rounded-full bg-gousse-panel px-2 py-0.5 font-mono text-gousse-ink">
 					{rule.pattern}
 				</code>{" "}
 				to another issuer. Its pattern and matchers travel with it.
 			</p>
 
-			<div className="overflow-hidden rounded-md border border-gousse-line">
+			<div className="overflow-hidden rounded-2xl border border-gousse-line">
 				{/* Filtering is the search hook's, never cmdk's — same contract as the
 				    transaction row's picker. No **Back**: this panel's way out is
 				    Cancel, and there is no step behind it. */}
@@ -166,7 +166,7 @@ export function RuleMovePanel({ rule, onDone, onCancel }: RuleMovePanelProps) {
 					{duplicate ? (
 						<p
 							role="alert"
-							className="rounded-md border border-gousse-high/40 bg-gousse-high/10 px-3 py-2 text-sm text-gousse-ink"
+							className="rounded-xl border border-gousse-high/40 bg-gousse-high/10 px-3 py-2 text-sm text-gousse-ink"
 						>
 							{target.name} already has a rule on{" "}
 							<code className="font-mono">{rule.pattern}</code>. Moving this one
@@ -177,7 +177,7 @@ export function RuleMovePanel({ rule, onDone, onCancel }: RuleMovePanelProps) {
 						</p>
 					) : null}
 
-					<div className="max-h-72 overflow-y-auto rounded-md border border-gousse-line p-3">
+					<div className="max-h-72 overflow-y-auto rounded-2xl border border-gousse-line p-3">
 						{/* The issuer lookup reads the ids of the preview rows, so it lands
 						    a beat after them — one skeleton covers both. */}
 						{previewQuery.isPending || issuersPending ? (
