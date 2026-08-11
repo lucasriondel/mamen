@@ -1,4 +1,3 @@
-import { Checkbox } from "@lucasriondel/gousse-ui";
 import type {
 	Account,
 	Category,
@@ -22,6 +21,7 @@ import {
 	CornerDownRight,
 } from "lucide-react";
 import { useMemo } from "react";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
 	Table,
 	TableBody,
@@ -110,10 +110,11 @@ const NOTHING_SELECTED: RowSelectionState = {};
 const NO_BUNDLE_MEMBERS: readonly Transaction[] = [];
 
 /**
- * The selection checkbox — gousse's `Checkbox` primitive (ADR 0002: gousse owns
- * the chassis) named by `aria-label` rather than a visible `<label>`, since the
- * column is 32px of pure control with no room for text beside it. TanStack owns
- * the checked state; this holds none of its own.
+ * The selection checkbox — gousse's `Checkbox`, now vendored under
+ * `components/ui` (issue #93) rather than imported from the package, named by
+ * `aria-label` rather than a visible `<label>`, since the column is 32px of
+ * pure control with no room for text beside it. TanStack owns the checked
+ * state; this holds none of its own.
  */
 function SelectCheckbox({
 	checked,

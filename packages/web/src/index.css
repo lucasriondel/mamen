@@ -20,6 +20,12 @@
  * Colour utilities are therefore namespaced `*-gousse-*` (`bg-gousse-panel`,
  * `text-gousse-ink`, …), matching miel. There is no local token stub and no
  * hand-rolled `@theme inline` bridge any more.
+ *
+ * There is no `@source` over the package's `dist` either (issue #93). It was
+ * here because Tailwind v4 skips `node_modules`, so the utilities baked into
+ * the primitives' compiled JS were never generated and a `primary` Button
+ * rendered invisible. The primitives are vendored source now, under
+ * `src/components/ui/`, which Tailwind scans by default.
  */
 
 @import "tailwindcss";
@@ -27,15 +33,6 @@
 @import "./styles/gousse/tokens.css";
 @import "./styles/gousse/theme.css";
 @import "./styles/gousse/effects.css";
-
-/* gousse's primitives carry their own utility classes (`bg-gousse-ink`,
- * `disabled:bg-gousse-muted`, …) inside their compiled JS. Tailwind v4 skips
- * `node_modules` when auto-detecting sources, so without this those classes are
- * never generated and the primitives render unstyled — a `primary` Button ends
- * up transparent with `text-gousse-bg` ink, i.e. invisible on a dark page.
- * Vendoring the stylesheets did not change this: the primitives themselves are
- * still the npm package's. It goes when they are vendored too (#93). */
-@source "../../../node_modules/@lucasriondel/gousse-ui/dist";
 
 /* mamen's accent tint. gousse ships a warm orange default; we track miel's blue
  * so the two apps read as one design language. Bare channel triples — the

@@ -1,12 +1,15 @@
 # gousse-ui theming under Tailwind v4
 
-> **Superseded in part (issue #92).** The three stylesheets below are no longer
-> read out of the npm package's `exports` map: they are **vendored source** under
-> `src/styles/gousse/`, installed from gousse's shadcn registry (the `@gousse`
-> namespace in `components.json`). The token contract and every consequence
-> listed here are unchanged — only the distribution channel moved. The
-> primitives still come from npm. Issue #98 rewrites this ADR around the
-> registry once they follow.
+> **Superseded in part (issues #92, #93).** Nothing below arrives through the
+> npm package's `exports` map any more. The three stylesheets are **vendored
+> source** under `src/styles/gousse/` (#92) and the four primitives mamen uses —
+> `Button`, `Empty`, `Textarea`, `Checkbox` — are **vendored source** under
+> `src/components/ui/` (#93), all installed from gousse's shadcn registry (the
+> `@gousse` namespace in `components.json`). The token contract and every
+> consequence listed here are unchanged — only the distribution channel moved.
+> No file imports `@lucasriondel/gousse-ui`; the dependency itself, its auth
+> token and the Vitest inlining workaround go with #96, and #98 rewrites this
+> ADR around the registry.
 
 `@lucasriondel/gousse-ui` is the primary component kit (Base UI under the hood),
 but it ships a **Tailwind v3** artifact — a JS `preset.js` consumed via
@@ -42,11 +45,14 @@ restyled onto the same `--gousse-*` tokens so the two primitive systems (Base UI
   taking gousse's warm-orange default, so the two apps read as one language.
 - Two primitive systems (Base UI via gousse, Radix via shadcn gap-fills)
   coexist. Accepted for velocity; the seam is the token layer.
-- `Button` and `Empty` are gousse primitives wrapped by thin local adapters in
-  `src/components/ui/`. gousse's `Button` has no `size` prop and gousse's `Empty`
-  has no `icon`/`children` slots, both of which mamen's call-sites use; the
-  adapters keep mamen's surface and delegate look and press/hover behaviour to
-  the primitive. Collapse them if gousse ever grows those props.
+- `Button`, `Empty`, `Textarea` and `Checkbox` are gousse primitives **vendored
+  into `src/components/ui/`** (#93), not wrapped. Three of them used to carry a
+  thin local adapter — `Button`'s `size` scale and focus ring, `Empty`'s
+  `icon`/`children` slots, `Textarea`'s focus/disabled/invalid states — for one
+  reason only: an npm build cannot be edited. Owning the source removed the
+  reason, so each concern now lives in the component itself (`size` as a second
+  cva axis beside `variant`, `icon` as a real prop). Call-sites were untouched.
+  Keep them on the token utilities so a retheme stays a token-level edit.
 - `src/components/ui/sidebar.tsx` is still a local stand-in. gousse ships a
   `Sidebar`, but under a different surface (`SidebarContent` / `SidebarGroup` /
   `SidebarItem` vs the local `SidebarNav` / `SidebarNavItem`), so swapping it is

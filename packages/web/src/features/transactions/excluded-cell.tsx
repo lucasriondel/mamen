@@ -1,5 +1,5 @@
-import { Checkbox } from "@lucasriondel/gousse-ui";
 import type { Transaction } from "@mamen/shared/contract";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useRecapExclusion } from "./use-recap-exclusion";
 
 /**

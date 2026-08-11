@@ -78,10 +78,13 @@ describe("the global stylesheet", () => {
 		expect(indexCss).not.toMatch(/@import\s+"@lucasriondel\/gousse-ui/);
 	});
 
-	it("still scans the package dist, whose primitives are not vendored yet", () => {
-		expect(indexCss).toContain(
-			'@source "../../../node_modules/@lucasriondel/gousse-ui/dist";',
-		);
+	it("no longer scans the package dist, now that the primitives are vendored", () => {
+		// The `@source` existed only so Tailwind would generate the utilities
+		// baked into the package's compiled JS (issue #92 kept it for exactly as
+		// long as the primitives lived there). They are src now, which Tailwind
+		// scans by default, so the sole effect left would be emitting CSS for
+		// components the app does not render.
+		expect(indexCss).not.toMatch(/@source[^;]*@lucasriondel\/gousse-ui/);
 	});
 
 	it("keeps mamen's accent override on both ramps", () => {
