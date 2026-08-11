@@ -9,6 +9,7 @@
 		"includes": [
 			"**",
 			"!**/dist",
+			"!packages/web/src/styles/gousse",
 			"!*.config.ts",
 			"!*.config.js",
 			"!_bmad-output"

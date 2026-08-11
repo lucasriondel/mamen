@@ -1,5 +1,13 @@
 # gousse-ui theming under Tailwind v4
 
+> **Superseded in part (issue #92).** The three stylesheets below are no longer
+> read out of the npm package's `exports` map: they are **vendored source** under
+> `src/styles/gousse/`, installed from gousse's shadcn registry (the `@gousse`
+> namespace in `components.json`). The token contract and every consequence
+> listed here are unchanged — only the distribution channel moved. The
+> primitives still come from npm. Issue #98 rewrites this ADR around the
+> registry once they follow.
+
 `@lucasriondel/gousse-ui` is the primary component kit (Base UI under the hood),
 but it ships a **Tailwind v3** artifact — a JS `preset.js` consumed via
 `presets: [...]`. This web app is **Tailwind v4** (CSS-first `@theme`, no
