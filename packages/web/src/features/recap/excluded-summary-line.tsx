@@ -44,7 +44,7 @@ export function ExcludedSummaryLine({
 		<Link
 			to="/transactions"
 			search={toExcludedTransactionsSearch(period, accountIds)}
-			className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-gousse-line bg-gousse-panel px-5 py-3 transition-colors hover:border-gousse-accent/40 hover:bg-gousse-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gousse-accent"
+			className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-dashed border-gousse-line bg-gousse-panel px-5 py-3 transition-colors hover:border-gousse-accent/40 hover:bg-gousse-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gousse-accent"
 		>
 			<div className="flex min-w-0 flex-col">
 				<p className="text-sm font-medium text-gousse-ink">{EXCLUDED_LABEL}</p>

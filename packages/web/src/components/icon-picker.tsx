@@ -181,7 +181,7 @@ export function IconPicker({
 					aria-label={`Change ${label} icon`}
 					title={`Change ${label} icon`}
 					className={cn(
-						"shrink-0 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-gousse-accent focus-visible:ring-offset-1 focus-visible:ring-offset-gousse-panel",
+						"shrink-0 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-gousse-accent focus-visible:ring-offset-1 focus-visible:ring-offset-gousse-panel",
 						className,
 					)}
 				>
@@ -263,7 +263,7 @@ export function IconPicker({
 													onFocus={() => setActive(index)}
 													onClick={() => pick(name)}
 													className={cn(
-														"flex flex-1 items-center justify-center rounded-md outline-none",
+														"flex flex-1 items-center justify-center rounded-full outline-none",
 														"hover:bg-gousse-bg focus-visible:ring-2 focus-visible:ring-gousse-accent",
 														name === value && "bg-gousse-bg",
 													)}

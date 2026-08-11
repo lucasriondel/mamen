@@ -38,7 +38,7 @@ export function IssuersTable({
 	categoryColorById,
 }: IssuersTableProps) {
 	return (
-		<div className="overflow-hidden rounded-lg border border-gousse-line">
+		<div className="overflow-hidden rounded-2xl border border-gousse-line">
 			<Table>
 				<TableHeader>
 					<TableRow>

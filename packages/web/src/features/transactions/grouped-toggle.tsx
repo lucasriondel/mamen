@@ -34,7 +34,7 @@ export function GroupedToggle({
 			aria-pressed={pressed}
 			onClick={() => onPressedChange(!pressed)}
 			className={cn(
-				"flex h-9 items-center gap-2 rounded-md border px-3 text-sm transition-colors",
+				"flex h-9 items-center gap-2 rounded-full border px-4 text-sm transition-colors",
 				"outline-none focus-visible:ring-2 focus-visible:ring-gousse-accent",
 				pressed
 					? "border-gousse-accent/40 bg-gousse-accent/10 text-gousse-ink"

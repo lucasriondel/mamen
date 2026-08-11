@@ -17,7 +17,7 @@ import { RulePreviewSkeleton } from "./rule-preview-skeleton";
 import { useRuleMutations } from "./use-rule-mutations";
 
 const INPUT_CLASS =
-	"w-full rounded-md border border-gousse-line bg-gousse-bg px-3 py-2 font-mono text-sm text-gousse-ink outline-none focus:border-gousse-accent";
+	"w-full rounded-full border border-gousse-line bg-gousse-bg px-4 py-2 font-mono text-sm text-gousse-ink outline-none focus:border-gousse-accent";
 
 /** How long the pattern field must be idle before the live preview refetches. */
 const PREVIEW_DEBOUNCE_MS = 300;
@@ -408,7 +408,7 @@ export function RuleForm({
 			    live validity feedback so a broken pattern is caught before save. */}
 			<div className="flex flex-wrap items-center gap-2 text-sm">
 				<span className="text-xs text-gousse-muted">Runs as</span>
-				<code className="rounded bg-gousse-panel px-2 py-1 font-mono text-gousse-ink">
+				<code className="rounded-full bg-gousse-panel px-2.5 py-1 font-mono text-gousse-ink">
 					/{trimmedPattern || "…"}/i
 				</code>
 				<PatternValidity pattern={trimmedPattern} error={patternError} />
@@ -422,7 +422,7 @@ export function RuleForm({
 						<button
 							key={tok.token}
 							type="button"
-							className="rounded border border-gousse-line px-2 py-0.5 font-mono text-xs text-gousse-ink outline-none transition-[transform,border-color] hover:border-gousse-accent focus-visible:ring-2 focus-visible:ring-gousse-accent active:scale-[0.97]"
+							className="rounded-full border border-gousse-line px-2.5 py-0.5 font-mono text-xs text-gousse-ink outline-none transition-[transform,border-color] hover:border-gousse-accent focus-visible:ring-2 focus-visible:ring-gousse-accent active:scale-[0.97]"
 							aria-label={`Insert ${tok.hint}`}
 							title={tok.hint}
 							onClick={() => insertToken(tok.token)}
@@ -433,7 +433,7 @@ export function RuleForm({
 				</div>
 			</div>
 
-			<div className="max-h-72 overflow-y-auto rounded-md border border-gousse-line p-3">
+			<div className="max-h-72 overflow-y-auto rounded-2xl border border-gousse-line p-3">
 				{debouncedPattern.length === 0 ? (
 					<p className="text-sm text-gousse-muted italic">
 						Type a pattern to preview its effect.

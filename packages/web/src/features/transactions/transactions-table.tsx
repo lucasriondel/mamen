@@ -264,7 +264,7 @@ export function TransactionsTable({
 							onClick={row.getToggleExpandedHandler()}
 							aria-expanded={expanded}
 							aria-label={`${expanded ? "Hide" : "Show"} the ${row.subRows.length} transactions in ${row.original.rawIssuerString}`}
-							className="grid size-6 place-items-center rounded-sm text-gousse-muted outline-none transition-colors hover:bg-gousse-bg hover:text-gousse-ink focus-visible:ring-2 focus-visible:ring-gousse-accent"
+							className="grid size-6 place-items-center rounded-full text-gousse-muted outline-none transition-colors hover:bg-gousse-bg hover:text-gousse-ink focus-visible:ring-2 focus-visible:ring-gousse-accent"
 						>
 							<ChevronRight
 								size={14}
@@ -445,7 +445,7 @@ export function TransactionsTable({
 	const SortIcon = direction === "asc" ? ArrowUp : ArrowDown;
 
 	return (
-		<div className="overflow-hidden rounded-lg border border-gousse-line">
+		<div className="overflow-hidden rounded-2xl border border-gousse-line">
 			<Table>
 				<TableHeader>
 					{table.getHeaderGroups().map((headerGroup) => (
@@ -457,7 +457,7 @@ export function TransactionsTable({
 											type="button"
 											onClick={onToggleSort}
 											aria-label={`Sort by date, currently ${direction}ending`}
-											className="flex items-center gap-1 rounded-sm font-medium text-gousse-muted outline-none transition-colors hover:text-gousse-ink focus-visible:ring-2 focus-visible:ring-gousse-accent"
+											className="flex items-center gap-1 rounded-full font-medium text-gousse-muted outline-none transition-colors hover:text-gousse-ink focus-visible:ring-2 focus-visible:ring-gousse-accent"
 										>
 											{flexRender(
 												header.column.columnDef.header,

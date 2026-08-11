@@ -46,7 +46,7 @@ function LegRow({
 	daysApart?: number;
 }) {
 	return (
-		<li className="flex items-center justify-between gap-3 rounded-md border border-gousse-line px-3 py-2">
+		<li className="flex items-center justify-between gap-3 rounded-xl border border-gousse-line px-3 py-2">
 			<Link
 				to="/transactions/$transactionId"
 				params={{ transactionId: String(leg.id) }}

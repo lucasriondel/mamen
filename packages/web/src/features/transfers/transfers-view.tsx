@@ -73,7 +73,7 @@ export function TransfersView() {
 			{candidatesQuery.isPending ? (
 				<TransfersListSkeleton />
 			) : candidatesQuery.isError ? (
-				<div className="rounded-md border border-gousse-line bg-gousse-panel p-6 text-center">
+				<div className="rounded-2xl border border-gousse-line bg-gousse-panel p-6 text-center">
 					<p className="font-medium text-gousse-ink">
 						Couldn't detect transfers.
 					</p>
@@ -93,7 +93,7 @@ export function TransfersView() {
 					description="When two of your accounts show the same amount moving in and out around the same time, it'll show up here to confirm."
 				/>
 			) : (
-				<div className="overflow-hidden rounded-lg border border-gousse-line">
+				<div className="overflow-hidden rounded-2xl border border-gousse-line">
 					<Table>
 						<TableHeader>
 							<TableRow>

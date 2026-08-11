@@ -4,7 +4,7 @@ import { ACCOUNT_TYPE_OPTIONS, type AccountType } from "./account-type";
 import { useAccountMutations } from "./use-account-mutations";
 
 const INPUT_CLASS =
-	"rounded-md border border-gousse-line bg-gousse-bg px-3 py-2 text-sm text-gousse-ink outline-none focus:border-gousse-accent";
+	"rounded-full border border-gousse-line bg-gousse-bg px-4 py-2 text-sm text-gousse-ink outline-none focus:border-gousse-accent";
 
 /**
  * The "add account" form: a name field, a type `<select>`, and a submit button.

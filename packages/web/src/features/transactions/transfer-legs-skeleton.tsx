@@ -28,7 +28,7 @@ export function TransferLegsSkeleton({
 			{Array.from({ length: rows }, (_, index) => index).map((index) => (
 				<div
 					key={index}
-					className="flex items-center justify-between gap-3 rounded-md border border-gousse-line px-3 py-2"
+					className="flex items-center justify-between gap-3 rounded-xl border border-gousse-line px-3 py-2"
 				>
 					<div className="flex min-w-0 flex-col gap-1.5">
 						<Skeleton className="h-4 w-20" />

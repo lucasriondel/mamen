@@ -47,7 +47,7 @@ type Editor =
 	| { kind: "spill"; node: Category; transactions: number; issuers: number };
 
 const INPUT_CLASS =
-	"rounded-md border border-gousse-line bg-gousse-bg px-3 py-2 text-gousse-ink text-sm outline-none focus:border-gousse-accent";
+	"rounded-full border border-gousse-line bg-gousse-bg px-4 py-2 text-gousse-ink text-sm outline-none focus:border-gousse-accent";
 
 /** The per-node curation actions, threaded down the recursive render unchanged. */
 interface NodeActions {
@@ -313,7 +313,7 @@ function CategoryNode({
 
 	if (node.children.length === 0) {
 		return (
-			<div className="flex items-center justify-between gap-2 rounded-lg border border-gousse-line bg-gousse-panel px-4 py-2">
+			<div className="flex items-center justify-between gap-2 rounded-xl border border-gousse-line bg-gousse-panel px-4 py-2">
 				<NodeIdentity
 					node={node}
 					color={color}
@@ -329,7 +329,7 @@ function CategoryNode({
 	return (
 		// A `fieldset` carries the implicit ARIA `group` role, named by its
 		// `legend` — the folder heading — so each folder reads as a labelled group.
-		<fieldset className="rounded-lg border border-gousse-line bg-gousse-panel p-4">
+		<fieldset className="rounded-2xl border border-gousse-line bg-gousse-panel p-4">
 			<legend className="flex w-full items-center justify-between gap-2">
 				<NodeIdentity
 					node={node}

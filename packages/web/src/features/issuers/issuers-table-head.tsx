@@ -52,7 +52,7 @@ export function IssuersTableHead({
 				type="button"
 				onClick={() => onSortChange(nextIssuerSort(sort, sortKey))}
 				className={cn(
-					"inline-flex items-center gap-1 rounded-sm font-medium outline-none transition-colors hover:text-gousse-ink focus-visible:ring-2 focus-visible:ring-gousse-accent",
+					"inline-flex items-center gap-1 rounded-full font-medium outline-none transition-colors hover:text-gousse-ink focus-visible:ring-2 focus-visible:ring-gousse-accent",
 					active ? "text-gousse-ink" : "text-gousse-muted",
 				)}
 			>

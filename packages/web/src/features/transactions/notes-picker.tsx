@@ -61,7 +61,7 @@ export function NotesPicker({ transaction }: NotesPickerProps) {
 			<PopoverTrigger asChild>
 				<button
 					type="button"
-					className="block rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-gousse-accent"
+					className="block rounded-full text-left outline-none focus-visible:ring-2 focus-visible:ring-gousse-accent"
 					title="Add a note to this transaction"
 				>
 					<NotesCell notes={transaction.notes} />
@@ -86,7 +86,7 @@ export function NotesPicker({ transaction }: NotesPickerProps) {
 					rows={4}
 					maxLength={NOTES_MAX_LENGTH}
 					placeholder="Add a note…"
-					className="w-full resize-none rounded-md border border-gousse-line bg-gousse-panel px-2 py-1.5 text-gousse-ink text-sm outline-none placeholder:text-gousse-muted focus:border-gousse-accent"
+					className="w-full resize-none rounded-2xl border border-gousse-line bg-gousse-panel px-3 py-1.5 text-gousse-ink text-sm outline-none placeholder:text-gousse-muted focus:border-gousse-accent"
 				/>
 				<div className="mt-2 flex items-center justify-between">
 					<span

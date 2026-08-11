@@ -60,7 +60,7 @@ export function PreviewStep({
 
 	return (
 		<div className="flex flex-col gap-6">
-			<dl className="grid grid-cols-2 gap-x-6 gap-y-3 rounded-md border border-gousse-line bg-gousse-panel p-4 text-sm sm:grid-cols-4">
+			<dl className="grid grid-cols-2 gap-x-6 gap-y-3 rounded-2xl border border-gousse-line bg-gousse-panel p-4 text-sm sm:grid-cols-4">
 				<Fact label="Format" value={parserLabel} />
 				<Fact label="Account" value={accountName} />
 				<Fact label="Months" value={months.map(formatMonth).join(", ")} />
@@ -119,7 +119,7 @@ function PreviewTable({
 	dispatch: (action: WizardAction) => void;
 }) {
 	return (
-		<div className="overflow-hidden rounded-md border border-gousse-line">
+		<div className="overflow-hidden rounded-2xl border border-gousse-line">
 			<div className="max-h-[60vh] overflow-y-auto">
 				<table className="w-full text-sm">
 					<thead className="sticky top-0 bg-gousse-panel text-gousse-muted">

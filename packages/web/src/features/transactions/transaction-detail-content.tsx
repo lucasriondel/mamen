@@ -76,7 +76,7 @@ function CoreFields({
 	categoryColor?: string;
 }) {
 	return (
-		<dl className="rounded-lg border border-gousse-line px-4">
+		<dl className="rounded-2xl border border-gousse-line px-4">
 			<DetailField label="Transaction ID">
 				<span className="tabular-nums">{txn.id}</span>
 			</DetailField>
@@ -149,7 +149,7 @@ function RefundDuplicateSection({
 			<h2 className="text-lg font-semibold text-gousse-ink">
 				Refund &amp; duplicate
 			</h2>
-			<dl className="rounded-lg border border-gousse-line px-4">
+			<dl className="rounded-2xl border border-gousse-line px-4">
 				<DetailField label="Is a refund">
 					<BoolField value={txn.isRefund ?? false} />
 				</DetailField>
@@ -201,7 +201,7 @@ function ImportSection({ txn }: { txn: Transaction }) {
 	return (
 		<div className="flex flex-col gap-3 border-t border-gousse-line pt-6">
 			<h2 className="text-lg font-semibold text-gousse-ink">Import</h2>
-			<dl className="rounded-lg border border-gousse-line px-4">
+			<dl className="rounded-2xl border border-gousse-line px-4">
 				<DetailField label="Import month">
 					{formatMonth(txn.importMonth)}
 				</DetailField>

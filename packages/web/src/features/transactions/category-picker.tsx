@@ -156,7 +156,7 @@ export function CategoryPicker({
 			<PopoverTrigger asChild>
 				<button
 					type="button"
-					className="block rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-gousse-accent"
+					className="block rounded-full text-left outline-none focus-visible:ring-2 focus-visible:ring-gousse-accent"
 					title="Set a category for this transaction"
 				>
 					<CategoryCell

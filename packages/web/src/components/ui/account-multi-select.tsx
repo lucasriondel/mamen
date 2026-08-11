@@ -87,7 +87,7 @@ export function AccountMultiSelect({
 			</Button>
 
 			{open ? (
-				<fieldset className="absolute z-10 mt-1 flex min-w-52 flex-col gap-0.5 rounded-md border border-gousse-line bg-gousse-panel p-1 shadow-lg">
+				<fieldset className="absolute z-10 mt-1 flex min-w-52 flex-col gap-0.5 rounded-2xl border border-gousse-line bg-gousse-panel p-1 shadow-lg">
 					<legend className="sr-only">Filter by account</legend>
 					{accounts.length === 0 ? (
 						<p className="px-2 py-1.5 text-sm text-gousse-muted">No accounts</p>
@@ -97,7 +97,7 @@ export function AccountMultiSelect({
 							return (
 								<label
 									key={account.id}
-									className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm text-gousse-ink hover:bg-gousse-bg"
+									className="flex cursor-pointer items-center gap-2 rounded-full px-3 py-1.5 text-sm text-gousse-ink hover:bg-gousse-bg"
 								>
 									<input
 										type="checkbox"

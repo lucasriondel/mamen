@@ -50,7 +50,10 @@ export function TooltipContent({
 			<TooltipPrimitive.Content
 				sideOffset={sideOffset}
 				className={cn(
-					"z-50 rounded-md border border-gousse-line bg-gousse-panel px-2.5 py-1.5 text-gousse-ink text-xs shadow-lg",
+					// The box corner the other overlays take (issue #97). On a label this
+					// short the radius all but meets in the middle, which is the intent:
+					// where a shape is in doubt the kit takes the rounder option.
+					"z-50 rounded-2xl border border-gousse-line bg-gousse-panel px-2.5 py-1.5 text-gousse-ink text-xs shadow-lg",
 					// Origin-aware entrance, matching the popover's.
 					"origin-(--radix-tooltip-content-transform-origin)",
 					"duration-150 data-[state=delayed-open]:animate-in data-[state=closed]:animate-out",

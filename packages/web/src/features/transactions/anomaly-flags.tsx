@@ -34,7 +34,7 @@ export function AnomalyFlags({ flags }: { flags: readonly AnomalyFlag[] }) {
 					// Flags have no id; type+detectedAt is stable and unique per row.
 					key={`${flag.type}-${flag.detectedAt}-${index}`}
 					className={cn(
-						"rounded-md border border-gousse-line px-3 py-2 text-sm",
+						"rounded-xl border border-gousse-line px-3 py-2 text-sm",
 						flag.dismissed && "opacity-60",
 					)}
 				>
@@ -43,7 +43,7 @@ export function AnomalyFlags({ flags }: { flags: readonly AnomalyFlag[] }) {
 							{ANOMALY_LABELS[flag.type]}
 						</span>
 						{flag.dismissed ? (
-							<span className="rounded bg-gousse-bg px-1.5 py-0.5 text-xs text-gousse-muted">
+							<span className="rounded-full bg-gousse-bg px-2 py-0.5 text-xs text-gousse-muted">
 								Dismissed
 							</span>
 						) : null}

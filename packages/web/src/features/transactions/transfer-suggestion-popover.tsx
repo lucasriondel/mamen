@@ -46,7 +46,7 @@ function CounterpartRow({
 }) {
 	const leg = counterpart.transaction;
 	return (
-		<li className="flex flex-col gap-1.5 rounded-md border border-gousse-line px-3 py-2">
+		<li className="flex flex-col gap-1.5 rounded-xl border border-gousse-line px-3 py-2">
 			<div className="flex items-baseline justify-between gap-2">
 				<span
 					className={cn(
@@ -134,7 +134,7 @@ export function TransferSuggestionPanel({
 				<button
 					type="button"
 					aria-label={`${count} possible transfer ${count === 1 ? "match" : "matches"} for ${transaction.rawIssuerString}`}
-					className="inline-flex items-center gap-1 rounded bg-gousse-accent/10 px-1.5 py-0.5 text-gousse-accent text-xs outline-none transition-colors hover:bg-gousse-accent/20 focus-visible:ring-2 focus-visible:ring-gousse-accent"
+					className="inline-flex items-center gap-1 rounded-full bg-gousse-accent/10 px-2 py-0.5 text-gousse-accent text-xs outline-none transition-colors hover:bg-gousse-accent/20 focus-visible:ring-2 focus-visible:ring-gousse-accent"
 				>
 					<ArrowLeftRight size={12} aria-hidden />
 					{count}

@@ -78,7 +78,7 @@ export function MonthCell({
 	if (!droppable) {
 		return (
 			<div
-				className="flex flex-col items-center justify-center rounded-md border border-gousse-line border-dashed px-2 py-3 text-center text-gousse-low opacity-50"
+				className="flex flex-col items-center justify-center rounded-xl border border-gousse-line border-dashed px-2 py-3 text-center text-gousse-low opacity-50"
 				aria-disabled="true"
 			>
 				<span className="text-xs">{monthLabel}</span>
@@ -101,7 +101,7 @@ export function MonthCell({
 					? `${monthLabel} — already imported, open its transactions, or drop to add more rows`
 					: `Import ${monthLabel} — available`
 			}
-			className={`flex cursor-pointer flex-col items-center justify-center gap-0.5 rounded-md border px-2 py-3 text-center text-xs outline-none transition-[transform,background-color,border-color,color] active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-gousse-accent ${
+			className={`flex cursor-pointer flex-col items-center justify-center gap-0.5 rounded-xl border px-2 py-3 text-center text-xs outline-none transition-[transform,background-color,border-color,color] active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-gousse-accent ${
 				dragging
 					? "border-gousse-accent bg-gousse-panel"
 					: imported

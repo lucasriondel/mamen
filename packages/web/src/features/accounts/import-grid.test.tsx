@@ -122,6 +122,21 @@ describe("ImportGrid", () => {
 		expect(cell).toBeEnabled();
 	});
 
+	// A grid cell is clickable but it is not control-shaped: it is a box in a box,
+	// so the shape contract (issue #97) gives it the nested corner rather than the
+	// pill a button takes. Asserted because "it's clickable, make it a pill" is
+	// exactly the shortcut a later sweep would take.
+	it("shapes a month cell as a nested box, not a pill", async () => {
+		renderGrid();
+		const cell = await screen.findByRole("button", {
+			name: /Import Jun — available/,
+		});
+
+		expect(cell.className).toContain("rounded-xl");
+		expect(cell.className).not.toContain("rounded-full");
+		expect(cell.className).toContain("text-center");
+	});
+
 	it("marks an already-imported past month as imported", async () => {
 		scan = [{ accountId: 1, importMonth: "2026-05" }];
 		renderGrid();

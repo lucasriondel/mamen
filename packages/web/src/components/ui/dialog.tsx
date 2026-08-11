@@ -7,6 +7,12 @@ import { cn } from "@/lib/utils";
  * Dialog primitives — a gap-fill over Radix `Dialog`, restyled onto the
  * `--gousse-*` tokens (ADR 0002). Hosts the issuer edit dialog (PRD): editing an
  * issuer is a dialog over the grid, not a route change.
+ *
+ * The panel is a **container, not a control**, so it takes the box corner
+ * (`rounded-2xl`) rather than the kit's pill (issue #97). Its close button is
+ * the opposite case — an icon-only control — and is a pill, which is also why
+ * nothing has to be said about concentric radii here: a pill has no corner to
+ * disagree with the panel's.
  */
 
 export const Dialog = DialogPrimitive.Root;
@@ -41,7 +47,7 @@ export function DialogContent({
 			<DialogOverlay />
 			<DialogPrimitive.Content
 				className={cn(
-					"fixed left-1/2 top-1/2 z-50 grid w-full max-w-md -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg border border-gousse-line bg-gousse-panel p-6 text-gousse-ink shadow-lg outline-none",
+					"fixed left-1/2 top-1/2 z-50 grid w-full max-w-md -translate-x-1/2 -translate-y-1/2 gap-4 rounded-2xl border border-gousse-line bg-gousse-panel p-6 text-gousse-ink shadow-lg outline-none",
 					// A modal isn't anchored to a trigger, so it scales from centre
 					// (emil-design-eng: the transform-origin exception). Enter uses a
 					// gentle scale+fade under the ~300ms budget; exit is quicker.
@@ -53,7 +59,7 @@ export function DialogContent({
 			>
 				{children}
 				<DialogPrimitive.Close
-					className="absolute right-3 top-3 inline-flex size-9 items-center justify-center rounded-md text-gousse-muted outline-none transition-colors hover:bg-gousse-bg hover:text-gousse-ink focus-visible:ring-2 focus-visible:ring-gousse-accent"
+					className="absolute right-3 top-3 inline-flex size-9 items-center justify-center rounded-full text-gousse-muted outline-none transition-colors hover:bg-gousse-bg hover:text-gousse-ink focus-visible:ring-2 focus-visible:ring-gousse-accent"
 					aria-label="Close"
 				>
 					<X size={18} />
