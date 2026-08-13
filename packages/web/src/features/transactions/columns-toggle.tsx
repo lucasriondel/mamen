@@ -42,17 +42,19 @@ export function ColumnsToggle({
 
 	return (
 		<Popover>
-			<PopoverTrigger asChild>
-				<Button variant="secondary" size="sm" aria-label="Choose columns">
-					<Columns3 size={14} />
-					Columns
-					{hiddenCount > 0 ? (
-						<span className="tabular-nums text-gousse-muted">
-							({hiddenCount} hidden)
-						</span>
-					) : null}
-				</Button>
-			</PopoverTrigger>
+			<PopoverTrigger
+				render={
+					<Button variant="secondary" size="sm" aria-label="Choose columns">
+						<Columns3 size={14} />
+						Columns
+						{hiddenCount > 0 ? (
+							<span className="tabular-nums text-gousse-muted">
+								({hiddenCount} hidden)
+							</span>
+						) : null}
+					</Button>
+				}
+			/>
 			<PopoverContent align="end" className="w-52 p-1">
 				<div role="menu" aria-label="Toggle columns">
 					{TOGGLEABLE_COLUMNS.map((column) => {

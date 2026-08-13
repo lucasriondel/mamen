@@ -59,22 +59,35 @@ the fix upstream separately if it belongs there.
 - mamen's own tint — `--gousse-accent` on miel's blue in both ramps, rather than
   gousse's warm-orange default — lives in `src/index.css` **below** the imports,
   precisely because the files above it are gousse's and get overwritten.
-- Two primitive systems coexist: **Base UI** under the vendored gousse
-  components, and **Radix** under the shadcn gap-fills that cover what gousse
-  does not ship — `Popover` is Radix, `Command` is cmdk, and
-  `Table`, `Input` and `Skeleton` are plain markup. Accepted for velocity; the
-  **seam is the token layer**, so a gap-fill is restyled onto the same
-  `--gousse-*` tokens rather than given a look of its own. The seam is
-  narrowing rather than widening: `Tooltip` was the first gap-fill moved onto
-  Base UI directly (issue #99, `@base-ui-components/react` pinned exactly at
-  `1.0.0-rc.0`) and `Dialog` the second (issue #100), both asserted in
-  `src/components/ui/base-ui-primitives.test.tsx`. The tooltip cost the label's
-  `aria-describedby` — Base UI wires no ARIA for a tooltip — which is
-  survivable only because nothing the tooltip reveals is available there alone.
-  The dialog cost nothing: role, labelling, focus trap, scroll lock and
-  dismissal all survive the swap, and only the state attribute its animation
-  reads changes spelling (`data-open` / `data-ending-style` for
-  `data-state="open"` / `"closed"`).
+- The two primitive systems that coexisted here are now one. **Base UI** sits
+  under the vendored gousse components, and it sits under the converted
+  gap-fills too: `Tooltip` was the first moved onto it directly (issue #99,
+  `@base-ui-components/react` pinned exactly at `1.0.0-rc.0`), `Dialog` the
+  second (issue #100) and `Popover` the third (issue #101, all twelve call
+  sites), which left **no gap-fill on Radix**. All three are asserted in
+  `src/components/ui/base-ui-primitives.test.tsx`, which also holds the seam
+  closed: nothing under `src` may import `radix-ui` again. What remains outside
+  Base UI is not Radix — `Command` is cmdk, and `Table`, `Input` and `Skeleton`
+  are plain markup. The **seam is the token layer** as it always was, so a
+  gap-fill is restyled onto the same `--gousse-*` tokens rather than given a
+  look of its own. The conversions cost: tooltip lost the label's `aria-describedby` — Base
+  UI wires no ARIA for a tooltip — survivable only because nothing the tooltip
+  reveals is available there alone. The dialog cost nothing: role, labelling,
+  focus trap, scroll lock and dismissal all survive the swap, and only the state
+  attribute its animation reads changes spelling (`data-open` /
+  `data-ending-style` for `data-state="open"` / `"closed"`). Popover cost
+  nothing in the accessibility tree either, but its wiring now lands after mount
+  rather than in the first render's markup.
+- **A converted primitive restates Radix's positioning defaults, not Base UI's.**
+  Base UI splits Radix's `Content` into a `Portal`, a `Positioner` (where) and a
+  `Popup` (look), and its defaults differ on four axes: `positionMethod`
+  (absolute vs Radix's fixed), `collisionPadding` (5 vs 0), `collisionAvoidance`
+  (flips on both axes and falls back to the perpendicular one, where Radix flips
+  the side axis and shifts the align axis only), and `align`/`sideOffset`. All
+  four are spelled out in `popover.tsx` so twelve panels anchored to table cells
+  and toolbar buttons land where they used to. Anything positional — `z-index`
+  included — belongs on the positioner; the popup is statically positioned
+  inside it.
 - The token layer is not the only contract the two systems share. **Shape** is
   the other (issue #97): **`rounded-full`** for anything control-shaped (fields,
   selects, toggles, segmented options, menu and list rows, chips, badges,

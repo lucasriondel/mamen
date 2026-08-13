@@ -104,23 +104,25 @@ export function ColorPicker({
 
 	return (
 		<Popover open={open} onOpenChange={handleOpenChange}>
-			<PopoverTrigger asChild>
-				<button
-					type="button"
-					aria-label={`Change ${label} colour`}
-					title={`Change ${label} colour`}
-					className={cn(
-						"shrink-0 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-gousse-accent focus-visible:ring-offset-1 focus-visible:ring-offset-gousse-panel",
-						className,
-					)}
-				>
-					<span
-						data-color-swatch={resolved}
-						style={{ backgroundColor: resolved }}
-						className="block size-3.5 rounded-full border border-gousse-line"
-					/>
-				</button>
-			</PopoverTrigger>
+			<PopoverTrigger
+				render={
+					<button
+						type="button"
+						aria-label={`Change ${label} colour`}
+						title={`Change ${label} colour`}
+						className={cn(
+							"shrink-0 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-gousse-accent focus-visible:ring-offset-1 focus-visible:ring-offset-gousse-panel",
+							className,
+						)}
+					>
+						<span
+							data-color-swatch={resolved}
+							style={{ backgroundColor: resolved }}
+							className="block size-3.5 rounded-full border border-gousse-line"
+						/>
+					</button>
+				}
+			/>
 			<PopoverContent className="w-56 p-3">
 				<form onSubmit={handleSubmit} className="flex flex-col gap-2">
 					<label

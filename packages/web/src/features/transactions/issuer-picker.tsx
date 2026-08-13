@@ -126,26 +126,28 @@ export function IssuerPicker({ transaction, issuer }: IssuerPickerProps) {
 	return (
 		<Popover open={open} onOpenChange={handleOpenChange}>
 			<IssuerNoteTooltip note={issuer.notes}>
-				<PopoverTrigger asChild>
-					<button
-						type="button"
-						className="block rounded-full text-left outline-none focus-visible:ring-2 focus-visible:ring-gousse-accent"
-						// Only the browser-native hint when there is no note — with one,
-						// the tooltip is the hover surface and a `title` would
-						// double up on it.
-						title={
-							issuer.notes == null
-								? "Change the issuer for this transaction"
-								: undefined
-						}
-					>
-						<IssuerCell
-							rawIssuerString={transaction.rawIssuerString}
-							issuer={issuer}
-							isManual={isManual}
-						/>
-					</button>
-				</PopoverTrigger>
+				<PopoverTrigger
+					render={
+						<button
+							type="button"
+							className="block rounded-full text-left outline-none focus-visible:ring-2 focus-visible:ring-gousse-accent"
+							// Only the browser-native hint when there is no note — with one,
+							// the tooltip is the hover surface and a `title` would
+							// double up on it.
+							title={
+								issuer.notes == null
+									? "Change the issuer for this transaction"
+									: undefined
+							}
+						>
+							<IssuerCell
+								rawIssuerString={transaction.rawIssuerString}
+								issuer={issuer}
+								isManual={isManual}
+							/>
+						</button>
+					}
+				/>
 			</IssuerNoteTooltip>
 			<PopoverContent className="p-0">
 				<Command shouldFilter={false} label="Change the issuer">

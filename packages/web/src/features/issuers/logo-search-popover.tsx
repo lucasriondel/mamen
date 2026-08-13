@@ -123,20 +123,22 @@ export function LogoSearchPopover({
 
 	return (
 		<Popover open={open} onOpenChange={handleOpenChange}>
-			<PopoverTrigger asChild>
-				<Button variant="secondary" size="sm" className={className}>
-					<Search size={14} aria-hidden />
-					Search logo
-				</Button>
-			</PopoverTrigger>
+			<PopoverTrigger
+				render={
+					<Button variant="secondary" size="sm" className={className}>
+						<Search size={14} aria-hidden />
+						Search logo
+					</Button>
+				}
+			/>
 			<PopoverContent
 				className="flex w-80 flex-col gap-3 p-3"
-				onOpenAutoFocus={(event) => {
-					// Radix focuses the panel; focus the *action* instead, so the common
-					// case (the pre-filled query is right) is one keypress.
-					event.preventDefault();
-					searchButtonRef.current?.focus();
-				}}
+				// Base UI would focus the first tabbable element — the query field.
+				// Focus the *action* instead, so the common case (the pre-filled query
+				// is right) is one keypress. Radix asked for this as an
+				// `onOpenAutoFocus` handler to cancel; Base UI takes the target
+				// directly.
+				initialFocus={searchButtonRef}
 			>
 				<form onSubmit={handleSubmit} className="flex items-end gap-2">
 					<Input

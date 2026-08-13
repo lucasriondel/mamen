@@ -288,7 +288,7 @@ describe("LogoSearchPopover", () => {
 			).not.toBeInTheDocument(),
 		);
 		expect(searchLogos).not.toHaveBeenCalled();
-		// Focus returns to the trigger (Radix), so the keyboard never gets stranded.
+		// Focus returns to the trigger (Base UI), so the keyboard never gets stranded.
 		expect(screen.getByRole("button", { name: "Search logo" })).toHaveFocus();
 	});
 });

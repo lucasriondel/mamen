@@ -126,35 +126,37 @@ export function CategoryLeafPicker({
 	return (
 		<>
 			<Popover open={open} onOpenChange={handleOpenChange}>
-				<PopoverTrigger asChild>
-					<Button
-						variant="secondary"
-						size="sm"
-						className="self-start"
-						title={title}
-						disabled={disabled}
-					>
-						{current ? (
-							<>
-								<CategoryIcon
-									name={current.icon}
-									color={currentColor}
-									size={14}
-								/>
-								<span style={{ color: currentColor }}>{current.name}</span>
-							</>
-						) : (
-							<>
-								<Tag
-									size={14}
-									className="shrink-0 text-gousse-muted"
-									aria-hidden
-								/>
-								<span className="text-gousse-muted italic">No category</span>
-							</>
-						)}
-					</Button>
-				</PopoverTrigger>
+				<PopoverTrigger
+					render={
+						<Button
+							variant="secondary"
+							size="sm"
+							className="self-start"
+							title={title}
+							disabled={disabled}
+						>
+							{current ? (
+								<>
+									<CategoryIcon
+										name={current.icon}
+										color={currentColor}
+										size={14}
+									/>
+									<span style={{ color: currentColor }}>{current.name}</span>
+								</>
+							) : (
+								<>
+									<Tag
+										size={14}
+										className="shrink-0 text-gousse-muted"
+										aria-hidden
+									/>
+									<span className="text-gousse-muted italic">No category</span>
+								</>
+							)}
+						</Button>
+					}
+				/>
 				<PopoverContent className="p-0">
 					<Command shouldFilter={false} label="Set default category">
 						<CommandInput

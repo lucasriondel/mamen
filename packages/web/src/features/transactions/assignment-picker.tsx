@@ -189,17 +189,19 @@ export function AssignmentPicker({
 
 	return (
 		<Popover open={open} onOpenChange={handleOpenChange}>
-			<PopoverTrigger asChild>
-				<button
-					type="button"
-					className="flex items-center gap-1.5 rounded-full px-2 py-0.5 text-gousse-muted italic outline-none transition-colors hover:text-gousse-ink focus-visible:ring-2 focus-visible:ring-gousse-accent"
-					title="Assign an issuer"
-					data-unresolved="true"
-				>
-					<CircleHelp size={14} className="shrink-0" aria-hidden />
-					<span className="truncate">{rawIssuerString}</span>
-				</button>
-			</PopoverTrigger>
+			<PopoverTrigger
+				render={
+					<button
+						type="button"
+						className="flex items-center gap-1.5 rounded-full px-2 py-0.5 text-gousse-muted italic outline-none transition-colors hover:text-gousse-ink focus-visible:ring-2 focus-visible:ring-gousse-accent"
+						title="Assign an issuer"
+						data-unresolved="true"
+					>
+						<CircleHelp size={14} className="shrink-0" aria-hidden />
+						<span className="truncate">{rawIssuerString}</span>
+					</button>
+				}
+			/>
 			<PopoverContent className="p-0">
 				<Command shouldFilter={false} label="Assign an issuer">
 					<CommandInput

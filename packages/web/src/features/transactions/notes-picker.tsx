@@ -58,15 +58,17 @@ export function NotesPicker({ transaction }: NotesPickerProps) {
 
 	return (
 		<Popover open={open} onOpenChange={handleOpenChange}>
-			<PopoverTrigger asChild>
-				<button
-					type="button"
-					className="block rounded-full text-left outline-none focus-visible:ring-2 focus-visible:ring-gousse-accent"
-					title="Add a note to this transaction"
-				>
-					<NotesCell notes={transaction.notes} />
-				</button>
-			</PopoverTrigger>
+			<PopoverTrigger
+				render={
+					<button
+						type="button"
+						className="block rounded-full text-left outline-none focus-visible:ring-2 focus-visible:ring-gousse-accent"
+						title="Add a note to this transaction"
+					>
+						<NotesCell notes={transaction.notes} />
+					</button>
+				}
+			/>
 			<PopoverContent className="p-2">
 				<label className="sr-only" htmlFor={fieldId}>
 					Transaction note

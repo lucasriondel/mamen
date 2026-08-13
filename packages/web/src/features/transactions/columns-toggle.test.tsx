@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { ColumnsToggle } from "./columns-toggle";
 
-// Radix Popover measures its content; jsdom has neither observer.
+// Base UI's popover measures its content; jsdom has neither observer.
 beforeAll(() => {
 	globalThis.ResizeObserver = class {
 		observe() {}

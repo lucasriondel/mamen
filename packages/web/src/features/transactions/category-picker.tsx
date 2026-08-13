@@ -153,19 +153,21 @@ export function CategoryPicker({
 
 	return (
 		<Popover open={open} onOpenChange={handleOpenChange}>
-			<PopoverTrigger asChild>
-				<button
-					type="button"
-					className="block rounded-full text-left outline-none focus-visible:ring-2 focus-visible:ring-gousse-accent"
-					title="Set a category for this transaction"
-				>
-					<CategoryCell
-						category={category}
-						isOverride={isOverride}
-						color={color}
-					/>
-				</button>
-			</PopoverTrigger>
+			<PopoverTrigger
+				render={
+					<button
+						type="button"
+						className="block rounded-full text-left outline-none focus-visible:ring-2 focus-visible:ring-gousse-accent"
+						title="Set a category for this transaction"
+					>
+						<CategoryCell
+							category={category}
+							isOverride={isOverride}
+							color={color}
+						/>
+					</button>
+				}
+			/>
 			<PopoverContent className="p-0">
 				<Command shouldFilter={false} label="Set a category">
 					<CommandInput
