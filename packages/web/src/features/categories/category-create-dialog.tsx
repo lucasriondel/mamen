@@ -76,10 +76,13 @@ export function CategoryCreateDialog({
 	const [icon, setIcon] = useState(DEFAULT_ICON);
 	/**
 	 * The dialog's own node, handed to the pickers inside it so their popovers
-	 * portal *within* the modal rather than to `document.body`. A Radix modal locks
-	 * scrolling outside its subtree, so a body-portalled popover renders and clicks
-	 * fine but its list can't be scrolled. `useState` rather than `useRef` so the
-	 * node is available on the render after mount.
+	 * portal *within* the modal rather than to `document.body`. A modal dialog
+	 * neutralises the document behind it — Radix trapped the wheel outside its own
+	 * subtree, so a body-portalled popover rendered and clicked fine but its list
+	 * could not be scrolled; Base UI locks the page in CSS and marks the outside
+	 * inert instead. Portalling into the panel is what keeps the list usable under
+	 * either. `useState` rather than `useRef` so the node is available on the
+	 * render after mount.
 	 */
 	const [dialogNode, setDialogNode] = useState<HTMLDivElement | null>(null);
 

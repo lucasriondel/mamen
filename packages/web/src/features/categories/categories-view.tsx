@@ -388,14 +388,15 @@ function CategoryEditorDialog({
 	mutations,
 }: CategoryEditorDialogProps) {
 	// The dialog's own node, so the move form's parent picker portals *inside* the
-	// modal. A Radix modal locks scrolling outside its subtree, so a popover
-	// portalled to `document.body` renders and clicks but never takes the wheel.
+	// modal rather than to `document.body` — a modal neutralises the document
+	// behind it, and a popover out there is a popover the dialog is entitled to
+	// ignore (see the same guard in `category-create-dialog.tsx`).
 	const [dialogNode, setDialogNode] = useState<HTMLDivElement | null>(null);
 
 	return (
 		<Dialog open={editor !== null} onOpenChange={(open) => !open && onClose()}>
 			{/* Each form is a single labelled field, so no separate description. */}
-			<DialogContent aria-describedby={undefined} ref={setDialogNode}>
+			<DialogContent ref={setDialogNode}>
 				{editor?.kind === "create" && (
 					<NameForm
 						title={

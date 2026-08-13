@@ -17,12 +17,16 @@ export const PopoverAnchor = PopoverPrimitive.Anchor;
  *
  * `portalContainer` is the escape hatch for a popover **inside a modal dialog**.
  * The portal defaults to `document.body`, which is outside the dialog's DOM
- * subtree — and a Radix modal locks scrolling everywhere *but* that subtree
- * (`react-remove-scroll`). The popover still paints and still takes clicks, since
- * Radix re-enables pointer events on its own content, but the wheel event is
- * swallowed by the lock, so any list inside it looks frozen. Portalling into the
- * dialog's own node puts the popover back inside the whitelisted subtree and the
- * scroll works again. Left opt-in rather than defaulted: portalling to `body` is
+ * subtree. Under a *Radix* dialog that was fatal: its `react-remove-scroll` lock
+ * swallowed the wheel event everywhere but its own subtree, so the popover
+ * painted and took clicks — Radix re-enables pointer events on its own content —
+ * while any list inside it looked frozen. Portalling into the dialog's node put
+ * it back inside the whitelisted subtree. `Dialog` is Base UI now (issue #100),
+ * which locks the page in CSS and marks the document outside its portal inert
+ * rather than trapping the wheel, so the hatch may no longer be load-bearing;
+ * proving that needs a browser, and portalling into the panel is correct under
+ * either, so the two call-sites keep passing it. Opt-in rather than the default:
+ * portalling to `body` is
  * what keeps a popover clear of ancestor `overflow`/stacking contexts everywhere
  * else, and that is the common case.
  */
