@@ -131,7 +131,7 @@ export function IssuerPicker({ transaction, issuer }: IssuerPickerProps) {
 						type="button"
 						className="block rounded-full text-left outline-none focus-visible:ring-2 focus-visible:ring-gousse-accent"
 						// Only the browser-native hint when there is no note — with one,
-						// the Radix tooltip is the hover surface and a `title` would
+						// the tooltip is the hover surface and a `title` would
 						// double up on it.
 						title={
 							issuer.notes == null
@@ -240,13 +240,18 @@ function IssuerNoteTooltip({
 	children,
 }: {
 	note: string | undefined;
-	children: React.ReactNode;
+	/**
+	 * The cell to hang the tooltip on. A single element rather than any node,
+	 * because Base UI's `render` substitutes the trigger *for* it (issue #99) —
+	 * where Radix's `asChild` took a child to merge into.
+	 */
+	children: React.ReactElement<Record<string, unknown>>;
 }) {
 	if (note == null || note.trim().length === 0) return <>{children}</>;
 
 	return (
 		<Tooltip>
-			<TooltipTrigger asChild>{children}</TooltipTrigger>
+			<TooltipTrigger render={children} />
 			<TooltipContent className="max-w-72 whitespace-pre-wrap text-left leading-relaxed">
 				{note}
 			</TooltipContent>

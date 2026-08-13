@@ -61,10 +61,16 @@ the fix upstream separately if it belongs there.
   precisely because the files above it are gousse's and get overwritten.
 - Two primitive systems coexist: **Base UI** under the vendored gousse
   components, and **Radix** under the shadcn gap-fills that cover what gousse
-  does not ship — `Dialog`, `Popover` and `Tooltip` are Radix, `Command` is
-  cmdk, and `Table`, `Input` and `Skeleton` are plain markup. Accepted for
-  velocity; the **seam is the token layer**, so a gap-fill is restyled onto the
-  same `--gousse-*` tokens rather than given a look of its own.
+  does not ship — `Dialog` and `Popover` are Radix, `Command` is cmdk, and
+  `Table`, `Input` and `Skeleton` are plain markup. Accepted for velocity; the
+  **seam is the token layer**, so a gap-fill is restyled onto the same
+  `--gousse-*` tokens rather than given a look of its own. The seam is
+  narrowing rather than widening: `Tooltip` was the first gap-fill moved onto
+  Base UI directly (issue #99, `@base-ui-components/react` pinned exactly at
+  `1.0.0-rc.0`), asserted at the server-render boundary in
+  `src/components/ui/base-ui-primitives.test.tsx`. It cost the label's
+  `aria-describedby` — Base UI wires no ARIA for a tooltip — which is
+  survivable only because nothing the tooltip reveals is available there alone.
 - The token layer is not the only contract the two systems share. **Shape** is
   the other (issue #97): **`rounded-full`** for anything control-shaped (fields,
   selects, toggles, segmented options, menu and list rows, chips, badges,

@@ -303,8 +303,9 @@ describe("IssuerPicker", () => {
 				await screen.findByRole("button", { name: /MINT ENERGIE/ }),
 			);
 
-			// Radix renders the visible tooltip with role=tooltip (plus an
-			// aria-describedby copy), so scope to the role and take the first.
+			// The tooltip popup carries `role="tooltip"` — Radix's own, restated by
+			// the primitive on Base UI (#99). Scope to the role and take the first:
+			// Radix also rendered an `aria-describedby` copy, Base UI renders one node.
 			await waitFor(() =>
 				expect(screen.getAllByRole("tooltip")[0]).toHaveTextContent(
 					"Cancels in March — shared with Ana",

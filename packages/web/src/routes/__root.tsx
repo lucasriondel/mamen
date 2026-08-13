@@ -13,7 +13,7 @@ import { queryClient } from "@/lib/query-client";
  * Wires the cross-cutting providers the PRD assigns to `__root`: the TanStack
  * Query provider (app defaults), `next-themes` for the light/dark toggle, the
  * gousse `Sidebar`, a `sonner` toaster for mutation-failure surfacing, and the
- * Radix tooltip provider (one at the root, so hovering across a column of
+ * tooltip provider (one at the root, so hovering across a column of
  * tooltips re-opens instantly rather than re-waiting the delay each time).
  */
 function RootLayout() {
