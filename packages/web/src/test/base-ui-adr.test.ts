@@ -125,6 +125,17 @@ describe("the record", () => {
 		expect(currentProse).toMatch(/transitive/i);
 	});
 
+	it("names the style a stock `shadcn add` now resolves against", () => {
+		// The record used to describe the stock registry as belonging to the
+		// retired system full stop. It is the `style` field that decides which
+		// variant a pull resolves against, and that field is `base-nova` now
+		// (issue #103) — so the record has to say so, and to say what the
+		// emitted source still would not compile against here.
+		expect(currentProse).toContain("components.json");
+		expect(currentProse).toContain("base-nova");
+		expect(currentProse).toContain("@base-ui/react");
+	});
+
 	it("points at the tests that enforce it", () => {
 		for (const test of [
 			"src/test/radix-package-removed.test.ts",
