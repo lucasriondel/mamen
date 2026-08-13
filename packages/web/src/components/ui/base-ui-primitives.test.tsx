@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -375,38 +375,27 @@ describe("the Base UI popover, once mounted", () => {
 });
 
 /**
- * Which primitives sit on which library is the seam ADR 0003 describes, and it
+ * Which primitives sit on which library was the seam ADR 0003 describes, and it
  * only narrowed: #99 moved `Tooltip`, #100 `Dialog`, #101 `Popover` — and with
- * the third there is no gap-fill left on Radix at all. Asserted as text because
- * there is nothing to render: a later change could reach back for `radix-ui` in
- * a Base UI file, or reintroduce it in a new gap-fill, and every behavioural
- * test here would still pass. Paths are cwd-relative: vitest runs from the
- * package root.
+ * the third there was no gap-fill left on the old one at all, which is what
+ * ADR 0004 records. Asserted as text because there is nothing to render: a
+ * later change could re-implement one of these three on something else and
+ * every behavioural test above would still pass.
+ *
+ * The negative half of the claim — that the retired package is named by no
+ * manifest and no source file in the repo — lives in
+ * `src/test/radix-package-removed.test.ts`, which is wider than `src` and is
+ * the one file allowed to spell the package out. Paths here are cwd-relative:
+ * vitest runs from the package root.
  */
 const read = (path: string) => readFileSync(path, "utf8");
 
-/** Every `.ts`/`.tsx` source file under `src`, so nothing can hide. */
-function sourceFiles(): string[] {
-	return readdirSync("src", { recursive: true, encoding: "utf8" })
-		.filter((entry) => /\.tsx?$/.test(entry))
-		.map((entry) => `src/${entry}`);
-}
-
-describe("the Radix seam", () => {
-	it("no longer runs through any of the three converted primitives", () => {
+describe("the three converted primitives", () => {
+	it("are each rendered on Base UI", () => {
 		for (const name of ["tooltip", "dialog", "popover"]) {
-			const source = read(`src/components/ui/${name}.tsx`);
-
-			expect(source).toContain("@base-ui-components/react");
-			expect(source).not.toMatch(/from\s+"radix-ui"/);
+			expect(read(`src/components/ui/${name}.tsx`)).toContain(
+				"@base-ui-components/react",
+			);
 		}
-	});
-
-	it("is closed: nothing under src imports radix-ui any more", () => {
-		const importers = sourceFiles().filter((path) =>
-			/from\s+"radix-ui"/.test(read(path)),
-		);
-
-		expect(importers).toEqual([]);
 	});
 });

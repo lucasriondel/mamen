@@ -65,10 +65,13 @@ the fix upstream separately if it belongs there.
   `@base-ui-components/react` pinned exactly at `1.0.0-rc.0`), `Dialog` the
   second (issue #100) and `Popover` the third (issue #101, all twelve call
   sites), which left **no gap-fill on Radix**. All three are asserted in
-  `src/components/ui/base-ui-primitives.test.tsx`, which also holds the seam
-  closed: nothing under `src` may import `radix-ui` again. What remains outside
-  Base UI is not Radix — `Command` is cmdk, and `Table`, `Input` and `Skeleton`
-  are plain markup. The **seam is the token layer** as it always was, so a
+  `src/components/ui/base-ui-primitives.test.tsx`; the dependency itself is
+  retired, and kept out, by
+  [ADR 0004](./0004-base-ui-is-the-only-primitive-system.md), which also records
+  what those three converted files are now that they are on neither side of the
+  vendoring rule above. What remains outside Base UI is not Radix — `Command` is
+  cmdk, and `Table`, `Input` and `Skeleton` are plain markup. The **seam is the
+  token layer** as it always was, so a
   gap-fill is restyled onto the same `--gousse-*` tokens rather than given a
   look of its own. The conversions cost: tooltip lost the label's `aria-describedby` — Base
   UI wires no ARIA for a tooltip — survivable only because nothing the tooltip
