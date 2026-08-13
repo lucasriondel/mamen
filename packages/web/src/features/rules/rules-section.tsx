@@ -1,11 +1,12 @@
 import type { Issuer, RuleView } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Replace, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ruleQueries } from "@/lib/sdk";
 import { RuleDeleteConfirm } from "./rule-delete-confirm";
+import { RuleMovePanel } from "./rule-move-panel";
 import { RulesListSkeleton } from "./rules-list-skeleton";
 
 export interface RulesSectionProps {
@@ -24,9 +25,24 @@ export interface RulesSectionProps {
  *
  * Naming the issuers a preview row currently belongs to is the confirm's own
  * business: it holds the rows, so it knows the ids to ask for (#62).
+ *
+ * **Move** (issue #94) follows the same precedent: a second icon on the row
+ * expands the {@link RuleMovePanel} in place. The two expansions are mutually
+ * exclusive — one row of the list answers one question at a time, and two open
+ * panels would leave "Cancel" ambiguous.
  */
 export function RulesSection({ issuer }: RulesSectionProps) {
 	const [deletingId, setDeletingId] = useState<number | null>(null);
+	const [movingId, setMovingId] = useState<number | null>(null);
+
+	const startDelete = (id: number) => {
+		setMovingId(null);
+		setDeletingId(id);
+	};
+	const startMove = (id: number) => {
+		setDeletingId(null);
+		setMovingId(id);
+	};
 
 	const rulesQuery = useQuery(ruleQueries.list({ issuerId: issuer.id }));
 	const rules = (rulesQuery.data?.items ?? []) as readonly RuleView[];
@@ -40,7 +56,7 @@ export function RulesSection({ issuer }: RulesSectionProps) {
 				<Link
 					to="/issuers/$issuerId/rules/new"
 					params={{ issuerId: String(issuer.id) }}
-					className="flex items-center gap-1 rounded-md border border-gousse-line px-2 py-1 text-xs text-gousse-ink"
+					className="flex items-center gap-1 rounded-full border border-gousse-line px-3 py-1 text-xs text-gousse-ink"
 				>
 					<Plus size={14} aria-hidden />
 					Add rule
@@ -58,7 +74,7 @@ export function RulesSection({ issuer }: RulesSectionProps) {
 					No Matching Rules yet — add one to auto-assign this issuer.
 				</p>
 			) : (
-				<ul className="divide-y divide-gousse-line rounded-md border border-gousse-line">
+				<ul className="divide-y divide-gousse-line rounded-2xl border border-gousse-line">
 					{rules.map((rule) => (
 						<li key={rule.id} className="flex flex-col">
 							<div className="flex items-center gap-2 px-3 py-2 text-sm">
@@ -68,7 +84,7 @@ export function RulesSection({ issuer }: RulesSectionProps) {
 										issuerId: String(issuer.id),
 										ruleId: String(rule.id),
 									}}
-									className="flex min-w-0 flex-1 items-center gap-2 rounded transition-colors hover:text-gousse-ink"
+									className="flex min-w-0 flex-1 items-center gap-2 rounded-full transition-colors hover:text-gousse-ink"
 									aria-label={`Edit rule ${rule.pattern}`}
 								>
 									<code className="min-w-0 flex-1 truncate font-mono text-gousse-ink">
@@ -86,12 +102,24 @@ export function RulesSection({ issuer }: RulesSectionProps) {
 										{rule.ownedCount === 1 ? "" : "s"}
 									</span>
 								</Link>
+								{/* `Replace`, deliberately not `ArrowRightLeft`: that icon
+								    already reads as the transaction **transfer** feature, and
+								    a rule move has nothing to do with it. */}
+								<Button
+									variant="ghost"
+									size="icon"
+									className="shrink-0"
+									aria-label={`Move rule ${rule.pattern} to another issuer`}
+									onClick={() => startMove(rule.id)}
+								>
+									<Replace size={14} aria-hidden />
+								</Button>
 								<Button
 									variant="ghost"
 									size="icon"
 									className="shrink-0"
 									aria-label={`Delete rule ${rule.pattern}`}
-									onClick={() => setDeletingId(rule.id)}
+									onClick={() => startDelete(rule.id)}
 								>
 									<Trash2 size={14} aria-hidden />
 								</Button>
@@ -102,6 +130,15 @@ export function RulesSection({ issuer }: RulesSectionProps) {
 										rule={rule}
 										onDone={() => setDeletingId(null)}
 										onCancel={() => setDeletingId(null)}
+									/>
+								</div>
+							) : null}
+							{movingId === rule.id ? (
+								<div className="border-t border-gousse-line px-3 py-3">
+									<RuleMovePanel
+										rule={rule}
+										onDone={() => setMovingId(null)}
+										onCancel={() => setMovingId(null)}
 									/>
 								</div>
 							) : null}

@@ -63,10 +63,19 @@ const importRoute = createRoute({
 	path: "/import",
 	component: () => <div>import page</div>,
 });
+const transactionsRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/transactions",
+	component: () => <div>transactions page</div>,
+});
 
 function renderGrid() {
 	const router = createRouter({
-		routeTree: rootRoute.addChildren([accountsRoute, importRoute]),
+		routeTree: rootRoute.addChildren([
+			accountsRoute,
+			importRoute,
+			transactionsRoute,
+		]),
 		history: createMemoryHistory({ initialEntries: ["/"] }),
 	});
 	render(<RouterProvider router={router} />);
@@ -113,14 +122,61 @@ describe("ImportGrid", () => {
 		expect(cell).toBeEnabled();
 	});
 
+	// A grid cell is clickable but it is not control-shaped: it is a box in a box,
+	// so the shape contract (issue #97) gives it the nested corner rather than the
+	// pill a button takes. Asserted because "it's clickable, make it a pill" is
+	// exactly the shortcut a later sweep would take.
+	it("shapes a month cell as a nested box, not a pill", async () => {
+		renderGrid();
+		const cell = await screen.findByRole("button", {
+			name: /Import Jun — available/,
+		});
+
+		expect(cell.className).toContain("rounded-xl");
+		expect(cell.className).not.toContain("rounded-full");
+		expect(cell.className).toContain("text-center");
+	});
+
 	it("marks an already-imported past month as imported", async () => {
 		scan = [{ accountId: 1, importMonth: "2026-05" }];
 		renderGrid();
 		expect(
 			await screen.findByRole("button", {
-				name: /Import May — already imported/,
+				name: /May — already imported/,
 			}),
 		).toBeInTheDocument();
+	});
+
+	it("opens an imported month's rows in the transactions list", async () => {
+		scan = [{ accountId: 1, importMonth: "2026-05" }];
+		const router = renderGrid();
+		const cell = await screen.findByRole("button", {
+			name: /May — already imported/,
+		});
+
+		const { fireEvent } = await import("@testing-library/react");
+		fireEvent.click(cell);
+
+		await waitFor(() =>
+			expect(router.state.location.pathname).toBe("/transactions"),
+		);
+		expect(router.state.location.search).toMatchObject({
+			accountId: [1],
+			importMonth: "2026-05",
+		});
+	});
+
+	it("opens the wizard from a month with nothing imported yet", async () => {
+		const router = renderGrid();
+		const cell = await screen.findByRole("button", {
+			name: /Import Jun — available/,
+		});
+
+		const { fireEvent } = await import("@testing-library/react");
+		fireEvent.click(cell);
+
+		await waitFor(() => expect(router.state.location.pathname).toBe("/import"));
+		expect(router.state.location.search).toMatchObject({ accountId: 1 });
 	});
 
 	it("disables the current and future months (no button)", async () => {

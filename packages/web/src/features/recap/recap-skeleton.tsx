@@ -26,7 +26,7 @@ const ROW_WIDTHS = ["w-32", "w-24", "w-40", "w-28", "w-36", "w-24"] as const;
 /** One breakdown panel, mirroring `SpendSection`: header figures then rows. */
 function SpendSectionSkeleton() {
 	return (
-		<section className="flex flex-col gap-3 rounded-lg border border-gousse-line bg-gousse-panel p-5">
+		<section className="flex flex-col gap-3 rounded-2xl border border-gousse-line bg-gousse-panel p-5">
 			<header className="flex flex-wrap items-center justify-between gap-3">
 				<div className="flex flex-col gap-2">
 					<Skeleton className="h-5 w-28" />

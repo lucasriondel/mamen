@@ -46,7 +46,7 @@ export interface TransactionsFiltersProps {
 }
 
 const inputClass = cn(
-	"h-9 rounded-md border border-gousse-line bg-gousse-panel px-2 text-sm text-gousse-ink",
+	"h-9 rounded-full border border-gousse-line bg-gousse-panel px-4 text-sm text-gousse-ink",
 	"focus:outline-none focus:ring-2 focus:ring-gousse-accent",
 );
 
@@ -287,13 +287,16 @@ function TransactionsSearchInput({
 		<div className="relative flex items-center">
 			<Search
 				size={14}
-				className="pointer-events-none absolute left-2 text-gousse-muted"
+				className="pointer-events-none absolute left-3 text-gousse-muted"
 			/>
 			<input
 				type="search"
 				aria-label="Search transactions"
 				placeholder="Search transactions…"
-				className={cn(inputClass, "w-56 pl-7")}
+				// The leading icon moves in with the field's own inset (issue #97):
+				// a pill's ends curve away, so an adornment left where a square
+				// field put it reads as hanging off the edge.
+				className={cn(inputClass, "w-56 pl-8")}
 				value={text}
 				onChange={(e) => setText(e.target.value)}
 			/>

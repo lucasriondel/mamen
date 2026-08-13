@@ -3,7 +3,7 @@ import { Skeleton, SkeletonScreen } from "@/components/ui/skeleton";
 /** A leaf row: colour chip + name on the left, its controls on the right. */
 function LeafSkeleton({ nameWidth }: { nameWidth: string }) {
 	return (
-		<div className="flex items-center justify-between gap-2 rounded-lg border border-gousse-line bg-gousse-panel px-4 py-2">
+		<div className="flex items-center justify-between gap-2 rounded-xl border border-gousse-line bg-gousse-panel px-4 py-2">
 			<div className="flex min-w-0 items-center gap-1.5">
 				<Skeleton className="size-4 shrink-0 rounded-full" />
 				<Skeleton className={`h-3.5 ${nameWidth}`} />
@@ -20,7 +20,7 @@ function LeafSkeleton({ nameWidth }: { nameWidth: string }) {
  */
 function FolderSkeleton({ leaves }: { leaves: readonly string[] }) {
 	return (
-		<div className="rounded-lg border border-gousse-line bg-gousse-panel p-4">
+		<div className="rounded-2xl border border-gousse-line bg-gousse-panel p-4">
 			<div className="flex w-full items-center justify-between gap-2">
 				<div className="flex min-w-0 items-center gap-1.5">
 					<Skeleton className="size-4 shrink-0 rounded-full" />

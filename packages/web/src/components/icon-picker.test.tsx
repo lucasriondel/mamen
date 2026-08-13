@@ -184,6 +184,28 @@ describe("IconPicker", () => {
 		expect(onSelect).toHaveBeenCalledWith("shopping-cart");
 	});
 
+	// Both surfaces are controls — the trigger is the category's own glyph, each
+	// cell is a candidate to pick — so both are pills under the shape contract
+	// (issue #97). The trigger's only visual is its focus ring, which is precisely
+	// why it can drift: nothing but the ring shows the shape.
+	it("shapes the trigger and every cell as a pill", async () => {
+		render(
+			<IconPicker
+				label="Food"
+				value="tag"
+				color="#ef4444"
+				onSelect={vi.fn()}
+			/>,
+		);
+		const trigger = screen.getByRole("button", { name: "Change Food icon" });
+		expect(trigger.className).toContain("rounded-full");
+
+		await open();
+		for (const cell of cells()) {
+			expect(cell.className).toContain("rounded-full");
+		}
+	});
+
 	it("dismisses on Escape without selecting", async () => {
 		const onSelect = vi.fn();
 		render(

@@ -12,17 +12,6 @@ export default defineConfig({
 		environment: "jsdom",
 		setupFiles: ["./src/test/setup.ts", "./src/test/query-client-setup.tsx"],
 		css: true,
-		server: {
-			deps: {
-				// @lucasriondel/gousse-ui ships `"type": "module"` but its dist uses
-				// extensionless relative imports (`from "./utils"`), which Node's ESM
-				// resolver rejects — `vite build` tolerates it, Vitest's node-side
-				// resolution does not. Inlining routes the package through Vite's
-				// bundler resolution instead. Drop this once gousse-ui emits
-				// extensioned specifiers.
-				inline: ["@lucasriondel/gousse-ui"],
-			},
-		},
 	},
 	resolve: {
 		alias: {

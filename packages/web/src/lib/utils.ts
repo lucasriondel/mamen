@@ -4,9 +4,10 @@ import { twMerge } from "tailwind-merge";
 /**
  * Merge class names with Tailwind conflict resolution.
  *
- * `@lucasriondel/gousse-ui` ships its own `cn`; the issue explicitly allows a
- * local one. This is the local implementation used across the app. Swap to a
- * re-export of gousse's `cn` if/when a single source is preferred.
+ * gousse ships its own `cn`, but it arrived through the npm package that is no
+ * longer a dependency (#96) and its registry items import `@/lib/utils`
+ * anyway — so this is the single source, for mamen's components and the
+ * vendored gousse ones alike.
  */
 export function cn(...inputs: ClassValue[]): string {
 	return twMerge(clsx(inputs));

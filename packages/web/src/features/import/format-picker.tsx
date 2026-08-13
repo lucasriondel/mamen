@@ -2,7 +2,7 @@ import { PARSERS } from "./parsers/registry";
 import type { WizardAction, WizardState } from "./wizard-reducer";
 
 const INPUT_CLASS =
-	"rounded-md border border-gousse-line bg-gousse-bg px-3 py-2 text-sm text-gousse-ink outline-none focus:border-gousse-accent";
+	"rounded-full border border-gousse-line bg-gousse-bg px-4 py-2 text-sm text-gousse-ink outline-none focus:border-gousse-accent";
 
 /**
  * The CSV-only statement-format `<select>` (with the auto-detect / manual-pick

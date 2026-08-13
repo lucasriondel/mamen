@@ -174,6 +174,39 @@ describe("TransactionsFilters — grouped", () => {
  * React observes. Shared by the three-way filters, which differ only in which
  * control and which option they drive.
  */
+// The bar's fields are the densest controls in the app (`h-9`), which is exactly
+// where a shape sweep is likeliest to leave something behind — they sit beside
+// the vendored `Button`, so a square field next to a pill button is visible.
+describe("TransactionsFilters — shape", () => {
+	it("draws its fields as pills, widened for the corner arc", () => {
+		renderFilters();
+
+		for (const label of [
+			"Filter by month",
+			"Filter by recap exclusion",
+			"Search transactions",
+		]) {
+			const field = screen.getByLabelText(label);
+			expect(field.className).toContain("rounded-full");
+			expect(field.className).toContain("px-4");
+		}
+	});
+
+	it("moves the search icon in with the field's own inset", () => {
+		renderFilters();
+
+		// The glyph is decorative, so it is reached through the field's wrapper
+		// rather than by role — it has no accessible name to query by.
+		const wrapper = screen.getByLabelText("Search transactions").parentElement;
+		expect(wrapper?.querySelector("svg")?.getAttribute("class")).toContain(
+			"left-3",
+		);
+		expect(screen.getByLabelText("Search transactions").className).toContain(
+			"pl-8",
+		);
+	});
+});
+
 function selectByLabel(ariaLabel: string, optionText: string) {
 	const select = screen.getByLabelText(ariaLabel) as HTMLSelectElement;
 	const option = [...select.options].find((o) => o.text === optionText);

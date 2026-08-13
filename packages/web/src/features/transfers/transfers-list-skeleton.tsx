@@ -9,7 +9,7 @@ export function TransfersListSkeleton({ rows = 3 }: { rows?: number }) {
 	return (
 		<SkeletonScreen
 			label="Looking for transfers…"
-			className="overflow-hidden rounded-lg border border-gousse-line"
+			className="overflow-hidden rounded-2xl border border-gousse-line"
 		>
 			{Array.from({ length: rows }, (_, index) => index).map((index) => (
 				<div

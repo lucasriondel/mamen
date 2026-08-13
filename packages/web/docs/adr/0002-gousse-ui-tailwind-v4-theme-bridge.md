@@ -1,5 +1,23 @@
 # gousse-ui theming under Tailwind v4
 
+> **Status: superseded by [ADR 0003](./0003-gousse-is-vendored-from-a-shadcn-registry.md).**
+> gousse is a shadcn registry now, not a package: the theme layers and the
+> primitives are vendored source under `src/styles/gousse/` and
+> `src/components/ui/`, and the dependency, its `.npmrc`, the build credential
+> and the Vitest inline workaround are all gone (issues #92, #93, #95, #96,
+> #97).
+>
+> The text below is the decision **as taken**, restored. Each migration slice
+> amended it in place because there was no successor record to hold the new
+> state; ADR 0003 is that record, so this one goes back to being what it is —
+> history. Nothing below describes this repo. What survives the reversal is the
+> half ADR 0003 inherits: gousse tokens are the theme source of truth, they are
+> rgb channel triples under a `*-gousse-*` namespace, mamen retints the accent,
+> and two primitive systems meet at the token layer. What changed is the
+> distribution channel, and with it the reason the adapters and the stand-in
+> below had to exist at all — a published build cannot be edited, and vendored
+> source can.
+
 `@lucasriondel/gousse-ui` is the primary component kit (Base UI under the hood),
 but it ships a **Tailwind v3** artifact — a JS `preset.js` consumed via
 `presets: [...]`. This web app is **Tailwind v4** (CSS-first `@theme`, no

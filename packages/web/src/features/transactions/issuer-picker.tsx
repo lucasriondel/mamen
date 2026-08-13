@@ -129,7 +129,7 @@ export function IssuerPicker({ transaction, issuer }: IssuerPickerProps) {
 				<PopoverTrigger asChild>
 					<button
 						type="button"
-						className="block rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-gousse-accent"
+						className="block rounded-full text-left outline-none focus-visible:ring-2 focus-visible:ring-gousse-accent"
 						// Only the browser-native hint when there is no note — with one,
 						// the Radix tooltip is the hover surface and a `title` would
 						// double up on it.

@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 export function TransferBadge() {
 	return (
 		<span
-			className="inline-flex items-center gap-1 rounded bg-gousse-bg px-1.5 py-0.5 text-gousse-muted text-xs"
+			className="inline-flex items-center gap-1 rounded-full bg-gousse-bg px-2 py-0.5 text-gousse-muted text-xs"
 			title="Part of an internal transfer — excluded from your recap spend"
 		>
 			<ArrowLeftRight size={12} aria-hidden />
@@ -42,7 +42,7 @@ export function TransferBadge() {
 function OverrideMarker() {
 	return (
 		<span
-			className="grid size-4 shrink-0 place-items-center rounded-[5px] bg-gousse-accent/15 text-gousse-accent"
+			className="grid size-4 shrink-0 place-items-center rounded-md bg-gousse-accent/15 text-gousse-accent"
 			aria-hidden
 		>
 			<Pin size={10} className="fill-current" />

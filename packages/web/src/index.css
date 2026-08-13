@@ -1,7 +1,7 @@
 /**
  * Global stylesheet.
  *
- * Tailwind v4 first, then the real gousse theme layers (ADR 0002). gousse owns
+ * Tailwind v4 first, then the real gousse theme layers (ADR 0003). gousse owns
  * the token contract end to end:
  *
  * - `tokens.css`  — the `--gousse-*` channel triples + `.dark` ramp
@@ -11,23 +11,28 @@
  *                   must not declare a second (conflicting) one.
  * - `effects.css` — RainbowGlow / Sheen keyframes and classes
  *
+ * The three sheets are **vendored source** under `src/styles/gousse/`, installed
+ * from gousse's shadcn registry (`@gousse/{tokens,theme,effects}` in
+ * `components.json`) — issue #92. They are gousse's files, not ours: re-running
+ * `shadcn add` overwrites them, so mamen's own tint stays below, in this file.
+ * The token contract is unchanged by the move; only where it comes from is.
+ *
  * Colour utilities are therefore namespaced `*-gousse-*` (`bg-gousse-panel`,
  * `text-gousse-ink`, …), matching miel. There is no local token stub and no
  * hand-rolled `@theme inline` bridge any more.
+ *
+ * There is no `@source` over the package's `dist` either (issue #93). It was
+ * here because Tailwind v4 skips `node_modules`, so the utilities baked into
+ * the primitives' compiled JS were never generated and a `primary` Button
+ * rendered invisible. The primitives are vendored source now, under
+ * `src/components/ui/`, which Tailwind scans by default.
  */
 
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "@lucasriondel/gousse-ui/tokens.css";
-@import "@lucasriondel/gousse-ui/theme.css";
-@import "@lucasriondel/gousse-ui/effects.css";
-
-/* gousse's primitives carry their own utility classes (`bg-gousse-ink`,
- * `disabled:bg-gousse-muted`, …) inside their compiled JS. Tailwind v4 skips
- * `node_modules` when auto-detecting sources, so without this those classes are
- * never generated and the primitives render unstyled — a `primary` Button ends
- * up transparent with `text-gousse-bg` ink, i.e. invisible on a dark page. */
-@source "../../../node_modules/@lucasriondel/gousse-ui/dist";
+@import "./styles/gousse/tokens.css";
+@import "./styles/gousse/theme.css";
+@import "./styles/gousse/effects.css";
 
 /* mamen's accent tint. gousse ships a warm orange default; we track miel's blue
  * so the two apps read as one design language. Bare channel triples — the

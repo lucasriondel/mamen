@@ -7,25 +7,22 @@ FROM oven/bun:1.3.4 AS build
 
 WORKDIR /app
 
-COPY package.json bun.lock .npmrc ./
+COPY package.json bun.lock ./
 COPY packages/api/package.json ./packages/api/
 COPY packages/web/package.json ./packages/web/
 COPY packages/sdk/package.json ./packages/sdk/
 COPY packages/shared/package.json ./packages/shared/
 
-# `@lucasriondel/gousse-ui` is a private GitHub Packages dep of web; `.npmrc`
-# reads NODE_AUTH_TOKEN from the env to authenticate. Kept to this RUN and the
-# file deleted after, so no token survives into a layer. This stage is discarded
-# anyway — only `dist/` is copied forward.
+# Every dependency here is public: the private GitHub Packages one went with
+# issue #96, and with it the registry credential this stage used to take as a
+# build arg. Nothing in the build needs a token.
 #
 # `--filter @mamen/web` restricts the install to this package's subgraph.
 # Unfiltered, it also resolves the api's dev dep `@effect/sql-sqlite-node`,
 # whose `better-sqlite3` needs node-gyp and fails in this image. devDependencies
 # are kept (unlike the api image) — vite and tsc run the build below.
-ARG NODE_AUTH_TOKEN
 RUN --mount=type=cache,target=/root/.bun/install/cache \
-	NODE_AUTH_TOKEN="${NODE_AUTH_TOKEN}" bun install --frozen-lockfile --filter @mamen/web \
-	&& rm -f .npmrc
+	bun install --frozen-lockfile --filter @mamen/web
 
 COPY packages/shared ./packages/shared
 COPY packages/sdk ./packages/sdk

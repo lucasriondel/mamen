@@ -50,13 +50,13 @@ export function RuleDeleteConfirm({
 		<div className="flex flex-col gap-4">
 			<p className="text-sm text-gousse-muted">
 				Deleting the rule{" "}
-				<code className="rounded bg-gousse-panel px-1 py-0.5 font-mono text-gousse-ink">
+				<code className="rounded-full bg-gousse-panel px-2 py-0.5 font-mono text-gousse-ink">
 					{rule.pattern}
 				</code>{" "}
 				will change these transactions:
 			</p>
 
-			<div className="max-h-72 overflow-y-auto rounded-md border border-gousse-line p-3">
+			<div className="max-h-72 overflow-y-auto rounded-2xl border border-gousse-line p-3">
 				{/* The issuer lookup reads the ids of the preview rows, so it lands a
 				    beat after them — the skeleton holds until both are in. */}
 				{previewQuery.isPending || issuersPending ? (

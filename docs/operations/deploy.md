@@ -94,9 +94,9 @@ Environment: `API_UPSTREAM=<api appName>:5500`. Dokploy assigns the api its
 `appName` on creation (a generated slug); copy it from the api application's
 page. nginx resolves it on the shared Docker network.
 
-Build args: `NODE_AUTH_TOKEN=<GitHub PAT with read:packages>` — needed for the
-private `@lucasriondel/gousse-ui`. The api image needs **no** token: its install
-is filtered to `@mamen/api`, which has no private dependency.
+No build args. Both images install from the public npm registry only — the
+private GitHub Packages dependency and the PAT it needed were removed with
+issue #96.
 
 ## Volumes
 
@@ -130,7 +130,7 @@ container is not evidence the token works** — verify by importing a PDF.
 1. Create the project and both applications with the settings above.
 2. Add the `mamen-data` volume to `api` **before** the first deploy, so the
    database is created on the volume rather than in the container filesystem.
-3. Set env and build args.
+3. Set env.
 4. Deploy `api` first, then `web` (web needs the api's `appName` for
    `API_UPSTREAM`).
 5. Point Cloudflare DNS `mamen` at the VPS, proxied, and attach the Access
@@ -164,7 +164,6 @@ that exercises the nginx `try_files` fallback.
 | --- | --- |
 | `502` on `/api/*`, SPA loads fine | `API_UPSTREAM` wrong, or api container down. Check the api's `appName` and port. |
 | Data gone after a redeploy | Volume missing on `api`, or `DB_PATH` pointing outside `/data`. |
-| Build 401s on `@lucasriondel/gousse-ui` | `NODE_AUTH_TOKEN` build arg missing/expired on `web`. |
 | Build fails on `better-sqlite3` / node-gyp | An install lost its `--filter`; the api's dev-only `@effect/sql-sqlite-node` is being resolved. |
 | PDF import fails, everything else fine | `CLAUDE_CODE_OAUTH_TOKEN` invalid or expired. |
 | Logo search reports unconfigured | `LOGODEV_TOKEN` unset — see [logo-search-setup.md](./logo-search-setup.md). |

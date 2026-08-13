@@ -1,23 +1,38 @@
-import { Empty as GousseEmpty } from "@lucasriondel/gousse-ui";
+import { cva, type VariantProps } from "class-variance-authority";
 import type * as React from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * Empty state — a thin adapter over gousse's `Empty` primitive (ADR 0002).
+ * Centered empty-state panel — gousse's `Empty`, vendored from the registry
+ * (issue #93) and owned here. gousse's look is untouched: one component for
+ * both states via a `variant`:
+ * - `dashed` (default) — the general "nothing here" state
+ * - `solid`  — the celebratory all-caught-up state.
  *
- * gousse owns the look (gradient panel, dashed/solid border, shadow) and the
- * copy slots (`title` / `description` / `action`). mamen's call-sites predate
- * that API: they additionally pass an `icon` above the title and put their
- * action link in `children`, neither of which gousse models. Rather than
- * rewrite the call-sites onto a narrower surface, this wrapper keeps mamen's
- * props and forwards onto the primitive:
+ * Two slots are mamen's, folded in here from the adapter this file replaced:
  *
- * - `children` → gousse's `action` slot (its own `mt-6` spacing applies);
- * - `icon` is rendered here, above the primitive's title, since gousse has no
- *   icon slot. It sits in the panel's top padding so the primitive's internal
- *   vertical rhythm is left untouched.
+ * - **`icon`**, above the title. The adapter could only float one over the
+ *   panel's top padding, since it could not reach inside a published
+ *   component; owning the source makes it an ordinary first child of the
+ *   column, so it shares the panel's vertical rhythm instead of covering it.
+ * - **`children` as the action**, below the copy. gousse names that slot
+ *   `action`; every mamen call-site writes the link or button as a child, which
+ *   is the more usual React shape for "the thing at the bottom of this panel".
  */
-export interface EmptyProps {
+const emptyVariants = cva(
+	"flex flex-col items-center justify-center rounded-xl border bg-gradient-to-b from-gousse-panel to-gousse-bg px-8 py-16 text-center shadow-gousse-sm",
+	{
+		variants: {
+			variant: {
+				dashed: "border-dashed border-gousse-line",
+				solid: "border-gousse-line/40",
+			},
+		},
+		defaultVariants: { variant: "dashed" },
+	},
+);
+
+export interface EmptyProps extends VariantProps<typeof emptyVariants> {
 	/** Optional icon rendered above the title. */
 	icon?: React.ReactNode;
 	/** The headline (e.g. "No transactions"). */
@@ -26,12 +41,10 @@ export interface EmptyProps {
 	description?: React.ReactNode;
 	/** Optional action (button/link) rendered below the copy. */
 	children?: React.ReactNode;
-	/** Border treatment — `dashed` (default) or `solid`. */
-	variant?: "dashed" | "solid";
 	className?: string;
 }
 
-/** Render a centered empty/error state on gousse's `Empty`. */
+/** A centered empty/error state, with an optional icon and action. */
 export function Empty({
 	icon,
 	title,
@@ -40,29 +53,16 @@ export function Empty({
 	variant,
 	className,
 }: EmptyProps) {
-	if (icon == null) {
-		return (
-			<GousseEmpty
-				title={title}
-				description={description}
-				action={children}
-				variant={variant}
-				className={className}
-			/>
-		);
-	}
-
 	return (
-		<div className={cn("relative", className)}>
-			<span className="pointer-events-none absolute inset-x-0 top-6 z-10 flex justify-center text-gousse-muted">
-				{icon}
-			</span>
-			<GousseEmpty
-				title={title}
-				description={description}
-				action={children}
-				variant={variant}
-			/>
+		<div className={cn(emptyVariants({ variant }), className)}>
+			{icon ? <span className="mb-4 text-gousse-muted">{icon}</span> : null}
+			<p className="text-lg font-bold text-gousse-ink">{title}</p>
+			{description ? (
+				<p className="mt-2 max-w-md text-sm font-medium text-gousse-muted">
+					{description}
+				</p>
+			) : null}
+			{children ? <div className="mt-6">{children}</div> : null}
 		</div>
 	);
 }

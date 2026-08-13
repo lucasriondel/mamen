@@ -9,6 +9,8 @@
 		"includes": [
 			"**",
 			"!**/dist",
+			"!packages/web/src/styles/gousse",
+			"!packages/web/src/components/ui/sidebar.tsx",
 			"!*.config.ts",
 			"!*.config.js",
 			"!_bmad-output"

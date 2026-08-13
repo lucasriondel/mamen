@@ -19,5 +19,7 @@
 		"lib": "@/lib",
 		"hooks": "@/hooks"
 	},
-	"registries": {}
+	"registries": {
+		"@gousse": "https://lucasriondel.github.io/gousse-ui/r/{name}.json"
+	}
 }

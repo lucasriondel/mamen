@@ -1,4 +1,3 @@
-import { Checkbox } from "@lucasriondel/gousse-ui";
 import type {
 	Account,
 	Category,
@@ -22,6 +21,7 @@ import {
 	CornerDownRight,
 } from "lucide-react";
 import { useMemo } from "react";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
 	Table,
 	TableBody,
@@ -110,10 +110,11 @@ const NOTHING_SELECTED: RowSelectionState = {};
 const NO_BUNDLE_MEMBERS: readonly Transaction[] = [];
 
 /**
- * The selection checkbox — gousse's `Checkbox` primitive (ADR 0002: gousse owns
- * the chassis) named by `aria-label` rather than a visible `<label>`, since the
- * column is 32px of pure control with no room for text beside it. TanStack owns
- * the checked state; this holds none of its own.
+ * The selection checkbox — gousse's `Checkbox`, now vendored under
+ * `components/ui` (issue #93) rather than imported from the package, named by
+ * `aria-label` rather than a visible `<label>`, since the column is 32px of
+ * pure control with no room for text beside it. TanStack owns the checked
+ * state; this holds none of its own.
  */
 function SelectCheckbox({
 	checked,
@@ -263,7 +264,7 @@ export function TransactionsTable({
 							onClick={row.getToggleExpandedHandler()}
 							aria-expanded={expanded}
 							aria-label={`${expanded ? "Hide" : "Show"} the ${row.subRows.length} transactions in ${row.original.rawIssuerString}`}
-							className="grid size-6 place-items-center rounded-sm text-gousse-muted outline-none transition-colors hover:bg-gousse-bg hover:text-gousse-ink focus-visible:ring-2 focus-visible:ring-gousse-accent"
+							className="grid size-6 place-items-center rounded-full text-gousse-muted outline-none transition-colors hover:bg-gousse-bg hover:text-gousse-ink focus-visible:ring-2 focus-visible:ring-gousse-accent"
 						>
 							<ChevronRight
 								size={14}
@@ -444,7 +445,7 @@ export function TransactionsTable({
 	const SortIcon = direction === "asc" ? ArrowUp : ArrowDown;
 
 	return (
-		<div className="overflow-hidden rounded-lg border border-gousse-line">
+		<div className="overflow-hidden rounded-2xl border border-gousse-line">
 			<Table>
 				<TableHeader>
 					{table.getHeaderGroups().map((headerGroup) => (
@@ -456,7 +457,7 @@ export function TransactionsTable({
 											type="button"
 											onClick={onToggleSort}
 											aria-label={`Sort by date, currently ${direction}ending`}
-											className="flex items-center gap-1 rounded-sm font-medium text-gousse-muted outline-none transition-colors hover:text-gousse-ink focus-visible:ring-2 focus-visible:ring-gousse-accent"
+											className="flex items-center gap-1 rounded-full font-medium text-gousse-muted outline-none transition-colors hover:text-gousse-ink focus-visible:ring-2 focus-visible:ring-gousse-accent"
 										>
 											{flexRender(
 												header.column.columnDef.header,

@@ -37,11 +37,11 @@ COPY packages/web/package.json ./packages/web/
 COPY packages/sdk/package.json ./packages/sdk/
 COPY packages/shared/package.json ./packages/shared/
 
-# `--filter @mamen/api` installs only this package's subgraph. Without it the
-# frozen lockfile resolves every workspace — including web's private
-# `@lucasriondel/gousse-ui` — and the install 401s on GitHub Packages. Filtering
-# means the API image needs no registry token at all, so unlike the web build
-# there is no NODE_AUTH_TOKEN / .npmrc here.
+# `--filter @mamen/api` installs only this package's subgraph, so web's
+# dependencies are never resolved here. (It also used to be what kept the api
+# image away from web's private GitHub Packages dependency, which 401'd without
+# a registry token; that dependency is gone as of issue #96, so no install path
+# in this repo needs a credential any more.)
 #
 # `--production` skips devDependencies, which matters beyond image size here:
 # `@effect/sql-sqlite-node` (the `:memory:` test layer's driver) pulls

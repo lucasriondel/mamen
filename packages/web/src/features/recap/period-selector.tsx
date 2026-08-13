@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 import { monthKeyOf, type Period, type PeriodKind } from "./period";
 
 const inputClass = cn(
-	"h-9 rounded-md border border-gousse-line bg-gousse-panel px-2 text-sm text-gousse-ink",
+	"h-9 rounded-full border border-gousse-line bg-gousse-panel px-4 text-sm text-gousse-ink",
 	"focus:outline-none focus:ring-2 focus:ring-gousse-accent",
 );
 
@@ -59,7 +59,7 @@ export function PeriodSelector({
 			<div
 				role="toolbar"
 				aria-label="Recap period"
-				className="inline-flex items-center gap-1 rounded-lg border border-gousse-line bg-gousse-panel p-1"
+				className="inline-flex items-center gap-1 rounded-full border border-gousse-line bg-gousse-panel p-1"
 			>
 				{KINDS.map(({ kind, label }) => (
 					<button
@@ -68,7 +68,7 @@ export function PeriodSelector({
 						aria-pressed={period.kind === kind}
 						onClick={() => selectKind(kind)}
 						className={cn(
-							"rounded-md px-3 py-1.5 text-sm font-medium transition-colors transition-transform active:scale-[0.97]",
+							"rounded-full px-4 py-1.5 text-sm font-medium transition-colors transition-transform active:scale-[0.97]",
 							period.kind === kind
 								? "bg-gousse-accent/10 text-gousse-accent"
 								: "text-gousse-muted hover:text-gousse-ink",

@@ -33,7 +33,7 @@ export interface IssuersTableSkeletonProps {
  */
 export function IssuersTableSkeleton({ rows = 8 }: IssuersTableSkeletonProps) {
 	return (
-		<div className="overflow-hidden rounded-lg border border-gousse-line">
+		<div className="overflow-hidden rounded-2xl border border-gousse-line">
 			<Table aria-busy="true">
 				<caption className="sr-only">Loading issuers…</caption>
 				<TableHeader>

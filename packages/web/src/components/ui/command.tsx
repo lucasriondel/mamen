@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * Command palette primitives — a gap-fill over `cmdk`, restyled onto the
- * `--gousse-*` tokens (ADR 0002) so it reads as one visual language with the
+ * `--gousse-*` tokens (ADR 0003) so it reads as one visual language with the
  * gousse kit. Used by the issuer assignment picker (PRD): fuzzy-search existing
  * issuers, with a "create new issuer" action when nothing matches.
  *
@@ -22,7 +22,9 @@ export function Command({
 	return (
 		<CommandPrimitive
 			className={cn(
-				"flex h-full w-full flex-col overflow-hidden rounded-md bg-gousse-panel text-gousse-ink",
+				// The palette fills a popover, so it takes the same box corner (issue
+				// #97) — a smaller one would show the surface's corner through it.
+				"flex h-full w-full flex-col overflow-hidden rounded-2xl bg-gousse-panel text-gousse-ink",
 				className,
 			)}
 			{...props}
@@ -106,7 +108,15 @@ export function CommandGroup({
 	);
 }
 
-/** A selectable row; highlights when active (hover or keyboard). */
+/**
+ * A selectable row; highlights when active (hover or keyboard).
+ *
+ * A pill, like the sidebar's nav rows and for the same reason (issue #97): a
+ * `rounded-full` highlight reads as a row *sitting in* the list, where a square
+ * one reads as a band *filling* it. The inset widens to `px-3` so the label
+ * clears the arc — {@link CategoryTreeItems} overrides it with an inline
+ * `paddingLeft` per depth, which still wins.
+ */
 export function CommandItem({
 	className,
 	...props
@@ -114,7 +124,7 @@ export function CommandItem({
 	return (
 		<CommandPrimitive.Item
 			className={cn(
-				"relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-2 text-sm text-gousse-ink outline-none data-[selected=true]:bg-gousse-bg data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50",
+				"relative flex cursor-pointer select-none items-center gap-2 rounded-full px-3 py-2 text-sm text-gousse-ink outline-none data-[selected=true]:bg-gousse-bg data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50",
 				className,
 			)}
 			{...props}

@@ -1,12 +1,13 @@
 import type * as React from "react";
+import { FIELD_PILL } from "@/lib/field-chrome";
 import { cn } from "@/lib/utils";
 
 /**
  * The shared text-input primitive — a shadcn-style `input` restyled onto the
- * `--gousse-*` tokens (ADR 0002: gap-fill for what gousse doesn't ship).
+ * `--gousse-*` tokens (ADR 0003: gap-fill for what gousse doesn't ship).
  *
  * Forms across the app each repeat some near-copy of
- * `rounded-md border border-gousse-line bg-gousse-bg px-3 py-2 …` in a local `INPUT_CLASS`
+ * `rounded-full border border-gousse-line bg-gousse-bg px-4 py-2 …` in a local `INPUT_CLASS`
  * constant, with the browser's own focus/disabled/invalid behaviour. This is
  * the one they should converge on; adoption is incremental, so the issuer forms
  * use it today and `accounts`, `rules`, `categories` and `import` still carry
@@ -28,6 +29,14 @@ import { cn } from "@/lib/utils";
  * button primitive's default size, so an input and a button sharing a row line
  * up and a field clears the same ≥40px hit-area floor.
  *
+ * The shape is the kit's, read from {@link FIELD_PILL} rather than spelled out
+ * (issue #97): a single-line field is a control, and gousse's controls are
+ * pills. Reading the token instead of copying `rounded-full` is what keeps this
+ * gap-fill and gousse's own `Textarea` — which takes the box corner from the
+ * same module — provably on one scale. The inset grows to `px-4` with it: a pill
+ * spends its own horizontal padding on the corner arc, so a `px-3` field would
+ * sit its text tighter against the ends than a square one did.
+ *
  * Native `<input>` props pass straight through, `ref` included — under React 19
  * `ref` is an ordinary prop, so the spread forwards it to the DOM node exactly
  * as the surrounding primitives do (no `forwardRef` wrapper).
@@ -40,7 +49,8 @@ export function Input({ className, type = "text", ...props }: InputProps) {
 		<input
 			type={type}
 			className={cn(
-				"h-10 rounded-md border border-gousse-line bg-gousse-bg px-3 py-2 text-sm text-gousse-ink",
+				FIELD_PILL,
+				"h-10 border border-gousse-line bg-gousse-bg px-4 py-2 text-sm text-gousse-ink",
 				"placeholder:text-gousse-muted",
 				"transition-[border-color,box-shadow] duration-150",
 				// `outline-none` removes the UA ring, so something has to replace it for

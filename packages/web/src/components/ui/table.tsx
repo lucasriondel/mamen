@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * Table primitive — a shadcn-style `<table>` set restyled onto the gousse
- * `--gousse-*` tokens (ADR 0002: gap-fill for what gousse doesn't ship). Used to
+ * `--gousse-*` tokens (ADR 0003: gap-fill for what gousse doesn't ship). Used to
  * render TanStack Table cells so the data grid reads in the same visual language
  * as the gousse kit. Thin wrappers over the native table elements; all styling
  * flows through `bg-*`/`text-*`/`border-*` token utilities.
