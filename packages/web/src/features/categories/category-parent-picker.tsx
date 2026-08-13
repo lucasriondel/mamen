@@ -109,35 +109,37 @@ export function CategoryParentPicker({
 		<div className="flex flex-col gap-1" ref={setAnchor}>
 			<span className="text-gousse-muted text-sm">Parent</span>
 			<Popover open={open} onOpenChange={handleOpenChange}>
-				<PopoverTrigger asChild>
-					<Button
-						variant="secondary"
-						size="sm"
-						className="self-start"
-						title="Choose where this category sits"
-						disabled={disabled}
-					>
-						{current ? (
-							<>
-								<CategoryIcon
-									name={current.icon}
-									color={currentColor}
-									size={14}
-								/>
-								<span style={{ color: currentColor }}>{current.name}</span>
-							</>
-						) : (
-							<>
-								<FolderTree
-									size={14}
-									className="shrink-0 text-gousse-muted"
-									aria-hidden
-								/>
-								<span className="text-gousse-muted">Top level</span>
-							</>
-						)}
-					</Button>
-				</PopoverTrigger>
+				<PopoverTrigger
+					render={
+						<Button
+							variant="secondary"
+							size="sm"
+							className="self-start"
+							title="Choose where this category sits"
+							disabled={disabled}
+						>
+							{current ? (
+								<>
+									<CategoryIcon
+										name={current.icon}
+										color={currentColor}
+										size={14}
+									/>
+									<span style={{ color: currentColor }}>{current.name}</span>
+								</>
+							) : (
+								<>
+									<FolderTree
+										size={14}
+										className="shrink-0 text-gousse-muted"
+										aria-hidden
+									/>
+									<span className="text-gousse-muted">Top level</span>
+								</>
+							)}
+						</Button>
+					}
+				/>
 				<PopoverContent
 					className="p-0"
 					portalContainer={portalContainer ?? anchor}

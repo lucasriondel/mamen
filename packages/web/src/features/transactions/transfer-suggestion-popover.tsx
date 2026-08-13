@@ -130,16 +130,18 @@ export function TransferSuggestionPanel({
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
-			<PopoverTrigger asChild>
-				<button
-					type="button"
-					aria-label={`${count} possible transfer ${count === 1 ? "match" : "matches"} for ${transaction.rawIssuerString}`}
-					className="inline-flex items-center gap-1 rounded-full bg-gousse-accent/10 px-2 py-0.5 text-gousse-accent text-xs outline-none transition-colors hover:bg-gousse-accent/20 focus-visible:ring-2 focus-visible:ring-gousse-accent"
-				>
-					<ArrowLeftRight size={12} aria-hidden />
-					{count}
-				</button>
-			</PopoverTrigger>
+			<PopoverTrigger
+				render={
+					<button
+						type="button"
+						aria-label={`${count} possible transfer ${count === 1 ? "match" : "matches"} for ${transaction.rawIssuerString}`}
+						className="inline-flex items-center gap-1 rounded-full bg-gousse-accent/10 px-2 py-0.5 text-gousse-accent text-xs outline-none transition-colors hover:bg-gousse-accent/20 focus-visible:ring-2 focus-visible:ring-gousse-accent"
+					>
+						<ArrowLeftRight size={12} aria-hidden />
+						{count}
+					</button>
+				}
+			/>
 			<PopoverContent className="w-80 p-3">
 				<div className="flex flex-col gap-3">
 					<div>

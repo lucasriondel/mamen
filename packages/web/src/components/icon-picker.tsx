@@ -70,7 +70,7 @@ export interface IconPickerProps {
  *
  * Keyboard: the field takes focus on open, `ArrowDown` steps into the grid, and
  * the arrows walk it in two dimensions with a roving `tabIndex` — one tab stop
- * for the whole grid, not one per cell. Escape dismisses (Radix).
+ * for the whole grid, not one per cell. Escape dismisses (Base UI).
  *
  * Icons belong to **categories only** (ADR 0006) — an Issuer never gets one
  * directly, it inherits through its default category — so this takes a category's
@@ -175,19 +175,21 @@ export function IconPicker({
 
 	return (
 		<Popover open={open} onOpenChange={handleOpenChange}>
-			<PopoverTrigger asChild>
-				<button
-					type="button"
-					aria-label={`Change ${label} icon`}
-					title={`Change ${label} icon`}
-					className={cn(
-						"shrink-0 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-gousse-accent focus-visible:ring-offset-1 focus-visible:ring-offset-gousse-panel",
-						className,
-					)}
-				>
-					<CategoryIcon name={value} color={color} />
-				</button>
-			</PopoverTrigger>
+			<PopoverTrigger
+				render={
+					<button
+						type="button"
+						aria-label={`Change ${label} icon`}
+						title={`Change ${label} icon`}
+						className={cn(
+							"shrink-0 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-gousse-accent focus-visible:ring-offset-1 focus-visible:ring-offset-gousse-panel",
+							className,
+						)}
+					>
+						<CategoryIcon name={value} color={color} />
+					</button>
+				}
+			/>
 			<PopoverContent className="w-72 p-2" portalContainer={portalContainer}>
 				<Input
 					value={query}

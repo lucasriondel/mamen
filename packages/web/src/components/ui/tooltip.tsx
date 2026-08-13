@@ -6,8 +6,8 @@ import { cn } from "@/lib/utils";
  * Tooltip primitives — the first of mamen's own components to render on
  * **Base UI** (issue #99), restyled onto the `--gousse-*` tokens (ADR 0003).
  * gousse's vendored kit is already Base UI underneath, so this narrows the seam
- * ADR 0003 describes rather than widening it; `Dialog` and `Popover` are still
- * Radix until their own slices land.
+ * ADR 0003 describes rather than widening it; `Popover` followed (issue #101),
+ * leaving `Dialog` as the last primitive still on Radix.
  *
  * Unlike the popover this is a *read* surface: it reveals text the row couldn't
  * fit (an issuer's note on the transactions table) and is never the only way to
