@@ -31,6 +31,19 @@ mamen.db
 mamen.db-shm
 mamen.db-wal
 
+# Bank statements (issue #108)
+# A real export carries IBANs, counterparty names, amounts and payment
+# references. One was tracked here for months under the bank's own download
+# filename, so the repo root — where a download lands — is where this has to
+# bite: no CSV belongs there, and fixtures live beside the parser that reads
+# them. The named patterns catch the same file wherever else it is dropped,
+# because the copy that mattered was not at the root but four directories down,
+# named like a fixture. Synthetic fixtures under
+# packages/web/src/features/import/__fixtures__/ are unaffected.
+/*.csv
+relev*_de_compte*.csv
+*bank-statement*.csv
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
