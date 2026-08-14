@@ -6,7 +6,7 @@ import {
 	Outlet,
 	RouterProvider,
 } from "@tanstack/react-router";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { AppSidebar } from "./app-sidebar";
@@ -27,6 +27,10 @@ import { AppSidebar } from "./app-sidebar";
  * through `onToggle`. jsdom computes no layout, so what is asserted here is the
  * contract the shell exposes — `inert`, the scrim's reachability, the handler —
  * rather than the pixels either breakpoint draws.
+ *
+ * The brand row is a link of its own since #107, so every query for a nav row is
+ * scoped to the `<nav>` the group renders: unscoped, `getAllByRole("link")`
+ * counts the brand among the destinations.
  */
 
 /** Every destination the sidebar offers, in the order it offers them. */
@@ -39,6 +43,9 @@ const DESTINATIONS = [
 	["Issuers", "/issuers"],
 	["Categories", "/categories"],
 ] as const;
+
+/** Where the brand row goes: the app's root, which is its landing surface. */
+const LANDING = "/";
 
 type SidebarProps = Parameters<typeof AppSidebar>[0];
 
@@ -54,15 +61,23 @@ function renderSidebar(
 			</>
 		),
 	});
-	const routeTree = rootRoute.addChildren(
-		DESTINATIONS.map(([label, to]) =>
+	const routeTree = rootRoute.addChildren([
+		// The landing surface the brand row points at. In the app it is an index
+		// route that redirects onto the transactions view; here it renders, so a
+		// click on the brand is observable as a navigation rather than a redirect.
+		createRoute({
+			getParentRoute: () => rootRoute,
+			path: LANDING,
+			component: () => <main>Landing page</main>,
+		}),
+		...DESTINATIONS.map(([label, to]) =>
 			createRoute({
 				getParentRoute: () => rootRoute,
 				path: to,
 				component: () => <main>{label} page</main>,
 			}),
 		),
-	);
+	]);
 	const router = createRouter({
 		routeTree,
 		history: createMemoryHistory({ initialEntries: [initialEntry] }),
@@ -71,8 +86,17 @@ function renderSidebar(
 	return router;
 }
 
-/** The nav rows, in DOM order. */
-const navItems = () => screen.getAllByRole("link");
+/**
+ * The nav rows, in DOM order.
+ *
+ * Scoped to the group's `<nav>`: the brand row is a link too (#107), and it sits
+ * in the header, outside it.
+ */
+const navItems = () =>
+	within(screen.getByRole("navigation")).getAllByRole("link");
+
+/** The brand row — a link on the app's name, at the top of the panel. */
+const brandRow = () => screen.getByRole("link", { name: "mamen" });
 
 /**
  * A row's own styling, with TanStack's marker class removed.
@@ -255,8 +279,9 @@ describe("AppSidebar, as a shell", () => {
 		const close = await screen.findByRole("button", {
 			name: "Collapse sidebar",
 		});
-		const brand = screen.getByText("mamen");
-		expect(close.closest("div")).toBe(brand.closest("div")?.parentElement);
+		// Siblings in the header, which lays the two out with `justify-between`.
+		// Neither is wrapped in layout of the call site's own (#107).
+		expect(close.parentElement).toBe(brandRow().parentElement);
 	});
 
 	it("hands the close control's press back to the caller", async () => {
@@ -278,5 +303,63 @@ describe("AppSidebar, as a shell", () => {
 		// The open trigger lives in the top bar (`AppShell`). One inside the
 		// collapsed panel would be inert, and so unreachable.
 		expect(screen.queryByRole("button", { name: "Open sidebar" })).toBeNull();
+	});
+});
+
+/**
+ * The brand row (#107) — gousse's `SidebarTitle`, where the mark and the name
+ * used to be an image and a span written out at this call site.
+ *
+ * Two things can silently come apart in that swap: the row is a router link now,
+ * so it has to reach the landing surface without a reload, and the treatment it
+ * gains is the primitive's — a copy of those classes left behind here is exactly
+ * the drift adopting the primitive is meant to end.
+ */
+describe("AppSidebar, the brand row", () => {
+	it("names the app, and reaches its landing surface", async () => {
+		renderSidebar();
+
+		await waitFor(() => expect(brandRow()).toHaveAttribute("href", LANDING));
+	});
+
+	it("navigates client-side, like the rows below it", async () => {
+		const user = userEvent.setup();
+		const router = renderSidebar("/recap");
+
+		await waitFor(() => expect(brandRow()).toBeInTheDocument());
+		await user.click(brandRow());
+
+		await waitFor(() => expect(router.state.location.pathname).toBe(LANDING));
+		expect(await screen.findByText("Landing page")).toBeInTheDocument();
+	});
+
+	it("puts the app icon in the primitive's mark slot", async () => {
+		renderSidebar();
+
+		await waitFor(() => expect(brandRow()).toBeInTheDocument());
+		const icon = brandRow().querySelector("img");
+		expect(icon).not.toBeNull();
+		// The slot is a fixed square the primitive reserves, so the name lands on
+		// the same line with or without a mark. A bare image dropped in as a child
+		// of the row would still show, and would still be wrong.
+		const slot = icon?.parentElement;
+		expect(slot).not.toBe(brandRow());
+		expect(slot).toHaveClass("grid", "shrink-0", "place-items-center");
+		expect(icon).toHaveAttribute("aria-hidden");
+	});
+
+	it("wears the primitive's accent treatment", async () => {
+		renderSidebar();
+
+		await waitFor(() => expect(brandRow()).toBeInTheDocument());
+		// The visible change the issue asks for: accent-coloured, bold, tightly
+		// tracked — and the whole row fading together on hover, which is why the
+		// transition sits on the row rather than on the name alone.
+		expect(brandRow()).toHaveClass(
+			"text-gousse-accent",
+			"font-bold",
+			"tracking-tight",
+			"hover:opacity-80",
+		);
 	});
 });

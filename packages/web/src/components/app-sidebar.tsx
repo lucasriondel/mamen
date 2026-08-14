@@ -19,7 +19,42 @@ import {
 	SidebarHeader,
 	SidebarItem,
 	SidebarShell,
+	SidebarTitle,
 } from "@/components/ui/sidebar";
+
+type SidebarBrandRowProps = Omit<ComponentProps<"a">, "children"> & {
+	/** Rendered in the primitive's fixed mark slot, ahead of the name. */
+	mark?: ReactNode;
+	children?: ReactNode;
+};
+
+/**
+ * The brand row — mark plus product name — rendered as an `<a>`.
+ *
+ * Same division as `SidebarNavRow`: `SidebarTitle` renders a plain `<div>` by
+ * default (a brand row that goes nowhere is not a link) and takes `render` for
+ * anything else, so the primitive stays router-agnostic and the call site
+ * supplies the link. `className` goes to the primitive rather than the anchor
+ * for the same reason it does there — `render` computes the final class string.
+ */
+function SidebarBrandRow({
+	mark,
+	className,
+	children,
+	...anchor
+}: SidebarBrandRowProps) {
+	return (
+		<SidebarTitle
+			mark={mark}
+			className={className}
+			render={(row) => <a {...anchor} {...row} />}
+		>
+			{children}
+		</SidebarTitle>
+	);
+}
+
+const SidebarBrand = createLink(SidebarBrandRow);
 
 type SidebarNavRowProps = Omit<ComponentProps<"a">, "children"> & {
 	/** Rendered in the row's glyph slot. */
@@ -122,19 +157,25 @@ export function AppSidebar({ collapsed, onToggle, closeRef }: AppSidebarProps) {
 			onToggle={onToggle}
 		>
 			<SidebarHeader>
-				{/* The brand row is still hand-written markup; gousse's `SidebarTitle`
-				 * replaces it in #107. The wrapper is what keeps the mark and the name
-				 * together against the header's `justify-between`, which exists to put
-				 * the close control on the other side. */}
-				<div className="flex items-center gap-2 font-bold">
-					<img
-						src="/icon-192x192.png"
-						alt=""
-						aria-hidden
-						className="size-6 rounded-md"
-					/>
-					<span>mamen</span>
-				</div>
+				{/* The brand row needs no layout of its own: the header lays it out
+				 * against the close control with `justify-between`. It points at `/`,
+				 * which is the app's landing surface — the index route redirects onto
+				 * the transactions view, so naming the destination here would fork
+				 * that decision in a second place. The mark is `aria-hidden`; the
+				 * link's accessible name is the product name beside it. */}
+				<SidebarBrand
+					to="/"
+					mark={
+						<img
+							src="/icon-192x192.png"
+							alt=""
+							aria-hidden
+							className="size-6 rounded-md"
+						/>
+					}
+				>
+					mamen
+				</SidebarBrand>
 				{/* Closing is driven from inside the panel, opposite the brand; the
 				 * control that re-opens it is `SidebarTrigger` in `AppShell`'s top
 				 * bar, because a collapsed panel is `inert` and has nothing left to

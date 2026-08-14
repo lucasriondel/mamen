@@ -179,6 +179,32 @@ describe("the app sidebar", () => {
 		expect(appSidebar).not.toMatch(/\btinted\b/);
 	});
 
+	// #107: the brand row was hand-written markup wearing its own classes, which
+	// is how it drifted from the treatment the other gousse consumer shows. The
+	// point of adopting the primitive is that there is nowhere left for a copy of
+	// those classes to sit, so that is what is asserted — not just the import.
+	it("renders its brand row through the primitive, keeping no copy of its classes", () => {
+		expect(appSidebar).toContain("SidebarTitle");
+
+		// Every class the primitive puts on the row, read out of the vendored
+		// source rather than restated, so upstream restyling cannot leave this
+		// checking for classes nobody writes any more.
+		const titleBase =
+			sidebar.match(/const TITLE_BASE =\s*\n?\s*"([^"]+)"/)?.[1] ?? "";
+		expect(titleBase).not.toBe("");
+
+		// Only what the call site actually writes into a `className`, so a word
+		// like `flex` appearing in a comment is not mistaken for a class.
+		const written = new Set(
+			[...appSidebar.matchAll(/className="([^"]*)"/g)].flatMap((match) =>
+				match[1].split(/\s+/).filter(Boolean),
+			),
+		);
+		const copied = titleBase.split(" ").filter((name) => written.has(name));
+
+		expect(copied).toStrictEqual([]);
+	});
+
 	it("leaves no reference to the stand-in's surface anywhere in src", () => {
 		const offenders = sources()
 			.filter(([, body]) => /SidebarNav(Item)?\b/.test(body))
