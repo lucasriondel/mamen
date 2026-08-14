@@ -39,7 +39,7 @@ export const STATE_FILE = "logs/session-limit.json";
  * message body; `i` because only the wording, not its casing, is guaranteed.
  */
 const RESET_PATTERN =
-  /hit your session limit.*?resets\s+(\d{1,2}):(\d{2})\s*(am|pm)\s*\(UTC\)/is;
+	/hit your session limit.*?resets\s+(\d{1,2}):(\d{2})\s*(am|pm)\s*\(UTC\)/is;
 
 /**
  * Matches the message alone, without a reset time.
@@ -60,21 +60,21 @@ const PHRASE_PATTERN = /hit your session limit/i;
  * nested `cause`, so all of them are searched.
  */
 function errorText(err: unknown): string {
-  const parts = [String(err)];
+	const parts = [String(err)];
 
-  if (err && typeof err === "object") {
-    const { message, stack, cause } = err as {
-      message?: unknown;
-      stack?: unknown;
-      cause?: unknown;
-    };
-    if (typeof message === "string") parts.push(message);
-    if (typeof stack === "string") parts.push(stack);
-    // A cause can itself be a wrapped error, so recurse rather than stringify.
-    if (cause !== undefined && cause !== null) parts.push(errorText(cause));
-  }
+	if (err && typeof err === "object") {
+		const { message, stack, cause } = err as {
+			message?: unknown;
+			stack?: unknown;
+			cause?: unknown;
+		};
+		if (typeof message === "string") parts.push(message);
+		if (typeof stack === "string") parts.push(stack);
+		// A cause can itself be a wrapped error, so recurse rather than stringify.
+		if (cause !== undefined && cause !== null) parts.push(errorText(cause));
+	}
 
-  return parts.join("\n");
+	return parts.join("\n");
 }
 
 /**
@@ -84,10 +84,10 @@ function errorText(err: unknown): string {
  * so logs can quote exactly what Claude said rather than a reformatting of it.
  */
 export interface SessionLimit {
-  /** When the limit lifts. */
-  resetAt: Date;
-  /** The matched message text, e.g. "resets 6:30pm (UTC)". */
-  raw: string;
+	/** When the limit lifts. */
+	resetAt: Date;
+	/** The matched message text, e.g. "resets 6:30pm (UTC)". */
+	raw: string;
 }
 
 /**
@@ -97,8 +97,8 @@ export interface SessionLimit {
  * happen before the pm offset is applied.
  */
 function toUtcHour(hour12: number, meridiem: string): number {
-  const base = hour12 % 12;
-  return meridiem.toLowerCase() === "pm" ? base + 12 : base;
+	const base = hour12 % 12;
+	return meridiem.toLowerCase() === "pm" ? base + 12 : base;
 }
 
 /**
@@ -117,35 +117,35 @@ function toUtcHour(hour12: number, meridiem: string): number {
  * The configured timezone is for display only; see formatInZone().
  */
 export function parseSessionLimit(
-  err: unknown,
-  now: Date = new Date(),
+	err: unknown,
+	now: Date = new Date(),
 ): SessionLimit | null {
-  const text = errorText(err);
-  const match = RESET_PATTERN.exec(text);
-  if (!match) return null;
+	const text = errorText(err);
+	const match = RESET_PATTERN.exec(text);
+	if (!match) return null;
 
-  const [raw, hourRaw, minuteRaw, meridiem] = match;
-  const hour = toUtcHour(Number(hourRaw), meridiem!);
-  const minute = Number(minuteRaw);
+	const [raw, hourRaw, minuteRaw, meridiem] = match;
+	const hour = toUtcHour(Number(hourRaw), meridiem!);
+	const minute = Number(minuteRaw);
 
-  const resetAt = new Date(
-    Date.UTC(
-      now.getUTCFullYear(),
-      now.getUTCMonth(),
-      now.getUTCDate(),
-      hour,
-      minute,
-      0,
-      0,
-    ),
-  );
+	const resetAt = new Date(
+		Date.UTC(
+			now.getUTCFullYear(),
+			now.getUTCMonth(),
+			now.getUTCDate(),
+			hour,
+			minute,
+			0,
+			0,
+		),
+	);
 
-  // Already gone by today's clock, so the message must mean tomorrow.
-  if (resetAt.getTime() <= now.getTime()) {
-    resetAt.setUTCDate(resetAt.getUTCDate() + 1);
-  }
+	// Already gone by today's clock, so the message must mean tomorrow.
+	if (resetAt.getTime() <= now.getTime()) {
+		resetAt.setUTCDate(resetAt.getUTCDate() + 1);
+	}
 
-  return { resetAt, raw: raw.trim() };
+	return { resetAt, raw: raw.trim() };
 }
 
 /**
@@ -156,18 +156,18 @@ export function parseSessionLimit(
  * log it distinctly instead of relaunching blindly or reporting a plain crash.
  */
 export function isUnparseableSessionLimit(err: unknown): boolean {
-  const text = errorText(err);
-  return PHRASE_PATTERN.test(text) && !RESET_PATTERN.test(text);
+	const text = errorText(err);
+	return PHRASE_PATTERN.test(text) && !RESET_PATTERN.test(text);
 }
 
 /** Shape written to STATE_FILE for the wrapper to pick up. */
 interface SessionLimitState {
-  /** Reset instant, ISO-8601 in UTC. */
-  resetAt: string;
-  /** The message text that was matched. */
-  raw: string;
-  /** When the limit was hit, for reading the file after the fact. */
-  detectedAt: string;
+	/** Reset instant, ISO-8601 in UTC. */
+	resetAt: string;
+	/** The message text that was matched. */
+	raw: string;
+	/** When the limit was hit, for reading the file after the fact. */
+	detectedAt: string;
 }
 
 /**
@@ -180,17 +180,17 @@ interface SessionLimitState {
  * filesystem one.
  */
 export async function writeSessionLimit(limit: SessionLimit): Promise<void> {
-  const state: SessionLimitState = {
-    resetAt: limit.resetAt.toISOString(),
-    raw: limit.raw,
-    detectedAt: new Date().toISOString(),
-  };
+	const state: SessionLimitState = {
+		resetAt: limit.resetAt.toISOString(),
+		raw: limit.raw,
+		detectedAt: new Date().toISOString(),
+	};
 
-  try {
-    await Bun.write(STATE_FILE, JSON.stringify(state, null, 2) + "\n");
-  } catch {
-    // Best-effort; never let bookkeeping throw over the top of a real failure.
-  }
+	try {
+		await Bun.write(STATE_FILE, JSON.stringify(state, null, 2) + "\n");
+	} catch {
+		// Best-effort; never let bookkeeping throw over the top of a real failure.
+	}
 }
 
 /**
@@ -200,14 +200,14 @@ export async function writeSessionLimit(limit: SessionLimit): Promise<void> {
  * as "cannot schedule a relaunch" rather than guessing a wait.
  */
 export async function readSessionLimit(): Promise<SessionLimit | null> {
-  try {
-    const state = (await Bun.file(STATE_FILE).json()) as SessionLimitState;
-    const resetAt = new Date(state.resetAt);
-    if (Number.isNaN(resetAt.getTime())) return null;
-    return { resetAt, raw: state.raw };
-  } catch {
-    return null;
-  }
+	try {
+		const state = (await Bun.file(STATE_FILE).json()) as SessionLimitState;
+		const resetAt = new Date(state.resetAt);
+		if (Number.isNaN(resetAt.getTime())) return null;
+		return { resetAt, raw: state.raw };
+	} catch {
+		return null;
+	}
 }
 
 /**
@@ -217,11 +217,11 @@ export async function readSessionLimit(): Promise<SessionLimit | null> {
  * mistaken for the current one's reset time.
  */
 export async function clearSessionLimit(): Promise<void> {
-  try {
-    await Bun.file(STATE_FILE).delete();
-  } catch {
-    // Missing file is the normal case, not an error.
-  }
+	try {
+		await Bun.file(STATE_FILE).delete();
+	} catch {
+		// Missing file is the normal case, not an error.
+	}
 }
 
 /**
@@ -232,21 +232,21 @@ export async function clearSessionLimit(): Promise<void> {
  * middle of the wait.
  */
 export function formatInZone(when: Date, timeZone: string): string {
-  try {
-    return new Intl.DateTimeFormat("en-GB", {
-      timeZone,
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).format(when);
-  } catch {
-    return new Intl.DateTimeFormat("en-GB", {
-      timeZone: "UTC",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).format(when);
-  }
+	try {
+		return new Intl.DateTimeFormat("en-GB", {
+			timeZone,
+			hour: "2-digit",
+			minute: "2-digit",
+			hour12: false,
+		}).format(when);
+	} catch {
+		return new Intl.DateTimeFormat("en-GB", {
+			timeZone: "UTC",
+			hour: "2-digit",
+			minute: "2-digit",
+			hour12: false,
+		}).format(when);
+	}
 }
 
 /**
@@ -257,8 +257,8 @@ export function formatInZone(when: Date, timeZone: string): string {
  * hours and minutes, and seconds of precision would be noise.
  */
 export function formatWait(ms: number): string {
-  const totalMinutes = Math.max(0, Math.round(ms / 60_000));
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+	const totalMinutes = Math.max(0, Math.round(ms / 60_000));
+	const hours = Math.floor(totalMinutes / 60);
+	const minutes = totalMinutes % 60;
+	return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
 }

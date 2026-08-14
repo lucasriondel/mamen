@@ -73,19 +73,21 @@ describe("AppSettingsRepo", () => {
 		}).pipe(Effect.provide(RepoTest)),
 	);
 
-	it.effect("put is a whole-object upsert (second put replaces the first)", () =>
-		Effect.gen(function* () {
-			const repo = yield* AppSettingsRepo;
-			yield* repo.put(make({ provider: "ollama", modelName: "llama3" }));
-			const second = yield* repo.put(
-				make({ provider: "openai", modelName: "gpt-4" }),
-			);
-			assert.strictEqual(second.llm.provider, "openai");
+	it.effect(
+		"put is a whole-object upsert (second put replaces the first)",
+		() =>
+			Effect.gen(function* () {
+				const repo = yield* AppSettingsRepo;
+				yield* repo.put(make({ provider: "ollama", modelName: "llama3" }));
+				const second = yield* repo.put(
+					make({ provider: "openai", modelName: "gpt-4" }),
+				);
+				assert.strictEqual(second.llm.provider, "openai");
 
-			const fetched = yield* repo.get();
-			assert.strictEqual(fetched.llm.provider, "openai");
-			assert.strictEqual(fetched.llm.modelName, "gpt-4");
-		}).pipe(Effect.provide(RepoTest)),
+				const fetched = yield* repo.get();
+				assert.strictEqual(fetched.llm.provider, "openai");
+				assert.strictEqual(fetched.llm.modelName, "gpt-4");
+			}).pipe(Effect.provide(RepoTest)),
 	);
 
 	it.effect("put round-trips the optional lastTestedAt Date", () =>

@@ -1,0 +1,5 @@
+# Blank issues are off on purpose: the forms are what apply `needs-triage`, so
+# an issue opened outside them lands unlabelled and outside the triage flow
+# (docs/agents/triage-labels.md). Nothing here is a link to somewhere else —
+# there is no discussions board or chat to send someone to yet.
+blank_issues_enabled: false

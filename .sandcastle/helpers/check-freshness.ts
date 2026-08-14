@@ -26,17 +26,17 @@ const configDir = import.meta.dir;
  * treat "couldn't determine this" as a normal, expected outcome.
  */
 async function git(...args: string[]): Promise<string | null> {
-  try {
-    const proc = Bun.spawn(["git", "-C", configDir, ...args], {
-      stdout: "pipe",
-      stderr: "ignore",
-    });
-    const stdout = await new Response(proc.stdout).text();
-    const code = await proc.exited;
-    return code === 0 ? stdout.trim() : null;
-  } catch {
-    return null;
-  }
+	try {
+		const proc = Bun.spawn(["git", "-C", configDir, ...args], {
+			stdout: "pipe",
+			stderr: "ignore",
+		});
+		const stdout = await new Response(proc.stdout).text();
+		const code = await proc.exited;
+		return code === 0 ? stdout.trim() : null;
+	} catch {
+		return null;
+	}
 }
 
 /**
@@ -46,18 +46,21 @@ async function git(...args: string[]): Promise<string | null> {
  * timeout and treated the same as any other fetch failure.
  */
 async function fetchWithTimeout(remote: string): Promise<boolean> {
-  try {
-    const proc = Bun.spawn(["git", "-C", configDir, "fetch", "--quiet", remote], {
-      stdout: "ignore",
-      stderr: "ignore",
-    });
-    const timer = setTimeout(() => proc.kill(), FETCH_TIMEOUT_MS);
-    const code = await proc.exited;
-    clearTimeout(timer);
-    return code === 0;
-  } catch {
-    return false;
-  }
+	try {
+		const proc = Bun.spawn(
+			["git", "-C", configDir, "fetch", "--quiet", remote],
+			{
+				stdout: "ignore",
+				stderr: "ignore",
+			},
+		);
+		const timer = setTimeout(() => proc.kill(), FETCH_TIMEOUT_MS);
+		const code = await proc.exited;
+		clearTimeout(timer);
+		return code === 0;
+	} catch {
+		return false;
+	}
 }
 
 /**
@@ -68,97 +71,101 @@ async function fetchWithTimeout(remote: string): Promise<boolean> {
  * aborting for.
  */
 export async function checkConfigFreshness(): Promise<void> {
-  const label = bold("sandcastle config");
+	const label = bold("sandcastle config");
 
-  // Not a git checkout (e.g. vendored as plain files) — nothing to compare.
-  if (!(await git("rev-parse", "--git-dir"))) {
-    console.log(`${label} ${dim("· not a git checkout, skipping freshness check")}`);
-    return;
-  }
+	// Not a git checkout (e.g. vendored as plain files) — nothing to compare.
+	if (!(await git("rev-parse", "--git-dir"))) {
+		console.log(
+			`${label} ${dim("· not a git checkout, skipping freshness check")}`,
+		);
+		return;
+	}
 
-  const branch = await git("rev-parse", "--abbrev-ref", "HEAD");
-  // Detached HEAD reports "HEAD" and has no upstream to compare against.
-  if (!branch || branch === "HEAD") {
-    console.log(`${label} ${dim("· detached HEAD, skipping freshness check")}`);
-    return;
-  }
+	const branch = await git("rev-parse", "--abbrev-ref", "HEAD");
+	// Detached HEAD reports "HEAD" and has no upstream to compare against.
+	if (!branch || branch === "HEAD") {
+		console.log(`${label} ${dim("· detached HEAD, skipping freshness check")}`);
+		return;
+	}
 
-  // Resolve the branch's configured upstream (e.g. "origin/main"). A branch
-  // that was never pushed has none, and there is nothing to be behind.
-  const upstream = await git(
-    "rev-parse",
-    "--abbrev-ref",
-    "--symbolic-full-name",
-    "@{u}",
-  );
-  if (!upstream) {
-    console.log(
-      `${label} ${dim(`· branch ${branch} has no upstream, skipping freshness check`)}`,
-    );
-    return;
-  }
+	// Resolve the branch's configured upstream (e.g. "origin/main"). A branch
+	// that was never pushed has none, and there is nothing to be behind.
+	const upstream = await git(
+		"rev-parse",
+		"--abbrev-ref",
+		"--symbolic-full-name",
+		"@{u}",
+	);
+	if (!upstream) {
+		console.log(
+			`${label} ${dim(`· branch ${branch} has no upstream, skipping freshness check`)}`,
+		);
+		return;
+	}
 
-  const remote = upstream.split("/")[0] ?? "origin";
-  if (!(await fetchWithTimeout(remote))) {
-    console.log(
-      `${yellow("⚠")} ${label} ${dim(`· could not reach ${remote}, freshness unknown`)}`,
-    );
-    return;
-  }
+	const remote = upstream.split("/")[0] ?? "origin";
+	if (!(await fetchWithTimeout(remote))) {
+		console.log(
+			`${yellow("⚠")} ${label} ${dim(`· could not reach ${remote}, freshness unknown`)}`,
+		);
+		return;
+	}
 
-  // Left/right counts: commits we have that upstream lacks, and vice versa.
-  const counts = await git(
-    "rev-list",
-    "--left-right",
-    "--count",
-    `HEAD...${upstream}`,
-  );
-  if (!counts) {
-    console.log(
-      `${yellow("⚠")} ${label} ${dim("· could not compare with upstream")}`,
-    );
-    return;
-  }
+	// Left/right counts: commits we have that upstream lacks, and vice versa.
+	const counts = await git(
+		"rev-list",
+		"--left-right",
+		"--count",
+		`HEAD...${upstream}`,
+	);
+	if (!counts) {
+		console.log(
+			`${yellow("⚠")} ${label} ${dim("· could not compare with upstream")}`,
+		);
+		return;
+	}
 
-  const [aheadRaw, behindRaw] = counts.split(/\s+/);
-  const ahead = Number(aheadRaw) || 0;
-  const behind = Number(behindRaw) || 0;
+	const [aheadRaw, behindRaw] = counts.split(/\s+/);
+	const ahead = Number(aheadRaw) || 0;
+	const behind = Number(behindRaw) || 0;
 
-  if (behind === 0 && ahead === 0) {
-    console.log(`${green("✓")} ${label} ${dim(`· up to date with ${upstream}`)}`);
-    return;
-  }
+	if (behind === 0 && ahead === 0) {
+		console.log(
+			`${green("✓")} ${label} ${dim(`· up to date with ${upstream}`)}`,
+		);
+		return;
+	}
 
-  // Behind is the case that actually matters: the run is about to use prompts
-  // and entrypoints that upstream has already moved past.
-  if (behind > 0) {
-    const commit = behind === 1 ? "commit" : "commits";
-    console.log(
-      `${yellow("⚠")} ${label} ${yellow(
-        `is ${behind} ${commit} behind ${upstream}`,
-      )} ${dim("— this run will use stale prompts/config.")}`,
-    );
-    console.log(`  ${dim(`Update with: git -C ${configDir} pull`)}`);
-  }
+	// Behind is the case that actually matters: the run is about to use prompts
+	// and entrypoints that upstream has already moved past.
+	if (behind > 0) {
+		const commit = behind === 1 ? "commit" : "commits";
+		console.log(
+			`${yellow("⚠")} ${label} ${yellow(
+				`is ${behind} ${commit} behind ${upstream}`,
+			)} ${dim("— this run will use stale prompts/config.")}`,
+		);
+		console.log(`  ${dim(`Update with: git -C ${configDir} pull`)}`);
+	}
 
-  // Local-only commits are worth surfacing too: they explain why this run's
-  // behavior may not match what the upstream config would produce.
-  if (ahead > 0) {
-    const commit = ahead === 1 ? "commit" : "commits";
-    console.log(
-      `${yellow("⚠")} ${label} ${yellow(
-        `has ${ahead} local ${commit} not on ${upstream}`,
-      )}`,
-    );
-  }
+	// Local-only commits are worth surfacing too: they explain why this run's
+	// behavior may not match what the upstream config would produce.
+	if (ahead > 0) {
+		const commit = ahead === 1 ? "commit" : "commits";
+		console.log(
+			`${yellow("⚠")} ${label} ${yellow(
+				`has ${ahead} local ${commit} not on ${upstream}`,
+			)}`,
+		);
+	}
 
-  // Uncommitted edits to the config are another source of drift.
-  const dirty = await git("status", "--porcelain");
-  if (dirty) {
-    const files = dirty.split("\n").filter(Boolean).length;
-    const file = files === 1 ? "file" : "files";
-    console.log(
-      `${yellow("⚠")} ${label} ${yellow(`has ${files} uncommitted ${file}`)}`,
-    );
-  }
+	// Uncommitted edits to the config are another source of drift.
+	const dirty = await git("status", "--porcelain");
+	if (dirty) {
+		const files = dirty.split("\n").filter(Boolean).length;
+		const file = files === 1 ? "file" : "files";
+		console.log(
+			`${yellow("⚠")} ${label} ${yellow(`has ${files} uncommitted ${file}`)}`,
+		);
+	}
 }

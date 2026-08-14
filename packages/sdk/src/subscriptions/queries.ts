@@ -30,10 +30,7 @@ export const subscriptionKeys = {
 		[...subscriptionKeys.lists(), params] as const,
 	firstByIssuer: (issuerId: IssuerId) =>
 		[...subscriptionKeys.all, "first-by-issuer", issuerId] as const,
-	byIssuerFrequency: (
-		issuerId: IssuerId,
-		frequency: SubscriptionFrequency,
-	) =>
+	byIssuerFrequency: (issuerId: IssuerId, frequency: SubscriptionFrequency) =>
 		[
 			...subscriptionKeys.all,
 			"by-issuer-frequency",

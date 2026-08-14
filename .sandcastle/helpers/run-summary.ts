@@ -19,16 +19,16 @@ import type { PlannedIssue } from "./plan.ts";
 
 /** How an issue came to be finished. */
 export type CompletionKind =
-  | { via: "merged" }
-  | { via: "closed"; completion: Completion };
+	| { via: "merged" }
+	| { via: "closed"; completion: Completion };
 
 /** One finished issue, as it will appear in the end-of-run summary. */
 export interface CompletedEntry {
-  issue: PlannedIssue;
-  iteration: number;
-  kind: CompletionKind;
-  /** Web URL of the issue, or `null` when the repo URL couldn't be resolved. */
-  url: string | null;
+	issue: PlannedIssue;
+	iteration: number;
+	kind: CompletionKind;
+	/** Web URL of the issue, or `null` when the repo URL couldn't be resolved. */
+	url: string | null;
 }
 
 /**
@@ -42,17 +42,17 @@ export interface CompletedEntry {
  * without links rather than failing the run over a cosmetic detail.
  */
 export async function resolveRepoUrl(): Promise<string | null> {
-  try {
-    const result = await Bun.$`gh repo view --json url -q .url`
-      .quiet()
-      .nothrow();
-    if (result.exitCode !== 0) return null;
+	try {
+		const result = await Bun.$`gh repo view --json url -q .url`
+			.quiet()
+			.nothrow();
+		if (result.exitCode !== 0) return null;
 
-    const url = result.stdout.toString().trim();
-    return url || null;
-  } catch {
-    return null;
-  }
+		const url = result.stdout.toString().trim();
+		return url || null;
+	} catch {
+		return null;
+	}
 }
 
 /**
@@ -60,15 +60,15 @@ export async function resolveRepoUrl(): Promise<string | null> {
  * without a leading `#`, so it is stripped before being appended.
  */
 function issueUrl(repoUrl: string | null, id: string): string | null {
-  if (!repoUrl) return null;
+	if (!repoUrl) return null;
 
-  const number = id.trim().replace(/^#/, "");
-  // Anything that isn't a plain issue number (a URL, a cross-repo reference)
-  // can't be turned into a link by concatenation — better no link than a broken
-  // one.
-  if (!/^\d+$/.test(number)) return null;
+	const number = id.trim().replace(/^#/, "");
+	// Anything that isn't a plain issue number (a URL, a cross-repo reference)
+	// can't be turned into a link by concatenation — better no link than a broken
+	// one.
+	if (!/^\d+$/.test(number)) return null;
 
-  return `${repoUrl}/issues/${number}`;
+	return `${repoUrl}/issues/${number}`;
 }
 
 /**
@@ -79,45 +79,45 @@ function issueUrl(repoUrl: string | null, id: string): string | null {
  * construction so callers never have to thread it through.
  */
 export function createRunSummary(repoUrl: string | null) {
-  const entries: CompletedEntry[] = [];
+	const entries: CompletedEntry[] = [];
 
-  function push(
-    issue: PlannedIssue,
-    iteration: number,
-    kind: CompletionKind,
-  ): void {
-    entries.push({
-      issue,
-      iteration,
-      kind,
-      url: issueUrl(repoUrl, issue.id),
-    });
-  }
+	function push(
+		issue: PlannedIssue,
+		iteration: number,
+		kind: CompletionKind,
+	): void {
+		entries.push({
+			issue,
+			iteration,
+			kind,
+			url: issueUrl(repoUrl, issue.id),
+		});
+	}
 
-  return {
-    /** Record issues whose branches the merge phase merged and closed. */
-    addMerged(issues: PlannedIssue[], iteration: number): void {
-      for (const issue of issues) push(issue, iteration, { via: "merged" });
-    },
+	return {
+		/** Record issues whose branches the merge phase merged and closed. */
+		addMerged(issues: PlannedIssue[], iteration: number): void {
+			for (const issue of issues) push(issue, iteration, { via: "merged" });
+		},
 
-    /**
-     * Record an issue closed by the loop itself because the implementer made no
-     * new commits. The `Completion` is kept so the summary can distinguish work
-     * that was already finished from a branch that carried nothing.
-     */
-    addClosed(
-      issue: PlannedIssue,
-      iteration: number,
-      completion: Completion,
-    ): void {
-      push(issue, iteration, { via: "closed", completion });
-    },
+		/**
+		 * Record an issue closed by the loop itself because the implementer made no
+		 * new commits. The `Completion` is kept so the summary can distinguish work
+		 * that was already finished from a branch that carried nothing.
+		 */
+		addClosed(
+			issue: PlannedIssue,
+			iteration: number,
+			completion: Completion,
+		): void {
+			push(issue, iteration, { via: "closed", completion });
+		},
 
-    /** Every issue finished so far, in the order it was recorded. */
-    entries(): readonly CompletedEntry[] {
-      return entries;
-    },
-  };
+		/** Every issue finished so far, in the order it was recorded. */
+		entries(): readonly CompletedEntry[] {
+			return entries;
+		},
+	};
 }
 
 export type RunSummary = ReturnType<typeof createRunSummary>;

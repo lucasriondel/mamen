@@ -1,0 +1,53 @@
+name: CI
+
+# Every push to the default branch and every pull request, including one from a
+# fork — the point of this file is that a contribution nobody has run locally is
+# still checked.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Read-only: nothing here writes to the repo, and a fork's pull request should
+# not be handed a token that could.
+permissions:
+  contents: read
+
+# A branch that is pushed twice does not need the first run finished.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: lint, typecheck, test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # No version written here: the action reads `packageManager` from
+      # package.json, so the pin lives in one place and CI cannot drift from it.
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      # Bun's global install cache, keyed on the lockfile: an unchanged
+      # dependency tree restores instead of downloading, and a changed one
+      # misses rather than restoring a tree that no longer matches.
+      - uses: actions/cache@v6
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - run: bun install --frozen-lockfile
+
+      # The repo's own scripts, in the order a developer runs them. Each is its
+      # own step so the failing check is named on the summary page, and none of
+      # them carries `if:` or `continue-on-error` — the first red check ends the
+      # run.
+      - run: bun run lint
+      - run: bun run typecheck
+      - run: bun run test

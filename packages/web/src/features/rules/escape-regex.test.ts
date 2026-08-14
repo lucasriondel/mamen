@@ -32,8 +32,15 @@ describe("escapeRegex", () => {
 		});
 
 		it("makes a would-be uncompilable pattern valid", () => {
+			// The constructor is the subject, not a long-hand literal: the matcher
+			// compiles a *string* a user typed, and what is asserted is what
+			// happens at compile time. Biome's fix for this rewrites both lines to
+			// regex literals — which turns the second one into a block comment and
+			// the first into an expression that cannot throw.
+			// biome-ignore lint/complexity/useRegexLiterals: a runtime-compiled pattern is the subject
 			expect(() => new RegExp("PAYPAL *EBAY", "i")).not.toThrow();
 			// A leading `*` has nothing to repeat.
+			// biome-ignore lint/complexity/useRegexLiterals: `/*BOULANGERIE/i` is a comment, not a regex
 			expect(() => new RegExp("*BOULANGERIE", "i")).toThrow();
 			expect(matches(escapeRegex("*BOULANGERIE"), "SUMUP *BOULANGERIE")).toBe(
 				true,

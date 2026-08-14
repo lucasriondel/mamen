@@ -34,19 +34,23 @@ const LlmJson = Schema.parseJson(Schema.encodedSchema(LlmSettings));
  * and the storage inverse (`encode`) is verified directly rather than left dead,
  * since the write path builds its row with the hand-written `put` below.
  */
-export const AppSettingsFromRow = Schema.transform(AppSettingsRow, AppSettings, {
-	strict: true,
-	decode: (row) => ({
-		id: row.id,
-		llm: Schema.decodeSync(LlmJson)(row.llm),
-	}),
-	// `s` is the entity's *encoded* shape, so `llm` is already the plain JSON
-	// object — JSON-stringify it directly for the TEXT column.
-	encode: (s) => ({
-		id: s.id,
-		llm: Schema.encodeSync(LlmJson)(s.llm),
-	}),
-});
+export const AppSettingsFromRow = Schema.transform(
+	AppSettingsRow,
+	AppSettings,
+	{
+		strict: true,
+		decode: (row) => ({
+			id: row.id,
+			llm: Schema.decodeSync(LlmJson)(row.llm),
+		}),
+		// `s` is the entity's *encoded* shape, so `llm` is already the plain JSON
+		// object — JSON-stringify it directly for the TEXT column.
+		encode: (s) => ({
+			id: s.id,
+			llm: Schema.encodeSync(LlmJson)(s.llm),
+		}),
+	},
+);
 
 /**
  * The app-settings repository, on `@effect/sql`. Depends only on the generic
@@ -86,7 +90,9 @@ export class AppSettingsRepo extends Effect.Service<AppSettingsRepo>()(
 					Effect.flatMap((found) =>
 						Option.match(found, {
 							onNone: () =>
-								Effect.fail(new NotFound({ resource: "appSettings", id: "app" })),
+								Effect.fail(
+									new NotFound({ resource: "appSettings", id: "app" }),
+								),
 							onSome: Effect.succeed,
 						}),
 					),

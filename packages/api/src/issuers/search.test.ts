@@ -24,7 +24,9 @@ const withConfig = (entries: Record<string, string>) =>
 const CONFIGURED = { LOGODEV_TOKEN: TOKEN };
 
 /** A stub logo.dev. Records every request; never resolves DNS (nothing should). */
-const stubLogodev = (respond: (url: string) => Response | Promise<Response>) => {
+const stubLogodev = (
+	respond: (url: string) => Response | Promise<Response>,
+) => {
 	const requested: string[] = [];
 	const layer = Layer.succeed(Outbound, {
 		lookup: () =>

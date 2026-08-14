@@ -138,13 +138,10 @@ export function UploadStep({
 			</label>
 
 			{state.extracting ? (
-				<p
-					role="status"
-					className="flex items-center gap-2 rounded-2xl border border-gousse-line bg-gousse-panel p-4 text-sm text-gousse-muted"
-				>
+				<output className="flex items-center gap-2 rounded-2xl border border-gousse-line bg-gousse-panel p-4 text-sm text-gousse-muted">
 					<span className="font-medium text-gousse-ink">{state.fileName}</span>{" "}
 					— extracting transactions from the PDF…
-				</p>
+				</output>
 			) : null}
 
 			{state.error ? (

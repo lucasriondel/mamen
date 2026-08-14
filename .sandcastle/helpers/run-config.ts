@@ -16,7 +16,7 @@ export const MAX_ITERATIONS = 10;
  * `bun install` ensures the sandbox always has fresh dependencies.
  */
 export const hooks = {
-  sandbox: { onSandboxReady: [{ command: "bun install" }] },
+	sandbox: { onSandboxReady: [{ command: "bun install" }] },
 };
 
 /**

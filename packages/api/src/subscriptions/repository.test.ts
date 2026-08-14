@@ -206,9 +206,7 @@ describe("SubscriptionRepo", () => {
 			const first = yield* repo.create(
 				make({ issuerId: asIssuer(9), issuerName: "first" }),
 			);
-			yield* repo.create(
-				make({ issuerId: asIssuer(9), issuerName: "second" }),
-			);
+			yield* repo.create(make({ issuerId: asIssuer(9), issuerName: "second" }));
 			const found = yield* repo.getFirstByIssuer(asIssuer(9));
 			assert.strictEqual(found.id, first.id);
 			assert.strictEqual(found.issuerName, "first");
@@ -218,12 +216,8 @@ describe("SubscriptionRepo", () => {
 	it.effect("getByIssuerFrequency returns the matching subscription", () =>
 		Effect.gen(function* () {
 			const repo = yield* SubscriptionRepo;
-			yield* repo.create(
-				make({ issuerId: asIssuer(5), frequency: "monthly" }),
-			);
-			yield* repo.create(
-				make({ issuerId: asIssuer(5), frequency: "yearly" }),
-			);
+			yield* repo.create(make({ issuerId: asIssuer(5), frequency: "monthly" }));
+			yield* repo.create(make({ issuerId: asIssuer(5), frequency: "yearly" }));
 			const found = yield* repo.getByIssuerFrequency(asIssuer(5), "yearly");
 			assert.strictEqual(found.frequency, "yearly");
 			assert.strictEqual(found.issuerId, asIssuer(5));
@@ -274,9 +268,7 @@ describe("SubscriptionRepo", () => {
 	it.effect("getByIssuerFrequency fails NotFound on no match", () =>
 		Effect.gen(function* () {
 			const repo = yield* SubscriptionRepo;
-			yield* repo.create(
-				make({ issuerId: asIssuer(1), frequency: "monthly" }),
-			);
+			yield* repo.create(make({ issuerId: asIssuer(1), frequency: "monthly" }));
 			const error = yield* repo
 				.getByIssuerFrequency(asIssuer(1), "weekly")
 				.pipe(Effect.flip);

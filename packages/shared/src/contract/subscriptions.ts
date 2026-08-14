@@ -18,7 +18,10 @@ export const SubscriptionFrequency = Schema.Literal(
 export type SubscriptionFrequency = typeof SubscriptionFrequency.Type;
 
 /** Detection lifecycle of a subscription. */
-export const SubscriptionStatus = Schema.Literal("active", "possibly-cancelled");
+export const SubscriptionStatus = Schema.Literal(
+	"active",
+	"possibly-cancelled",
+);
 export type SubscriptionStatus = typeof SubscriptionStatus.Type;
 
 /**
