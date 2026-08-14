@@ -12,10 +12,15 @@
 	},
 	"scripts": {
 		"build": "tsc",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsc --noEmit",
+		"test": "vitest run",
+		"test:watch": "vitest"
 	},
 	"dependencies": {
 		"@effect/platform": "0.96.2",
 		"effect": "3.21.4"
+	},
+	"devDependencies": {
+		"vitest": "3.2.4"
 	}
 }

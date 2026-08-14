@@ -6,7 +6,7 @@ Multi-context monorepo. Each package owns its own domain vocabulary in a
 
 | Context | Path | Role |
 |---|---|---|
-| shared | `packages/shared/CONTEXT.md` | The HTTP API contract + shared schemas/types. Source of truth for domain entities. |
+| shared | `packages/shared/CONTEXT.md` | The HTTP API contract + shared schemas/types, plus the deployment constants several packages must agree on. Source of truth for domain entities. |
 | api | `packages/api/CONTEXT.md` | Effect `HttpApi` server implementing the contract. |
 | sdk | `packages/sdk/CONTEXT.md` | Typed client derived from the contract, wired to TanStack Query. |
 | web | `packages/web/CONTEXT.md` | React frontend. Uploads CSV bank statements, displays transactions, manages issuers. |

@@ -5,7 +5,9 @@ The HTTP API **contract** (`src/contract/`) plus the shared domain types
 the contract, `@mamen/sdk` derives its client from it, and
 `packages/api/openapi.json` is emitted from it. Pure schema values — no
 handlers, no I/O, no database and no DOM; the only dependencies are `effect` and
-`@effect/platform`, and nothing here may acquire a runtime one.
+`@effect/platform`, and nothing here may acquire a runtime one. A short list of
+**deployment constants** sits beside them at the package root, for the same
+reason: several packages must agree on the value and none of them owns it.
 
 The conventions below were settled once in
 [`docs/research/api-contract.md`](../../docs/research/api-contract.md) and
@@ -104,6 +106,18 @@ dedicated error per grouping rather than an overloaded `NotFound`, and one
 from both sides, each side reuses the error its own grouping already raises.
 _Avoid_: error code, message (the reason is not display text — the client owns
 the wording).
+
+**Deployment constant**:
+A plain value every deployed layer has to agree on, exported from the package
+root because more than one package reads it and none of them owns it —
+`APP_BASE_PATH` / `APP_BASE_PATH_SLASH` (`src/app-base-path.ts`), the prefix the
+SPA is served under. Not a domain type and not part of the **contract**: it
+describes where the app is *hosted*, not what it exchanges. Each such module
+stays import-free so a build config (`vite.config.ts`) can read it without
+pulling `effect` in behind it, and each documents the constraint that fixes its
+value — for the base path, why `/api` and `/uploads` stay outside the prefix.
+_Avoid_: config, env var (nothing here is read from the environment; a value
+that varies per deployment does not belong in this package at all).
 
 **Legacy domain type**:
 The plain TypeScript types under `src/types/`, exported from the package root
