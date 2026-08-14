@@ -8,11 +8,12 @@ import {
 } from "@tanstack/react-router";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { AppSidebar } from "./app-sidebar";
 
 /**
- * The app's left navigation, rendered through gousse's `Sidebar` (issue #95).
+ * The app's left navigation, rendered through gousse's `SidebarShell` (issues
+ * #95, #105).
  *
  * The subject is the wiring the migration off the local stand-in could silently
  * break: the destinations and their order, client-side navigation, and the
@@ -20,6 +21,12 @@ import { AppSidebar } from "./app-sidebar";
  * `Link` sets `aria-current` on its own, so a lost `activeProps` would leave the
  * row semantically active but visually identical to its siblings. Both are
  * asserted.
+ *
+ * Re-vendoring (#105) added the shell's own axis: `collapsed` drives the mobile
+ * drawer and the desktop width-collapse off one flag, and the scrim reports back
+ * through `onToggle`. jsdom computes no layout, so what is asserted here is the
+ * contract the shell exposes — `inert`, the scrim's reachability, the handler —
+ * rather than the pixels either breakpoint draws.
  */
 
 /** Every destination the sidebar offers, in the order it offers them. */
@@ -33,11 +40,16 @@ const DESTINATIONS = [
 	["Categories", "/categories"],
 ] as const;
 
-function renderSidebar(initialEntry = "/transactions") {
+type SidebarProps = Parameters<typeof AppSidebar>[0];
+
+function renderSidebar(
+	initialEntry = "/transactions",
+	props: SidebarProps = {},
+) {
 	const rootRoute = createRootRoute({
 		component: () => (
 			<>
-				<AppSidebar />
+				<AppSidebar {...props} />
 				<Outlet />
 			</>
 		),
@@ -165,5 +177,71 @@ describe("AppSidebar", () => {
 		expect(
 			screen.getByRole("button", { name: /Switch to (light|dark) theme/ }),
 		).toBeInTheDocument();
+	});
+
+	it("pins the theme toggle in the footer", async () => {
+		renderSidebar();
+
+		const toggle = await screen.findByRole("button", {
+			name: /Switch to (light|dark) theme/,
+		});
+		// `mt-auto` is what pins the footer to the bottom of the column; asserting
+		// the toggle sits inside that element is what "pinned in the footer"
+		// means in a renderer that computes no layout.
+		expect(toggle.closest(".mt-auto")).not.toBeNull();
+	});
+
+	it("leaves every row unhued, on the neutral resting surface", async () => {
+		renderSidebar();
+
+		await waitFor(() => expect(navItems()).toHaveLength(DESTINATIONS.length));
+		// `--hue` is the primitive's per-row accent, for consumers whose rows
+		// carry their own colour. mamen's destinations have none, so no row may
+		// set it — the chrome sheet then falls back to the accent at rest.
+		for (const row of navItems()) {
+			expect(row.getAttribute("style") ?? "").not.toContain("--hue");
+		}
+	});
+});
+
+describe("AppSidebar, as a shell", () => {
+	/** The shell itself — the panel the rows live in. */
+	const panel = () => document.querySelector("aside");
+
+	/** The mobile scrim, which is a button so it is a real dismiss target. */
+	const scrim = () => screen.findByRole("button", { name: "Close sidebar" });
+
+	it("renders the nav inside the shell, open by default", async () => {
+		renderSidebar();
+
+		await waitFor(() => expect(navItems()).toHaveLength(DESTINATIONS.length));
+		expect(panel()).not.toBeNull();
+		expect(panel()).not.toHaveAttribute("inert");
+		expect(panel()).toContainElement(navItems()[0] as HTMLElement);
+	});
+
+	it("takes the rows out of the tab order and the a11y tree when collapsed", async () => {
+		renderSidebar("/transactions", { collapsed: true });
+
+		// One attribute carries both halves — the browser derives the tab order
+		// and the a11y tree from it. jsdom implements neither effect, so the
+		// attribute is the assertion.
+		await waitFor(() => expect(panel()).toHaveAttribute("inert"));
+	});
+
+	it("hands the scrim's dismissal back to the caller", async () => {
+		const user = userEvent.setup();
+		const onToggle = vi.fn();
+		renderSidebar("/transactions", { onToggle });
+
+		await user.click(await scrim());
+
+		expect(onToggle).toHaveBeenCalledTimes(1);
+	});
+
+	it("keeps the scrim out of the tab order while collapsed", async () => {
+		renderSidebar("/transactions", { collapsed: true });
+
+		expect(await scrim()).toHaveAttribute("tabindex", "-1");
 	});
 });
