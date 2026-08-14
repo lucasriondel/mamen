@@ -10,6 +10,7 @@ import type { Completion } from "./close-issue.ts";
 import { bold, cyan, dim, green, red, yellow } from "./colors.ts";
 import type { PlannedIssue } from "./plan.ts";
 import type { createRtkTotals } from "./rtk-gain.ts";
+import type { CompletedEntry, RunSummary } from "./run-summary.ts";
 import { durationTag } from "./timing.ts";
 
 /** `=== Iteration 2/10 ===` header opening each cycle. */
@@ -110,4 +111,67 @@ export function logCompletedBranches(branches: string[]): void {
 export function logRtkTotals(totals: ReturnType<typeof createRtkTotals>): void {
   const line = totals.format();
   if (line) console.log(line);
+}
+
+/**
+ * The marker and trailing note for one completed issue.
+ *
+ * "merged" is the normal path — implemented, merged, closed. The "closed"
+ * variants were closed by the loop without new commits, which the user should be
+ * able to tell apart at a glance: work finished by an earlier run is still a
+ * completion, an empty branch is a no-op that only got closed to stop the
+ * planner re-picking it.
+ */
+function completionMarker(entry: CompletedEntry): { mark: string; note: string } {
+  if (entry.kind.via === "merged") {
+    return { mark: green("✓"), note: "" };
+  }
+
+  switch (entry.kind.completion.kind) {
+    case "unmerged":
+      return {
+        mark: yellow("⊘"),
+        note: dim(" (closed — commits from an earlier run, pending merge)"),
+      };
+    case "merged":
+      return {
+        mark: green("⊘"),
+        note: dim(" (closed — work was already merged)"),
+      };
+    case "empty":
+      return {
+        mark: yellow("⊘"),
+        note: dim(" (closed — branch carried no work)"),
+      };
+  }
+}
+
+/**
+ * The end-of-run report of what the run actually finished: every completed
+ * issue with its id, title and link.
+ *
+ * This is the one place a user reading the tail of a long log can see what got
+ * done, so it prints even when the run crashed partway — issues finished before
+ * the crash are still finished.
+ */
+export function logRunSummary(summary: RunSummary): void {
+  const entries = summary.entries();
+  if (entries.length === 0) {
+    console.log(dim("\nNo issues completed this run."));
+    return;
+  }
+
+  console.log(
+    bold(green(`\nCompleted issues (${entries.length}):`)),
+  );
+  for (const entry of entries) {
+    const { mark, note } = completionMarker(entry);
+    // The planner may hand back ids with or without a leading `#`; display them
+    // uniformly so the list reads as one column.
+    const id = /^\d+$/.test(entry.issue.id.trim())
+      ? `#${entry.issue.id.trim()}`
+      : entry.issue.id;
+    console.log(`  ${mark} ${cyan(id)}  ${entry.issue.title}${note}`);
+    if (entry.url) console.log(dim(`      ${entry.url}`));
+  }
 }

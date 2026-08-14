@@ -32,3 +32,16 @@ export const copyToWorktree = ["node_modules"];
 /** The model every phase runs on: dependency analysis and code both benefit
  * from deeper reasoning, so all agents use opus. */
 export const MODEL = "claude-opus-5";
+
+/**
+ * Timezone used to display wake-up times while waiting out a session limit.
+ *
+ * Claude reports its reset time in UTC whatever the host's timezone, and the
+ * wait itself is computed in UTC — the difference between two instants is the
+ * same in every zone. This setting only decides how those times are *written*,
+ * so a log read at 3am does not require converting from UTC in your head.
+ *
+ * Any IANA zone name works ("Europe/Lisbon", "America/New_York"). Override for
+ * a single run with `--timezone=<zone>`.
+ */
+export const TIMEZONE = "Europe/Paris";

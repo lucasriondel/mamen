@@ -45,6 +45,7 @@ Shared at the root:
 
 | File                  | Role                                                          |
 | --------------------- | ------------------------------------------------------------ |
+| `run.ts`              | Wrapper both flows run through; waits out a session limit and relaunches. |
 | `CODING_STANDARDS.md` | Loaded by the reviewer; customize per project.               |
 | `Dockerfile`          | Sandbox image (Bun 1.3 + git + gh + Claude Code CLI).        |
 | `setup.sh`            | Installs deps, builds the image, creates the label + scripts.|
@@ -60,6 +61,7 @@ files stay pure orchestration:
 | `log-phases.ts`         | Every log line the loop prints — iteration headers, planned issues, no-commit closes, failed pipelines, merged branches, rtk totals. |
 | `close-issue.ts`        | Close-on-zero-commits logic (`closeCompletedIssue`).          |
 | `check-freshness.ts`    | Warns when this config checkout is behind its origin.         |
+| `session-limit.ts`      | Detects a Claude session limit, parses its reset time, and records it for the wrapper. |
 | `rtk-gain.ts`           | Reads rtk token savings per sandbox and totals them per run.  |
 | `timing.ts`             | Stopwatches and `[1m 23s]` duration tags.                     |
 | `colors.ts`             | ANSI color helpers (auto-disabled off a TTY / under `NO_COLOR`). |
@@ -84,19 +86,68 @@ bun run sandcastle:implement          # plan → implement → merge
 bun run sandcastle:implement-review   # plan → implement → code-review → merge
 ```
 
-Both scripts are registered by `setup.sh`. Each entrypoint imports `helpers/notify.ts` and
-fires a macOS notification (via `osascript`) when the flow ends — on clean completion
-*and* on a mid-loop crash. On non-macOS hosts it is a no-op.
+Both scripts are registered by `setup.sh` and run through `run.ts`, which restarts the
+flow after a Claude session limit (see below). A macOS notification (via `osascript`)
+fires when the flow ends — on clean completion, on a mid-loop crash, and when a run
+pauses for a session limit. On non-macOS hosts it is a no-op.
+
+### Session limits
+
+A long backlog routinely outlives one Claude session. When the limit is reached every
+agent dies at once and the run stops with:
+
+```
+You've hit your session limit · resets 6:30pm (UTC)
+```
+
+That is not a failure — the run is intact and only has to wait. So the entrypoint records
+the reset time in `logs/session-limit.json` and exits **75** (`EX_TEMPFAIL`), and `run.ts`
+waits until the limit lifts, then starts a **completely fresh run**. This is on by default.
+
+Restarting the whole process is safe because nothing needs to carry across: the planner
+re-reads open issues from `gh` every iteration, and branch names are deterministic
+(`sandcastle/issue-{id}`), so a new run resumes exactly where the old one stopped. An
+iteration cut short by a limit skips its merge phase; those branches are merged by the
+next run once it re-plans them.
+
+The wait is not capped — the reset time comes from Claude, so sleeping until it is by
+definition right, and retrying early only burns a plan phase. An hourly heartbeat prints
+while waiting so a long silence is distinguishable from a hang. Ctrl-C during a run *or*
+during the wait stops everything and never relaunches.
+
+Only exit code 75 triggers a relaunch. Any other code — success, a genuine crash, a
+signal — ends the wrapper with that same code. Relaunches are unlimited; the natural stop
+is the planner finding no unblocked issues, which exits 0.
+
+To run without relaunching:
+
+```bash
+bun run sandcastle:implement-once           # plan → implement → merge, no relaunch
+bun run sandcastle:implement-review-once    # with review, no relaunch
+```
+
+Those exist because package scripts need `--` to forward a flag
+(`bun run sandcastle:implement -- --no-relaunch`), and forgetting it silently drops the
+flag. Calling `run.ts` directly takes the flags without ceremony:
+
+```bash
+bun .sandcastle/run.ts implement --no-relaunch
+bun .sandcastle/run.ts implement --timezone=America/New_York
+```
 
 ## Customize per project
 
-All four knobs below live in `helpers/run-config.ts` and apply to both flows:
+All five knobs below live in `helpers/run-config.ts` and apply to both flows:
 
 - **`copyToWorktree`** — list every `node_modules` to seed into the worktree. For a
   monorepo, add each package's path.
 - **`hooks.sandbox.onSandboxReady`** — the `bun install` step; swap if you need extras.
 - **`MAX_ITERATIONS`** — plan→execute→merge cycles before stopping.
 - **`MODEL`** — templates use `claude-opus-5`; bump as needed.
+- **`TIMEZONE`** — zone for *displaying* session-limit wake-up times (default
+  `Europe/Paris`). Display only: Claude reports resets in UTC and the wait is computed in
+  UTC, so this changes how times are written, never when the relaunch happens. Override
+  per run with `--timezone=<zone>`.
 
 Plus, at the root:
 

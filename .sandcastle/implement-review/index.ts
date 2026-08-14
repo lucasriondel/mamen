@@ -39,16 +39,24 @@ import {
   logNoCommitOutcome,
   logPlannedIssues,
   logRtkTotals,
+  logRunSummary,
 } from "../helpers/log-phases.ts";
 import { notify } from "../helpers/notify.ts";
 import { planSchema } from "../helpers/plan.ts";
 import { createRtkTotals, readRtkGain } from "../helpers/rtk-gain.ts";
+import { createRunSummary, resolveRepoUrl } from "../helpers/run-summary.ts";
 import {
   MAX_ITERATIONS,
   MODEL,
   copyToWorktree,
   hooks,
 } from "../helpers/run-config.ts";
+import {
+  EXIT_CODE as SESSION_LIMIT_EXIT_CODE,
+  isUnparseableSessionLimit,
+  parseSessionLimit,
+  writeSessionLimit,
+} from "../helpers/session-limit.ts";
 import { durationTag, startTimer, timed } from "../helpers/timing.ts";
 
 // ---------------------------------------------------------------------------
@@ -65,6 +73,11 @@ const runTimer = startTimer();
 // Accumulates rtk token savings from every sandbox across every iteration.
 // Reported once at the end of the run.
 const rtkTotals = createRtkTotals();
+
+// Records which issues the run finished, so the end of the log tells the user
+// what was actually done rather than only how long it took. The repo URL is
+// resolved once up front to turn issue ids into links.
+const runSummary = createRunSummary(await resolveRepoUrl());
 
 try {
   for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
@@ -213,6 +226,7 @@ try {
             baseBranch,
           );
           logNoCommitOutcome(issue.id, issue.branch, completion);
+          runSummary.addClosed(issue, iteration, completion);
 
           return { issue, closed: true as const, commits: [] };
         } finally {
@@ -228,6 +242,17 @@ try {
     console.log(
       `${dim("  Execute phase")} ${durationTag(executeTimer.elapsed())}`,
     );
+
+    // A session limit kills every agent in flight at once, but allSettled
+    // absorbs the rejections so the loop would otherwise carry on: skip the
+    // merge, burn an iteration, and only stop when the *next* plan phase fails.
+    // That reports a pause as a pile of failed pipelines. Rethrowing here ends
+    // the run in the iteration where the limit actually hit, so the logs and the
+    // exit code both say "paused" rather than "everything failed".
+    const limited = settled.find(
+      (r) => r.status === "rejected" && parseSessionLimit(r.reason) !== null,
+    );
+    if (limited?.status === "rejected") throw limited.reason;
 
     // Log any agents that threw (network error, sandbox crash, etc.).
     logFailedPipelines(settled, issues);
@@ -272,6 +297,10 @@ try {
       }),
     );
 
+    // The merge agent merges each branch and closes its issue, so everything it
+    // was handed is done once it returns without throwing.
+    runSummary.addMerged(completed, iteration);
+
     console.log(green("\nBranches merged."));
     logIterationDone(iteration, iterationTimer.elapsed());
   }
@@ -279,16 +308,49 @@ try {
   console.log(
     bold(green("\nAll done.")) + ` ${durationTag(runTimer.elapsed())}`,
   );
+  logRunSummary(runSummary);
   logRtkTotals(rtkTotals);
-  await notify("implement-review", true);
+  await notify("implement-review", "ok");
 } catch (err) {
-  console.error(
-    bold(red("\nRun failed:")) + ` ${durationTag(runTimer.elapsed())}`,
-    err,
-  );
-  // Still worth reporting: sandboxes that completed before the crash saved
-  // tokens, and that figure is otherwise lost.
+  // A session limit is not a fault: the run is intact and only needs to wait for
+  // the window to reopen. Record when that is and exit with the dedicated code
+  // so the wrapper (run.ts) can sleep and start a fresh run. No failure
+  // notification — the wrapper owns that, being the only party that knows
+  // whether a relaunch actually follows.
+  const limit = parseSessionLimit(err);
+
+  if (limit) {
+    console.log(
+      bold(yellow("\nSession limit reached:")) +
+        ` ${dim(limit.raw)} ${durationTag(runTimer.elapsed())}`,
+    );
+    await writeSessionLimit(limit);
+  } else {
+    console.error(
+      bold(red("\nRun failed:")) + ` ${durationTag(runTimer.elapsed())}`,
+      err,
+    );
+    // Wording we recognise but a reset time we cannot read means the message has
+    // changed shape. Surface it as its own line: relaunching blind is worse, and
+    // filing it as an ordinary crash would hide a fixable gap in the pattern.
+    if (isUnparseableSessionLimit(err)) {
+      console.error(
+        `${yellow("⚠")} ${dim(
+          "Session limit detected but the reset time could not be read — not relaunching.",
+        )}`,
+      );
+    }
+  }
+
+  // Still worth reporting: issues finished before the crash are still finished,
+  // and sandboxes that completed saved tokens — both figures are otherwise lost.
+  logRunSummary(runSummary);
   logRtkTotals(rtkTotals);
-  await notify("implement-review", false);
-  process.exitCode = 1;
+
+  if (limit) {
+    process.exitCode = SESSION_LIMIT_EXIT_CODE;
+  } else {
+    await notify("implement-review", "failed");
+    process.exitCode = 1;
+  }
 }

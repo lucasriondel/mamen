@@ -30,10 +30,20 @@ bun --eval '
   const pkg = await Bun.file(path).json();
   pkg.scripts ??= {};
 
+  // Every script goes through .sandcastle/run.ts, the wrapper that waits out a
+  // Claude session limit and starts a fresh run once it lifts. The ":once"
+  // variants disable that. They exist because package scripts need "--" to
+  // forward a flag ("bun run sandcastle:implement -- --no-relaunch"), and
+  // forgetting it silently drops the flag — which you would only discover when
+  // the run relaunches overnight anyway.
   const scripts = {
-    "sandcastle:implement": "bun .sandcastle/implement/index.ts",
+    "sandcastle:implement": "bun .sandcastle/run.ts implement",
+    "sandcastle:implement-once":
+      "bun .sandcastle/run.ts implement --no-relaunch",
     "sandcastle:implement-review":
-      "bun .sandcastle/implement-review/index.ts",
+      "bun .sandcastle/run.ts implement-review",
+    "sandcastle:implement-review-once":
+      "bun .sandcastle/run.ts implement-review --no-relaunch",
   };
 
   let changed = false;
