@@ -1,5 +1,9 @@
 import { assert, describe, it } from "@effect/vitest";
-import { type Setting, SettingId, type SettingKey } from "@mamen/shared/contract";
+import {
+	type Setting,
+	SettingId,
+	type SettingKey,
+} from "@mamen/shared/contract";
 import { Effect, Layer, Schema } from "effect";
 import { DatabaseTest } from "../db/test";
 import { SettingRepo } from "./repository";

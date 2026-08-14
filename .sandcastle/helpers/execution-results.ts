@@ -10,9 +10,9 @@ import type { PlannedIssue } from "./plan.ts";
 
 /** What a per-issue pipeline resolves to when it doesn't throw. */
 export interface IssueOutcome {
-  issue: PlannedIssue;
-  closed: boolean;
-  commits: unknown[];
+	issue: PlannedIssue;
+	closed: boolean;
+	commits: unknown[];
 }
 
 /**
@@ -22,7 +22,7 @@ export interface IssueOutcome {
  * when the current implementer produces nothing new.
  */
 export async function currentBranch(): Promise<string> {
-  return (await Bun.$`git rev-parse --abbrev-ref HEAD`.text()).trim();
+	return (await Bun.$`git rev-parse --abbrev-ref HEAD`.text()).trim();
 }
 
 /**
@@ -33,17 +33,17 @@ export async function currentBranch(): Promise<string> {
  * issue.
  */
 export function completedIssues(
-  settled: PromiseSettledResult<IssueOutcome>[],
-  issues: PlannedIssue[],
+	settled: PromiseSettledResult<IssueOutcome>[],
+	issues: PlannedIssue[],
 ): PlannedIssue[] {
-  return settled
-    .map((outcome, i) => ({ outcome, issue: issues[i]! }))
-    .filter(
-      (entry) =>
-        entry.outcome.status === "fulfilled" &&
-        entry.outcome.value.commits.length > 0,
-    )
-    .map((entry) => entry.issue);
+	return settled
+		.map((outcome, i) => ({ outcome, issue: issues[i]! }))
+		.filter(
+			(entry) =>
+				entry.outcome.status === "fulfilled" &&
+				entry.outcome.value.commits.length > 0,
+		)
+		.map((entry) => entry.issue);
 }
 
 /**
@@ -51,11 +51,11 @@ export function completedIssues(
  * one branch name and one `id: title` pair per line.
  */
 export function mergePromptArgs(issues: PlannedIssue[]): {
-  BRANCHES: string;
-  ISSUES: string;
+	BRANCHES: string;
+	ISSUES: string;
 } {
-  return {
-    BRANCHES: issues.map((i) => `- ${i.branch}`).join("\n"),
-    ISSUES: issues.map((i) => `- ${i.id}: ${i.title}`).join("\n"),
-  };
+	return {
+		BRANCHES: issues.map((i) => `- ${i.branch}`).join("\n"),
+		ISSUES: issues.map((i) => `- ${i.id}: ${i.title}`).join("\n"),
+	};
 }

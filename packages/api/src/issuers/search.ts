@@ -127,7 +127,9 @@ export const searchLogos = (
 		}
 		if (!response.ok) {
 			return yield* Effect.fail(
-				new LogoSearchFailed({ message: `logo.dev answered ${response.status}` }),
+				new LogoSearchFailed({
+					message: `logo.dev answered ${response.status}`,
+				}),
 			);
 		}
 

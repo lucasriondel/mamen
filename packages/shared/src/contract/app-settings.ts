@@ -13,7 +13,13 @@ export class LlmSettings extends Schema.Class<LlmSettings>("LlmSettings")({
 	endpoint: Schema.String,
 	apiKey: Schema.optional(Schema.String),
 	modelName: Schema.String,
-	provider: Schema.Literal("ollama", "lm-studio", "openai", "anthropic", "custom"),
+	provider: Schema.Literal(
+		"ollama",
+		"lm-studio",
+		"openai",
+		"anthropic",
+		"custom",
+	),
 	lastTestedAt: Schema.optional(Schema.Date),
 	lastTestSuccess: Schema.optional(Schema.Boolean),
 }) {}

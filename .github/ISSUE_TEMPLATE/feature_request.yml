@@ -1,0 +1,41 @@
+name: Feature request
+description: Suggest something mamen should do that it does not do yet
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The problem is the part worth writing down carefully — a solution that
+        answers a problem nobody stated is hard to weigh against the ones that
+        do.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: >-
+        What you are trying to do today, and where it goes wrong or takes more
+        work than it should.
+      placeholder: >-
+        Every month I re-categorise the same twenty transactions by hand,
+        because a rule only matches on the exact issuer name.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like to happen
+      description: Your idea of the change, if you have one. It is fine to leave this blank.
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you have tried instead
+      description: >-
+        Workarounds, or other ways of solving it that you considered and
+        rejected — and why.
+    validations:
+      required: false

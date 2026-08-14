@@ -16,7 +16,7 @@ const enabled = Boolean(process.stdout.isTTY) && !process.env.NO_COLOR;
 
 /** Wrap `text` in an ANSI SGR code, or return it unchanged when color is off. */
 function wrap(code: number, text: string): string {
-  return enabled ? `\x1b[${code}m${text}\x1b[0m` : text;
+	return enabled ? `\x1b[${code}m${text}\x1b[0m` : text;
 }
 
 // Foreground colors + styles used across the orchestration logs.

@@ -15,24 +15,24 @@ import { durationTag } from "./timing.ts";
 
 /** `=== Iteration 2/10 ===` header opening each cycle. */
 export function logIterationHeader(iteration: number, max: number): void {
-  console.log(bold(cyan(`\n=== Iteration ${iteration}/${max} ===\n`)));
+	console.log(bold(cyan(`\n=== Iteration ${iteration}/${max} ===\n`)));
 }
 
 /** Closing line for a cycle, carrying the whole iteration's wall-clock time. */
 export function logIterationDone(iteration: number, elapsedMs: number): void {
-  console.log(
-    bold(cyan(`Iteration ${iteration}`)) + ` ${durationTag(elapsedMs)}`,
-  );
+	console.log(
+		bold(cyan(`Iteration ${iteration}`)) + ` ${durationTag(elapsedMs)}`,
+	);
 }
 
 /** The issues the planner selected to work in parallel this iteration. */
 export function logPlannedIssues(issues: PlannedIssue[]): void {
-  console.log(
-    green(`Planning complete. ${issues.length} issue(s) to work in parallel:`),
-  );
-  for (const issue of issues) {
-    console.log(`  ${cyan(issue.id)}: ${issue.title} → ${dim(issue.branch)}`);
-  }
+	console.log(
+		green(`Planning complete. ${issues.length} issue(s) to work in parallel:`),
+	);
+	for (const issue of issues) {
+		console.log(`  ${cyan(issue.id)}: ${issue.title} → ${dim(issue.branch)}`);
+	}
 }
 
 /**
@@ -41,37 +41,37 @@ export function logPlannedIssues(issues: PlannedIssue[]): void {
  * this surfaces that reasoning in the log so a no-commit close is never silent.
  */
 export function logNoCommitOutcome(
-  id: string,
-  branch: string,
-  completion: Completion,
+	id: string,
+	branch: string,
+	completion: Completion,
 ): void {
-  const tag = dim(`${id} (${branch})`);
-  switch (completion.kind) {
-    case "unmerged":
-      console.log(
-        yellow(
-          `  ⊘ ${tag} closed — ${completion.commits.length} commit(s) from an earlier run still pending merge:`,
-        ),
-      );
-      for (const c of completion.commits) {
-        console.log(dim(`      ${c.sha.slice(0, 12)} ${c.subject}`));
-      }
-      break;
-    case "merged":
-      console.log(
-        green(
-          `  ⊘ ${tag} closed — already merged into base (${completion.commits.length} commit(s)); issue was just never closed.`,
-        ),
-      );
-      break;
-    case "empty":
-      console.log(
-        yellow(
-          `  ⊘ ${tag} closed — branch carries no work; nothing was done on this issue.`,
-        ),
-      );
-      break;
-  }
+	const tag = dim(`${id} (${branch})`);
+	switch (completion.kind) {
+		case "unmerged":
+			console.log(
+				yellow(
+					`  ⊘ ${tag} closed — ${completion.commits.length} commit(s) from an earlier run still pending merge:`,
+				),
+			);
+			for (const c of completion.commits) {
+				console.log(dim(`      ${c.sha.slice(0, 12)} ${c.subject}`));
+			}
+			break;
+		case "merged":
+			console.log(
+				green(
+					`  ⊘ ${tag} closed — already merged into base (${completion.commits.length} commit(s)); issue was just never closed.`,
+				),
+			);
+			break;
+		case "empty":
+			console.log(
+				yellow(
+					`  ⊘ ${tag} closed — branch carries no work; nothing was done on this issue.`,
+				),
+			);
+			break;
+	}
 }
 
 /**
@@ -81,36 +81,36 @@ export function logNoCommitOutcome(
  * means a rejection is otherwise invisible — this is the only place it surfaces.
  */
 export function logFailedPipelines(
-  settled: PromiseSettledResult<unknown>[],
-  issues: PlannedIssue[],
+	settled: PromiseSettledResult<unknown>[],
+	issues: PlannedIssue[],
 ): void {
-  for (const [i, outcome] of settled.entries()) {
-    if (outcome.status === "rejected") {
-      console.error(
-        red(
-          `  ✗ ${issues[i]!.id} (${issues[i]!.branch}) failed: ${
-            outcome.reason
-          }`,
-        ),
-      );
-    }
-  }
+	for (const [i, outcome] of settled.entries()) {
+		if (outcome.status === "rejected") {
+			console.error(
+				red(
+					`  ✗ ${issues[i]!.id} (${issues[i]!.branch}) failed: ${
+						outcome.reason
+					}`,
+				),
+			);
+		}
+	}
 }
 
 /** The branches carrying commits that the merge phase will consume. */
 export function logCompletedBranches(branches: string[]): void {
-  console.log(
-    green(`\nExecution complete. ${branches.length} branch(es) with commits:`),
-  );
-  for (const branch of branches) {
-    console.log(`  ${cyan(branch)}`);
-  }
+	console.log(
+		green(`\nExecution complete. ${branches.length} branch(es) with commits:`),
+	);
+	for (const branch of branches) {
+		console.log(`  ${cyan(branch)}`);
+	}
 }
 
 /** Print the run's rtk savings line, or nothing when no sandbox reported any. */
 export function logRtkTotals(totals: ReturnType<typeof createRtkTotals>): void {
-  const line = totals.format();
-  if (line) console.log(line);
+	const line = totals.format();
+	if (line) console.log(line);
 }
 
 /**
@@ -122,28 +122,31 @@ export function logRtkTotals(totals: ReturnType<typeof createRtkTotals>): void {
  * completion, an empty branch is a no-op that only got closed to stop the
  * planner re-picking it.
  */
-function completionMarker(entry: CompletedEntry): { mark: string; note: string } {
-  if (entry.kind.via === "merged") {
-    return { mark: green("✓"), note: "" };
-  }
+function completionMarker(entry: CompletedEntry): {
+	mark: string;
+	note: string;
+} {
+	if (entry.kind.via === "merged") {
+		return { mark: green("✓"), note: "" };
+	}
 
-  switch (entry.kind.completion.kind) {
-    case "unmerged":
-      return {
-        mark: yellow("⊘"),
-        note: dim(" (closed — commits from an earlier run, pending merge)"),
-      };
-    case "merged":
-      return {
-        mark: green("⊘"),
-        note: dim(" (closed — work was already merged)"),
-      };
-    case "empty":
-      return {
-        mark: yellow("⊘"),
-        note: dim(" (closed — branch carried no work)"),
-      };
-  }
+	switch (entry.kind.completion.kind) {
+		case "unmerged":
+			return {
+				mark: yellow("⊘"),
+				note: dim(" (closed — commits from an earlier run, pending merge)"),
+			};
+		case "merged":
+			return {
+				mark: green("⊘"),
+				note: dim(" (closed — work was already merged)"),
+			};
+		case "empty":
+			return {
+				mark: yellow("⊘"),
+				note: dim(" (closed — branch carried no work)"),
+			};
+	}
 }
 
 /**
@@ -155,23 +158,21 @@ function completionMarker(entry: CompletedEntry): { mark: string; note: string }
  * the crash are still finished.
  */
 export function logRunSummary(summary: RunSummary): void {
-  const entries = summary.entries();
-  if (entries.length === 0) {
-    console.log(dim("\nNo issues completed this run."));
-    return;
-  }
+	const entries = summary.entries();
+	if (entries.length === 0) {
+		console.log(dim("\nNo issues completed this run."));
+		return;
+	}
 
-  console.log(
-    bold(green(`\nCompleted issues (${entries.length}):`)),
-  );
-  for (const entry of entries) {
-    const { mark, note } = completionMarker(entry);
-    // The planner may hand back ids with or without a leading `#`; display them
-    // uniformly so the list reads as one column.
-    const id = /^\d+$/.test(entry.issue.id.trim())
-      ? `#${entry.issue.id.trim()}`
-      : entry.issue.id;
-    console.log(`  ${mark} ${cyan(id)}  ${entry.issue.title}${note}`);
-    if (entry.url) console.log(dim(`      ${entry.url}`));
-  }
+	console.log(bold(green(`\nCompleted issues (${entries.length}):`)));
+	for (const entry of entries) {
+		const { mark, note } = completionMarker(entry);
+		// The planner may hand back ids with or without a leading `#`; display them
+		// uniformly so the list reads as one column.
+		const id = /^\d+$/.test(entry.issue.id.trim())
+			? `#${entry.issue.id.trim()}`
+			: entry.issue.id;
+		console.log(`  ${mark} ${cyan(id)}  ${entry.issue.title}${note}`);
+		if (entry.url) console.log(dim(`      ${entry.url}`));
+	}
 }
