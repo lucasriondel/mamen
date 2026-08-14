@@ -9,9 +9,10 @@ import {
 	Upload,
 	Wallet,
 } from "lucide-react";
-import type { ComponentProps, ReactNode } from "react";
+import type { ComponentProps, ReactNode, Ref } from "react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import {
+	SidebarClose,
 	SidebarContent,
 	SidebarFooter,
 	SidebarGroup,
@@ -86,8 +87,13 @@ const NAV_LINKS: readonly NavLink[] = [
 interface AppSidebarProps {
 	/** Drives both axes of the shell: the mobile drawer and the desktop width. */
 	collapsed?: boolean;
-	/** What the mobile scrim calls. */
+	/** What the header's close control and the mobile scrim call. */
 	onToggle?: () => void;
+	/**
+	 * The header's close button. The shell hands focus back to it when the panel
+	 * re-opens, which it can only do if it can reach the element.
+	 */
+	closeRef?: Ref<HTMLButtonElement>;
 }
 
 /**
@@ -101,15 +107,15 @@ interface AppSidebarProps {
  * and mamen's nav is a flat list of fixed destinations. Left unset, the chrome
  * sheet resolves `--hue` to the accent, which is the intended resting state.
  *
- * `collapsed` is a prop rather than local state: the panel has no control of its
- * own yet, so nothing here can flip it. The close button, the top-bar trigger
- * and somewhere for the state to live are issue #106.
+ * `collapsed` is a prop rather than local state: the flag drives the layout row
+ * this panel sits in, and the control that re-opens it lives outside the panel
+ * entirely. `AppShell` owns both, and persists the flag.
  */
-export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
+export function AppSidebar({ collapsed, onToggle, closeRef }: AppSidebarProps) {
 	return (
-		// gousse's shell is layout-agnostic — it sizes itself and stops there. The
-		// root lays it out as a flex row beside a scrolling `main`, so pinning it
-		// against shrink is the call site's job, as it was on the stand-in.
+		// gousse's shell is layout-agnostic — it sizes itself and stops there.
+		// `AppShell` lays it out as a flex row beside a scrolling `main`, so pinning
+		// it against shrink is the call site's job, as it was on the stand-in.
 		<SidebarShell
 			className="shrink-0"
 			collapsed={collapsed}
@@ -129,6 +135,11 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
 					/>
 					<span>mamen</span>
 				</div>
+				{/* Closing is driven from inside the panel, opposite the brand; the
+				 * control that re-opens it is `SidebarTrigger` in `AppShell`'s top
+				 * bar, because a collapsed panel is `inert` and has nothing left to
+				 * click. */}
+				<SidebarClose ref={closeRef} onClick={onToggle} />
 			</SidebarHeader>
 			<SidebarContent>
 				<SidebarGroup>

@@ -244,4 +244,39 @@ describe("AppSidebar, as a shell", () => {
 
 		expect(await scrim()).toHaveAttribute("tabindex", "-1");
 	});
+
+	// #106: the panel's own half of the affordance. Closing is driven from inside
+	// the header, opposite the brand row; the control that re-opens it belongs to
+	// the top bar, outside the panel, because a collapsed sidebar has nothing left
+	// to click.
+	it("offers a named close control in the header, beside the brand", async () => {
+		renderSidebar();
+
+		const close = await screen.findByRole("button", {
+			name: "Collapse sidebar",
+		});
+		const brand = screen.getByText("mamen");
+		expect(close.closest("div")).toBe(brand.closest("div")?.parentElement);
+	});
+
+	it("hands the close control's press back to the caller", async () => {
+		const user = userEvent.setup();
+		const onToggle = vi.fn();
+		renderSidebar("/transactions", { onToggle });
+
+		await user.click(
+			await screen.findByRole("button", { name: "Collapse sidebar" }),
+		);
+
+		expect(onToggle).toHaveBeenCalledTimes(1);
+	});
+
+	it("offers no way to re-open from inside the panel", async () => {
+		renderSidebar("/transactions", { collapsed: true });
+
+		await waitFor(() => expect(panel()).toHaveAttribute("inert"));
+		// The open trigger lives in the top bar (`AppShell`). One inside the
+		// collapsed panel would be inert, and so unreachable.
+		expect(screen.queryByRole("button", { name: "Open sidebar" })).toBeNull();
+	});
 });

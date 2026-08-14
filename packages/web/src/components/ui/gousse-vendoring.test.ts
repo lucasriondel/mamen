@@ -88,6 +88,12 @@ describe("the vendored gousse sidebar", () => {
 		expect(sidebar).toMatch(/inert=\{collapsed \? true : undefined\}/);
 	});
 
+	it("tweens the panel behind the motion preference", () => {
+		// The other half of #106's reduced-motion requirement: the width/transform
+		// transition the collapse rides on is opted out at the source.
+		expect(sidebar).toContain("motion-reduce:transition-none");
+	});
+
 	it("is left in upstream's own formatting, not the repo's", () => {
 		const indented = sidebar
 			.split("\n")
@@ -126,6 +132,19 @@ describe("the sidebar chrome sheet", () => {
 		expect(chrome).toMatch(/\.sidebar-row:hover\s*\{[^}]*background:/);
 		expect(chrome).toMatch(/\.sidebar-row::before\s*\{/);
 		expect(chrome).toContain(".sidebar-scroll");
+	});
+
+	// #106 hangs the "one continuous motion" criterion on this pair: the top-bar
+	// trigger mounts the instant the close starts, so the keyframe — delayed into
+	// the panel's own 300ms — is what keeps the two from reading as two separate
+	// things. Its reduced-motion opt-out is the whole of what "respect the
+	// preference" means here, since the app's job is only not to defeat it.
+	it("fades the top-bar trigger in, and stops if motion is reduced", () => {
+		expect(chrome).toMatch(/@keyframes sidebarToggleIn\s*\{/);
+		expect(chrome).toMatch(/\.sidebar-toggle-in\s*\{[^}]*animation:/);
+		expect(chrome).toMatch(
+			/@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.sidebar-toggle-in\s*\{\s*animation: none;/,
+		);
 	});
 
 	it("lights the active row from aria-current as well as data-active", () => {
