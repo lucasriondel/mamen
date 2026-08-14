@@ -35,6 +35,8 @@ const CONTRIBUTING = existsSync(`${ROOT}/CONTRIBUTING.md`)
 	: "";
 const SECURITY = existsSync(`${ROOT}/SECURITY.md`) ? read("SECURITY.md") : "";
 const LICENSE = existsSync(`${ROOT}/LICENSE`) ? read("LICENSE") : "";
+/** The runbook, at the repo root since issue #114 rather than under `docs/`. */
+const DEPLOY = existsSync(`${ROOT}/DEPLOY.md`) ? read("DEPLOY.md") : "";
 
 const rootManifest = JSON.parse(read("package.json"));
 const rootScripts: Record<string, string> = rootManifest.scripts ?? {};
@@ -297,7 +299,7 @@ describe("SECURITY.md", () => {
 	});
 });
 
-describe("every relative link in the four files", () => {
+describe("every relative link in the root documents", () => {
 	it("resolves to a file that exists", () => {
 		const broken: string[] = [];
 
@@ -305,6 +307,7 @@ describe("every relative link in the four files", () => {
 			["README.md", README],
 			["CONTRIBUTING.md", CONTRIBUTING],
 			["SECURITY.md", SECURITY],
+			["DEPLOY.md", DEPLOY],
 		] as const) {
 			for (const href of relativeLinks(text)) {
 				if (!existsSync(`${ROOT}/${href}`)) broken.push(`${name} -> ${href}`);

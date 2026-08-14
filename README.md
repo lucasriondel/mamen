@@ -167,9 +167,11 @@ bun run --filter @mamen/api emit-openapi
 
 Three containers behind one domain — a Bun API, an nginx-served SPA under `/app`
 that proxies `/api` and `/uploads` to it, and an nginx-served landing page at the
-root. The application has no authentication of its
-own; access control is entirely the reverse proxy's.
-[docs/operations/deploy.md](docs/operations/deploy.md) has the whole topology.
+root. The application has no authentication of its own; access control is
+entirely the reverse proxy's. In the maintainer's deployment that is Cloudflare
+Access over `/app`, `/api` and `/uploads`, with the site root left public.
+[DEPLOY.md](DEPLOY.md) has the whole topology, the environment each container
+needs, and the path split it is all derived from.
 
 ## Documentation
 
