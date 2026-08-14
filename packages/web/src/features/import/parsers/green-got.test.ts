@@ -5,9 +5,16 @@ import { describe, expect, it } from "vitest";
 import { greenGotParser } from "./green-got";
 import type { ParseContext } from "./types";
 
-// Parse the real shipped Green-Got export once (PRD "Seam 1" — the primary
-// seam). `parse` is pure, so no mocking: drive it with representative rows and
-// assert the emitted records.
+// Parse the shipped Green-Got fixture once (PRD "Seam 1" — the primary seam).
+// `parse` is pure, so no mocking: drive it with representative rows and assert
+// the emitted records.
+//
+// The fixture is synthetic. It was a byte-identical copy of a real statement
+// until issue #108, which is why the names read as placeholders and every IBAN
+// begins `FR7699999` — an unallocated bank code, held there by
+// `src/test/bank-statement-scrubbed.test.ts`. It keeps the shape that matters:
+// the bank's full column set, both directions, non-zero `Arrondi`, SEPA rows
+// carrying account numbers and card rows leaving them blank.
 const csv = readFileSync(
 	"src/features/import/__fixtures__/green-got-sample.csv",
 	"utf8",
@@ -36,7 +43,7 @@ describe("greenGotParser.matches", () => {
 	});
 });
 
-describe("greenGotParser.parse (real fixture)", () => {
+describe("greenGotParser.parse (shipped fixture)", () => {
 	const records = greenGotParser.parse(rows, ctx);
 
 	it("emits one record per COMPLETE row and stamps the context", () => {
@@ -48,7 +55,7 @@ describe("greenGotParser.parse (real fixture)", () => {
 	});
 
 	it("maps Intitulé to rawIssuerString", () => {
-		expect(records[0].rawIssuerString).toBe("Compte LC");
+		expect(records[0].rawIssuerString).toBe("Compte Courant");
 	});
 
 	it("signs DEBIT negative and CREDIT positive", () => {
@@ -63,8 +70,8 @@ describe("greenGotParser.parse (real fixture)", () => {
 	});
 
 	it("ignores Arrondi (round-up) — amount is Montant only", () => {
-		// Row index 2 (AMAZON) has Montant 8.76 and Arrondi 0.24; the round-up
-		// must not leak into the amount.
+		// Row index 2 has Montant 8.76 and Arrondi 0.24; the round-up must not
+		// leak into the amount.
 		expect(records[2].amount).toBe(-8.76);
 	});
 });
