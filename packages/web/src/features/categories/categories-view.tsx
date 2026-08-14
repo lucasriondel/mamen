@@ -1,10 +1,7 @@
 import type { CategoryTreeNode } from "@mamen/shared";
 import type { Category, CategoryId } from "@mamen/shared/contract";
-import { useQueries, useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
-import { ColorPicker } from "@/components/color-picker";
-import { IconPicker } from "@/components/icon-picker";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -16,18 +13,18 @@ import {
 import { Empty } from "@/components/ui/empty";
 import {
 	buildTree,
-	descendantIds,
 	NEUTRAL_CATEGORY_COLOR,
 	resolveCategoryColors,
 	subtreeIds,
 } from "@/lib/category-tree";
-import { formatCurrency } from "@/lib/format";
-import { categoryQueries, transactionQueries } from "@/lib/sdk";
+import { categoryQueries } from "@/lib/sdk";
 import { categoryHoldsMoney } from "@/lib/sdk-error";
-import { cn } from "@/lib/utils";
 import { CategoriesTreeSkeleton } from "./categories-tree-skeleton";
 import { CategoryParentPicker } from "./category-parent-picker";
+import { CategoryRow } from "./category-row";
+import { CategoryRowActions } from "./category-row-actions";
 import { useCategoryMutations } from "./use-category-mutations";
+import { useCategoryTotals } from "./use-category-totals";
 
 /**
  * Which write dialog is open, and on what. `null` = closed. The categories page
@@ -54,14 +51,14 @@ interface NodeActions {
 	onAdd: (parent: Category) => void;
 	onRename: (node: Category) => void;
 	onMove: (node: Category) => void;
-	onDelete: (id: CategoryId) => void;
+	onDelete: (node: Category) => void;
 	/** Store a new **Icon name** on a node (issue #58). */
 	onIcon: (id: CategoryId, icon: string) => void;
 	/** Store a colour, or `null` to resume inheriting (issue #58). */
 	onColor: (id: CategoryId, color: string | null) => void;
 	deleting: boolean;
 	styling: boolean;
-	/** A folder's rolled-up **Category total** (whole subtree), by node id. */
+	/** Every node's **Category total** — its own leaves' net, at any depth. */
 	totalById: Map<CategoryId, number>;
 	/**
 	 * Every node's **Resolved colour**, by node id. Resolved once against the flat
@@ -69,16 +66,9 @@ interface NodeActions {
 	 * render only ever holds a subtree.
 	 */
 	colorById: Map<CategoryId, string>;
-}
-
-/**
- * Every folder in a forest — a node with children — flattened depth-first, so a
- * total query can be spun up for each at any depth (issue #29/#32).
- */
-function folderNodes(nodes: readonly CategoryTreeNode[]): CategoryTreeNode[] {
-	return nodes.flatMap((node) =>
-		node.children.length > 0 ? [node, ...folderNodes(node.children)] : [],
-	);
+	/** Which folders are open. Absent = open: the tree starts fully expanded. */
+	collapsed: ReadonlySet<CategoryId>;
+	onToggle: (id: CategoryId) => void;
 }
 
 /**
@@ -97,27 +87,19 @@ export function CategoriesView() {
 	);
 	const categories = (categoriesQuery.data?.items ?? []) as readonly Category[];
 	const tree = buildTree(categories);
-	const folders = folderNodes(tree);
 
 	const mutations = useCategoryMutations();
 	const [editor, setEditor] = useState<Editor | null>(null);
-
-	// A **Category total** per folder, at every depth: the signed net over every
-	// leaf in its whole subtree (`descendantIds`, ADR 0003 / issue #29), from the
-	// `count` endpoint (whole set, not a page). A folder with no leaves beneath it
-	// has nothing to sum, so its query stays disabled.
-	const totals = useQueries({
-		queries: folders.map((folder) => {
-			const ids = descendantIds(categories, folder.id);
-			return {
-				...transactionQueries.count({ categoryId: ids }),
-				enabled: ids.length > 0,
-			};
-		}),
-	});
-	const totalById = new Map<CategoryId, number>(
-		folders.map((folder, i) => [folder.id, totals[i]?.data?.total ?? 0]),
+	// Collapse is opt-in, so the tree lands fully expanded and the page still
+	// answers "what is the shape of my spending?" without a single click.
+	const [collapsed, setCollapsed] = useState<ReadonlySet<CategoryId>>(
+		() => new Set(),
 	);
+
+	// A **Category total** for every node, folder and leaf alike — the signed net
+	// over every leaf in its subtree (ADR 0003 / issue #29). See the hook for why
+	// leaves cost a request each and what the batched fix would be.
+	const totalById = useCategoryTotals(categories);
 
 	// The **Resolved colour** of every node, folder and leaf alike. This is the
 	// surface where inheritance is visible: recolour a folder and every descendant
@@ -131,13 +113,20 @@ export function CategoriesView() {
 		onAdd: (parent) => setEditor({ kind: "create", parent }),
 		onRename: (node) => setEditor({ kind: "rename", node }),
 		onMove: (node) => setEditor({ kind: "move", node }),
-		onDelete: (id) => mutations.remove.mutate(id),
+		onDelete: (node) => mutations.remove.mutate(node.id),
 		onIcon: (id, icon) => mutations.setIcon.mutate({ id, icon }),
 		onColor: (id, color) => mutations.setColor.mutate({ id, color }),
 		deleting: mutations.remove.isPending,
 		styling: mutations.setIcon.isPending || mutations.setColor.isPending,
 		totalById,
 		colorById,
+		collapsed,
+		onToggle: (id) =>
+			setCollapsed((current) => {
+				const next = new Set(current);
+				if (!next.delete(id)) next.add(id);
+				return next;
+			}),
 	};
 
 	return (
@@ -172,10 +161,17 @@ export function CategoriesView() {
 					description="Create a category to start shaping your spending."
 				/>
 			) : (
-				<ul className="flex flex-col gap-6">
+				<ul className="flex flex-col gap-3">
+					{/* Only a **root** is a card. Nested folders are rows inside it —
+					    every folder used to open its own bordered panel, so a
+					    three-deep branch drew a box inside a box inside a box and the
+					    chrome grew faster than the tree. */}
 					{tree.map((node) => (
-						<li key={node.id}>
-							<CategoryNode node={node} actions={actions} />
+						<li
+							key={node.id}
+							className="overflow-hidden rounded-2xl border border-gousse-line bg-gousse-panel"
+						>
+							<CategoryNode node={node} depth={0} actions={actions} />
 						</li>
 					))}
 				</ul>
@@ -192,176 +188,97 @@ export function CategoriesView() {
 	);
 }
 
-/** The curation buttons shared by every node — add a child, rename, move, delete. */
-function NodeControls({
-	node,
-	actions,
-}: {
-	node: Category;
-	actions: NodeActions;
-}) {
-	return (
-		<div className="flex shrink-0 flex-wrap gap-2">
-			{/* Adding a child under a childless leaf is a **Kind flip**: it turns the
-			    leaf into a folder. Refused while the leaf holds money — the view
-			    answers with the Spill dialog (issue #30). */}
-			<Button
-				variant="secondary"
-				size="sm"
-				onClick={() => actions.onAdd(node)}
-				aria-label={`Add category in ${node.name}`}
-			>
-				Add category
-			</Button>
-			<Button
-				variant="secondary"
-				size="sm"
-				onClick={() => actions.onRename(node)}
-				aria-label={`Rename ${node.name}`}
-			>
-				Rename
-			</Button>
-			<Button
-				variant="secondary"
-				size="sm"
-				onClick={() => actions.onMove(node)}
-				aria-label={`Move ${node.name}`}
-			>
-				Move
-			</Button>
-			<Button
-				variant="secondary"
-				size="sm"
-				onClick={() => actions.onDelete(node.id)}
-				disabled={actions.deleting}
-				aria-label={`Delete ${node.name}`}
-			>
-				Delete
-			</Button>
-		</div>
-	);
-}
-
-/**
- * A node's identity on the row: its icon chip, its colour swatch, and a link to
- * its transactions page (issue #25).
- *
- * The chip and the swatch are the **editors** for what they show (issue #58) —
- * click the icon to change the icon, click the swatch to change the colour —
- * rather than fields folded into the rename/move dialogs, which stay
- * single-purpose. That is also why they sit *outside* the link: nesting a button
- * inside an anchor is invalid, and one gesture can't mean both "navigate" and
- * "edit".
- *
- * Both are drawn in the node's **Resolved colour**, never its stored `color`, so
- * a leaf that inherits visibly tracks the folder above it and a folder recolour
- * repaints its whole subtree on the next read (ADR 0006).
- */
-function NodeIdentity({
-	node,
-	color,
-	actions,
-	className,
-}: {
-	node: Category;
-	color: string;
-	actions: NodeActions;
-	className?: string;
-}) {
-	return (
-		<span className="flex min-w-0 items-center gap-1.5">
-			<IconPicker
-				label={node.name}
-				value={node.icon}
-				color={color}
-				pending={actions.styling}
-				onSelect={(icon) => actions.onIcon(node.id, icon)}
-			/>
-			<ColorPicker
-				label={node.name}
-				value={node.color}
-				resolved={color}
-				pending={actions.styling}
-				onSubmit={(next) => actions.onColor(node.id, next)}
-			/>
-			<Link
-				to="/categories/$categoryId"
-				params={{ categoryId: String(node.id) }}
-				className={cn("min-w-0 truncate", className)}
-			>
-				{node.name}
-			</Link>
-		</span>
-	);
-}
-
 /**
  * One node, rendered by kind — the split is **childlessness, not root-ness** (ADR
- * 0003 / issue #32). A folder (has children) is a labelled `group` with its
- * **Category total** and its children nested beneath it, to whatever depth. A
- * leaf (childless) is a single row. Both carry the same curation actions, so any
- * node can gain a child, be renamed, moved, or deleted.
+ * 0003 / issue #32). Both kinds render through the same {@link CategoryRow}, so a
+ * folder and a leaf cannot drift apart; the only difference is that a folder also
+ * renders its children beneath it, to whatever depth, and can be collapsed.
+ *
+ * A nested folder is a **row**, not a nested panel. It keeps `role="group"`,
+ * named by the row, so it still reads as a labelled group to a screen reader —
+ * the semantics the old `fieldset`/`legend` pair carried, minus the box that made
+ * a three-deep branch look like a stack of picture frames.
  */
 function CategoryNode({
 	node,
+	depth,
 	actions,
 }: {
 	node: CategoryTreeNode;
+	depth: number;
 	actions: NodeActions;
 }) {
 	const color = actions.colorById.get(node.id) ?? NEUTRAL_CATEGORY_COLOR;
-
-	if (node.children.length === 0) {
-		return (
-			<div className="flex items-center justify-between gap-2 rounded-xl border border-gousse-line bg-gousse-panel px-4 py-2">
-				<NodeIdentity
-					node={node}
-					color={color}
-					actions={actions}
-					className="text-gousse-ink text-sm hover:text-gousse-accent"
-				/>
-				<NodeControls node={node} actions={actions} />
-			</div>
-		);
-	}
-
 	const total = actions.totalById.get(node.id) ?? 0;
-	return (
-		// A `fieldset` carries the implicit ARIA `group` role, named by its
-		// `legend` — the folder heading — so each folder reads as a labelled group.
-		<fieldset className="rounded-2xl border border-gousse-line bg-gousse-panel p-4">
-			<legend className="flex w-full items-center justify-between gap-2">
-				<NodeIdentity
+	const isFolder = node.children.length > 0;
+	const expanded = isFolder && !actions.collapsed.has(node.id);
+
+	const row = (
+		<CategoryRow
+			node={node}
+			depth={depth}
+			color={color}
+			total={total}
+			share={shareOfParent(node, depth, actions)}
+			childCount={node.children.length}
+			expanded={expanded}
+			onToggle={() => actions.onToggle(node.id)}
+			onIcon={(icon) => actions.onIcon(node.id, icon)}
+			onColor={(next) => actions.onColor(node.id, next)}
+			styling={actions.styling}
+			actions={
+				<CategoryRowActions
 					node={node}
-					color={color}
-					actions={actions}
-					className="font-medium text-gousse-ink hover:text-gousse-accent"
+					onAdd={actions.onAdd}
+					onRename={actions.onRename}
+					onMove={actions.onMove}
+					onDelete={actions.onDelete}
+					deleting={actions.deleting}
 				/>
-				<output
-					aria-label={`${node.name} total`}
-					className={cn(
-						"font-medium text-sm tabular-nums",
-						total < 0 && "text-gousse-high",
-						total > 0 && "text-gousse-low",
-					)}
-				>
-					{formatCurrency(total)}
-				</output>
-			</legend>
+			}
+		/>
+	);
 
-			<div className="mt-3">
-				<NodeControls node={node} actions={actions} />
-			</div>
+	if (!isFolder) return row;
 
-			<ul className="mt-3 flex flex-col gap-2 border-gousse-line border-l pl-3">
-				{node.children.map((child) => (
-					<li key={child.id}>
-						<CategoryNode node={child} actions={actions} />
-					</li>
-				))}
-			</ul>
+	return (
+		// Still a `fieldset` — it carries the implicit ARIA `group` role, so each
+		// folder reads as a labelled group at any depth, exactly as before. What
+		// changed is that it no longer *looks* like one: the border, radius and
+		// padding are gone and the name comes from `aria-label` rather than a
+		// `legend`, because a nested folder is a row now, not a panel. Keeping the
+		// element keeps the semantics without the box-in-a-box.
+		<fieldset className="min-w-0 border-0 p-0" aria-label={node.name}>
+			{row}
+			{expanded && (
+				<ul>
+					{node.children.map((child) => (
+						<li key={child.id} className="border-gousse-line/45 border-t">
+							<CategoryNode node={child} depth={depth + 1} actions={actions} />
+						</li>
+					))}
+				</ul>
+			)}
 		</fieldset>
 	);
+}
+
+/**
+ * A row's share of its parent's total, `0`–`1` — what the bar draws. `null` for a
+ * root (nothing to be a share *of*) and whenever the parent nets to zero, where
+ * the ratio is undefined rather than full. Magnitudes, so a refund inside a
+ * spending folder still reads as a fraction of it rather than a negative width.
+ */
+function shareOfParent(
+	node: CategoryTreeNode,
+	depth: number,
+	actions: NodeActions,
+): number | null {
+	if (depth === 0 || node.parentId == null) return null;
+	const parentTotal = actions.totalById.get(node.parentId);
+	if (parentTotal === undefined || parentTotal === 0) return null;
+	const own = actions.totalById.get(node.id) ?? 0;
+	return Math.abs(own) / Math.abs(parentTotal);
 }
 
 interface CategoryEditorDialogProps {
