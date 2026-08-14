@@ -18,7 +18,7 @@ not do is oversell: mamen is single-user and self-hosted, there is nothing to
 sign up for, and a page implying otherwise is worse than no page.
 
 See [CONTEXT-MAP.md](../../CONTEXT-MAP.md) for the cross-context terms and
-[docs/operations/deploy.md](../../docs/operations/deploy.md) for how the two
+[DEPLOY.md](../../DEPLOY.md) for how the two
 containers sit behind one domain.
 
 ## Language
@@ -31,6 +31,32 @@ this package's entire job. An unknown path here is a **404**, not the page: one
 static page has no client-side routing to fall back to, unlike the SPA's shell.
 _Avoid_: home page (this is the site's root, not the app's landing view — the
 app's own first screen is the transactions view).
+
+**Path split**:
+Which path prefix the reverse proxy sends to which container, written down once
+as data in `src/topology.ts` — the site root here, `/app`, `/api` and `/uploads`
+to the web container — and matched by longest prefix, as Traefik matches its
+rules. It lives in this package because the site root is what this package owns:
+the table is the answer to "what does the landing container serve", read both
+ways. It is **not runtime code** — the page ships as HTML with no JavaScript at
+all — and nothing may import it; its readers are the tests and `DEPLOY.md`,
+whose routing table is asserted against it rather than written by hand. The app's
+prefix in it is `APP_BASE_PATH` (`@mamen/shared`), never the literal.
+_Avoid_: routing config (nothing reads this at runtime; the reverse proxy and the
+two nginx configs are the config, and this is what they are held to).
+
+**Access boundary**:
+The paths the Cloudflare Access application covers: exactly the ones the web
+container answers, and no more. It is **one** application over three domains, not
+three applications — Access issues its cookie per application, so a separately
+gated `/api` answers the SPA's same-origin fetch with a login redirect. The site
+root sits outside the boundary on purpose: gating the public page defeats the
+point of having one, so a logged-out visitor gets the page at `/` and a login
+prompt at `/app`. Both directions are one test each (`src/topology.test.ts`),
+because a gap on either side is a silent failure — the database open, or the
+public page behind a login.
+_Avoid_: authentication (the app has none of its own; this is in front of it),
+firewall (it is an identity check, not an address one).
 
 **Prerendered page**:
 The finished HTML `renderPage()` returns, written into `dist/index.html` at

@@ -20,7 +20,7 @@ const manifest = JSON.parse(read("package.json"));
 const README = read("../../README.md");
 const CLAUDE = read("../../CLAUDE.md");
 const CONTEXT_MAP = read("../../CONTEXT-MAP.md");
-const DEPLOY = read("../../docs/operations/deploy.md");
+const DEPLOY = read("../../DEPLOY.md");
 
 const port = read("vite.config.ts").match(/port:\s*(\d+)/)?.[1];
 
@@ -47,7 +47,8 @@ describe("the package's own docs", () => {
 
 	it("is deployable from what the operations doc says", () => {
 		// The routing is the whole delivery here: an image nobody knows how to
-		// point a domain at serves nothing.
+		// point a domain at serves nothing. The runbook moved to the repo root
+		// with issue #114 — it is one of the files a visitor reads.
 		expect(DEPLOY).toContain("packages/landing-page/Dockerfile");
 		expect(DEPLOY).toMatch(/landing-page/);
 	});

@@ -56,7 +56,7 @@ COPY packages/shared ./packages/shared
 COPY packages/api ./packages/api
 COPY tsconfig.base.json tsconfig.json ./
 
-# Defaults matching the volume layout in docs/operations/deploy.md. Both live
+# Defaults matching the volume layout in DEPLOY.md. Both live
 # under /data so a single mount covers the database and the uploaded issuer
 # images; Dokploy env can override either.
 ENV NODE_ENV=production \

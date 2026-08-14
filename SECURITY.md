@@ -62,9 +62,11 @@ each is written down elsewhere too:
   the server, including `POST /api/database/reset` and `POST
   /api/database/import`, which respectively wipe and replace the whole database.
   mamen is meant to sit behind something that authenticates for it — the
-  deployment described in [docs/operations/deploy.md](docs/operations/deploy.md)
-  puts the whole domain behind Cloudflare Access and gives the API container no
-  public domain of its own. **If you expose an instance directly to the internet,
+  deployment described in [DEPLOY.md](DEPLOY.md)
+  puts the app (`/app`) and the API (`/api`, `/uploads`) behind Cloudflare
+  Access and gives the API container no public domain of its own. Only the site
+  root — one prerendered landing page, served by a different container that
+  proxies nothing — is public. **If you expose an instance directly to the internet,
   it is world-readable and world-destroyable.** That is on the deployment, not on
   the code.
 - **There is no encryption at rest.** The SQLite file is plaintext.

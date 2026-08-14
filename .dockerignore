@@ -11,7 +11,7 @@ logs
 *.log
 
 # Local state that must never bake into an image — production keeps these on
-# mounted volumes (see docs/operations/deploy.md).
+# mounted volumes (see DEPLOY.md).
 uploads
 mamen.db
 mamen.db-shm
