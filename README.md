@@ -51,7 +51,7 @@ no authentication of any kind — see [SECURITY.md](SECURITY.md).
 ## Stack
 
 - [Bun](https://bun.sh) 1.3.4 — runtime, package manager and test runner host
-- [Turborepo](https://turborepo.dev) — task graph across the four workspaces
+- [Turborepo](https://turborepo.dev) — task graph across the five workspaces
 - [Effect](https://effect.website) — the API is an Effect `HttpApi` server; the
   contract, the client and the handlers all derive from one schema
 - SQLite (`@effect/sql-sqlite-bun`), migrated at server startup
@@ -69,9 +69,12 @@ no authentication of any kind — see [SECURITY.md](SECURITY.md).
 | `@mamen/api` | `packages/api` | Effect `HttpApi` server implementing the contract, over SQLite. |
 | `@mamen/sdk` | `packages/sdk` | Typed client derived from the contract, wired to TanStack Query. |
 | `@mamen/web` | `packages/web` | The React frontend. |
+| `@mamen/landing-page` | `packages/landing-page` | The public page at the site root. Prerendered static HTML, its own image, no framework. |
 
 Dependencies run one way: `shared` ← `api`, `shared` ← `sdk` ← `web`. Nothing in
 `shared` may acquire a runtime dependency beyond `effect` and `@effect/platform`.
+`landing-page` reads one string from `shared` — the prefix the app is served
+under — and depends on nothing else in the repo.
 
 ## Running it locally
 
@@ -105,12 +108,14 @@ Then:
 bun dev
 ```
 
-That runs both dev servers through Turborepo:
+That runs every dev server through Turborepo:
 
 - web — <http://localhost:5070/app/> (the site root redirects there)
 - API — <http://localhost:5500>, with Scalar docs at
   <http://localhost:5500/docs> and the spec at
   <http://localhost:5500/api/openapi.json>
+- landing page — <http://localhost:5100>, the public page the deployed site
+  serves at its root
 
 The app is served under `/app` in development and in production alike, so the
 deployed site keeps its root for public landing pages. `/api` and `/uploads`
@@ -121,8 +126,8 @@ created and migrated on first boot at `packages/api/mamen.db`, seeded with a
 base category tree; delete the file to start over.
 
 Each dev server tees its output to a gitignored log at the repo root —
-`logs/web.log` and `logs/server.log`. Read those before starting a second
-instance.
+`logs/web.log`, `logs/server.log` and `logs/landing-page.log`. Read those before
+starting a second instance.
 
 ### Optional configuration
 
@@ -160,8 +165,9 @@ bun run --filter @mamen/api emit-openapi
 
 ## Deploying
 
-Two containers behind one domain — a Bun API and an nginx-served SPA that
-proxies `/api` and `/uploads` to it. The application has no authentication of its
+Three containers behind one domain — a Bun API, an nginx-served SPA under `/app`
+that proxies `/api` and `/uploads` to it, and an nginx-served landing page at the
+root. The application has no authentication of its
 own; access control is entirely the reverse proxy's.
 [docs/operations/deploy.md](docs/operations/deploy.md) has the whole topology.
 

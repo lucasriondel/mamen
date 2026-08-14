@@ -116,6 +116,10 @@ describes where the app is *hosted*, not what it exchanges. Each such module
 stays import-free so a build config (`vite.config.ts`) can read it without
 pulling `effect` in behind it, and each documents the constraint that fixes its
 value — for the base path, why `/api` and `/uploads` stay outside the prefix.
+Import-free is only worth something if a consumer can reach the module without
+the package root, so each gets its own `exports` entry
+(`@mamen/shared/app-base-path`): that is how `@mamen/landing-page` reads the
+prefix without `effect` entering a build whose whole output is one HTML file.
 _Avoid_: config, env var (nothing here is read from the environment; a value
 that varies per deployment does not belong in this package at all).
 

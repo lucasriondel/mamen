@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -39,8 +39,21 @@ const LICENSE = existsSync(`${ROOT}/LICENSE`) ? read("LICENSE") : "";
 const rootManifest = JSON.parse(read("package.json"));
 const rootScripts: Record<string, string> = rootManifest.scripts ?? {};
 
-/** The workspace packages, by their manifest `name`. */
-const WORKSPACES = ["api", "sdk", "shared", "web"] as const;
+/**
+ * The workspace packages, by their manifest `name`. Read off disk rather than
+ * listed here: a package added to the monorepo (`packages/landing-page`, issue
+ * #113) has to reach the README, and a hardcoded list would let it land
+ * unmentioned — the exact rot these tests exist to catch.
+ */
+const WORKSPACES = readdirSync(`${ROOT}/packages`, {
+	withFileTypes: true,
+})
+	.filter(
+		(entry) =>
+			entry.isDirectory() &&
+			existsSync(`${ROOT}/packages/${entry.name}/package.json`),
+	)
+	.map((entry) => entry.name);
 const packageNames = WORKSPACES.map(
 	(dir) => JSON.parse(read(`packages/${dir}/package.json`)).name as string,
 );

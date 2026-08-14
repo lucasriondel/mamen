@@ -10,6 +10,7 @@ Multi-context monorepo. Each package owns its own domain vocabulary in a
 | api | `packages/api/CONTEXT.md` | Effect `HttpApi` server implementing the contract. |
 | sdk | `packages/sdk/CONTEXT.md` | Typed client derived from the contract, wired to TanStack Query. |
 | web | `packages/web/CONTEXT.md` | React frontend. Uploads CSV bank statements, displays transactions, manages issuers. |
+| landing-page | `packages/landing-page/CONTEXT.md` | The public page at the site root, prerendered to static HTML. Its own image; shares no domain vocabulary with the app. |
 
 The legacy `server` (Fastify API) and `web-api-legacy` (old web client) packages were deleted at
 the Effect API rework cutover (`docs/issues/0020-cutover.md`).
