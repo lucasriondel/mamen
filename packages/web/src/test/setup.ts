@@ -12,7 +12,11 @@ if (!("ResizeObserver" in globalThis)) {
 	};
 }
 
-if (!Element.prototype.scrollIntoView) {
+// Guarded on the DOM's existence, not just the member's: setup files run for
+// every test file, and a few here declare `@vitest-environment node` because
+// what they import refuses to load under jsdom (esbuild, via `vite.config.ts`).
+// There is nothing to patch in those.
+if (typeof Element !== "undefined" && !Element.prototype.scrollIntoView) {
 	Element.prototype.scrollIntoView = () => {};
 }
 
@@ -20,7 +24,10 @@ if (!Element.prototype.scrollIntoView) {
 // of the Storage methods, so anything persisting a preference (the transactions
 // column-visibility toggle) blows up on `setItem`. Install a minimal in-memory
 // Storage so those tests exercise real read/write round-trips.
-if (typeof window.localStorage?.setItem !== "function") {
+if (
+	typeof window !== "undefined" &&
+	typeof window.localStorage?.setItem !== "function"
+) {
 	const store = new Map<string, string>();
 	Object.defineProperty(window, "localStorage", {
 		configurable: true,

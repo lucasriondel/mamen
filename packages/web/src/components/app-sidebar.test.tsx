@@ -1,3 +1,4 @@
+import { APP_BASE_PATH_SLASH } from "@mamen/shared";
 import {
 	createMemoryHistory,
 	createRootRoute,
@@ -346,6 +347,22 @@ describe("AppSidebar, the brand row", () => {
 		expect(slot).not.toBe(brandRow());
 		expect(slot).toHaveClass("grid", "shrink-0", "place-items-center");
 		expect(icon).toHaveAttribute("aria-hidden");
+	});
+
+	it("points the mark at the icon where the prefix actually serves it", async () => {
+		renderSidebar();
+
+		await waitFor(() => expect(brandRow()).toBeInTheDocument());
+		const icon = brandRow().querySelector("img");
+		// `public/` is copied under the app's base, so `/icon-192x192.png` is a
+		// path nothing serves once the SPA moves under a prefix (issue #111).
+		// Vite rewrites rooted URLs in `index.html` and in CSS, but not in a
+		// `src` written in TSX — that one is a string it never parses as a URL,
+		// which is exactly why this is asserted rather than assumed.
+		expect(icon).toHaveAttribute(
+			"src",
+			`${APP_BASE_PATH_SLASH}icon-192x192.png`,
+		);
 	});
 
 	it("wears the primitive's accent treatment", async () => {

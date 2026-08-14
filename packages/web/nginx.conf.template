@@ -43,20 +43,47 @@ server {
 		proxy_set_header X-Forwarded-Proto $scheme;
 	}
 
+	# The app is served under a path prefix, NOT at the root: the deployed site
+	# keeps its root for the public landing pages. The prefix is `APP_BASE_PATH`
+	# in packages/shared/src/app-base-path.ts — the Vite build and the router
+	# import it, nginx cannot, so every `/app` below is that literal repeated by
+	# hand. Change one, change all four (the fourth is the Dockerfile's COPY).
+	#
+	# The Dockerfile lands the build in `/usr/share/nginx/html/app`, so `$uri`
+	# maps straight onto disk here and no `alias` is involved.
+
 	# Content-hashed bundles are immutable; index.html must never be cached or
 	# clients pin to a dead asset graph after a deploy.
-	location /assets/ {
+	location /app/assets/ {
 		expires 1y;
 		add_header Cache-Control "public, immutable";
 	}
 
-	location = /index.html {
+	location = /app/index.html {
 		add_header Cache-Control "no-store";
 	}
 
 	# SPA fallback: TanStack Router owns client-side routing, so unknown paths
-	# must return the shell rather than a 404.
-	location / {
-		try_files $uri $uri/ /index.html;
+	# under the prefix must return the shell rather than a 404. A hard reload of
+	# a deep link such as /app/accounts lands here.
+	#
+	# Slashed, so this is not a prefix match on the four bytes `/app`: that form
+	# would also swallow /apple-touch-icon.png and anything else at the root
+	# beginning the same way, and the root belongs to the landing pages. The
+	# bare prefix gets an exact match of its own, below.
+	location /app/ {
+		try_files $uri $uri/ /app/index.html;
+	}
+
+	location = /app {
+		return 302 /app/;
+	}
+
+	# The root belongs to the landing pages, which this container does not serve;
+	# until it does, sending a bare visit into the app beats an nginx 404, and
+	# matches what the Vite dev server does with `base`. 302, not 301: the day
+	# the landing pages exist, a cached permanent redirect would be unkillable.
+	location = / {
+		return 302 /app/;
 	}
 }

@@ -202,4 +202,16 @@ naming the target, departing from `useRuleMutations`' errors-only style.
 **negative**; a `CREDIT` (money arriving) is **positive**. The sum of a set of
 transactions is therefore net cash flow.
 
+**Path prefix**:
+The app is served under `/app`, not at the site root, so the deployment keeps
+its root for public landing pages (issue #111). The value is `APP_BASE_PATH` in
+`@mamen/shared`; this package consumes it twice — as Vite's `base` and as the
+router's `basepath` — and the routes themselves stay written from `/`, because
+the router applies the prefix. Consequences when writing code here: never write
+a rooted URL to a `public/` asset (`/icon-192x192.png`), since Vite rewrites
+those only in `index.html` and in CSS — build them off `APP_BASE_PATH_SLASH`;
+and never prefix `/api` or `/uploads`, which stay at the root and are reached
+same-origin through the dev proxy or nginx.
+_Avoid_: base URL (that names the API's origin, `VITE_API_URL`).
+
 <!-- Terms are added here as they are resolved during design. -->
