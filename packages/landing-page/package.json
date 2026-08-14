@@ -1,0 +1,23 @@
+{
+	"name": "@mamen/landing-page",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "mkdir -p ../../logs && vite 2>&1 | tee ../../logs/landing-page.log",
+		"build": "tsc --noEmit && vite build",
+		"preview": "vite preview",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@mamen/shared": "workspace:*"
+	},
+	"devDependencies": {
+		"@types/node": "^24.10.1",
+		"typescript": "~5.9.3",
+		"vite": "^8.1.4",
+		"vitest": "^4.0.18"
+	}
+}

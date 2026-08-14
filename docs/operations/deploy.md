@@ -1,13 +1,15 @@
 # Deploy (Dokploy + Cloudflare)
 
-mamen runs as **two Dokploy applications** in one project, both built from this
-repo: `api` (Bun, Effect HttpApi, sqlite) and `web` (Vite SPA served by nginx).
-It follows the same shape as `miel` and `worp` on the same VPS.
+mamen runs as **three Dokploy applications** in one project, all built from this
+repo: `api` (Bun, Effect HttpApi, sqlite), `web` (Vite SPA served by nginx) and
+`landing-page` (prerendered static HTML served by nginx). It follows the same
+shape as `miel` and `worp` on the same VPS.
 
-Public entry is a **single domain**, `mamen.gousse.cool`, pointing at `web`.
-The `api` application has **no domain**: nginx inside the web container proxies
-`/api` and `/uploads` to it over the internal Docker network. That is deliberate
-— see [Security model](#security-model).
+Public entry is a **single domain**, `mamen.gousse.cool`, split by path: the
+root goes to `landing-page`, `/app` to `web`. The `api` application has **no
+domain**: nginx inside the web container proxies `/api` and `/uploads` to it
+over the internal Docker network. That is deliberate — see
+[Security model](#security-model).
 
 ## Topology
 
@@ -17,16 +19,31 @@ browser
   ▼
 Cloudflare (proxied DNS + Access policy)
   ▼
-Traefik (Dokploy, letsencrypt)
-  ▼
-web  ──  nginx :80
-         ├── /            SPA, try_files → index.html
-         ├── /api     ──┐
-         └── /uploads ──┤ proxy_pass ${API_UPSTREAM}
-                        ▼
-                       api  ──  bun :5500
-                                └── /data  (volume: db + uploads)
+Traefik (Dokploy, letsencrypt) — routes by path
+  │
+  ├── /                    landing-page ── nginx :80
+  │                                        └── one prerendered index.html
+  │
+  └── /app, /api, /uploads
+                           web  ──  nginx :80
+                                    ├── /app      SPA, try_files → /app/index.html
+                                    ├── /api     ──┐
+                                    └── /uploads ──┤ proxy_pass ${API_UPSTREAM}
+                                                   ▼
+                                                  api  ──  bun :5500
+                                                           └── /data  (volume: db + uploads)
 ```
+
+**Two images, not one.** The landing content is never copied into the web image
+and the app's dependencies are never installed in the landing image — someone
+self-hosting mamen builds the app, not the owner's public site, and the landing
+image builds out of the public npm registry with no credential at all. The two
+Dockerfiles are independent by design (issue #113).
+
+`/api` and `/uploads` must be routed to **web**, not to `landing-page`: the
+landing container proxies nothing, and those two paths reach the API only
+through the web container's nginx. That is the one routing mistake that reads as
+"the app is broken" rather than "the route is wrong".
 
 The browser only ever talks to one origin. `@mamen/sdk` leaves its base URL
 empty when `VITE_API_URL` is unset (`packages/sdk/src/runtime.ts`), so it calls
@@ -87,16 +104,41 @@ consulted.
 | Dockerfile | `packages/web/Dockerfile` |
 | Context | `.` |
 | Source | GitHub `lucasriondel/mamen`, branch `main`, autoDeploy |
-| Domain | `mamen.gousse.cool` → port `80`, letsencrypt |
+| Domain | `mamen.gousse.cool`, paths `/app`, `/api`, `/uploads` → port `80`, letsencrypt |
 | Watch paths | `packages/web/**`, `packages/sdk/**`, `packages/shared/**`, `package.json`, `bun.lock`, `turbo.json` |
+
+Three domain entries on the same host, one per path. Traefik prioritises a
+router by rule length, so `PathPrefix('/app')` wins over the landing page's
+`PathPrefix('/')` without any explicit priority — but if a path ever stops
+reaching the container it belongs to, that ordering is the first thing to check.
 
 Environment: `API_UPSTREAM=<api appName>:5500`. Dokploy assigns the api its
 `appName` on creation (a generated slug); copy it from the api application's
 page. nginx resolves it on the shared Docker network.
 
-No build args. Both images install from the public npm registry only — the
-private GitHub Packages dependency and the PAT it needed were removed with
-issue #96.
+### `landing-page`
+
+| Setting | Value |
+| --- | --- |
+| Dockerfile | `packages/landing-page/Dockerfile` |
+| Context | `.` |
+| Source | GitHub `lucasriondel/mamen`, branch `main`, autoDeploy |
+| Domain | `mamen.gousse.cool`, path `/` → port `80`, letsencrypt |
+| Watch paths | `packages/landing-page/**`, `packages/shared/**`, `package.json`, `bun.lock` |
+
+No environment at all: the container serves static files and has no upstream,
+which is why its nginx config is a plain `.conf` rather than the `.template` the
+web image renders at start.
+
+It is behind the same Cloudflare Access policy as everything else on the host.
+That makes the "public" landing page not actually public today — worth knowing
+before treating it as marketing; opening it up means an Access bypass rule for
+`/` alone, and that is a decision about the policy, not about this repo.
+
+No build args on any of the three. Every image installs from the public npm
+registry only — the private GitHub Packages dependency and the PAT it needed
+were removed with issue #96, and the landing image is deliberately kept that way
+(issue #113): it must build for anyone who clones the repo.
 
 ## Volumes
 
@@ -127,12 +169,12 @@ container is not evidence the token works** — verify by importing a PDF.
 
 ## First deploy
 
-1. Create the project and both applications with the settings above.
+1. Create the project and all three applications with the settings above.
 2. Add the `mamen-data` volume to `api` **before** the first deploy, so the
    database is created on the volume rather than in the container filesystem.
 3. Set env.
 4. Deploy `api` first, then `web` (web needs the api's `appName` for
-   `API_UPSTREAM`).
+   `API_UPSTREAM`). `landing-page` depends on neither and can go any time.
 5. Point Cloudflare DNS `mamen` at the VPS, proxied, and attach the Access
    policy.
 
@@ -143,7 +185,9 @@ The database starts empty; migrations run automatically at boot
 
 ```sh
 # Through Cloudflare — expect the Access login unless already authenticated.
+# The root is the landing page; the app is one level down.
 curl -sI https://mamen.gousse.cool/
+curl -sI https://mamen.gousse.cool/app/
 
 # Once authenticated in a browser, the API answers on the same origin:
 #   https://mamen.gousse.cool/api/health   → {"status":"ok"}
@@ -155,8 +199,14 @@ Inside the VPS, against the containers directly:
 docker exec <web-container> wget -qO- http://<api-appName>:5500/api/health
 ```
 
-An SPA deep link (e.g. `/transactions`) must return `200 text/html`, not 404 —
-that exercises the nginx `try_files` fallback.
+Three things distinguish a correct routing from a plausible one:
+
+- `/` serves the landing page — its `<h1>mamen</h1>`, not the SPA shell.
+- `/app/` serves the app, and an SPA deep link (e.g. `/app/transactions`)
+  returns `200 text/html`, not 404 — that exercises the web container's
+  `try_files` fallback.
+- `/api/health` answers `{"status":"ok"}`, which means it reached **web** and
+  was proxied on, not the landing container (which would 404).
 
 ## Troubleshooting
 
@@ -167,3 +217,5 @@ that exercises the nginx `try_files` fallback.
 | Build fails on `better-sqlite3` / node-gyp | An install lost its `--filter`; the api's dev-only `@effect/sql-sqlite-node` is being resolved. |
 | PDF import fails, everything else fine | `CLAUDE_CODE_OAUTH_TOKEN` invalid or expired. |
 | Logo search reports unconfigured | `LOGODEV_TOKEN` unset — see [logo-search-setup.md](./logo-search-setup.md). |
+| `404` on `/api/*` while `/` serves the landing page | The API's paths are routed to `landing-page`, which proxies nothing. `/app`, `/api` and `/uploads` all belong to **web**. |
+| The landing page appears at `/app` too | The web application is missing its `/app` domain entry, so Traefik falls through to the root router. |

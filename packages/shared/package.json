@@ -8,6 +8,7 @@
 	"exports": {
 		".": "./src/index.ts",
 		"./contract": "./src/contract/index.ts",
+		"./app-base-path": "./src/app-base-path.ts",
 		"./*": "./src/*"
 	},
 	"scripts": {
