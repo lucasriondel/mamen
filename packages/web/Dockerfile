@@ -41,7 +41,14 @@ FROM nginx:1.27-alpine
 # start; API_UPSTREAM is supplied by the Dokploy env.
 COPY packages/web/nginx.conf.template /etc/nginx/templates/default.conf.template
 
-COPY --from=build /app/packages/web/dist /usr/share/nginx/html
+# Under the nginx root, in a directory named for the path prefix the app is
+# served at (`APP_BASE_PATH`, packages/shared/src/app-base-path.ts). The build
+# already emits `/app/…` asset URLs, and nginx resolves `$uri` against this
+# root, so the prefix has to exist on disk — the alternative, an `alias`, buys
+# nothing and hides where the files are. This is the last of the four copies of
+# that literal; the other three are the Vite base, the router basepath and
+# nginx.conf.template.
+COPY --from=build /app/packages/web/dist /usr/share/nginx/html/app
 
 ENV API_UPSTREAM=mamen-api:5500
 

@@ -107,13 +107,16 @@ bun dev
 
 That runs both dev servers through Turborepo:
 
-- web — <http://localhost:5070>
+- web — <http://localhost:5070/app/> (the site root redirects there)
 - API — <http://localhost:5500>, with Scalar docs at
   <http://localhost:5500/docs> and the spec at
   <http://localhost:5500/api/openapi.json>
 
-Vite proxies `/api` and `/uploads` to the API, so the browser only ever talks to
-one origin and there is no CORS to configure in development. The database is
+The app is served under `/app` in development and in production alike, so the
+deployed site keeps its root for public landing pages. `/api` and `/uploads`
+stay at the root, outside the prefix. Vite proxies both to the API, so the
+browser only ever talks to one origin and there is no CORS to configure in
+development. The database is
 created and migrated on first boot at `packages/api/mamen.db`, seeded with a
 base category tree; delete the file to start over.
 

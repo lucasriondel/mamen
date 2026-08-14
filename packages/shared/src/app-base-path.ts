@@ -26,8 +26,12 @@
  *   no CORS headers on the response, and the request fails before the API
  *   ever sees it.
  *
- * Nothing reads this yet. Adopting it across the three layers is a single
- * slice (issue #111) because a half-prefixed app does not serve.
+ * Adopted across those layers in one slice (issue #111), because a
+ * half-prefixed app does not serve. Two more places repeat the literal and
+ * cannot import it: the Dockerfile, which lands the build in a directory named
+ * for the prefix so nginx's `$uri` maps onto it, and any URL written by hand
+ * into a `public/` asset — Vite rewrites rooted URLs in `index.html` and in
+ * CSS, but not a `src` string in a component, so those read this constant.
  */
 export const APP_BASE_PATH = "/app";
 

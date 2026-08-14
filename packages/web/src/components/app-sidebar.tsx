@@ -1,3 +1,4 @@
+import { APP_BASE_PATH_SLASH } from "@mamen/shared";
 import { createLink } from "@tanstack/react-router";
 import {
 	ArrowLeftRight,
@@ -167,7 +168,12 @@ export function AppSidebar({ collapsed, onToggle, closeRef }: AppSidebarProps) {
 					to="/"
 					mark={
 						<img
-							src="/icon-192x192.png"
+							// The icon lives in `public/`, which Vite copies under the
+							// app's base — so the URL carries the prefix. Vite rewrites
+							// rooted URLs in `index.html` and in CSS, but a `src` written
+							// here is just a string to it, so this one is prefixed by hand
+							// off the same constant the build takes as `base`.
+							src={`${APP_BASE_PATH_SLASH}icon-192x192.png`}
 							alt=""
 							aria-hidden
 							className="size-6 rounded-md"
