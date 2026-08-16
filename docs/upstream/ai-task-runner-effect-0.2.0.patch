@@ -1,0 +1,782 @@
+diff --git a/README.md b/README.md
+index e5c49c4..ece1a69 100644
+--- a/README.md
++++ b/README.md
+@@ -50,6 +50,39 @@ bearer token, a path) that must **never** be posted to a vendor. A task with
+ nothing to say differently lists the same builder twice, on purpose: nothing
+ can then quietly hand the CLI prompt to a vendor.
+ 
++## Documents
++
++A task whose input *is* a file returns an object from `hostedPrompt` instead of
++a string:
++
++```ts
++const TASKS = {
++  "extract-pdf": {
++    output: { jsonSchema: /* … */, decode: /* … */ },
++    // The CLI has tools and a filesystem: name the path and let it Read.
++    cliPrompt: (input: Statement) => `Read the statement at ${input.path}`,
++    // A vendor has neither, so the bytes travel.
++    hostedPrompt: (input: Statement) => ({
++      text: "Extract every operation.",
++      document: { data: input.bytes, mediaType: "application/pdf" },
++    }),
++    hostedInstruction: "Return the operations as JSON.",
++    allowedTools: ["Read"],
++  },
++} as const satisfies TaskTable
++```
++
++`data` is a `Uint8Array` — the transport encodes it for the vendor — and
++`mediaType` is the IANA type. The document rides the user turn beside
++`hostedInstruction`, which is the only turn a vendor takes content parts in.
++
++A `hostedPrompt` that returns a plain `string` attaches nothing, and its request
++is unchanged: text-only tasks need no edit and send exactly what they always
++sent. A row has one `Input`, so both columns are written against the whole of it
++even where each reads a different half.
++
++The CLI column has no document form and needs none — it can name a path.
++
+ ## The runner
+ 
+ ```ts
+@@ -112,6 +145,11 @@ Both transports fake at their real seams — no module mocks:
+   and envelope parse run for real against a canned capture).
+ - Hosted: pass a `HostedGenerate` fake as `makeTaskRunner`'s third argument —
+   `{ generateHosted: async (args) => payload }` — and assert what reached it.
++  A document arrives as `args.document`, untranslated, so asserting the bytes
++  and the media type a task attached is one property:
++  `expect(args.document).toEqual({ data: pdf, mediaType: "application/pdf" })`.
++  `document` is optional, so a fake written before documents existed still
++  satisfies the type.
+ 
+ ## What this package deliberately does not own
+ 
+diff --git a/index.ts b/index.ts
+index bac707f..a426651 100644
+--- a/index.ts
++++ b/index.ts
+@@ -47,6 +47,13 @@ export type {
+ } from "./src/task.ts"
+ export { taskSpec } from "./src/task.ts"
+ 
++// What a task may contribute to the hosted turn beside its text.
++export type {
++	HostedPrompt,
++	HostedPromptBuilt,
++	TaskDocument,
++} from "./src/prompt.ts"
++
+ // The provider vocabulary.
+ export {
+ 	CLAUDE_CODE_PROVIDER,
+diff --git a/package.json b/package.json
+index 95dfcc0..659d61d 100644
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "ai-task-runner-effect",
+-  "version": "0.1.0",
++  "version": "0.2.0",
+   "description": "An Effect-TS runner for named AI tasks: a task table (validator-agnostic codecs, per-transport prompts), a provider/credential contract the consumer implements, and one run(task, input) that branches between the Claude Code CLI (via claude-code-effect) and hosted vendors (via the Vercel ai-sdk).",
+   "type": "module",
+   "license": "MIT",
+diff --git a/src/hosted.ts b/src/hosted.ts
+index 8910df0..bb6750e 100644
+--- a/src/hosted.ts
++++ b/src/hosted.ts
+@@ -1,12 +1,13 @@
+ import { createAnthropic } from "@ai-sdk/anthropic"
+ import { createGoogleGenerativeAI } from "@ai-sdk/google"
+ import { createOpenAI } from "@ai-sdk/openai"
+-import { generateObject, jsonSchema } from "ai"
++import { generateObject, jsonSchema, type CoreMessage } from "ai"
+ import { Effect, Redacted } from "effect"
+ 
+ import type { ObjectCodec } from "claude-code-effect"
+ 
+ import { HostedApiError, TaskSchemaError } from "./errors.ts"
++import type { TaskDocument } from "./prompt.ts"
+ import type { HostedVendor } from "./providers.ts"
+ import type { TaskRunResult } from "./result.ts"
+ 
+@@ -51,17 +52,70 @@ export type HostedGenerate = (args: {
+ 	readonly apiKey: string
+ 	readonly system: string
+ 	readonly prompt: string
++	/**
++	 * The document the task attached, absent for a text-only task. Optional so
++	 * that every fake written against the text-only seam still compiles, and so
++	 * that a fake which *does* care asserts one property — `args.document.data`
++	 * and `.mediaType` are the bytes and the type the task handed over, carried
++	 * here untranslated.
++	 */
++	readonly document?: TaskDocument
+ 	/** The codec's JSON Schema, verbatim — `unknown` because it is not ours to inspect. */
+ 	readonly jsonSchema: unknown
+ }) => Promise<unknown>
+ 
++/**
++ * The ai-sdk's prompt fields for one call, chosen by whether a document came
++ * with the turn.
++ *
++ * `prompt:` is text and only text; a document is a *content part*, which exists
++ * only inside the `messages:` form. So a document-bearing call is a one-message
++ * user turn holding the instruction and the file side by side, and a text-only
++ * call keeps the exact `prompt:` field it has always sent — the text path's
++ * request is byte-for-byte what it was.
++ *
++ * Split out and exported because the seam above it is faked in every other
++ * test: this is the one piece of ai-sdk-shaped code no fake exercises, so it
++ * gets a test of its own, and the `CoreMessage` return type makes the compiler
++ * check the part shape against the pinned SDK rather than a comment doing it.
++ */
++export const hostedPromptFields = (args: {
++	readonly system: string
++	readonly prompt: string
++	readonly document?: TaskDocument | undefined
++}):
++	| { readonly system: string; readonly prompt: string }
++	| { readonly system: string; readonly messages: CoreMessage[] } => {
++	if (args.document === undefined) {
++		return { system: args.system, prompt: args.prompt }
++	}
++	return {
++		system: args.system,
++		messages: [
++			{
++				role: "user",
++				content: [
++					{ type: "text", text: args.prompt },
++					{
++						type: "file",
++						data: args.document.data,
++						// The pinned ai-sdk spells the IANA type `mimeType`; the task's
++						// word for it is `mediaType`, which is what the current SDK and
++						// every vendor's own docs call it. The rename lives here, once.
++						mimeType: args.document.mediaType,
++					},
++				],
++			},
++		],
++	}
++}
++
+ /** The real ai-sdk call. The codec's JSON Schema is handed over verbatim. */
+ export const generateHostedLive: HostedGenerate = async (args) => {
+ 	const model = createModel(args.vendor, args.apiKey, args.modelId)
+ 	const result = await generateObject({
+ 		model,
+-		system: args.system,
+-		prompt: args.prompt,
++		...hostedPromptFields(args),
+ 		// The codec built this schema; ai-sdk only forwards it to the vendor.
+ 		schema: jsonSchema(args.jsonSchema),
+ 	})
+@@ -88,6 +142,8 @@ export const runHosted = <Output>(args: {
+ 	readonly modelId: string
+ 	readonly system: string
+ 	readonly instruction: string
++	/** The task's document, if it attached one — passed through untouched. */
++	readonly document?: TaskDocument | undefined
+ 	readonly codec: ObjectCodec<Output>
+ 	readonly apiKey: Redacted.Redacted<string>
+ 	readonly generate: HostedGenerate
+@@ -105,6 +161,10 @@ export const runHosted = <Output>(args: {
+ 					apiKey,
+ 					system: args.system,
+ 					prompt: args.instruction,
++					// Spread rather than assigned: a text-only call must have no
++					// `document` property at all, not one holding `undefined`, so an
++					// existing fake sees the object it has always seen.
++					...(args.document === undefined ? {} : { document: args.document }),
+ 					jsonSchema: args.codec.jsonSchema,
+ 				}),
+ 			catch: (err) => failure(args.vendor, err, apiKey),
+diff --git a/src/prompt.ts b/src/prompt.ts
+new file mode 100644
+index 0000000..7ca360d
+--- /dev/null
++++ b/src/prompt.ts
+@@ -0,0 +1,51 @@
++/**
++ * What a task contributes to the hosted turn.
++ *
++ * The hosted transport used to take a `string` and nothing else, so a task
++ * whose input *is* a file — a scanned statement, a contract — had no way to
++ * hand that file over: it could only describe it. The CLI transport never had
++ * the problem, because it has tools and a filesystem and the prompt can name a
++ * path. A vendor over HTTP has neither, so the bytes have to travel.
++ *
++ * A task therefore returns either a `string` (what every text-only task already
++ * returns, unchanged and still the common case) or a {@link HostedPrompt}, the
++ * same text with a document beside it.
++ */
++
++/**
++ * One document attached to a task's hosted turn.
++ *
++ * `data` is the bytes, deliberately as a `Uint8Array` and not a base64 string:
++ * one representation means "the right bytes" is a single unambiguous thing for
++ * a test to assert, and the encoding a vendor wants is the transport's business
++ * rather than the task's. `mediaType` is the IANA type (`application/pdf`), the
++ * name the current ai-sdk uses; the transport maps it onto whatever field the
++ * pinned SDK version spells it as.
++ */
++export interface TaskDocument {
++	readonly data: Uint8Array
++	readonly mediaType: string
++}
++
++/** A hosted turn that carries a document beside its text. */
++export interface HostedPrompt {
++	readonly text: string
++	readonly document: TaskDocument
++}
++
++/**
++ * What a task's `hostedPrompt` may return. `string` is listed first because it
++ * is what a task that has nothing to attach still returns, and what every
++ * existing table returns without being touched.
++ */
++export type HostedPromptBuilt = string | HostedPrompt
++
++/**
++ * The one place the two forms become one. Written here rather than at the
++ * transport so the widening is a single named function with a single test,
++ * and so a task's builder is called exactly once per run.
++ */
++export const hostedTurn = (
++	built: HostedPromptBuilt,
++): { readonly text: string; readonly document?: TaskDocument } =>
++	typeof built === "string" ? { text: built } : built
+diff --git a/src/runner.ts b/src/runner.ts
+index 062ae5e..4ef88e1 100644
+--- a/src/runner.ts
++++ b/src/runner.ts
+@@ -16,6 +16,7 @@ import {
+ 	runHosted,
+ 	type HostedGenerate,
+ } from "./hosted.ts"
++import { hostedTurn } from "./prompt.ts"
+ import { isHostedVendor, type HostedVendor } from "./providers.ts"
+ import type { ResolvedProvider, TaskRunResult } from "./result.ts"
+ import {
+@@ -133,14 +134,19 @@ export const makeTaskRunner = <
+ 						})
+ 					}
+ 
++					// The task's hosted prompt, never its CLI one: no tools over
++					// there, and the CLI column is the one allowed to carry secrets.
++					// Built once — a builder that reads a file should be called once —
++					// and normalized here, so both forms are one shape past this line.
++					const turn = hostedTurn(spec.hostedPrompt(input))
++
+ 					return yield* runHosted({
+ 						task,
+ 						vendor: provider,
+ 						modelId: model,
+-						// The task's hosted prompt, never its CLI one: no tools over
+-						// there, and the CLI column is the one allowed to carry secrets.
+-						system: spec.hostedPrompt(input),
++						system: turn.text,
+ 						instruction: spec.hostedInstruction,
++						document: turn.document,
+ 						codec: spec.output,
+ 						apiKey,
+ 						generate,
+diff --git a/src/task.ts b/src/task.ts
+index 3ad017c..dd5ad56 100644
+--- a/src/task.ts
++++ b/src/task.ts
+@@ -1,5 +1,7 @@
+ import type { ObjectCodec } from "claude-code-effect"
+ 
++import type { HostedPromptBuilt } from "./prompt.ts"
++
+ /**
+  * The task table shape — everything one named task needs, as data, so the
+  * transports can be code written once.
+@@ -17,8 +19,14 @@ import type { ObjectCodec } from "claude-code-effect"
+  *   therefore carry material (a bearer token, a path) that must never be posted
+  *   to a vendor. Where a task has nothing to say differently, the same builder
+  *   sits in both columns — a statement, not an omission.
++ *   `hostedPrompt` may also return a {@link HostedPromptBuilt} object to attach
++ *   a document to the turn — the file itself, for a task whose input is one.
++ *   The CLI column has no equivalent and needs none: it can name a path and let
++ *   the CLI's own `Read` tool fetch it.
+  * - `hostedInstruction` — the one-line user turn the hosted transport puts on
+- *   top of the prompt, which is a system message there.
++ *   top of the prompt, which is a system message there. A document attached by
++ *   `hostedPrompt` rides beside *this* text, in the user turn, because that is
++ *   the only turn a vendor accepts content parts in.
+  * - `allowedTools` — the CLI transport's `--allowedTools`, and empty for every
+  *   task with no escape hatch to reach for.
+  */
+@@ -26,8 +34,12 @@ export interface TaskSpec<Input, Output> {
+ 	readonly output: ObjectCodec<Output>
+ 	/** The prompt for the CLI transport, which has `allowedTools`. */
+ 	readonly cliPrompt: (input: Input) => string
+-	/** The prompt for the hosted transport, which has no tools at all. */
+-	readonly hostedPrompt: (input: Input) => string
++	/**
++	 * The prompt for the hosted transport, which has no tools at all — so a task
++	 * whose input is a file returns `{ text, document }` rather than describing
++	 * a path the vendor cannot reach. A plain `string` is the text-only form.
++	 */
++	readonly hostedPrompt: (input: Input) => HostedPromptBuilt
+ 	readonly hostedInstruction: string
+ 	readonly allowedTools: readonly string[]
+ }
+diff --git a/test/hosted-prompt-fields.test.ts b/test/hosted-prompt-fields.test.ts
+new file mode 100644
+index 0000000..b36f27a
+--- /dev/null
++++ b/test/hosted-prompt-fields.test.ts
+@@ -0,0 +1,74 @@
++import { describe, expect, test } from "bun:test"
++
++import { hostedPromptFields } from "../src/hosted.ts"
++import { hostedTurn } from "../src/prompt.ts"
++
++const BYTES = new Uint8Array([1, 2, 3])
++
++describe("hostedTurn normalizes the two forms a task may return", () => {
++	test("a plain string becomes text with no document", () => {
++		expect(hostedTurn("just text")).toEqual({ text: "just text" })
++		expect(hostedTurn("just text").document).toBeUndefined()
++	})
++
++	test("an object is carried through untouched", () => {
++		const document = { data: BYTES, mediaType: "application/pdf" }
++		expect(hostedTurn({ text: "with a file", document })).toEqual({
++			text: "with a file",
++			document,
++		})
++	})
++})
++
++describe("the ai-sdk call shape", () => {
++	test("text-only keeps the `prompt:` form, exactly as before", () => {
++		const fields = hostedPromptFields({ system: "sys", prompt: "do it" })
++
++		expect(fields).toEqual({ system: "sys", prompt: "do it" })
++		expect(fields).not.toHaveProperty("messages")
++	})
++
++	test("a document moves the call to the `messages:` form with a file part", () => {
++		const fields = hostedPromptFields({
++			system: "sys",
++			prompt: "do it",
++			document: { data: BYTES, mediaType: "application/pdf" },
++		})
++
++		expect(fields).not.toHaveProperty("prompt")
++		expect(fields).toEqual({
++			system: "sys",
++			messages: [
++				{
++					role: "user",
++					content: [
++						{ type: "text", text: "do it" },
++						// `mimeType` is what the pinned ai-sdk calls the media type; a
++						// vendor that received `mediaType` here would see no file at all.
++						{ type: "file", data: BYTES, mimeType: "application/pdf" },
++					],
++				},
++			],
++		})
++	})
++
++	test("the file part rides the same user turn as the instruction, not a turn of its own", () => {
++		const fields = hostedPromptFields({
++			system: "sys",
++			prompt: "do it",
++			document: { data: BYTES, mediaType: "image/png" },
++		})
++
++		const messages = (fields as { messages: Array<{ role: string; content: unknown[] }> })
++			.messages
++		expect(messages).toHaveLength(1)
++		expect(messages[0]?.role).toBe("user")
++		expect(messages[0]?.content).toHaveLength(2)
++	})
++
++	test("an explicitly undefined document is the text-only form", () => {
++		expect(
++			hostedPromptFields({ system: "sys", prompt: "do it", document: undefined }),
++		).toEqual({ system: "sys", prompt: "do it" })
++	})
++})
+diff --git a/test/runner-document.test.ts b/test/runner-document.test.ts
+new file mode 100644
+index 0000000..1e4bfd8
+--- /dev/null
++++ b/test/runner-document.test.ts
+@@ -0,0 +1,196 @@
++import { describe, expect, test } from "bun:test"
++
++import { Effect, Redacted } from "effect"
++
++import { makeTaskRunner } from "../src/runner.ts"
++import type { TaskTable } from "../src/task.ts"
++import {
++	claudeCodeRecording,
++	claudeCodeUnused,
++	onlyCall,
++	passthroughCodec,
++	recordingGenerate,
++	refusingCodec,
++} from "./support.ts"
++
++const PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37])
++
++/**
++ * Two rows over one table: one contributes a document, one is the text-only
++ * task that must keep behaving exactly as it did before this feature.
++ *
++ * A row has one `Input`, so both columns are written against the whole of it
++ * even where each reads a different half — the CLI names the path its `Read`
++ * tool will open, the hosted column hands over the bytes.
++ */
++type Statement = { path: string; bytes: Uint8Array }
++
++const TASKS = {
++	"extract-pdf": {
++		output: passthroughCodec<{ rows: number }>({ type: "object" }),
++		cliPrompt: (input: Statement) => `Read the statement at ${input.path}`,
++		hostedPrompt: (input: Statement) => ({
++			text: `Extract every operation. (${input.path})`,
++			document: { data: input.bytes, mediaType: "application/pdf" },
++		}),
++		hostedInstruction: "Return the operations as JSON.",
++		allowedTools: ["Read"],
++	},
++	summarize: {
++		output: passthroughCodec<{ text: string }>({ type: "object" }),
++		cliPrompt: (input: { text: string }) => `Summarize:\n${input.text}`,
++		hostedPrompt: (input: { text: string }) => `Summarize:\n${input.text}`,
++		hostedInstruction: "Return the summary as JSON.",
++		allowedTools: [],
++	},
++} as const satisfies TaskTable
++
++const hostedDeps = (key: string | null) => ({
++	resolve: () => Effect.succeed({ provider: "anthropic" as const, model: "claude-haiku-4-5" }),
++	credential: () => Effect.succeed(key === null ? null : Redacted.make(key)),
++})
++
++describe("a document-bearing task", () => {
++	test("reaches the seam with the right bytes and media type", async () => {
++		const { calls, generate } = recordingGenerate({ rows: 3 })
++		const runner = makeTaskRunner(TASKS, hostedDeps("sk-ant-key"), {
++			generateHosted: generate,
++		})
++
++		const result = await Effect.runPromise(
++			runner
++				.run("extract-pdf", { path: "/tmp/s.pdf", bytes: PDF_BYTES })
++				.pipe(Effect.provide(claudeCodeUnused)),
++		)
++
++		const call = onlyCall(calls)
++		expect(call.document).toBeDefined()
++		expect(call.document?.mediaType).toBe("application/pdf")
++		expect(call.document?.data).toEqual(PDF_BYTES)
++		expect(result.output).toEqual({ rows: 3 })
++	})
++
++	test("still sends the hosted prompt as the system turn and the instruction as the prompt", async () => {
++		const { calls, generate } = recordingGenerate({ rows: 1 })
++		const runner = makeTaskRunner(TASKS, hostedDeps("sk-ant-key"), {
++			generateHosted: generate,
++		})
++
++		await Effect.runPromise(
++			runner
++				.run("extract-pdf", { path: "/tmp/s.pdf", bytes: PDF_BYTES })
++				.pipe(Effect.provide(claudeCodeUnused)),
++		)
++
++		const call = onlyCall(calls)
++		expect(call.system).toBe("Extract every operation. (/tmp/s.pdf)")
++		expect(call.prompt).toBe("Return the operations as JSON.")
++		// The CLI column never crosses to a vendor.
++		expect(call.system).not.toContain("Read the statement")
++	})
++
++	test("does not fall back when the credential is gone — and never calls the vendor", async () => {
++		const { calls, generate } = recordingGenerate()
++		const runner = makeTaskRunner(TASKS, hostedDeps(null), {
++			generateHosted: generate,
++		})
++
++		const exit = await Effect.runPromiseExit(
++			runner
++				.run("extract-pdf", { path: "/tmp/s.pdf", bytes: PDF_BYTES })
++				.pipe(Effect.provide(claudeCodeUnused)),
++		)
++
++		expect(exit._tag).toBe("Failure")
++		expect(String(exit)).toContain("TaskNotRunnableError")
++		expect(calls).toHaveLength(0)
++	})
++
++	test("scrubs the key from a vendor error that quotes it", async () => {
++		const key = "sk-ant-secret-key"
++		const runner = makeTaskRunner(TASKS, hostedDeps(key), {
++			generateHosted: async () => {
++				throw new Error(`401 from vendor using ${key}`)
++			},
++		})
++
++		const exit = await Effect.runPromiseExit(
++			runner
++				.run("extract-pdf", { path: "/tmp/s.pdf", bytes: PDF_BYTES })
++				.pipe(Effect.provide(claudeCodeUnused)),
++		)
++
++		const rendered = JSON.stringify(exit)
++		expect(rendered).toContain("HostedApiError")
++		expect(rendered).toContain("«redacted»")
++		expect(rendered).not.toContain(key)
++	})
++
++	test("a payload the codec refuses is a schema error, not a vendor error", async () => {
++		const table = {
++			"extract-pdf": {
++				...TASKS["extract-pdf"],
++				output: refusingCodec<{ rows: number }>("bad shape"),
++			},
++		} as const satisfies TaskTable
++
++		const runner = makeTaskRunner(table, hostedDeps("sk-ant-key"), {
++			generateHosted: async () => ({ nope: true }),
++		})
++
++		const exit = await Effect.runPromiseExit(
++			runner
++				.run("extract-pdf", { path: "/tmp/s.pdf", bytes: PDF_BYTES })
++				.pipe(Effect.provide(claudeCodeUnused)),
++		)
++
++		expect(String(exit)).toContain("TaskSchemaError")
++	})
++})
++
++describe("the text-only path is untouched", () => {
++	test("a task whose hosted prompt is a plain string attaches no document", async () => {
++		const { calls, generate } = recordingGenerate({ text: "done" })
++		const runner = makeTaskRunner(TASKS, hostedDeps("sk-ant-key"), {
++			generateHosted: generate,
++		})
++
++		await Effect.runPromise(
++			runner.run("summarize", { text: "hello" }).pipe(Effect.provide(claudeCodeUnused)),
++		)
++
++		const call = onlyCall(calls)
++		expect(call.document).toBeUndefined()
++		expect(call.system).toBe("Summarize:\nhello")
++		expect(call.prompt).toBe("Return the summary as JSON.")
++		expect(call.modelId).toBe("claude-haiku-4-5")
++		expect(call.apiKey).toBe("sk-ant-key")
++	})
++})
++
++describe("the CLI branch is unaffected", () => {
++	test("a document-bearing task on claude-code sends its CLI prompt and no document", async () => {
++		const { calls, layer } = claudeCodeRecording({
++			object: { rows: 2 },
++			sessionId: "sess-1",
++			model: "claude-haiku-4-5",
++		})
++		const runner = makeTaskRunner(TASKS, {
++			resolve: () =>
++				Effect.succeed({ provider: "claude-code" as const, model: "claude-haiku-4-5" }),
++			credential: () => Effect.die("credential must not be asked for the CLI branch"),
++		})
++
++		const result = await Effect.runPromise(
++			runner
++				.run("extract-pdf", { path: "/tmp/s.pdf", bytes: PDF_BYTES })
++				.pipe(Effect.provide(layer)),
++		)
++
++		const options = onlyCall(calls) as { prompt: string; allowedTools: readonly string[] }
++		expect(options.prompt).toBe("Read the statement at /tmp/s.pdf")
++		expect(options.allowedTools).toEqual(["Read"])
++		expect(options).not.toHaveProperty("document")
++		expect(result.runId).toBe("sess-1")
++	})
++})
+diff --git a/test/seam-compatibility.test.ts b/test/seam-compatibility.test.ts
+new file mode 100644
+index 0000000..dc60584
+--- /dev/null
++++ b/test/seam-compatibility.test.ts
+@@ -0,0 +1,95 @@
++import { describe, expect, test } from "bun:test"
++
++import { Effect, Redacted } from "effect"
++
++import type { HostedGenerate } from "../src/hosted.ts"
++import { makeTaskRunner } from "../src/runner.ts"
++import type { TaskTable } from "../src/task.ts"
++import { claudeCodeUnused, passthroughCodec } from "./support.ts"
++
++/**
++ * The seam's whole point is that a consumer can fake it. Two properties are
++ * asserted here by the compiler as much as at runtime: a fake written before
++ * documents existed still satisfies `HostedGenerate`, and a fake that wants to
++ * see a document needs one extra line to do it.
++ */
++
++/** Written against 0.1.0's argument shape — no mention of a document. */
++const legacyFake: HostedGenerate = async (args: {
++	readonly vendor: string
++	readonly modelId: string
++	readonly apiKey: string
++	readonly system: string
++	readonly prompt: string
++	readonly jsonSchema: unknown
++}) => ({ saw: args.system })
++
++const TASKS = {
++	summarize: {
++		output: passthroughCodec<{ saw: string }>(),
++		cliPrompt: (input: { text: string }) => input.text,
++		hostedPrompt: (input: { text: string }) => input.text,
++		hostedInstruction: "Return JSON.",
++		allowedTools: [],
++	},
++} as const satisfies TaskTable
++
++describe("the widened seam stays fakeable", () => {
++	test("a fake written against the pre-document signature still runs", async () => {
++		const runner = makeTaskRunner(
++			TASKS,
++			{
++				resolve: () =>
++					Effect.succeed({ provider: "openai" as const, model: "gpt-4.1-mini" }),
++				credential: () => Effect.succeed(Redacted.make("sk-openai")),
++			},
++			{ generateHosted: legacyFake },
++		)
++
++		const result = await Effect.runPromise(
++			runner.run("summarize", { text: "hi" }).pipe(Effect.provide(claudeCodeUnused)),
++		)
++
++		expect(result.output).toEqual({ saw: "hi" })
++		expect(result.model).toBe("gpt-4.1-mini")
++		expect(result.runId).toStartWith("hosted-openai-")
++	})
++
++	test("asserting a document is one property on the recorded args", async () => {
++		// The entire fake, as a consumer would write it.
++		let seen: { data: Uint8Array; mediaType: string } | undefined
++		const fake: HostedGenerate = async (args) => ((seen = args.document), { saw: "" })
++
++		const table = {
++			"extract-pdf": {
++				output: passthroughCodec<{ saw: string }>(),
++				cliPrompt: (input: { bytes: Uint8Array }) => `${input.bytes.length} bytes`,
++				hostedPrompt: (input: { bytes: Uint8Array }) => ({
++					text: "Extract it.",
++					document: { data: input.bytes, mediaType: "application/pdf" },
++				}),
++				hostedInstruction: "Return JSON.",
++				allowedTools: [],
++			},
++		} as const satisfies TaskTable
++
++		const runner = makeTaskRunner(
++			table,
++			{
++				resolve: () =>
++					Effect.succeed({ provider: "google" as const, model: "gemini-2.5-flash" }),
++				credential: () => Effect.succeed(Redacted.make("goog-key")),
++			},
++			{ generateHosted: fake },
++		)
++
++		await Effect.runPromise(
++			runner
++				.run("extract-pdf", { bytes: new Uint8Array([9, 9]) })
++				.pipe(Effect.provide(claudeCodeUnused)),
++		)
++
++		expect(seen?.mediaType).toBe("application/pdf")
++		expect(seen?.data).toEqual(new Uint8Array([9, 9]))
++	})
++})
+diff --git a/test/support.ts b/test/support.ts
+new file mode 100644
+index 0000000..5c0cc4a
+--- /dev/null
++++ b/test/support.ts
+@@ -0,0 +1,60 @@
++import { Effect, Layer } from "effect"
++
++import { ClaudeCode, type ObjectCodec } from "claude-code-effect"
++
++import type { HostedGenerate } from "../src/hosted.ts"
++
++/** A codec that hands back whatever the transport gave it. */
++export const passthroughCodec = <A>(
++	jsonSchema: unknown = { type: "object" },
++): ObjectCodec<A> => ({
++	jsonSchema,
++	decode: (payload) => Effect.succeed(payload as A),
++})
++
++/** A codec that always refuses, for the `TaskSchemaError` path. */
++export const refusingCodec = <A>(issues: unknown): ObjectCodec<A> => ({
++	jsonSchema: { type: "object" },
++	decode: () => Effect.fail(issues),
++})
++
++/**
++ * The whole hosted fake, which is the point of the seam: four lines, and the
++ * recorded args are what a test asserts against.
++ */
++export const recordingGenerate = (payload: unknown = { ok: true }) => {
++	const calls: Parameters<HostedGenerate>[0][] = []
++	const generate: HostedGenerate = async (args) => (calls.push(args), payload)
++	return { calls, generate }
++}
++
++/** The first recorded call, or a failed assertion's worth of noise. */
++export const onlyCall = <T>(calls: readonly T[]): T => {
++	if (calls.length !== 1) throw new Error(`expected 1 call, got ${calls.length}`)
++	return calls[0] as T
++}
++
++/**
++ * A `ClaudeCode` that fails loudly if the CLI branch is entered. Hosted runs
++ * still need the tag in context; reaching for it is the bug.
++ */
++export const claudeCodeUnused = Layer.succeed(ClaudeCode, {
++	generateText: () => Effect.die("CLI transport must not run"),
++	generateObject: () => Effect.die("CLI transport must not run"),
++} as unknown as ClaudeCode["Type"])
++
++/** A `ClaudeCode` that records the options the CLI branch built. */
++export const claudeCodeRecording = (result: {
++	object: unknown
++	sessionId: string
++	model: string
++}) => {
++	const calls: unknown[] = []
++	const layer = Layer.succeed(ClaudeCode, {
++		generateText: () => Effect.die("generateText must not run"),
++		generateObject: (_output: unknown, options: unknown) => (
++			calls.push(options), Effect.succeed(result)
++		),
++	} as unknown as ClaudeCode["Type"])
++	return { calls, layer }
++}
