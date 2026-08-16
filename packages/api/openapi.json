@@ -5426,9 +5426,6 @@
             "schema": {
               "type": "string",
               "enum": [
-                "llm_endpoint",
-                "llm_api_key",
-                "llm_model",
                 "currency_symbol",
                 "date_format",
                 "anomaly_threshold",
@@ -6847,9 +6844,6 @@
           "key": {
             "type": "string",
             "enum": [
-              "llm_endpoint",
-              "llm_api_key",
-              "llm_model",
               "currency_symbol",
               "date_format",
               "anomaly_threshold",
@@ -6866,8 +6860,7 @@
       "AppSettings": {
         "type": "object",
         "required": [
-          "id",
-          "llm"
+          "id"
         ],
         "properties": {
           "id": {
@@ -6875,45 +6868,6 @@
             "enum": [
               "app"
             ]
-          },
-          "llm": {
-            "$ref": "#/components/schemas/LlmSettings"
-          }
-        },
-        "additionalProperties": false
-      },
-      "LlmSettings": {
-        "type": "object",
-        "required": [
-          "endpoint",
-          "modelName",
-          "provider"
-        ],
-        "properties": {
-          "endpoint": {
-            "type": "string"
-          },
-          "apiKey": {
-            "type": "string"
-          },
-          "modelName": {
-            "type": "string"
-          },
-          "provider": {
-            "type": "string",
-            "enum": [
-              "ollama",
-              "lm-studio",
-              "openai",
-              "anthropic",
-              "custom"
-            ]
-          },
-          "lastTestedAt": {
-            "$ref": "#/components/schemas/Date"
-          },
-          "lastTestSuccess": {
-            "type": "boolean"
           }
         },
         "additionalProperties": false

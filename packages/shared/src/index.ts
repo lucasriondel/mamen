@@ -19,8 +19,6 @@ export type { Issuer } from "./types/issuer.types";
 export type { Rule } from "./types/rule.types";
 export type {
 	AppSettings,
-	LLMProvider,
-	LLMSettings,
 	Setting,
 	SettingKey,
 } from "./types/settings.types";

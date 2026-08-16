@@ -6,7 +6,7 @@ export {
 } from "./accounts";
 export { AnomalyFlag, AnomalyType } from "./anomaly";
 export { Api } from "./api";
-export { AppSettings, AppSettingsGroup, LlmSettings } from "./app-settings";
+export { AppSettings, AppSettingsGroup } from "./app-settings";
 export {
 	CategoriesGroup,
 	Category,

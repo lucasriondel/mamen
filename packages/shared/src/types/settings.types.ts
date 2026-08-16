@@ -1,28 +1,12 @@
-export type LLMProvider =
-	| "ollama"
-	| "lm-studio"
-	| "openai"
-	| "anthropic"
-	| "custom";
-
-export type LLMSettings = {
-	endpoint: string;
-	apiKey?: string;
-	modelName: string;
-	provider: LLMProvider;
-	lastTestedAt?: Date;
-	lastTestSuccess?: boolean;
-};
+// The `LLMSettings` block and the three `llm_*` keys were deleted with the rest
+// of the dead LLM settings surface (issue #116). The contract under
+// `../contract/` is the live definition of both shapes; these types mirror it.
 
 export type AppSettings = {
 	id: "app";
-	llm: LLMSettings;
 };
 
 export type SettingKey =
-	| "llm_endpoint"
-	| "llm_api_key"
-	| "llm_model"
 	| "currency_symbol"
 	| "date_format"
 	| "anomaly_threshold"

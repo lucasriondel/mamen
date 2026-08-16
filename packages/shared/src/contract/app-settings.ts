@@ -3,34 +3,18 @@ import { Schema } from "effect";
 import { NotFound } from "./errors";
 
 /**
- * The typed LLM configuration block held inside {@link AppSettings}. Distinct
- * from the loose `llm_*` keys in `/settings` — the duplication is accepted and
- * faithful (contract decision #2): no merge, the two stores stay independent.
- * `lastTestedAt` is the one date field (optional); everything else is a string
- * or a small literal union.
- */
-export class LlmSettings extends Schema.Class<LlmSettings>("LlmSettings")({
-	endpoint: Schema.String,
-	apiKey: Schema.optional(Schema.String),
-	modelName: Schema.String,
-	provider: Schema.Literal(
-		"ollama",
-		"lm-studio",
-		"openai",
-		"anthropic",
-		"custom",
-	),
-	lastTestedAt: Schema.optional(Schema.Date),
-	lastTestSuccess: Schema.optional(Schema.Boolean),
-}) {}
-
-/**
  * App-settings entity (contract §2.9) — a fixed-shape singleton. `id` is the
  * literal `"app"` (there is only one row; not branded, not a path param).
+ *
+ * It carried one field, the `LlmSettings` block, until issue #116 deleted it: a
+ * faithful port of a feature that no longer exists, which no client read, and
+ * whose `apiKey` was a plain string `GET /app-settings` handed back to anyone
+ * who asked. The singleton itself stays — the row, the endpoints and the dump
+ * slot are the shape the next typed app-wide setting lands in — but it now
+ * carries nothing beyond its own identity.
  */
 export class AppSettings extends Schema.Class<AppSettings>("AppSettings")({
 	id: Schema.Literal("app"),
-	llm: LlmSettings,
 }) {}
 
 /**

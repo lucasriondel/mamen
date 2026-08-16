@@ -1,4 +1,9 @@
-import { HttpApiBuilder, HttpApiClient } from "@effect/platform";
+import {
+	HttpApiBuilder,
+	HttpApiClient,
+	HttpClient,
+	HttpClientRequest,
+} from "@effect/platform";
 import { NodeHttpServer } from "@effect/platform-node";
 import { assert, describe, it } from "@effect/vitest";
 import { Api } from "@mamen/shared/contract";
@@ -107,14 +112,7 @@ const seed = Effect.gen(function* () {
 		payload: { id: 1, key: "currency_symbol", value: "$" } as never,
 	});
 	const appSettings = yield* client.appSettings.put({
-		payload: {
-			id: "app",
-			llm: {
-				endpoint: "http://localhost:11434",
-				modelName: "llama3",
-				provider: "ollama",
-			},
-		} as never,
+		payload: { id: "app" },
 	});
 	return {
 		account,
@@ -257,6 +255,45 @@ describe("database endpoints", () => {
 			assert.deepStrictEqual(after.subscriptions, []);
 			assert.deepStrictEqual(after.settings, []);
 			assert.deepStrictEqual(after.appSettings, []);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	/**
+	 * A backup taken before issue #116 carries the deleted `llm` block inside its
+	 * `appSettings` entry. Restoring one must not fail on a field the contract no
+	 * longer has — the block is simply dropped, which is the whole point: no stored
+	 * key is carried forward into the credential store that replaces it.
+	 *
+	 * Posted as raw bytes rather than through the typed client, because the client
+	 * encodes the payload through the same contract and would strip the field
+	 * before it ever reached the server.
+	 */
+	it.effect("imports a dump that predates the llm deletion", () =>
+		Effect.gen(function* () {
+			const http = yield* HttpClient.HttpClient;
+			const res = yield* http.execute(
+				HttpClientRequest.post("/api/database/import").pipe(
+					HttpClientRequest.bodyUnsafeJson({
+						appSettings: [
+							{
+								id: "app",
+								llm: {
+									endpoint: "https://api.anthropic.com",
+									apiKey: "sk-secret",
+									modelName: "claude-3",
+									provider: "anthropic",
+								},
+							},
+						],
+					}),
+				),
+			);
+			assert.strictEqual(res.status, 200);
+
+			// The singleton is restored, and what it holds is its id and nothing else.
+			const client = yield* HttpApiClient.make(Api);
+			const dump = yield* client.database.export();
+			assert.deepStrictEqual(dump.appSettings, [{ id: "app" }]);
 		}).pipe(Effect.provide(HttpLive)),
 	);
 

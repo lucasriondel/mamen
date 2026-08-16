@@ -35,11 +35,11 @@ describe("SettingRepo", () => {
 	it.effect("putByKey upserts an existing key, keeping the row's id", () =>
 		Effect.gen(function* () {
 			const repo = yield* SettingRepo;
-			const first = yield* repo.putByKey(make("llm_model", "gpt-4"));
-			const second = yield* repo.putByKey(make("llm_model", "claude-3"));
+			const first = yield* repo.putByKey(make("anomaly_threshold", "3"));
+			const second = yield* repo.putByKey(make("anomaly_threshold", "5"));
 			// Same key → same physical row: value updated, id preserved.
 			assert.strictEqual(second.id, first.id);
-			assert.strictEqual(second.value, "claude-3");
+			assert.strictEqual(second.value, "5");
 
 			const page = yield* repo.list({ limit: 50, offset: 0 });
 			assert.strictEqual(page.total, 1);
@@ -88,7 +88,7 @@ describe("SettingRepo", () => {
 			const repo = yield* SettingRepo;
 			yield* repo.putByKey(make("currency_symbol", "$"));
 			yield* repo.putByKey(make("date_format", "x"));
-			yield* repo.putByKey(make("llm_model", "y"));
+			yield* repo.putByKey(make("anomaly_threshold", "y"));
 
 			const page = yield* repo.list({ limit: 1, offset: 1 });
 			assert.strictEqual(page.total, 3);

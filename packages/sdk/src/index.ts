@@ -4,11 +4,6 @@ export {
 	accountQueries,
 } from "./accounts/queries";
 export {
-	appSettingsKeys,
-	appSettingsMutations,
-	appSettingsQueries,
-} from "./app-settings/queries";
-export {
 	type CategoryListParams,
 	categoryKeys,
 	categoryMutations,
