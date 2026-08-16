@@ -36,6 +36,7 @@ export {
 	LogoSearchQuotaExceeded,
 	LogoSearchUnconfigured,
 	NotFound,
+	SecretRejected,
 	TransferInvalid,
 } from "./errors";
 export { Health, HealthGroup } from "./health";
@@ -86,6 +87,14 @@ export {
 	RuleUpdate,
 	RuleView,
 } from "./rules";
+export {
+	SECRET_HINT_MIN_LENGTH,
+	SECRET_MIN_LENGTH,
+	SecretName,
+	SecretStatus,
+	SecretsGroup,
+	SecretValue,
+} from "./secrets";
 export { Setting, SettingKey, SettingsGroup } from "./settings";
 export {
 	Subscription,

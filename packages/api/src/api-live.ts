@@ -9,6 +9,7 @@ import { HealthLive } from "./health/handlers";
 import { ImportLive } from "./import/handlers";
 import { IssuersLive } from "./issuers/handlers";
 import { RulesLive } from "./rules/handlers";
+import { SecretsLive } from "./secrets";
 import { SettingsLive } from "./settings/handlers";
 import { SubscriptionsLive } from "./subscriptions/handlers";
 import { TransactionsLive } from "./transactions/handlers";
@@ -41,6 +42,7 @@ export const ApiLive = HttpApiBuilder.api(Api).pipe(
 		RulesLive,
 		SubscriptionsLive,
 		SettingsLive,
+		SecretsLive,
 		AppSettingsLive,
 		DatabaseLive,
 		ImportLive,

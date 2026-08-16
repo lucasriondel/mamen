@@ -7,6 +7,7 @@ import { HealthGroup } from "./health";
 import { ImportGroup } from "./import";
 import { IssuersGroup } from "./issuers";
 import { RulesGroup } from "./rules";
+import { SecretsGroup } from "./secrets";
 import { SettingsGroup } from "./settings";
 import { SubscriptionsGroup } from "./subscriptions";
 import { TransactionsGroup } from "./transactions";
@@ -26,6 +27,7 @@ export class Api extends HttpApi.make("mamen")
 	.add(RulesGroup)
 	.add(SubscriptionsGroup)
 	.add(SettingsGroup)
+	.add(SecretsGroup)
 	.add(AppSettingsGroup)
 	.add(DatabaseGroup)
 	.add(ImportGroup)

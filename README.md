@@ -140,6 +140,7 @@ Everything else has a working default. The API reads:
 | `UPLOADS_DIR` | `uploads` | Where issuer images are written and served from. |
 | `CORS_ORIGINS` | `http://localhost:5070` | Comma-separated allowed origins. Unused in production, where the SPA and the API share an origin. |
 | `LOGODEV_TOKEN` | *(unset)* | Publishable logo.dev key backing issuer **Logo search**. Unset, the feature reports itself unconfigured and refuses. See [docs/operations/logo-search-setup.md](docs/operations/logo-search-setup.md). |
+| `TOKEN_ENCRYPTION_KEY` | *(unset)* | 64 hex characters (`openssl rand -hex 32`) — the key AI provider credentials are encrypted with. Unset, storing one fails and stored ones read back as unreadable. No default, because a default would be a published encryption key. See [ADR 0011](docs/adr/0011-credentials-are-encrypted-at-rest.md). |
 
 The web app reads `VITE_API_URL` (see `packages/web/.env.example`). Leave it
 empty unless the API lives somewhere other than the same origin.
