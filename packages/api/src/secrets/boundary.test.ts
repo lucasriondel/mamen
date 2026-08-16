@@ -1,5 +1,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { assert, describe, it } from "@effect/vitest";
+import { Effect } from "effect";
+import { DatabaseTest } from "../db/test";
 import * as barrel from "./index";
 
 /**
@@ -84,19 +86,27 @@ describe("the plaintext reader is not on the barrel", () => {
 		assert.notProperty(barrel, "readSecret");
 	});
 
-	it("gives the outward repository no method that returns a secret", () => {
-		// The service's public shape, as the handler layer sees it. `status`,
-		// `put` and `clear` all answer with a `SecretStatus`; there is no fourth
-		// method for a plaintext to come back through.
-		assert.deepStrictEqual(
-			Object.keys(
-				new barrel.SecretsRepo({
-					status: () => undefined,
-					put: () => undefined,
-					clear: () => undefined,
-				} as never),
-			).sort(),
-			["clear", "put", "status"],
-		);
-	});
+	it.effect(
+		"gives the outward repository no method that returns a secret",
+		() =>
+			Effect.gen(function* () {
+				// The **built** service's public shape, as the handler layer sees it —
+				// not a stand-in this test constructed, which would only assert its own
+				// literal back. `status`, `statusAll`, `put` and `clear` all answer with
+				// a `SecretStatus`; there is no fifth method for a plaintext to come
+				// back through, which is what makes the group layer above structurally
+				// unable to leak one.
+				const repo = yield* barrel.SecretsRepo;
+
+				assert.deepStrictEqual(Object.keys(repo).sort(), [
+					"clear",
+					"put",
+					"status",
+					"statusAll",
+				]);
+			}).pipe(
+				Effect.provide(barrel.SecretsRepo.Default),
+				Effect.provide(DatabaseTest),
+			),
+	);
 });

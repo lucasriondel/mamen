@@ -154,11 +154,20 @@ file. Held by `secrets/boundary.test.ts`: no other module imports `decrypt`, no
 other module reads the `encrypted_secrets` table, and the barrel exports the
 outward surface and nothing else. The outward repository has no method that
 returns a plaintext, which is what makes the group layer above it structurally
-unable to leak one.
+unable to leak one — asserted against the **built** service's method list, so a
+fourth outward method has to redden it rather than being reviewed for.
 
 **Secret status**:
-`SecretStatus` — `{ configured, hint }`, the *only* outward shape a credential
-has. `hint` is the **masked hint** (first seven, `…`, last three) or `null`, and
+`SecretStatus` — `{ name, configured, hint }`, the *only* outward shape a
+credential has. `name` is an **AI provider**: the store is keyed by the
+catalogue's provider set, so an unknown vendor fails the path decode into a 400
+rather than writing a row nothing can read back. `GET /secrets` answers with one
+status per provider, **in catalogue order and whether or not anything is
+stored** — the settings page's question is "what are my options and which can I
+select", and absent is an answer to it, so the catalogue drives that list and
+not the table.
+
+`hint` is the **masked hint** (first seven, `…`, last three) or `null`, and
 `null` deliberately conflates two states the client has no use in separating: a
 stored value below `SECRET_HINT_MIN_LENGTH`, and one that will not decrypt. A
 value that will not decrypt reports `configured: true` — *present but

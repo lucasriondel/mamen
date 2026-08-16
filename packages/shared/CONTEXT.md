@@ -123,6 +123,20 @@ string on an entity `GET /app-settings` hands to any caller; PRD #115 deletes
 it.
 _Avoid_: input-only, transient (both suggest a lifetime rather than a direction).
 
+**Leaf catalogue**:
+A **contract** module of plain data and predicates that imports nothing but
+`effect` — `contract/ai.ts`, the **AI provider** set with its labels, its
+**curated model list**, the **AI task** list and the three predicates over them
+(is this provider hosted, does it serve this model, what is its default model).
+Leaf because its readers sit on both sides of the wire — the web picker, the
+API's save-time validator and the task table — and none of them should acquire a
+dependency by reaching it. That is a property nothing can enforce by type, so
+`ai.test.ts` reads the source and asserts every import is `effect`. Distinct
+from a **deployment constant**, which is import-free for the same reason but
+describes where the app is *hosted* rather than what it exchanges, and which is
+therefore not part of the contract at all.
+_Avoid_: config, registry (nothing is looked up or registered — it is a list).
+
 **Deployment constant**:
 A plain value every deployed layer has to agree on, exported from the package
 root because more than one package reads it and none of them owns it —

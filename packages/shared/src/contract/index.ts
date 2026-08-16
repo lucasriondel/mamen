@@ -4,6 +4,18 @@ export {
 	AccountsGroup,
 	AccountUpdate,
 } from "./accounts";
+export {
+	AI_PROVIDER_LABELS,
+	AI_PROVIDER_MODELS,
+	AI_PROVIDERS,
+	AI_TASKS,
+	AiProvider,
+	AiTask,
+	DEFAULT_AI_PROVIDER,
+	defaultModelFor,
+	isHostedProvider,
+	isModelOfProvider,
+} from "./ai";
 export { AnomalyFlag, AnomalyType } from "./anomaly";
 export { Api } from "./api";
 export { AppSettings, AppSettingsGroup } from "./app-settings";
@@ -92,6 +104,7 @@ export {
 	SECRET_MIN_LENGTH,
 	SecretName,
 	SecretStatus,
+	SecretStatuses,
 	SecretsGroup,
 	SecretValue,
 } from "./secrets";

@@ -16,6 +16,7 @@ export const SecretsLive = HttpApiBuilder.group(Api, "secrets", (handlers) =>
 	Effect.gen(function* () {
 		const repo = yield* SecretsRepo;
 		return handlers
+			.handle("list", () => repo.statusAll())
 			.handle("status", (_) => repo.status(_.path.name))
 			.handle("put", (_) => repo.put(_.path.name, _.payload.value))
 			.handle("clear", (_) => repo.clear(_.path.name));

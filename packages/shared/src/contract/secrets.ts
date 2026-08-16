@@ -5,20 +5,24 @@ import {
 	OpenApi,
 } from "@effect/platform";
 import { Schema } from "effect";
+import { AiProvider } from "./ai";
 import { SecretRejected } from "./errors";
 
 /**
- * The set of stored credentials, by name (issue #117). One member for now:
- * this slice proves the whole path — paste, mask, clear, encrypt at rest — for a
- * single provider, and the provider set is generalised in the next slice, at
- * which point this literal grows and nothing else here changes.
+ * The set of stored credentials, by name — **the AI provider set itself**
+ * (issue #118). Every secret mamen holds is some provider's credential, and the
+ * lookup is keyed by provider because the code fetching a key has to be able to
+ * say whose key it wants. So this is an alias, not a second literal: a provider
+ * added to the catalogue is a provider a credential can be stored for, with
+ * nothing here to keep in step.
  *
- * A `Schema.Literal` in path position, like `SettingKey`: an unknown name fails
- * decode and is a 400, rather than reaching a handler that has to invent an
- * answer for a secret nobody defined.
+ * A `Schema.Literal` in path position, like `SettingKey`: an unknown provider
+ * fails decode and is a 400, rather than reaching a handler that has to invent
+ * an answer for a vendor nobody defined — or writing a row under a name nothing
+ * can ever read back.
  */
-export const SecretName = Schema.Literal("anthropic");
-export type SecretName = typeof SecretName.Type;
+export const SecretName = AiProvider;
+export type SecretName = AiProvider;
 
 /**
  * The shortest paste a save accepts. Anything shorter is not a credential any
@@ -73,8 +77,21 @@ export class SecretValue extends Schema.Class<SecretValue>("SecretValue")({
 }) {}
 
 /**
- * Secrets group, prefix `/secrets` — store, read the status of, and clear one
- * encrypted credential.
+ * The status of **every** provider's credential, in catalogue order — the whole
+ * `AI_PROVIDERS` list, one entry each, whether or not anything is stored
+ * (issue #118).
+ *
+ * Exhaustive rather than "the providers with a row", because the question the
+ * settings page asks is "what are my options and which of them can I actually
+ * select", and an absent credential is an answer to it. It is also why this is
+ * a plain array and not a **paged envelope**: the provider set is a closed
+ * literal, not a collection that grows with use.
+ */
+export const SecretStatuses = Schema.Array(SecretStatus);
+
+/**
+ * Secrets group, prefix `/secrets` — store, read the status of, and clear an
+ * encrypted credential, per provider, plus read every provider's status at once.
  *
  * `put` is an upsert: pasting over a stored credential replaces it, which is how
  * a leaked key is rotated. `clear` is idempotent — clearing a secret that was
@@ -84,6 +101,7 @@ export class SecretValue extends Schema.Class<SecretValue>("SecretValue")({
  * status, not a missing resource.
  */
 export class SecretsGroup extends HttpApiGroup.make("secrets")
+	.add(HttpApiEndpoint.get("list")`/secrets`.addSuccess(SecretStatuses))
 	.add(
 		HttpApiEndpoint.get(
 			"status",

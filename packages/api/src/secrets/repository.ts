@@ -1,5 +1,6 @@
 import { SqlClient } from "@effect/sql";
 import {
+	AI_PROVIDERS,
 	SECRET_MIN_LENGTH,
 	type SecretName,
 	SecretRejected,
@@ -104,9 +105,10 @@ export const readSecret = (
 	);
 
 /**
- * The **outward** surface: store, read the status of, and clear one encrypted
- * credential. Depends only on the generic `SqlClient.SqlClient` tag, so it runs
- * unchanged against the Bun production client and the `:memory:` test client.
+ * The **outward** surface: store, read the status of, and clear one provider's
+ * encrypted credential, plus read every provider's status at once. Depends only
+ * on the generic `SqlClient.SqlClient` tag, so it runs unchanged against the Bun
+ * production client and the `:memory:` test client.
  */
 export class SecretsRepo extends Effect.Service<SecretsRepo>()(
 	"api/SecretsRepo",
@@ -124,30 +126,65 @@ export class SecretsRepo extends Effect.Service<SecretsRepo>()(
 			 * reporting it as absent would tell the operator nothing was ever
 			 * stored, so they would never think to re-paste.
 			 */
+			const statusOf = (
+				name: SecretName,
+				stored: Option.Option<string>,
+			): Effect.Effect<SecretStatus> =>
+				Option.match(stored, {
+					onNone: () =>
+						Effect.succeed(
+							new SecretStatus({ name, configured: false, hint: null }),
+						),
+					onSome: (ciphertext) =>
+						decryptStored(ciphertext).pipe(
+							Effect.map(
+								(plaintext) =>
+									new SecretStatus({
+										name,
+										configured: true,
+										hint: Option.match(plaintext, {
+											onNone: () => null,
+											onSome: maskSecret,
+										}),
+									}),
+							),
+						),
+				});
+
 			const status = (name: SecretName): Effect.Effect<SecretStatus> =>
-				findCiphertext(sql, name).pipe(
-					Effect.flatMap(
-						Option.match({
-							onNone: () =>
-								Effect.succeed(
-									new SecretStatus({ name, configured: false, hint: null }),
-								),
-							onSome: (ciphertext) =>
-								decryptStored(ciphertext).pipe(
-									Effect.map(
-										(plaintext) =>
-											new SecretStatus({
-												name,
-												configured: true,
-												hint: Option.match(plaintext, {
-													onNone: () => null,
-													onSome: maskSecret,
-												}),
-											}),
-									),
-								),
-						}),
-					),
+				Effect.flatMap(findCiphertext(sql, name), (stored) =>
+					statusOf(name, stored),
+				);
+
+			/**
+			 * Every provider's status, in catalogue order — the whole
+			 * `AI_PROVIDERS` list, whether or not a row exists (issue #118). The
+			 * **catalogue** drives the answer, not the table: a provider with
+			 * nothing stored is an entry that says absent, which is what lets one
+			 * request render the settings page, and a row under a name the
+			 * catalogue no longer carries is simply not reported, because a status
+			 * for a vendor mamen does not support is not one a client could act on.
+			 *
+			 * One query for all of them, so the table is read once however many
+			 * providers there are; the decrypt stays per row, because that is per
+			 * credential and there is nothing to batch.
+			 */
+			const statusAll = (): Effect.Effect<ReadonlyArray<SecretStatus>> =>
+				sql<{
+					readonly name: string;
+					readonly ciphertext: string;
+				}>`SELECT name, ciphertext FROM encrypted_secrets`.pipe(
+					orDieSql,
+					Effect.flatMap((rows) => {
+						const stored = new Map(
+							rows.map((row) => [row.name, row.ciphertext]),
+						);
+						return Effect.all(
+							AI_PROVIDERS.map((name) =>
+								statusOf(name, Option.fromNullable(stored.get(name))),
+							),
+						);
+					}),
 				);
 
 			/**
@@ -214,7 +251,7 @@ export class SecretsRepo extends Effect.Service<SecretsRepo>()(
 					Effect.as(new SecretStatus({ name, configured: false, hint: null })),
 				);
 
-			return { status, put, clear } as const;
+			return { status, statusAll, put, clear } as const;
 		}),
 	},
 ) {}

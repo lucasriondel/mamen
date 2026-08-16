@@ -7,6 +7,7 @@ import {
 import { NodeHttpServer } from "@effect/platform-node";
 import { afterEach, assert, describe, it } from "@effect/vitest";
 import {
+	AI_PROVIDERS,
 	Api,
 	SECRET_HINT_MIN_LENGTH,
 	SECRET_MIN_LENGTH,
@@ -300,6 +301,167 @@ describe("clearing a credential", () => {
 				path: { name: "anthropic" },
 			});
 			assert.isFalse(status.configured);
+		}).pipe(Effect.provide(HttpLive));
+	});
+});
+
+/**
+ * A credential for **every** provider (issue #118). The previous slice proved
+ * the path for one name; what is new here is that the store is keyed by the
+ * catalogue's provider set, that one request answers for all of them, and that
+ * the security property holds per provider rather than for the one that
+ * happened to be tested.
+ */
+
+/** A distinct plausible credential per provider — distinct heads and tails, so
+ * a hint that came from the wrong row is visible rather than coincidentally
+ * right. */
+const secretFor = (provider: string) =>
+	`sk-${provider}-api03-Kj28fnQ2xLmPqR7v-${provider.slice(0, 3)}`;
+
+describe("a credential for every provider", () => {
+	it.effect("stores, hints and clears each one independently", () => {
+		useKey(KEY);
+		return Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+
+			for (const provider of AI_PROVIDERS) {
+				const stored = yield* client.secrets.put({
+					path: { name: provider },
+					payload: { value: secretFor(provider) },
+				});
+				assert.strictEqual(stored.name, provider);
+				assert.isTrue(stored.configured);
+				assert.strictEqual(
+					stored.hint,
+					`${secretFor(provider).slice(0, 7)}…${provider.slice(0, 3)}`,
+				);
+			}
+
+			// Clearing one leaves the others alone: the rows are per provider, and
+			// revoking mamen's access to one vendor is not revoking it to all.
+			yield* client.secrets.clear({ path: { name: "google" } });
+			for (const provider of AI_PROVIDERS) {
+				const status = yield* client.secrets.status({
+					path: { name: provider },
+				});
+				assert.strictEqual(status.configured, provider !== "google");
+			}
+		}).pipe(Effect.provide(HttpLive));
+	});
+
+	it.effect("never sends any provider's key back", () => {
+		useKey(KEY);
+		return Effect.gen(function* () {
+			const http = yield* HttpClient.HttpClient;
+
+			for (const provider of AI_PROVIDERS) {
+				const stored = yield* http.put(`/api/secrets/${provider}`, {
+					body: HttpBody.unsafeJson({ value: secretFor(provider) }),
+				});
+				assert.strictEqual(stored.status, 200);
+				assert.notInclude(yield* stored.text, secretFor(provider));
+
+				const read = yield* http.get(`/api/secrets/${provider}`);
+				assert.notInclude(yield* read.text, secretFor(provider));
+			}
+
+			// The one body that carries every provider at once is the one worth
+			// checking against every key at once.
+			const all = yield* http.get("/api/secrets");
+			const body = yield* all.text;
+			for (const provider of AI_PROVIDERS) {
+				assert.notInclude(body, secretFor(provider));
+			}
+		}).pipe(Effect.provide(HttpLive));
+	});
+});
+
+describe("the status of every provider at once", () => {
+	it.effect("answers for the whole catalogue, in catalogue order", () => {
+		useKey(KEY);
+		return Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			yield* client.secrets.put({
+				path: { name: "anthropic" },
+				payload: { value: secretFor("anthropic") },
+			});
+
+			const statuses = yield* client.secrets.list();
+
+			// Exhaustive, not "the ones with a row": a settings page renders the
+			// providers mamen supports, so an absent credential is an entry that
+			// says absent, not a missing entry.
+			assert.deepStrictEqual(
+				statuses.map((_) => _.name),
+				[...AI_PROVIDERS],
+			);
+			const configured = statuses.filter((_) => _.configured);
+			assert.deepStrictEqual(
+				configured.map((_) => _.name),
+				["anthropic"],
+			);
+			assert.strictEqual(configured[0]?.hint, "sk-anth…ant");
+			for (const status of statuses.filter((_) => !_.configured)) {
+				assert.isNull(status.hint);
+			}
+		}).pipe(Effect.provide(HttpLive));
+	});
+
+	it.effect("reports an unreadable credential as present, not absent", () => {
+		useKey(KEY);
+		return Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			yield* client.secrets.put({
+				path: { name: "openai" },
+				payload: { value: secretFor("openai") },
+			});
+
+			useKey(ROTATED_KEY);
+			const statuses = yield* client.secrets.list();
+			const openai = statuses.find((_) => _.name === "openai");
+
+			assert.isTrue(openai?.configured);
+			assert.isNull(openai?.hint ?? null);
+		}).pipe(Effect.provide(HttpLive));
+	});
+});
+
+describe("an unknown provider id", () => {
+	it.effect("is refused rather than stored", () => {
+		useKey(KEY);
+		const stray = "sk-mistral-api03-Kj28fnQ2xLmPqR7v-3f9";
+		return Effect.gen(function* () {
+			const http = yield* HttpClient.HttpClient;
+			const response = yield* http.put("/api/secrets/mistral", {
+				body: HttpBody.unsafeJson({ value: stray }),
+			});
+			const body = yield* response.text;
+
+			// The name is a path param over a closed literal, so an unknown vendor
+			// fails decode at the edge — a 400, not a row under a name nothing can
+			// ever read back.
+			assert.strictEqual(response.status, 400);
+			assert.notInclude(body, stray);
+
+			// And it wrote nothing: the catalogue still reports every provider
+			// absent, and there is no fifth entry.
+			const client = yield* HttpApiClient.make(Api);
+			const statuses = yield* client.secrets.list();
+			assert.strictEqual(statuses.length, AI_PROVIDERS.length);
+			assert.isFalse(statuses.some((_) => _.configured));
+		}).pipe(Effect.provide(HttpLive));
+	});
+
+	it.effect("cannot be read or cleared either", () => {
+		useKey(KEY);
+		return Effect.gen(function* () {
+			const http = yield* HttpClient.HttpClient;
+			const read = yield* http.get("/api/secrets/mistral");
+			assert.strictEqual(read.status, 400);
+
+			const cleared = yield* http.del("/api/secrets/mistral");
+			assert.strictEqual(cleared.status, 400);
 		}).pipe(Effect.provide(HttpLive));
 	});
 });

@@ -5519,6 +5519,44 @@
         }
       }
     },
+    "/api/secrets": {
+      "get": {
+        "tags": [
+          "Secrets"
+        ],
+        "operationId": "secrets.list",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SecretStatus"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        }
+      }
+    },
     "/api/secrets/{name}": {
       "get": {
         "tags": [
@@ -5532,7 +5570,10 @@
             "schema": {
               "type": "string",
               "enum": [
-                "anthropic"
+                "claude-code",
+                "anthropic",
+                "google",
+                "openai"
               ]
             },
             "required": true
@@ -5577,7 +5618,10 @@
             "schema": {
               "type": "string",
               "enum": [
-                "anthropic"
+                "claude-code",
+                "anthropic",
+                "google",
+                "openai"
               ]
             },
             "required": true
@@ -5642,7 +5686,10 @@
             "schema": {
               "type": "string",
               "enum": [
-                "anthropic"
+                "claude-code",
+                "anthropic",
+                "google",
+                "openai"
               ]
             },
             "required": true
@@ -7025,7 +7072,10 @@
           "name": {
             "type": "string",
             "enum": [
-              "anthropic"
+              "claude-code",
+              "anthropic",
+              "google",
+              "openai"
             ]
           },
           "configured": {

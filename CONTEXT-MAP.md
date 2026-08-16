@@ -255,9 +255,37 @@ repeated per package.
   (real tag logged server-side); `InvalidFileType` is the one other, client-
   fixable, error. See [ADR 0005](./docs/adr/0005-pdf-extraction-runs-server-side.md).
 
-- **Stored credential** — a secret the user pasted (an AI provider's API key),
-  held **encrypted** in `encrypted_secrets`, one row per name. It travels in one
-  direction only. Outward — to a handler, the SDK, the browser — it is a **secret
+- **AI provider** — who runs an **AI task**: the local `claude-code` CLI, or one
+  of the hosted vendors `anthropic`, `google`, `openai`. It is the unit a
+  **stored credential** is keyed by, and it is **named directly, never parsed
+  out of a model id** — the code fetching a key has to be able to say whose key
+  it wants. `claude-code` is the default and stays so on a fresh install, so a
+  statement never reaches a vendor the user did not choose; a *hosted* provider
+  is defined as "not the local one", so a provider added later is hosted until
+  someone says otherwise. The set, the labels, the models and the predicates
+  over them live in one leaf module, `shared/src/contract/ai.ts`.
+  _Avoid_: vendor, backend, model provider (a provider is chosen per task; the
+  model is a second, narrower choice).
+
+- **Curated model list** — the models mamen offers per **AI provider**, a short
+  hand-picked list rather than free text, because a provider/model pairing is
+  refused at save time and that refusal needs something to check against. **The
+  first entry is that provider's default and is the cheap, fast one**, so
+  switching vendor never silently lands a user on the priciest model. Model ids
+  are stored **bare** (`claude-haiku-4-5`) — the provider is already known, so a
+  vendor prefix would be the same fact written twice and
+  `anthropic/claude-haiku-4-5` is a model nobody serves.
+  _Avoid_: model catalogue, supported models (both suggest completeness; this is
+  the set worth offering, not the set that exists).
+
+- **AI task** — a job an **AI provider** and model can be chosen for. One member,
+  `extract-pdf`: pulling transactions out of an uploaded PDF bank statement.
+
+- **Stored credential** — a secret the user pasted (an **AI provider**'s API
+  key), held **encrypted** in `encrypted_secrets`, one row per provider — the
+  credential store is keyed by the provider set itself, so there is no secret in
+  mamen that is not some provider's credential. It travels in one direction
+  only. Outward — to a handler, the SDK, the browser — it is a **secret
   status**: `{ configured, hint }`, never the value and never the ciphertext.
   Inward — to an in-process caller about to spend it — it is the plaintext,
   through a reader that is not on the secrets module's barrel. Exactly one module
