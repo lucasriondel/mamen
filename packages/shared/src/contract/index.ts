@@ -16,6 +16,14 @@ export {
 	isHostedProvider,
 	isModelOfProvider,
 } from "./ai";
+export {
+	AiTaskChange,
+	AiTaskPatch,
+	AiTaskSetting,
+	AiTaskSettings,
+	AiTasksGroup,
+	ResolvedAiTask,
+} from "./ai-tasks";
 export { AnomalyFlag, AnomalyType } from "./anomaly";
 export { Api } from "./api";
 export { AppSettings, AppSettingsGroup } from "./app-settings";
@@ -49,6 +57,7 @@ export {
 	LogoSearchUnconfigured,
 	NotFound,
 	SecretRejected,
+	TaskProviderRejected,
 	TransferInvalid,
 } from "./errors";
 export { Health, HealthGroup } from "./health";

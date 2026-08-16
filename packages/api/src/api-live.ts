@@ -2,6 +2,7 @@ import { HttpApiBuilder } from "@effect/platform";
 import { Api } from "@mamen/shared/contract";
 import { Layer } from "effect";
 import { AccountsLive } from "./accounts/handlers";
+import { AiTasksLive } from "./ai-tasks";
 import { AppSettingsLive } from "./app-settings/handlers";
 import { CategoriesLive } from "./categories/handlers";
 import { DatabaseLive } from "./database/handlers";
@@ -43,6 +44,7 @@ export const ApiLive = HttpApiBuilder.api(Api).pipe(
 		SubscriptionsLive,
 		SettingsLive,
 		SecretsLive,
+		AiTasksLive,
 		AppSettingsLive,
 		DatabaseLive,
 		ImportLive,

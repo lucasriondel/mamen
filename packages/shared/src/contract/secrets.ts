@@ -6,7 +6,7 @@ import {
 } from "@effect/platform";
 import { Schema } from "effect";
 import { AiProvider } from "./ai";
-import { SecretRejected } from "./errors";
+import { SecretRejected, TaskProviderRejected } from "./errors";
 
 /**
  * The set of stored credentials, by name — **the AI provider set itself**
@@ -99,6 +99,12 @@ export const SecretStatuses = Schema.Array(SecretStatus);
  * state the caller asked for and it holds either way. Neither declares
  * `NotFound` for that reason; `status` doesn't either, since *absent* is a
  * status, not a missing resource.
+ *
+ * `clear` is also the **second checked write door** (issue #119): deleting a
+ * credential is the other way — beside patching a task — into a task pointing at
+ * a provider that cannot run it, so it refuses with `TaskProviderRejected` when
+ * some task is running on this vendor today. Idempotence is untouched: a
+ * credential nobody is using clears whether or not it was ever there.
  */
 export class SecretsGroup extends HttpApiGroup.make("secrets")
 	.add(HttpApiEndpoint.get("list")`/secrets`.addSuccess(SecretStatuses))
@@ -120,8 +126,8 @@ export class SecretsGroup extends HttpApiGroup.make("secrets")
 	.add(
 		HttpApiEndpoint.del(
 			"clear",
-		)`/secrets/${HttpApiSchema.param("name", SecretName)}`.addSuccess(
-			SecretStatus,
-		),
+		)`/secrets/${HttpApiSchema.param("name", SecretName)}`
+			.addSuccess(SecretStatus)
+			.addError(TaskProviderRejected),
 	)
 	.annotateContext(OpenApi.annotations({ title: "Secrets" })) {}

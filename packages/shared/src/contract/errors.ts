@@ -1,5 +1,6 @@
 import { HttpApiSchema } from "@effect/platform";
 import { Schema } from "effect";
+import { AiProvider, AiTask } from "./ai";
 
 /**
  * The domain error set for the whole contract. Each is a `Schema.TaggedError`
@@ -373,6 +374,47 @@ export class SecretRejected extends Schema.TaggedError<SecretRejected>()(
 	"SecretRejected",
 	{
 		reason: Schema.Literal("blank", "too-short"),
+	},
+	HttpApiSchema.annotations({ status: 422 }),
+) {}
+
+/**
+ * An **AI task** would have been left pointing at a provider that cannot run it
+ * (issue #119, PRD #115). The one rule the save-time check exists to keep, and
+ * the same error whichever of the two doors raised it — patching a task's
+ * provider/model, or deleting a credential a task is pointed at.
+ *
+ * It names the `task` that cannot run and the `provider` it would have run on,
+ * because a patch may touch several tasks and "which one was wrong" is the only
+ * thing the user can act on. It carries **no credential of any kind** — not a
+ * value, not a hint — for the reasons {@link SecretRejected} carries none.
+ *
+ * - `model-not-served` — the provider does not serve that model. Checked
+ *   **before** the credential: an impossible pairing is wrong whether or not a
+ *   key exists, and telling the user to go and store a key would send them to
+ *   fix the wrong thing.
+ * - `no-credential` — a hosted vendor with nothing stored. `claude-code` never
+ *   raises this: its token is a run-time concern, and checking it here would
+ *   refuse every save on a fresh install, including the save that switches away
+ *   from it.
+ * - `credential-in-use` — the deletion door: clearing this credential would turn
+ *   a task that runs today into one that cannot. Raised only when the deletion
+ *   is what breaks it, so a task already unrunnable for some other reason does
+ *   not hold an unrelated key hostage.
+ *
+ * 422, like every other refusal of a well-formed request carrying a value this
+ * server will not store.
+ */
+export class TaskProviderRejected extends Schema.TaggedError<TaskProviderRejected>()(
+	"TaskProviderRejected",
+	{
+		task: AiTask,
+		provider: AiProvider,
+		reason: Schema.Literal(
+			"model-not-served",
+			"no-credential",
+			"credential-in-use",
+		),
 	},
 	HttpApiSchema.annotations({ status: 422 }),
 ) {}
