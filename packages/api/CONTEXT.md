@@ -149,7 +149,8 @@ decided earlier: `resolve` is `TaskProvider`'s resolver (**task resolution**), s
 the runner asks the same question the **checked write doors** answer, and
 `credential` is `readSecret`, the secrets module's inward plaintext reader — the
 deep import past `secrets/index.ts` is the design, and `secrets/boundary.test.ts`
-names this as its one caller. Nothing here decrypts or holds a key.
+names this and the **stored CLI token** as its only two callers. Nothing here
+decrypts or holds a key.
 
 The **hosted branch is refused at this seam**, through the same `generateHosted`
 argument a test would fake: it is not wired (a statement can only reach a vendor
@@ -157,6 +158,33 @@ as a document part, blocked upstream — PRD #115), and the previous ticket alre
 lets a hosted provider be *selected*, so without the refusal a bank statement
 would be posted to a vendor under a prompt naming a path on this machine. The
 refusal collapses to `ExtractionFailed` like every other upstream tag.
+
+**Stored CLI token**:
+`ClaudeConfigStored` (`ai-runner/claude.ts`) — the `claude-code-effect` config
+whose token is read from the **credential store**, per call, and from nowhere
+else (issue #122). `CLAUDE_CODE_OAUTH_TOKEN` is not read: a credential mamen also
+took from the environment would have two homes, one of which goes on looking live
+in a deployment config after it stopped being read. The **effect form** of
+`ClaudeConfig.token` is what makes it per-call, so a token pasted a moment ago
+runs the next extraction without rebuilding a layer on the hot path. Two things
+follow, and both are the ticket rather than side effects: `ClaudeCodeProdLive`
+can no longer fail at build, so **the API starts with no token stored**, and
+`ClaudeTokenMissingError` becomes a per-call failure — which `import/extract.ts`
+turns into the one client-actionable extraction error (**provider not
+configured**). The binary path and the timeout stay environment configuration:
+they are facts about the machine, not credentials.
+
+**Provider not configured**:
+`AiProviderNotConfigured` (501) — the single failure `import/extract.ts` holds
+**out of** the collapse into `ExtractionFailed`. Three upstream tags mean the
+same thing to whoever uploaded the file (no Claude Code token; the runner finding
+no key for a hosted vendor; the resolver's `no-credential` refusal) and have the
+same answer — paste a credential — so they become one named error that names the
+task and the provider. `TaskProviderRejected`'s *other* reasons are deliberately
+not folded in: a model the vendor does not serve is a different fix, and sending
+the user to store a key would send them to fix the wrong thing. Everything else
+still collapses, and the mapper answers `null` by default so that stays the rule
+rather than a list somebody has to keep exhaustive.
 
 **Task table**:
 `ai-runner/tasks.ts` — every **AI task** as data: the output contract, the CLI's
@@ -196,8 +224,9 @@ status** — a boolean and a masked hint — and crosses in only through
 (ADR 0011). `secrets/repository.ts` is **the only module that decrypts**, so the
 question "where can a credential become readable" is answered by opening one
 file. Held by `secrets/boundary.test.ts`: no other module imports `decrypt`, no
-other module reads the `encrypted_secrets` table, and the barrel exports the
-outward surface and nothing else. The outward repository has no method that
+other module reads the `encrypted_secrets` table, the reader's in-process callers
+are named one by one (two, both in `ai-runner/` — one per transport that spends a
+credential), and the barrel exports the outward surface and nothing else. The outward repository has no method that
 returns a plaintext, which is what makes the group layer above it structurally
 unable to leak one — asserted against the **built** service's method list, so a
 fourth outward method has to redden it rather than being reviewed for.

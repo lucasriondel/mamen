@@ -1,3 +1,4 @@
+import type { SqlClient } from "@effect/sql";
 import {
 	type ClaudeCode,
 	ClaudeCodeLive,
@@ -6,6 +7,7 @@ import {
 	type SpawnHandler,
 } from "claude-code-effect";
 import { Duration, Effect, Layer, Option, Redacted } from "effect";
+import { ClaudeConfigStored } from "../ai-runner/claude";
 
 /**
  * Test wiring for the `ClaudeCode` service — the analog of {@link DatabaseTest}
@@ -14,8 +16,17 @@ import { Duration, Effect, Layer, Option, Redacted } from "effect";
  * `ClaudeCode` in context; these helpers supply one backed by the SDK's
  * deep-fake executor, so no real `claude` binary or token is ever needed in CI.
  *
- * A fixed config (dummy token, 120s timeout) stands in for the env-read
- * `ClaudeConfigLive`, so the build-time token check never fires under test.
+ * There are two config forms, because since issue #122 production has one that a
+ * fixed literal cannot stand in for:
+ *
+ * - {@link claudeCodeTestLayer} pins a dummy token, for the suites whose subject
+ *   is anything but the token — extraction's rows, the temp dir, the failure
+ *   collapse — and for the many handler tests that must satisfy `ApiLive`'s
+ *   `ClaudeCode` requirement without ever calling it.
+ * - {@link claudeCodeStoredTokenLayer} builds on the **production**
+ *   {@link ClaudeConfigStored}, so a test that is about the stored token
+ *   exercises the real per-call read against a `:memory:` database rather than a
+ *   second implementation of it. It requires `SqlClient` for that reason.
  */
 const TestConfig = Layer.succeed(ClaudeConfig, {
 	token: Redacted.make("test-token"),
@@ -37,6 +48,24 @@ export const claudeCodeTestLayer = (
 	ClaudeCodeLive.pipe(
 		Layer.provide(ClaudeCodeTest.handler(handler)),
 		Layer.provide(TestConfig),
+	);
+
+/**
+ * The same deep-fake spawn, over the **production** config — so the token comes
+ * from the encrypted store, per call, exactly as it does in `ServerLive`.
+ *
+ * What this makes testable is the whole of issue #122: that a token pasted
+ * through `PUT /secrets/claude-code` reaches the child process's environment,
+ * that one never pasted is a per-request failure rather than a dead API, and
+ * that the environment is not consulted either way. Requires `SqlClient`, which
+ * a handler test already has from {@link DatabaseTest}.
+ */
+export const claudeCodeStoredTokenLayer = (
+	handler: SpawnHandler,
+): Layer.Layer<ClaudeCode, never, SqlClient.SqlClient> =>
+	ClaudeCodeLive.pipe(
+		Layer.provide(ClaudeCodeTest.handler(handler)),
+		Layer.provide(ClaudeConfigStored),
 	);
 
 /**

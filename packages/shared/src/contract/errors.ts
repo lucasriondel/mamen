@@ -420,6 +420,38 @@ export class TaskProviderRejected extends Schema.TaggedError<TaskProviderRejecte
 ) {}
 
 /**
+ * A run was asked of an **AI provider** that has no credential stored (issue
+ * #122, PRD #115) — the Claude Code token was never pasted, or a hosted vendor's
+ * key was cleared between the save-time check and the run.
+ *
+ * It is the **one extraction failure that is client-actionable**, which is the
+ * whole reason it is not {@link ExtractionFailed}. Every other upstream tag
+ * still collapses to that opaque, retry-able 502 (ADR 0005): retrying is the
+ * only thing left to try. Here retrying is exactly what does not help — someone
+ * has to go to the AI settings page and paste a credential — so the client has
+ * to be able to tell the two apart, and does, by the `_tag`.
+ *
+ * It names the `task` that could not run and the `provider` it would have run
+ * on, so the page can point at the tile to fill in. Like every other error that
+ * touches a credential it carries **no value and no hint**: there is nowhere in
+ * this type for a secret to hide.
+ *
+ * 501, matching {@link LogoSearchUnconfigured}, the other "this deployment has
+ * not been configured for that" refusal: nothing about waiting helps, so 503
+ * would invite a retry that cannot succeed, and the 502 next door already means
+ * "try again". The status is distinct from both errors `extractPdf` can
+ * otherwise return, so a client decoding by status alone still tells them apart.
+ */
+export class AiProviderNotConfigured extends Schema.TaggedError<AiProviderNotConfigured>()(
+	"AiProviderNotConfigured",
+	{
+		task: AiTask,
+		provider: AiProvider,
+	},
+	HttpApiSchema.annotations({ status: 501 }),
+) {}
+
+/**
  * Decodes a query-string boolean ("true" / "false") into a real boolean. Query
  * params are always strings, so boolean list filters (e.g. `isRefund`) use this.
  */

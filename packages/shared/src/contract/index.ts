@@ -43,6 +43,7 @@ export {
 	DbOk,
 } from "./database";
 export {
+	AiProviderNotConfigured,
 	BooleanFromString,
 	BundleInvalid,
 	CategoryHoldsMoney,

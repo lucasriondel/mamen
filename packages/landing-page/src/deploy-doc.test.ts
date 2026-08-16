@@ -91,8 +91,15 @@ describe("the Cloudflare Access section", () => {
 describe("the environment tables", () => {
 	it("name every variable the API reads, and the upstream web needs", () => {
 		for (const name of apiConfigEnv) expect(DEPLOY).toContain(name);
-		expect(DEPLOY).toContain("CLAUDE_CODE_OAUTH_TOKEN");
 		expect(DEPLOY).toContain("API_UPSTREAM");
+	});
+
+	it("no longer carries the claude token as deployment configuration", () => {
+		// Since issue #122 the Claude Code token is a credential pasted in the app,
+		// read from the encrypted store and from nowhere else. A row for it in a
+		// deploy's environment table is a secret an operator would keep rotating
+		// into a variable nothing reads — and would believe was live.
+		expect(DEPLOY).not.toContain("CLAUDE_CODE_OAUTH_TOKEN");
 	});
 
 	it("documents the host as configuration, defaulting to this install's", () => {

@@ -10,9 +10,10 @@ account, import batch, and month are stamped client-side at commit, issue #45).
 ## Why server-side
 
 **The credential can't live in the browser.** Extraction spawns the `claude`
-CLI, which needs `CLAUDE_CODE_OAUTH_TOKEN`. Shipping that to a web client would
-leak it to every user and to the network tab. The token stays an API-process
-secret; the browser only ever sees the extracted rows.
+CLI, which authenticates with an OAuth token (written into the child process's
+environment at the spawn, and nowhere else). Shipping that to a web client would
+leak it to every user and to the network tab. The token stays server-side; the
+browser only ever sees the extracted rows.
 
 **The model reads the file itself.** `generateObject` runs the CLI with its own
 `Read` tool (`addDirs` scopes it to the staged file, `allowedTools: ["Read"]`
@@ -70,10 +71,10 @@ the leak.
 ## Operational consequence
 
 Running extraction server-side means the API process needs the `claude` CLI on
-`PATH` and `CLAUDE_CODE_OAUTH_TOKEN` in its environment, in both local dev and
-deploy. The token is validated at **layer build**, so a missing token takes the
-whole API down at startup rather than failing per-upload. The runbook for both
-environments is
+`PATH`, in both local dev and deploy, and a **Claude Code token** — which since
+issue #122 is a credential pasted on the AI settings page and read from the
+encrypted store, not an environment variable (see the amendment below). The
+runbook for both environments is
 [`docs/operations/claude-cli-dependency.md`](../operations/claude-cli-dependency.md).
 
 ## Amendment (issue #121) — the CLI is a transport, not the only one
@@ -100,6 +101,34 @@ Two details are worth naming because they were not obvious:
   extraction failure (a task whose provider has no credential) is a separate,
   distinguishable error that lands with the settings page, per PRD #115.
 
-The operational consequence above is **unchanged**: the token still comes from
-the environment and is still validated at layer build. Moving it into the
-credential store is a later slice, and this section is amended then.
+## Amendment (issue #122) — the token is a credential, not an environment variable
+
+The Claude Code token has moved into the **encrypted credential store** (ADR
+0011) under the `claude-code` provider name. It is pasted on the AI settings page
+like any other credential, and there is **no environment fallback**:
+`CLAUDE_CODE_OAUTH_TOKEN` is not read. A token nobody pasted does not exist.
+
+Two consequences, both accepted deliberately and both named here because they
+make diagnosis *worse* before the surfaces built in #120 and #121 make it better:
+
+- **The build-time check is gone.** The token is the effect form of
+  `ClaudeConfig.token` (claude-code-effect 0.2.0), resolved **per call**, so the
+  API starts fine with nothing stored and a missing token is a per-request
+  failure. That is what lets a token pasted a moment ago run the next extraction
+  without a restart — and it is why "the whole API is down" is no longer the
+  symptom of a missing token.
+- **One failure is held out of the collapse.** *The provider has no credential
+  stored* is `AiProviderNotConfigured` (501), not `ExtractionFailed`. It is the
+  one extraction failure that is client-actionable, so the client can send the
+  user to Settings instead of offering a retry that cannot succeed. Every other
+  upstream tag still collapses to the opaque 502 exactly as above — this is a
+  narrow, named exception, not a widening.
+
+The credential still never reaches the browser, which is the reason extraction
+runs server-side at all: it moved from one server-side home (the process
+environment) to another (an encrypted row), and the boundary that keeps it there
+is ADR 0011's.
+
+The `claude` binary on `PATH` remains an environment fact, and the CLI's other
+settings (`CLAUDE_BIN`, `CLAUDE_TIMEOUT_MS`) remain environment configuration:
+they are facts about the machine running the CLI, not credentials.

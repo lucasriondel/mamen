@@ -254,9 +254,30 @@ repeated per package.
   `claude-code-effect`, exactly as before. The upload lives only in a **transient
   temp dir** deleted on every exit path — nothing persists, no row is written.
   The whole extraction failure taxonomy collapses to a single client-visible
-  **`ExtractionFailed`** (real tag logged server-side); `InvalidFileType` is the
-  one other, client-fixable, error. See
+  **`ExtractionFailed`** (real tag logged server-side); `InvalidFileType` and
+  **`AiProviderNotConfigured`** are the two other, client-fixable, errors. See
   [ADR 0005](./docs/adr/0005-pdf-extraction-runs-server-side.md).
+
+- **Provider not configured** — `AiProviderNotConfigured` (501), the one
+  extraction failure held **out of** the collapse into `ExtractionFailed`: the
+  **AI provider** this task runs on has no **stored credential**, so nothing ran.
+  It is separate because it is the only one a retry cannot fix — the answer is to
+  paste a credential — so the client tells the two apart by tag and routes the
+  user to the **AI settings page** instead of back to the drop zone. It names the
+  task and the provider, and carries no credential of any kind. Most often it
+  means no **Claude Code token** has been pasted.
+  _Avoid_: unauthorized, auth error (nothing was refused by a vendor; nothing was
+  sent).
+
+- **Claude Code token** — the OAuth token the local `claude` CLI authenticates
+  with (`claude setup-token`). Since issue #122 it is a **stored credential**
+  like any other, under the `claude-code` provider, **with no environment
+  fallback** — a token nobody pasted does not exist. It resolves **per
+  extraction**, so a token pasted a moment ago runs the next import and a rotated
+  one needs no restart; the cost is that the API now starts happily with none
+  stored, which is why the absence is a **provider not configured** failure the
+  settings page can explain rather than a silent one.
+  _Avoid_: `CLAUDE_CODE_OAUTH_TOKEN` (the environment variable is not read).
 
 - **AI runner** — the one thing that runs an **AI task**: it asks the
   **task choice** which **AI provider** and model this task is on, and branches
@@ -326,8 +347,9 @@ repeated per package.
   fresh install, including the save that switches away from it.
   _Avoid_: validation (it is a refusal to store, not a parse of what was sent).
 
-- **Stored credential** — a secret the user pasted (an **AI provider**'s API
-  key), held **encrypted** in `encrypted_secrets`, one row per provider — the
+- **Stored credential** — a secret the user pasted (an **AI provider**'s API key,
+  or the **Claude Code token**), held **encrypted** in `encrypted_secrets`, one
+  row per provider — the
   credential store is keyed by the provider set itself, so there is no secret in
   mamen that is not some provider's credential. It travels in one direction
   only. Outward — to a handler, the SDK, the browser — it is a **secret
@@ -337,8 +359,9 @@ repeated per package.
   decrypts. A refused paste is described by a **reason code** (`blank`,
   `too-short`) and never quoted back. See
   [ADR 0011](./docs/adr/0011-credentials-are-encrypted-at-rest.md).
-  _Avoid_: API key setting, token (the environment holds tokens; this is the
-  store that replaces them).
+  _Avoid_: API key setting, environment secret (since issue #122 the environment
+  holds no AI credential at all; this store is the one home for every one of
+  them, the **Claude Code token** included).
 
 - **Masked hint** — the only rendering of a **stored credential** that leaves the
   server: first seven characters, `…`, last three (`sk-ant-…3f9`) — enough to

@@ -1,8 +1,12 @@
 import { type AccountId, MAX_PDF_BYTES } from "@mamen/shared/contract";
+import { Link } from "@tanstack/react-router";
 import { type DragEvent, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { importMutations } from "@/lib/sdk";
-import { pdfExtractionErrorMessage } from "@/lib/sdk-error";
+import {
+	aiProviderNotConfigured,
+	pdfExtractionErrorMessage,
+} from "@/lib/sdk-error";
 import { FormatPicker } from "./format-picker";
 import { InlineAccountSelect } from "./inline-account-select";
 import { parseCsvFile } from "./parse-file";
@@ -42,6 +46,21 @@ export function UploadStep({
 }) {
 	const [dragging, setDragging] = useState(false);
 
+	/**
+	 * Whether the last extraction failed for the one reason the user fixes
+	 * *elsewhere* — no credential stored for the provider the task runs on (issue
+	 * #122). The alert then carries a link to the AI settings page, because
+	 * telling someone where to go and taking them there are not the same thing,
+	 * and this is the only extraction failure where the drop zone in front of them
+	 * is the wrong answer.
+	 *
+	 * Local rather than in the reducer: the reducer's `error` is the sentence, and
+	 * this is a fact about the *last* failure that nothing else in the wizard —
+	 * preview, commit, hand-off — has any use for. Cleared for every dropped file,
+	 * so it can only ever describe the attempt whose alert is on screen.
+	 */
+	const [notConfigured, setNotConfigured] = useState(false);
+
 	const handlePdf = async (file: File) => {
 		// Oversize is rejected upstream by the multipart parser as a framework
 		// error, not `InvalidFileType`, so it would otherwise fall through to the
@@ -69,6 +88,7 @@ export function UploadStep({
 				extractionMs: performance.now() - startedAt,
 			});
 		} catch (error) {
+			setNotConfigured(aiProviderNotConfigured(error) !== null);
 			dispatch({
 				type: "extract-error",
 				message: pdfExtractionErrorMessage(error),
@@ -94,8 +114,13 @@ export function UploadStep({
 		}
 	};
 
-	const handleFile = (file: File) =>
-		isPdf(file) ? handlePdf(file) : handleCsv(file);
+	// Cleared here rather than per branch: every dropped file is a fresh attempt,
+	// and a CSV that then fails to parse must not inherit the previous PDF's link
+	// to Settings.
+	const handleFile = (file: File) => {
+		setNotConfigured(false);
+		return isPdf(file) ? handlePdf(file) : handleCsv(file);
+	};
 
 	const onDrop = (event: DragEvent<HTMLElement>) => {
 		event.preventDefault();
@@ -147,6 +172,14 @@ export function UploadStep({
 			{state.error ? (
 				<p role="alert" className="text-sm text-gousse-high">
 					{state.error}
+					{notConfigured ? (
+						<>
+							{" "}
+							<Link to="/settings" className="underline">
+								Open AI settings
+							</Link>
+						</>
+					) : null}
 				</p>
 			) : null}
 

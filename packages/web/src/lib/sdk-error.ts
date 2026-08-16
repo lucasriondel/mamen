@@ -129,9 +129,44 @@ export function toErrorMessage(error: unknown): string {
 			return secretRejectedMessage(error);
 		case "TaskProviderRejected":
 			return taskProviderRejectedMessage(error);
+		case "AiProviderNotConfigured":
+			return aiProviderNotConfiguredMessage(error);
 		default:
 			return "Something went wrong. Please try again.";
 	}
+}
+
+/**
+ * The run-time refusal (`AiProviderNotConfigured`, issue #122): the provider a
+ * task runs on has no credential stored — most often the Claude Code token,
+ * which since #122 is pasted in the app and read from nowhere else.
+ *
+ * The sentence names the provider and sends the user to Settings, because that
+ * is the only thing that fixes it: unlike every other extraction failure, a
+ * retry cannot succeed. Whether the surface can offer an actual link is
+ * {@link aiProviderNotConfigured}'s business; this line reads correctly either
+ * way.
+ */
+export function aiProviderNotConfiguredMessage(error: unknown): string {
+	const provider = (error as { provider?: AiProvider }).provider;
+	const label =
+		provider === undefined
+			? "That AI provider"
+			: (AI_PROVIDER_LABELS[provider] ?? provider);
+
+	return `${label} has no credential stored, so nothing could run. Paste one in Settings, then try again.`;
+}
+
+/**
+ * If `error` is `AiProviderNotConfigured`, the provider it names; otherwise
+ * `null`. Lets a surface route the user — an actual link to the AI settings page
+ * — rather than only telling them where to go, without re-implementing the
+ * `_tag` narrowing. Mirrors {@link categoryHoldsMoney}, the other error a view
+ * branches on rather than only renders.
+ */
+export function aiProviderNotConfigured(error: unknown): AiProvider | null {
+	if (tagOf(error) !== "AiProviderNotConfigured") return null;
+	return (error as { provider?: AiProvider }).provider ?? null;
 }
 
 /**
@@ -219,6 +254,11 @@ function transferInvalidMessage(error: unknown): string {
  * - `InvalidFileType`: wrong MIME or over the 10 MB cap — a distinct, actionable
  *   line (the generic {@link toErrorMessage} "type isn't supported" is too terse
  *   here and is shared with the issuer-image path, so it stays untouched).
+ * - `AiProviderNotConfigured`: no credential stored for the provider this task
+ *   runs on (issue #122). The one extraction failure where a retry is the wrong
+ *   advice, which is exactly why the server keeps it out of the collapse — so
+ *   this is the one line that sends the user somewhere instead of back to the
+ *   drop zone.
  *
  * Any other throwable (network failure, unknown tag) falls back to the retry
  * wording — from the user's seat it's the same "extraction didn't complete".
@@ -227,6 +267,8 @@ export function pdfExtractionErrorMessage(error: unknown): string {
 	switch (tagOf(error)) {
 		case "InvalidFileType":
 			return "That file isn't a supported PDF. Upload a PDF bank statement under 10 MB, or import a CSV export instead.";
+		case "AiProviderNotConfigured":
+			return aiProviderNotConfiguredMessage(error);
 		default:
 			return "We couldn't extract transactions from that PDF. Try dropping it again, or import a CSV export from your bank instead.";
 	}

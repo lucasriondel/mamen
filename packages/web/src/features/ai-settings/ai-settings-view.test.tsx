@@ -209,6 +209,36 @@ describe("the credentials grid", () => {
 		);
 	});
 
+	// Issue #122: the Claude Code token stopped being an environment variable and
+	// became a credential like the other three — so it is pasted here, through
+	// the same tile and the same mutation, and its stored state is visible on the
+	// page that has to answer "is my token set?" when PDF import stops working.
+	it("stores the Claude Code token like any other credential", async () => {
+		const user = userEvent.setup();
+		render(<AiSettingsView />);
+
+		// Labelled as an OAuth token, not an API key: the CLI's credential comes
+		// from `claude setup-token`, and calling it a key sends the user to the
+		// Anthropic console for the wrong thing.
+		const field = await screen.findByLabelText("Claude Code OAuth token");
+		await user.type(field, "sk-ant-oat01-3fQ2xLmPqR7v-KjnW8sd");
+		await user.click(
+			within(tile("Claude Code")).getByRole("button", { name: "Save" }),
+		);
+
+		await waitFor(() =>
+			expect(putSecret).toHaveBeenCalledWith(
+				"claude-code",
+				"sk-ant-oat01-3fQ2xLmPqR7v-KjnW8sd",
+			),
+		);
+		await waitFor(() =>
+			expect(
+				within(tile("Claude Code")).getByText("Stored"),
+			).toBeInTheDocument(),
+		);
+	});
+
 	it("never renders the pasted value once it has been sent", async () => {
 		const KEY = "sk-ant-api03-secret-value-3f9";
 		const user = userEvent.setup();

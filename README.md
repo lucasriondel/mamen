@@ -85,8 +85,7 @@ under — and depends on nothing else in the repo.
 
 You need [Bun](https://bun.sh) — the repo pins `bun@1.3.4` — and, for PDF import,
 the [`claude` CLI](https://docs.claude.com/en/docs/claude-code/overview) on your
-`PATH`. The token that CLI authenticates with is needed either way, PDF import or
-not; see below.
+`PATH`.
 
 ```sh
 git clone https://github.com/lucasriondel/mamen.git
@@ -95,16 +94,21 @@ bun install
 ```
 
 The API reads its environment from `packages/api/.env` (Bun loads it
-automatically). One variable is **required**:
+automatically). Everything there has a working default except the key that
+encrypts stored credentials, which has none on purpose — a default would be a
+published encryption key:
 
 ```sh
 # packages/api/.env
-CLAUDE_CODE_OAUTH_TOKEN=<your-claude-oauth-token>
+TOKEN_ENCRYPTION_KEY=<64 hex characters — openssl rand -hex 32>
 ```
 
-That token is checked when the server's layers are built, not when a PDF is
-uploaded — so without it **the whole API fails to start**, not just PDF import.
-It is the first thing to check when the server won't boot. See
+The app starts without it and every feature but AI credentials works. **AI
+credentials are not environment variables**: you paste each provider's key —
+including the Claude Code token PDF import runs on (`claude setup-token`) — on
+the **Settings** page, and mamen stores it encrypted with the key above. A
+missing Claude Code token breaks PDF import alone, says so in the import screen,
+and links you to Settings. See
 [docs/operations/claude-cli-dependency.md](docs/operations/claude-cli-dependency.md).
 
 Then:

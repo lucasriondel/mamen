@@ -38,14 +38,15 @@ disagree is a real regression even when every test passes.
 ## Getting set up
 
 You need [Bun](https://bun.sh) — the repo pins `bun@1.3.4` — and a
-`CLAUDE_CODE_OAUTH_TOKEN` in the API's environment, without which the API does
-not boot at all (the `claude` CLI itself is only needed if you exercise PDF
-import). [README.md](README.md#running-it-locally) has the full setup; the short
-version:
+`TOKEN_ENCRYPTION_KEY` in the API's environment, without which no AI credential
+can be stored (the `claude` CLI and a Claude Code token are only needed if you
+exercise PDF import, and that token is pasted in **Settings**, not in the
+environment). [README.md](README.md#running-it-locally) has the full setup; the
+short version:
 
 ```sh
 bun install
-echo 'CLAUDE_CODE_OAUTH_TOKEN=<your-token>' > packages/api/.env
+echo "TOKEN_ENCRYPTION_KEY=$(openssl rand -hex 32)" > packages/api/.env
 bun dev
 ```
 

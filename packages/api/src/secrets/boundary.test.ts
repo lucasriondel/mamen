@@ -74,21 +74,30 @@ describe("exactly one module decrypts", () => {
 	});
 });
 
-describe("the plaintext reader has one in-process caller", () => {
+describe("the plaintext reader's in-process callers are named", () => {
 	// The deep import is deliberate — that is the whole design — but it is only
-	// meaningful while it stays rare enough to read. This names the caller, so a
-	// second one has to be argued for in a diff rather than arriving with an
+	// meaningful while it stays rare enough to read. This names the callers, so a
+	// third one has to be argued for in a diff rather than arriving with an
 	// autocomplete. Test files are excluded: `repository.test.ts` reaches the
 	// reader because it is the thing under test.
-	it("is imported by the AI runner and nothing else", () => {
+	//
+	// Both are in the AI runner, and each spends a credential at exactly one
+	// transport: `service.ts` hands a hosted vendor's key to the runner, and
+	// `claude.ts` hands the Claude Code token to the CLI's config (issue #122 —
+	// the token has no environment fallback, so this read is its only source).
+	it("is imported by the two AI-runner transports and nothing else", () => {
 		const importsReader =
 			/import\s*\{[^}]*\breadSecret\b[^}]*\}\s*from\s*"[^"]*secrets\/repository"/;
 		const importers = files
 			.filter(([path]) => !path.endsWith(".test.ts"))
 			.filter(([, source]) => importsReader.test(source))
-			.map(([path]) => path);
+			.map(([path]) => path)
+			.sort();
 
-		assert.deepStrictEqual(importers, ["src/ai-runner/service.ts"]);
+		assert.deepStrictEqual(importers, [
+			"src/ai-runner/claude.ts",
+			"src/ai-runner/service.ts",
+		]);
 	});
 });
 

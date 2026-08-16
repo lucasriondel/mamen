@@ -215,15 +215,18 @@ describe("README.md", () => {
 		expect(named).toStrictEqual([]);
 	});
 
-	it("warns that the API will not boot without the claude token", () => {
-		// The single biggest clean-clone stumbling block: the token is checked when
-		// `ClaudeCodeProdLive` is *built*, so an unset one takes the whole API down
-		// at startup rather than breaking PDF import alone. If the server ever stops
-		// providing that layer unconditionally, this reddens and the warning goes.
+	it("does not tell a reader to put the claude token in the environment", () => {
+		// It used to, and correctly: the token was checked when
+		// `ClaudeCodeProdLive` was built, so an unset one took the whole API down at
+		// startup. Since issue #122 the token is a credential pasted in Settings
+		// with **no environment fallback**, so that instruction is now advice that
+		// silently does nothing — the worst kind of stale setup step. The server
+		// still provides the layer unconditionally; what changed is where it reads.
 		expect(read("packages/api/src/server.ts")).toContain(
 			"Layer.provide(ClaudeCodeProdLive)",
 		);
-		expect(README).toContain("CLAUDE_CODE_OAUTH_TOKEN");
+		expect(README).not.toContain("CLAUDE_CODE_OAUTH_TOKEN");
+		expect(README).toMatch(/paste[^.]*Settings|Settings[^.]*paste/i);
 	});
 
 	it("names every navigation surface the app ships", () => {

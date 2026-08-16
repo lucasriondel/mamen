@@ -1,9 +1,11 @@
 # ADR 0011 — Credentials are encrypted at rest, and leave the server only as a status
 
 **Status**: accepted (issue #117, PRD #115)
-**Supersedes**: nothing. **Amends**: nothing yet — ADR 0005's
-`CLAUDE_CODE_OAUTH_TOKEN` still comes from the environment; moving it into this
-store is a later slice of PRD #115.
+**Supersedes**: nothing. **Amends**: ADR 0005, since issue #122 — the Claude Code
+token is now one of the credentials this store holds, under the `claude-code`
+provider name, and the environment is not read for it. Every rule below applies
+to it unchanged: it is written through the same door, decrypted by the same one
+module, and outward it is a boolean and a masked hint like any other.
 
 ## Context
 

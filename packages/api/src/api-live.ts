@@ -26,7 +26,9 @@ import { TransactionsLive } from "./transactions/handlers";
  * import handlers additionally require `FileSystem` / `Path`, satisfied by the
  * platform in the server layer (Bun / Node); the import handler further requires
  * `ClaudeCode`, provided by `ClaudeCodeProdLive` in `ServerLive` (prod) or the
- * deep-fake `ClaudeCodeTest` executor under test.
+ * deep-fake `ClaudeCodeTest` executor under test. Since issue #122 that layer
+ * reads the CLI's token from the credential store, so it takes the *same*
+ * `SqlClient` the caller provides here — one database, one memoised layer.
  *
  * The `/uploads/*` static route ({@link StaticUploadsLive}) is NOT part of this
  * layer: it mutates the served `HttpApiBuilder.Router` directly (like

@@ -175,9 +175,12 @@ Environment:
 | `PORT` | `5500` | Must match `API_UPSTREAM` on web. |
 | `DB_PATH` | `/data/mamen.db` | On the volume. Image default. |
 | `UPLOADS_DIR` | `/data/uploads` | On the volume. Image default. |
-| `CLAUDE_CODE_OAUTH_TOKEN` | *secret* | Required — see below. |
 | `LOGODEV_TOKEN` | *publishable* | Optional; logo search reports itself unconfigured without it. |
-| `TOKEN_ENCRYPTION_KEY` | *secret* | 64 hex characters. Required to store an AI provider credential — see below. |
+| `TOKEN_ENCRYPTION_KEY` | *secret* | 64 hex characters. Required to store an AI provider credential — including the Claude Code token PDF import runs on. See below. |
+
+The Claude Code token is deliberately **not** in that table: it is pasted in the
+app's Settings page and stored encrypted, with no environment fallback. See
+below.
 
 `CORS_ORIGINS` is intentionally unset — same-origin, so its dev default is never
 consulted.
@@ -238,15 +241,21 @@ sqlite runs in WAL mode, so the on-disk set is `mamen.db`, `mamen.db-shm`, and
 ## The `claude` CLI dependency
 
 PDF import spawns the `claude` CLI; the API image installs
-`@anthropic-ai/claude-code` globally and needs `CLAUDE_CODE_OAUTH_TOKEN` in its
-environment. See
+`@anthropic-ai/claude-code` globally. The token it authenticates with is a
+**stored credential, not an environment variable**: paste it into the Claude Code
+tile on the app's Settings page (`claude setup-token` mints it), where it is
+encrypted with `TOKEN_ENCRYPTION_KEY` and read per extraction. See
 [docs/operations/claude-cli-dependency.md](docs/operations/claude-cli-dependency.md)
 and [ADR 0005](docs/adr/0005-pdf-extraction-runs-server-side.md).
 
-Note on the failure mode: that doc says a missing token fails at layer build and
-prevents boot. In practice the container starts with a syntactically valid but
-wrong token, and the failure surfaces only on the first PDF import. **A green
-container is not evidence the token works** — verify by importing a PDF.
+Note on the failure mode: the API boots with no token stored, and a missing or
+wrong one surfaces only on a PDF import — a missing one as a distinct "no
+credential stored" message linking to Settings, a wrong one as the generic
+extraction failure. **A green container is not evidence the token works** —
+verify by importing a PDF.
+
+The token lives in the database, so it survives redeploys and is lost with the
+volume. Rotating `TOKEN_ENCRYPTION_KEY` makes it unreadable: re-paste it.
 
 ## The credential encryption key
 
@@ -324,7 +333,8 @@ Four things distinguish a correct routing from a plausible one:
 | `502` on `/api/*`, SPA loads fine | `API_UPSTREAM` wrong, or api container down. Check the api's `appName` and port. |
 | Data gone after a redeploy | Volume missing on `api`, or `DB_PATH` pointing outside `/data`. |
 | Build fails on `better-sqlite3` / node-gyp | An install lost its `--filter`; the api's dev-only `@effect/sql-sqlite-node` is being resolved. |
-| PDF import fails, everything else fine | `CLAUDE_CODE_OAUTH_TOKEN` invalid or expired. |
+| PDF import fails, everything else fine | The stored Claude Code token is invalid or expired — re-paste it in Settings. |
+| PDF import says no credential is stored | No Claude Code token has been pasted in Settings, or `TOKEN_ENCRYPTION_KEY` changed so the stored one is unreadable. |
 | Logo search reports unconfigured | `LOGODEV_TOKEN` unset — see [docs/operations/logo-search-setup.md](docs/operations/logo-search-setup.md). |
 | `404` on `/api/*` while `/` serves the landing page | The API's paths are routed to `landing-page`, which proxies nothing. `/app`, `/api` and `/uploads` all belong to **web**. |
 | The landing page appears at `/app` too | The web application is missing its `/app` domain entry, so Traefik falls through to the root router. |

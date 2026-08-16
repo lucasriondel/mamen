@@ -2,14 +2,19 @@ import { existsSync } from "node:fs";
 import { HttpApiBuilder, HttpApiClient } from "@effect/platform";
 import { BadArgument } from "@effect/platform/Error";
 import { NodeHttpServer } from "@effect/platform-node";
-import { afterEach, assert, describe, it } from "@effect/vitest";
-import { Api, ExtractionFailed, InvalidFileType } from "@mamen/shared/contract";
+import { afterEach, assert, beforeEach, describe, it } from "@effect/vitest";
+import {
+	AiProviderNotConfigured,
+	Api,
+	ExtractionFailed,
+	InvalidFileType,
+} from "@mamen/shared/contract";
 import type { SpawnHandler } from "claude-code-effect";
 import { Effect, Layer } from "effect";
 import { ApiLive } from "../api-live";
 import { DatabaseTest } from "../db/test";
 import { OutboundStub } from "../net/test";
-import { claudeCodeTestLayer } from "./test";
+import { claudeCodeStoredTokenLayer, claudeCodeTestLayer } from "./test";
 
 // The canned extraction the deep-fake `claude` returns for the CCF fixture: 6
 // operations (5 Débit → negative, 1 Crédit → positive) plus the statement's
@@ -52,6 +57,21 @@ const httpLiveWith = (handler: SpawnHandler) =>
 	HttpApiBuilder.serve().pipe(
 		Layer.provide(ApiLive),
 		Layer.provide(claudeCodeTestLayer(handler)),
+		Layer.provide(OutboundStub),
+		Layer.provide(DatabaseTest),
+		Layer.provideMerge(NodeHttpServer.layerTest),
+	);
+
+/**
+ * The same stack, but with the CLI's token read from the **encrypted store**,
+ * per call — the production config (issue #122). Everything above uses a pinned
+ * dummy token, because the token is not their subject; these tests' subject is
+ * exactly that read.
+ */
+const httpLiveWithStoredToken = (handler: SpawnHandler) =>
+	HttpApiBuilder.serve().pipe(
+		Layer.provide(ApiLive),
+		Layer.provide(claudeCodeStoredTokenLayer(handler)),
 		Layer.provide(OutboundStub),
 		Layer.provide(DatabaseTest),
 		Layer.provideMerge(NodeHttpServer.layerTest),
@@ -355,6 +375,161 @@ describe("extraction runs on the stored choice", () => {
 });
 
 /**
+ * The Claude Code token is a **stored credential**, not an environment variable
+ * (issue #122). The API starts without one, and the run is where its absence is
+ * discovered — which is only acceptable because the failure is a distinct,
+ * client-actionable error rather than the opaque retry-able one.
+ *
+ * Every test here runs the *production* config layer against a `:memory:`
+ * database, so what is asserted is the real per-call read.
+ */
+describe("the Claude Code token comes from the credential store", () => {
+	/** A plausible `claude setup-token` OAuth token; never a real one. */
+	const TOKEN = "sk-ant-oat01-3fQ2xLmPqR7v-KjnW8sd";
+
+	beforeEach(() => {
+		process.env.TOKEN_ENCRYPTION_KEY = "b".repeat(64);
+	});
+
+	afterEach(() => {
+		delete process.env.TOKEN_ENCRYPTION_KEY;
+		delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
+	});
+
+	it.effect(
+		"fails with AiProviderNotConfigured when no token has been pasted",
+		() => {
+			let spawned = false;
+			return Effect.gen(function* () {
+				const client = yield* HttpApiClient.make(Api);
+				const error = yield* client.import
+					.extractPdf({ payload: pdfFormData() })
+					.pipe(Effect.flip);
+
+				// Distinguishable from the generic collapse: this is the one extraction
+				// failure a user can act on, and a client that could not tell it from
+				// `ExtractionFailed` would offer a retry that cannot ever succeed.
+				assert.ok(error instanceof AiProviderNotConfigured);
+				assert.strictEqual(error.task, "extract-pdf");
+				assert.strictEqual(error.provider, "claude-code");
+				// The refusal arrives before a subprocess exists.
+				assert.isFalse(spawned);
+			}).pipe(
+				Effect.provide(
+					httpLiveWithStoredToken(() => {
+						spawned = true;
+						return Effect.succeed({
+							stdout: okEnvelope(CCF_OBJECT),
+							stderr: "",
+							exitCode: 0,
+						});
+					}),
+				),
+			);
+		},
+	);
+
+	// The ticket's "no fallback", asserted from the direction it would break: a
+	// token left over in a deployment's environment must not quietly keep
+	// extraction working after the store became its one home.
+	it.effect("does not fall back to CLAUDE_CODE_OAUTH_TOKEN", () => {
+		process.env.CLAUDE_CODE_OAUTH_TOKEN = "sk-ant-oat01-from-the-environment";
+		return Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			const error = yield* client.import
+				.extractPdf({ payload: pdfFormData() })
+				.pipe(Effect.flip);
+
+			assert.ok(error instanceof AiProviderNotConfigured);
+		}).pipe(
+			Effect.provide(
+				httpLiveWithStoredToken(() =>
+					Effect.succeed({
+						stdout: okEnvelope(CCF_OBJECT),
+						stderr: "",
+						exitCode: 0,
+					}),
+				),
+			),
+		);
+	});
+
+	// The per-call resolution, asserted as the behaviour it exists for: one
+	// server, one built layer, a token pasted between two uploads. With the value
+	// form the second upload would fail exactly like the first until the process
+	// was restarted.
+	it.effect("runs the very next extraction after the token is pasted", () => {
+		let childToken: string | undefined;
+		return Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+
+			const before = yield* client.import
+				.extractPdf({ payload: pdfFormData() })
+				.pipe(Effect.flip);
+			assert.ok(before instanceof AiProviderNotConfigured);
+
+			// Pasted on the settings page like any other credential.
+			const status = yield* client.secrets.put({
+				path: { name: "claude-code" },
+				payload: { value: TOKEN },
+			});
+			assert.isTrue(status.configured);
+			// Outward it is a boolean and a masked hint, like every other credential
+			// — the token itself does not come back.
+			assert.notStrictEqual(status.hint, TOKEN);
+
+			const result = yield* client.import.extractPdf({
+				payload: pdfFormData(),
+			});
+			assert.strictEqual(result.transactions.length, 6);
+			// And it is *that* token the CLI authenticated with.
+			assert.strictEqual(childToken, TOKEN);
+		}).pipe(
+			Effect.provide(
+				httpLiveWithStoredToken((input) => {
+					childToken = input.env.CLAUDE_CODE_OAUTH_TOKEN;
+					return Effect.succeed({
+						stdout: okEnvelope(CCF_OBJECT),
+						stderr: "",
+						exitCode: 0,
+					});
+				}),
+			),
+		);
+	});
+
+	// The new error is one narrow exception, not a widening: with a token stored,
+	// an upstream failure still collapses to the opaque tag (ADR 0005).
+	it.effect("leaves every other failure collapsed to ExtractionFailed", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			yield* client.secrets.put({
+				path: { name: "claude-code" },
+				payload: { value: TOKEN },
+			});
+
+			const error = yield* client.import
+				.extractPdf({ payload: pdfFormData() })
+				.pipe(Effect.flip);
+
+			assert.ok(error instanceof ExtractionFailed);
+		}).pipe(
+			Effect.provide(
+				httpLiveWithStoredToken(() =>
+					Effect.fail(
+						new BadArgument({
+							module: "Command",
+							method: "start",
+							description: "boom",
+						}),
+					),
+				),
+			),
+		),
+	);
+});
+
+/**
  * The hosted branch is **not wired** (issue #121: only `claude-code` is), and
  * the previous ticket already lets a hosted provider be *stored*. So there is a
  * reachable state — a saved Anthropic key and a task moved onto it — where a
@@ -421,6 +596,55 @@ describe("a hosted provider does not run extraction yet", () => {
 						exitCode: 0,
 					});
 				}),
+			),
+		);
+	});
+
+	/**
+	 * The one state where a *hosted* provider reaches the run with no usable key
+	 * (issue #122): the save-time doors read credential **presence** through the
+	 * status boolean, and a blob that will not decrypt still reports `configured:
+	 * true` — deliberately, so a rotated `TOKEN_ENCRYPTION_KEY` reads as
+	 * "re-paste" rather than "nothing was ever here" (ADR 0011). The run is where
+	 * the difference between present and *usable* is discovered, and it has to
+	 * arrive as the actionable error, not the retry-able one.
+	 */
+	it.effect("reports a key that no longer decrypts as not configured", () => {
+		process.env.TOKEN_ENCRYPTION_KEY = "a".repeat(64);
+
+		return Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			yield* client.secrets.put({
+				path: { name: "anthropic" },
+				payload: { value: "sk-ant-api03-Kj28fnQ2xLmPqR7v-3f9" },
+			});
+			yield* client.aiTasks.patch({
+				payload: { tasks: [{ task: "extract-pdf", provider: "anthropic" }] },
+			});
+
+			// The operator rotates the encryption key. The row survives; what it
+			// holds is now unreadable.
+			process.env.TOKEN_ENCRYPTION_KEY = "e".repeat(64);
+			const statuses = yield* client.secrets.list();
+			const anthropic = statuses.find((_) => _.name === "anthropic");
+			assert.isTrue(anthropic?.configured);
+			assert.strictEqual(anthropic?.hint, null);
+
+			const error = yield* client.import
+				.extractPdf({ payload: pdfFormData() })
+				.pipe(Effect.flip);
+
+			assert.ok(error instanceof AiProviderNotConfigured);
+			assert.strictEqual(error.provider, "anthropic");
+		}).pipe(
+			Effect.provide(
+				httpLiveWith(() =>
+					Effect.succeed({
+						stdout: okEnvelope(CCF_OBJECT),
+						stderr: "",
+						exitCode: 0,
+					}),
+				),
 			),
 		);
 	});

@@ -239,4 +239,18 @@ domain's:
 _Avoid_: settings view (the route is `/settings` but the feature is the AI one;
 a second settings area becomes a layout around two views).
 
+**Import's route to Settings**:
+The upload step's alert carries a **link** to `/settings` for exactly one
+failure — `AiProviderNotConfigured`, the extraction that could not run because no
+credential is stored (issue #122; most often no Claude Code token). Every other
+extraction failure ends at the drop zone in front of the user, so its copy says
+"try again"; this one cannot be fixed there at all, and a sentence naming a page
+is not the same as taking someone to it.
+
+Which failure it was is `useState` in `upload-step.tsx`, not a field on the
+wizard reducer: the reducer's `error` is the *sentence*, and nothing else in the
+wizard — preview, commit, hand-off — has any use for the distinction. It is
+cleared on every dropped file, so a CSV that then fails to parse cannot inherit
+the previous PDF's link.
+
 <!-- Terms are added here as they are resolved during design. -->
