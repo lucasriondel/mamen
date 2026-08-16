@@ -1,5 +1,6 @@
 import { HttpApi, HttpApiError, OpenApi } from "@effect/platform";
 import { AccountsGroup } from "./accounts";
+import { AiTasksGroup } from "./ai-tasks";
 import { AppSettingsGroup } from "./app-settings";
 import { CategoriesGroup } from "./categories";
 import { DatabaseGroup } from "./database";
@@ -28,6 +29,7 @@ export class Api extends HttpApi.make("mamen")
 	.add(SubscriptionsGroup)
 	.add(SettingsGroup)
 	.add(SecretsGroup)
+	.add(AiTasksGroup)
 	.add(AppSettingsGroup)
 	.add(DatabaseGroup)
 	.add(ImportGroup)

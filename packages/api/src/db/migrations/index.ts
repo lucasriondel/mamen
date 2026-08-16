@@ -25,6 +25,7 @@ import addRulesMatchAccountAndSign from "./0024_add_rules_match_account_and_sign
 import createTransferDismissals from "./0025_create_transfer_dismissals";
 import dropAppSettingsLlm from "./0026_drop_app_settings_llm";
 import createEncryptedSecrets from "./0027_create_encrypted_secrets";
+import createAiTaskSettings from "./0028_create_ai_task_settings";
 
 /**
  * The migration set, keyed `NNNN_name` (the Migrator parses the numeric prefix
@@ -60,4 +61,5 @@ export const migrations = {
 	"0025_create_transfer_dismissals": createTransferDismissals,
 	"0026_drop_app_settings_llm": dropAppSettingsLlm,
 	"0027_create_encrypted_secrets": createEncryptedSecrets,
+	"0028_create_ai_task_settings": createAiTaskSettings,
 } as const;

@@ -137,6 +137,18 @@ describes where the app is *hosted* rather than what it exchanges, and which is
 therefore not part of the contract at all.
 _Avoid_: config, registry (nothing is looked up or registered — it is a list).
 
+**Half-edit payload**:
+A payload whose every field but the key is optional, where **what is omitted
+carries meaning** rather than merely being left alone — `AiTaskChange` (issue
+#119): a provider with no model lands the task on that provider's default, and a
+model with no provider is resolved against the stored row. Distinct from a
+`XxxUpdate` (`RuleUpdate`, `IssuerUpdate`), where an omitted field means "leave
+this as it was" and nothing more. It is worth a name because both readings are
+defensible and the difference is invisible in the type: the contract module's
+comment is where the choice is recorded, and the API's **save-time kernel** is
+where it is enforced and tested.
+_Avoid_: partial update (that is the other thing).
+
 **Deployment constant**:
 A plain value every deployed layer has to agree on, exported from the package
 root because more than one package reads it and none of them owns it —

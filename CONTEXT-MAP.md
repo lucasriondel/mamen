@@ -281,6 +281,28 @@ repeated per package.
 - **AI task** — a job an **AI provider** and model can be chosen for. One member,
   `extract-pdf`: pulling transactions out of an uploaded PDF bank statement.
 
+- **Task choice** — which **AI provider** and which of its models runs one **AI
+  task**. One stored row per task, and an absent row means *the default*
+  (`claude-code` on the cheap head of its list), read from the catalogue rather
+  than seeded — so moving the default is an edit to one module, not a data
+  migration. Naming a provider without a model lands the task on **that
+  provider's default**, never on a model name carried over from the old vendor.
+  _Avoid_: model setting (the provider is the first half of the choice and the
+  one that decides who sees a bank statement).
+
+- **Save-time check** — the rule that a **task choice** which could not run is
+  refused *while the user is looking at the picker*, never discovered on their
+  next import: not a vendor with no **stored credential**, not a model that
+  vendor does not serve, and not a credential deleted out from under the task
+  using it. It is enforced at two write doors — saving a choice, and clearing a
+  credential — against one pure decision function, so the two cannot drift into
+  disagreeing. A refused save changes **nothing at all**, and only the tasks a
+  save touches are checked, so a stored value that went bad out of band does not
+  make every unrelated save fail. `claude-code` is always accepted here: its
+  token is a run-time concern, and checking it would refuse every save on a
+  fresh install, including the save that switches away from it.
+  _Avoid_: validation (it is a refusal to store, not a parse of what was sent).
+
 - **Stored credential** — a secret the user pasted (an **AI provider**'s API
   key), held **encrypted** in `encrypted_secrets`, one row per provider — the
   credential store is keyed by the provider set itself, so there is no secret in

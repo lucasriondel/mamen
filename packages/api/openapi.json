@@ -5717,6 +5717,167 @@
               }
             }
           },
+          "422": {
+            "description": "TaskProviderRejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskProviderRejected"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/ai/tasks": {
+      "get": {
+        "tags": [
+          "AI tasks"
+        ],
+        "operationId": "aiTasks.list",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AiTaskSetting"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "AI tasks"
+        ],
+        "operationId": "aiTasks.patch",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AiTaskSetting"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "TaskProviderRejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskProviderRejected"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AiTaskPatch"
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/ai/tasks/{task}/resolution": {
+      "get": {
+        "tags": [
+          "AI tasks"
+        ],
+        "operationId": "aiTasks.resolve",
+        "parameters": [
+          {
+            "name": "task",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "extract-pdf"
+              ]
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "ResolvedAiTask",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedAiTask"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "TaskProviderRejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskProviderRejected"
+                }
+              }
+            }
+          },
           "500": {
             "description": "InternalServerError"
           }
@@ -7129,6 +7290,147 @@
         },
         "additionalProperties": false
       },
+      "TaskProviderRejected": {
+        "type": "object",
+        "required": [
+          "task",
+          "provider",
+          "reason",
+          "_tag"
+        ],
+        "properties": {
+          "task": {
+            "type": "string",
+            "enum": [
+              "extract-pdf"
+            ]
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "claude-code",
+              "anthropic",
+              "google",
+              "openai"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "model-not-served",
+              "no-credential",
+              "credential-in-use"
+            ]
+          },
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "TaskProviderRejected"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "AiTaskSetting": {
+        "type": "object",
+        "required": [
+          "task",
+          "provider",
+          "model"
+        ],
+        "properties": {
+          "task": {
+            "type": "string",
+            "enum": [
+              "extract-pdf"
+            ]
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "claude-code",
+              "anthropic",
+              "google",
+              "openai"
+            ]
+          },
+          "model": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AiTaskPatch": {
+        "type": "object",
+        "required": [
+          "tasks"
+        ],
+        "properties": {
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiTaskChange"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "AiTaskChange": {
+        "type": "object",
+        "required": [
+          "task"
+        ],
+        "properties": {
+          "task": {
+            "type": "string",
+            "enum": [
+              "extract-pdf"
+            ]
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "claude-code",
+              "anthropic",
+              "google",
+              "openai"
+            ]
+          },
+          "model": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ResolvedAiTask": {
+        "type": "object",
+        "required": [
+          "task",
+          "provider",
+          "model"
+        ],
+        "properties": {
+          "task": {
+            "type": "string",
+            "enum": [
+              "extract-pdf"
+            ]
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "claude-code",
+              "anthropic",
+              "google",
+              "openai"
+            ]
+          },
+          "model": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
       "AppSettings": {
         "type": "object",
         "required": [
@@ -7306,6 +7608,9 @@
     },
     {
       "name": "Secrets"
+    },
+    {
+      "name": "AI tasks"
     },
     {
       "name": "App-settings"

@@ -174,4 +174,54 @@ value that will not decrypt reports `configured: true` — *present but
 unreadable*, never absent — so a rotated `TOKEN_ENCRYPTION_KEY` tells the
 operator to re-paste rather than implying nothing was ever stored.
 
+`configured` is also how the **save-time kernel** learns which providers have a
+credential, and that is the whole of what it learns: a value that will not
+decrypt still counts as present, because a rotated key is an operator fault to be
+fixed by re-pasting and refusing every save until then would take the settings
+page away at the moment it is needed. Whether a credential actually *works* is a
+question only a run can answer.
+
+**Save-time kernel**:
+`ai-tasks/kernel.ts` — the one rule of the AI settings feature (*a task must
+never be left pointing at a provider that cannot run it*) as a **rule module**:
+pure, no Effect, no SQL. Given a patch, the current choices and which providers
+have a credential, it answers with a **rejection** or `null`. The order inside it
+is load-bearing: the **model is checked before the credential**, because a model
+the vendor does not serve is wrong whether or not a key exists, and reporting the
+missing key would send the user to fix the wrong thing. `claude-code` never fails
+the credential half — its token is a run-time concern, and checking it here would
+refuse every save on a fresh install, including the save that switches away from
+it. Being pure is what makes its whole decision matrix a table of function calls
+in `kernel.test.ts` rather than dozens of HTTP round trips.
+_Avoid_: validator (it decides, it does not parse).
+
+**Checked write door**:
+A write that reads the current state, asks the **save-time kernel**, and writes
+only on `null` — the only way an **AI task**'s provider or model can change.
+There are **two**, because there are two ways into an unrunnable task:
+`PATCH /ai/tasks` (moving a task onto a provider) and `DELETE /secrets/:name`
+(taking a provider out from under a task). Both live on {@link TaskProvider}
+(`ai-tasks/task-provider.ts`), which is why the secrets group's `clear` handler
+delegates there rather than to its own repository — a feature with one door and
+one honour-system caller has no door. A refused patch writes **nothing**: the
+check runs before the write, not per entry during it, so there is no
+half-applied state to unwind. The deletion door refuses exactly when the deletion
+is what breaks a task (runnable before, not after), which is what keeps the two
+doors from disagreeing — clearing the `claude-code` credential is allowed for the
+same reason a save onto `claude-code` with no token is.
+_Avoid_: guard, middleware (it is the write path, not something in front of it).
+
+**Task resolution**:
+`ResolvedAiTask` — which provider and model an **AI task** runs on, or a
+`TaskProviderRejected` saying why it cannot. What the runner asks before spending
+a request, and what `GET /ai/tasks/:task/resolution` answers. **It carries no
+credential field and must never grow one**: resolution answers *whether and
+where*, and the key travels only inside the transport that spends it. Credential
+*presence* is read through the **secret status**'s boolean, which is what leaves
+the **credential boundary** untouched by the whole feature — the task-provider
+module imports the outward repository, whose every method answers with a status.
+Through the API the failure side is unreachable (that is what the doors are for);
+it is reached by a stored row that went bad out of band, which is how its tests
+plant it.
+
 <!-- Terms are added here as they are resolved during design. -->
