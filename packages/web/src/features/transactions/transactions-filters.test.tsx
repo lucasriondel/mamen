@@ -181,14 +181,26 @@ describe("TransactionsFilters — shape", () => {
 	it("draws its fields as pills, widened for the corner arc", () => {
 		renderFilters();
 
+		expect(screen.getByLabelText("Search transactions").className).toContain(
+			"px-4",
+		);
+
+		// The `<select>` fields carry their own drawn chevron (issue: the UA arrow
+		// sits flush against the border regardless of padding), so their inset is
+		// asymmetric — `pl-4` matching the pill's text side, `pr-9` clearing the icon
+		// — rather than the search box's symmetric `px-4`.
+		for (const label of ["Filter by month", "Filter by recap exclusion"]) {
+			const field = screen.getByLabelText(label);
+			expect(field.className).toContain("pl-4");
+			expect(field.className).toContain("pr-9");
+		}
+
 		for (const label of [
 			"Filter by month",
 			"Filter by recap exclusion",
 			"Search transactions",
 		]) {
-			const field = screen.getByLabelText(label);
-			expect(field.className).toContain("rounded-full");
-			expect(field.className).toContain("px-4");
+			expect(screen.getByLabelText(label).className).toContain("rounded-full");
 		}
 	});
 

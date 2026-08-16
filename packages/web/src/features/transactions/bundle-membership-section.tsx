@@ -4,9 +4,9 @@ import { Link } from "@tanstack/react-router";
 import { Layers } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { formatCurrency, formatShortDate } from "@/lib/format";
 import { transactionQueries } from "@/lib/sdk";
-import { cn } from "@/lib/utils";
 import {
 	BUNDLE_REFUSED_REASON,
 	isBundleEligible,
@@ -18,11 +18,6 @@ import { useBundle } from "./use-bundle";
  * household makes a handful of bundles; the picker is a short list by nature.
  */
 const BUNDLE_SCAN_LIMIT = 100;
-
-const selectClass = cn(
-	"h-9 rounded-full border border-gousse-line bg-gousse-panel px-4 text-sm text-gousse-ink",
-	"focus:outline-none focus:ring-2 focus:ring-gousse-accent",
-);
 
 /**
  * The **Bundle** block on an ordinary transaction's detail page (issue #74, epic
@@ -104,9 +99,8 @@ export function BundleMembershipSection({
 		>
 			<label className="flex flex-col gap-1 text-gousse-muted text-xs">
 				Bundle to join
-				<select
+				<Select
 					aria-label="Bundle to join"
-					className={selectClass}
 					value={choice}
 					disabled={!canJoin}
 					onChange={(event) => setChoice(event.target.value)}
@@ -118,7 +112,7 @@ export function BundleMembershipSection({
 							{formatShortDate(bundle.date)}
 						</option>
 					))}
-				</select>
+				</Select>
 			</label>
 			<Button
 				type="submit"
