@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { assert, describe, it } from "@effect/vitest";
 import { ExtractPdfResult } from "@mamen/shared/contract";
@@ -26,7 +26,13 @@ describe("the reason this adapter exists", () => {
 	// definition of one contract with the drift between them as the bug. The
 	// adapter is what makes that unnecessary, so the claim is a test.
 	it("means no mamen package depends on zod", () => {
-		const withZod = readdirSync(PACKAGES).filter((name) => {
+		// A directory under `packages/` is only a package if it has a manifest —
+		// stale build output from a renamed package leaves the rest behind.
+		const packages = readdirSync(PACKAGES).filter((name) =>
+			existsSync(`${PACKAGES}${name}/package.json`),
+		);
+
+		const withZod = packages.filter((name) => {
 			const manifest = JSON.parse(
 				readFileSync(`${PACKAGES}${name}/package.json`, "utf8"),
 			) as {
