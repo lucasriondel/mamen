@@ -5519,6 +5519,163 @@
         }
       }
     },
+    "/api/secrets/{name}": {
+      "get": {
+        "tags": [
+          "Secrets"
+        ],
+        "operationId": "secrets.status",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "anthropic"
+              ]
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "SecretStatus",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecretStatus"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Secrets"
+        ],
+        "operationId": "secrets.put",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "anthropic"
+              ]
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "SecretStatus",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecretStatus"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "SecretRejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecretRejected"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SecretValue"
+              }
+            }
+          },
+          "required": true
+        }
+      },
+      "delete": {
+        "tags": [
+          "Secrets"
+        ],
+        "operationId": "secrets.clear",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "anthropic"
+              ]
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "SecretStatus",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecretStatus"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        }
+      }
+    },
     "/api/app-settings": {
       "get": {
         "tags": [
@@ -6857,6 +7014,71 @@
         },
         "additionalProperties": false
       },
+      "SecretStatus": {
+        "type": "object",
+        "required": [
+          "name",
+          "configured",
+          "hint"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "enum": [
+              "anthropic"
+            ]
+          },
+          "configured": {
+            "type": "boolean"
+          },
+          "hint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "SecretValue": {
+        "type": "object",
+        "required": [
+          "value"
+        ],
+        "properties": {
+          "value": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SecretRejected": {
+        "type": "object",
+        "required": [
+          "reason",
+          "_tag"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string",
+            "enum": [
+              "blank",
+              "too-short"
+            ]
+          },
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "SecretRejected"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
       "AppSettings": {
         "type": "object",
         "required": [
@@ -7031,6 +7253,9 @@
     },
     {
       "name": "Settings"
+    },
+    {
+      "name": "Secrets"
     },
     {
       "name": "App-settings"

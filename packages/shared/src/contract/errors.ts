@@ -353,6 +353,31 @@ export class ImageFetchRefused extends Schema.TaggedError<ImageFetchRefused>()(
 ) {}
 
 /**
+ * A pasted credential was refused (issue #117, ADR 0011). `reason` is the whole
+ * error: a **reason code**, never the value — a refusal that quoted the paste
+ * back would put a secret in an HTTP response body, a browser console and
+ * whatever log sits between them, which is precisely what storing it encrypted
+ * exists to prevent. It also travels through no `message` field for the same
+ * reason: there is nowhere in this type for a value to hide.
+ *
+ * - `blank` — the paste is empty, or only whitespace.
+ * - `too-short` — shorter than `SECRET_MIN_LENGTH` once trimmed. No vendor
+ *   issues a credential that short, so this is a stray or truncated paste; it is
+ *   its own reason rather than folded into `blank` because the two are fixed
+ *   differently (paste something vs. paste the whole thing).
+ *
+ * 422 for both: the request was well-formed, the value in it was not one this
+ * server will store.
+ */
+export class SecretRejected extends Schema.TaggedError<SecretRejected>()(
+	"SecretRejected",
+	{
+		reason: Schema.Literal("blank", "too-short"),
+	},
+	HttpApiSchema.annotations({ status: 422 }),
+) {}
+
+/**
  * Decodes a query-string boolean ("true" / "false") into a real boolean. Query
  * params are always strings, so boolean list filters (e.g. `isRefund`) use this.
  */

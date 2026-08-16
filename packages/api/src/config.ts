@@ -32,6 +32,29 @@ export const UploadsDir = Config.string("UPLOADS_DIR").pipe(
  */
 export const LogodevToken = Config.option(Config.string("LOGODEV_TOKEN"));
 
+/**
+ * The AES-256-GCM key that encrypts stored credentials (issue #117, ADR 0011) —
+ * **64 hex characters**, i.e. 32 bytes:
+ * `openssl rand -hex 32`.
+ *
+ * `Config.redacted`, so a value that reaches a log line or an error prints as
+ * `<redacted>` rather than as the key to every credential in the database.
+ *
+ * `Config.option` and **no default**, like {@link LogodevToken} and for the
+ * opposite reason: a default here would be a *published* encryption key, which
+ * is encryption in name only. Absent, the API still starts and every other
+ * endpoint works — a fresh install has no credentials to read — but storing one
+ * fails as a 500 and stored ones read back as present-but-unreadable, which is
+ * the same state a rotated key produces and is told to the operator the same
+ * way.
+ *
+ * Rotating it does not re-encrypt anything: the stored blobs become unreadable
+ * and are re-pasted. See DEPLOY.md.
+ */
+export const TokenEncryptionKey = Config.option(
+	Config.redacted("TOKEN_ENCRYPTION_KEY"),
+);
+
 /** Comma-separated allowed CORS origins; defaults to the Vite dev server. */
 export const CorsOrigins = Config.string("CORS_ORIGINS").pipe(
 	Config.withDefault("http://localhost:5070"),

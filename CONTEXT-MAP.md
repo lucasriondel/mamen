@@ -255,6 +255,29 @@ repeated per package.
   (real tag logged server-side); `InvalidFileType` is the one other, client-
   fixable, error. See [ADR 0005](./docs/adr/0005-pdf-extraction-runs-server-side.md).
 
+- **Stored credential** — a secret the user pasted (an AI provider's API key),
+  held **encrypted** in `encrypted_secrets`, one row per name. It travels in one
+  direction only. Outward — to a handler, the SDK, the browser — it is a **secret
+  status**: `{ configured, hint }`, never the value and never the ciphertext.
+  Inward — to an in-process caller about to spend it — it is the plaintext,
+  through a reader that is not on the secrets module's barrel. Exactly one module
+  decrypts. A refused paste is described by a **reason code** (`blank`,
+  `too-short`) and never quoted back. See
+  [ADR 0011](./docs/adr/0011-credentials-are-encrypted-at-rest.md).
+  _Avoid_: API key setting, token (the environment holds tokens; this is the
+  store that replaces them).
+
+- **Masked hint** — the only rendering of a **stored credential** that leaves the
+  server: first seven characters, `…`, last three (`sk-ant-…3f9`) — enough to
+  tell *which* key is stored, never enough to be one. `null` below a minimum
+  length, which is a *different, larger* constant than the minimum a save
+  accepts, so a short credential stores fine and shows nothing. `null` **also**
+  means the stored value would not decrypt, which is reported as `configured:
+  true` — *present but unreadable*, never absent — so a rotated
+  `TOKEN_ENCRYPTION_KEY` reads as "re-paste this" rather than "nothing was ever
+  here". See [ADR 0011](./docs/adr/0011-credentials-are-encrypted-at-rest.md).
+  _Avoid_: truncated key, key preview.
+
 - **Inherited colour** — a Category whose `color` is **null**, meaning *I never
   chose one*: the colour it paints is its nearest ancestor's, found by walking
   `parentId` up to the first non-null value (a neutral constant if the walk

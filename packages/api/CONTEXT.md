@@ -144,4 +144,25 @@ mounted on the same router as the API groups (which is why it is provided to
 own path-traversal guard — a request that resolves outside the uploads root 404s
 — because nothing else is sanitising the wildcard.
 
+**Credential boundary**:
+The rule that a stored secret crosses out of `secrets/` only as a **secret
+status** — a boolean and a masked hint — and crosses in only through
+`readSecret`, the inward plaintext reader, which is not on `secrets/index.ts`
+(ADR 0011). `secrets/repository.ts` is **the only module that decrypts**, so the
+question "where can a credential become readable" is answered by opening one
+file. Held by `secrets/boundary.test.ts`: no other module imports `decrypt`, no
+other module reads the `encrypted_secrets` table, and the barrel exports the
+outward surface and nothing else. The outward repository has no method that
+returns a plaintext, which is what makes the group layer above it structurally
+unable to leak one.
+
+**Secret status**:
+`SecretStatus` — `{ configured, hint }`, the *only* outward shape a credential
+has. `hint` is the **masked hint** (first seven, `…`, last three) or `null`, and
+`null` deliberately conflates two states the client has no use in separating: a
+stored value below `SECRET_HINT_MIN_LENGTH`, and one that will not decrypt. A
+value that will not decrypt reports `configured: true` — *present but
+unreadable*, never absent — so a rotated `TOKEN_ENCRYPTION_KEY` tells the
+operator to re-paste rather than implying nothing was ever stored.
+
 <!-- Terms are added here as they are resolved during design. -->

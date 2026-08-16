@@ -177,6 +177,7 @@ Environment:
 | `UPLOADS_DIR` | `/data/uploads` | On the volume. Image default. |
 | `CLAUDE_CODE_OAUTH_TOKEN` | *secret* | Required — see below. |
 | `LOGODEV_TOKEN` | *publishable* | Optional; logo search reports itself unconfigured without it. |
+| `TOKEN_ENCRYPTION_KEY` | *secret* | 64 hex characters. Required to store an AI provider credential — see below. |
 
 `CORS_ORIGINS` is intentionally unset — same-origin, so its dev default is never
 consulted.
@@ -247,6 +248,29 @@ prevents boot. In practice the container starts with a syntactically valid but
 wrong token, and the failure surfaces only on the first PDF import. **A green
 container is not evidence the token works** — verify by importing a PDF.
 
+## The credential encryption key
+
+AI provider credentials pasted in the app are stored **encrypted** in the sqlite
+file, under `TOKEN_ENCRYPTION_KEY` — 32 bytes of key material as 64 hex
+characters:
+
+```sh
+openssl rand -hex 32
+```
+
+It has **no default**, on purpose: a default would be a published encryption key.
+Unset, the API still starts and everything unrelated works, but storing a
+credential fails with a 500 and any already-stored one reads back as *configured
+with no hint* — present but unreadable.
+
+**Rotating it does not re-encrypt anything.** The stored blobs stay as they are
+and become unreadable; the fix is to re-paste each credential in the app. That
+state is reported rather than hidden, which is why it shows as configured-but-
+unreadable instead of as absent. Back it up somewhere other than the database
+file: the two together are plaintext, which is exactly the pairing this defends
+against (see
+[ADR 0011](docs/adr/0011-credentials-are-encrypted-at-rest.md)).
+
 ## First deploy
 
 1. Create the project and all three applications with the settings above.
@@ -306,6 +330,8 @@ Four things distinguish a correct routing from a plausible one:
 | The landing page appears at `/app` too | The web application is missing its `/app` domain entry, so Traefik falls through to the root router. |
 | The app loads, then every request fails parsing | `/api` is not in the same Access application as `/app`; the SDK is getting a login page where JSON was expected. |
 | A visitor reports a login prompt on the landing page | The site root was added to the Access application, or a policy covers the bare host rather than the paths. |
+| A stored provider credential shows as configured with no hint | `TOKEN_ENCRYPTION_KEY` changed or was lost — the blob is unreadable. Re-paste the credential. (A very short credential also shows no hint, and is readable.) |
+| Pasting a provider credential returns a `500` | `TOKEN_ENCRYPTION_KEY` unset, or not 64 hex characters. |
 
 ## Making the repository public
 

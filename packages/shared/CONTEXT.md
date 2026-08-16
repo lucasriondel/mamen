@@ -107,6 +107,22 @@ from both sides, each side reuses the error its own grouping already raises.
 _Avoid_: error code, message (the reason is not display text — the client owns
 the wording).
 
+`SecretRejected` carries one for a stricter reason than legibility: the value it
+refused is a **credential**, so the reason code is the *whole* error — the type
+has no field a secret could travel in, and therefore no way for one to reach a
+response body or a log (ADR 0011).
+
+**Write-only field**:
+A payload field with no counterpart on any success shape — `SecretValue.value`,
+the pasted credential. It travels into `put` and comes back from nothing: the
+success body is a **secret status** (a boolean and a masked hint) and the
+refusal is a **refusal reason**. The contract is where this is enforceable at
+all, because a field the contract does not declare is a field no handler can
+return. `LlmSettings.apiKey` is the counter-example the rule exists for — a plain
+string on an entity `GET /app-settings` hands to any caller; PRD #115 deletes
+it.
+_Avoid_: input-only, transient (both suggest a lifetime rather than a direction).
+
 **Deployment constant**:
 A plain value every deployed layer has to agree on, exported from the package
 root because more than one package reads it and none of them owns it —
