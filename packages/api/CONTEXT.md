@@ -133,7 +133,52 @@ diffable.
 The staging directory PDF import copies an upload into, opened scoped so it — and
 the PDF — are deleted on **every** exit path: success, failure, timeout,
 interrupt. Nothing about an extraction persists: no file on disk, no row in the
-database.
+database. It is also what the CLI's `Read` allowance is scoped to, and that
+scoping is applied by **narrowing the `ClaudeCode` service** for the length of
+the run (`allowRead` in `import/extract.ts`) rather than by a task-table column:
+`allowedTools` is a fact about a task, but the directory is a fact about *this
+request*, and the **AI runner**'s CLI branch passes prompt, model and tools and
+nothing else.
+
+**AI runner**:
+`AiRunner` (`ai-runner/service.ts`) — mamen's single seam onto
+`ai-task-runner-effect`, and the only thing that runs an **AI task**. The package
+is deliberately a factory rather than a tag so the seam belongs to the consumer;
+this is that seam, and there is exactly one. What it supplies is two things
+decided earlier: `resolve` is `TaskProvider`'s resolver (**task resolution**), so
+the runner asks the same question the **checked write doors** answer, and
+`credential` is `readSecret`, the secrets module's inward plaintext reader — the
+deep import past `secrets/index.ts` is the design, and `secrets/boundary.test.ts`
+names this as its one caller. Nothing here decrypts or holds a key.
+
+The **hosted branch is refused at this seam**, through the same `generateHosted`
+argument a test would fake: it is not wired (a statement can only reach a vendor
+as a document part, blocked upstream — PRD #115), and the previous ticket already
+lets a hosted provider be *selected*, so without the refusal a bank statement
+would be posted to a vendor under a prompt naming a path on this machine. The
+refusal collapses to `ExtractionFailed` like every other upstream tag.
+
+**Task table**:
+`ai-runner/tasks.ts` — every **AI task** as data: the output contract, the CLI's
+tool allowance, and **two prompt columns**. Typed `Record<AiTask, TaskSpec<…>>`,
+so a task added to the catalogue does not compile until it has a row. The two
+columns are load-bearing: the CLI prompt names the absolute path of the staged
+PDF and tells the model to open it with its own `Read` tool, which a hosted
+vendor can neither act on nor be shown. The CLI column is the extraction prompt
+(`ai-runner/prompt.ts`) unchanged — it is the correctness surface of PDF import,
+and moving it is not editing it.
+
+**Codec adapter**:
+`effectSchemaCodec` (`ai-runner/codec.ts`) — one contract schema as the
+runner's (and the CLI SDK's) validator-agnostic `ObjectCodec`: a JSON Schema for
+the model, a decode returning an `Effect` for the answer. It is why **zod is not
+a dependency of any mamen package** — the contract is already Effect Schema, and
+a zod restatement of one class would be two definitions of one contract. Its one
+non-mechanical part is `hoistRootRef`: `JSONSchema.make` emits a bare top-level
+`{ $ref }` for every `Schema.Class`, which the CLI forwards into a tool
+`input_schema` that requires a top-level `type` — an API 400 nothing on mamen's
+side would name. `claude-code-effect` repairs that on its own `Schema` branch and
+deliberately not on the codec branch, so it belongs to whoever builds the codec.
 
 **Static uploads route**:
 `/uploads/*`, serving the issuer-image directory. Deliberately **outside** the

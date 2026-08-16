@@ -75,3 +75,31 @@ deploy. The token is validated at **layer build**, so a missing token takes the
 whole API down at startup rather than failing per-upload. The runbook for both
 environments is
 [`docs/operations/claude-cli-dependency.md`](../operations/claude-cli-dependency.md).
+
+## Amendment (issue #121) — the CLI is a transport, not the only one
+
+Extraction no longer calls `claude-code-effect` directly. It runs the
+`extract-pdf` row of the **task table** through the **AI runner**
+(`ai-task-runner-effect`), which resolves the task's stored **AI provider** and
+model and branches to that transport. Every decision above is unchanged in
+substance: on `claude-code` — the default, and today the only wired branch — the
+same CLI reads the same staged file with the same `Read`-only allowance, and the
+same rows come back. What moved is *who decides*: the transport is now the
+user's stored choice rather than a fact of the code.
+
+Two details are worth naming because they were not obvious:
+
+- **The `Read` allowance is still scoped to the temp dir**, but the scoping moved.
+  `allowedTools` is a column of the task table; the *directory* is this request's
+  temp dir, which no table of tasks can hold, and the runner's CLI branch passes
+  prompt, model and tools and nothing more. So the extraction handler narrows the
+  `ClaudeCode` service itself — `addDirs` merged in — for the length of the run.
+- **The failure collapse widened.** The taxonomy that reaches
+  `ExtractionFailed` now also carries the runner's own tags and the resolver's
+  refusal. That is deliberate for this ticket: the *one* client-actionable
+  extraction failure (a task whose provider has no credential) is a separate,
+  distinguishable error that lands with the settings page, per PRD #115.
+
+The operational consequence above is **unchanged**: the token still comes from
+the environment and is still validated at layer build. Moving it into the
+credential store is a later slice, and this section is amended then.

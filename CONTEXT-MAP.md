@@ -246,14 +246,37 @@ repeated per package.
   bank's own total, carried so the review/commit step can reconcile the
   extracted rows against what the statement declared.
 
-- **Server-side extraction** — PDF import extracts candidates on the API server
-  (via the `claude` CLI through `claude-code-effect`), not in the browser: the
-  OAuth token stays a server secret and the model reads the staged file through
-  its own `Read` tool. The upload lives only in a **transient temp dir** deleted
-  on every exit path — nothing persists, no row is written. The whole extraction
-  failure taxonomy collapses to a single client-visible **`ExtractionFailed`**
-  (real tag logged server-side); `InvalidFileType` is the one other, client-
-  fixable, error. See [ADR 0005](./docs/adr/0005-pdf-extraction-runs-server-side.md).
+- **Server-side extraction** — PDF import extracts candidates on the API server,
+  not in the browser: the OAuth token stays a server secret and the model reads
+  the staged file through its own `Read` tool. It runs through the **AI runner**,
+  so the **task choice** is what picks the transport; on `claude-code` — the
+  default, and today the only wired one — that is the `claude` CLI through
+  `claude-code-effect`, exactly as before. The upload lives only in a **transient
+  temp dir** deleted on every exit path — nothing persists, no row is written.
+  The whole extraction failure taxonomy collapses to a single client-visible
+  **`ExtractionFailed`** (real tag logged server-side); `InvalidFileType` is the
+  one other, client-fixable, error. See
+  [ADR 0005](./docs/adr/0005-pdf-extraction-runs-server-side.md).
+
+- **AI runner** — the one thing that runs an **AI task**: it asks the
+  **task choice** which **AI provider** and model this task is on, and branches
+  to that transport. mamen wraps `ai-task-runner-effect` in a service tag of its
+  own (the package is deliberately a factory, so the injection seam belongs to
+  whoever uses it, and mamen keeps exactly one). **Nothing falls back** — a
+  provider that cannot run fails the run, because the user chose which vendor
+  sees their bank statement and a different vendor is not an acceptable
+  recovery. Each task is a row in a **task table**: an output contract and two
+  prompts.
+  _Avoid_: LLM client, AI service (it runs named tasks; it is not a wrapper
+  around a model API).
+
+- **Task table** — every **AI task** as data: its output contract, the tools the
+  CLI may reach for, and **two prompt columns**, one per transport. Two, not one,
+  and deliberately so: the CLI prompt runs with tools and may name things only
+  this machine has — the absolute path of the staged PDF, which the model opens
+  itself — while a hosted vendor has neither tools nor a filesystem and must
+  never be sent that material. A task with nothing to say differently lists the
+  same builder twice, as a statement rather than an omission.
 
 - **AI provider** — who runs an **AI task**: the local `claude-code` CLI, or one
   of the hosted vendors `anthropic`, `google`, `openai`. It is the unit a

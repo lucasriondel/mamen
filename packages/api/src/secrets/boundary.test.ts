@@ -74,6 +74,24 @@ describe("exactly one module decrypts", () => {
 	});
 });
 
+describe("the plaintext reader has one in-process caller", () => {
+	// The deep import is deliberate — that is the whole design — but it is only
+	// meaningful while it stays rare enough to read. This names the caller, so a
+	// second one has to be argued for in a diff rather than arriving with an
+	// autocomplete. Test files are excluded: `repository.test.ts` reaches the
+	// reader because it is the thing under test.
+	it("is imported by the AI runner and nothing else", () => {
+		const importsReader =
+			/import\s*\{[^}]*\breadSecret\b[^}]*\}\s*from\s*"[^"]*secrets\/repository"/;
+		const importers = files
+			.filter(([path]) => !path.endsWith(".test.ts"))
+			.filter(([, source]) => importsReader.test(source))
+			.map(([path]) => path);
+
+		assert.deepStrictEqual(importers, ["src/ai-runner/service.ts"]);
+	});
+});
+
 describe("the plaintext reader is not on the barrel", () => {
 	it("exports the outward surface and nothing else", () => {
 		assert.deepStrictEqual(Object.keys(barrel).sort(), [

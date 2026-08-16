@@ -1,15 +1,39 @@
 import { FileSystem, type Multipart, Path } from "@effect/platform";
 import {
 	ExtractionFailed,
-	ExtractPdfResult,
+	type ExtractPdfResult,
 	InvalidFileType,
 } from "@mamen/shared/contract";
-import { ClaudeCode } from "claude-code-effect";
+import { ClaudeCode, type ClaudeCodeService } from "claude-code-effect";
 import { Effect } from "effect";
-import { extractionPrompt } from "./prompt";
+import { AiRunner } from "../ai-runner";
 
 /** The one MIME type this endpoint accepts. */
 const PDF_MIME = "application/pdf";
+
+/**
+ * Let the CLI read one directory, and change nothing else about it.
+ *
+ * The `Read`-only tool allowance is the task table's (`allowedTools`), but the
+ * *directory* it is scoped to is not: it is this request's **transient temp
+ * dir**, which exists for the length of one extraction and has no column in a
+ * table of tasks — and the runner's CLI branch passes prompt, model and tools
+ * and nothing more. So mamen narrows the `ClaudeCode` service itself for the
+ * duration of the run, which is the seam that actually has the dir in scope.
+ *
+ * `addDirs` is merged rather than replaced: this says "and this one too", which
+ * is what it means.
+ */
+const allowRead =
+	(dir: string) =>
+	(claude: ClaudeCodeService): ClaudeCodeService => ({
+		...claude,
+		generateObject: (output, options) =>
+			claude.generateObject(output, {
+				...options,
+				addDirs: [...(options.addDirs ?? []), dir],
+			}),
+	});
 
 /**
  * Extract candidate transactions from an uploaded PDF bank statement, without
@@ -23,13 +47,16 @@ const PDF_MIME = "application/pdf";
  *    closed by the surrounding `Effect.scoped`, so the dir — and the PDF — are
  *    deleted on **every** exit path: success, failure, and timeout/interrupt.
  *    Nothing is written to the DB and nothing persists on disk.
- * 3. Run extraction via `claude-code-effect`: the `claude` CLI reads the file
- *    through its own `Read` tool (`addDirs` scopes it to the temp dir,
- *    `allowedTools: ["Read"]` permits nothing else), and `generateObject`
- *    returns the result already re-decoded through {@link ExtractPdfResult}.
- * 4. Collapse the whole `claude-code-effect` failure taxonomy (spawn /
- *    invocation / API / parse / timeout / schema) to a single client-visible
- *    {@link ExtractionFailed}; the real tag is logged server-side.
+ * 3. Run the `extract-pdf` task through {@link AiRunner} (issue #121). The
+ *    runner resolves the task's stored provider and model and branches on it;
+ *    on `claude-code` — the default, and the only wired branch — the `claude`
+ *    CLI reads the file through its own `Read` tool, scoped to the temp dir by
+ *    {@link allowRead} and permitted nothing else by the task's `allowedTools`.
+ *    The answer comes back already re-decoded through `ExtractPdfResult`.
+ * 4. Collapse the whole upstream failure taxonomy — the CLI SDK's (spawn /
+ *    invocation / API / parse / timeout / schema / token), the runner's, and the
+ *    resolver's refusal — to a single client-visible {@link ExtractionFailed};
+ *    the real tag is logged server-side.
  *
  * Filesystem errors while staging the temp copy are infrastructure defects
  * (die → 500), never client-facing — the error channel stays the two domain
@@ -40,7 +67,7 @@ export const extractPdf = (
 ): Effect.Effect<
 	ExtractPdfResult,
 	InvalidFileType | ExtractionFailed,
-	FileSystem.FileSystem | Path.Path | ClaudeCode
+	FileSystem.FileSystem | Path.Path | ClaudeCode | AiRunner
 > =>
 	Effect.gen(function* () {
 		if (file.contentType !== PDF_MIME) {
@@ -64,21 +91,16 @@ export const extractPdf = (
 		const pdfPath = path.join(dir, "statement.pdf");
 		yield* fs.copyFile(file.path, pdfPath).pipe(Effect.orDie);
 
-		const claude = yield* ClaudeCode;
-		const { object } = yield* claude
-			.generateObject(ExtractPdfResult, {
-				prompt: extractionPrompt(pdfPath),
-				addDirs: [dir],
-				allowedTools: ["Read"],
-			})
-			.pipe(
-				// One client-visible failure; the real tag is kept server-side.
-				Effect.catchAll((error) =>
-					Effect.logError(`PDF extraction failed (${error._tag})`, error).pipe(
-						Effect.zipRight(Effect.fail(new ExtractionFailed())),
-					),
+		const runner = yield* AiRunner;
+		const { output } = yield* runner.run("extract-pdf", { pdfPath }).pipe(
+			Effect.updateService(ClaudeCode, allowRead(dir)),
+			// One client-visible failure; the real tag is kept server-side.
+			Effect.catchAll((error) =>
+				Effect.logError(`PDF extraction failed (${error._tag})`, error).pipe(
+					Effect.zipRight(Effect.fail(new ExtractionFailed())),
 				),
-			);
+			),
+		);
 
-		return object;
+		return output;
 	}).pipe(Effect.scoped);
