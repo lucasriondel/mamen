@@ -6,6 +6,7 @@ import {
 	FolderTree,
 	type LucideIcon,
 	PieChart,
+	Settings,
 	Upload,
 	Wallet,
 } from "lucide-react";
@@ -118,6 +119,9 @@ const NAV_LINKS: readonly NavLink[] = [
 	{ to: "/accounts", label: "Accounts", icon: Wallet },
 	{ to: "/issuers", label: "Issuers", icon: Building2 },
 	{ to: "/categories", label: "Categories", icon: FolderTree },
+	// Below the feature surfaces: settings is where the app is configured, not
+	// where the money is looked at. One flat list still, per the group's note.
+	{ to: "/settings", label: "Settings", icon: Settings },
 ];
 
 interface AppSidebarProps {

@@ -34,6 +34,11 @@ whole state is one SQLite file.
 - **Categories** — a tree of any depth. Only leaves are assignable; folders group
   and total. A transaction's category is derived through its issuer unless you
   override it on the row.
+- **Settings** — the AI surface: paste a credential per provider (stored
+  encrypted, never handed back — only a masked hint), then choose which provider
+  and which of its models runs each AI task. A provider with no stored credential
+  is not offered, and picking a hosted vendor says plainly that your statement
+  will be sent to it.
 
 Two statement formats are supported today:
 

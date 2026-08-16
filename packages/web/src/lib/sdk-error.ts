@@ -6,7 +6,15 @@
  * `@mamen/shared/contract` `errors.ts`). The PRD assigns mutation failures to a
  * `sonner` toast whose copy is derived from that `_tag`; this is the single
  * place that translation lives so every feature surfaces the same wording.
+ *
+ * A few failures are shown *in place* rather than toasted — the PDF upload
+ * step's alert, and the AI settings page's per-tile and per-row refusals. Those
+ * get their own exported mapper below and are wired into {@link toErrorMessage}
+ * as well, so the same failure reads the same way whichever surface catches it.
  */
+
+import type { AiProvider } from "@mamen/shared/contract";
+import { AI_PROVIDER_LABELS } from "@mamen/shared/contract";
 
 /** Narrow an unknown thrown value to its SDK error `_tag`, when it has one. */
 function tagOf(error: unknown): string | undefined {
@@ -117,8 +125,62 @@ export function toErrorMessage(error: unknown): string {
 			return imageFetchRefusedMessage(error);
 		case "TransferInvalid":
 			return transferInvalidMessage(error);
+		case "SecretRejected":
+			return secretRejectedMessage(error);
+		case "TaskProviderRejected":
+			return taskProviderRejectedMessage(error);
 		default:
 			return "Something went wrong. Please try again.";
+	}
+}
+
+/**
+ * A refused credential paste (`SecretRejected`, PRD #115), worded from the
+ * machine-readable `reason`. Shown **in place, on the tile that was refused** —
+ * not toasted — because the field the user has to fix is right there.
+ *
+ * Neither line quotes the value, for the same reason the error itself carries no
+ * field one could travel in (ADR 0011): a refusal that echoed the paste would
+ * put a credential in the DOM, in a screenshot and in a pasted bug report.
+ */
+export function secretRejectedMessage(error: unknown): string {
+	switch ((error as { reason?: string }).reason) {
+		case "blank":
+			return "There's nothing to save — paste a credential first.";
+		case "too-short":
+			return "That's too short to be a credential. Check the whole value was pasted.";
+		default:
+			return "That value can't be stored as a credential.";
+	}
+}
+
+/**
+ * A refusal from the **save-time doors** (`TaskProviderRejected`, issue #119),
+ * worded from the `reason` and the provider it names.
+ *
+ * Each line ends where the user's next action is, and the three are genuinely
+ * different actions — store a key, pick another model, move the task off this
+ * provider — which is why the reasons are not collapsed into one sentence. The
+ * task is deliberately not named: `credential-in-use` is raised from the
+ * credentials grid, where "which task" is a detail the user cannot act on
+ * without leaving the sentence, and mamen has one AI task.
+ */
+export function taskProviderRejectedMessage(error: unknown): string {
+	const e = error as { provider?: AiProvider; reason?: string };
+	const provider =
+		e.provider === undefined
+			? "That provider"
+			: (AI_PROVIDER_LABELS[e.provider] ?? e.provider);
+
+	switch (e.reason) {
+		case "no-credential":
+			return `${provider} has no credential stored yet. Paste one above, then pick it here.`;
+		case "model-not-served":
+			return `${provider} doesn't serve that model. Pick one of its own.`;
+		case "credential-in-use":
+			return "An AI task is still using it. Point that task at another provider first, then clear the key.";
+		default:
+			return `${provider} can't run that task as configured.`;
 	}
 }
 

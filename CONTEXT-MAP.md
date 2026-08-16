@@ -351,6 +351,22 @@ repeated per package.
   here". See [ADR 0011](./docs/adr/0011-credentials-are-encrypted-at-rest.md).
   _Avoid_: truncated key, key preview.
 
+- **AI settings page** — the one screen the credential store and the **task
+  choice** are made from (`/settings`): a tile per **AI provider** showing
+  whether one is stored, and a row per **AI task** naming which provider and
+  model runs it. Its picker **offers only providers that can run the task** —
+  the **save-time check**'s own rule, surfaced rather than left to be discovered
+  by refusal — and the two are not equal partners: the doors stay the authority,
+  so a save the picker somehow allowed is still refused *and the refusal is shown
+  in place*. Saving is **immediate**, without a submit button, so the picker
+  always reflects what will actually run; a refused save writes nothing, so the
+  control simply goes back to what is stored. Selecting a hosted provider carries
+  **explicit copy that the bank statement will be sent to that vendor** — today
+  one never leaves the machine, and that is a privacy posture change worth
+  reading as a deliberate choice.
+  _Avoid_: LLM settings (the deleted surface it replaces), API key page (the
+  credentials are half of it; which vendor runs a task is the other half).
+
 - **Inherited colour** — a Category whose `color` is **null**, meaning *I never
   chose one*: the colour it paints is its nearest ancestor's, found by walking
   `parentId` up to the first non-null value (a neutral constant if the walk

@@ -68,6 +68,10 @@ const EXCEPTIONS: Record<string, { count: number; why: string }> = {
 		count: 1,
 		why: "the 24px brand icon — a circle crop would cut the artwork",
 	},
+	"src/components/ui/provider-mark.tsx": {
+		count: 1,
+		why: "gousse's own source, unedited (#120) — the 30px provider mark, a squircle the kit draws so four vendor logos read as one row",
+	},
 };
 
 /** Every non-test `.ts`/`.tsx` under `src`, so nothing can hide. */

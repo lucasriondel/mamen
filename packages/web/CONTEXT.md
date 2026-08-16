@@ -214,4 +214,29 @@ and never prefix `/api` or `/uploads`, which stay at the root and are reached
 same-origin through the dev proxy or nginx.
 _Avoid_: base URL (that names the API's origin, `VITE_API_URL`).
 
+**AI settings page**:
+See [CONTEXT-MAP.md](../../CONTEXT-MAP.md). `/settings`, built in
+`features/ai-settings/`. Two things about it are this package's, not the
+domain's:
+
+- **It is composed, not written.** Every visible part is a gousse component
+  vendored from the registry (ADR 0003) — `CredentialTile`/`CredentialGrid`,
+  `SecretField`, `ProviderMark`, `SettingsCard`/`SettingRow`, `ModelRow` and
+  their `Spinner`/`SavedFlash` dependencies. They were built for this screen;
+  mamen adds the data and the handlers and nothing else. Issue #120's ticket
+  called gousse "a new dependency" — it is not one, and must not become one:
+  `shadcn add @gousse/…` copies the source in, and `gousse-package-removed.test.ts`
+  is what keeps the npm package and its private-registry credential out.
+  `shadcn add` **overwrites** `button`, `input`, `select`, `field-chrome` and
+  `utils` in place, all of which mamen owns and has edited, so a pull is
+  followed by reverting those five.
+- **No local copy of a selection.** The selects read the query's data directly,
+  which is what makes a refused save correct with no code: nothing was written,
+  so nothing re-renders, and the control shows what is stored rather than the
+  choice the server rejected. The one piece of local state is the **draft** in
+  a `SecretField`, and it is dropped the moment the value is stored.
+
+_Avoid_: settings view (the route is `/settings` but the feature is the AI one;
+a second settings area becomes a layout around two views).
+
 <!-- Terms are added here as they are resolved during design. -->

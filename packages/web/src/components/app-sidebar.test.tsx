@@ -43,6 +43,9 @@ const DESTINATIONS = [
 	["Accounts", "/accounts"],
 	["Issuers", "/issuers"],
 	["Categories", "/categories"],
+	// Last, and after a rule: settings is where the app is configured rather than
+	// where its money is looked at, so it sits below the feature surfaces.
+	["Settings", "/settings"],
 ] as const;
 
 /** Where the brand row goes: the app's root, which is its landing surface. */
