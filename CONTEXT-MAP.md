@@ -2,7 +2,8 @@
 
 Multi-context monorepo. Each package owns its own domain vocabulary in a
 `CONTEXT.md`. This map points at them. System-wide decisions live in
-`docs/adr/`.
+`docs/adr/`. Work this repo needs but that has to land in a package outside it
+lives in `docs/upstream/`.
 
 | Context | Path | Role |
 |---|---|---|
