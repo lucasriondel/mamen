@@ -4,7 +4,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { type FormEvent, useId, useState } from "react";
 import { toast } from "sonner";
 import { BackLink } from "@/components/back-link";
-import { PageHeader } from "@/components/page-header";
+import { PageLayout } from "@/components/page-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ISSUER_SCAN_LIMIT, issuerQueries } from "@/lib/sdk";
@@ -70,21 +70,12 @@ export function CreateIssuerPage() {
 	};
 
 	return (
-		<section className="flex flex-col gap-8">
-			<BackLink to="/issuers">Issuers</BackLink>
-
-			<header>
-				<PageHeader>
-					<h1 className="text-balance text-2xl font-semibold text-gousse-ink">
-						Create issuer
-					</h1>
-				</PageHeader>
-				<p className="mt-1 text-gousse-muted">
-					Give it a default category and future matching transactions will file
-					themselves.
-				</p>
-			</header>
-
+		<PageLayout
+			title="Create issuer"
+			back={<BackLink to="/issuers">Issuers</BackLink>}
+			description="Give it a default category and future matching transactions will file themselves."
+			className="gap-8"
+		>
 			<form onSubmit={handleSubmit} className="flex max-w-md flex-col gap-6">
 				<label className="flex flex-col gap-1 text-sm text-gousse-muted">
 					Name
@@ -128,6 +119,6 @@ export function CreateIssuerPage() {
 					Create issuer
 				</Button>
 			</form>
-		</section>
+		</PageLayout>
 	);
 }

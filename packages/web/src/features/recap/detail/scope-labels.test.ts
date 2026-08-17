@@ -1,9 +1,22 @@
 import type { Account } from "@mamen/shared/contract";
 import { describe, expect, it } from "vitest";
-import { accountsLabel, periodLabel } from "./scope-labels";
+import { accountsLabel, periodLabel, targetLabel } from "./scope-labels";
 
 const account = (id: number, name: string) =>
 	({ id, name, type: "checking" }) as unknown as Account;
+
+// It joined the other two here when the page's header became a `PageLayout`
+// (issue #129) — the three are one sentence, so they are built in one place.
+describe("targetLabel", () => {
+	it("names which breakdown the page drilled into", () => {
+		expect(targetLabel({ kind: "bucket", axis: "issuer", bucket: 10 })).toBe(
+			"Issuer",
+		);
+		expect(
+			targetLabel({ kind: "bucket", axis: "category", bucket: null }),
+		).toBe("Category");
+	});
+});
 
 describe("periodLabel", () => {
 	it("names a month, a year, and the unbounded window", () => {

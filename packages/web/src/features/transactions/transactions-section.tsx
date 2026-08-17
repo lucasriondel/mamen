@@ -98,7 +98,12 @@ export interface TransactionsSectionProps {
 	 * dropped filter would return the *whole* table rather than nothing.
 	 */
 	enabled?: boolean;
-	/** Rendered above the filter bar — a page's own header/total lives here. */
+	/**
+	 * Rendered above the filter bar. A page's *title* is not this — since issue
+	 * #129 every page's topbar is a `PageLayout`, so this is only for a heading
+	 * the table needs *within* a page that is about something else (the issuer
+	 * detail page's "Transactions").
+	 */
 	children?: React.ReactNode;
 	/** Description for the empty state when no filter is active. */
 	emptyDescription?: string;

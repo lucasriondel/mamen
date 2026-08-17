@@ -6,6 +6,8 @@ import type {
 } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
 import { getRouteApi, Link } from "@tanstack/react-router";
+import { BackLink } from "@/components/back-link";
+import { PageLayout } from "@/components/page-layout";
 import { Empty } from "@/components/ui/empty";
 import { BUTTON_CLASS } from "@/features/issuers/field-styles";
 import { useIssuerLookup } from "@/features/issuers/use-issuer-lookup";
@@ -59,15 +61,23 @@ export function TransactionDetailPage() {
 
 	const txn = txnQuery.data as Transaction | undefined;
 	if (txnQuery.isError || txn == null) {
+		// Still a page, so still a topbar: this state has no counterparty to name,
+		// but a user who arrived here with the sidebar collapsed needs the way back
+		// to it as much as on any other page (issue #129).
 		return (
-			<Empty
-				title="Couldn't load this transaction"
-				description="It may have been deleted, or something went wrong. Head back to the grid."
+			<PageLayout
+				title="Transaction"
+				back={<BackLink to="/transactions">Transactions</BackLink>}
 			>
-				<Link to="/transactions" className={cn(BUTTON_CLASS, "mt-2")}>
-					Back to transactions
-				</Link>
-			</Empty>
+				<Empty
+					title="Couldn't load this transaction"
+					description="It may have been deleted, or something went wrong. Head back to the grid."
+				>
+					<Link to="/transactions" className={cn(BUTTON_CLASS, "mt-2")}>
+						Back to transactions
+					</Link>
+				</Empty>
+			</PageLayout>
 		);
 	}
 

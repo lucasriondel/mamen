@@ -3,6 +3,7 @@ import type { Category, CategoryId } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
 import type { Appearance } from "@/components/appearance-picker";
+import { PageLayout } from "@/components/page-layout";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -142,24 +143,18 @@ export function CategoriesView() {
 	};
 
 	return (
-		<section className="flex flex-col gap-6">
-			<header className="flex items-start justify-between gap-4">
-				<div>
-					<h1 className="text-balance font-semibold text-2xl text-gousse-ink">
-						Categories
-					</h1>
-					<p className="mt-1 text-gousse-muted">
-						The shape of your spending, nested to any depth.
-					</p>
-				</div>
+		<PageLayout
+			title="Categories"
+			description="The shape of your spending, nested to any depth."
+			actions={
 				<Button
 					variant="primary"
 					onClick={() => setEditor({ kind: "create", parent: null })}
 				>
 					New category
 				</Button>
-			</header>
-
+			}
+		>
 			{categoriesQuery.isError ? (
 				<Empty
 					title="Couldn't load categories"
@@ -196,7 +191,7 @@ export function CategoriesView() {
 				onEditor={setEditor}
 				mutations={mutations}
 			/>
-		</section>
+		</PageLayout>
 	);
 }
 

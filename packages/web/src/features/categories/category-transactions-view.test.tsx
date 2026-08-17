@@ -5,9 +5,10 @@ import {
 	createRouter,
 	RouterProvider,
 } from "@tanstack/react-router";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { COLLAPSED_SHELL, OPEN_SHELL, withShell } from "@/test/sidebar-shell";
 import { validateTransactionsSearch } from "../transactions/search";
 import { CategoryTransactionsView } from "./category-transactions-view";
 
@@ -151,9 +152,9 @@ function makeRouter(initialEntry: string) {
 	});
 }
 
-async function renderView(initialEntry: string) {
+async function renderView(initialEntry: string, value = OPEN_SHELL) {
 	const router = makeRouter(initialEntry);
-	render(<RouterProvider router={router} />);
+	render(withShell(<RouterProvider router={router} />, value));
 	return router;
 }
 
@@ -163,6 +164,34 @@ beforeEach(() => {
 });
 
 describe("CategoryTransactionsView", () => {
+	// This page hand-rolled its own header and so rendered no trigger at all: a
+	// drill-down was a place a collapsed sidebar could not be re-opened from
+	// (issue #129). Its title, its way back and its total go through the shared
+	// layout now.
+	it("offers the sidebar-reopen trigger while the panel is collapsed", async () => {
+		await renderView("/categories/5", COLLAPSED_SHELL);
+
+		expect(
+			await screen.findByRole("button", { name: "Open sidebar" }),
+		).toBeInTheDocument();
+	});
+
+	it("keeps the way back and the total in the topbar with the name", async () => {
+		await renderView("/categories/5");
+
+		const topbar = (
+			await screen.findByRole("heading", { name: /Groceries/ })
+		).closest("header") as HTMLElement;
+		expect(
+			within(topbar).getByRole("link", { name: /Categories/ }),
+		).toBeInTheDocument();
+		await waitFor(() =>
+			expect(within(topbar).getByLabelText("Category total")).toHaveTextContent(
+				/-42,50/,
+			),
+		);
+	});
+
 	it("a leaf page filters by its own id and shows the total", async () => {
 		await renderView("/categories/5");
 

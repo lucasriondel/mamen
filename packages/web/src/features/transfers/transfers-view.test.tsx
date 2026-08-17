@@ -8,6 +8,7 @@ import {
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { COLLAPSED_SHELL, OPEN_SHELL, withShell } from "@/test/sidebar-shell";
 
 // ---- Canned SDK data --------------------------------------------------------
 
@@ -137,8 +138,8 @@ function makeRouter() {
 	});
 }
 
-async function renderView() {
-	render(<RouterProvider router={makeRouter()} />);
+async function renderView(value = OPEN_SHELL) {
+	render(withShell(<RouterProvider router={makeRouter()} />, value));
 	await screen.findByRole("heading", { name: "Transfers" });
 }
 
@@ -149,6 +150,17 @@ beforeEach(() => {
 });
 
 describe("TransfersView", () => {
+	// This page hand-rolled its own `<h1>` and so rendered no trigger at all: a
+	// user who collapsed the sidebar here could only get it back by navigating
+	// away (issue #129). It goes through the shared layout now.
+	it("offers the sidebar-reopen trigger while the panel is collapsed", async () => {
+		await renderView(COLLAPSED_SHELL);
+
+		expect(
+			screen.getByRole("button", { name: "Open sidebar" }),
+		).toBeInTheDocument();
+	});
+
 	it("lists one row per debit leg, not one per pair", async () => {
 		await renderView();
 

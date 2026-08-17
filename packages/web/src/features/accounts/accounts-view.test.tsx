@@ -9,7 +9,7 @@ import {
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { SidebarCollapsedProvider } from "@/lib/sidebar-collapsed-context";
+import { withShell } from "@/test/sidebar-shell";
 
 /** Pinned "now" — mid-July 2026, so 2026 has six elapsed months. */
 const NOW = new Date("2026-07-15T12:00:00Z");
@@ -81,16 +81,6 @@ const transactionsRoute = createRoute({
 	component: () => null,
 });
 
-// The view's topbar reads the shell's collapse flag (issue #125), and this
-// harness mounts the route without `AppShell`. Standing in for it with the panel
-// open is the state these cases are about: no re-open trigger in the way of the
-// controls they drive. The trigger itself is asserted in `page-layout.test.tsx`.
-const OPEN_SHELL = {
-	collapsed: false,
-	toggle: () => {},
-	triggerRef: { current: null },
-};
-
 function renderView() {
 	const router = createRouter({
 		routeTree: rootRoute.addChildren([
@@ -100,11 +90,7 @@ function renderView() {
 		]),
 		history: createMemoryHistory({ initialEntries: ["/accounts"] }),
 	});
-	return render(
-		<SidebarCollapsedProvider value={OPEN_SHELL}>
-			<RouterProvider router={router} />
-		</SidebarCollapsedProvider>,
-	);
+	return render(withShell(<RouterProvider router={router} />));
 }
 
 function account(overrides: Partial<Account> = {}): Account {

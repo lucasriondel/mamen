@@ -14,7 +14,7 @@ import {
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { SidebarCollapsedProvider } from "@/lib/sidebar-collapsed-context";
+import { OPEN_SHELL, withShell } from "@/test/sidebar-shell";
 import { validateRecapSearch } from "./search";
 
 // Mock the SDK boundary (PRD "Seam 2"): recap reads accounts, issuers and
@@ -110,17 +110,7 @@ function summary(over: Partial<RecapSummary> = {}): RecapSummary {
 	} as RecapSummary;
 }
 
-// The view's topbar reads the shell's collapse flag (issue #125), and this
-// harness mounts the route without `AppShell`. Standing in for it with the panel
-// open is the state these cases are about: no re-open trigger in the way of the
-// controls they drive. The trigger itself is asserted in `page-layout.test.tsx`.
-const OPEN_SHELL = {
-	collapsed: false,
-	toggle: () => {},
-	triggerRef: { current: null },
-};
-
-function renderRecap(initialEntry = "/recap") {
+function renderRecap(initialEntry = "/recap", shellValue = OPEN_SHELL) {
 	const rootRoute = createRootRoute();
 	const recapRoute = createRoute({
 		getParentRoute: () => rootRoute,
@@ -132,11 +122,7 @@ function renderRecap(initialEntry = "/recap") {
 		routeTree: rootRoute.addChildren([recapRoute]),
 		history: createMemoryHistory({ initialEntries: [initialEntry] }),
 	});
-	render(
-		<SidebarCollapsedProvider value={OPEN_SHELL}>
-			<RouterProvider router={router} />
-		</SidebarCollapsedProvider>,
-	);
+	render(withShell(<RouterProvider router={router} />, shellValue));
 }
 
 beforeEach(() => {

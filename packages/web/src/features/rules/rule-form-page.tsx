@@ -2,7 +2,7 @@ import type { IssuerId, Rule, RuleId } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
-import { PageHeader } from "@/components/page-header";
+import { PageLayout } from "@/components/page-layout";
 import { ruleQueries } from "@/lib/sdk";
 import { RuleForm } from "./rule-form";
 import { RuleFormSkeleton } from "./rule-form-skeleton";
@@ -61,35 +61,33 @@ export function RuleFormPage({
 		</Link>
 	);
 
+	// Which page this is does not depend on the read: `ruleId` alone decides it.
+	// So the title (and with it the topbar's trigger) is up before the rule lands
+	// and stays up if it never does, rather than leaving those states as a bare
+	// back link on an unnamed page.
+	const title = isEditing ? "Edit Matching Rule" : "New Matching Rule";
+
 	if (isEditing && ruleQuery.isPending) {
 		return (
-			<section className="flex flex-col gap-6">
-				{backLink}
+			<PageLayout title={title} back={backLink} className="max-w-2xl">
 				<RuleFormSkeleton />
-			</section>
+			</PageLayout>
 		);
 	}
 
 	const rule = isEditing ? (ruleQuery.data as Rule | undefined) : undefined;
 	if (isEditing && (ruleQuery.isError || rule == null)) {
 		return (
-			<section className="flex flex-col gap-6">
-				{backLink}
+			<PageLayout title={title} back={backLink} className="max-w-2xl">
 				<p className="text-sm text-gousse-high">
 					Couldn't load this Matching Rule — it may have been deleted.
 				</p>
-			</section>
+			</PageLayout>
 		);
 	}
 
 	return (
-		<section className="flex max-w-2xl flex-col gap-6">
-			{backLink}
-			<PageHeader>
-				<h1 className="text-balance text-2xl font-semibold text-gousse-ink">
-					{isEditing ? "Edit Matching Rule" : "New Matching Rule"}
-				</h1>
-			</PageHeader>
+		<PageLayout title={title} back={backLink} className="max-w-2xl">
 			<RuleForm
 				issuerId={issuerId}
 				rule={rule}
@@ -97,6 +95,6 @@ export function RuleFormPage({
 				onDone={back}
 				onCancel={back}
 			/>
-		</section>
+		</PageLayout>
 	);
 }

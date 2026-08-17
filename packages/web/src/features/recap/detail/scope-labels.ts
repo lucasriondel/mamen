@@ -1,6 +1,16 @@
 import type { Account } from "@mamen/shared/contract";
 import { formatMonth } from "@/lib/format";
 import type { Period } from "../period";
+import type { RecapDetailTarget } from "./search";
+
+/**
+ * What kind of thing the page is about, opening its scope line. It joined the
+ * other two labels here when the page's header became a `PageLayout` (issue
+ * #129) — the three are one sentence, built in one place.
+ */
+export function targetLabel(target: RecapDetailTarget): string {
+	return target.axis === "issuer" ? "Issuer" : "Category";
+}
 
 /**
  * How a **recap detail** page's period reads in its header (issue #86). The page

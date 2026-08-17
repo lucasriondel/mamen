@@ -6,6 +6,7 @@ import type {
 } from "@mamen/shared/contract";
 import { Link } from "@tanstack/react-router";
 import { BackLink } from "@/components/back-link";
+import { PageLayout } from "@/components/page-layout";
 import { formatCurrency, formatMonth, formatShortDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { AnomalyFlags } from "./anomaly-flags";
@@ -37,27 +38,19 @@ function BoolField({ value }: { value: boolean }) {
 	);
 }
 
-/** The amount headline plus issuer/date, at the top of the page. */
-function DetailHeader({ txn, issuer }: { txn: Transaction; issuer?: Issuer }) {
+/** The row's amount, the one number this page is about. */
+function DetailAmount({ amount }: { amount: number }) {
 	return (
-		<header className="flex flex-col gap-1">
-			<span
-				className={cn(
-					"text-3xl font-semibold tabular-nums",
-					txn.amount < 0 && "text-gousse-high",
-					txn.amount > 0 && "text-gousse-low",
-					txn.amount === 0 && "text-gousse-ink",
-				)}
-			>
-				{formatCurrency(txn.amount)}
-			</span>
-			<h1 className="text-lg font-medium text-gousse-ink">
-				{issuer ? issuer.name : txn.rawIssuerString}
-			</h1>
-			<span className="text-sm text-gousse-muted">
-				{formatShortDate(txn.date)}
-			</span>
-		</header>
+		<span
+			className={cn(
+				"text-3xl font-semibold tabular-nums",
+				amount < 0 && "text-gousse-high",
+				amount > 0 && "text-gousse-low",
+				amount === 0 && "text-gousse-ink",
+			)}
+		>
+			{formatCurrency(amount)}
+		</span>
 	);
 }
 
@@ -252,15 +245,22 @@ export function TransactionDetailContent({
 	linkedRefund,
 }: TransactionDetailContentProps) {
 	return (
-		<section className="flex flex-col gap-8">
-			{/*
+		<PageLayout
+			/*
 			 * Back, not a link to the list: the user came from some page of some
 			 * filtered view (global, a category's, an issuer's), and popping history
 			 * is the only thing that returns them to that exact spot.
-			 */}
-			<BackLink to="/transactions">Transactions</BackLink>
-
-			<DetailHeader txn={txn} issuer={issuer} />
+			 */
+			back={<BackLink to="/transactions">Transactions</BackLink>}
+			// The row's counterparty is what this page is *about*, so it is the
+			// title — the raw bank string only while no issuer resolves it. The
+			// amount moves to the far end of the same row, where every other
+			// drill-down page (a category's, a recap line's) puts its number.
+			title={issuer ? issuer.name : txn.rawIssuerString}
+			description={formatShortDate(txn.date)}
+			actions={<DetailAmount amount={txn.amount} />}
+			className="gap-8"
+		>
 			<CoreFields
 				txn={txn}
 				account={account}
@@ -286,6 +286,6 @@ export function TransactionDetailContent({
 			<TransferSection transaction={txn} />
 			<AnomalyFlagsSection flags={txn.anomalyFlags} />
 			<ImportSection txn={txn} />
-		</section>
+		</PageLayout>
 	);
 }

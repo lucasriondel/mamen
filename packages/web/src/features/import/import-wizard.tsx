@@ -2,7 +2,7 @@ import type { Account, AccountId } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { type ReactNode, useMemo, useReducer } from "react";
-import { PageHeader } from "@/components/page-header";
+import { PageLayout } from "@/components/page-layout";
 import { stepPresence } from "@/lib/motion";
 import { accountQueries } from "@/lib/sdk";
 import { enrichExtracted } from "./enrich-extracted";
@@ -138,27 +138,20 @@ export function ImportWizard({
 	}
 
 	return (
-		<section
-			className={`mx-auto flex flex-col gap-6 ${wide ? "w-full" : "max-w-3xl"}`}
+		<PageLayout
+			title="Import"
+			description={
+				state.step === "upload"
+					? "Drop a CSV or PDF statement, pick its account, and preview before committing."
+					: "Review what will be written — committing adds these rows to the account."
+			}
+			className={`mx-auto ${wide ? "w-full" : "max-w-3xl"}`}
 		>
-			<header>
-				<PageHeader>
-					<h1 className="text-2xl font-semibold text-gousse-ink text-balance">
-						Import
-					</h1>
-				</PageHeader>
-				<p className="mt-1 text-gousse-muted">
-					{state.step === "upload"
-						? "Drop a CSV or PDF statement, pick its account, and preview before committing."
-						: "Review what will be written — committing adds these rows to the account."}
-				</p>
-			</header>
-
 			<AnimatePresence mode="wait" initial={false}>
 				<motion.div key={state.step} {...stepPresence(reducedMotion)}>
 					{stepContent}
 				</motion.div>
 			</AnimatePresence>
-		</section>
+		</PageLayout>
 	);
 }

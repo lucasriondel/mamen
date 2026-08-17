@@ -4,6 +4,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ThemeProvider } from "next-themes";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { COLLAPSED_SHELL, OPEN_SHELL, withShell } from "@/test/sidebar-shell";
 
 /**
  * The settings page (issue #127) — `/settings`, now one page over two sections:
@@ -73,11 +74,14 @@ const ROOT = readFileSync("src/routes/__root.tsx", "utf8");
  * what keeps the choice a strict pair. The guard at the bottom of this file
  * refuses to let these drift from `__root.tsx`.
  */
-function renderSettings() {
+function renderSettings(shellValue = OPEN_SHELL) {
 	return render(
-		<ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
-			<SettingsView />
-		</ThemeProvider>,
+		withShell(
+			<ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+				<SettingsView />
+			</ThemeProvider>,
+			shellValue,
+		),
 	);
 }
 
@@ -170,6 +174,20 @@ describe("the theme preference", () => {
 		expect(card("Theme")?.className).toBe(
 			card("PDF statement extraction provider")?.className,
 		);
+	});
+
+	it("renders its title through the shared layout, trigger and all", async () => {
+		renderSettings(COLLAPSED_SHELL);
+
+		// `/settings` hand-rolled its own title row and so offered no way back to a
+		// collapsed sidebar — the one page whose whole subject is preferences was
+		// a dead end for the preference the sidebar itself carries (issue #129).
+		expect(
+			await screen.findByRole("heading", { level: 1, name: "Settings" }),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Open sidebar" }),
+		).toBeInTheDocument();
 	});
 
 	it("takes its provider config from the root, System included out", () => {

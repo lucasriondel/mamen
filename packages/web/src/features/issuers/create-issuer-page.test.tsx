@@ -9,7 +9,7 @@ import {
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { SidebarCollapsedProvider } from "@/lib/sidebar-collapsed-context";
+import { withShell } from "@/test/sidebar-shell";
 
 // Mock the SDK seam: the create form reads the issuer `list` (for the local
 // duplicate-name guard) and the category `list` (for the leaf picker), and
@@ -80,16 +80,6 @@ function issuer(overrides: Partial<Issuer> = {}): Issuer {
 	} as Issuer;
 }
 
-// The page's topbar reads the shell's collapse flag (issue #125), and this
-// harness mounts the route without `AppShell`. Standing in for it with the panel
-// open is the state these cases are about: no re-open trigger in the way of the
-// controls they drive. The trigger itself is asserted in `page-layout.test.tsx`.
-const OPEN_SHELL = {
-	collapsed: false,
-	toggle: () => {},
-	triggerRef: { current: null },
-};
-
 // Router harness: the real create page at /issuers/new + a stub detail route so
 // the post-create navigation target resolves.
 function renderPage() {
@@ -116,11 +106,7 @@ function renderPage() {
 		routeTree: rootRoute.addChildren([newRoute, detailRoute, indexRoute]),
 		history: createMemoryHistory({ initialEntries: ["/issuers/new"] }),
 	});
-	render(
-		<SidebarCollapsedProvider value={OPEN_SHELL}>
-			<RouterProvider router={router} />
-		</SidebarCollapsedProvider>,
-	);
+	render(withShell(<RouterProvider router={router} />));
 }
 
 beforeEach(() => {

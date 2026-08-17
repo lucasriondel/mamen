@@ -8,7 +8,7 @@ import {
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { SidebarCollapsedProvider } from "@/lib/sidebar-collapsed-context";
+import { withShell } from "@/test/sidebar-shell";
 
 // A two-row Green-Got statement spanning a month boundary (Jan debit + Feb
 // credit) — the shape that used to cost the earlier month its rows, and that the
@@ -89,22 +89,8 @@ function makeRouter() {
 	});
 }
 
-// The wizard's topbar reads the shell's collapse flag (issue #125), and this
-// harness mounts the route without `AppShell`. Standing in for it with the panel
-// open is the state these cases are about: no re-open trigger in the way of the
-// controls they drive. The trigger itself is asserted in `page-layout.test.tsx`.
-const OPEN_SHELL = {
-	collapsed: false,
-	toggle: () => {},
-	triggerRef: { current: null },
-};
-
 function renderWizard(router = makeRouter()) {
-	render(
-		<SidebarCollapsedProvider value={OPEN_SHELL}>
-			<RouterProvider router={router} />
-		</SidebarCollapsedProvider>,
-	);
+	render(withShell(<RouterProvider router={router} />));
 }
 
 beforeEach(() => {

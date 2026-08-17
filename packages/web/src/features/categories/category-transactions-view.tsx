@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getRouteApi, Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { CategoryIcon } from "@/components/category-icon";
+import { PageLayout } from "@/components/page-layout";
 import { Empty } from "@/components/ui/empty";
 import {
 	descendantIds,
@@ -119,23 +120,48 @@ export function CategoryTransactionsView() {
 	// whole table.
 	if (!categoriesQuery.isPending && (category === undefined || !hasSet)) {
 		return (
-			<section className="flex flex-col gap-6">
-				<Link
-					to="/categories"
-					className="text-gousse-muted text-sm hover:text-gousse-ink"
-				>
-					← Categories
-				</Link>
+			<PageLayout title="Category" back={<CategoriesBackLink />}>
 				<Empty
 					title="Category not found"
 					description="This category has no transactions to show. It may have been removed."
 				/>
-			</section>
+			</PageLayout>
 		);
 	}
 
 	return (
-		<section className="flex flex-col gap-6">
+		<PageLayout
+			back={<CategoriesBackLink />}
+			title={
+				<>
+					{category ? (
+						<CategoryIcon
+							name={category.icon}
+							color={resolveCategoryColor(categories, category)}
+							size={22}
+						/>
+					) : null}
+					<span className="truncate">{category?.name ?? "Category"}</span>
+				</>
+			}
+			// The total is the page's one piece of state, not a control: it is the
+			// signed net over the whole filtered set (not the visible page, ADR
+			// 0002), so it belongs beside the name it is the total *of*.
+			// `<output>` (an implicit live region) both carries the label a generic
+			// span cannot and announces the number when the filters change it.
+			actions={
+				<output
+					aria-label="Category total"
+					className={cn(
+						"font-medium text-xl tabular-nums",
+						categoryTotal < 0 && "text-gousse-high",
+						categoryTotal > 0 && "text-gousse-low",
+					)}
+				>
+					{formatCurrency(categoryTotal)}
+				</output>
+			}
+		>
 			<TransactionsSection
 				scope={scope}
 				search={search}
@@ -144,60 +170,19 @@ export function CategoryTransactionsView() {
 				onToggleSort={toggleSort}
 				onPageChange={goToPage}
 				emptyDescription="No transactions are categorised here yet."
-			>
-				<CategoryHeader
-					category={category}
-					categories={categories}
-					total={categoryTotal}
-				/>
-			</TransactionsSection>
-		</section>
+			/>
+		</PageLayout>
 	);
 }
 
-interface CategoryHeaderProps {
-	category: Category | undefined;
-	/** The whole tree — a nested category's colour is inherited from an ancestor. */
-	categories: readonly Category[];
-	/** The signed net over the whole filtered set (not just the visible page). */
-	total: number;
-}
-
-/** The back link, the category's icon + name, and its filter-following total. */
-function CategoryHeader({ category, categories, total }: CategoryHeaderProps) {
+/** The way back to the tree — the same link on the page and on its empty state. */
+function CategoriesBackLink() {
 	return (
-		<header className="flex flex-col gap-2">
-			<Link
-				to="/categories"
-				className="text-gousse-muted text-sm hover:text-gousse-ink"
-			>
-				← Categories
-			</Link>
-			<div className="flex items-baseline justify-between gap-4">
-				<h1 className="flex items-center gap-2 text-balance font-semibold text-2xl text-gousse-ink">
-					{category ? (
-						<CategoryIcon
-							name={category.icon}
-							color={resolveCategoryColor(categories, category)}
-							size={22}
-						/>
-					) : null}
-					<span>{category?.name ?? "Category"}</span>
-				</h1>
-				{/* `<output>` (an implicit live region) both carries the label a
-				    generic span cannot and announces the total when the filters
-				    change it — the computed result of the view's filters. */}
-				<output
-					aria-label="Category total"
-					className={cn(
-						"font-medium text-xl tabular-nums",
-						total < 0 && "text-gousse-high",
-						total > 0 && "text-gousse-low",
-					)}
-				>
-					{formatCurrency(total)}
-				</output>
-			</div>
-		</header>
+		<Link
+			to="/categories"
+			className="self-start text-gousse-muted text-sm hover:text-gousse-ink"
+		>
+			← Categories
+		</Link>
 	);
 }

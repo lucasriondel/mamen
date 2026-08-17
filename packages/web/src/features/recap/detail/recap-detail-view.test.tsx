@@ -5,9 +5,10 @@ import {
 	createRouter,
 	RouterProvider,
 } from "@tanstack/react-router";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { COLLAPSED_SHELL, OPEN_SHELL, withShell } from "@/test/sidebar-shell";
 import { validateRecapSearch } from "../search";
 import { RecapDetailView } from "./recap-detail-view";
 import { validateRecapDetailSearch } from "./search";
@@ -136,9 +137,9 @@ function makeRouter(initialEntry: string) {
 	});
 }
 
-function renderView(initialEntry: string) {
+function renderView(initialEntry: string, shellValue = OPEN_SHELL) {
 	const router = makeRouter(initialEntry);
-	render(<RouterProvider router={router} />);
+	render(withShell(<RouterProvider router={router} />, shellValue));
 	return router;
 }
 
@@ -162,6 +163,40 @@ function pagedListParams(): Record<string, unknown> {
 }
 
 describe("RecapDetailView", () => {
+	// This page composed its own header and so rendered no trigger at all — the
+	// deepest page in the recap was the hardest one to get the sidebar back on
+	// (issue #129). Its header goes through the shared layout now, keeping the
+	// way back, the scope line and the total exactly where they were.
+	it("offers the sidebar-reopen trigger while the panel is collapsed", async () => {
+		renderView(
+			"/recap-detail?by=issuer&bucket=10&period=month&month=2026-07",
+			COLLAPSED_SHELL,
+		);
+
+		expect(
+			await screen.findByRole("button", { name: "Open sidebar" }),
+		).toBeInTheDocument();
+	});
+
+	it("keeps the way back, the scope and the total in one topbar", async () => {
+		renderView("/recap-detail?by=issuer&bucket=10&period=month&month=2026-07");
+
+		const topbar = (
+			await screen.findByRole("heading", { name: /Carrefour/ })
+		).closest("header") as HTMLElement;
+		expect(
+			within(topbar).getByRole("link", { name: /Recap/ }),
+		).toBeInTheDocument();
+		expect(within(topbar).getByText(/Issuer ·/)).toHaveTextContent(
+			"Issuer · Jul 2026 · All accounts",
+		);
+		await waitFor(() =>
+			expect(within(topbar).getByLabelText("Detail total")).toHaveTextContent(
+				/-42,50/,
+			),
+		);
+	});
+
 	it("lists an issuer bucket's transactions over the recap's period", async () => {
 		renderView(
 			"/recap-detail?by=issuer&bucket=10&period=month&month=2026-07&excludedFromRecap=false",
