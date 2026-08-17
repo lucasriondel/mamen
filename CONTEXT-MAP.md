@@ -420,6 +420,20 @@ repeated per package.
   resolve rather than read the field, which is why resolution takes the whole tree
   and not one row.
 
+- **Colour picker** — the popover behind a Category's swatch: a **palette** of
+  named swatches, a **spectrum** (a saturation/brightness area over a hue track)
+  for a colour the palette does not have, and a hex field as the escape hatch
+  (issue #128). All three drive **one draft** and only *Save* writes, so a
+  palette pick can still be refined in the spectrum. Whatever they produce is
+  normalised before it is stored, so a colour has exactly one spelling on the
+  wire. Clearing writes `null` — the **inherited colour**, not a blank — and is
+  offered only when the Category stores a colour of its own. The **account**
+  colour picker is a different control with different semantics: accounts are
+  flat, so clearing there means *auto* (the id-keyed palette), and its preset
+  grid commits on the click. The two share only the normaliser.
+  _Avoid_: colour dialog, swatch menu; and do not call the account one a colour
+  picker with inherit semantics.
+
 - **Icon name** — a Category's `icon`, holding a **Lucide** icon id in kebab-case
   (`shopping-cart`), not an emoji and not the PascalCase React export. The id is
   Lucide's own canonical key, so it survives export renames and matches what the
