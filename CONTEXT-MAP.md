@@ -434,25 +434,35 @@ repeated per package.
   resolve rather than read the field, which is why resolution takes the whole tree
   and not one row.
 
-- **Colour picker** — the popover behind a Category's swatch: a **palette** of
-  named swatches, a **spectrum** (a saturation/brightness area over a hue track)
-  for a colour the palette does not have, and a hex field as the escape hatch
-  (issue #128). All three drive **one draft** and only *Save* writes, so a
-  palette pick can still be refined in the spectrum. Whatever they produce is
-  normalised before it is stored, so a colour has exactly one spelling on the
-  wire. Clearing writes `null` — the **inherited colour**, not a blank — and is
-  offered only when the Category stores a colour of its own. The **account**
-  colour picker is a different control with different semantics: accounts are
-  flat, so clearing there means *auto* (the id-keyed palette), and its preset
-  grid commits on the click. The two share only the normaliser.
-  _Avoid_: colour dialog, swatch menu; and do not call the account one a colour
-  picker with inherit semantics.
+- **Appearance editor** — the one popover behind a Category's chip, holding both
+  halves of how a row looks: the **icon grid** (a filter field over Lucide's ids,
+  virtualised) beside the colour's three ways in — a **palette** of named
+  swatches, a **spectrum** (a saturation/brightness area over a hue track) for a
+  colour the palette does not have, and a hex field as the escape hatch (issues
+  #128, #130). A row used to carry two triggers two pixels apart, each with its
+  own popover and its own write; they are **one trigger, one panel and one
+  commit** now, and the create dialog uses the same editor so an appearance means
+  the same thing on both paths. Everything in it **stages** — the icon click, the
+  swatch, the spectrum, the hex, and *Inherit* — and only *Save* writes; the
+  request then carries only the half that actually moved, so a Save that changed
+  nothing is no write at all. Whatever the colour half produces is normalised
+  before it is stored, so a colour has exactly one spelling on the wire. Clearing
+  stages `null` — the **inherited colour**, not a blank — and is offered only
+  when the draft has a colour to clear. The trigger paints the **resolved
+  colour** and says whether it is chosen (a filled dot) or inherited (the same
+  dot hollowed and dashed). The **account** colour picker is a different control
+  with different semantics: accounts are flat, so clearing there means *auto*
+  (the id-keyed palette), it has no icon, and its preset grid commits on the
+  click. The two share only the normaliser.
+  _Avoid_: icon picker / colour picker as two things (they are one editor),
+  colour dialog, swatch menu; and do not call the account one a colour picker
+  with inherit semantics.
 
 - **Icon name** — a Category's `icon`, holding a **Lucide** icon id in kebab-case
   (`shopping-cart`), not an emoji and not the PascalCase React export. The id is
   Lucide's own canonical key, so it survives export renames and matches what the
-  picker searches. An unresolvable name renders a fallback glyph rather than
-  nothing. Icons are assigned **only to categories** — never directly to an
+  **appearance editor** searches. An unresolvable name renders a fallback glyph
+  rather than nothing. Icons are assigned **only to categories** — never directly to an
   Issuer, which gets its icon through its **issuer default category**. See
   [ADR 0006](./docs/adr/0006-category-colour-is-inherited-icons-are-lucide-names.md).
   _Avoid_: emoji, icon key, icon component.

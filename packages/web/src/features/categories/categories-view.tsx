@@ -2,6 +2,7 @@ import type { CategoryTreeNode } from "@mamen/shared";
 import type { Category, CategoryId } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
+import type { Appearance } from "@/components/appearance-picker";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -52,10 +53,12 @@ interface NodeActions {
 	onRename: (node: Category) => void;
 	onMove: (node: Category) => void;
 	onDelete: (node: Category) => void;
-	/** Store a new **Icon name** on a node (issue #58). */
-	onIcon: (id: CategoryId, icon: string) => void;
-	/** Store a colour, or `null` to resume inheriting (issue #58). */
-	onColor: (id: CategoryId, color: string | null) => void;
+	/**
+	 * Store a node's **appearance** — icon and colour, `null` for "resume
+	 * inheriting" — as one write (issues #58, #130). Takes the node rather than
+	 * its id because only the row as stored can say which half actually moved.
+	 */
+	onAppearance: (node: Category, appearance: Appearance) => void;
 	deleting: boolean;
 	styling: boolean;
 	/** Every node's **Category total** — its own leaves' net, at any depth. */
@@ -114,10 +117,19 @@ export function CategoriesView() {
 		onRename: (node) => setEditor({ kind: "rename", node }),
 		onMove: (node) => setEditor({ kind: "move", node }),
 		onDelete: (node) => mutations.remove.mutate(node.id),
-		onIcon: (id, icon) => mutations.setIcon.mutate({ id, icon }),
-		onColor: (id, color) => mutations.setColor.mutate({ id, color }),
+		onAppearance: (node, next) => {
+			// The editor commits both halves; the request carries only the half that
+			// moved, so restyling a category cannot silently rewrite the field
+			// someone else was editing — and a Save that changed nothing is no write.
+			const patch = {
+				...(next.icon === node.icon ? {} : { icon: next.icon }),
+				...(next.color === node.color ? {} : { color: next.color }),
+			};
+			if (Object.keys(patch).length === 0) return;
+			mutations.setAppearance.mutate({ id: node.id, ...patch });
+		},
 		deleting: mutations.remove.isPending,
-		styling: mutations.setIcon.isPending || mutations.setColor.isPending,
+		styling: mutations.setAppearance.isPending,
 		totalById,
 		colorById,
 		collapsed,
@@ -223,8 +235,7 @@ function CategoryNode({
 			childCount={node.children.length}
 			expanded={expanded}
 			onToggle={() => actions.onToggle(node.id)}
-			onIcon={(icon) => actions.onIcon(node.id, icon)}
-			onColor={(next) => actions.onColor(node.id, next)}
+			onAppearance={(appearance) => actions.onAppearance(node, appearance)}
 			styling={actions.styling}
 			actions={
 				<CategoryRowActions

@@ -162,18 +162,25 @@ function seedTree() {
 	return { food, home, groceries, restaurants };
 }
 
-// The icon and the swatch are the *editors* for what they show (issue #58), so
-// each is a button on the row rather than a decoration inside the navigation
-// link — which is also how a test reaches the glyph and the colour it paints.
+// A row carries **one** appearance trigger (issue #130), not an icon chip beside
+// a colour swatch: the two are halves of one thing, so they open one editor and
+// commit together. It is a button on the row rather than a decoration inside the
+// navigation link — which is also how a test reaches the glyph and the colour it
+// paints.
+const appearanceIn = (name: string) =>
+	screen.findByRole("button", { name: `Change ${name} appearance` });
+
 const iconIn = async (name: string) =>
-	(
-		await screen.findByRole("button", { name: `Change ${name} icon` })
-	).querySelector("[data-category-icon]");
+	(await appearanceIn(name)).querySelector("[data-category-icon]");
 
 const swatchIn = async (name: string) =>
-	(
-		await screen.findByRole("button", { name: `Change ${name} colour` })
-	).querySelector("[data-color-swatch]");
+	(await appearanceIn(name)).querySelector("[data-appearance-color]");
+
+/** Open a row's appearance editor and wait for the panel. */
+async function openAppearance(user: UserEvent, name: string) {
+	await user.click(await appearanceIn(name));
+	await screen.findByLabelText(/search icons/i);
+}
 
 /**
  * Fire one of a row's occasional actions — rename, move, delete.
@@ -348,6 +355,23 @@ describe("CategoriesView", () => {
 		);
 	});
 
+	// This page's own create dialog asks for a name and nothing else — the merged
+	// appearance editor lives on the dialog that always carried an icon control,
+	// {@link CategoryCreateDialog}, and is asserted there (issue #130).
+	it("leaves this page's create dialog a single field", async () => {
+		const user = userEvent.setup();
+		seedTree();
+		renderView();
+
+		await user.click(
+			await screen.findByRole("button", { name: /new category/i }),
+		);
+		const dialog = within(await screen.findByRole("dialog"));
+
+		expect(dialog.getByLabelText(/category name/i)).toBeInTheDocument();
+		expect(dialog.queryByRole("button", { name: /appearance/i })).toBeNull();
+	});
+
 	// The **Resolved colour** on the surface that shows it. The page never reads
 	// `color` — it resolves — which is what makes a folder recolour visible on
 	// every descendant that never opted out (the walk itself is covered at the
@@ -381,18 +405,57 @@ describe("CategoriesView", () => {
 		renderView();
 
 		expect(await swatchIn("Food")).toHaveAttribute(
-			"data-color-swatch",
+			"data-appearance-color",
 			food.color,
 		);
 		// Groceries stores nothing, yet its swatch is Food's colour, not a blank.
 		expect(await swatchIn("Groceries")).toHaveAttribute(
-			"data-color-swatch",
+			"data-appearance-color",
 			food.color,
 		);
+		// …and it says the colour is borrowed rather than chosen, which the row
+		// could not otherwise show without opening anything (ADR 0006).
+		expect(await swatchIn("Groceries")).toHaveAttribute(
+			"data-appearance-inherited",
+			"",
+		);
 		expect(await swatchIn("Restaurants")).toHaveAttribute(
-			"data-color-swatch",
+			"data-appearance-color",
 			"#000000",
 		);
+		expect(await swatchIn("Restaurants")).not.toHaveAttribute(
+			"data-appearance-inherited",
+		);
+	});
+
+	// The merge itself, at the surface that carries it: one control per row, not
+	// two two pixels apart (issue #130). Asserted here rather than only on the
+	// component, because the row is where the pair used to live.
+	it("gives a row one appearance trigger, not an icon chip and a swatch", async () => {
+		seedTree();
+		renderView();
+
+		expect(await appearanceIn("Groceries")).toBeInTheDocument();
+		expect(
+			screen.queryByRole("button", { name: /change groceries icon/i }),
+		).toBeNull();
+		expect(
+			screen.queryByRole("button", { name: /change groceries colour/i }),
+		).toBeNull();
+	});
+
+	// The trigger sits *beside* the node's link, never inside it: a button nested
+	// in an anchor is invalid, and one gesture must not mean both "navigate" and
+	// "edit". Merging the two triggers into one is exactly the moment that could
+	// have been lost.
+	it("keeps the appearance trigger outside the row's link", async () => {
+		seedTree();
+		renderView();
+
+		const trigger = await appearanceIn("Groceries");
+		expect(trigger.closest("a")).toBeNull();
+		// …and the link is still there to be clicked on its own.
+		expect(screen.getByRole("link", { name: "Groceries" })).toBeInTheDocument();
 	});
 
 	// The whole reason the swatch shows the *resolved* colour rather than the
@@ -419,13 +482,11 @@ describe("CategoriesView", () => {
 		renderView();
 
 		expect(await swatchIn("Groceries")).toHaveAttribute(
-			"data-color-swatch",
+			"data-appearance-color",
 			food.color,
 		);
 
-		await user.click(
-			await screen.findByRole("button", { name: /change food colour/i }),
-		);
+		await openAppearance(user, "Food");
 		const field = screen.getByLabelText(/hex colour/i);
 		await user.clear(field);
 		await user.type(field, "#123abc");
@@ -435,55 +496,76 @@ describe("CategoriesView", () => {
 		// ancestor, and nothing was written to it.
 		await waitFor(async () =>
 			expect(await swatchIn("Groceries")).toHaveAttribute(
-				"data-color-swatch",
+				"data-appearance-color",
 				"#123abc",
 			),
 		);
 		expect(updateCategory).toHaveBeenCalledTimes(1);
 		expect(updateCategory).toHaveBeenCalledWith(food.id, { color: "#123abc" });
-		// The icon chip is tinted from the same resolution, so it moves too.
+		// The icon is tinted from the same resolution, so it moves too.
 		expect(await iconIn("Groceries")).toHaveAttribute("stroke", "#123abc");
 		// Restaurants chose its own colour, so the recolour stops at it.
 		expect(await swatchIn("Restaurants")).toHaveAttribute(
-			"data-color-swatch",
+			"data-appearance-color",
 			"#000000",
 		);
 	});
 
-	it("changes a category's icon from the tree row", async () => {
+	// One editor, but still a **narrow patch**: the merged Save sends only the
+	// halves that actually moved, so two people editing different facets of one
+	// category cannot clobber each other through a write that restates both.
+	it("changes a category's icon from the tree row, writing only the icon", async () => {
 		const user = userEvent.setup();
 		const { groceries } = seedTree();
 		renderView();
 
-		await user.click(
-			await screen.findByRole("button", { name: /change groceries icon/i }),
-		);
+		await openAppearance(user, "Groceries");
 		await user.type(screen.getByLabelText(/search icons/i), "shopping-bag");
 		await user.click(
 			await screen.findByRole("button", { name: "shopping-bag" }),
 		);
+		await user.click(screen.getByRole("button", { name: /^save$/i }));
 
 		await waitFor(() => expect(updateCategory).toHaveBeenCalledTimes(1));
-		// Only the icon — the row's other fields are not rewritten in passing.
 		expect(updateCategory).toHaveBeenCalledWith(groceries.id, {
 			icon: "shopping-bag",
 		});
 	});
 
-	it("stores a hex typed on the row's colour swatch", async () => {
+	it("stores a hex typed in the row's appearance editor", async () => {
 		const user = userEvent.setup();
 		const { groceries } = seedTree();
 		renderView();
 
-		await user.click(
-			await screen.findByRole("button", { name: /change groceries colour/i }),
-		);
+		await openAppearance(user, "Groceries");
 		await user.type(screen.getByLabelText(/hex colour/i), "#123abc");
 		await user.click(screen.getByRole("button", { name: /^save$/i }));
 
 		await waitFor(() => expect(updateCategory).toHaveBeenCalledTimes(1));
 		expect(updateCategory).toHaveBeenCalledWith(groceries.id, {
 			color: "#123abc",
+		});
+	});
+
+	// The gesture the merge exists for: both halves chosen in one visit and sent
+	// in one write, rather than two open/choose/save cycles (issue #130).
+	it("commits a new icon and a new colour in a single write", async () => {
+		const user = userEvent.setup();
+		const { groceries } = seedTree();
+		renderView();
+
+		await openAppearance(user, "Groceries");
+		await user.type(screen.getByLabelText(/search icons/i), "shopping-bag");
+		await user.click(
+			await screen.findByRole("button", { name: "shopping-bag" }),
+		);
+		await user.click(screen.getByRole("button", { name: "Sky" }));
+		await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+		await waitFor(() => expect(updateCategory).toHaveBeenCalledTimes(1));
+		expect(updateCategory).toHaveBeenCalledWith(groceries.id, {
+			icon: "shopping-bag",
+			color: "#0ea5e9",
 		});
 	});
 
@@ -495,10 +577,9 @@ describe("CategoriesView", () => {
 		);
 		renderView();
 
-		await user.click(
-			await screen.findByRole("button", { name: /change restaurants colour/i }),
-		);
-		await user.click(screen.getByRole("button", { name: /inherit/i }));
+		await openAppearance(user, "Restaurants");
+		await user.click(screen.getByRole("button", { name: /^inherit$/i }));
+		await user.click(screen.getByRole("button", { name: /^save$/i }));
 
 		// `null`, not a colour copied from the parent: the leaf resumes *referring*
 		// to its ancestor, so a later folder recolour keeps reaching it.
@@ -509,14 +590,28 @@ describe("CategoriesView", () => {
 		);
 	});
 
+	// A Save that moved nothing is not a write: the editor commits both halves, so
+	// opening it to look at a row must not rewrite that row.
+	it("writes nothing when the editor is saved unchanged", async () => {
+		const user = userEvent.setup();
+		seedTree();
+		renderView();
+
+		await openAppearance(user, "Groceries");
+		await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+		await waitFor(() =>
+			expect(screen.queryByLabelText(/hex colour/i)).not.toBeInTheDocument(),
+		);
+		expect(updateCategory).not.toHaveBeenCalled();
+	});
+
 	it("refuses an invalid hex from the row without writing", async () => {
 		const user = userEvent.setup();
 		seedTree();
 		renderView();
 
-		await user.click(
-			await screen.findByRole("button", { name: /change groceries colour/i }),
-		);
+		await openAppearance(user, "Groceries");
 		await user.type(screen.getByLabelText(/hex colour/i), "nope");
 		await user.click(screen.getByRole("button", { name: /^save$/i }));
 

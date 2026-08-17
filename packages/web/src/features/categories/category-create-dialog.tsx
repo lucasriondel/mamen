@@ -1,7 +1,7 @@
 import type { Category, CategoryId } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
-import { IconPicker } from "@/components/icon-picker";
+import { AppearancePicker } from "@/components/appearance-picker";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -35,10 +35,16 @@ const DEFAULT_ICON = "tag";
  * Three fields, matching the categories page's own vocabulary: the **name**
  * (prefilled with whatever was typed into the search, since that is already the
  * user's intent), the **parent** (`null` = a new root — the same path-labelled
- * select the move flow uses), and the **icon** (the same virtualised
- * {@link IconPicker} the category rows edit through). Colour is deliberately
- * absent: a new category *inherits*, and the picker shows it painting the parent
- * it lands under, so there is nothing to choose here (ADR 0006).
+ * select the move flow uses), and the **appearance** — the same merged
+ * {@link AppearancePicker} the category rows edit through (issue #130).
+ *
+ * The appearance still *defaults* to inheriting: the trigger shows the icon
+ * painting the parent it would land under, and the editor opens on an empty
+ * draft, so a category created without touching the colour is born with `null`
+ * exactly as before (ADR 0006). What changed is that a user who does want a
+ * colour up front no longer has to create the row and then edit it — and that
+ * choosing an appearance means the same thing on both paths, which is the whole
+ * point of merging the two editors.
  *
  * On success it reports the created row through `onCreated`, which is what lets
  * the caller select it immediately — the whole point of creating it here. A
@@ -74,6 +80,8 @@ export function CategoryCreateDialog({
 	const [name, setName] = useState(initialName);
 	const [parentId, setParentId] = useState<CategoryId | null>(initialParentId);
 	const [icon, setIcon] = useState(DEFAULT_ICON);
+	/** The colour chosen up front; `null` — the default — means it inherits. */
+	const [color, setColor] = useState<string | null>(null);
 	/**
 	 * The dialog's own node, handed to the pickers inside it so their popovers
 	 * portal *within* the modal rather than to `document.body`. A modal dialog
@@ -103,7 +111,7 @@ export function CategoryCreateDialog({
 		event.preventDefault();
 		if (trimmed.length === 0 || create.isPending) return;
 		create.mutate(
-			{ name: trimmed, parentId, icon },
+			{ name: trimmed, parentId, icon, color },
 			{
 				onSuccess: (category) => {
 					onCreated?.(category);
@@ -120,8 +128,9 @@ export function CategoryCreateDialog({
 					<DialogHeader>
 						<DialogTitle>New category</DialogTitle>
 						<DialogDescription>
-							Name it, choose where it sits, and pick an icon. Its colour is
-							inherited from the category above it.
+							Name it, choose where it sits, and give it an icon and a colour.
+							Leave the colour alone and it is inherited from the category above
+							it.
 						</DialogDescription>
 					</DialogHeader>
 
@@ -137,13 +146,21 @@ export function CategoryCreateDialog({
 								autoFocus
 							/>
 						</label>
-						{/* The icon editor sits on the row it describes, the same gesture as
-						    the categories page: click the glyph to change the glyph. */}
-						<IconPicker
+						{/* The appearance editor sits on the thing it describes, the same
+						    gesture as the categories page: click the glyph to change how the
+						    category looks. The same control on both paths, so choosing an
+						    appearance means one thing (issue #130). */}
+						<AppearancePicker
 							label={trimmed.length > 0 ? trimmed : "new category"}
-							value={icon}
-							color={previewColor}
-							onSelect={setIcon}
+							icon={icon}
+							color={color}
+							// Nothing chosen yet resolves to the parent it would land under,
+							// so changing the parent repaints the chip.
+							resolved={color ?? previewColor}
+							onSubmit={(appearance) => {
+								setIcon(appearance.icon);
+								setColor(appearance.color);
+							}}
 							className="mb-2"
 							portalContainer={dialogNode}
 						/>
