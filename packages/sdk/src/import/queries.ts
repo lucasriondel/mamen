@@ -12,7 +12,9 @@ import { Client, runQuery } from "../runtime";
  * `File` (mirroring `issuerMutations.uploadImage` — the contract types the
  * payload as `FormData` under the field key `file`). It resolves to the
  * extracted transactions plus the statement's declared totals, or rejects with
- * a contract tagged error (`InvalidFileType` / `ExtractionFailed`).
+ * a contract tagged error: `InvalidFileType`, the collapsed `ExtractionFailed`,
+ * or `AiProviderNotConfigured` — the one of the three a caller can act on, which
+ * is why it is its own tag and not folded into the collapse (issue #122).
  */
 export const importMutations = {
 	extractPdf: (file: File): Promise<ExtractPdfResult> => {

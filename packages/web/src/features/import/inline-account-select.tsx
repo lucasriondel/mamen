@@ -2,6 +2,7 @@ import type { Account, AccountId } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import {
 	ACCOUNT_TYPE_OPTIONS,
 	type AccountType,
@@ -53,8 +54,7 @@ export function InlineAccountSelect({
 		<div className="flex flex-col gap-3">
 			<label className="flex flex-col gap-1 text-sm text-gousse-muted">
 				Target account
-				<select
-					className={INPUT_CLASS}
+				<Select
 					value={value ?? ""}
 					onChange={(event) =>
 						onChange(Number(event.target.value) as AccountId)
@@ -69,7 +69,7 @@ export function InlineAccountSelect({
 							{account.name}
 						</option>
 					))}
-				</select>
+				</Select>
 			</label>
 
 			{creating ? (
@@ -90,8 +90,7 @@ export function InlineAccountSelect({
 					</label>
 					<label className="flex flex-col gap-1 text-sm text-gousse-muted">
 						Type
-						<select
-							className={INPUT_CLASS}
+						<Select
 							value={type}
 							onChange={(event) => setType(event.target.value as AccountType)}
 							aria-label="New account type"
@@ -101,7 +100,7 @@ export function InlineAccountSelect({
 									{option.label}
 								</option>
 							))}
-						</select>
+						</Select>
 					</label>
 					<Button
 						type="submit"

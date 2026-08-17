@@ -2,6 +2,7 @@ import { HttpApiBuilder } from "@effect/platform";
 import { Api } from "@mamen/shared/contract";
 import { Layer } from "effect";
 import { AccountsLive } from "./accounts/handlers";
+import { AiTasksLive } from "./ai-tasks";
 import { AppSettingsLive } from "./app-settings/handlers";
 import { CategoriesLive } from "./categories/handlers";
 import { DatabaseLive } from "./database/handlers";
@@ -9,6 +10,7 @@ import { HealthLive } from "./health/handlers";
 import { ImportLive } from "./import/handlers";
 import { IssuersLive } from "./issuers/handlers";
 import { RulesLive } from "./rules/handlers";
+import { SecretsLive } from "./secrets";
 import { SettingsLive } from "./settings/handlers";
 import { SubscriptionsLive } from "./subscriptions/handlers";
 import { TransactionsLive } from "./transactions/handlers";
@@ -24,7 +26,9 @@ import { TransactionsLive } from "./transactions/handlers";
  * import handlers additionally require `FileSystem` / `Path`, satisfied by the
  * platform in the server layer (Bun / Node); the import handler further requires
  * `ClaudeCode`, provided by `ClaudeCodeProdLive` in `ServerLive` (prod) or the
- * deep-fake `ClaudeCodeTest` executor under test.
+ * deep-fake `ClaudeCodeTest` executor under test. Since issue #122 that layer
+ * reads the CLI's token from the credential store, so it takes the *same*
+ * `SqlClient` the caller provides here — one database, one memoised layer.
  *
  * The `/uploads/*` static route ({@link StaticUploadsLive}) is NOT part of this
  * layer: it mutates the served `HttpApiBuilder.Router` directly (like
@@ -41,6 +45,8 @@ export const ApiLive = HttpApiBuilder.api(Api).pipe(
 		RulesLive,
 		SubscriptionsLive,
 		SettingsLive,
+		SecretsLive,
+		AiTasksLive,
 		AppSettingsLive,
 		DatabaseLive,
 		ImportLive,

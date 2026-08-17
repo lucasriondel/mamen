@@ -74,8 +74,16 @@ function makeRouter() {
 		path: "/transactions",
 		component: () => <div>Transactions page</div>,
 	});
+	// Where the upload step sends a user whose provider has no credential stored
+	// (issue #122) — a destination, so the link is asserted as navigation rather
+	// than as an `href` string.
+	const settingsRoute = createRoute({
+		getParentRoute: () => rootRoute,
+		path: "/settings",
+		component: () => <div>AI settings page</div>,
+	});
 	return createRouter({
-		routeTree: rootRoute.addChildren([importRoute, txRoute]),
+		routeTree: rootRoute.addChildren([importRoute, txRoute, settingsRoute]),
 		history: createMemoryHistory({ initialEntries: ["/import"] }),
 	});
 }
@@ -584,6 +592,76 @@ describe("ImportWizard", () => {
 		expect(
 			screen.getByRole("button", { name: "Continue to preview" }),
 		).toBeDisabled();
+	});
+
+	// The one extraction failure a retry cannot fix (issue #122): the provider the
+	// task runs on has no credential stored. It must not read as the generic
+	// "drop it again" failure, and the alert has to take the user where the fix
+	// is — an actual link, not only a sentence naming a page.
+	it("sends the user to AI settings when no credential is stored", async () => {
+		const user = userEvent.setup();
+		extractPdf.mockRejectedValue({
+			_tag: "AiProviderNotConfigured",
+			task: "extract-pdf",
+			provider: "claude-code",
+		});
+		render(<RouterProvider router={makeRouter()} />);
+
+		await user.upload(
+			await screen.findByLabelText("CSV or PDF statement"),
+			new File(["%PDF-1.7"], "statement.pdf", { type: "application/pdf" }),
+		);
+
+		const alert = await screen.findByRole("alert");
+		// Named provider, and no retry advice — retrying is exactly what does not
+		// work here, which is why the server keeps this tag out of the collapse.
+		expect(alert).toHaveTextContent(
+			"Claude Code has no credential stored, so nothing could run. Paste one in Settings, then try again.",
+		);
+		expect(alert).not.toHaveTextContent("Try dropping it again");
+
+		const link = within(alert).getByRole("link", { name: "Open AI settings" });
+		expect(link).toHaveAttribute("href", "/settings");
+
+		await user.click(link);
+		expect(await screen.findByText("AI settings page")).toBeInTheDocument();
+	});
+
+	// The link belongs to the failure that raised it, not to the alert: the next
+	// file's rejection is still an alert, and an oversize PDF has nothing to do
+	// with a credential.
+	it("drops the settings link on the next dropped file", async () => {
+		const user = userEvent.setup();
+		extractPdf.mockRejectedValue({
+			_tag: "AiProviderNotConfigured",
+			task: "extract-pdf",
+			provider: "claude-code",
+		});
+		render(<RouterProvider router={makeRouter()} />);
+
+		const input = await screen.findByLabelText("CSV or PDF statement");
+		await user.upload(
+			input,
+			new File(["%PDF-1.7"], "statement.pdf", { type: "application/pdf" }),
+		);
+		expect(
+			await screen.findByRole("link", { name: "Open AI settings" }),
+		).toBeInTheDocument();
+
+		// Rejected client-side for its size, so the alert stays on screen — which
+		// is what makes the link's absence an assertion rather than a side effect
+		// of the alert having gone.
+		const oversize = new File(["%PDF-1.7"], "huge.pdf", {
+			type: "application/pdf",
+		});
+		Object.defineProperty(oversize, "size", { value: 10 * 1024 * 1024 + 1 });
+		await user.upload(input, oversize);
+
+		const alert = await screen.findByRole("alert");
+		expect(alert).toHaveTextContent("under 10 MB");
+		expect(
+			within(alert).queryByRole("link", { name: "Open AI settings" }),
+		).toBeNull();
 	});
 
 	it("surfaces a distinct message when the PDF is rejected as an invalid file type", async () => {

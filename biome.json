@@ -13,7 +13,11 @@
 			"!packages/web/src/components/ui/sidebar.tsx",
 			"!*.config.ts",
 			"!*.config.js",
-			"!_bmad-output"
+			"!_bmad-output",
+			"!graphify-out",
+			"!**/*.gen.ts",
+			"!**/*.gen.tsx",
+			"!packages/api/openapi.json"
 		]
 	},
 	"css": {
@@ -34,7 +38,7 @@
 				"noLabelWithoutControl": {
 					"level": "error",
 					"options": {
-						"inputComponents": ["Input"]
+						"inputComponents": ["Input", "Select"]
 					}
 				}
 			},
@@ -46,11 +50,6 @@
 			}
 		}
 	},
-	"overrides": [
-		{
-			"includes": ["*.gen.ts", "*.gen.tsx"]
-		}
-	],
 	"assist": {
 		"enabled": true,
 		"actions": {

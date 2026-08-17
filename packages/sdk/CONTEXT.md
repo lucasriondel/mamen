@@ -61,6 +61,23 @@ here changes something a *different* resource counts — a derived count is a
 function of the table a mutation just moved rows in, so the write's caller must
 name every query family it invalidated, not just the obvious one.
 
+**Closed-set read**:
+A `list` that takes no params and gets no `params` slot in its key —
+`secretQueries.list`, `aiTaskQueries.list`. Their subject is a closed literal in
+the contract (the **AI provider** set, the **AI task** set), so the server
+answers **exhaustively**, one entry per member, whether or not a row exists. There
+is one shape, so there is one cache entry, and there is no **paged envelope** to
+unwrap. Do not add pagination params to one of these to "match the others": the
+absence is the fact that a provider with nothing stored is still an answer.
+
+**Cross-family invalidation**:
+The concrete case the **mutation function** note warns about, worth naming
+because it is not obvious: `secretMutations.put`/`clear` must invalidate
+`aiTaskKeys.all` as well as `secretKeys.all`. A credential appearing or
+disappearing changes which providers a task may be *pointed at*, so the task
+list — and the picker built on it — is stale the moment a credential write lands,
+even though no task row was touched.
+
 **Params type**:
 The SDK's own `XxxListParams` / `RecapParams` / `BundleImpactParams` — the
 contract's **filter set** restated with every field optional, so a caller passes

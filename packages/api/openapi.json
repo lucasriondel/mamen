@@ -5426,9 +5426,6 @@
             "schema": {
               "type": "string",
               "enum": [
-                "llm_endpoint",
-                "llm_api_key",
-                "llm_model",
                 "currency_symbol",
                 "date_format",
                 "anomaly_threshold",
@@ -5519,6 +5516,371 @@
             }
           },
           "required": true
+        }
+      }
+    },
+    "/api/secrets": {
+      "get": {
+        "tags": [
+          "Secrets"
+        ],
+        "operationId": "secrets.list",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SecretStatus"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/secrets/{name}": {
+      "get": {
+        "tags": [
+          "Secrets"
+        ],
+        "operationId": "secrets.status",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "claude-code",
+                "anthropic",
+                "google",
+                "openai"
+              ]
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "SecretStatus",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecretStatus"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Secrets"
+        ],
+        "operationId": "secrets.put",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "claude-code",
+                "anthropic",
+                "google",
+                "openai"
+              ]
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "SecretStatus",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecretStatus"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "SecretRejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecretRejected"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SecretValue"
+              }
+            }
+          },
+          "required": true
+        }
+      },
+      "delete": {
+        "tags": [
+          "Secrets"
+        ],
+        "operationId": "secrets.clear",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "claude-code",
+                "anthropic",
+                "google",
+                "openai"
+              ]
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "SecretStatus",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecretStatus"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "TaskProviderRejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskProviderRejected"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/ai/tasks": {
+      "get": {
+        "tags": [
+          "AI tasks"
+        ],
+        "operationId": "aiTasks.list",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AiTaskSetting"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "AI tasks"
+        ],
+        "operationId": "aiTasks.patch",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AiTaskSetting"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "TaskProviderRejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskProviderRejected"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AiTaskPatch"
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/ai/tasks/{task}/resolution": {
+      "get": {
+        "tags": [
+          "AI tasks"
+        ],
+        "operationId": "aiTasks.resolve",
+        "parameters": [
+          {
+            "name": "task",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "extract-pdf"
+              ]
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "ResolvedAiTask",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedAiTask"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "TaskProviderRejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskProviderRejected"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
         }
       }
     },
@@ -5879,6 +6241,16 @@
           },
           "500": {
             "description": "InternalServerError"
+          },
+          "501": {
+            "description": "AiProviderNotConfigured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiProviderNotConfigured"
+                }
+              }
+            }
           },
           "502": {
             "description": "ExtractionFailed",
@@ -6847,9 +7219,6 @@
           "key": {
             "type": "string",
             "enum": [
-              "llm_endpoint",
-              "llm_api_key",
-              "llm_model",
               "currency_symbol",
               "date_format",
               "anomaly_threshold",
@@ -6863,11 +7232,219 @@
         },
         "additionalProperties": false
       },
+      "SecretStatus": {
+        "type": "object",
+        "required": [
+          "name",
+          "configured",
+          "hint"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "enum": [
+              "claude-code",
+              "anthropic",
+              "google",
+              "openai"
+            ]
+          },
+          "configured": {
+            "type": "boolean"
+          },
+          "hint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "SecretValue": {
+        "type": "object",
+        "required": [
+          "value"
+        ],
+        "properties": {
+          "value": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SecretRejected": {
+        "type": "object",
+        "required": [
+          "reason",
+          "_tag"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string",
+            "enum": [
+              "blank",
+              "too-short"
+            ]
+          },
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "SecretRejected"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "TaskProviderRejected": {
+        "type": "object",
+        "required": [
+          "task",
+          "provider",
+          "reason",
+          "_tag"
+        ],
+        "properties": {
+          "task": {
+            "type": "string",
+            "enum": [
+              "extract-pdf"
+            ]
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "claude-code",
+              "anthropic",
+              "google",
+              "openai"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "model-not-served",
+              "no-credential",
+              "credential-in-use"
+            ]
+          },
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "TaskProviderRejected"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "AiTaskSetting": {
+        "type": "object",
+        "required": [
+          "task",
+          "provider",
+          "model"
+        ],
+        "properties": {
+          "task": {
+            "type": "string",
+            "enum": [
+              "extract-pdf"
+            ]
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "claude-code",
+              "anthropic",
+              "google",
+              "openai"
+            ]
+          },
+          "model": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AiTaskPatch": {
+        "type": "object",
+        "required": [
+          "tasks"
+        ],
+        "properties": {
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiTaskChange"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "AiTaskChange": {
+        "type": "object",
+        "required": [
+          "task"
+        ],
+        "properties": {
+          "task": {
+            "type": "string",
+            "enum": [
+              "extract-pdf"
+            ]
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "claude-code",
+              "anthropic",
+              "google",
+              "openai"
+            ]
+          },
+          "model": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ResolvedAiTask": {
+        "type": "object",
+        "required": [
+          "task",
+          "provider",
+          "model"
+        ],
+        "properties": {
+          "task": {
+            "type": "string",
+            "enum": [
+              "extract-pdf"
+            ]
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "claude-code",
+              "anthropic",
+              "google",
+              "openai"
+            ]
+          },
+          "model": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
       "AppSettings": {
         "type": "object",
         "required": [
-          "id",
-          "llm"
+          "id"
         ],
         "properties": {
           "id": {
@@ -6875,45 +7452,6 @@
             "enum": [
               "app"
             ]
-          },
-          "llm": {
-            "$ref": "#/components/schemas/LlmSettings"
-          }
-        },
-        "additionalProperties": false
-      },
-      "LlmSettings": {
-        "type": "object",
-        "required": [
-          "endpoint",
-          "modelName",
-          "provider"
-        ],
-        "properties": {
-          "endpoint": {
-            "type": "string"
-          },
-          "apiKey": {
-            "type": "string"
-          },
-          "modelName": {
-            "type": "string"
-          },
-          "provider": {
-            "type": "string",
-            "enum": [
-              "ollama",
-              "lm-studio",
-              "openai",
-              "anthropic",
-              "custom"
-            ]
-          },
-          "lastTestedAt": {
-            "$ref": "#/components/schemas/Date"
-          },
-          "lastTestSuccess": {
-            "type": "boolean"
           }
         },
         "additionalProperties": false
@@ -7048,6 +7586,38 @@
           }
         },
         "additionalProperties": false
+      },
+      "AiProviderNotConfigured": {
+        "type": "object",
+        "required": [
+          "task",
+          "provider",
+          "_tag"
+        ],
+        "properties": {
+          "task": {
+            "type": "string",
+            "enum": [
+              "extract-pdf"
+            ]
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "claude-code",
+              "anthropic",
+              "google",
+              "openai"
+            ]
+          },
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "AiProviderNotConfigured"
+            ]
+          }
+        },
+        "additionalProperties": false
       }
     },
     "securitySchemes": {}
@@ -7077,6 +7647,12 @@
     },
     {
       "name": "Settings"
+    },
+    {
+      "name": "Secrets"
+    },
+    {
+      "name": "AI tasks"
     },
     {
       "name": "App-settings"

@@ -2,6 +2,7 @@ import type { IssuerId, Rule, RuleId } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
 import { ruleQueries } from "@/lib/sdk";
 import { RuleForm } from "./rule-form";
 import { RuleFormSkeleton } from "./rule-form-skeleton";
@@ -84,9 +85,11 @@ export function RuleFormPage({
 	return (
 		<section className="flex max-w-2xl flex-col gap-6">
 			{backLink}
-			<h1 className="text-balance text-2xl font-semibold text-gousse-ink">
-				{isEditing ? "Edit Matching Rule" : "New Matching Rule"}
-			</h1>
+			<PageHeader>
+				<h1 className="text-balance text-2xl font-semibold text-gousse-ink">
+					{isEditing ? "Edit Matching Rule" : "New Matching Rule"}
+				</h1>
+			</PageHeader>
 			<RuleForm
 				issuerId={issuerId}
 				rule={rule}

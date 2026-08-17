@@ -135,7 +135,7 @@ describe("the Vitest inline workaround", () => {
 
 describe("the deploy runbook", () => {
 	it("no longer asks for the token, nor documents its 401", () => {
-		const runbook = read("../../docs/operations/deploy.md");
+		const runbook = read("../../DEPLOY.md");
 
 		expect(runbook).not.toContain(TOKEN);
 		expect(runbook).not.toContain(PACKAGE);

@@ -6,7 +6,7 @@ import {
 	OpenApi,
 } from "@effect/platform";
 import { Option, Schema } from "effect";
-import { InvalidFileType } from "./errors";
+import { AiProviderNotConfigured, InvalidFileType } from "./errors";
 
 /**
  * The PDF-upload size limit: 10 MiB. A bank statement is a handful of text
@@ -102,9 +102,11 @@ export const PdfUpload = HttpApiSchema.Multipart(
  * The endpoint is **account-agnostic**: it takes only the file; the account,
  * import batch, and month are stamped client-side at commit.
  *
- * `extractPdf` declares {@link InvalidFileType} (non-PDF / oversize upload) and
+ * `extractPdf` declares {@link InvalidFileType} (non-PDF / oversize upload),
  * {@link ExtractionFailed} (the single client-visible collapse of the whole
- * extraction failure taxonomy).
+ * extraction failure taxonomy) and {@link AiProviderNotConfigured} (issue #122 —
+ * the one extraction failure the client can act on, held out of the collapse
+ * precisely so it can be told apart from a retry-able one).
  */
 export class ImportGroup extends HttpApiGroup.make("import")
 	.add(
@@ -112,6 +114,7 @@ export class ImportGroup extends HttpApiGroup.make("import")
 			.setPayload(PdfUpload)
 			.addSuccess(ExtractPdfResult)
 			.addError(InvalidFileType)
-			.addError(ExtractionFailed),
+			.addError(ExtractionFailed)
+			.addError(AiProviderNotConfigured),
 	)
 	.annotateContext(OpenApi.annotations({ title: "Import" })) {}

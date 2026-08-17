@@ -33,7 +33,9 @@ _Avoid_: Adapter, mapper, importer.
 
 **PDF extraction**:
 The server-side act of turning a **PDF** Statement into candidate transaction
-records via an LLM (the `claude` CLI, wrapped by `claude-code-effect`). The web
+records via an LLM — the AI provider chosen on the settings page: by default the
+local `claude` CLI (wrapped by `claude-code-effect`), or a hosted vendor the
+statement is sent to as a document. The web
 client uploads the PDF to `POST /import/extract-pdf`; the API writes it to a
 transient temp dir, has the model read it, and returns **extracted
 transactions** plus **declared totals** — never touching the database. The PDF
@@ -201,5 +203,56 @@ naming the target, departing from `useRuleMutations`' errors-only style.
 `amount` is a single signed number. A CSV `DEBIT` (money leaving) is stored
 **negative**; a `CREDIT` (money arriving) is **positive**. The sum of a set of
 transactions is therefore net cash flow.
+
+**Path prefix**:
+The app is served under `/app`, not at the site root, so the deployment keeps
+its root for public landing pages (issue #111). The value is `APP_BASE_PATH` in
+`@mamen/shared`; this package consumes it twice — as Vite's `base` and as the
+router's `basepath` — and the routes themselves stay written from `/`, because
+the router applies the prefix. Consequences when writing code here: never write
+a rooted URL to a `public/` asset (`/icon-192x192.png`), since Vite rewrites
+those only in `index.html` and in CSS — build them off `APP_BASE_PATH_SLASH`;
+and never prefix `/api` or `/uploads`, which stay at the root and are reached
+same-origin through the dev proxy or nginx.
+_Avoid_: base URL (that names the API's origin, `VITE_API_URL`).
+
+**AI settings page**:
+See [CONTEXT-MAP.md](../../CONTEXT-MAP.md). `/settings`, built in
+`features/ai-settings/`. Two things about it are this package's, not the
+domain's:
+
+- **It is composed, not written.** Every visible part is a gousse component
+  vendored from the registry (ADR 0003) — `CredentialTile`/`CredentialGrid`,
+  `SecretField`, `ProviderMark`, `SettingsCard`/`SettingRow`, `ModelRow` and
+  their `Spinner`/`SavedFlash` dependencies. They were built for this screen;
+  mamen adds the data and the handlers and nothing else. Issue #120's ticket
+  called gousse "a new dependency" — it is not one, and must not become one:
+  `shadcn add @gousse/…` copies the source in, and `gousse-package-removed.test.ts`
+  is what keeps the npm package and its private-registry credential out.
+  `shadcn add` **overwrites** `button`, `input`, `select`, `field-chrome` and
+  `utils` in place, all of which mamen owns and has edited, so a pull is
+  followed by reverting those five.
+- **No local copy of a selection.** The selects read the query's data directly,
+  which is what makes a refused save correct with no code: nothing was written,
+  so nothing re-renders, and the control shows what is stored rather than the
+  choice the server rejected. The one piece of local state is the **draft** in
+  a `SecretField`, and it is dropped the moment the value is stored.
+
+_Avoid_: settings view (the route is `/settings` but the feature is the AI one;
+a second settings area becomes a layout around two views).
+
+**Import's route to Settings**:
+The upload step's alert carries a **link** to `/settings` for exactly one
+failure — `AiProviderNotConfigured`, the extraction that could not run because no
+credential is stored (issue #122; most often no Claude Code token). Every other
+extraction failure ends at the drop zone in front of the user, so its copy says
+"try again"; this one cannot be fixed there at all, and a sentence naming a page
+is not the same as taking someone to it.
+
+Which failure it was is `useState` in `upload-step.tsx`, not a field on the
+wizard reducer: the reducer's `error` is the *sentence*, and nothing else in the
+wizard — preview, commit, hand-off — has any use for the distinction. It is
+cleared on every dropped file, so a CSV that then fails to parse cannot inherit
+the previous PDF's link.
 
 <!-- Terms are added here as they are resolved during design. -->

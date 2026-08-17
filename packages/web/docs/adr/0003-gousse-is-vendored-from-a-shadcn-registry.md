@@ -49,6 +49,31 @@ the fix upstream separately if it belongs there.
   next `shadcn add` and the churn would read as ours. `Button`, `Empty`,
   `Textarea` and `Checkbox` were edited in place, cannot be overwritten cleanly
   anyway, and therefore stay on the repo's formatting.
+- **"Never reach" is a promise, and it was kept.** The sidebar sat at the
+  revision installed in #95 while the registry's grew a responsive shell, a
+  title row, glyph and collapsible parts, close/open triggers and a companion
+  stylesheet — and nothing went red, because the vendoring test named only the
+  parts that revision happened to have. Re-vendoring (#105) is therefore a
+  deliberate act with a date on it, not an update that arrives. The lesson is in
+  the test, which now names the **whole** published surface: a vendoring guard
+  that lists only what is currently imported catches nothing, since drift is
+  always the arrival of a part nobody imports yet.
+- A registry item may carry **files that are not components**. `sidebar.tsx`
+  declares `sidebar-chrome.css` as a registry dependency, installed to
+  `src/styles/gousse/` beside the theme layers and imported from `index.css`
+  after them. It holds what Tailwind cannot express cleanly — one per-row `--hue`
+  custom property feeding rest, hover and active alike, the left active bar, the
+  hidden scroller. Without it the rows lay out correctly and render flat, which
+  is why its presence is asserted rather than assumed. mamen's rows set no hue:
+  the property is for consumers whose rows carry their own colour, and a flat
+  list of fixed destinations has none.
+- **The sidebar row is the one shape exception that is not a mark.** The row
+  contract below calls list rows pills, and gousse's row was one when #97 wrote
+  it; the registry's current row is a `rounded-lg` slab under a hue fill. It
+  keeps that corner because the file is upstream source vendored untouched —
+  restating the shape here would fork it, and the next `shadcn add` would undo
+  the fork silently. Recorded in `src/lib/shape-contract.test.ts` as an
+  exception with a count, like the four marks.
 - Tokens are the theme source of truth and stay **rgb channel triples**, not
   `oklch()` colours. Anything reading a token in raw CSS must wrap it:
   `rgb(var(--gousse-bg))`. Overrides are written as **bare channels**, because

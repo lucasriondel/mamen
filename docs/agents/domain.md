@@ -2,7 +2,7 @@
 
 How the engineering skills should consume this repo's domain documentation when exploring the codebase.
 
-This is a **multi-context** monorepo: packages live under `packages/*` (api, sdk, shared, web), each with its own domain vocabulary.
+This is a **multi-context** monorepo: packages live under `packages/*` (api, sdk, shared, web, landing-page), each with its own domain vocabulary.
 
 ## Before exploring, read these
 

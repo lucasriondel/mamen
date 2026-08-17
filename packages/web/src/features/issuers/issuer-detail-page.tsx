@@ -5,6 +5,7 @@ import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { BackLink } from "@/components/back-link";
+import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Empty } from "@/components/ui/empty";
 import { RulesSection } from "@/features/rules/rules-section";
@@ -154,34 +155,36 @@ function IssuerDetailContent({ issuer }: IssuerDetailContentProps) {
 		<section className="flex flex-col gap-8">
 			<BackLink to="/issuers">Issuers</BackLink>
 
-			<header className="flex items-center gap-4">
-				<IssuerAvatar
-					imageUrl={issuer.imageUrl}
-					defaultCategoryId={issuer.defaultCategoryId}
-					size="lg"
-				/>
-				{/* `flex-1` so the name field gets the whole remaining row rather than
-				    shrink-wrapping and wrapping the heading onto a second line. */}
-				<div className="flex min-w-0 flex-1 flex-col">
-					{/* The name *is* the heading — click it to edit in place (no separate
-					    rename form; edits autosave once typing settles). */}
-					<IssuerNameField issuer={issuer} />
-					<div className="flex items-baseline gap-2 text-sm">
-						<span className="text-gousse-muted tabular-nums">
-							{count} transaction{count === 1 ? "" : "s"}
-						</span>
-						<span
-							className={cn(
-								"font-medium tabular-nums",
-								net < 0 && "text-gousse-high",
-								net > 0 && "text-gousse-low",
-							)}
-						>
-							{formatCurrency(net)}
-						</span>
+			<PageHeader>
+				<div className="flex flex-1 items-center gap-4">
+					<IssuerAvatar
+						imageUrl={issuer.imageUrl}
+						defaultCategoryId={issuer.defaultCategoryId}
+						size="lg"
+					/>
+					{/* `flex-1` so the name field gets the whole remaining row rather than
+					    shrink-wrapping and wrapping the heading onto a second line. */}
+					<div className="flex min-w-0 flex-1 flex-col">
+						{/* The name *is* the heading — click it to edit in place (no separate
+						    rename form; edits autosave once typing settles). */}
+						<IssuerNameField issuer={issuer} />
+						<div className="flex items-baseline gap-2 text-sm">
+							<span className="text-gousse-muted tabular-nums">
+								{count} transaction{count === 1 ? "" : "s"}
+							</span>
+							<span
+								className={cn(
+									"font-medium tabular-nums",
+									net < 0 && "text-gousse-high",
+									net > 0 && "text-gousse-low",
+								)}
+							>
+								{formatCurrency(net)}
+							</span>
+						</div>
 					</div>
 				</div>
-			</header>
+			</PageHeader>
 
 			<div className="flex flex-wrap gap-2">
 				<Button

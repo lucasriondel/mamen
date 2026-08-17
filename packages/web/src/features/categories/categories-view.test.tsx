@@ -175,6 +175,22 @@ const swatchIn = async (name: string) =>
 		await screen.findByRole("button", { name: `Change ${name} colour` })
 	).querySelector("[data-color-swatch]");
 
+/**
+ * Fire one of a row's occasional actions — rename, move, delete.
+ *
+ * These stopped being four buttons per row and became a `⋯` menu: *add* is the
+ * gesture the page exists for and stays a one-click button, the rest moved
+ * behind the menu so the chrome stopped outweighing the data. Each action keeps
+ * the accessible name it always had (`Rename Food`), so a test still asks for
+ * the node by name — it just opens the menu first, exactly as a user does.
+ */
+async function rowAction(user: UserEvent, node: string, action: RegExp) {
+	await user.click(
+		await screen.findByRole("button", { name: `More actions for ${node}` }),
+	);
+	await user.click(await screen.findByRole("menuitem", { name: action }));
+}
+
 describe("CategoriesView", () => {
 	beforeEach(() => {
 		nextId = 1;
@@ -514,9 +530,7 @@ describe("CategoriesView", () => {
 		seedTree();
 		renderView();
 
-		await user.click(
-			await screen.findByRole("button", { name: /rename groceries/i }),
-		);
+		await rowAction(user, "Groceries", /rename groceries/i);
 		const dialog = screen.getByRole("dialog");
 
 		expect(within(dialog).getByLabelText(/category name/i)).toBeInTheDocument();
@@ -547,9 +561,7 @@ describe("CategoriesView", () => {
 		const { groceries } = seedTree();
 		renderView();
 
-		await user.click(
-			await screen.findByRole("button", { name: /rename groceries/i }),
-		);
+		await rowAction(user, "Groceries", /rename groceries/i);
 		const field = screen.getByLabelText(/category name/i);
 		await user.clear(field);
 		await user.type(field, "Supermarket");
@@ -566,9 +578,7 @@ describe("CategoriesView", () => {
 		const { home, groceries } = seedTree();
 		renderView();
 
-		await user.click(
-			await screen.findByRole("button", { name: /move groceries/i }),
-		);
+		await rowAction(user, "Groceries", /move groceries/i);
 		await pickParent(user, home.name);
 		await user.click(screen.getByRole("button", { name: /^move$/i }));
 
@@ -585,7 +595,7 @@ describe("CategoriesView", () => {
 
 		// The Move gesture is offered on a folder (Food), and its target picker
 		// lists every category path-labelled, the moved subtree excluded (#32).
-		await user.click(await screen.findByRole("button", { name: /move food/i }));
+		await rowAction(user, "Food", /move food/i);
 		await pickParent(user, home.name);
 		await user.click(screen.getByRole("button", { name: /^move$/i }));
 
@@ -609,7 +619,7 @@ describe("CategoriesView", () => {
 		});
 		renderView();
 
-		await user.click(await screen.findByRole("button", { name: /move food/i }));
+		await rowAction(user, "Food", /move food/i);
 		await pickParent(user, home.name);
 		await user.click(screen.getByRole("button", { name: /^move$/i }));
 
@@ -622,9 +632,7 @@ describe("CategoriesView", () => {
 		const { groceries } = seedTree();
 		renderView();
 
-		await user.click(
-			await screen.findByRole("button", { name: /delete groceries/i }),
-		);
+		await rowAction(user, "Groceries", /delete groceries/i);
 		await waitFor(() =>
 			expect(removeCategory).toHaveBeenCalledWith(groceries.id),
 		);
@@ -802,9 +810,7 @@ describe("CategoriesView", () => {
 		});
 		renderView();
 
-		await user.click(
-			await screen.findByRole("button", { name: /delete food/i }),
-		);
+		await rowAction(user, "Food", /delete food/i);
 
 		await waitFor(() => expect(toastError).toHaveBeenCalledTimes(1));
 		expect(toastError.mock.calls[0][0]).toMatch(/2 categories inside/i);

@@ -4,9 +4,29 @@ export {
 	AccountsGroup,
 	AccountUpdate,
 } from "./accounts";
+export {
+	AI_PROVIDER_LABELS,
+	AI_PROVIDER_MODELS,
+	AI_PROVIDERS,
+	AI_TASKS,
+	AiProvider,
+	AiTask,
+	DEFAULT_AI_PROVIDER,
+	defaultModelFor,
+	isHostedProvider,
+	isModelOfProvider,
+} from "./ai";
+export {
+	AiTaskChange,
+	AiTaskPatch,
+	AiTaskSetting,
+	AiTaskSettings,
+	AiTasksGroup,
+	ResolvedAiTask,
+} from "./ai-tasks";
 export { AnomalyFlag, AnomalyType } from "./anomaly";
 export { Api } from "./api";
-export { AppSettings, AppSettingsGroup, LlmSettings } from "./app-settings";
+export { AppSettings, AppSettingsGroup } from "./app-settings";
 export {
 	CategoriesGroup,
 	Category,
@@ -23,6 +43,7 @@ export {
 	DbOk,
 } from "./database";
 export {
+	AiProviderNotConfigured,
 	BooleanFromString,
 	BundleInvalid,
 	CategoryHoldsMoney,
@@ -36,6 +57,8 @@ export {
 	LogoSearchQuotaExceeded,
 	LogoSearchUnconfigured,
 	NotFound,
+	SecretRejected,
+	TaskProviderRejected,
 	TransferInvalid,
 } from "./errors";
 export { Health, HealthGroup } from "./health";
@@ -86,6 +109,15 @@ export {
 	RuleUpdate,
 	RuleView,
 } from "./rules";
+export {
+	SECRET_HINT_MIN_LENGTH,
+	SECRET_MIN_LENGTH,
+	SecretName,
+	SecretStatus,
+	SecretStatuses,
+	SecretsGroup,
+	SecretValue,
+} from "./secrets";
 export { Setting, SettingKey, SettingsGroup } from "./settings";
 export {
 	Subscription,

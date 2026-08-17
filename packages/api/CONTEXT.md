@@ -133,7 +133,98 @@ diffable.
 The staging directory PDF import copies an upload into, opened scoped so it — and
 the PDF — are deleted on **every** exit path: success, failure, timeout,
 interrupt. Nothing about an extraction persists: no file on disk, no row in the
-database.
+database. It is also what the CLI's `Read` allowance is scoped to, and that
+scoping is applied by **narrowing the `ClaudeCode` service** for the length of
+the run (`allowRead` in `import/extract.ts`) rather than by a task-table column:
+`allowedTools` is a fact about a task, but the directory is a fact about *this
+request*, and the **AI runner**'s CLI branch passes prompt, model and tools and
+nothing else.
+
+**AI runner**:
+`AiRunner` (`ai-runner/service.ts`) — mamen's single seam onto
+`ai-task-runner-effect`, and the only thing that runs an **AI task**. The package
+is deliberately a factory rather than a tag so the seam belongs to the consumer;
+this is that seam, and there is exactly one. What it supplies is two things
+decided earlier: `resolve` is `TaskProvider`'s resolver (**task resolution**), so
+the runner asks the same question the **checked write doors** answer, and
+`credential` is `readSecret`, the secrets module's inward plaintext reader — the
+deep import past `secrets/index.ts` is the design, and `secrets/boundary.test.ts`
+names this and the **stored CLI token** as its only two callers. Nothing here
+decrypts or holds a key.
+
+Both branches run since issue #124. The hosted one is the package's **own**
+ai-sdk call, left to it rather than reimplemented; the only reason mamen names it
+at all is `HostedTransport` (`ai-runner/hosted.ts`), the **one new seam** — an
+optional tag read with `Effect.serviceOption`, so production provides nothing and
+a test provides a fake in one line and asserts *what reached the vendor*. Nothing
+under `src/` provides it, which is what keeps a faked vendor transport a thing
+only a test can introduce.
+
+**Stored CLI token**:
+`ClaudeConfigStored` (`ai-runner/claude.ts`) — the `claude-code-effect` config
+whose token is read from the **credential store**, per call, and from nowhere
+else (issue #122). `CLAUDE_CODE_OAUTH_TOKEN` is not read: a credential mamen also
+took from the environment would have two homes, one of which goes on looking live
+in a deployment config after it stopped being read. The **effect form** of
+`ClaudeConfig.token` is what makes it per-call, so a token pasted a moment ago
+runs the next extraction without rebuilding a layer on the hot path. Two things
+follow, and both are the ticket rather than side effects: `ClaudeCodeProdLive`
+can no longer fail at build, so **the API starts with no token stored**, and
+`ClaudeTokenMissingError` becomes a per-call failure — which `import/extract.ts`
+turns into the one client-actionable extraction error (**provider not
+configured**). The binary path and the timeout stay environment configuration:
+they are facts about the machine, not credentials.
+
+**Provider not configured**:
+`AiProviderNotConfigured` (501) — the single failure `import/extract.ts` holds
+**out of** the collapse into `ExtractionFailed`. Three upstream tags mean the
+same thing to whoever uploaded the file (no Claude Code token; the runner finding
+no key for a hosted vendor; the resolver's `no-credential` refusal) and have the
+same answer — paste a credential — so they become one named error that names the
+task and the provider. `TaskProviderRejected`'s *other* reasons are deliberately
+not folded in: a model the vendor does not serve is a different fix, and sending
+the user to store a key would send them to fix the wrong thing. Everything else
+still collapses, and the mapper answers `null` by default so that stays the rule
+rather than a list somebody has to keep exhaustive.
+
+**Task table**:
+`ai-runner/tasks.ts` — every **AI task** as data: the output contract, the CLI's
+tool allowance, and **two prompt columns**. Typed `Record<AiTask, TaskSpec<…>>`,
+so a task added to the catalogue does not compile until it has a row. The two
+columns are load-bearing: the CLI prompt names the absolute path of the staged
+PDF and tells the model to open it with its own `Read` tool, which a hosted
+vendor can neither act on nor be shown. The hosted column instead returns
+`{ text, document }` — the statement's **bytes**, as a document part, which is
+what preserves the two-column Débit/Crédit layout the rules depend on (issue
+#124; server-side text extraction would discard it). Both prompts are built from
+**one** copy of the extraction rules (`ai-runner/prompt.ts`), so the same
+statement cannot extract differently depending on the chosen vendor; the CLI
+prompt's own text is unchanged and `tasks.test.ts` holds it so.
+
+**Hosted document part**:
+The statement's bytes reach the task through `ExtractPdfInput.pdfBytes`, read by
+`import/extract.ts` out of the **transient temp dir**'s staged copy — so both
+transports are handed the same file and the same finalizer deletes it. The read
+is in the handler and not in the prompt column because a prompt builder is a pure
+function. The base64 encoding is the ai-sdk's, at the wire; mamen carries bytes.
+**The wire shape is the vendor's, not mamen's** — Anthropic takes a `document`
+part with a base64 `source`, Google an `inlineData` part, OpenAI a `file` part
+holding a data URL — so each is asserted on its own request, `fetch` stubbed
+under the production wiring with no seam provided (`import/handlers.test.ts`).
+The seam sits above the conversion that makes them differ and cannot tell them
+apart.
+
+**Codec adapter**:
+`effectSchemaCodec` (`ai-runner/codec.ts`) — one contract schema as the
+runner's (and the CLI SDK's) validator-agnostic `ObjectCodec`: a JSON Schema for
+the model, a decode returning an `Effect` for the answer. It is why **zod is not
+a dependency of any mamen package** — the contract is already Effect Schema, and
+a zod restatement of one class would be two definitions of one contract. Its one
+non-mechanical part is `hoistRootRef`: `JSONSchema.make` emits a bare top-level
+`{ $ref }` for every `Schema.Class`, which the CLI forwards into a tool
+`input_schema` that requires a top-level `type` — an API 400 nothing on mamen's
+side would name. `claude-code-effect` repairs that on its own `Schema` branch and
+deliberately not on the codec branch, so it belongs to whoever builds the codec.
 
 **Static uploads route**:
 `/uploads/*`, serving the issuer-image directory. Deliberately **outside** the
@@ -143,5 +234,86 @@ mounted on the same router as the API groups (which is why it is provided to
 *upload* and *delete* endpoints; only the file surface is untyped. It carries its
 own path-traversal guard — a request that resolves outside the uploads root 404s
 — because nothing else is sanitising the wildcard.
+
+**Credential boundary**:
+The rule that a stored secret crosses out of `secrets/` only as a **secret
+status** — a boolean and a masked hint — and crosses in only through
+`readSecret`, the inward plaintext reader, which is not on `secrets/index.ts`
+(ADR 0011). `secrets/repository.ts` is **the only module that decrypts**, so the
+question "where can a credential become readable" is answered by opening one
+file. Held by `secrets/boundary.test.ts`: no other module imports `decrypt`, no
+other module reads the `encrypted_secrets` table, the reader's in-process callers
+are named one by one (two, both in `ai-runner/` — one per transport that spends a
+credential), and the barrel exports the outward surface and nothing else. The outward repository has no method that
+returns a plaintext, which is what makes the group layer above it structurally
+unable to leak one — asserted against the **built** service's method list, so a
+fourth outward method has to redden it rather than being reviewed for.
+
+**Secret status**:
+`SecretStatus` — `{ name, configured, hint }`, the *only* outward shape a
+credential has. `name` is an **AI provider**: the store is keyed by the
+catalogue's provider set, so an unknown vendor fails the path decode into a 400
+rather than writing a row nothing can read back. `GET /secrets` answers with one
+status per provider, **in catalogue order and whether or not anything is
+stored** — the settings page's question is "what are my options and which can I
+select", and absent is an answer to it, so the catalogue drives that list and
+not the table.
+
+`hint` is the **masked hint** (first seven, `…`, last three) or `null`, and
+`null` deliberately conflates two states the client has no use in separating: a
+stored value below `SECRET_HINT_MIN_LENGTH`, and one that will not decrypt. A
+value that will not decrypt reports `configured: true` — *present but
+unreadable*, never absent — so a rotated `TOKEN_ENCRYPTION_KEY` tells the
+operator to re-paste rather than implying nothing was ever stored.
+
+`configured` is also how the **save-time kernel** learns which providers have a
+credential, and that is the whole of what it learns: a value that will not
+decrypt still counts as present, because a rotated key is an operator fault to be
+fixed by re-pasting and refusing every save until then would take the settings
+page away at the moment it is needed. Whether a credential actually *works* is a
+question only a run can answer.
+
+**Save-time kernel**:
+`ai-tasks/kernel.ts` — the one rule of the AI settings feature (*a task must
+never be left pointing at a provider that cannot run it*) as a **rule module**:
+pure, no Effect, no SQL. Given a patch, the current choices and which providers
+have a credential, it answers with a **rejection** or `null`. The order inside it
+is load-bearing: the **model is checked before the credential**, because a model
+the vendor does not serve is wrong whether or not a key exists, and reporting the
+missing key would send the user to fix the wrong thing. `claude-code` never fails
+the credential half — its token is a run-time concern, and checking it here would
+refuse every save on a fresh install, including the save that switches away from
+it. Being pure is what makes its whole decision matrix a table of function calls
+in `kernel.test.ts` rather than dozens of HTTP round trips.
+_Avoid_: validator (it decides, it does not parse).
+
+**Checked write door**:
+A write that reads the current state, asks the **save-time kernel**, and writes
+only on `null` — the only way an **AI task**'s provider or model can change.
+There are **two**, because there are two ways into an unrunnable task:
+`PATCH /ai/tasks` (moving a task onto a provider) and `DELETE /secrets/:name`
+(taking a provider out from under a task). Both live on {@link TaskProvider}
+(`ai-tasks/task-provider.ts`), which is why the secrets group's `clear` handler
+delegates there rather than to its own repository — a feature with one door and
+one honour-system caller has no door. A refused patch writes **nothing**: the
+check runs before the write, not per entry during it, so there is no
+half-applied state to unwind. The deletion door refuses exactly when the deletion
+is what breaks a task (runnable before, not after), which is what keeps the two
+doors from disagreeing — clearing the `claude-code` credential is allowed for the
+same reason a save onto `claude-code` with no token is.
+_Avoid_: guard, middleware (it is the write path, not something in front of it).
+
+**Task resolution**:
+`ResolvedAiTask` — which provider and model an **AI task** runs on, or a
+`TaskProviderRejected` saying why it cannot. What the runner asks before spending
+a request, and what `GET /ai/tasks/:task/resolution` answers. **It carries no
+credential field and must never grow one**: resolution answers *whether and
+where*, and the key travels only inside the transport that spends it. Credential
+*presence* is read through the **secret status**'s boolean, which is what leaves
+the **credential boundary** untouched by the whole feature — the task-provider
+module imports the outward repository, whose every method answers with a status.
+Through the API the failure side is unreachable (that is what the doors are for);
+it is reached by a stored row that went bad out of band, which is how its tests
+plant it.
 
 <!-- Terms are added here as they are resolved during design. -->

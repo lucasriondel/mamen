@@ -21,7 +21,9 @@ export const settingQueries = {
 			queryKey: settingKeys.list(urlParams),
 			queryFn: ({ signal }) =>
 				runQuery(
-					Effect.flatMap(Client, (client) => client.settings.list({ urlParams })),
+					Effect.flatMap(Client, (client) =>
+						client.settings.list({ urlParams }),
+					),
 					signal,
 				),
 		});

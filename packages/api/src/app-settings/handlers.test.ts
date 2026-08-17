@@ -1,7 +1,7 @@
-import { HttpApiBuilder, HttpApiClient } from "@effect/platform";
+import { HttpApiBuilder, HttpApiClient, HttpClient } from "@effect/platform";
 import { NodeHttpServer } from "@effect/platform-node";
 import { assert, describe, it } from "@effect/vitest";
-import { Api, AppSettings, LlmSettings } from "@mamen/shared/contract";
+import { Api, AppSettings } from "@mamen/shared/contract";
 import { Effect, Layer } from "effect";
 import { ApiLive } from "../api-live";
 import { DatabaseTest } from "../db/test";
@@ -19,18 +19,6 @@ const HttpLive = HttpApiBuilder.serve().pipe(
 	Layer.provideMerge(NodeHttpServer.layerTest),
 );
 
-/** A valid AppSettings entity; override the llm block per test. */
-const make = (over: Partial<LlmSettings> = {}): AppSettings =>
-	new AppSettings({
-		id: "app",
-		llm: new LlmSettings({
-			endpoint: "http://localhost:11434",
-			modelName: "llama3",
-			provider: "ollama",
-			...over,
-		}),
-	});
-
 describe("app-settings endpoints", () => {
 	it.effect("get 404s before the singleton is written", () =>
 		Effect.gen(function* () {
@@ -44,48 +32,49 @@ describe("app-settings endpoints", () => {
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
 			const saved = yield* client.appSettings.put({
-				payload: make({ modelName: "mistral", provider: "lm-studio" }),
+				payload: new AppSettings({ id: "app" }),
 			});
 			assert.strictEqual(saved.id, "app");
-			assert.strictEqual(saved.llm.modelName, "mistral");
-			assert.strictEqual(saved.llm.provider, "lm-studio");
 
 			const fetched = yield* client.appSettings.get();
 			assert.deepStrictEqual(fetched, saved);
 		}).pipe(Effect.provide(HttpLive)),
 	);
 
-	it.effect("put upserts the whole object over the wire", () =>
+	it.effect("put is a whole-object upsert on the single fixed row", () =>
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
-			yield* client.appSettings.put({ payload: make({ provider: "ollama" }) });
-			const second = yield* client.appSettings.put({
-				payload: make({
-					provider: "openai",
-					modelName: "gpt-4",
-					apiKey: "sk-x",
-				}),
+			yield* client.appSettings.put({
+				payload: new AppSettings({ id: "app" }),
 			});
-			assert.strictEqual(second.llm.provider, "openai");
-			assert.strictEqual(second.llm.apiKey, "sk-x");
+			yield* client.appSettings.put({
+				payload: new AppSettings({ id: "app" }),
+			});
 
-			const fetched = yield* client.appSettings.get();
-			assert.strictEqual(fetched.llm.provider, "openai");
+			// Two puts, one row — the dump is the only place the row count shows.
+			const dump = yield* client.database.export();
+			assert.strictEqual(dump.appSettings.length, 1);
 		}).pipe(Effect.provide(HttpLive)),
 	);
 
-	it.effect(
-		"put round-trips the optional lastTestedAt Date over the wire",
-		() =>
-			Effect.gen(function* () {
-				const client = yield* HttpApiClient.make(Api);
-				const when = new Date("2026-07-01T12:00:00.000Z");
-				yield* client.appSettings.put({
-					payload: make({ lastTestedAt: when, lastTestSuccess: true }),
-				});
-				const fetched = yield* client.appSettings.get();
-				assert.deepStrictEqual(fetched.llm.lastTestedAt, when);
-				assert.strictEqual(fetched.llm.lastTestSuccess, true);
-			}).pipe(Effect.provide(HttpLive)),
+	/**
+	 * The singleton held an `LlmSettings` block with a plain-string `apiKey` until
+	 * issue #116 deleted it, so `GET /app-settings` was the one endpoint that would
+	 * hand a stored credential back to any client that asked. Asserted on the raw
+	 * bytes, not on the decoded entity: a field the schema drops on decode would
+	 * still have been on the wire.
+	 */
+	it.effect("get answers with the id alone — no credential-bearing field", () =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			yield* client.appSettings.put({
+				payload: new AppSettings({ id: "app" }),
+			});
+
+			const http = yield* HttpClient.HttpClient;
+			const res = yield* http.get("/api/app-settings");
+			const body = yield* res.text;
+			assert.deepStrictEqual(JSON.parse(body), { id: "app" });
+		}).pipe(Effect.provide(HttpLive)),
 	);
 });

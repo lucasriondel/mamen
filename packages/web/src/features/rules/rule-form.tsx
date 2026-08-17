@@ -9,6 +9,7 @@ import type {
 import { useQuery } from "@tanstack/react-query";
 import { type FormEvent, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { useIssuerLookup } from "@/features/issuers/use-issuer-lookup";
 import { accountQueries, ruleKeys, ruleMutations } from "@/lib/sdk";
 import { useDebouncedValue } from "@/lib/use-debounced-value";
@@ -143,8 +144,7 @@ function AccountMatcherField({
 	return (
 		<label className="flex flex-col gap-1 text-sm text-gousse-muted">
 			Account
-			<select
-				className={INPUT_CLASS}
+			<Select
 				value={value}
 				onChange={(event) => onChange(event.target.value)}
 				aria-label="Matching Rule account"
@@ -155,7 +155,7 @@ function AccountMatcherField({
 						{account.name}
 					</option>
 				))}
-			</select>
+			</Select>
 			<span className="text-xs text-gousse-muted">
 				Optional — also require the transaction to live in this account.
 			</span>
@@ -179,8 +179,7 @@ function SignMatcherField({
 	return (
 		<label className="flex flex-col gap-1 text-sm text-gousse-muted">
 			Direction
-			<select
-				className={INPUT_CLASS}
+			<Select
 				value={value}
 				onChange={(event) => onChange(event.target.value)}
 				aria-label="Matching Rule direction"
@@ -188,7 +187,7 @@ function SignMatcherField({
 				<option value="">Any</option>
 				<option value="positive">Money in</option>
 				<option value="negative">Money out</option>
-			</select>
+			</Select>
 			<span className="text-xs text-gousse-muted">
 				Optional — also require the transaction's direction. A row of exactly
 				zero is neither.

@@ -6,7 +6,15 @@
  * `@mamen/shared/contract` `errors.ts`). The PRD assigns mutation failures to a
  * `sonner` toast whose copy is derived from that `_tag`; this is the single
  * place that translation lives so every feature surfaces the same wording.
+ *
+ * A few failures are shown *in place* rather than toasted — the PDF upload
+ * step's alert, and the AI settings page's per-tile and per-row refusals. Those
+ * get their own exported mapper below and are wired into {@link toErrorMessage}
+ * as well, so the same failure reads the same way whichever surface catches it.
  */
+
+import type { AiProvider } from "@mamen/shared/contract";
+import { AI_PROVIDER_LABELS } from "@mamen/shared/contract";
 
 /** Narrow an unknown thrown value to its SDK error `_tag`, when it has one. */
 function tagOf(error: unknown): string | undefined {
@@ -117,8 +125,97 @@ export function toErrorMessage(error: unknown): string {
 			return imageFetchRefusedMessage(error);
 		case "TransferInvalid":
 			return transferInvalidMessage(error);
+		case "SecretRejected":
+			return secretRejectedMessage(error);
+		case "TaskProviderRejected":
+			return taskProviderRejectedMessage(error);
+		case "AiProviderNotConfigured":
+			return aiProviderNotConfiguredMessage(error);
 		default:
 			return "Something went wrong. Please try again.";
+	}
+}
+
+/**
+ * The run-time refusal (`AiProviderNotConfigured`, issue #122): the provider a
+ * task runs on has no credential stored — most often the Claude Code token,
+ * which since #122 is pasted in the app and read from nowhere else.
+ *
+ * The sentence names the provider and sends the user to Settings, because that
+ * is the only thing that fixes it: unlike every other extraction failure, a
+ * retry cannot succeed. Whether the surface can offer an actual link is
+ * {@link aiProviderNotConfigured}'s business; this line reads correctly either
+ * way.
+ */
+export function aiProviderNotConfiguredMessage(error: unknown): string {
+	const provider = (error as { provider?: AiProvider }).provider;
+	const label =
+		provider === undefined
+			? "That AI provider"
+			: (AI_PROVIDER_LABELS[provider] ?? provider);
+
+	return `${label} has no credential stored, so nothing could run. Paste one in Settings, then try again.`;
+}
+
+/**
+ * If `error` is `AiProviderNotConfigured`, the provider it names; otherwise
+ * `null`. Lets a surface route the user — an actual link to the AI settings page
+ * — rather than only telling them where to go, without re-implementing the
+ * `_tag` narrowing. Mirrors {@link categoryHoldsMoney}, the other error a view
+ * branches on rather than only renders.
+ */
+export function aiProviderNotConfigured(error: unknown): AiProvider | null {
+	if (tagOf(error) !== "AiProviderNotConfigured") return null;
+	return (error as { provider?: AiProvider }).provider ?? null;
+}
+
+/**
+ * A refused credential paste (`SecretRejected`, PRD #115), worded from the
+ * machine-readable `reason`. Shown **in place, on the tile that was refused** —
+ * not toasted — because the field the user has to fix is right there.
+ *
+ * Neither line quotes the value, for the same reason the error itself carries no
+ * field one could travel in (ADR 0011): a refusal that echoed the paste would
+ * put a credential in the DOM, in a screenshot and in a pasted bug report.
+ */
+export function secretRejectedMessage(error: unknown): string {
+	switch ((error as { reason?: string }).reason) {
+		case "blank":
+			return "There's nothing to save — paste a credential first.";
+		case "too-short":
+			return "That's too short to be a credential. Check the whole value was pasted.";
+		default:
+			return "That value can't be stored as a credential.";
+	}
+}
+
+/**
+ * A refusal from the **save-time doors** (`TaskProviderRejected`, issue #119),
+ * worded from the `reason` and the provider it names.
+ *
+ * Each line ends where the user's next action is, and the three are genuinely
+ * different actions — store a key, pick another model, move the task off this
+ * provider — which is why the reasons are not collapsed into one sentence. The
+ * task is deliberately not named: `credential-in-use` is raised from the
+ * credentials grid, where "which task" is a detail the user cannot act on
+ * without leaving the sentence, and mamen has one AI task.
+ */
+export function taskProviderRejectedMessage(error: unknown): string {
+	const e = error as { provider?: AiProvider; reason?: string };
+	const provider =
+		e.provider === undefined
+			? "That provider"
+			: (AI_PROVIDER_LABELS[e.provider] ?? e.provider);
+
+	switch (e.reason) {
+		case "no-credential":
+			return `${provider} has no credential stored yet. Paste one above, then pick it here.`;
+		case "model-not-served":
+			return `${provider} doesn't serve that model. Pick one of its own.`;
+		case "credential-in-use":
+			return "An AI task is still using it. Point that task at another provider first, then clear the key.";
+		default:
+			return `${provider} can't run that task as configured.`;
 	}
 }
 
@@ -157,6 +254,11 @@ function transferInvalidMessage(error: unknown): string {
  * - `InvalidFileType`: wrong MIME or over the 10 MB cap — a distinct, actionable
  *   line (the generic {@link toErrorMessage} "type isn't supported" is too terse
  *   here and is shared with the issuer-image path, so it stays untouched).
+ * - `AiProviderNotConfigured`: no credential stored for the provider this task
+ *   runs on (issue #122). The one extraction failure where a retry is the wrong
+ *   advice, which is exactly why the server keeps it out of the collapse — so
+ *   this is the one line that sends the user somewhere instead of back to the
+ *   drop zone.
  *
  * Any other throwable (network failure, unknown tag) falls back to the retry
  * wording — from the user's seat it's the same "extraction didn't complete".
@@ -165,6 +267,8 @@ export function pdfExtractionErrorMessage(error: unknown): string {
 	switch (tagOf(error)) {
 		case "InvalidFileType":
 			return "That file isn't a supported PDF. Upload a PDF bank statement under 10 MB, or import a CSV export instead.";
+		case "AiProviderNotConfigured":
+			return aiProviderNotConfiguredMessage(error);
 		default:
 			return "We couldn't extract transactions from that PDF. Try dropping it again, or import a CSV export from your bank instead.";
 	}

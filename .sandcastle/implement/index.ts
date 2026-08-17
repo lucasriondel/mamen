@@ -26,7 +26,7 @@ import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 import { checkConfigFreshness } from "../helpers/check-freshness.ts";
 import { closeCompletedIssue } from "../helpers/close-issue.ts";
-import { bold, dim, green, red, yellow } from "../helpers/colors.ts";
+import { bold, dim, green, issueTag, red, yellow } from "../helpers/colors.ts";
 import {
   completedIssues,
   currentBranch,
@@ -165,9 +165,12 @@ try {
 
           if (implement.commits.length > 0) {
             console.log(
-              green(
-                `  ✓ ${issue.id} (${issue.branch}) — implementer made ${implement.commits.length} commit(s).`,
-              ) + ` ${issueTimer.tag()}`,
+              green("  ✓ ") +
+                issueTag(issue.id, issue.branch) +
+                green(
+                  ` — implementer made ${implement.commits.length} commit(s).`,
+                ) +
+                ` ${issueTimer.tag()}`,
             );
             return { issue, closed: false as const, commits: implement.commits };
           }
@@ -182,9 +185,12 @@ try {
           // commits still on the branch, commits already merged to base, or
           // nothing — and closes it citing the right commits.
           console.log(
-            yellow(
-              `  … ${issue.id} (${issue.branch}) — implementer produced no new commits; resolving why and closing.`,
-            ) + ` ${issueTimer.tag()}`,
+            yellow("  … ") +
+              issueTag(issue.id, issue.branch) +
+              yellow(
+                " — implementer produced no new commits; resolving why and closing.",
+              ) +
+              ` ${issueTimer.tag()}`,
           );
           const completion = await closeCompletedIssue(
             sandbox,
@@ -232,7 +238,7 @@ try {
     const completed = completedIssues(settled, issues);
     const completedBranches = completed.map((i) => i.branch);
 
-    logCompletedBranches(completedBranches);
+    logCompletedBranches(completed);
 
     if (completedBranches.length === 0) {
       // All agents ran but none made commits — nothing to merge this cycle.

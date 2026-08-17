@@ -54,7 +54,7 @@ commercially, revisit — see <https://www.logo.dev/docs> ("Attribution").
 ## Where the value goes
 
 Local dev — export it into the shell that runs `bun dev`, or put it in the
-local `.env` you already source for `CLAUDE_CODE_OAUTH_TOKEN` (see
+local `packages/api/.env` you already keep `TOKEN_ENCRYPTION_KEY` in (see
 [the `claude` CLI dependency doc](./claude-cli-dependency.md)):
 
 ```sh
@@ -62,10 +62,13 @@ export LOGODEV_TOKEN=<your-pk-key>
 ```
 
 Deploy — set it as an environment variable on the API service, alongside
-`DB_PATH`, `CORS_ORIGINS` and the rest of `packages/api/src/config.ts`. Unlike
-`CLAUDE_CODE_OAUTH_TOKEN`, it is read **per request**, not at layer build: a
-missing value degrades this one feature rather than stopping the server from
-booting. (Subject to the deployment warning above.)
+`DB_PATH`, `CORS_ORIGINS` and the rest of `packages/api/src/config.ts`. It is
+read **per request**, so a missing value degrades this one feature rather than
+stopping the server from booting. (Subject to the deployment warning above.)
+
+It stays an environment variable rather than joining the credentials pasted in
+Settings: it is a *publishable* token for a feature of this deployment, not a
+user's AI provider credential, and it is not read through the encrypted store.
 
 Tests never read the real environment for this.
 

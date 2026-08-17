@@ -7,7 +7,16 @@
 // live here so the entrypoints read as orchestration rather than formatting.
 
 import type { Completion } from "./close-issue.ts";
-import { bold, cyan, dim, green, red, yellow } from "./colors.ts";
+import {
+  bold,
+  cyan,
+  dim,
+  green,
+  issueColor,
+  issueTag,
+  red,
+  yellow,
+} from "./colors.ts";
 import type { PlannedIssue } from "./plan.ts";
 import type { createRtkTotals } from "./rtk-gain.ts";
 import type { CompletedEntry, RunSummary } from "./run-summary.ts";
@@ -25,13 +34,23 @@ export function logIterationDone(iteration: number, elapsedMs: number): void {
   );
 }
 
-/** The issues the planner selected to work in parallel this iteration. */
+/**
+ * The issues the planner selected to work in parallel this iteration.
+ *
+ * This list doubles as the color legend for the rest of the iteration: each
+ * issue's id and branch are printed in that issue's own color, so when the
+ * concurrent execute-phase lines start interleaving below, the reader has
+ * already seen which color belongs to which issue.
+ */
 export function logPlannedIssues(issues: PlannedIssue[]): void {
   console.log(
     green(`Planning complete. ${issues.length} issue(s) to work in parallel:`),
   );
   for (const issue of issues) {
-    console.log(`  ${cyan(issue.id)}: ${issue.title} → ${dim(issue.branch)}`);
+    const tint = issueColor(issue.id);
+    console.log(
+      `  ${tint(bold(issue.id))}: ${issue.title} → ${tint(issue.branch)}`,
+    );
   }
 }
 
@@ -45,7 +64,7 @@ export function logNoCommitOutcome(
   branch: string,
   completion: Completion,
 ): void {
-  const tag = dim(`${id} (${branch})`);
+  const tag = issueTag(id, branch);
   switch (completion.kind) {
     case "unmerged":
       console.log(
@@ -86,24 +105,32 @@ export function logFailedPipelines(
 ): void {
   for (const [i, outcome] of settled.entries()) {
     if (outcome.status === "rejected") {
+      // The issue tag keeps its identity color even on a failure line — the
+      // red ✗ and message already carry the severity, so tinting the tag adds
+      // "which issue" rather than competing with "how bad".
+      const issue = issues[i]!;
       console.error(
-        red(
-          `  ✗ ${issues[i]!.id} (${issues[i]!.branch}) failed: ${
-            outcome.reason
-          }`,
-        ),
+        red(`  ✗ `) +
+          issueTag(issue.id, issue.branch) +
+          red(` failed: ${outcome.reason}`),
       );
     }
   }
 }
 
-/** The branches carrying commits that the merge phase will consume. */
-export function logCompletedBranches(branches: string[]): void {
+/**
+ * The branches carrying commits that the merge phase will consume.
+ *
+ * Takes the issues rather than bare branch names so each branch keeps the color
+ * of the issue that produced it — the same tint it had in the plan list and in
+ * its outcome line above.
+ */
+export function logCompletedBranches(issues: PlannedIssue[]): void {
   console.log(
-    green(`\nExecution complete. ${branches.length} branch(es) with commits:`),
+    green(`\nExecution complete. ${issues.length} branch(es) with commits:`),
   );
-  for (const branch of branches) {
-    console.log(`  ${cyan(branch)}`);
+  for (const issue of issues) {
+    console.log(`  ${issueColor(issue.id)(issue.branch)}`);
   }
 }
 
@@ -171,7 +198,11 @@ export function logRunSummary(summary: RunSummary): void {
     const id = /^\d+$/.test(entry.issue.id.trim())
       ? `#${entry.issue.id.trim()}`
       : entry.issue.id;
-    console.log(`  ${mark} ${cyan(id)}  ${entry.issue.title}${note}`);
+    // Tint by the raw id, not the display form: `#3` and `3` are the same
+    // issue and must resolve to the same color as the lines printed earlier.
+    console.log(
+      `  ${mark} ${issueColor(entry.issue.id)(id)}  ${entry.issue.title}${note}`,
+    );
     if (entry.url) console.log(dim(`      ${entry.url}`));
   }
 }

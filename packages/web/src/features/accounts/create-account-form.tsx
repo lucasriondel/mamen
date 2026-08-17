@@ -1,5 +1,6 @@
 import { type FormEvent, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { ACCOUNT_TYPE_OPTIONS, type AccountType } from "./account-type";
 import { useAccountMutations } from "./use-account-mutations";
 
@@ -53,8 +54,7 @@ export function CreateAccountForm() {
 			</label>
 			<label className="flex flex-col gap-1 text-sm text-gousse-muted">
 				Type
-				<select
-					className={INPUT_CLASS}
+				<Select
 					value={type}
 					onChange={(event) => setType(event.target.value as AccountType)}
 					aria-label="Account type"
@@ -64,7 +64,7 @@ export function CreateAccountForm() {
 							{option.label}
 						</option>
 					))}
-				</select>
+				</Select>
 			</label>
 			<Button
 				type="submit"

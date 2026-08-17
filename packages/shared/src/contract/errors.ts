@@ -1,5 +1,6 @@
 import { HttpApiSchema } from "@effect/platform";
 import { Schema } from "effect";
+import { AiProvider, AiTask } from "./ai";
 
 /**
  * The domain error set for the whole contract. Each is a `Schema.TaggedError`
@@ -350,6 +351,104 @@ export class ImageFetchRefused extends Schema.TaggedError<ImageFetchRefused>()(
 		),
 	},
 	HttpApiSchema.annotations({ status: 422 }),
+) {}
+
+/**
+ * A pasted credential was refused (issue #117, ADR 0011). `reason` is the whole
+ * error: a **reason code**, never the value — a refusal that quoted the paste
+ * back would put a secret in an HTTP response body, a browser console and
+ * whatever log sits between them, which is precisely what storing it encrypted
+ * exists to prevent. It also travels through no `message` field for the same
+ * reason: there is nowhere in this type for a value to hide.
+ *
+ * - `blank` — the paste is empty, or only whitespace.
+ * - `too-short` — shorter than `SECRET_MIN_LENGTH` once trimmed. No vendor
+ *   issues a credential that short, so this is a stray or truncated paste; it is
+ *   its own reason rather than folded into `blank` because the two are fixed
+ *   differently (paste something vs. paste the whole thing).
+ *
+ * 422 for both: the request was well-formed, the value in it was not one this
+ * server will store.
+ */
+export class SecretRejected extends Schema.TaggedError<SecretRejected>()(
+	"SecretRejected",
+	{
+		reason: Schema.Literal("blank", "too-short"),
+	},
+	HttpApiSchema.annotations({ status: 422 }),
+) {}
+
+/**
+ * An **AI task** would have been left pointing at a provider that cannot run it
+ * (issue #119, PRD #115). The one rule the save-time check exists to keep, and
+ * the same error whichever of the two doors raised it — patching a task's
+ * provider/model, or deleting a credential a task is pointed at.
+ *
+ * It names the `task` that cannot run and the `provider` it would have run on,
+ * because a patch may touch several tasks and "which one was wrong" is the only
+ * thing the user can act on. It carries **no credential of any kind** — not a
+ * value, not a hint — for the reasons {@link SecretRejected} carries none.
+ *
+ * - `model-not-served` — the provider does not serve that model. Checked
+ *   **before** the credential: an impossible pairing is wrong whether or not a
+ *   key exists, and telling the user to go and store a key would send them to
+ *   fix the wrong thing.
+ * - `no-credential` — a hosted vendor with nothing stored. `claude-code` never
+ *   raises this: its token is a run-time concern, and checking it here would
+ *   refuse every save on a fresh install, including the save that switches away
+ *   from it.
+ * - `credential-in-use` — the deletion door: clearing this credential would turn
+ *   a task that runs today into one that cannot. Raised only when the deletion
+ *   is what breaks it, so a task already unrunnable for some other reason does
+ *   not hold an unrelated key hostage.
+ *
+ * 422, like every other refusal of a well-formed request carrying a value this
+ * server will not store.
+ */
+export class TaskProviderRejected extends Schema.TaggedError<TaskProviderRejected>()(
+	"TaskProviderRejected",
+	{
+		task: AiTask,
+		provider: AiProvider,
+		reason: Schema.Literal(
+			"model-not-served",
+			"no-credential",
+			"credential-in-use",
+		),
+	},
+	HttpApiSchema.annotations({ status: 422 }),
+) {}
+
+/**
+ * A run was asked of an **AI provider** that has no credential stored (issue
+ * #122, PRD #115) — the Claude Code token was never pasted, or a hosted vendor's
+ * key was cleared between the save-time check and the run.
+ *
+ * It is the **one extraction failure that is client-actionable**, which is the
+ * whole reason it is not {@link ExtractionFailed}. Every other upstream tag
+ * still collapses to that opaque, retry-able 502 (ADR 0005): retrying is the
+ * only thing left to try. Here retrying is exactly what does not help — someone
+ * has to go to the AI settings page and paste a credential — so the client has
+ * to be able to tell the two apart, and does, by the `_tag`.
+ *
+ * It names the `task` that could not run and the `provider` it would have run
+ * on, so the page can point at the tile to fill in. Like every other error that
+ * touches a credential it carries **no value and no hint**: there is nowhere in
+ * this type for a secret to hide.
+ *
+ * 501, matching {@link LogoSearchUnconfigured}, the other "this deployment has
+ * not been configured for that" refusal: nothing about waiting helps, so 503
+ * would invite a retry that cannot succeed, and the 502 next door already means
+ * "try again". The status is distinct from both errors `extractPdf` can
+ * otherwise return, so a client decoding by status alone still tells them apart.
+ */
+export class AiProviderNotConfigured extends Schema.TaggedError<AiProviderNotConfigured>()(
+	"AiProviderNotConfigured",
+	{
+		task: AiTask,
+		provider: AiProvider,
+	},
+	HttpApiSchema.annotations({ status: 501 }),
 ) {}
 
 /**

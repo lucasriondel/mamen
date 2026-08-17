@@ -21,9 +21,10 @@ RUN apt-get update \
 	&& rm -rf /var/lib/apt/lists/*
 
 # The `claude` CLI must be on PATH: PDF import spawns it (ADR 0005, and
-# docs/operations/claude-cli-dependency.md). Paired with CLAUDE_CODE_OAUTH_TOKEN
-# in the runtime env — without that token the API fails at layer build, i.e. the
-# container will not start at all.
+# docs/operations/claude-cli-dependency.md). The token it authenticates with is
+# no runtime env var but a credential pasted in the app's Settings page (issue
+# #122), so the container starts with none stored and PDF import alone is what
+# fails until one is.
 RUN npm install -g @anthropic-ai/claude-code && claude --version
 
 WORKDIR /app
@@ -56,7 +57,7 @@ COPY packages/shared ./packages/shared
 COPY packages/api ./packages/api
 COPY tsconfig.base.json tsconfig.json ./
 
-# Defaults matching the volume layout in docs/operations/deploy.md. Both live
+# Defaults matching the volume layout in DEPLOY.md. Both live
 # under /data so a single mount covers the database and the uploaded issuer
 # images; Dokploy env can override either.
 ENV NODE_ENV=production \

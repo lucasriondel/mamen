@@ -1,6 +1,7 @@
 import type { Account, AccountId } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { Select } from "@/components/ui/select";
 import { accountQueries } from "@/lib/sdk";
 import { type CellState, MonthCell } from "./month-cell";
 import {
@@ -85,8 +86,7 @@ export function ImportGrid({
 				</div>
 				<label className="flex items-center gap-2 text-sm text-gousse-muted">
 					Year
-					<select
-						className="rounded-full border border-gousse-line bg-gousse-bg px-4 py-1.5 text-sm text-gousse-ink outline-none focus:border-gousse-accent"
+					<Select
 						value={year}
 						onChange={(event) => setYear(Number(event.target.value))}
 						aria-label="Grid year"
@@ -96,7 +96,7 @@ export function ImportGrid({
 								{option}
 							</option>
 						))}
-					</select>
+					</Select>
 				</label>
 			</header>
 

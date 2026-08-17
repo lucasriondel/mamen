@@ -6,10 +6,10 @@ import {
 } from "@effect/platform";
 import { BunHttpServer } from "@effect/platform-bun";
 import { Effect, Layer } from "effect";
+import { ClaudeCodeProdLive } from "./ai-runner/claude";
 import { ApiLive } from "./api-live";
 import { CorsOrigins, Port } from "./config";
 import { DatabaseLive } from "./db/sql";
-import { ClaudeCodeProdLive } from "./import/claude";
 import { OutboundLive } from "./net/outbound";
 import { StaticUploadsLive } from "./static/uploads";
 

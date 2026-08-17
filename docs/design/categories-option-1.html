@@ -1,0 +1,1050 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Categories — Option 1 detailed</title>
+<style>
+:root {
+  --gousse-bg: 249 247 244;
+  --gousse-panel: 255 255 255;
+  --gousse-ink: 17 16 14;
+  --gousse-muted: 120 120 116;
+  --gousse-line: 226 222 215;
+  --gousse-accent: 220 120 40;
+  --gousse-high: 220 71 50;
+  --gousse-medium: 245 158 11;
+  --gousse-low: 74 168 97;
+  --gousse-shadow-sm: 0 1px 2px rgba(0,0,0,.05);
+  --gousse-shadow-md: 0 4px 6px rgba(0,0,0,.07);
+  --gousse-shadow-lg: 0 6px 16px rgba(0,0,0,.1);
+  --gousse-shadow-xl: 0 10px 24px rgba(0,0,0,.12);
+}
+.dark {
+  --gousse-bg: 13 13 12;
+  --gousse-panel: 23 23 22;
+  --gousse-ink: 245 245 242;
+  --gousse-muted: 156 156 150;
+  --gousse-line: 68 66 60;
+  --gousse-accent: 251 146 60;
+  --gousse-high: 255 107 80;
+  --gousse-medium: 250 192 38;
+  --gousse-low: 134 194 122;
+  --gousse-shadow-sm: 0 1px 2px rgba(0,0,0,.3);
+  --gousse-shadow-md: 0 4px 6px rgba(0,0,0,.4);
+  --gousse-shadow-lg: 0 6px 16px rgba(0,0,0,.5);
+  --gousse-shadow-xl: 0 10px 24px rgba(0,0,0,.6);
+}
+* { box-sizing: border-box; }
+html { color-scheme: dark; }
+html:not(.dark) { color-scheme: light; }
+body {
+  margin: 0;
+  background: rgb(var(--gousse-bg));
+  color: rgb(var(--gousse-ink));
+  font: 14px/1.5 ui-sans-serif, -apple-system, "Segoe UI", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+svg { display: block; }
+
+/* ---------------- page chrome ---------------- */
+.topbar {
+  position: sticky; top: 0; z-index: 40;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 12px 24px;
+  background: rgb(var(--gousse-bg) / .85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgb(var(--gousse-line));
+}
+.topbar h1 { font-size: 14px; font-weight: 600; margin: 0; letter-spacing: -.01em; }
+.topbar .sub { color: rgb(var(--gousse-muted)); font-weight: 400; }
+.topbar .right { display: flex; gap: 8px; align-items: center; }
+.wrap { max-width: 1020px; margin: 0 auto; padding: 32px 24px 140px; }
+
+.pagehead { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
+.pagehead h2 { margin: 0; font-size: 26px; letter-spacing: -.025em; }
+.pagehead p { margin: 4px 0 0; color: rgb(var(--gousse-muted)); }
+
+.specblock {
+  margin: 56px 0 20px; padding-bottom: 12px;
+  border-bottom: 1px solid rgb(var(--gousse-line));
+}
+.specblock h3 { margin: 0 0 6px; font-size: 18px; letter-spacing: -.02em; }
+.specblock p { margin: 0; color: rgb(var(--gousse-muted)); max-width: 74ch; }
+.eyebrow {
+  font-size: 11px; letter-spacing: .09em; text-transform: uppercase;
+  color: rgb(var(--gousse-accent)); font-weight: 600; display: block; margin-bottom: 6px;
+}
+
+/* ---------------- primitives ---------------- */
+.ico { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor;
+       stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.ico-14 { width: 14px; height: 14px; }
+.ico-18 { width: 18px; height: 18px; }
+.amount { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; letter-spacing: -.01em; }
+.neg { color: rgb(var(--gousse-high)); }
+.pos { color: rgb(var(--gousse-low)); }
+.muted { color: rgb(var(--gousse-muted)); }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  border: 1px solid rgb(var(--gousse-line));
+  background: transparent; color: rgb(var(--gousse-ink));
+  border-radius: 999px; padding: 5px 12px; font-size: 12px; cursor: pointer;
+  font-family: inherit;
+  transition: background .15s, border-color .15s, color .15s, transform .08s;
+}
+.btn:hover { border-color: rgb(var(--gousse-accent)); background: rgb(var(--gousse-accent) / .1); }
+.btn:active { transform: scale(.97); }
+.btn:focus-visible { outline: 2px solid rgb(var(--gousse-accent)); outline-offset: 2px; }
+.btn.primary { background: rgb(var(--gousse-accent)); border-color: transparent; color: rgb(var(--gousse-bg)); font-weight: 500; }
+.btn.primary:hover { background: rgb(var(--gousse-accent) / .88); }
+.btn.iconbtn { padding: 0; width: 28px; height: 28px; border-radius: 8px; border-color: transparent; color: rgb(var(--gousse-muted)); }
+.btn.iconbtn:hover { color: rgb(var(--gousse-ink)); background: rgb(var(--gousse-ink) / .07); border-color: transparent; }
+.btn.iconbtn.danger:hover { color: rgb(var(--gousse-high)); background: rgb(var(--gousse-high) / .12); }
+
+/* the swatch / icon chip — both are *editors*, per issue #58 */
+.chip {
+  width: 26px; height: 26px; border-radius: 8px; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid transparent; background: transparent; cursor: pointer; padding: 0;
+  transition: background .12s, border-color .12s;
+}
+.chip:hover { background: rgb(var(--gousse-ink) / .07); border-color: rgb(var(--gousse-line)); }
+.chip:focus-visible { outline: 2px solid rgb(var(--gousse-accent)); outline-offset: 1px; }
+/* A chosen colour is a solid dot. An inherited one is the same dot hollowed to
+   a ring — ADR 0006 makes `color: null` a *reference*, so the row can say
+   "borrowed" without a second glyph. Both are 10px of actual colour; the old
+   20px donut read as a dark hole with a rim, not as a swatch. */
+.swatch {
+  width: 22px; height: 22px; border-radius: 999px; flex: none;
+  border: none; cursor: pointer; padding: 0; background: transparent;
+  position: relative;
+  transition: background .12s;
+}
+.swatch::after {
+  content: ""; position: absolute; top: 50%; left: 50%;
+  width: 10px; height: 10px; margin: -5px 0 0 -5px;
+  border-radius: 999px; background: var(--c);
+}
+.swatch:hover { background: rgb(var(--gousse-ink) / .07); }
+.swatch:focus-visible { outline: 2px solid rgb(var(--gousse-accent)); outline-offset: 1px; }
+.swatch.inherited::after {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--c);
+  opacity: .75;
+}
+
+.pill {
+  font-size: 11px; color: rgb(var(--gousse-muted));
+  border: 1px solid rgb(var(--gousse-line)); border-radius: 999px; padding: 0 7px;
+  line-height: 18px; flex: none;
+}
+
+/* ---------------- the tree ---------------- */
+.tree { display: flex; flex-direction: column; gap: 10px; }
+
+/* one folder card per ROOT only. Nested folders are rows, not cards — a card
+   inside a card inside a card is the thing that made the current page heavy. */
+.card {
+  border: 1px solid rgb(var(--gousse-line));
+  background: rgb(var(--gousse-panel));
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 12px 0 var(--pad, 12px);
+  min-height: 42px; position: relative;
+  transition: background .12s;
+}
+.row:hover { background: rgb(var(--gousse-ink) / .035); }
+.row:focus-within { background: rgb(var(--gousse-ink) / .035); }
+.row + .row { border-top: 1px solid rgb(var(--gousse-line) / .45); }
+.row.rootfolder { min-height: 50px; border-bottom: 1px solid rgb(var(--gousse-line)); }
+.row.rootfolder + .row { border-top: none; }
+
+/* Depth reads as a tint, not a rule. Each level sits a shade deeper into the
+   card, so nesting is felt at the edge of vision instead of drawn with
+   ladder lines that fight the row borders. */
+.row[data-depth="1"] { background: rgb(var(--gousse-ink) / .022); }
+.row[data-depth="2"] { background: rgb(var(--gousse-ink) / .044); }
+.row[data-depth="3"] { background: rgb(var(--gousse-ink) / .066); }
+.row[data-depth="1"]:hover, .row[data-depth="1"]:focus-within { background: rgb(var(--gousse-ink) / .06); }
+.row[data-depth="2"]:hover, .row[data-depth="2"]:focus-within { background: rgb(var(--gousse-ink) / .082); }
+.row[data-depth="3"]:hover, .row[data-depth="3"]:focus-within { background: rgb(var(--gousse-ink) / .104); }
+/* Inside a nested run the tint already separates rows; a border on top of it
+   just draws the ladder back in. Only same-depth siblings keep a divider. */
+.row[data-depth="1"] + .row[data-depth="2"],
+.row[data-depth="2"] + .row[data-depth="1"],
+.row[data-depth="2"] + .row[data-depth="3"],
+.row[data-depth="3"] + .row[data-depth="2"] { border-top-color: transparent; }
+
+.disclose {
+  width: 20px; height: 20px; flex: none; border: none; background: transparent;
+  color: rgb(var(--gousse-muted)); cursor: pointer; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 6px;
+}
+.disclose:hover { background: rgb(var(--gousse-ink) / .08); color: rgb(var(--gousse-ink)); }
+.disclose:focus-visible { outline: 2px solid rgb(var(--gousse-accent)); outline-offset: 1px; }
+/* 13px at stroke 2 — a chevron any bigger reads as a tick once it rotates. */
+.disclose .ico { width: 13px; height: 13px; transition: transform .18s cubic-bezier(.4,0,.2,1); }
+.disclose[aria-expanded="true"] .ico { transform: rotate(90deg); }
+.disclose.leafspacer { visibility: hidden; }
+
+.name { min-width: 0; color: inherit; text-decoration: none; }
+.name:hover { color: rgb(var(--gousse-accent)); text-decoration: underline; text-underline-offset: 3px; }
+.row.rootfolder .name { font-weight: 600; font-size: 15px; letter-spacing: -.01em; }
+.row.folder .name { font-weight: 500; }
+.row.leaf .name { font-weight: 400; }
+
+.spacer { flex: 1 1 auto; min-width: 8px; }
+
+/* the share bar sits between name and money, fixed width so every number in
+   the card lands on the same right edge */
+.bar { width: 72px; height: 4px; border-radius: 999px; background: rgb(var(--gousse-line)); overflow: hidden; flex: none; }
+.bar i { display: block; height: 100%; border-radius: 999px; background: var(--c); }
+.money { width: 92px; text-align: right; flex: none; font-size: 13px; }
+.row.rootfolder .money { font-weight: 600; font-size: 14px; }
+
+/* actions: hidden until hover / focus-within, but the SPACE is always reserved
+   so nothing reflows and no number jumps sideways */
+.actions {
+  display: flex; gap: 2px; flex: none; width: 88px; justify-content: flex-end;
+  opacity: 0; transition: opacity .12s;
+}
+.row:hover .actions, .row:focus-within .actions, .row.menuopen .actions { opacity: 1; }
+/* coarse pointers have no hover — always show */
+@media (hover: none) { .actions { opacity: 1; } }
+
+.children { display: block; }
+.children[hidden] { display: none; }
+
+/* ---------------- menu ---------------- */
+.menuwrap { position: relative; }
+.menu {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 30;
+  min-width: 186px; padding: 5px;
+  background: rgb(var(--gousse-panel));
+  border: 1px solid rgb(var(--gousse-line));
+  border-radius: 12px; box-shadow: var(--gousse-shadow-xl);
+  display: flex; flex-direction: column; gap: 1px;
+}
+.menu[hidden] { display: none; }
+.menuitem {
+  display: flex; align-items: center; gap: 9px; width: 100%;
+  border: none; background: transparent; color: rgb(var(--gousse-ink));
+  font: inherit; font-size: 13px; text-align: left;
+  padding: 7px 9px; border-radius: 8px; cursor: pointer;
+}
+.menuitem:hover { background: rgb(var(--gousse-ink) / .07); }
+.menuitem:focus-visible { outline: 2px solid rgb(var(--gousse-accent)); outline-offset: -2px; }
+.menuitem .ico { color: rgb(var(--gousse-muted)); }
+.menuitem.danger { color: rgb(var(--gousse-high)); }
+.menuitem.danger .ico { color: rgb(var(--gousse-high)); }
+.menuitem[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
+.menusep { height: 1px; background: rgb(var(--gousse-line)); margin: 4px 2px; }
+.menulabel {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .07em;
+  color: rgb(var(--gousse-muted)); padding: 6px 9px 3px;
+}
+.kbd {
+  margin-left: auto; font-size: 10px; color: rgb(var(--gousse-muted));
+  border: 1px solid rgb(var(--gousse-line)); border-radius: 4px; padding: 0 4px;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+}
+
+/* ---------------- annotation callouts ---------------- */
+.annot {
+  display: grid; grid-template-columns: 22px 1fr; gap: 10px;
+  margin-top: 14px; color: rgb(var(--gousse-muted)); font-size: 13px;
+  max-width: 78ch;
+}
+.annot b { color: rgb(var(--gousse-ink)); font-weight: 600; }
+.annot .n {
+  width: 20px; height: 20px; border-radius: 999px; flex: none;
+  border: 1px solid rgb(var(--gousse-accent)); color: rgb(var(--gousse-accent));
+  font-size: 11px; display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 600;
+}
+.annot + .annot { margin-top: 8px; }
+
+/* spec tables */
+table.spec { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 13px; }
+table.spec th {
+  text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
+  color: rgb(var(--gousse-muted)); font-weight: 500; padding: 8px 12px;
+  border-bottom: 1px solid rgb(var(--gousse-line));
+}
+table.spec td { padding: 9px 12px; border-bottom: 1px solid rgb(var(--gousse-line) / .5); vertical-align: top; }
+table.spec tr:last-child td { border-bottom: none; }
+table.spec code, .wrap p code, .annot code {
+  font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12px;
+  background: rgb(var(--gousse-ink) / .07); padding: 1px 5px; border-radius: 5px;
+}
+
+/* state gallery */
+.gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; margin-top: 16px; }
+.demo { border: 1px solid rgb(var(--gousse-line)); border-radius: 12px; overflow: hidden; background: rgb(var(--gousse-panel)); }
+.demo .caption {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: rgb(var(--gousse-muted));
+  padding: 8px 12px; border-bottom: 1px solid rgb(var(--gousse-line)); background: rgb(var(--gousse-ink) / .03);
+}
+.demo .body { padding: 0; }
+.demo .body.pad { padding: 14px; }
+
+/* skeleton */
+@keyframes shimmer { 0%,100% { opacity: .5 } 50% { opacity: .9 } }
+.sk { background: rgb(var(--gousse-line)); border-radius: 6px; height: 10px; animation: shimmer 1.6s ease-in-out infinite; }
+
+/* pending row */
+.row.pending { opacity: .55; pointer-events: none; }
+@keyframes spin { to { transform: rotate(360deg) } }
+.spinner {
+  width: 13px; height: 13px; border-radius: 999px; flex: none;
+  border: 2px solid rgb(var(--gousse-line)); border-top-color: rgb(var(--gousse-accent));
+  animation: spin .7s linear infinite;
+}
+
+/* drop target preview */
+.row.droptarget { background: rgb(var(--gousse-accent) / .1); box-shadow: inset 0 0 0 1px rgb(var(--gousse-accent) / .5); }
+
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
+@media (max-width: 720px) {
+  .bar { display: none; }
+  .money { width: 82px; }
+  .actions { width: 60px; }
+}
+</style>
+</head>
+<body>
+
+<!-- real Lucide 0.563.0 geometry, extracted from node_modules/lucide-react -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+    <symbol id="i-utensils" viewBox="0 0 24 24"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/></symbol>
+    <symbol id="i-shopping-cart" viewBox="0 0 24 24"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></symbol>
+    <symbol id="i-coffee" viewBox="0 0 24 24"><path d="M10 2v2"/><path d="M14 2v2"/><path d="M16 8a1 1 0 0 1 1 1v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1h14a4 4 0 1 1 0 8h-1"/><path d="M6 2v2"/></symbol>
+    <symbol id="i-sandwich" viewBox="0 0 24 24"><path d="m2.37 11.223 8.372-6.777a2 2 0 0 1 2.516 0l8.371 6.777"/><path d="M21 15a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-5.25"/><path d="M3 15a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h9"/><path d="m6.67 15 6.13 4.6a2 2 0 0 0 2.8-.4l3.15-4.2"/><rect width="20" height="4" x="2" y="11" rx="1"/></symbol>
+    <symbol id="i-beef" viewBox="0 0 24 24"><path d="M16.4 13.7A6.5 6.5 0 1 0 6.28 6.6c-1.1 3.13-.78 3.9-3.18 6.08A3 3 0 0 0 5 18c4 0 8.4-1.8 11.4-4.3"/><path d="m18.5 6 2.19 4.5a6.48 6.48 0 0 1-2.29 7.2C15.4 20.2 11 22 7 22a3 3 0 0 1-2.68-1.66L2.4 16.5"/><circle cx="12.5" cy="8.5" r="2.5"/></symbol>
+    <symbol id="i-apple" viewBox="0 0 24 24"><path d="M12 6.528V3a1 1 0 0 1 1-1h0"/><path d="M18.237 21A15 15 0 0 0 22 11a6 6 0 0 0-10-4.472A6 6 0 0 0 2 11a15.1 15.1 0 0 0 3.763 10 3 3 0 0 0 3.648.648 5.5 5.5 0 0 1 5.178 0A3 3 0 0 0 18.237 21"/></symbol>
+    <symbol id="i-house" viewBox="0 0 24 24"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+    <symbol id="i-key-round" viewBox="0 0 24 24"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></symbol>
+    <symbol id="i-zap" viewBox="0 0 24 24"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></symbol>
+    <symbol id="i-wifi" viewBox="0 0 24 24"><path d="M12 20h.01"/><path d="M2 8.82a15 15 0 0 1 20 0"/><path d="M5 12.859a10 10 0 0 1 14 0"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/></symbol>
+    <symbol id="i-droplets" viewBox="0 0 24 24"><path d="M7 16.3c2.2 0 4-1.83 4-4.05 0-1.16-.57-2.26-1.71-3.19S7.29 6.75 7 5.3c-.29 1.45-1.14 2.84-2.29 3.76S3 11.1 3 12.25c0 2.22 1.8 4.05 4 4.05z"/><path d="M12.56 6.6A10.97 10.97 0 0 0 14 3.02c.5 2.5 2 4.9 4 6.5s3 3.5 3 5.5a6.98 6.98 0 0 1-11.91 4.97"/></symbol>
+    <symbol id="i-sofa" viewBox="0 0 24 24"><path d="M20 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v3"/><path d="M2 16a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v1.5a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5V11a2 2 0 0 0-4 0z"/><path d="M4 18v2"/><path d="M20 18v2"/><path d="M12 4v9"/></symbol>
+    <symbol id="i-wrench" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z"/></symbol>
+    <symbol id="i-car" viewBox="0 0 24 24"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></symbol>
+    <symbol id="i-fuel" viewBox="0 0 24 24"><path d="M14 13h2a2 2 0 0 1 2 2v2a2 2 0 0 0 4 0v-6.998a2 2 0 0 0-.59-1.42L18 5"/><path d="M14 21V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v16"/><path d="M2 21h13"/><path d="M3 9h11"/></symbol>
+    <symbol id="i-train-front" viewBox="0 0 24 24"><path d="M8 3.1V7a4 4 0 0 0 8 0V3.1"/><path d="m9 15-1-1"/><path d="m15 15 1-1"/><path d="M9 19c-2.8 0-5-2.2-5-5v-4a8 8 0 0 1 16 0v4c0 2.8-2.2 5-5 5Z"/><path d="m8 19-2 3"/><path d="m16 19 2 3"/></symbol>
+    <symbol id="i-bike" viewBox="0 0 24 24"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></symbol>
+    <symbol id="i-plane" viewBox="0 0 24 24"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/></symbol>
+    <symbol id="i-shapes" viewBox="0 0 24 24"><path d="M8.3 10a.7.7 0 0 1-.626-1.079L11.4 3a.7.7 0 0 1 1.198-.043L16.3 8.9a.7.7 0 0 1-.572 1.1Z"/><rect x="3" y="14" width="7" height="7" rx="1"/><circle cx="17.5" cy="17.5" r="3.5"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+    <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></symbol>
+    <symbol id="i-move" viewBox="0 0 24 24"><path d="M12 2v20"/><path d="m15 19-3 3-3-3"/><path d="m19 9 3 3-3 3"/><path d="M2 12h20"/><path d="m5 9-3 3 3 3"/><path d="m9 5 3-3 3 3"/></symbol>
+    <symbol id="i-trash-2" viewBox="0 0 24 24"><path d="M10 11v6"/><path d="M14 11v6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
+    <symbol id="i-ellipsis-vertical" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></symbol>
+    <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+    <symbol id="i-corner-down-right" viewBox="0 0 24 24"><path d="m15 10 5 5-5 5"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></symbol>
+    <symbol id="i-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></symbol>
+</defs></svg>
+
+<div class="topbar">
+  <h1>Categories <span class="sub">— Option 1, detailed</span></h1>
+  <div class="right">
+    <button class="btn" id="expandAll" type="button">Expand all</button>
+    <button class="btn" id="themeToggle" type="button">Light / dark</button>
+  </div>
+</div>
+
+<div class="wrap">
+
+<div class="pagehead">
+  <div>
+    <h2>Categories</h2>
+    <p>The shape of your spending, nested to any depth.</p>
+  </div>
+  <button class="btn primary"><svg class="ico ico-14"><use href="#i-plus"/></svg>New category</button>
+</div>
+
+<!-- ================= THE TREE ================= -->
+<div class="tree" id="tree">
+
+  <!-- ---------- ROOT: Food (3 levels deep) ---------- -->
+  <div class="card">
+    <div class="row rootfolder" style="--pad:12px" data-depth="0">
+      <button class="disclose" aria-expanded="true" aria-label="Collapse Food" data-toggle="food">
+        <svg class="ico ico-18"><use href="#i-chevron-right"/></svg>
+      </button>
+      <button class="chip" aria-label="Change Food icon" title="Change icon">
+        <svg class="ico ico-18" style="color:rgb(var(--gousse-high))"><use href="#i-utensils"/></svg>
+      </button>
+      <button class="swatch" style="--c:rgb(var(--gousse-high))" aria-label="Change Food colour" title="Colour: chosen (#DC4732)"></button>
+      <a href="#" class="name truncate">Food</a>
+      <span class="pill">3</span>
+      <span class="spacer"></span>
+      <span class="bar"><i style="width:35%;--c:rgb(var(--gousse-high))"></i></span>
+      <span class="money amount neg">−393,44 €</span>
+      <span class="actions">
+        <button class="btn iconbtn" title="Add category in Food" aria-label="Add category in Food"><svg class="ico"><use href="#i-plus"/></svg></button>
+        <span class="menuwrap">
+          <button class="btn iconbtn" data-menu title="More actions for Food" aria-label="More actions for Food" aria-haspopup="menu" aria-expanded="false"><svg class="ico"><use href="#i-ellipsis-vertical"/></svg></button>
+          <div class="menu" role="menu" hidden>
+            <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-pencil"/></svg>Rename<span class="kbd">F2</span></button>
+            <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-move"/></svg>Move…</button>
+            <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-corner-down-right"/></svg>Add subcategory</button>
+            <div class="menusep"></div>
+            <div class="menulabel">Appearance</div>
+            <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-shapes"/></svg>Change icon…</button>
+            <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-circle"/></svg>Change colour…</button>
+            <div class="menusep"></div>
+            <button class="menuitem danger" role="menuitem"><svg class="ico ico-14"><use href="#i-trash-2"/></svg>Delete</button>
+          </div>
+        </span>
+      </span>
+    </div>
+
+    <div class="children" data-children="food">
+      <!-- depth 1 FOLDER: Groceries → has its own children -->
+      <div class="row folder" style="--pad:30px" data-depth="1">
+        <button class="disclose" aria-expanded="true" aria-label="Collapse Groceries" data-toggle="groceries"><svg class="ico"><use href="#i-chevron-right"/></svg></button>
+        <button class="chip" aria-label="Change Groceries icon"><svg class="ico" style="color:rgb(var(--gousse-high))"><use href="#i-shopping-cart"/></svg></button>
+        <button class="swatch inherited" style="--c:rgb(var(--gousse-high))" aria-label="Change Groceries colour" title="Colour: inherited from Food"></button>
+        <a href="#" class="name truncate">Groceries</a>
+        <span class="pill">2</span>
+        <span class="spacer"></span>
+        <span class="bar"><i style="width:62%;--c:rgb(var(--gousse-high))"></i></span>
+        <span class="money amount">−244,10 €</span>
+        <span class="actions">
+          <button class="btn iconbtn" title="Add category in Groceries" aria-label="Add category in Groceries"><svg class="ico"><use href="#i-plus"/></svg></button>
+          <span class="menuwrap">
+            <button class="btn iconbtn" data-menu aria-label="More actions for Groceries" aria-haspopup="menu" aria-expanded="false"><svg class="ico"><use href="#i-ellipsis-vertical"/></svg></button>
+            <div class="menu" role="menu" hidden>
+              <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-pencil"/></svg>Rename<span class="kbd">F2</span></button>
+              <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-move"/></svg>Move…</button>
+              <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-corner-down-right"/></svg>Add subcategory</button>
+              <div class="menusep"></div>
+              <div class="menulabel">Appearance</div>
+              <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-shapes"/></svg>Change icon…</button>
+              <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-circle"/></svg>Change colour…</button>
+              <div class="menusep"></div>
+              <button class="menuitem danger" role="menuitem" aria-disabled="true" title="Holds 14 transactions"><svg class="ico ico-14"><use href="#i-trash-2"/></svg>Delete</button>
+            </div>
+          </span>
+        </span>
+      </div>
+
+      <!-- depth 2 leaves under Groceries -->
+      <div class="children" data-children="groceries">
+        <div class="row leaf" style="--pad:52px" data-depth="2">
+          <span class="disclose leafspacer"></span>
+          <button class="chip" aria-label="Change Supermarket icon"><svg class="ico" style="color:rgb(var(--gousse-high))"><use href="#i-shopping-cart"/></svg></button>
+          <button class="swatch inherited" style="--c:rgb(var(--gousse-high))" aria-label="Change Supermarket colour" title="Colour: inherited from Food"></button>
+          <a href="#" class="name truncate">Supermarket</a>
+          <span class="spacer"></span>
+          <span class="bar"><i style="width:81%;--c:rgb(var(--gousse-high))"></i></span>
+          <span class="money amount muted">−198,40 €</span>
+          <span class="actions">
+            <button class="btn iconbtn" title="Add category in Supermarket" aria-label="Add category in Supermarket"><svg class="ico"><use href="#i-plus"/></svg></button>
+            <span class="menuwrap">
+              <button class="btn iconbtn" data-menu aria-label="More actions for Supermarket" aria-haspopup="menu" aria-expanded="false"><svg class="ico"><use href="#i-ellipsis-vertical"/></svg></button>
+              <div class="menu" role="menu" hidden>
+                <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-pencil"/></svg>Rename<span class="kbd">F2</span></button>
+                <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-move"/></svg>Move…</button>
+                <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-corner-down-right"/></svg>Add subcategory</button>
+                <div class="menusep"></div>
+                <div class="menulabel">Appearance</div>
+                <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-shapes"/></svg>Change icon…</button>
+                <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-circle"/></svg>Change colour…</button>
+                <div class="menusep"></div>
+                <button class="menuitem danger" role="menuitem"><svg class="ico ico-14"><use href="#i-trash-2"/></svg>Delete</button>
+              </div>
+            </span>
+          </span>
+        </div>
+
+        <div class="row leaf" style="--pad:52px" data-depth="2">
+          <span class="disclose leafspacer"></span>
+          <button class="chip" aria-label="Change Butcher icon"><svg class="ico" style="color:rgb(var(--gousse-high))"><use href="#i-beef"/></svg></button>
+          <button class="swatch inherited" style="--c:rgb(var(--gousse-high))" aria-label="Change Butcher colour" title="Colour: inherited from Food"></button>
+          <a href="#" class="name truncate">Butcher</a>
+          <span class="spacer"></span>
+          <span class="bar"><i style="width:19%;--c:rgb(var(--gousse-high))"></i></span>
+          <span class="money amount muted">−45,70 €</span>
+          <span class="actions">
+            <button class="btn iconbtn" aria-label="Add category in Butcher"><svg class="ico"><use href="#i-plus"/></svg></button>
+            <span class="menuwrap">
+              <button class="btn iconbtn" data-menu aria-label="More actions for Butcher" aria-haspopup="menu" aria-expanded="false"><svg class="ico"><use href="#i-ellipsis-vertical"/></svg></button>
+              <div class="menu" role="menu" hidden>
+                <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-pencil"/></svg>Rename<span class="kbd">F2</span></button>
+                <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-move"/></svg>Move…</button>
+                <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-corner-down-right"/></svg>Add subcategory</button>
+                <div class="menusep"></div>
+                <div class="menulabel">Appearance</div>
+                <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-shapes"/></svg>Change icon…</button>
+                <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-circle"/></svg>Change colour…</button>
+                <div class="menusep"></div>
+                <button class="menuitem danger" role="menuitem"><svg class="ico ico-14"><use href="#i-trash-2"/></svg>Delete</button>
+              </div>
+            </span>
+          </span>
+        </div>
+      </div>
+
+      <!-- depth 1 leaves -->
+      <div class="row leaf" style="--pad:30px" data-depth="1">
+        <span class="disclose leafspacer"></span>
+        <button class="chip" aria-label="Change Restaurants icon"><svg class="ico" style="color:rgb(var(--gousse-high))"><use href="#i-utensils"/></svg></button>
+        <button class="swatch inherited" style="--c:rgb(var(--gousse-high))" aria-label="Change Restaurants colour" title="Colour: inherited from Food"></button>
+        <a href="#" class="name truncate">Restaurants</a>
+        <span class="spacer"></span>
+        <span class="bar"><i style="width:28%;--c:rgb(var(--gousse-high))"></i></span>
+        <span class="money amount">−110,20 €</span>
+        <span class="actions">
+          <button class="btn iconbtn" aria-label="Add category in Restaurants"><svg class="ico"><use href="#i-plus"/></svg></button>
+          <span class="menuwrap">
+            <button class="btn iconbtn" data-menu aria-label="More actions for Restaurants" aria-haspopup="menu" aria-expanded="false"><svg class="ico"><use href="#i-ellipsis-vertical"/></svg></button>
+            <div class="menu" role="menu" hidden>
+              <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-pencil"/></svg>Rename<span class="kbd">F2</span></button>
+              <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-move"/></svg>Move…</button>
+              <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-corner-down-right"/></svg>Add subcategory</button>
+              <div class="menusep"></div>
+              <div class="menulabel">Appearance</div>
+              <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-shapes"/></svg>Change icon…</button>
+              <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-circle"/></svg>Change colour…</button>
+              <div class="menusep"></div>
+              <button class="menuitem danger" role="menuitem"><svg class="ico ico-14"><use href="#i-trash-2"/></svg>Delete</button>
+            </div>
+          </span>
+        </span>
+      </div>
+
+      <div class="row leaf" style="--pad:30px" data-depth="1">
+        <span class="disclose leafspacer"></span>
+        <button class="chip" aria-label="Change Cafés icon"><svg class="ico" style="color:rgb(var(--gousse-high))"><use href="#i-coffee"/></svg></button>
+        <button class="swatch inherited" style="--c:rgb(var(--gousse-high))" aria-label="Change Cafés colour" title="Colour: inherited from Food"></button>
+        <a href="#" class="name truncate">Cafés</a>
+        <span class="spacer"></span>
+        <span class="bar"><i style="width:10%;--c:rgb(var(--gousse-high))"></i></span>
+        <span class="money amount">−39,14 €</span>
+        <span class="actions">
+          <button class="btn iconbtn" aria-label="Add category in Cafés"><svg class="ico"><use href="#i-plus"/></svg></button>
+          <span class="menuwrap">
+            <button class="btn iconbtn" data-menu aria-label="More actions for Cafés" aria-haspopup="menu" aria-expanded="false"><svg class="ico"><use href="#i-ellipsis-vertical"/></svg></button>
+            <div class="menu" role="menu" hidden>
+              <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-pencil"/></svg>Rename<span class="kbd">F2</span></button>
+              <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-move"/></svg>Move…</button>
+              <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-corner-down-right"/></svg>Add subcategory</button>
+              <div class="menusep"></div>
+              <div class="menulabel">Appearance</div>
+              <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-shapes"/></svg>Change icon…</button>
+              <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-circle"/></svg>Change colour…</button>
+              <div class="menusep"></div>
+              <button class="menuitem danger" role="menuitem"><svg class="ico ico-14"><use href="#i-trash-2"/></svg>Delete</button>
+            </div>
+          </span>
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ---------- ROOT: Home (collapsed, shows summary) ---------- -->
+  <div class="card">
+    <div class="row rootfolder" style="--pad:12px" data-depth="0">
+      <button class="disclose" aria-expanded="false" aria-label="Expand Home" data-toggle="home"><svg class="ico ico-18"><use href="#i-chevron-right"/></svg></button>
+      <button class="chip" aria-label="Change Home icon"><svg class="ico ico-18" style="color:rgb(var(--gousse-accent))"><use href="#i-house"/></svg></button>
+      <button class="swatch" style="--c:rgb(var(--gousse-accent))" aria-label="Change Home colour" title="Colour: chosen"></button>
+      <a href="#" class="name truncate">Home</a>
+      <span class="pill">4</span>
+      <span class="spacer"></span>
+      <span class="bar"><i style="width:64%;--c:rgb(var(--gousse-accent))"></i></span>
+      <span class="money amount neg">−719,97 €</span>
+      <span class="actions">
+        <button class="btn iconbtn" aria-label="Add category in Home"><svg class="ico"><use href="#i-plus"/></svg></button>
+        <span class="menuwrap">
+          <button class="btn iconbtn" data-menu aria-label="More actions for Home" aria-haspopup="menu" aria-expanded="false"><svg class="ico"><use href="#i-ellipsis-vertical"/></svg></button>
+          <div class="menu" role="menu" hidden>
+            <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-pencil"/></svg>Rename<span class="kbd">F2</span></button>
+            <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-move"/></svg>Move…</button>
+            <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-corner-down-right"/></svg>Add subcategory</button>
+            <div class="menusep"></div>
+            <div class="menulabel">Appearance</div>
+            <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-shapes"/></svg>Change icon…</button>
+            <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-circle"/></svg>Change colour…</button>
+            <div class="menusep"></div>
+            <button class="menuitem danger" role="menuitem"><svg class="ico ico-14"><use href="#i-trash-2"/></svg>Delete</button>
+          </div>
+        </span>
+      </span>
+    </div>
+
+    <div class="children" data-children="home" hidden>
+      <div class="row leaf" style="--pad:30px" data-depth="1">
+        <span class="disclose leafspacer"></span>
+        <button class="chip" aria-label="Change Rent icon"><svg class="ico" style="color:rgb(var(--gousse-accent))"><use href="#i-key-round"/></svg></button>
+        <button class="swatch inherited" style="--c:rgb(var(--gousse-accent))" aria-label="Change Rent colour"></button>
+        <a href="#" class="name truncate">Rent</a><span class="spacer"></span>
+        <span class="bar"><i style="width:78%;--c:rgb(var(--gousse-accent))"></i></span>
+        <span class="money amount">−560,00 €</span>
+        <span class="actions"><button class="btn iconbtn" aria-label="Add category in Rent"><svg class="ico"><use href="#i-plus"/></svg></button>
+          <span class="menuwrap"><button class="btn iconbtn" data-menu aria-label="More actions for Rent" aria-haspopup="menu" aria-expanded="false"><svg class="ico"><use href="#i-ellipsis-vertical"/></svg></button>
+            <div class="menu" role="menu" hidden>
+              <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-pencil"/></svg>Rename</button>
+              <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-move"/></svg>Move…</button>
+              <div class="menusep"></div>
+              <button class="menuitem danger" role="menuitem"><svg class="ico ico-14"><use href="#i-trash-2"/></svg>Delete</button>
+            </div></span></span>
+      </div>
+      <div class="row leaf" style="--pad:30px" data-depth="1">
+        <span class="disclose leafspacer"></span>
+        <button class="chip" aria-label="Change Energy icon"><svg class="ico" style="color:rgb(var(--gousse-accent))"><use href="#i-zap"/></svg></button>
+        <button class="swatch inherited" style="--c:rgb(var(--gousse-accent))" aria-label="Change Energy colour"></button>
+        <a href="#" class="name truncate">Energy</a><span class="spacer"></span>
+        <span class="bar"><i style="width:12%;--c:rgb(var(--gousse-accent))"></i></span>
+        <span class="money amount">−84,30 €</span>
+        <span class="actions"><button class="btn iconbtn" aria-label="Add category in Energy"><svg class="ico"><use href="#i-plus"/></svg></button>
+          <span class="menuwrap"><button class="btn iconbtn" data-menu aria-label="More actions for Energy" aria-haspopup="menu" aria-expanded="false"><svg class="ico"><use href="#i-ellipsis-vertical"/></svg></button>
+            <div class="menu" role="menu" hidden>
+              <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-pencil"/></svg>Rename</button>
+              <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-move"/></svg>Move…</button>
+              <div class="menusep"></div>
+              <button class="menuitem danger" role="menuitem"><svg class="ico ico-14"><use href="#i-trash-2"/></svg>Delete</button>
+            </div></span></span>
+      </div>
+      <div class="row leaf" style="--pad:30px" data-depth="1">
+        <span class="disclose leafspacer"></span>
+        <button class="chip" aria-label="Change Insurance icon"><svg class="ico" style="color:rgb(var(--gousse-accent))"><use href="#i-shield"/></svg></button>
+        <button class="swatch inherited" style="--c:rgb(var(--gousse-accent))" aria-label="Change Insurance colour"></button>
+        <a href="#" class="name truncate">Insurance</a><span class="spacer"></span>
+        <span class="bar"><i style="width:7%;--c:rgb(var(--gousse-accent))"></i></span>
+        <span class="money amount">−45,67 €</span>
+        <span class="actions"><button class="btn iconbtn" aria-label="Add category in Insurance"><svg class="ico"><use href="#i-plus"/></svg></button>
+          <span class="menuwrap"><button class="btn iconbtn" data-menu aria-label="More actions for Insurance" aria-haspopup="menu" aria-expanded="false"><svg class="ico"><use href="#i-ellipsis-vertical"/></svg></button>
+            <div class="menu" role="menu" hidden>
+              <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-pencil"/></svg>Rename</button>
+              <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-move"/></svg>Move…</button>
+              <div class="menusep"></div>
+              <button class="menuitem danger" role="menuitem"><svg class="ico ico-14"><use href="#i-trash-2"/></svg>Delete</button>
+            </div></span></span>
+      </div>
+      <div class="row leaf" style="--pad:30px" data-depth="1">
+        <span class="disclose leafspacer"></span>
+        <button class="chip" aria-label="Change Internet &amp; Phone icon"><svg class="ico" style="color:rgb(var(--gousse-accent))"><use href="#i-wifi"/></svg></button>
+        <button class="swatch inherited" style="--c:rgb(var(--gousse-accent))" aria-label="Change Internet &amp; Phone colour"></button>
+        <a href="#" class="name truncate">Internet &amp; Phone</a><span class="spacer"></span>
+        <span class="bar"><i style="width:4%;--c:rgb(var(--gousse-accent))"></i></span>
+        <span class="money amount">−30,00 €</span>
+        <span class="actions"><button class="btn iconbtn" aria-label="Add category in Internet and Phone"><svg class="ico"><use href="#i-plus"/></svg></button>
+          <span class="menuwrap"><button class="btn iconbtn" data-menu aria-label="More actions for Internet and Phone" aria-haspopup="menu" aria-expanded="false"><svg class="ico"><use href="#i-ellipsis-vertical"/></svg></button>
+            <div class="menu" role="menu" hidden>
+              <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-pencil"/></svg>Rename</button>
+              <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-move"/></svg>Move…</button>
+              <div class="menusep"></div>
+              <button class="menuitem danger" role="menuitem"><svg class="ico ico-14"><use href="#i-trash-2"/></svg>Delete</button>
+            </div></span></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ---------- ROOT: Transport ---------- -->
+  <div class="card">
+    <div class="row rootfolder" style="--pad:12px" data-depth="0">
+      <button class="disclose" aria-expanded="true" aria-label="Collapse Transport" data-toggle="transport"><svg class="ico ico-18"><use href="#i-chevron-right"/></svg></button>
+      <button class="chip" aria-label="Change Transport icon"><svg class="ico ico-18" style="color:rgb(var(--gousse-medium))"><use href="#i-car"/></svg></button>
+      <button class="swatch" style="--c:rgb(var(--gousse-medium))" aria-label="Change Transport colour"></button>
+      <a href="#" class="name truncate">Transport</a>
+      <span class="pill">3</span>
+      <span class="spacer"></span>
+      <span class="bar"><i style="width:1%;--c:rgb(var(--gousse-medium))"></i></span>
+      <span class="money amount neg">−9,80 €</span>
+      <span class="actions">
+        <button class="btn iconbtn" aria-label="Add category in Transport"><svg class="ico"><use href="#i-plus"/></svg></button>
+        <span class="menuwrap">
+          <button class="btn iconbtn" data-menu aria-label="More actions for Transport" aria-haspopup="menu" aria-expanded="false"><svg class="ico"><use href="#i-ellipsis-vertical"/></svg></button>
+          <div class="menu" role="menu" hidden>
+            <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-pencil"/></svg>Rename<span class="kbd">F2</span></button>
+            <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-move"/></svg>Move…</button>
+            <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-corner-down-right"/></svg>Add subcategory</button>
+            <div class="menusep"></div>
+            <div class="menulabel">Appearance</div>
+            <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-shapes"/></svg>Change icon…</button>
+            <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-circle"/></svg>Change colour…</button>
+            <div class="menusep"></div>
+            <button class="menuitem danger" role="menuitem"><svg class="ico ico-14"><use href="#i-trash-2"/></svg>Delete</button>
+          </div>
+        </span>
+      </span>
+    </div>
+    <div class="children" data-children="transport">
+      <div class="row leaf" style="--pad:30px" data-depth="1">
+        <span class="disclose leafspacer"></span>
+        <button class="chip" aria-label="Change Fuel and Charging icon"><svg class="ico" style="color:rgb(var(--gousse-medium))"><use href="#i-fuel"/></svg></button>
+        <button class="swatch inherited" style="--c:rgb(var(--gousse-medium))" aria-label="Change Fuel and Charging colour"></button>
+        <a href="#" class="name truncate">Fuel &amp; Charging</a><span class="spacer"></span>
+        <span class="bar"><i style="width:63%;--c:rgb(var(--gousse-medium))"></i></span>
+        <span class="money amount">−6,20 €</span>
+        <span class="actions"><button class="btn iconbtn" aria-label="Add category in Fuel and Charging"><svg class="ico"><use href="#i-plus"/></svg></button>
+          <span class="menuwrap"><button class="btn iconbtn" data-menu aria-label="More actions for Fuel and Charging" aria-haspopup="menu" aria-expanded="false"><svg class="ico"><use href="#i-ellipsis-vertical"/></svg></button>
+            <div class="menu" role="menu" hidden>
+              <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-pencil"/></svg>Rename</button>
+              <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-move"/></svg>Move…</button>
+              <div class="menusep"></div>
+              <button class="menuitem danger" role="menuitem"><svg class="ico ico-14"><use href="#i-trash-2"/></svg>Delete</button>
+            </div></span></span>
+      </div>
+      <div class="row leaf" style="--pad:30px" data-depth="1">
+        <span class="disclose leafspacer"></span>
+        <button class="chip" aria-label="Change Transit icon"><svg class="ico" style="color:rgb(var(--gousse-medium))"><use href="#i-train-front"/></svg></button>
+        <button class="swatch inherited" style="--c:rgb(var(--gousse-medium))" aria-label="Change Transit colour"></button>
+        <a href="#" class="name truncate">Transit</a><span class="spacer"></span>
+        <span class="bar"><i style="width:37%;--c:rgb(var(--gousse-medium))"></i></span>
+        <span class="money amount">−3,60 €</span>
+        <span class="actions"><button class="btn iconbtn" aria-label="Add category in Transit"><svg class="ico"><use href="#i-plus"/></svg></button>
+          <span class="menuwrap"><button class="btn iconbtn" data-menu aria-label="More actions for Transit" aria-haspopup="menu" aria-expanded="false"><svg class="ico"><use href="#i-ellipsis-vertical"/></svg></button>
+            <div class="menu" role="menu" hidden>
+              <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-pencil"/></svg>Rename</button>
+              <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-move"/></svg>Move…</button>
+              <div class="menusep"></div>
+              <button class="menuitem danger" role="menuitem"><svg class="ico ico-14"><use href="#i-trash-2"/></svg>Delete</button>
+            </div></span></span>
+      </div>
+      <!-- an empty leaf: 0,00 € and no bar. Under ADR 0003 it is assignable. -->
+      <div class="row leaf" style="--pad:30px" data-depth="1">
+        <span class="disclose leafspacer"></span>
+        <button class="chip" aria-label="Change Vehicle icon"><svg class="ico" style="color:rgb(var(--gousse-medium))"><use href="#i-wrench"/></svg></button>
+        <button class="swatch inherited" style="--c:rgb(var(--gousse-medium))" aria-label="Change Vehicle colour"></button>
+        <a href="#" class="name truncate">Vehicle</a>
+        <span class="pill">unused</span>
+        <span class="spacer"></span>
+        <span class="bar"></span>
+        <span class="money amount muted">0,00 €</span>
+        <span class="actions"><button class="btn iconbtn" aria-label="Add category in Vehicle"><svg class="ico"><use href="#i-plus"/></svg></button>
+          <span class="menuwrap"><button class="btn iconbtn" data-menu aria-label="More actions for Vehicle" aria-haspopup="menu" aria-expanded="false"><svg class="ico"><use href="#i-ellipsis-vertical"/></svg></button>
+            <div class="menu" role="menu" hidden>
+              <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-pencil"/></svg>Rename</button>
+              <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-move"/></svg>Move…</button>
+              <div class="menusep"></div>
+              <button class="menuitem danger" role="menuitem"><svg class="ico ico-14"><use href="#i-trash-2"/></svg>Delete</button>
+            </div></span></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="annot"><span class="n">1</span><span><b>Chevron only where there are children.</b> A leaf keeps the 20px slot as an invisible spacer, so every icon in the card sits on one vertical line no matter the depth — <code>node.children.length === 0</code> decides, matching ADR 0003 (childlessness, not root-ness).</span></div>
+<div class="annot"><span class="n">2</span><span><b>Icon + swatch are still the editors</b> (issue #58): clicking the glyph opens the <code>IconPicker</code>, clicking the swatch opens the <code>ColorPicker</code>. Both stay outside the <code>&lt;a&gt;</code> — nesting a button in an anchor is invalid.</span></div>
+<div class="annot"><span class="n">3</span><span><b>A ringed swatch means inherited</b> (<code>color === null</code>), a filled one means chosen. ADR 0006 makes null a reference, so the row can say which — today both look identical.</span></div>
+<div class="annot"><span class="n">4</span><span><b>Only roots are cards.</b> Nested folders are rows with a heavier name, not nested <code>fieldset</code>s. That kills the box-in-box-in-box at depth 3.</span></div>
+<div class="annot"><span class="n">5</span><span><b>Action space is always reserved</b> (fixed 88px), only the opacity changes on hover — so revealing buttons never shifts a number.</span></div>
+
+<!-- ================= SPEC: nesting ================= -->
+<div class="specblock">
+  <span class="eyebrow">Nesting</span>
+  <h3>How each depth is drawn</h3>
+  <p>Indent is linear, everything else is not: only two typographic weights exist (root vs. everything below), so a depth-5 tree doesn't fade to nothing. Depth is carried by the indent and a faint background tint, not by ladder lines and not by shrinking the text — the lines competed with the row borders and turned the card into graph paper.</p>
+</div>
+
+<table class="spec">
+  <thead><tr><th style="width:80px">Depth</th><th style="width:110px">Left pad</th><th>Container</th><th>Name style</th><th>Amount</th></tr></thead>
+  <tbody>
+    <tr><td><code>0</code> root</td><td><code>12px</code></td><td>card header, bottom border</td><td>15px / 600</td><td>600, signed colour</td></tr>
+    <tr><td><code>1</code></td><td><code>30px</code></td><td>row, tint step 1</td><td>14px / 500 (folder) · 400 (leaf)</td><td>13px, ink</td></tr>
+    <tr><td><code>2</code></td><td><code>52px</code></td><td>row, tint step 2</td><td>14px / 500 · 400</td><td>13px, muted</td></tr>
+    <tr><td><code>n ≥ 3</code></td><td><code>52 + 22(n−2)</code>, capped at <code>140px</code></td><td>row, tint capped at step 3</td><td>unchanged from depth 2</td><td>13px, muted</td></tr>
+  </tbody>
+</table>
+
+<p class="muted" style="margin-top:14px;max-width:74ch">Past the cap both the indent and the tint stop stepping, so a pathological 12-deep branch stays inside the card instead of pushing the amount column off-screen. In <code>CategoryNode</code> this is one <code>depth</code> prop threaded through the existing recursion — the recursion itself is unchanged.</p>
+
+<!-- ================= SPEC: actions ================= -->
+<div class="specblock">
+  <span class="eyebrow">Actions</span>
+  <h3>What is a button, what is a menu item</h3>
+  <p>Today every node carries four equal buttons. Here the split is by frequency: <em>add a child</em> is the shaping gesture the page exists for and stays a one-click icon; the other three are occasional and move behind <code>⋯</code>. Same four mutations as <code>NodeControls</code>, same handlers — only the affordance changes.</p>
+</div>
+
+<table class="spec">
+  <thead><tr><th style="width:150px">Action</th><th style="width:120px">Affordance</th><th>Why</th><th style="width:150px">Disabled when</th></tr></thead>
+  <tbody>
+    <tr><td>Add category</td><td>icon button, always</td><td>the primary shaping gesture; also the entry to the Spill flow</td><td>never (a refusal becomes the Spill dialog)</td></tr>
+    <tr><td>Rename</td><td>menu · <code>F2</code> on the focused row</td><td>occasional, and the double-click shortcut covers the fast path</td><td>while <code>rename.isPending</code></td></tr>
+    <tr><td>Move…</td><td>menu · also drag</td><td>rare per node; drag covers most real moves</td><td>node is the only root</td></tr>
+    <tr><td>Change icon…</td><td>menu · click the glyph</td><td>duplicate of the chip, for keyboard-only reach</td><td>while <code>styling</code></td></tr>
+    <tr><td>Change colour…</td><td>menu · click the swatch</td><td>same</td><td>while <code>styling</code></td></tr>
+    <tr><td>Delete</td><td>menu, danger-coloured, last</td><td>destructive; must not sit one pixel from Move</td><td><code>CategoryInUse</code> — greyed with the reason in the title</td></tr>
+  </tbody>
+</table>
+
+<!-- ================= STATE GALLERY ================= -->
+<div class="specblock">
+  <span class="eyebrow">States</span>
+  <h3>Every state a row can be in</h3>
+  <p>The current page has one: rendered. These are the rest.</p>
+</div>
+
+<div class="gallery">
+
+  <div class="demo">
+    <div class="caption">Rest → hover (mouse over to see)</div>
+    <div class="body">
+      <div class="row leaf" style="--pad:14px" data-depth="0">
+        <span class="disclose leafspacer"></span>
+        <button class="chip"><svg class="ico" style="color:rgb(var(--gousse-high))"><use href="#i-coffee"/></svg></button>
+        <button class="swatch inherited" style="--c:rgb(var(--gousse-high))"></button>
+        <a href="#" class="name truncate">Cafés</a><span class="spacer"></span>
+        <span class="bar"><i style="width:10%;--c:rgb(var(--gousse-high))"></i></span>
+        <span class="money amount">−39,14 €</span>
+        <span class="actions">
+          <button class="btn iconbtn"><svg class="ico"><use href="#i-plus"/></svg></button>
+          <button class="btn iconbtn"><svg class="ico"><use href="#i-ellipsis-vertical"/></svg></button>
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <div class="demo">
+    <div class="caption">Menu open — row stays lit</div>
+    <div class="body" style="padding-bottom:180px">
+      <div class="row leaf menuopen" style="--pad:14px" data-depth="0">
+        <span class="disclose leafspacer"></span>
+        <button class="chip"><svg class="ico" style="color:rgb(var(--gousse-accent))"><use href="#i-zap"/></svg></button>
+        <button class="swatch inherited" style="--c:rgb(var(--gousse-accent))"></button>
+        <a href="#" class="name truncate">Energy</a><span class="spacer"></span>
+        <span class="money amount">−84,30 €</span>
+        <span class="actions">
+          <button class="btn iconbtn"><svg class="ico"><use href="#i-plus"/></svg></button>
+          <span class="menuwrap">
+            <button class="btn iconbtn" aria-expanded="true"><svg class="ico"><use href="#i-ellipsis-vertical"/></svg></button>
+            <div class="menu" role="menu">
+              <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-pencil"/></svg>Rename<span class="kbd">F2</span></button>
+              <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-move"/></svg>Move…</button>
+              <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-corner-down-right"/></svg>Add subcategory</button>
+              <div class="menusep"></div>
+              <button class="menuitem danger" role="menuitem"><svg class="ico ico-14"><use href="#i-trash-2"/></svg>Delete</button>
+            </div>
+          </span>
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <div class="demo">
+    <div class="caption">Delete refused — CategoryInUse</div>
+    <div class="body" style="padding-bottom:120px">
+      <div class="row leaf menuopen" style="--pad:14px" data-depth="0">
+        <span class="disclose leafspacer"></span>
+        <button class="chip"><svg class="ico" style="color:rgb(var(--gousse-high))"><use href="#i-shopping-cart"/></svg></button>
+        <button class="swatch inherited" style="--c:rgb(var(--gousse-high))"></button>
+        <a href="#" class="name truncate">Supermarket</a><span class="spacer"></span>
+        <span class="money amount">−198,40 €</span>
+        <span class="actions">
+          <button class="btn iconbtn"><svg class="ico"><use href="#i-plus"/></svg></button>
+          <span class="menuwrap">
+            <button class="btn iconbtn" aria-expanded="true"><svg class="ico"><use href="#i-ellipsis-vertical"/></svg></button>
+            <div class="menu" role="menu">
+              <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-pencil"/></svg>Rename</button>
+              <button class="menuitem" role="menuitem"><svg class="ico ico-14"><use href="#i-move"/></svg>Move…</button>
+              <div class="menusep"></div>
+              <button class="menuitem danger" role="menuitem" aria-disabled="true"><svg class="ico ico-14"><use href="#i-trash-2"/></svg>Delete</button>
+              <div style="font-size:11px;color:rgb(var(--gousse-muted));padding:2px 9px 6px">Holds 14 transactions and 1 issuer default.</div>
+            </div>
+          </span>
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <div class="demo">
+    <div class="caption">Write in flight</div>
+    <div class="body">
+      <div class="row leaf pending" style="--pad:14px" data-depth="0">
+        <span class="disclose leafspacer"></span>
+        <span class="chip"><span class="spinner"></span></span>
+        <button class="swatch inherited" style="--c:rgb(var(--gousse-accent))"></button>
+        <span class="name truncate">Insurance</span><span class="spacer"></span>
+        <span class="money amount muted">−45,67 €</span>
+        <span class="actions"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="demo">
+    <div class="caption">Drop target while dragging</div>
+    <div class="body">
+      <div class="row folder droptarget" style="--pad:14px" data-depth="0">
+        <span class="disclose"><svg class="ico"><use href="#i-chevron-right"/></svg></span>
+        <span class="chip"><svg class="ico" style="color:rgb(var(--gousse-accent))"><use href="#i-house"/></svg></span>
+        <span class="swatch" style="--c:rgb(var(--gousse-accent))"></span>
+        <span class="name truncate">Home</span>
+        <span class="pill" style="border-color:rgb(var(--gousse-accent));color:rgb(var(--gousse-accent))">move here</span>
+        <span class="spacer"></span>
+        <span class="money amount neg">−719,97 €</span>
+        <span class="actions"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="demo">
+    <div class="caption">Loading skeleton</div>
+    <div class="body">
+      <div class="row" style="--pad:14px" data-depth="0">
+        <span class="disclose leafspacer"></span>
+        <span class="sk" style="width:22px;height:22px;border-radius:8px"></span>
+        <span class="sk" style="width:16px;height:16px;border-radius:999px"></span>
+        <span class="sk" style="width:96px"></span><span class="spacer"></span>
+        <span class="sk" style="width:72px;height:4px"></span>
+        <span class="sk" style="width:66px"></span>
+      </div>
+      <div class="row" style="--pad:30px" data-depth="1">
+        <span class="disclose leafspacer"></span>
+        <span class="sk" style="width:22px;height:22px;border-radius:8px"></span>
+        <span class="sk" style="width:16px;height:16px;border-radius:999px"></span>
+        <span class="sk" style="width:74px"></span><span class="spacer"></span>
+        <span class="sk" style="width:72px;height:4px"></span>
+        <span class="sk" style="width:66px"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="demo">
+    <div class="caption">Folder with no children yet</div>
+    <div class="body pad" style="display:flex;flex-direction:column;gap:10px">
+      <div class="row leaf" style="--pad:0;min-height:auto">
+        <span class="disclose leafspacer"></span>
+        <span class="chip"><svg class="ico" style="color:rgb(var(--gousse-low))"><use href="#i-plane"/></svg></span>
+        <span class="swatch" style="--c:rgb(var(--gousse-low))"></span>
+        <span class="name truncate">Travel</span>
+        <span class="pill">unused</span>
+        <span class="spacer"></span><span class="money amount muted">0,00 €</span>
+      </div>
+      <p class="muted" style="margin:0;font-size:12px">A childless root is an assignable <em>leaf</em>, not an empty folder — so it gets no chevron and no “empty” placeholder. It fills up once transactions land on it.</p>
+    </div>
+  </div>
+
+  <div class="demo">
+    <div class="caption">Deep branch — depth 3 and 4</div>
+    <div class="body">
+      <div class="row folder" style="--pad:30px" data-depth="1">
+        <span class="disclose" aria-expanded="true"><svg class="ico"><use href="#i-chevron-right"/></svg></span>
+        <span class="chip"><svg class="ico" style="color:rgb(var(--gousse-high))"><use href="#i-shopping-cart"/></svg></span>
+        <span class="swatch inherited" style="--c:rgb(var(--gousse-high))"></span>
+        <span class="name truncate">Groceries</span><span class="spacer"></span><span class="money amount">−244,10 €</span>
+      </div>
+      <div class="row folder" style="--pad:52px" data-depth="2">
+        <span class="disclose" aria-expanded="true"><svg class="ico"><use href="#i-chevron-right"/></svg></span>
+        <span class="chip"><svg class="ico" style="color:rgb(var(--gousse-high))"><use href="#i-apple"/></svg></span>
+        <span class="swatch inherited" style="--c:rgb(var(--gousse-high))"></span>
+        <span class="name truncate">Fresh</span><span class="spacer"></span><span class="money amount">−88,20 €</span>
+      </div>
+      <div class="row leaf" style="--pad:74px" data-depth="3">
+        <span class="disclose leafspacer"></span>
+        <span class="chip"><svg class="ico" style="color:rgb(var(--gousse-high))"><use href="#i-sandwich"/></svg></span>
+        <span class="swatch inherited" style="--c:rgb(var(--gousse-high))"></span>
+        <span class="name truncate">Bakery</span><span class="spacer"></span><span class="money amount muted">−31,40 €</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= KEYBOARD ================= -->
+<div class="specblock">
+  <span class="eyebrow">Keyboard &amp; a11y</span>
+  <h3>The tree is one tab stop, not sixty</h3>
+  <p>Hover-revealed actions are only acceptable if the keyboard reaches them without hovering. Rows form a roving-tabindex tree (<code>role="tree"</code> / <code>treeitem</code>), so Tab enters the tree once and arrows walk it — the same pattern the <code>IconPicker</code> grid already uses.</p>
+</div>
+
+<table class="spec">
+  <thead><tr><th style="width:190px">Key</th><th>Does</th></tr></thead>
+  <tbody>
+    <tr><td><code>↑</code> <code>↓</code></td><td>previous / next visible row</td></tr>
+    <tr><td><code>→</code></td><td>expand a collapsed folder, else step to its first child</td></tr>
+    <tr><td><code>←</code></td><td>collapse an expanded folder, else jump to its parent</td></tr>
+    <tr><td><code>Enter</code></td><td>open the row's transactions (<code>/categories/$categoryId</code>)</td></tr>
+    <tr><td><code>F2</code></td><td>rename the focused row</td></tr>
+    <tr><td><code>Shift</code>+<code>N</code></td><td>add a child under the focused row</td></tr>
+    <tr><td><code>⋯</code> / <code>Shift</code>+<code>F10</code></td><td>open the row menu; arrows walk it, Escape returns focus to the trigger</td></tr>
+    <tr><td><code>Home</code> / <code>End</code></td><td>first / last visible row</td></tr>
+    <tr><td>type letters</td><td>typeahead to the next row whose name starts with them</td></tr>
+  </tbody>
+</table>
+
+<p class="muted" style="margin-top:14px;max-width:74ch">Because <code>.actions</code> reveals on <code>:focus-within</code> as well as <code>:hover</code>, arrowing to a row and tabbing into it shows the same two buttons a mouse user sees. Coarse pointers (<code>@media (hover: none)</code>) get them permanently — there is no hover to wait for on a phone.</p>
+
+<!-- ================= WHAT CHANGES IN CODE ================= -->
+<div class="specblock">
+  <span class="eyebrow">Implementation</span>
+  <h3>What actually changes in <code>categories-view.tsx</code></h3>
+  <p>The recursion, the totals query, the colour resolution and the whole dialog stack are untouched. The diff is concentrated in two components.</p>
+</div>
+
+<table class="spec">
+  <thead><tr><th style="width:230px">Unit</th><th>Change</th></tr></thead>
+  <tbody>
+    <tr><td><code>CategoriesView</code></td><td>unchanged, except <code>&lt;ul&gt;</code> gains <code>role="tree"</code> and the roving-focus state</td></tr>
+    <tr><td><code>CategoryNode</code></td><td>takes a <code>depth</code> prop; folders below depth 0 render as a row + nested list instead of a <code>fieldset</code>; gains <code>expanded</code> state and the chevron</td></tr>
+    <tr><td><code>NodeControls</code></td><td>rewritten: one icon button + a Base UI <code>Menu</code>. Same four callbacks, no new props</td></tr>
+    <tr><td><code>NodeIdentity</code></td><td>gains the inherited/chosen swatch distinction — it already receives both <code>node.color</code> and the resolved colour, so no new data</td></tr>
+    <tr><td>new <code>CategoryRow</code></td><td>the shared row shell (indent, depth tint, identity, bar, money, actions) both kinds render through</td></tr>
+    <tr><td>new <code>use-category-totals</code></td><td>leaf totals: today only <em>folders</em> get a <code>transactionQueries.count</code>. Leaves need one each — same endpoint, <code>categoryId: [leaf.id]</code></td></tr>
+    <tr><td><code>categories-view.test.tsx</code></td><td>the button-per-row queries (<code>Rename Food</code> etc.) now resolve inside the menu; tests open <code>⋯</code> first</td></tr>
+  </tbody>
+</table>
+
+<p class="muted" style="margin-top:14px;max-width:74ch"><b>The one real cost:</b> leaf amounts mean one <code>count</code> query per leaf instead of one per folder. With 30 categories that is 30 requests where there were 6. Either batch it server-side (a <code>totals</code> endpoint keyed by category, which the transactions <code>count</code> shape already almost is) or accept it — TanStack dedupes and they are all cached under the same key family. Worth deciding before building.</p>
+
+</div>
+
+<script>
+document.getElementById("themeToggle").addEventListener("click", () => {
+  document.documentElement.classList.toggle("dark");
+});
+
+// disclosure
+document.querySelectorAll("[data-toggle]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const key = btn.dataset.toggle;
+    const open = btn.getAttribute("aria-expanded") === "true";
+    btn.setAttribute("aria-expanded", String(!open));
+    const kids = document.querySelector(`[data-children="${key}"]`);
+    if (kids) kids.hidden = open;
+  });
+});
+
+document.getElementById("expandAll").addEventListener("click", () => {
+  document.querySelectorAll("[data-toggle]").forEach((btn) => {
+    btn.setAttribute("aria-expanded", "true");
+    const kids = document.querySelector(`[data-children="${btn.dataset.toggle}"]`);
+    if (kids) kids.hidden = false;
+  });
+});
+
+// menus
+function closeAllMenus() {
+  document.querySelectorAll("[data-menu]").forEach((b) => {
+    b.setAttribute("aria-expanded", "false");
+    b.parentElement.querySelector(".menu").hidden = true;
+    b.closest(".row")?.classList.remove("menuopen");
+  });
+}
+document.querySelectorAll("[data-menu]").forEach((btn) => {
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const wasOpen = btn.getAttribute("aria-expanded") === "true";
+    closeAllMenus();
+    if (wasOpen) return;
+    btn.setAttribute("aria-expanded", "true");
+    btn.parentElement.querySelector(".menu").hidden = false;
+    btn.closest(".row")?.classList.add("menuopen");
+  });
+});
+document.addEventListener("click", closeAllMenus);
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeAllMenus(); });
+</script>
+</body>
+</html>

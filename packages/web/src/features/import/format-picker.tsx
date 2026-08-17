@@ -1,8 +1,6 @@
+import { Select } from "@/components/ui/select";
 import { PARSERS } from "./parsers/registry";
 import type { WizardAction, WizardState } from "./wizard-reducer";
-
-const INPUT_CLASS =
-	"rounded-full border border-gousse-line bg-gousse-bg px-4 py-2 text-sm text-gousse-ink outline-none focus:border-gousse-accent";
 
 /**
  * The CSV-only statement-format `<select>` (with the auto-detect / manual-pick
@@ -19,8 +17,7 @@ export function FormatPicker({
 	return (
 		<label className="flex flex-col gap-1 text-sm text-gousse-muted">
 			Format
-			<select
-				className={INPUT_CLASS}
+			<Select
 				value={state.parserId ?? ""}
 				onChange={(event) =>
 					dispatch({ type: "select-parser", parserId: event.target.value })
@@ -35,7 +32,7 @@ export function FormatPicker({
 						{parser.label}
 					</option>
 				))}
-			</select>
+			</Select>
 			{state.parserId !== null && state.autoDetected ? (
 				<span className="text-xs text-gousse-low">Auto-detected.</span>
 			) : state.parserId === null ? (

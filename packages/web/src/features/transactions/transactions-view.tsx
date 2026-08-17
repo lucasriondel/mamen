@@ -1,4 +1,5 @@
 import { getRouteApi } from "@tanstack/react-router";
+import { PageHeader } from "@/components/page-header";
 import { ColumnsToggle } from "./columns-toggle";
 import type { TransactionFilterValues } from "./transactions-filters";
 import { TransactionsSection } from "./transactions-section";
@@ -69,11 +70,11 @@ export function TransactionsView() {
 					/>
 				}
 			>
-				<header>
+				<PageHeader>
 					<h1 className="text-balance text-2xl font-semibold text-gousse-ink">
 						Transactions
 					</h1>
-				</header>
+				</PageHeader>
 			</TransactionsSection>
 		</section>
 	);

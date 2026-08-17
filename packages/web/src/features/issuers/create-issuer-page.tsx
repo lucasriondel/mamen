@@ -4,6 +4,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { type FormEvent, useId, useState } from "react";
 import { toast } from "sonner";
 import { BackLink } from "@/components/back-link";
+import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ISSUER_SCAN_LIMIT, issuerQueries } from "@/lib/sdk";
@@ -73,9 +74,11 @@ export function CreateIssuerPage() {
 			<BackLink to="/issuers">Issuers</BackLink>
 
 			<header>
-				<h1 className="text-balance text-2xl font-semibold text-gousse-ink">
-					Create issuer
-				</h1>
+				<PageHeader>
+					<h1 className="text-balance text-2xl font-semibold text-gousse-ink">
+						Create issuer
+					</h1>
+				</PageHeader>
 				<p className="mt-1 text-gousse-muted">
 					Give it a default category and future matching transactions will file
 					themselves.

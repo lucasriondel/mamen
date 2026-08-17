@@ -115,10 +115,24 @@ export function ColorPicker({
 							className,
 						)}
 					>
+						{/* A **chosen** colour is a solid dot; an **inherited** one is the
+						    same dot hollowed to a ring. `color: null` is a *reference* to
+						    the nearest coloured ancestor (ADR 0006), so the swatch can say
+						    which without a second glyph — previously both painted
+						    identically and the propagation was invisible until you edited
+						    something. Both spellings paint the **Resolved colour**. */}
 						<span
 							data-color-swatch={resolved}
-							style={{ backgroundColor: resolved }}
-							className="block size-3.5 rounded-full border border-gousse-line"
+							data-color-inherited={value === null ? "" : undefined}
+							style={
+								value === null
+									? { boxShadow: `inset 0 0 0 2px ${resolved}` }
+									: { backgroundColor: resolved }
+							}
+							className={cn(
+								"block size-3.5 rounded-full",
+								value === null ? "opacity-75" : "border border-gousse-line",
+							)}
 						/>
 					</button>
 				}

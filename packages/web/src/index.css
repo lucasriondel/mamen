@@ -10,8 +10,13 @@
  *                   It also declares the `dark` custom variant, so this file
  *                   must not declare a second (conflicting) one.
  * - `effects.css` — RainbowGlow / Sheen keyframes and classes
+ * - `sidebar-chrome.css` — the sidebar row's hue-driven surfaces (hover fill,
+ *                   left active bar, glyph tint) and the hidden scroller.
+ *                   `sidebar.tsx`'s companion sheet, installed with it as a
+ *                   registry dependency (issue #105); without it the rows lay
+ *                   out correctly and render flat.
  *
- * The three sheets are **vendored source** under `src/styles/gousse/`, installed
+ * The sheets are **vendored source** under `src/styles/gousse/`, installed
  * from gousse's shadcn registry (`@gousse/{tokens,theme,effects}` in
  * `components.json`) — issue #92. They are gousse's files, not ours: re-running
  * `shadcn add` overwrites them, so mamen's own tint stays below, in this file.
@@ -33,6 +38,7 @@
 @import "./styles/gousse/tokens.css";
 @import "./styles/gousse/theme.css";
 @import "./styles/gousse/effects.css";
+@import "./styles/gousse/sidebar-chrome.css";
 
 /* mamen's accent tint. gousse ships a warm orange default; we track miel's blue
  * so the two apps read as one design language. Bare channel triples — the

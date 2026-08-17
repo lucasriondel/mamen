@@ -4,8 +4,8 @@ import { describe, expect, it } from "vitest";
 /**
  * The round shape contract (issue #97), enforced across the whole app.
  *
- * gousse's vendored primitives already carry it — `Button`, `SidebarItem` and
- * `Input` are pills, `Textarea` takes the generous box corner — but the kit
+ * gousse's vendored primitives already carry it — `Button` and `Input` are
+ * pills, `Textarea` takes the generous box corner — but the kit
  * doesn't ship a table, a dialog, a popover, a tooltip or any of mamen's own
  * composites, and those were still drawn on the smaller `rounded-sm` /
  * `rounded-md` / `rounded-lg` steps. One app cannot read as one design while its
@@ -37,11 +37,21 @@ import { describe, expect, it } from "vitest";
 const SMALLER_STEP = /\brounded(?:-(?:sm|md|lg|\[[^\]]+\]))?(?![\w-])/g;
 
 /**
- * Files allowed to keep a smaller corner, with the count they may keep. Every
- * one is a **mark**: a glyph-sized square where `rounded-full` would turn the
- * element into a dot and the box corner would swallow it whole.
+ * Files allowed to keep a smaller corner, with the count they may keep. All but
+ * the first are a **mark**: a glyph-sized square where `rounded-full` would turn
+ * the element into a dot and the box corner would swallow it whole. The first is
+ * vendored source we do not edit, so its corner is upstream's decision.
  */
 const EXCEPTIONS: Record<string, { count: number; why: string }> = {
+	"src/components/ui/sidebar.tsx": {
+		count: 1,
+		// The one exception that is not a mark. gousse's row was a pill when #97
+		// wrote this list; the registry's current source draws it as a `rounded-lg`
+		// slab under a hue fill and a left active bar (#105). The file is upstream
+		// source vendored untouched — restating the shape here would fork it, and
+		// the next `shadcn add` would silently undo the fork.
+		why: "gousse's own source, unedited (#105) — the registry's row corner, not ours to restate",
+	},
 	"src/components/ui/checkbox.tsx": {
 		count: 1,
 		why: "gousse's own source, unedited (#93) — the 16px tick box is the kit's shape, not ours to restate",
@@ -57,6 +67,10 @@ const EXCEPTIONS: Record<string, { count: number; why: string }> = {
 	"src/components/app-sidebar.tsx": {
 		count: 1,
 		why: "the 24px brand icon — a circle crop would cut the artwork",
+	},
+	"src/components/ui/provider-mark.tsx": {
+		count: 1,
+		why: "gousse's own source, unedited (#120) — the 30px provider mark, a squircle the kit draws so four vendor logos read as one row",
 	},
 };
 

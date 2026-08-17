@@ -3,6 +3,7 @@ import { Search, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { AccountMultiSelect } from "@/components/ui/account-multi-select";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { formatMonth } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { GroupedToggle } from "./grouped-toggle";
@@ -107,9 +108,8 @@ export function TransactionsFilters({
 
 			<label className="flex items-center gap-2 text-sm text-gousse-muted">
 				Month
-				<select
+				<Select
 					aria-label="Filter by month"
-					className={inputClass}
 					value={value.importMonth ?? ""}
 					onChange={(e) =>
 						onChange({
@@ -123,7 +123,7 @@ export function TransactionsFilters({
 							{formatMonth(month)}
 						</option>
 					))}
-				</select>
+				</Select>
 			</label>
 
 			{/*
@@ -134,9 +134,8 @@ export function TransactionsFilters({
 			 */}
 			<label className="flex items-center gap-2 text-sm text-gousse-muted">
 				Recap
-				<select
+				<Select
 					aria-label="Filter by recap exclusion"
-					className={inputClass}
 					value={
 						value.excludedFromRecap == null
 							? ""
@@ -156,7 +155,7 @@ export function TransactionsFilters({
 					<option value="">All rows</option>
 					<option value="counted">Counted only</option>
 					<option value="excluded">Excluded only</option>
-				</select>
+				</Select>
 			</label>
 
 			{/*
@@ -167,9 +166,8 @@ export function TransactionsFilters({
 			 */}
 			<label className="flex items-center gap-2 text-sm text-gousse-muted">
 				Transfers
-				<select
+				<Select
 					aria-label="Filter by transfer"
-					className={inputClass}
 					value={
 						value.isTransferLeg == null
 							? ""
@@ -189,7 +187,7 @@ export function TransactionsFilters({
 					<option value="">All rows</option>
 					<option value="transfers">Transfers only</option>
 					<option value="other">Exclude transfers</option>
-				</select>
+				</Select>
 			</label>
 
 			{/*

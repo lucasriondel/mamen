@@ -15,11 +15,14 @@ import { Paged, Pagination } from "./pagination";
  * dropped (inventory §2 "Zod drift"). This contract fixes that drift. Used both
  * as the entity's `key` field and as the `getByKey` path param (a bad value
  * fails decode → 400 instead of the old unchecked cast).
+ *
+ * `llm_endpoint` / `llm_api_key` / `llm_model` were removed (issue #116): they
+ * were the loose half of a dead LLM configuration surface no client read, and
+ * one of them was a place to store an API key in the clear. A request naming one
+ * is now an unknown key. Migration 0026 purges any stored rows, so a live table
+ * never holds a key this union cannot decode.
  */
 export const SettingKey = Schema.Literal(
-	"llm_endpoint",
-	"llm_api_key",
-	"llm_model",
 	"currency_symbol",
 	"date_format",
 	"anomaly_threshold",

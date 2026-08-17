@@ -5,7 +5,9 @@ The HTTP API **contract** (`src/contract/`) plus the shared domain types
 the contract, `@mamen/sdk` derives its client from it, and
 `packages/api/openapi.json` is emitted from it. Pure schema values — no
 handlers, no I/O, no database and no DOM; the only dependencies are `effect` and
-`@effect/platform`, and nothing here may acquire a runtime one.
+`@effect/platform`, and nothing here may acquire a runtime one. A short list of
+**deployment constants** sits beside them at the package root, for the same
+reason: several packages must agree on the value and none of them owns it.
 
 The conventions below were settled once in
 [`docs/research/api-contract.md`](../../docs/research/api-contract.md) and
@@ -104,6 +106,64 @@ dedicated error per grouping rather than an overloaded `NotFound`, and one
 from both sides, each side reuses the error its own grouping already raises.
 _Avoid_: error code, message (the reason is not display text — the client owns
 the wording).
+
+`SecretRejected` carries one for a stricter reason than legibility: the value it
+refused is a **credential**, so the reason code is the *whole* error — the type
+has no field a secret could travel in, and therefore no way for one to reach a
+response body or a log (ADR 0011).
+
+**Write-only field**:
+A payload field with no counterpart on any success shape — `SecretValue.value`,
+the pasted credential. It travels into `put` and comes back from nothing: the
+success body is a **secret status** (a boolean and a masked hint) and the
+refusal is a **refusal reason**. The contract is where this is enforceable at
+all, because a field the contract does not declare is a field no handler can
+return. `LlmSettings.apiKey` is the counter-example the rule exists for — a plain
+string on an entity `GET /app-settings` hands to any caller; PRD #115 deletes
+it.
+_Avoid_: input-only, transient (both suggest a lifetime rather than a direction).
+
+**Leaf catalogue**:
+A **contract** module of plain data and predicates that imports nothing but
+`effect` — `contract/ai.ts`, the **AI provider** set with its labels, its
+**curated model list**, the **AI task** list and the three predicates over them
+(is this provider hosted, does it serve this model, what is its default model).
+Leaf because its readers sit on both sides of the wire — the web picker, the
+API's save-time validator and the task table — and none of them should acquire a
+dependency by reaching it. That is a property nothing can enforce by type, so
+`ai.test.ts` reads the source and asserts every import is `effect`. Distinct
+from a **deployment constant**, which is import-free for the same reason but
+describes where the app is *hosted* rather than what it exchanges, and which is
+therefore not part of the contract at all.
+_Avoid_: config, registry (nothing is looked up or registered — it is a list).
+
+**Half-edit payload**:
+A payload whose every field but the key is optional, where **what is omitted
+carries meaning** rather than merely being left alone — `AiTaskChange` (issue
+#119): a provider with no model lands the task on that provider's default, and a
+model with no provider is resolved against the stored row. Distinct from a
+`XxxUpdate` (`RuleUpdate`, `IssuerUpdate`), where an omitted field means "leave
+this as it was" and nothing more. It is worth a name because both readings are
+defensible and the difference is invisible in the type: the contract module's
+comment is where the choice is recorded, and the API's **save-time kernel** is
+where it is enforced and tested.
+_Avoid_: partial update (that is the other thing).
+
+**Deployment constant**:
+A plain value every deployed layer has to agree on, exported from the package
+root because more than one package reads it and none of them owns it —
+`APP_BASE_PATH` / `APP_BASE_PATH_SLASH` (`src/app-base-path.ts`), the prefix the
+SPA is served under. Not a domain type and not part of the **contract**: it
+describes where the app is *hosted*, not what it exchanges. Each such module
+stays import-free so a build config (`vite.config.ts`) can read it without
+pulling `effect` in behind it, and each documents the constraint that fixes its
+value — for the base path, why `/api` and `/uploads` stay outside the prefix.
+Import-free is only worth something if a consumer can reach the module without
+the package root, so each gets its own `exports` entry
+(`@mamen/shared/app-base-path`): that is how `@mamen/landing-page` reads the
+prefix without `effect` entering a build whose whole output is one HTML file.
+_Avoid_: config, env var (nothing here is read from the environment; a value
+that varies per deployment does not belong in this package at all).
 
 **Legacy domain type**:
 The plain TypeScript types under `src/types/`, exported from the package root

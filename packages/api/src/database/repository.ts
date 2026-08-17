@@ -1,12 +1,12 @@
 import { SqlClient } from "@effect/sql";
 import {
 	Account,
+	AppSettings,
 	Category,
 	type DbImport,
 	Setting,
 } from "@mamen/shared/contract";
 import { Effect, Schema } from "effect";
-import { AppSettingsFromRow } from "../app-settings/repository";
 import { orDieSql } from "../db/errors";
 import { IssuerFromRow } from "../issuers/repository";
 import { RuleFromRow } from "../rules/repository";
@@ -35,9 +35,9 @@ const TABLES = [
 /**
  * Row encoders — fold an entity into the exact stored row shape (id preserved,
  * dates as ISO TEXT, optionals null-mapped, booleans 0/1, JSON blobs stringified).
- * The five resources with a bespoke row transform reuse it (single source of the
- * storage mapping); the three whose row shape equals the entity's *encoded* shape
- * (accounts, categories, settings) encode the entity schema directly.
+ * The four resources with a bespoke row transform reuse it (single source of the
+ * storage mapping); the four whose row shape equals the entity's *encoded* shape
+ * (accounts, categories, settings, appSettings) encode the entity schema directly.
  */
 const toAccountRow = Schema.encodeSync(Account);
 const toCategoryRow = Schema.encodeSync(Category);
@@ -46,7 +46,7 @@ const toIssuerRow = Schema.encodeSync(IssuerFromRow);
 const toRuleRow = Schema.encodeSync(RuleFromRow);
 const toTransactionRow = Schema.encodeSync(TransactionFromRow);
 const toSubscriptionRow = Schema.encodeSync(SubscriptionFromRow);
-const toAppSettingsRow = Schema.encodeSync(AppSettingsFromRow);
+const toAppSettingsRow = Schema.encodeSync(AppSettings);
 
 /**
  * The database repository — whole-DB backup / restore / reset, on the generic
@@ -85,7 +85,7 @@ export class DatabaseRepo extends Effect.Service<DatabaseRepo>()(
 					categories: readAll("categories", Category),
 					subscriptions: readAll("subscriptions", SubscriptionFromRow),
 					settings: readAll("settings", Setting),
-					appSettings: readAll("appSettings", AppSettingsFromRow),
+					appSettings: readAll("appSettings", AppSettings),
 				}).pipe(orDieSql);
 
 			// Wipe every table. Used by `reset` directly and by `import` (inside its

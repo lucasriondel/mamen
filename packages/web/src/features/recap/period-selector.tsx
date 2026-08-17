@@ -1,11 +1,7 @@
+import { Select } from "@/components/ui/select";
 import { formatMonth } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { monthKeyOf, type Period, type PeriodKind } from "./period";
-
-const inputClass = cn(
-	"h-9 rounded-full border border-gousse-line bg-gousse-panel px-4 text-sm text-gousse-ink",
-	"focus:outline-none focus:ring-2 focus:ring-gousse-accent",
-);
 
 const KINDS: ReadonlyArray<{ kind: PeriodKind; label: string }> = [
 	{ kind: "month", label: "Month" },
@@ -80,9 +76,8 @@ export function PeriodSelector({
 			</div>
 
 			{period.kind === "month" ? (
-				<select
+				<Select
 					aria-label="Select month"
-					className={inputClass}
 					value={period.month}
 					onChange={(e) => onChange({ kind: "month", month: e.target.value })}
 				>
@@ -91,13 +86,12 @@ export function PeriodSelector({
 							{formatMonth(month)}
 						</option>
 					))}
-				</select>
+				</Select>
 			) : null}
 
 			{period.kind === "year" ? (
-				<select
+				<Select
 					aria-label="Select year"
-					className={inputClass}
 					value={period.year}
 					onChange={(e) => onChange({ kind: "year", year: e.target.value })}
 				>
@@ -106,7 +100,7 @@ export function PeriodSelector({
 							{year}
 						</option>
 					))}
-				</select>
+				</Select>
 			) : null}
 		</div>
 	);

@@ -25,7 +25,7 @@ import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 import { checkConfigFreshness } from "../helpers/check-freshness.ts";
 import { closeCompletedIssue } from "../helpers/close-issue.ts";
-import { bold, dim, green, red, yellow } from "../helpers/colors.ts";
+import { bold, dim, green, issueTag, red, yellow } from "../helpers/colors.ts";
 import {
   completedIssues,
   currentBranch,
@@ -170,9 +170,12 @@ try {
           // Only review if the implementer produced commits
           if (implement.commits.length > 0) {
             console.log(
-              green(
-                `  ✓ ${issue.id} (${issue.branch}) — implementer made ${implement.commits.length} commit(s); running reviewer.`,
-              ) + ` ${durationTag(implementMs)}`,
+              green("  ✓ ") +
+                issueTag(issue.id, issue.branch) +
+                green(
+                  ` — implementer made ${implement.commits.length} commit(s); running reviewer.`,
+                ) +
+                ` ${durationTag(implementMs)}`,
             );
             const reviewTimer = startTimer();
             const review = await sandbox.run({
@@ -188,9 +191,9 @@ try {
             });
 
             console.log(
-              green(
-                `  ✓ ${issue.id} (${issue.branch}) — reviewer made ${review.commits.length} commit(s).`,
-              ) +
+              green("  ✓ ") +
+                issueTag(issue.id, issue.branch) +
+                green(` — reviewer made ${review.commits.length} commit(s).`) +
                 ` ${reviewTimer.tag()} ${dim("total")} ${durationTag(
                   issueTimer.elapsed(),
                 )}`,
@@ -215,9 +218,12 @@ try {
           // commits still on the branch, commits already merged to base, or
           // nothing — and closes it citing the right commits.
           console.log(
-            yellow(
-              `  … ${issue.id} (${issue.branch}) — implementer produced no new commits; skipping review, resolving why and closing.`,
-            ) + ` ${durationTag(implementMs)}`,
+            yellow("  … ") +
+              issueTag(issue.id, issue.branch) +
+              yellow(
+                " — implementer produced no new commits; skipping review, resolving why and closing.",
+              ) +
+              ` ${durationTag(implementMs)}`,
           );
           const completion = await closeCompletedIssue(
             sandbox,
@@ -265,7 +271,7 @@ try {
     const completed = completedIssues(settled, issues);
     const completedBranches = completed.map((i) => i.branch);
 
-    logCompletedBranches(completedBranches);
+    logCompletedBranches(completed);
 
     if (completedBranches.length === 0) {
       // All agents ran but none made commits — nothing to merge this cycle.

@@ -57,13 +57,13 @@ describe("settings endpoints", () => {
 		Effect.gen(function* () {
 			const client = yield* HttpApiClient.make(Api);
 			const first = yield* client.settings.putByKey({
-				payload: make("llm_model", "gpt-4"),
+				payload: make("anomaly_threshold", "3"),
 			});
 			const second = yield* client.settings.putByKey({
-				payload: make("llm_model", "claude-3"),
+				payload: make("anomaly_threshold", "5"),
 			});
 			assert.strictEqual(second.id, first.id);
-			assert.strictEqual(second.value, "claude-3");
+			assert.strictEqual(second.value, "5");
 
 			const page = yield* client.settings.list({
 				urlParams: { limit: 50, offset: 0 },
@@ -90,7 +90,9 @@ describe("settings endpoints", () => {
 				payload: make("currency_symbol", "$"),
 			});
 			yield* client.settings.putByKey({ payload: make("date_format", "x") });
-			yield* client.settings.putByKey({ payload: make("llm_model", "y") });
+			yield* client.settings.putByKey({
+				payload: make("anomaly_threshold", "y"),
+			});
 
 			const page = yield* client.settings.list({
 				urlParams: { limit: 2, offset: 0 },
@@ -119,6 +121,20 @@ describe("settings endpoints", () => {
 			const http = yield* HttpClient.HttpClient;
 			const res = yield* http.get("/api/settings/by-key/not_a_real_key");
 			assert.strictEqual(res.status, 400);
+		}).pipe(Effect.provide(HttpLive)),
+	);
+
+	// The three `llm_*` keys were part of the union until issue #116 deleted the
+	// dead LLM settings surface. They are now unknown keys like any other — a
+	// request naming one fails the decode rather than 404-ing on an absent row,
+	// so a client cannot store an API key under them.
+	it.effect("getByKey rejects the removed llm_* keys with 400", () =>
+		Effect.gen(function* () {
+			const http = yield* HttpClient.HttpClient;
+			for (const key of ["llm_endpoint", "llm_api_key", "llm_model"]) {
+				const res = yield* http.get(`/api/settings/by-key/${key}`);
+				assert.strictEqual(res.status, 400, key);
+			}
 		}).pipe(Effect.provide(HttpLive)),
 	);
 });

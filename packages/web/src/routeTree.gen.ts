@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TransfersRouteImport } from './routes/transfers'
 import { Route as TransactionsRouteImport } from './routes/transactions'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as RecapDetailRouteImport } from './routes/recap-detail'
 import { Route as RecapRouteImport } from './routes/recap'
 import { Route as ImportRouteImport } from './routes/import'
@@ -35,6 +36,11 @@ const TransfersRoute = TransfersRouteImport.update({
 const TransactionsRoute = TransactionsRouteImport.update({
   id: '/transactions',
   path: '/transactions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RecapDetailRoute = RecapDetailRouteImport.update({
@@ -122,6 +128,7 @@ export interface FileRoutesByFullPath {
   '/import': typeof ImportRoute
   '/recap': typeof RecapRoute
   '/recap-detail': typeof RecapDetailRoute
+  '/settings': typeof SettingsRoute
   '/transactions': typeof TransactionsRoute
   '/transfers': typeof TransfersRoute
   '/categories/$categoryId': typeof CategoriesCategoryIdRoute
@@ -140,6 +147,7 @@ export interface FileRoutesByTo {
   '/import': typeof ImportRoute
   '/recap': typeof RecapRoute
   '/recap-detail': typeof RecapDetailRoute
+  '/settings': typeof SettingsRoute
   '/transactions': typeof TransactionsRoute
   '/transfers': typeof TransfersRoute
   '/categories/$categoryId': typeof CategoriesCategoryIdRoute
@@ -159,6 +167,7 @@ export interface FileRoutesById {
   '/import': typeof ImportRoute
   '/recap': typeof RecapRoute
   '/recap-detail': typeof RecapDetailRoute
+  '/settings': typeof SettingsRoute
   '/transactions': typeof TransactionsRoute
   '/transfers': typeof TransfersRoute
   '/categories/$categoryId': typeof CategoriesCategoryIdRoute
@@ -180,6 +189,7 @@ export interface FileRouteTypes {
     | '/import'
     | '/recap'
     | '/recap-detail'
+    | '/settings'
     | '/transactions'
     | '/transfers'
     | '/categories/$categoryId'
@@ -198,6 +208,7 @@ export interface FileRouteTypes {
     | '/import'
     | '/recap'
     | '/recap-detail'
+    | '/settings'
     | '/transactions'
     | '/transfers'
     | '/categories/$categoryId'
@@ -216,6 +227,7 @@ export interface FileRouteTypes {
     | '/import'
     | '/recap'
     | '/recap-detail'
+    | '/settings'
     | '/transactions'
     | '/transfers'
     | '/categories/$categoryId'
@@ -236,6 +248,7 @@ export interface RootRouteChildren {
   ImportRoute: typeof ImportRoute
   RecapRoute: typeof RecapRoute
   RecapDetailRoute: typeof RecapDetailRoute
+  SettingsRoute: typeof SettingsRoute
   TransactionsRoute: typeof TransactionsRoute
   TransfersRoute: typeof TransfersRoute
   IssuersIssuerIdRoute: typeof IssuersIssuerIdRouteWithChildren
@@ -258,6 +271,13 @@ declare module '@tanstack/react-router' {
       path: '/transactions'
       fullPath: '/transactions'
       preLoaderRoute: typeof TransactionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/recap-detail': {
@@ -405,6 +425,7 @@ const rootRouteChildren: RootRouteChildren = {
   ImportRoute: ImportRoute,
   RecapRoute: RecapRoute,
   RecapDetailRoute: RecapDetailRoute,
+  SettingsRoute: SettingsRoute,
   TransactionsRoute: TransactionsRoute,
   TransfersRoute: TransfersRoute,
   IssuersIssuerIdRoute: IssuersIssuerIdRouteWithChildren,

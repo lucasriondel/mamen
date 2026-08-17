@@ -4,10 +4,10 @@ export {
 	accountQueries,
 } from "./accounts/queries";
 export {
-	appSettingsKeys,
-	appSettingsMutations,
-	appSettingsQueries,
-} from "./app-settings/queries";
+	aiTaskKeys,
+	aiTaskMutations,
+	aiTaskQueries,
+} from "./ai-tasks/queries";
 export {
 	type CategoryListParams,
 	categoryKeys,
@@ -33,6 +33,11 @@ export {
 	ruleQueries,
 } from "./rules/queries";
 export { Client, runQuery } from "./runtime";
+export {
+	secretKeys,
+	secretMutations,
+	secretQueries,
+} from "./secrets/queries";
 export {
 	settingKeys,
 	settingMutations,

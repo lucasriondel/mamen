@@ -2,14 +2,16 @@
 
 Multi-context monorepo. Each package owns its own domain vocabulary in a
 `CONTEXT.md`. This map points at them. System-wide decisions live in
-`docs/adr/`.
+`docs/adr/`. Work this repo needs but that has to land in a package outside it
+lives in `docs/upstream/`.
 
 | Context | Path | Role |
 |---|---|---|
-| shared | `packages/shared/CONTEXT.md` | The HTTP API contract + shared schemas/types. Source of truth for domain entities. |
+| shared | `packages/shared/CONTEXT.md` | The HTTP API contract + shared schemas/types, plus the deployment constants several packages must agree on. Source of truth for domain entities. |
 | api | `packages/api/CONTEXT.md` | Effect `HttpApi` server implementing the contract. |
 | sdk | `packages/sdk/CONTEXT.md` | Typed client derived from the contract, wired to TanStack Query. |
 | web | `packages/web/CONTEXT.md` | React frontend. Uploads CSV bank statements, displays transactions, manages issuers. |
+| landing-page | `packages/landing-page/CONTEXT.md` | The public page at the site root, prerendered to static HTML. Its own image; shares no domain vocabulary with the app. Also carries the deployed **path split** and **Access boundary** as data, which `DEPLOY.md` is asserted against. |
 
 The legacy `server` (Fastify API) and `web-api-legacy` (old web client) packages were deleted at
 the Effect API rework cutover (`docs/issues/0020-cutover.md`).
@@ -245,14 +247,161 @@ repeated per package.
   bank's own total, carried so the review/commit step can reconcile the
   extracted rows against what the statement declared.
 
-- **Server-side extraction** — PDF import extracts candidates on the API server
-  (via the `claude` CLI through `claude-code-effect`), not in the browser: the
-  OAuth token stays a server secret and the model reads the staged file through
-  its own `Read` tool. The upload lives only in a **transient temp dir** deleted
-  on every exit path — nothing persists, no row is written. The whole extraction
-  failure taxonomy collapses to a single client-visible **`ExtractionFailed`**
-  (real tag logged server-side); `InvalidFileType` is the one other, client-
-  fixable, error. See [ADR 0005](./docs/adr/0005-pdf-extraction-runs-server-side.md).
+- **Server-side extraction** — PDF import extracts candidates on the API server,
+  not in the browser: the OAuth token stays a server secret and the model reads
+  the staged file through its own `Read` tool. It runs through the **AI runner**,
+  so the **task choice** is what picks the transport; on `claude-code` — the
+  default — that is the `claude` CLI through `claude-code-effect`, exactly as
+  before, and on a hosted **AI provider** the statement is sent to that vendor as
+  a **document part**. Nothing falls back: a vendor that refuses fails the run,
+  because the user chose which company sees their statement. The upload lives only
+  in a **transient temp dir** deleted on every exit path — nothing persists, no
+  row is written.
+  The whole extraction failure taxonomy collapses to a single client-visible
+  **`ExtractionFailed`** (real tag logged server-side); `InvalidFileType` and
+  **`AiProviderNotConfigured`** are the two other, client-fixable, errors. See
+  [ADR 0005](./docs/adr/0005-pdf-extraction-runs-server-side.md).
+
+- **Provider not configured** — `AiProviderNotConfigured` (501), the one
+  extraction failure held **out of** the collapse into `ExtractionFailed`: the
+  **AI provider** this task runs on has no **stored credential**, so nothing ran.
+  It is separate because it is the only one a retry cannot fix — the answer is to
+  paste a credential — so the client tells the two apart by tag and routes the
+  user to the **AI settings page** instead of back to the drop zone. It names the
+  task and the provider, and carries no credential of any kind. Most often it
+  means no **Claude Code token** has been pasted.
+  _Avoid_: unauthorized, auth error (nothing was refused by a vendor; nothing was
+  sent).
+
+- **Claude Code token** — the OAuth token the local `claude` CLI authenticates
+  with (`claude setup-token`). Since issue #122 it is a **stored credential**
+  like any other, under the `claude-code` provider, **with no environment
+  fallback** — a token nobody pasted does not exist. It resolves **per
+  extraction**, so a token pasted a moment ago runs the next import and a rotated
+  one needs no restart; the cost is that the API now starts happily with none
+  stored, which is why the absence is a **provider not configured** failure the
+  settings page can explain rather than a silent one.
+  _Avoid_: `CLAUDE_CODE_OAUTH_TOKEN` (the environment variable is not read).
+
+- **AI runner** — the one thing that runs an **AI task**: it asks the
+  **task choice** which **AI provider** and model this task is on, and branches
+  to that transport. mamen wraps `ai-task-runner-effect` in a service tag of its
+  own (the package is deliberately a factory, so the injection seam belongs to
+  whoever uses it, and mamen keeps exactly one). **Nothing falls back** — a
+  provider that cannot run fails the run, because the user chose which vendor
+  sees their bank statement and a different vendor is not an acceptable
+  recovery. Each task is a row in a **task table**: an output contract and two
+  prompts.
+  _Avoid_: LLM client, AI service (it runs named tasks; it is not a wrapper
+  around a model API).
+
+- **Task table** — every **AI task** as data: its output contract, the tools the
+  CLI may reach for, and **two prompt columns**, one per transport. Two, not one,
+  and deliberately so: the CLI prompt runs with tools and may name things only
+  this machine has — the absolute path of the staged PDF, which the model opens
+  itself — while a hosted vendor has neither tools nor a filesystem and must
+  never be sent that material. A task with nothing to say differently lists the
+  same builder twice, as a statement rather than an omission.
+
+- **Document part** — how a statement reaches a **hosted** provider: the file's
+  own bytes, attached to the request, rather than text mamen extracted first.
+  Text extraction was rejected because it discards the two-column Débit/Crédit
+  layout the extraction rules depend on. A hosted prompt column returns
+  `{ text, document }`; the base64 encoding happens at the wire and mamen carries
+  bytes throughout.
+  _Avoid_: attachment, upload (nothing is uploaded anywhere mamen owns; the
+  statement is still deleted on every exit path).
+
+- **AI provider** — who runs an **AI task**: the local `claude-code` CLI, or one
+  of the hosted vendors `anthropic`, `google`, `openai`. It is the unit a
+  **stored credential** is keyed by, and it is **named directly, never parsed
+  out of a model id** — the code fetching a key has to be able to say whose key
+  it wants. `claude-code` is the default and stays so on a fresh install, so a
+  statement never reaches a vendor the user did not choose; a *hosted* provider
+  is defined as "not the local one", so a provider added later is hosted until
+  someone says otherwise. The set, the labels, the models and the predicates
+  over them live in one leaf module, `shared/src/contract/ai.ts`.
+  _Avoid_: vendor, backend, model provider (a provider is chosen per task; the
+  model is a second, narrower choice).
+
+- **Curated model list** — the models mamen offers per **AI provider**, a short
+  hand-picked list rather than free text, because a provider/model pairing is
+  refused at save time and that refusal needs something to check against. **The
+  first entry is that provider's default and is the cheap, fast one**, so
+  switching vendor never silently lands a user on the priciest model. Model ids
+  are stored **bare** (`claude-haiku-4-5`) — the provider is already known, so a
+  vendor prefix would be the same fact written twice and
+  `anthropic/claude-haiku-4-5` is a model nobody serves.
+  _Avoid_: model catalogue, supported models (both suggest completeness; this is
+  the set worth offering, not the set that exists).
+
+- **AI task** — a job an **AI provider** and model can be chosen for. One member,
+  `extract-pdf`: pulling transactions out of an uploaded PDF bank statement.
+
+- **Task choice** — which **AI provider** and which of its models runs one **AI
+  task**. One stored row per task, and an absent row means *the default*
+  (`claude-code` on the cheap head of its list), read from the catalogue rather
+  than seeded — so moving the default is an edit to one module, not a data
+  migration. Naming a provider without a model lands the task on **that
+  provider's default**, never on a model name carried over from the old vendor.
+  _Avoid_: model setting (the provider is the first half of the choice and the
+  one that decides who sees a bank statement).
+
+- **Save-time check** — the rule that a **task choice** which could not run is
+  refused *while the user is looking at the picker*, never discovered on their
+  next import: not a vendor with no **stored credential**, not a model that
+  vendor does not serve, and not a credential deleted out from under the task
+  using it. It is enforced at two write doors — saving a choice, and clearing a
+  credential — against one pure decision function, so the two cannot drift into
+  disagreeing. A refused save changes **nothing at all**, and only the tasks a
+  save touches are checked, so a stored value that went bad out of band does not
+  make every unrelated save fail. `claude-code` is always accepted here: its
+  token is a run-time concern, and checking it would refuse every save on a
+  fresh install, including the save that switches away from it.
+  _Avoid_: validation (it is a refusal to store, not a parse of what was sent).
+
+- **Stored credential** — a secret the user pasted (an **AI provider**'s API key,
+  or the **Claude Code token**), held **encrypted** in `encrypted_secrets`, one
+  row per provider — the
+  credential store is keyed by the provider set itself, so there is no secret in
+  mamen that is not some provider's credential. It travels in one direction
+  only. Outward — to a handler, the SDK, the browser — it is a **secret
+  status**: `{ configured, hint }`, never the value and never the ciphertext.
+  Inward — to an in-process caller about to spend it — it is the plaintext,
+  through a reader that is not on the secrets module's barrel. Exactly one module
+  decrypts. A refused paste is described by a **reason code** (`blank`,
+  `too-short`) and never quoted back. See
+  [ADR 0011](./docs/adr/0011-credentials-are-encrypted-at-rest.md).
+  _Avoid_: API key setting, environment secret (since issue #122 the environment
+  holds no AI credential at all; this store is the one home for every one of
+  them, the **Claude Code token** included).
+
+- **Masked hint** — the only rendering of a **stored credential** that leaves the
+  server: first seven characters, `…`, last three (`sk-ant-…3f9`) — enough to
+  tell *which* key is stored, never enough to be one. `null` below a minimum
+  length, which is a *different, larger* constant than the minimum a save
+  accepts, so a short credential stores fine and shows nothing. `null` **also**
+  means the stored value would not decrypt, which is reported as `configured:
+  true` — *present but unreadable*, never absent — so a rotated
+  `TOKEN_ENCRYPTION_KEY` reads as "re-paste this" rather than "nothing was ever
+  here". See [ADR 0011](./docs/adr/0011-credentials-are-encrypted-at-rest.md).
+  _Avoid_: truncated key, key preview.
+
+- **AI settings page** — the one screen the credential store and the **task
+  choice** are made from (`/settings`): a tile per **AI provider** showing
+  whether one is stored, and a row per **AI task** naming which provider and
+  model runs it. Its picker **offers only providers that can run the task** —
+  the **save-time check**'s own rule, surfaced rather than left to be discovered
+  by refusal — and the two are not equal partners: the doors stay the authority,
+  so a save the picker somehow allowed is still refused *and the refusal is shown
+  in place*. Saving is **immediate**, without a submit button, so the picker
+  always reflects what will actually run; a refused save writes nothing, so the
+  control simply goes back to what is stored. Selecting a hosted provider carries
+  **explicit copy that the bank statement will be sent to that vendor** — today
+  one never leaves the machine, and that is a privacy posture change worth
+  reading as a deliberate choice.
+  _Avoid_: LLM settings (the deleted surface it replaces), API key page (the
+  credentials are half of it; which vendor runs a task is the other half).
 
 - **Inherited colour** — a Category whose `color` is **null**, meaning *I never
   chose one*: the colour it paints is its nearest ancestor's, found by walking
