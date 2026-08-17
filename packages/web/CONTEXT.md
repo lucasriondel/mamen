@@ -298,4 +298,54 @@ real shell.
 _Avoid_: header (the `<header>` element is the topbar's markup; the *page header*
 is `PageHeader`, one part of it).
 
+**Account card**:
+One account as a single object on the accounts page: its swatch (still the
+recolour surface), name, type, transaction count, month coverage, a `···` menu,
+and its own **month strip** (issue #131). The page used to be two blocks that
+each enumerated every account — a list of name-and-buttons rows, then an
+`Import statements` matrix repeating the names down its left edge — so every
+account was named twice and "is this one behind?" was a cross-reference. The
+count is a **stat**, not a warning: it used to read `137 transactions — clear
+them to delete`, permanent error copy explaining a disabled button nobody had
+pressed. The explanation now lives in the menu, beside the Delete it answers.
+_Avoid_: account row (the flat list it replaced), import grid (deleted with it).
+
+**Month strip**:
+The twelve months of one year on one card, each a **month cell** whose state is
+`imported` / `available` / `disabled` — the import grid's columns, cut into
+per-account rows. `disabled` is the current and every future month: their
+statements are still accruing, so there is nothing complete to import, which
+also means a fully-elapsed past year has no disabled cell at all. **Imported is
+the loud state**: it is a filled `--gousse-low` cell, while `available` is a
+hairline dashed outline. The weighting used to be inverted — every un-imported
+month was a dashed *amber* box, this app's medium-severity token — so
+availability outshouted completion and an empty February read as a warning.
+Cells and the card's `3/6 months` stat come from one derivation (`monthCells`,
+`monthProgress` in `month-grid.ts`), so the strip and the stat cannot disagree.
+_Avoid_: import grid, coverage bar.
+
+**Year pager**:
+The accounts page's year selector (`components/ui/year-pager.tsx`): a pill
+rendering every page of the range inline — `‹ 2026 2025 2024 ›` — with
+`aria-current` on the active one. Not a `<select>`, because the range is
+`availableYears()`: the earliest imported year through the current one,
+typically one to three entries, and a select would hide that list behind a click.
+**The array is newest-first**, so stepping to an *older* year moves *forward*
+through it — the one inversion the arrows can get wrong. One pager in the topbar
+drives every strip: the year is the page's question, not an account's, and a
+per-card selector would let two cards answer it differently. Past ~10 years the
+track would need to scroll or collapse; nothing can produce that range yet.
+_Avoid_: year filter (it selects which year is shown, it narrows nothing).
+
+**Add account tile**:
+The last item of the accounts list: a dashed ghost tile that opens the
+create-account dialog (issue #131). Creating an account used to be an always-open
+form pinned above the list — the loudest position on the page for its rarest
+task, and two fields of empty chrome between the title and the accounts. As a
+tile it costs one row of dashes at rest and asks its two questions (name, type)
+only once pressed. It is also the page's **empty state**, where it names a *first*
+account rather than another one. No colour field: a new account resolves to a
+stable colour from its id, and the card's swatch is where that is changed.
+_Avoid_: create account form (the pinned form it replaced).
+
 <!-- Terms are added here as they are resolved during design. -->

@@ -12,7 +12,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * a user can see, and the UI of the save-time doors #119 built.
  *
  * Mocked at the SDK seam like every other view test here (`accounts-view`,
- * `import-grid`): the page reads and writes only through `@mamen/sdk`, so canned
+ * `account-card`): the page reads and writes only through `@mamen/sdk`, so canned
  * statuses and settings go in through a real `QueryClientProvider` and what
  * comes back out is the exact call the page made. The **catalogue is not
  * mocked** — `AI_PROVIDERS`, its labels and its model lists are shared contract
