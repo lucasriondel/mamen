@@ -26,17 +26,17 @@ import { bold, cyan, dim, red, yellow } from "./helpers/colors.ts";
 import { notify } from "./helpers/notify.ts";
 import { TIMEZONE } from "./helpers/run-config.ts";
 import {
-	clearSessionLimit,
-	EXIT_CODE,
-	formatInZone,
-	formatWait,
-	readSessionLimit,
+  EXIT_CODE,
+  clearSessionLimit,
+  formatInZone,
+  formatWait,
+  readSessionLimit,
 } from "./helpers/session-limit.ts";
 
 /** Flows this wrapper can drive, mapped to their entrypoint. */
 const FLOWS = {
-	implement: "./.sandcastle/implement/index.ts",
-	"implement-review": "./.sandcastle/implement-review/index.ts",
+  implement: "./.sandcastle/implement/index.ts",
+  "implement-review": "./.sandcastle/implement-review/index.ts",
 } as const;
 
 type Flow = keyof typeof FLOWS;
@@ -49,24 +49,24 @@ const HEARTBEAT_MS = 60 * 60 * 1000;
 // ---------------------------------------------------------------------------
 
 interface Options {
-	flow: Flow;
-	relaunch: boolean;
-	timeZone: string;
+  flow: Flow;
+  relaunch: boolean;
+  timeZone: string;
 }
 
 /** Print usage and exit non-zero. */
 function usage(problem: string): never {
-	console.error(`${red("✗")} ${problem}`);
-	console.error(
-		`\nUsage: bun .sandcastle/run.ts <${Object.keys(FLOWS).join("|")}> [options]`,
-	);
-	console.error(`
+  console.error(`${red("✗")} ${problem}`);
+  console.error(
+    `\nUsage: bun .sandcastle/run.ts <${Object.keys(FLOWS).join("|")}> [options]`,
+  );
+  console.error(`
 Options:
   --no-relaunch        Stop when the session limit is reached instead of
                        waiting for it to lift and starting a fresh run.
   --timezone=<zone>    IANA zone for displaying wake-up times.
                        Default: ${TIMEZONE}`);
-	process.exit(2);
+  process.exit(2);
 }
 
 /**
@@ -78,31 +78,30 @@ Options:
  * relaunches in the middle of the night.
  */
 function parseArgs(argv: string[]): Options {
-	const [flowArg, ...rest] = argv;
+  const [flowArg, ...rest] = argv;
 
-	if (!flowArg) usage("No flow given.");
-	if (!(flowArg in FLOWS)) usage(`Unknown flow "${flowArg}".`);
+  if (!flowArg) usage("No flow given.");
+  if (!(flowArg in FLOWS)) usage(`Unknown flow "${flowArg}".`);
 
-	const options: Options = {
-		flow: flowArg as Flow,
-		relaunch: true,
-		timeZone: TIMEZONE,
-	};
+  const options: Options = {
+    flow: flowArg as Flow,
+    relaunch: true,
+    timeZone: TIMEZONE,
+  };
 
-	for (const arg of rest) {
-		if (arg === "--no-relaunch") {
-			options.relaunch = false;
-		} else if (arg.startsWith("--timezone=")) {
-			const zone = arg.slice("--timezone=".length);
-			if (!zone)
-				usage("--timezone= needs a zone, e.g. --timezone=Europe/Paris");
-			options.timeZone = zone;
-		} else {
-			usage(`Unknown option "${arg}".`);
-		}
-	}
+  for (const arg of rest) {
+    if (arg === "--no-relaunch") {
+      options.relaunch = false;
+    } else if (arg.startsWith("--timezone=")) {
+      const zone = arg.slice("--timezone=".length);
+      if (!zone) usage("--timezone= needs a zone, e.g. --timezone=Europe/Paris");
+      options.timeZone = zone;
+    } else {
+      usage(`Unknown option "${arg}".`);
+    }
+  }
 
-	return options;
+  return options;
 }
 
 // ---------------------------------------------------------------------------
@@ -124,9 +123,9 @@ let interrupted = false;
 const waiters = new Set<() => void>();
 
 process.on("SIGINT", () => {
-	interrupted = true;
-	for (const wake of waiters) wake();
-	waiters.clear();
+  interrupted = true;
+  for (const wake of waiters) wake();
+  waiters.clear();
 });
 
 /**
@@ -135,21 +134,21 @@ process.on("SIGINT", () => {
  * Resolves to false when cut short by Ctrl-C, true when the full time elapsed.
  */
 function sleep(ms: number): Promise<boolean> {
-	if (interrupted) return Promise.resolve(false);
+  if (interrupted) return Promise.resolve(false);
 
-	return new Promise((resolve) => {
-		const timer = setTimeout(() => {
-			waiters.delete(wake);
-			resolve(true);
-		}, ms);
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      waiters.delete(wake);
+      resolve(true);
+    }, ms);
 
-		const wake = () => {
-			clearTimeout(timer);
-			resolve(false);
-		};
+    const wake = () => {
+      clearTimeout(timer);
+      resolve(false);
+    };
 
-		waiters.add(wake);
-	});
+    waiters.add(wake);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -166,10 +165,8 @@ function sleep(ms: number): Promise<boolean> {
  * file, never by parsing output.
  */
 async function runFlow(flow: Flow): Promise<number> {
-	const child = Bun.spawn(["bun", FLOWS[flow]], {
-		stdio: ["inherit", "inherit", "inherit"],
-	});
-	return await child.exited;
+  const child = Bun.spawn(["bun", FLOWS[flow]], { stdio: ["inherit", "inherit", "inherit"] });
+  return await child.exited;
 }
 
 /**
@@ -185,35 +182,35 @@ async function runFlow(flow: Flow): Promise<number> {
  * Returns false if interrupted.
  */
 async function waitUntil(resetAt: Date, timeZone: string): Promise<boolean> {
-	while (!interrupted) {
-		const remaining = resetAt.getTime() - Date.now();
-		if (remaining <= 0) return true;
+  while (!interrupted) {
+    const remaining = resetAt.getTime() - Date.now();
+    if (remaining <= 0) return true;
 
-		if (remaining > HEARTBEAT_MS) {
-			if (!(await sleep(HEARTBEAT_MS))) return false;
-			const left = resetAt.getTime() - Date.now();
-			if (left > 0) {
-				console.log(
-					`${dim("  … still waiting —")} ${formatWait(left)} ${dim(
-						`until ${formatInZone(resetAt, timeZone)} ${timeZone}`,
-					)}`,
-				);
-			}
-			continue;
-		}
+    if (remaining > HEARTBEAT_MS) {
+      if (!(await sleep(HEARTBEAT_MS))) return false;
+      const left = resetAt.getTime() - Date.now();
+      if (left > 0) {
+        console.log(
+          `${dim("  … still waiting —")} ${formatWait(left)} ${dim(
+            `until ${formatInZone(resetAt, timeZone)} ${timeZone}`,
+          )}`,
+        );
+      }
+      continue;
+    }
 
-		return await sleep(remaining);
-	}
+    return await sleep(remaining);
+  }
 
-	return false;
+  return false;
 }
 
 /** Header separating one attempt's logs from the previous attempt's. */
 function logAttempt(attempt: number): void {
-	if (attempt === 1) return;
-	console.log(
-		bold(cyan(`\n── attempt ${attempt} — resumed after session limit ──\n`)),
-	);
+  if (attempt === 1) return;
+  console.log(
+    bold(cyan(`\n── attempt ${attempt} — resumed after session limit ──\n`)),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -226,62 +223,62 @@ let attempt = 0;
 let exitCode = 0;
 
 while (true) {
-	attempt++;
-	logAttempt(attempt);
+  attempt++;
+  logAttempt(attempt);
 
-	// Drop any state file from an earlier attempt so a stale reset time can never
-	// be mistaken for this attempt's.
-	await clearSessionLimit();
+  // Drop any state file from an earlier attempt so a stale reset time can never
+  // be mistaken for this attempt's.
+  await clearSessionLimit();
 
-	exitCode = await runFlow(options.flow);
+  exitCode = await runFlow(options.flow);
 
-	// Anything other than the session-limit code is final: success, a genuine
-	// crash, or a signal. Only EXIT_CODE means "nothing is wrong, come back later".
-	if (exitCode !== EXIT_CODE) break;
+  // Anything other than the session-limit code is final: success, a genuine
+  // crash, or a signal. Only EXIT_CODE means "nothing is wrong, come back later".
+  if (exitCode !== EXIT_CODE) break;
 
-	if (interrupted) break;
+  if (interrupted) break;
 
-	const limit = await readSessionLimit();
+  const limit = await readSessionLimit();
 
-	if (!limit) {
-		// The entrypoint signalled a session limit but left no readable reset time.
-		// Guessing a wait would mean inventing a number the design deliberately
-		// avoids, so stop and let the operator decide.
-		console.error(
-			`${yellow("⚠")} ${bold("session limit")} ${dim(
-				"— no reset time recorded, cannot schedule a relaunch.",
-			)}`,
-		);
-		break;
-	}
+  if (!limit) {
+    // The entrypoint signalled a session limit but left no readable reset time.
+    // Guessing a wait would mean inventing a number the design deliberately
+    // avoids, so stop and let the operator decide.
+    console.error(
+      `${yellow("⚠")} ${bold("session limit")} ${dim(
+        "— no reset time recorded, cannot schedule a relaunch.",
+      )}`,
+    );
+    break;
+  }
 
-	const local = `${formatInZone(limit.resetAt, options.timeZone)} ${options.timeZone}`;
-	const utc = `${formatInZone(limit.resetAt, "UTC")} UTC`;
+  const local = `${formatInZone(limit.resetAt, options.timeZone)} ${options.timeZone}`;
+  const utc = `${formatInZone(limit.resetAt, "UTC")} UTC`;
 
-	if (!options.relaunch) {
-		console.log(
-			`${yellow("⏸")} ${bold("session limit")} ${dim(
-				`— resets ${local} (${utc}). Relaunch disabled, stopping.`,
-			)}`,
-		);
-		await notify(options.flow, "paused", `— stopped, resets ${local}`);
-		break;
-	}
+  if (!options.relaunch) {
+    console.log(
+      `${yellow("⏸")} ${bold("session limit")} ${dim(
+        `— resets ${local} (${utc}). Relaunch disabled, stopping.`,
+      )}`,
+    );
+    await notify(options.flow, "paused", `— stopped, resets ${local}`);
+    break;
+  }
 
-	const wait = limit.resetAt.getTime() - Date.now();
+  const wait = limit.resetAt.getTime() - Date.now();
 
-	console.log(
-		`${yellow("⏸")} ${bold("session limit")} ${dim(
-			`— resets ${local} (${utc}), waiting ${formatWait(wait)}.`,
-		)}`,
-	);
-	await notify(options.flow, "paused", `— resuming ${local}`);
+  console.log(
+    `${yellow("⏸")} ${bold("session limit")} ${dim(
+      `— resets ${local} (${utc}), waiting ${formatWait(wait)}.`,
+    )}`,
+  );
+  await notify(options.flow, "paused", `— resuming ${local}`);
 
-	if (!(await waitUntil(limit.resetAt, options.timeZone))) {
-		// Interrupted mid-wait: leave the session-limit exit code in place so the
-		// caller can still tell why the run stopped.
-		break;
-	}
+  if (!(await waitUntil(limit.resetAt, options.timeZone))) {
+    // Interrupted mid-wait: leave the session-limit exit code in place so the
+    // caller can still tell why the run stopped.
+    break;
+  }
 }
 
 // The wrapper reports the last run's exit code, so a shell `&&` chain or CI step

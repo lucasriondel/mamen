@@ -1,19 +1,25 @@
 import { type ReactNode, useCallback, useEffect, useRef } from "react";
 import { AppSidebar } from "@/components/app-sidebar";
-import { SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarCollapsedProvider } from "@/lib/sidebar-collapsed-context";
 import { useSidebarCollapsed } from "@/lib/use-sidebar-collapsed";
 
 /**
- * The app's layout row: the sidebar, the top bar that re-opens it, and the
- * scrolling content column every route renders into (issue #106).
+ * The app's layout row: the sidebar and the scrolling content column every
+ * route renders into (issue #106).
  *
  * The collapse is one flag driving three things — the panel's width on desktop,
- * the drawer's slide on mobile, and whether the top bar's trigger exists at all.
- * It lives here rather than in the sidebar because the two controls sit on
- * opposite sides of the panel: closing is driven from the header inside it,
- * re-opening from a bar outside it. A collapsed panel takes `inert`, so a
- * trigger within it would be unreachable — which is the whole reason the open
- * control is not the close control.
+ * the drawer's slide on mobile, and whether a page's {@link PageHeader} renders
+ * a trigger at all. It lives here rather than in the sidebar because the two
+ * controls sit on opposite sides of the panel: closing is driven from the
+ * header inside it, re-opening from a control outside it. A collapsed panel
+ * takes `inert`, so a trigger within it would be unreachable — which is the
+ * whole reason the open control is not the close control.
+ *
+ * The trigger itself is rendered per-page, by {@link PageHeader}, inline beside
+ * that page's own title — not a shared bar owned by this shell. `AppShell` only
+ * owns the flag and hands it down via {@link SidebarCollapsedProvider}, so every
+ * page's trigger toggles the same state and the shell's focus handoff (below)
+ * still has one ref to aim at regardless of which page mounted it.
  *
  * `useSidebarCollapsed` persists the flag, so a user who reclaimed the width
  * does not get the panel back on the next navigation or reload.
@@ -55,22 +61,13 @@ export function AppShell({ children }: { children: ReactNode }) {
 			{/* `min-w-0` so a wide table inside `main` can't push the column past the
 			 * viewport and out-shout the reclaimed width. */}
 			<div className="flex min-w-0 flex-1 flex-col">
-				{/* The bar mounts only while the sidebar is collapsed. Keeping it
-				 * mounted and hiding the trigger would cost a row of empty height on
-				 * the common path, and would defeat the fade-in — the animation plays
-				 * on mount, which is exactly when the close begins.
-				 *
-				 * It is a static row above the scroller rather than a floating
-				 * overlay: the content moves down by the bar's height when it appears,
-				 * which is the price of never having the trigger sit over a heading.
-				 * Nothing here reports `data-scrolled` for the same reason — the panel
-				 * surface that variant adds is for a bar content passes under. */}
-				{collapsed ? (
-					<header className="flex shrink-0 items-center px-8 pt-6">
-						<SidebarTrigger ref={triggerRef} onClick={handleToggle} />
-					</header>
-				) : null}
-				<main className="flex-1 overflow-auto p-8">{children}</main>
+				<main className="flex-1 overflow-auto p-8">
+					<SidebarCollapsedProvider
+						value={{ collapsed, toggle: handleToggle, triggerRef }}
+					>
+						{children}
+					</SidebarCollapsedProvider>
+				</main>
 			</div>
 		</div>
 	);

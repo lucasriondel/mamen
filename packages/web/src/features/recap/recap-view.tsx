@@ -1,5 +1,6 @@
 import { getRouteApi } from "@tanstack/react-router";
 import { useMemo } from "react";
+import { PageHeader } from "@/components/page-header";
 import { AccountMultiSelect } from "@/components/ui/account-multi-select";
 import { Empty } from "@/components/ui/empty";
 import { ExcludedSummaryLine } from "./excluded-summary-line";
@@ -88,9 +89,11 @@ export function RecapView() {
 	return (
 		<section className="flex flex-col gap-6">
 			<header>
-				<h1 className="text-2xl font-semibold text-gousse-ink text-balance">
-					Recap
-				</h1>
+				<PageHeader>
+					<h1 className="text-2xl font-semibold text-gousse-ink text-balance">
+						Recap
+					</h1>
+				</PageHeader>
 				<p className="mt-1 text-gousse-muted">
 					Where your money went, by issuer and by category.
 				</p>

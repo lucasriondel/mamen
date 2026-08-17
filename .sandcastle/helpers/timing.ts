@@ -15,15 +15,15 @@ import { magenta } from "./colors.ts";
  * line up when scanning a log column.
  */
 export function formatDuration(ms: number): string {
-	const totalSeconds = Math.round(ms / 1000);
-	const minutes = Math.floor(totalSeconds / 60);
-	const seconds = totalSeconds % 60;
-	return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
+  const totalSeconds = Math.round(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
 }
 
 /** Render a duration as a colored `[1m 23s]` tag for appending to a log line. */
 export function durationTag(ms: number): string {
-	return magenta(`[${formatDuration(ms)}]`);
+  return magenta(`[${formatDuration(ms)}]`);
 }
 
 /**
@@ -31,9 +31,9 @@ export function durationTag(ms: number): string {
  * milliseconds or `tag()` for the colored `[1m 23s]` form.
  */
 export function startTimer(): { elapsed: () => number; tag: () => string } {
-	const start = performance.now();
-	const elapsed = () => performance.now() - start;
-	return { elapsed, tag: () => durationTag(elapsed()) };
+  const start = performance.now();
+  const elapsed = () => performance.now() - start;
+  return { elapsed, tag: () => durationTag(elapsed()) };
 }
 
 /**
@@ -47,17 +47,17 @@ export function startTimer(): { elapsed: () => number; tag: () => string } {
  *   const plan = await timed("planner", () => sandcastle.run({ ... }));
  */
 export async function timed<T>(
-	label: string,
-	fn: () => Promise<T>,
-	{ indent = "" }: { indent?: string } = {},
+  label: string,
+  fn: () => Promise<T>,
+  { indent = "" }: { indent?: string } = {},
 ): Promise<T> {
-	const timer = startTimer();
-	try {
-		const result = await fn();
-		console.log(`${indent}${magenta("⏱")} ${label} ${timer.tag()}`);
-		return result;
-	} catch (err) {
-		console.log(`${indent}${magenta("⏱")} ${label} (failed) ${timer.tag()}`);
-		throw err;
-	}
+  const timer = startTimer();
+  try {
+    const result = await fn();
+    console.log(`${indent}${magenta("⏱")} ${label} ${timer.tag()}`);
+    return result;
+  } catch (err) {
+    console.log(`${indent}${magenta("⏱")} ${label} (failed) ${timer.tag()}`);
+    throw err;
+  }
 }

@@ -16,13 +16,12 @@
 export type Outcome = "ok" | "failed" | "paused";
 
 /** Title, sound and verb for each outcome. */
-const styles: Record<Outcome, { title: string; sound: string; verb: string }> =
-	{
-		ok: { title: "Sandcastle ✅", sound: "Glass", verb: "finished" },
-		failed: { title: "Sandcastle ❌", sound: "Basso", verb: "failed" },
-		// Submarine is a neutral tone — audible without reading as an alarm.
-		paused: { title: "Sandcastle ⏸", sound: "Submarine", verb: "paused" },
-	};
+const styles: Record<Outcome, { title: string; sound: string; verb: string }> = {
+  ok: { title: "Sandcastle ✅", sound: "Glass", verb: "finished" },
+  failed: { title: "Sandcastle ❌", sound: "Basso", verb: "failed" },
+  // Submarine is a neutral tone — audible without reading as an alarm.
+  paused: { title: "Sandcastle ⏸", sound: "Submarine", verb: "paused" },
+};
 
 /**
  * Display a macOS notification via osascript.
@@ -32,25 +31,25 @@ const styles: Record<Outcome, { title: string; sound: string; verb: string }> =
  * @param detail   Extra text appended to the notification body.
  */
 export async function notify(
-	flow: string,
-	outcome: Outcome,
-	detail = "",
+  flow: string,
+  outcome: Outcome,
+  detail = "",
 ): Promise<void> {
-	// macOS only. On Linux/CI there is no osascript — skip silently.
-	if (process.platform !== "darwin") return;
+  // macOS only. On Linux/CI there is no osascript — skip silently.
+  if (process.platform !== "darwin") return;
 
-	const { title, sound, verb } = styles[outcome];
-	const body = `${flow} ${verb}${detail ? ` ${detail}` : ""}`;
+  const { title, sound, verb } = styles[outcome];
+  const body = `${flow} ${verb}${detail ? ` ${detail}` : ""}`;
 
-	// Escape double quotes so the AppleScript string literal stays valid.
-	const esc = (s: string) => s.replace(/"/g, '\\"');
-	const script = `display notification "${esc(body)}" with title "${esc(
-		title,
-	)}" sound name "${sound}"`;
+  // Escape double quotes so the AppleScript string literal stays valid.
+  const esc = (s: string) => s.replace(/"/g, '\\"');
+  const script = `display notification "${esc(body)}" with title "${esc(
+    title,
+  )}" sound name "${sound}"`;
 
-	try {
-		await Bun.spawn(["osascript", "-e", script]).exited;
-	} catch {
-		// Notification is best-effort; never let it break the run.
-	}
+  try {
+    await Bun.spawn(["osascript", "-e", script]).exited;
+  } catch {
+    // Notification is best-effort; never let it break the run.
+  }
 }

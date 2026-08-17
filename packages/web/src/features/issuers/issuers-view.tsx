@@ -3,6 +3,7 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { getRouteApi, Link } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import { useMemo } from "react";
+import { PageHeader } from "@/components/page-header";
 import { Empty } from "@/components/ui/empty";
 import { resolveCategoryColors } from "@/lib/category-tree";
 import { categoryQueries, issuerQueries, transactionQueries } from "@/lib/sdk";
@@ -132,9 +133,11 @@ export function IssuersView() {
 		<section className="flex flex-col gap-6">
 			<header className="flex flex-wrap items-start justify-between gap-4">
 				<div>
-					<h1 className="text-balance text-2xl font-semibold text-gousse-ink">
-						Issuers
-					</h1>
+					<PageHeader>
+						<h1 className="text-balance text-2xl font-semibold text-gousse-ink">
+							Issuers
+						</h1>
+					</PageHeader>
 					<p className="mt-1 text-gousse-muted">
 						The places your money comes from and goes to.
 					</p>
