@@ -2,7 +2,7 @@
 
 // Deployment constant, not a domain type: where the SPA is served from. Kept
 // dependency-free so a build config can import it (see `./app-base-path`).
-export { APP_BASE_PATH, APP_BASE_PATH_SLASH } from "./app-base-path";
+export { APP_BASE_PATH, APP_BASE_PATH_SLASH } from "./app-base-path.ts";
 export type { Account, AccountType } from "./types/account.types";
 export type {
 	AnomalyFlag,
