@@ -10,6 +10,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import type { UserEvent } from "@testing-library/user-event";
 import userEvent from "@testing-library/user-event";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { COLLAPSED_SHELL, OPEN_SHELL, withShell } from "@/test/sidebar-shell";
 
 // The row's icon picker windows ~1,600 candidates, and jsdom lays nothing out,
 // so give the grid a real viewport or it measures 0 and renders no cells.
@@ -96,7 +97,7 @@ async function pickParent(user: UserEvent, name: string) {
 	await user.click(await listbox.findByText(name));
 }
 
-function renderView() {
+function renderView(value = OPEN_SHELL) {
 	const rootRoute = createRootRoute();
 	const categoriesRoute = createRoute({
 		getParentRoute: () => rootRoute,
@@ -118,7 +119,7 @@ function renderView() {
 		]),
 		history: createMemoryHistory({ initialEntries: ["/categories"] }),
 	});
-	return render(<RouterProvider router={router} />);
+	return render(withShell(<RouterProvider router={router} />, value));
 }
 
 let nextId = 1;
@@ -203,6 +204,30 @@ describe("CategoriesView", () => {
 		spillCategory.mockReset().mockResolvedValue(category());
 		removeCategory.mockReset().mockResolvedValue(undefined);
 		toastError.mockReset();
+	});
+
+	// This page hand-rolled its own `<h1>` and so rendered no trigger at all: a
+	// user who collapsed the sidebar here could only get it back by navigating
+	// away (issue #129). It goes through the shared layout now.
+	it("offers the sidebar-reopen trigger while the panel is collapsed", async () => {
+		seedTree();
+		renderView(COLLAPSED_SHELL);
+
+		expect(
+			await screen.findByRole("button", { name: "Open sidebar" }),
+		).toBeInTheDocument();
+	});
+
+	it("keeps its New category action in the topbar, beside the title", async () => {
+		seedTree();
+		renderView();
+
+		const topbar = (
+			await screen.findByRole("heading", { name: "Categories" })
+		).closest("header") as HTMLElement;
+		expect(
+			within(topbar).getByRole("button", { name: "New category" }),
+		).toBeInTheDocument();
 	});
 
 	it("renders each folder with its leaves grouped beneath it", async () => {

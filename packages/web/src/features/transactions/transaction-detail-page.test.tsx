@@ -6,9 +6,10 @@ import {
 	createRouter,
 	RouterProvider,
 } from "@tanstack/react-router";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { COLLAPSED_SHELL, OPEN_SHELL, withShell } from "@/test/sidebar-shell";
 
 // ---- Canned SDK data --------------------------------------------------------
 
@@ -268,6 +269,17 @@ function makeRouter(id = 100) {
 	});
 }
 
+/**
+ * The page's topbar is a `PageLayout` (issue #129), which reads the shell's
+ * collapse flag; this harness mounts the route without `AppShell`, so it stands
+ * in for it — open, unless a case is about the trigger itself.
+ */
+function renderPage(id = 100, shellValue = OPEN_SHELL) {
+	return render(
+		withShell(<RouterProvider router={makeRouter(id)} />, shellValue),
+	);
+}
+
 const linkTransferMock = vi.fn(async (_ids: unknown) => ({ count: 2 }));
 const dismissPairsMock = vi.fn(async (_pairs: unknown) => ({ count: 1 }));
 
@@ -279,10 +291,31 @@ beforeEach(() => {
 });
 
 describe("TransactionDetailPage", () => {
+	// The last page to compose its own header, and so the last one with no way
+	// back to a collapsed sidebar (issue #129).
+	it("offers the sidebar-reopen trigger while the panel is collapsed", async () => {
+		renderPage(100, COLLAPSED_SHELL);
+
+		expect(
+			await screen.findByRole("button", { name: "Open sidebar" }),
+		).toBeInTheDocument();
+	});
+
+	// The amount was the headline above the name; it is the topbar's action end
+	// now, where every other drill-down page puts its number.
+	it("keeps the amount, the counterparty and the date in one topbar", async () => {
+		renderPage();
+
+		const topbar = (
+			await screen.findByRole("heading", { level: 1, name: "Spotify" })
+		).closest("header") as HTMLElement;
+		expect(within(topbar).getByText("-9,99 €")).toBeInTheDocument();
+	});
+
 	// The #62 regression on the detail surface: one row, one issuer id, asked for
 	// by id — so where that id sorts in the issuer table is nobody's business.
 	it("names the issuer the list read would have missed", async () => {
-		render(<RouterProvider router={makeRouter()} />);
+		renderPage();
 
 		// The headline is the issuer's name, not the raw bank string it falls back
 		// to when the issuer can't be resolved.
@@ -304,7 +337,7 @@ describe("TransactionDetailPage", () => {
 	// through the very controls the grid's cells are — no bundle-specific issuer,
 	// category or notes editor exists, and none should.
 	it("offers the curation controls on any row, bundle parent included", async () => {
-		render(<RouterProvider router={makeRouter(300)} />);
+		renderPage(300);
 
 		expect(
 			await screen.findByRole("heading", { name: "Weekend Bretagne" }),
@@ -319,7 +352,7 @@ describe("TransactionDetailPage", () => {
 	});
 
 	it("shows a bundle parent the members it stands for", async () => {
-		render(<RouterProvider router={makeRouter(300)} />);
+		renderPage(300);
 
 		// The members are rows of the ordinary transactions grid, so each is named
 		// by the **Raw issuer** column and — while uncurated — by the assignment
@@ -335,7 +368,7 @@ describe("TransactionDetailPage", () => {
 	// A bank row gets the other side of the same block (issue #74): it has no
 	// members and no date of its own, but it has a bundle to join.
 	it("offers an ordinary bank row a bundle to join, not a parent's block", async () => {
-		render(<RouterProvider router={makeRouter()} />);
+		renderPage();
 
 		await screen.findByRole("heading", { name: "Spotify" });
 		expect(screen.queryByLabelText(/bundle date/i)).toBeNull();
@@ -345,7 +378,7 @@ describe("TransactionDetailPage", () => {
 	// Dissolving is the parent's own action, and it is never offered on a row
 	// that merely belongs to one — a member leaves, a bundle dissolves.
 	it("offers dissolving only on the bundle parent", async () => {
-		render(<RouterProvider router={makeRouter(300)} />);
+		renderPage(300);
 
 		expect(
 			await screen.findByRole("button", { name: /dissolve bundle/i }),
@@ -356,7 +389,7 @@ describe("TransactionDetailPage", () => {
 	// mis-bundling, and the server says so through the anomaly flags the page
 	// already renders — no new surface, and nothing that blocks the row.
 	it("warns on a bundle whose members do not sum to a cost", async () => {
-		render(<RouterProvider router={makeRouter(400)} />);
+		renderPage(400);
 
 		expect(await screen.findByText("Bundle is not a cost")).toBeVisible();
 		expect(screen.getByText(/a refund counted twice/i)).toBeVisible();
@@ -372,7 +405,7 @@ describe("TransactionDetailPage", () => {
 	// stands for money the recap already counts at a non-zero sum, and its amount
 	// moves with its members — so the Transfer block offers it nothing.
 	it("tells a bundle parent it can't be part of a transfer", async () => {
-		render(<RouterProvider router={makeRouter(300)} />);
+		renderPage(300);
 
 		expect(
 			await screen.findByText(
@@ -387,7 +420,7 @@ describe("TransactionDetailPage", () => {
 	// And the mirror: a transfer leg is offered the bundle picker disabled, with
 	// the reason beside it, instead of a request that comes back a 422.
 	it("tells a transfer leg it can't be bundled", async () => {
-		render(<RouterProvider router={makeRouter(500)} />);
+		renderPage(500);
 
 		expect(
 			await screen.findByText(/transfer leg can't be bundled/i),
@@ -398,7 +431,7 @@ describe("TransactionDetailPage", () => {
 	});
 
 	it("says so plainly when a row carries no anomaly", async () => {
-		render(<RouterProvider router={makeRouter(300)} />);
+		renderPage(300);
 
 		expect(await screen.findByText("No anomaly flags.")).toBeVisible();
 	});
@@ -411,7 +444,7 @@ describe("TransactionDetailPage", () => {
 		candidateRows = [
 			{ leg: TXN, counterparts: [{ transaction: COUNTERPART, daysApart: 1 }] },
 		];
-		render(<RouterProvider router={makeRouter()} />);
+		renderPage();
 
 		expect(await screen.findByText("VIREMENT RECU")).toBeVisible();
 		expect(screen.getByText(/1 day apart/)).toBeVisible();
@@ -427,7 +460,7 @@ describe("TransactionDetailPage", () => {
 		candidateRows = [
 			{ leg: TXN, counterparts: [{ transaction: COUNTERPART, daysApart: 1 }] },
 		];
-		render(<RouterProvider router={makeRouter()} />);
+		renderPage();
 
 		await user.click(
 			await screen.findByRole("button", { name: /not a transfer/i }),

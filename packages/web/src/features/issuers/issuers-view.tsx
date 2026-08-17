@@ -3,7 +3,7 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { getRouteApi, Link } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import { useMemo } from "react";
-import { PageHeader } from "@/components/page-header";
+import { PageLayout } from "@/components/page-layout";
 import { Empty } from "@/components/ui/empty";
 import { resolveCategoryColors } from "@/lib/category-tree";
 import { categoryQueries, issuerQueries, transactionQueries } from "@/lib/sdk";
@@ -130,19 +130,11 @@ export function IssuersView() {
 		});
 
 	return (
-		<section className="flex flex-col gap-6">
-			<header className="flex flex-wrap items-start justify-between gap-4">
-				<div>
-					<PageHeader>
-						<h1 className="text-balance text-2xl font-semibold text-gousse-ink">
-							Issuers
-						</h1>
-					</PageHeader>
-					<p className="mt-1 text-gousse-muted">
-						The places your money comes from and goes to.
-					</p>
-				</div>
-				<div className="flex items-center gap-2">
+		<PageLayout
+			title="Issuers"
+			description="The places your money comes from and goes to."
+			actions={
+				<>
 					{issuers.length > 0 ? (
 						<IssuersFilterInput value={search.q} onChange={onQueryChange} />
 					) : null}
@@ -153,9 +145,9 @@ export function IssuersView() {
 						<Plus size={16} aria-hidden />
 						Create issuer
 					</Link>
-				</div>
-			</header>
-
+				</>
+			}
+		>
 			{issuersQuery.isError ? (
 				<Empty
 					title="Couldn't load issuers"
@@ -193,6 +185,6 @@ export function IssuersView() {
 					categoryColorById={categoryColorById}
 				/>
 			)}
-		</section>
+		</PageLayout>
 	);
 }

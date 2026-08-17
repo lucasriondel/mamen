@@ -5,7 +5,7 @@ import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { BackLink } from "@/components/back-link";
-import { PageHeader } from "@/components/page-header";
+import { PageLayout } from "@/components/page-layout";
 import { Button } from "@/components/ui/button";
 import { Empty } from "@/components/ui/empty";
 import { RulesSection } from "@/features/rules/rules-section";
@@ -57,15 +57,23 @@ export function IssuerDetailPage() {
 
 	const issuer = issuerQuery.data as Issuer | undefined;
 	if (issuerQuery.isError || issuer == null) {
+		// Still a page, so still a topbar: this state has no name to show, but a
+		// user who arrived here with the sidebar collapsed needs the way back to it
+		// as much as on any other page (issue #129).
 		return (
-			<Empty
-				title="Couldn't load this issuer"
-				description="It may have been deleted, or something went wrong. Head back to the grid."
+			<PageLayout
+				title="Issuer"
+				back={<BackLink to="/issuers">Issuers</BackLink>}
 			>
-				<Link to="/issuers" className={cn(BUTTON_CLASS, "mt-2")}>
-					Back to issuers
-				</Link>
-			</Empty>
+				<Empty
+					title="Couldn't load this issuer"
+					description="It may have been deleted, or something went wrong. Head back to the grid."
+				>
+					<Link to="/issuers" className={cn(BUTTON_CLASS, "mt-2")}>
+						Back to issuers
+					</Link>
+				</Empty>
+			</PageLayout>
 		);
 	}
 
@@ -152,40 +160,41 @@ function IssuerDetailContent({ issuer }: IssuerDetailContentProps) {
 	};
 
 	return (
-		<section className="flex flex-col gap-8">
-			<BackLink to="/issuers">Issuers</BackLink>
-
-			<PageHeader>
-				<div className="flex flex-1 items-center gap-4">
+		<PageLayout
+			back={<BackLink to="/issuers">Issuers</BackLink>}
+			// The name *is* the heading — click it to edit in place (no separate
+			// rename form; edits autosave once typing settles). `flex-1` so the field
+			// takes the whole row beside the avatar rather than shrink-wrapping.
+			title={
+				<>
 					<IssuerAvatar
 						imageUrl={issuer.imageUrl}
 						defaultCategoryId={issuer.defaultCategoryId}
 						size="lg"
 					/>
-					{/* `flex-1` so the name field gets the whole remaining row rather than
-					    shrink-wrapping and wrapping the heading onto a second line. */}
-					<div className="flex min-w-0 flex-1 flex-col">
-						{/* The name *is* the heading — click it to edit in place (no separate
-						    rename form; edits autosave once typing settles). */}
+					<span className="min-w-0 flex-1">
 						<IssuerNameField issuer={issuer} />
-						<div className="flex items-baseline gap-2 text-sm">
-							<span className="text-gousse-muted tabular-nums">
-								{count} transaction{count === 1 ? "" : "s"}
-							</span>
-							<span
-								className={cn(
-									"font-medium tabular-nums",
-									net < 0 && "text-gousse-high",
-									net > 0 && "text-gousse-low",
-								)}
-							>
-								{formatCurrency(net)}
-							</span>
-						</div>
-					</div>
-				</div>
-			</PageHeader>
-
+					</span>
+				</>
+			}
+			description={
+				<span className="flex items-baseline gap-2 text-sm">
+					<span className="tabular-nums">
+						{count} transaction{count === 1 ? "" : "s"}
+					</span>
+					<span
+						className={cn(
+							"font-medium tabular-nums",
+							net < 0 && "text-gousse-high",
+							net > 0 && "text-gousse-low",
+						)}
+					>
+						{formatCurrency(net)}
+					</span>
+				</span>
+			}
+			className="gap-8"
+		>
 			<div className="flex flex-wrap gap-2">
 				<Button
 					variant="secondary"
@@ -270,6 +279,6 @@ function IssuerDetailContent({ issuer }: IssuerDetailContentProps) {
 					</span>
 				) : null}
 			</div>
-		</section>
+		</PageLayout>
 	);
 }

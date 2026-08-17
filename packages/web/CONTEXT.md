@@ -280,22 +280,26 @@ above the page's content (issue #125). A page names what is *in* the row and
 nothing about how the row is laid out; `className` is Tailwind-merged over the
 page column so a view can still cap its width or re-space itself.
 
-The trigger inside it is still `PageHeader`'s — composed, not re-implemented, so
-there is one place that decides when it renders (only while collapsed) and one
-place that hands `AppShell` the ref it focuses. The collapse flag itself is the
-shell's throughout; the layout only reads it, through the sidebar-collapsed
-context, which is why any page's trigger drives the same panel.
+Four slots, and nothing else is a page's to place: `title` (a node, so a
+category's icon or an issuer's avatar sits beside the name), `description`,
+`actions` at the far end of the row — a page's controls, and equally the *number*
+a drill-down is about — and `back`, the way out, on its own line above the title.
 
-**Adoption is partial.** Accounts and Transactions render through it; the other
-six title rows still call `PageHeader` directly and compose their own row, which
-is why `PageHeader` is a public component rather than an implementation detail.
-Sweeping the rest is a follow-up to #125.
+**Every page goes through it** (issue #129). That is what makes the trigger a
+property of being a page rather than of a page having remembered: it renders only
+while the panel is collapsed, hands `AppShell` the ref it focuses, and drives the
+shell's toggle — the flag itself is the shell's throughout, read here through the
+sidebar-collapsed context, which is why any page's trigger drives the same panel.
+`PageHeader`, the wrapper #125 composed for the trigger, is gone: with one caller
+the indirection was a second place to look. `test/page-layout-adoption.test.ts`
+holds the property — one `<h1>`, one `SidebarTrigger`, one reader of the flag,
+and a page named for every route.
 
-A page mounted in a test outside `AppShell` has no context and `PageHeader`
-throws, so a view test drives the layout with a stand-in provider rather than the
-real shell.
+A page mounted in a test outside `AppShell` has no context and the layout throws,
+so a view test wraps it in the stand-in from `test/sidebar-shell.tsx`
+(`withShell`, `OPEN_SHELL`, `COLLAPSED_SHELL`) rather than standing up the shell.
 
-_Avoid_: header (the `<header>` element is the topbar's markup; the *page header*
-is `PageHeader`, one part of it).
+_Avoid_: page header (the row is the *topbar*; `PageHeader` was a component and
+no longer exists), header (the `<header>` element is the topbar's markup).
 
 <!-- Terms are added here as they are resolved during design. -->

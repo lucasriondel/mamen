@@ -109,6 +109,42 @@ describe("PageLayout", () => {
 		).toBeInTheDocument();
 	});
 
+	it("renders no way back on a page that has none to name", () => {
+		renderLayout(<PageLayout title="Accounts" />);
+
+		expect(screen.queryByRole("link")).toBeNull();
+	});
+
+	it("renders a drill-down's way back above the title row", () => {
+		renderLayout(
+			<PageLayout title="Groceries" back={<a href="/categories">Categories</a>}>
+				<p>body</p>
+			</PageLayout>,
+		);
+
+		const back = within(topbar("Groceries")).getByRole("link", {
+			name: "Categories",
+		});
+		const heading = screen.getByRole("heading", { name: "Groceries" });
+		// Above the title, not beside it: it is the way out of this page, not one
+		// of its actions.
+		expect(back.compareDocumentPosition(heading)).toBe(
+			Node.DOCUMENT_POSITION_FOLLOWING,
+		);
+	});
+
+	it("keeps the trigger reachable on a page that has a way back", () => {
+		renderLayout(
+			<PageLayout
+				title="Groceries"
+				back={<a href="/categories">Categories</a>}
+			/>,
+			shell({ collapsed: true }),
+		);
+
+		expect(trigger()).not.toBeNull();
+	});
+
 	it("renders the title's description under it, and the page under both", () => {
 		renderLayout(
 			<PageLayout

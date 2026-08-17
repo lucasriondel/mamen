@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { ArrowRightLeft } from "lucide-react";
 import { useMemo } from "react";
+import { PageLayout } from "@/components/page-layout";
 import { Button } from "@/components/ui/button";
 import { Empty } from "@/components/ui/empty";
 import {
@@ -58,18 +59,11 @@ export function TransfersView() {
 	const legs = (candidatesQuery.data ?? []) as readonly TransferCandidate[];
 
 	return (
-		<section className="mx-auto flex max-w-4xl flex-col gap-8">
-			<header>
-				<h1 className="text-balance font-semibold text-2xl text-gousse-ink">
-					Transfers
-				</h1>
-				<p className="mt-1 text-gousse-muted">
-					Money you moved between your own accounts, detected automatically.
-					Confirm a pair to net it out of your recap, or clear the ones that
-					aren't transfers.
-				</p>
-			</header>
-
+		<PageLayout
+			title="Transfers"
+			description="Money you moved between your own accounts, detected automatically. Confirm a pair to net it out of your recap, or clear the ones that aren't transfers."
+			className="mx-auto max-w-4xl gap-8"
+		>
 			{candidatesQuery.isPending ? (
 				<TransfersListSkeleton />
 			) : candidatesQuery.isError ? (
@@ -145,6 +139,6 @@ export function TransfersView() {
 					</Table>
 				</div>
 			)}
-		</section>
+		</PageLayout>
 	);
 }

@@ -2,17 +2,20 @@ import type { Account } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
 import { getRouteApi, Link } from "@tanstack/react-router";
 import { useMemo } from "react";
+import { PageLayout } from "@/components/page-layout";
 import { Empty } from "@/components/ui/empty";
 import type { TransactionFilterValues } from "@/features/transactions/transactions-filters";
 import {
 	composeTransactionFilters,
 	TransactionsSection,
 } from "@/features/transactions/transactions-section";
+import { formatCurrency } from "@/lib/format";
 import { accountQueries, transactionQueries } from "@/lib/sdk";
-import { toPeriod } from "../search";
+import { cn } from "@/lib/utils";
+import { type RecapSearch, toPeriod } from "../search";
+import { BucketGlyph } from "./bucket-glyph";
 import { toDetailScope } from "./detail-scope";
-import { RecapDetailHeader } from "./recap-detail-header";
-import { accountsLabel, periodLabel } from "./scope-labels";
+import { accountsLabel, periodLabel, targetLabel } from "./scope-labels";
 import { type RecapDetailSearch, toDetailTarget } from "./search";
 import { useBucketIdentity } from "./use-bucket-identity";
 
@@ -103,25 +106,69 @@ export function RecapDetailView() {
 	// one from when the excluded summary opened this page. There is nothing to scope
 	// by, and querying unscoped would show the whole table under a header claiming
 	// to be one line's rows.
+	// The way back carries the recap's own search verbatim, so returning lands on
+	// the view the user left rather than the current-month default.
+	const backToRecap = (
+		<RecapBackLink
+			search={{
+				period: search.period,
+				month: search.month,
+				year: search.year,
+				accountIds: search.accountIds,
+			}}
+		/>
+	);
+
 	if (target === undefined || scope === undefined) {
 		return (
-			<section className="flex flex-col gap-6">
-				<Link
-					to="/recap"
-					className="text-gousse-muted text-sm hover:text-gousse-ink"
-				>
-					← Recap
-				</Link>
+			// The page is normally titled by the bucket it drills into; with no
+			// bucket to name, it is titled by what it is — and still carries the
+			// topbar, so a collapsed sidebar can be re-opened from the dead end too.
+			<PageLayout title="Recap detail" back={backToRecap}>
 				<Empty
 					title="Nothing to show"
 					description="This link doesn't name an issuer or a category. Open a line from the recap to see its transactions."
 				/>
-			</section>
+			</PageLayout>
 		);
 	}
 
+	const total = countQuery.data?.total ?? 0;
+
 	return (
-		<section className="flex flex-col gap-6">
+		<PageLayout
+			back={backToRecap}
+			title={
+				<>
+					<BucketGlyph axis={target.axis} identity={identity} />
+					<span className="truncate">{identity.name}</span>
+				</>
+			}
+			// The scope is *stated*, not offered as controls: period and accounts are
+			// what make this page this recap line's drill-down, so changing them here
+			// would quietly turn it into a different line's page.
+			description={
+				<span className="text-sm">
+					{targetLabel(target)} · {periodLabel(period)} ·{" "}
+					{accountsLabel(accountIds, accounts)}
+				</span>
+			}
+			// `<output>` (an implicit live region) both carries the label a generic
+			// span cannot and announces the total when the filters change it — the
+			// computed result of the view's filters, beside the bucket it totals.
+			actions={
+				<output
+					aria-label="Detail total"
+					className={cn(
+						"shrink-0 font-medium text-xl tabular-nums",
+						total < 0 && "text-gousse-high",
+						total > 0 && "text-gousse-low",
+					)}
+				>
+					{formatCurrency(total)}
+				</output>
+			}
+		>
 			<TransactionsSection
 				scope={scope}
 				search={search}
@@ -129,21 +176,20 @@ export function RecapDetailView() {
 				onToggleSort={toggleSort}
 				onPageChange={goToPage}
 				emptyDescription="Nothing counted toward this recap row in the period."
-			>
-				<RecapDetailHeader
-					target={target}
-					identity={identity}
-					periodLabel={periodLabel(period)}
-					accountsLabel={accountsLabel(accountIds, accounts)}
-					total={countQuery.data?.total ?? 0}
-					backSearch={{
-						period: search.period,
-						month: search.month,
-						year: search.year,
-						accountIds: search.accountIds,
-					}}
-				/>
-			</TransactionsSection>
-		</section>
+			/>
+		</PageLayout>
+	);
+}
+
+/** The way back to the recap — the same link on the page and on its dead end. */
+function RecapBackLink({ search }: { search: RecapSearch }) {
+	return (
+		<Link
+			to="/recap"
+			search={search}
+			className="self-start text-gousse-muted text-sm hover:text-gousse-ink"
+		>
+			← Recap
+		</Link>
 	);
 }

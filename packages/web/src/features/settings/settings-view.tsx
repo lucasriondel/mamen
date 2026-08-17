@@ -1,3 +1,4 @@
+import { PageLayout } from "@/components/page-layout";
 import { AiSettingsView } from "@/features/ai-settings/ai-settings-view";
 import { AppearanceSettings } from "./appearance-settings";
 
@@ -18,18 +19,13 @@ import { AppearanceSettings } from "./appearance-settings";
  */
 export function SettingsView() {
 	return (
-		<div className="mx-auto flex max-w-4xl flex-col gap-8">
-			<header>
-				<h1 className="text-balance text-2xl font-semibold text-gousse-ink">
-					Settings
-				</h1>
-				<p className="mt-1 text-gousse-muted">
-					How mamen looks, and which provider reads your statements.
-				</p>
-			</header>
-
+		<PageLayout
+			title="Settings"
+			description="How mamen looks, and which provider reads your statements."
+			className="mx-auto max-w-4xl gap-8"
+		>
 			<AppearanceSettings />
 			<AiSettingsView />
-		</div>
+		</PageLayout>
 	);
 }

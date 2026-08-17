@@ -8,18 +8,19 @@ import { useSidebarCollapsed } from "@/lib/use-sidebar-collapsed";
  * route renders into (issue #106).
  *
  * The collapse is one flag driving three things — the panel's width on desktop,
- * the drawer's slide on mobile, and whether a page's {@link PageHeader} renders
+ * the drawer's slide on mobile, and whether a page's {@link PageLayout} renders
  * a trigger at all. It lives here rather than in the sidebar because the two
  * controls sit on opposite sides of the panel: closing is driven from the
  * header inside it, re-opening from a control outside it. A collapsed panel
  * takes `inert`, so a trigger within it would be unreachable — which is the
  * whole reason the open control is not the close control.
  *
- * The trigger itself is rendered per-page, by {@link PageHeader}, inline beside
+ * The trigger itself is rendered per-page, by {@link PageLayout}, inline beside
  * that page's own title — not a shared bar owned by this shell. `AppShell` only
  * owns the flag and hands it down via {@link SidebarCollapsedProvider}, so every
  * page's trigger toggles the same state and the shell's focus handoff (below)
- * still has one ref to aim at regardless of which page mounted it.
+ * still has one ref to aim at regardless of which page mounted it. Since issue
+ * #129 every page goes through that layout, so there is always exactly one.
  *
  * `useSidebarCollapsed` persists the flag, so a user who reclaimed the width
  * does not get the panel back on the next navigation or reload.

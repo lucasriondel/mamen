@@ -1,6 +1,6 @@
 import { getRouteApi } from "@tanstack/react-router";
 import { useMemo } from "react";
-import { PageHeader } from "@/components/page-header";
+import { PageLayout } from "@/components/page-layout";
 import { AccountMultiSelect } from "@/components/ui/account-multi-select";
 import { Empty } from "@/components/ui/empty";
 import { ExcludedSummaryLine } from "./excluded-summary-line";
@@ -87,18 +87,10 @@ export function RecapView() {
 	};
 
 	return (
-		<section className="flex flex-col gap-6">
-			<header>
-				<PageHeader>
-					<h1 className="text-2xl font-semibold text-gousse-ink text-balance">
-						Recap
-					</h1>
-				</PageHeader>
-				<p className="mt-1 text-gousse-muted">
-					Where your money went, by issuer and by category.
-				</p>
-			</header>
-
+		<PageLayout
+			title="Recap"
+			description="Where your money went, by issuer and by category."
+		>
 			<div className="flex flex-wrap items-center gap-3">
 				<PeriodSelector
 					period={period}
@@ -163,6 +155,6 @@ export function RecapView() {
 					</div>
 				</>
 			)}
-		</section>
+		</PageLayout>
 	);
 }
