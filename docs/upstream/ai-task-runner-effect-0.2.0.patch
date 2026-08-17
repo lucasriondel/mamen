@@ -55,7 +55,7 @@ index e5c49c4..ece1a69 100644
  ## What this package deliberately does not own
  
 diff --git a/index.ts b/index.ts
-index bac707f..a426651 100644
+index 4a11458..1d72b6b 100644
 --- a/index.ts
 +++ b/index.ts
 @@ -47,6 +47,13 @@ export type {
@@ -85,7 +85,7 @@ index 95dfcc0..659d61d 100644
    "type": "module",
    "license": "MIT",
 diff --git a/src/hosted.ts b/src/hosted.ts
-index 8910df0..bb6750e 100644
+index c86c50e..2f622c0 100644
 --- a/src/hosted.ts
 +++ b/src/hosted.ts
 @@ -1,12 +1,13 @@
@@ -254,7 +254,7 @@ index 0000000..7ca360d
 +): { readonly text: string; readonly document?: TaskDocument } =>
 +	typeof built === "string" ? { text: built } : built
 diff --git a/src/runner.ts b/src/runner.ts
-index 062ae5e..4ef88e1 100644
+index 26edc85..2a5eec4 100644
 --- a/src/runner.ts
 +++ b/src/runner.ts
 @@ -16,6 +16,7 @@ import {
@@ -289,7 +289,7 @@ index 062ae5e..4ef88e1 100644
  						apiKey,
  						generate,
 diff --git a/src/task.ts b/src/task.ts
-index 3ad017c..dd5ad56 100644
+index 9293bd3..bdc94c2 100644
 --- a/src/task.ts
 +++ b/src/task.ts
 @@ -1,5 +1,7 @@
@@ -331,6 +331,109 @@ index 3ad017c..dd5ad56 100644
  	readonly hostedInstruction: string
  	readonly allowedTools: readonly string[]
  }
+diff --git a/test/ai-sdk-file-part.test.ts b/test/ai-sdk-file-part.test.ts
+new file mode 100644
+index 0000000..a0cfc67
+--- /dev/null
++++ b/test/ai-sdk-file-part.test.ts
+@@ -0,0 +1,97 @@
++import { describe, expect, test } from "bun:test"
++
++import { generateObject, jsonSchema } from "ai"
++import type { LanguageModelV1, LanguageModelV1Prompt } from "ai"
++
++import { hostedPromptFields } from "../src/hosted.ts"
++
++/**
++ * `hostedPromptFields` is checked against the ai-sdk by the compiler and by a
++ * test asserting the literal `mimeType` key — but neither of those runs the
++ * SDK. The SDK validates a prompt at runtime and then *converts* it before a
++ * provider sees it, so a shape that typechecks can still arrive at the vendor
++ * as no file at all. This is the seam below `generateHostedLive`:
++ * `generateObject` itself, given a stub model that records the prompt the SDK
++ * actually built.
++ *
++ * It is not a live vendor call — no request leaves the process — but it is the
++ * whole of the ai-sdk between this package and the wire.
++ */
++const recordingModel = () => {
++	const prompts: LanguageModelV1Prompt[] = []
++	const model: LanguageModelV1 = {
++		specificationVersion: "v1",
++		provider: "test",
++		modelId: "test-model",
++		defaultObjectGenerationMode: "json",
++		doGenerate: async (options) => {
++			prompts.push(options.prompt)
++			return {
++				text: JSON.stringify({ rows: 1 }),
++				finishReason: "stop" as const,
++				usage: { promptTokens: 1, completionTokens: 1 },
++				rawCall: { rawPrompt: null, rawSettings: {} },
++			}
++		},
++		doStream: async () => {
++			throw new Error("the object path never streams")
++		},
++	}
++	return { prompts, model }
++}
++
++const PDF = new Uint8Array([0x25, 0x50, 0x44, 0x46])
++
++const userParts = (prompt: LanguageModelV1Prompt | undefined) =>
++	(prompt?.find((message) => message.role === "user")?.content ??
++		[]) as unknown as Array<Record<string, unknown>>
++
++describe("the ai-sdk accepts what hostedPromptFields builds", () => {
++	test("a document survives the SDK's validation and conversion as a file part", async () => {
++		const { prompts, model } = recordingModel()
++
++		await generateObject({
++			model,
++			...hostedPromptFields({
++				system: "sys",
++				prompt: "do it",
++				document: { data: PDF, mediaType: "application/pdf" },
++			}),
++			schema: jsonSchema({ type: "object" }),
++		})
++
++		// The SDK's own conversion, not ours. A wrong key is not a type error here
++		// — it is a request that reaches the vendor with the document missing, and
++		// the SDK rejects the prompt outright rather than dropping the part
++		// silently, which is what makes this assertion worth having.
++		const parts = userParts(prompts[0])
++		const file = parts.find((part) => part["type"] === "file")
++		expect(file).toBeDefined()
++		expect(file?.["mimeType"]).toBe("application/pdf")
++
++		// The bytes are still the bytes, however the SDK chose to encode them.
++		const data = file?.["data"]
++		const bytes =
++			typeof data === "string"
++				? Uint8Array.from(Buffer.from(data, "base64"))
++				: (data as Uint8Array)
++		expect(bytes).toEqual(PDF)
++
++		// The instruction rides the same turn as the file.
++		expect(parts.some((part) => part["type"] === "text")).toBe(true)
++	})
++
++	test("the text-only form is still a valid call and carries no file part", async () => {
++		const { prompts, model } = recordingModel()
++
++		await generateObject({
++			model,
++			...hostedPromptFields({ system: "sys", prompt: "do it" }),
++			schema: jsonSchema({ type: "object" }),
++		})
++
++		expect(userParts(prompts[0]).some((part) => part["type"] === "file")).toBe(
++			false,
++		)
++	})
++})
 diff --git a/test/hosted-prompt-fields.test.ts b/test/hosted-prompt-fields.test.ts
 new file mode 100644
 index 0000000..b36f27a

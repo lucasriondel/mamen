@@ -4,12 +4,34 @@ Issue [#123](https://github.com/lucasriondel/mamen/issues/123), the upstream
 prerequisite of PRD [#115](https://github.com/lucasriondel/mamen/issues/115).
 
 **Status: written and verified, not published.** The change below is
-implemented, typechecked and covered by 15 tests. It is not on npm, because
+implemented, typechecked and covered by 17 tests. It is not on npm, because
 `ai-task-runner-effect`'s repository has no remote and is not present in the
-environment this was written in, and there are no publish credentials here. The
-patch beside this file — `ai-task-runner-effect-0.2.0.patch` — is the artifact
-to apply in that repository. mamen's hosted extraction column stays blocked
-until someone applies it and publishes `0.2.0`.
+environment this was written in, and there are no publish credentials here —
+the registry lists `0.1.0` and nothing else. The patch beside this file —
+`ai-task-runner-effect-0.2.0.patch` — is the artifact to apply in that
+repository. mamen's hosted extraction column stays blocked until someone
+applies it and publishes `0.2.0`.
+
+## What the patch touches
+
+| File | Change |
+| --- | --- |
+| `src/prompt.ts` | new — `TaskDocument`, `HostedPrompt`, `HostedPromptBuilt`, `hostedTurn` |
+| `src/task.ts` | `TaskSpec.hostedPrompt` widens to return `HostedPromptBuilt` |
+| `src/hosted.ts` | `document?` on the seam; `hostedPromptFields` split out and exported; `runHosted` forwards the document |
+| `src/runner.ts` | normalizes the builder's return once, through `hostedTurn` |
+| `index.ts` | exports the three new types |
+| `package.json` | `0.1.0` → `0.2.0` |
+| `README.md` | a **Documents** section, and how a fake asserts one |
+| `test/support.ts` | new — the codecs, the recording fake, the two `ClaudeCode` layers |
+| `test/runner-document.test.ts` | new — the document-bearing path, the text-only path, the CLI branch |
+| `test/hosted-prompt-fields.test.ts` | new — the normalizer and the exact ai-sdk shape |
+| `test/seam-compatibility.test.ts` | new — a `0.1.0`-shaped fake still compiles and runs |
+| `test/ai-sdk-file-part.test.ts` | new — `generateObject` itself, against a stub model |
+
+`packages/api/src/test/upstream-ai-task-runner.test.ts` holds this table to the
+patch's own `diff --git` lines, in both directions, and the version and the test
+count below to what the patch actually does — so the two files cannot drift.
 
 ## Why the change is needed
 
@@ -200,7 +222,7 @@ different halves of the input.
 Everything below was run against a reconstruction of the package (see *How this
 was verified without the repository*).
 
-- **`bun test`: 15 pass, 0 fail** across three files:
+- **`bun test`: 17 pass, 0 fail** across 4 files:
   - `test/runner-document.test.ts` (7) — a document reaches the seam with the
     right bytes and media type; the hosted turn is still the hosted column and
     the instruction; a missing credential fails without calling the vendor; a
@@ -212,13 +234,22 @@ was verified without the repository*).
     the file part sharing the instruction's turn.
   - `test/seam-compatibility.test.ts` (2) — a fake written against `0.1.0`'s
     signature still runs; asserting a document is one property.
+  - `test/ai-sdk-file-part.test.ts` (2) — `generateObject` itself, with a stub
+    `LanguageModelV1` that records the prompt the SDK built. Every other hosted
+    test stops at the fake, and `hostedPromptFields`' own test asserts the
+    literal key against nothing but itself; this one runs the SDK's validation
+    and its conversion, so what is asserted is the *provider-facing* file part —
+    its media type, and its bytes decoded back out of the SDK's own encoding.
 - **Typecheck clean** under `strict` + `exactOptionalPropertyTypes` +
   `noUncheckedIndexedAccess`.
 - **Each guard mutation-checked.** Dropping the document from the seam
   forwarding, spelling the ai-sdk field `mediaType`, dropping the document in
   the normalizer, moving the text-only path onto the `messages:` form, sending
   the CLI column to the vendor, and leaking a document into the CLI options each
-  redden exactly the assertions that own them, and nothing else.
+  redden exactly the assertions that own them, and nothing else. Three of the
+  six are also type errors; the `mediaType` one additionally fails inside the
+  ai-sdk's own prompt validation, which is the strongest of the six — the SDK
+  rejects the request outright rather than quietly sending it with no file.
 - **A real consumer**, built from the packed `0.2.0` tarball in a fresh project:
   mamen's intended shape — an Effect Schema codec (`JSONSchema.make` +
   `decodeUnknown`, no zod), an `extract-pdf` row attaching PDF bytes, a
@@ -227,10 +258,12 @@ was verified without the repository*).
   intact and the payload decoding through Effect Schema.
 
 Not verified: **no request was made to a real vendor.** `generateHostedLive`
-builds its model handle internally, so there is no seam below it; the ai-sdk
-call shape is pinned by `hostedPromptFields`' test and by the compiler against
-`ai@4.3.19`, not by a response from Anthropic, Google or OpenAI. Worth one live
-call with a small PDF before mamen's hosted column is offered to users.
+builds its model handle internally, so there is no seam below it — the stub
+model above is spliced in beside it, at `generateObject`, which covers the whole
+of the ai-sdk but stops at its provider adapter. So the request is verified as
+far as the SDK's provider-facing prompt and no further: what Anthropic, Google
+or OpenAI make of a PDF part is not asserted here. Worth one live call with a
+small PDF before mamen's hosted column is offered to users.
 
 ## How this was verified without the repository
 
@@ -242,6 +275,20 @@ was then compiled and its output diffed against the published `dist` —
 **byte-identical `.js` and `.d.ts`, all seven modules**. That is what makes the
 patch trustworthy: it is a diff against source that provably compiles to the
 published artifact.
+
+To redo it: unpack the `0.1.0` tarball, write each `src/*.ts` back out of its
+`dist` pair, and build with `target: ES2022`, `module: ESNext`,
+`moduleResolution: bundler`, `allowImportingTsExtensions`,
+`rewriteRelativeImportExtensions`, `verbatimModuleSyntax`, `declaration`, under
+`strict` + `exactOptionalPropertyTypes` + `noUncheckedIndexedAccess`. Those
+settings are what make the emit byte-comparable; `module: Preserve` is the one
+that visibly is not (it drops `export {}` from the type-only `result.js`).
+
+This has now been done **twice, independently** — once when the patch was
+written, and once since, from the tarball alone. The second reconstruction
+differs from the first only in formatting `tsc` erases, and the patch's hunks
+regenerate byte-for-byte identical against it, context lines and all. It applies
+to it with `git apply` at zero offset and zero fuzz.
 
 It is still not literally the maintainer's file. Expect the patch to need
 `git apply -3` (or a hand application) if the real source differs in whitespace
