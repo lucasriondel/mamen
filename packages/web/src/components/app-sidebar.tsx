@@ -11,11 +11,9 @@ import {
 	Wallet,
 } from "lucide-react";
 import type { ComponentProps, ReactNode, Ref } from "react";
-import { ThemeToggle } from "@/components/theme-toggle";
 import {
 	SidebarClose,
 	SidebarContent,
-	SidebarFooter,
 	SidebarGroup,
 	SidebarHeader,
 	SidebarItem,
@@ -137,10 +135,18 @@ interface AppSidebarProps {
 }
 
 /**
- * The app's left navigation: brand, links to the feature surfaces, and the
- * theme toggle pinned to the bottom. One unlabelled `SidebarGroup` holds the
- * whole nav — the destinations are a single flat list, and splitting them into
- * labelled sections would be new navigation structure, not a migration.
+ * The app's left navigation: the brand, then links to the feature surfaces. One
+ * unlabelled `SidebarGroup` holds the whole nav — the destinations are a single
+ * flat list, and splitting them into labelled sections would be new navigation
+ * structure, not a migration.
+ *
+ * **No footer** (issue #127). It held the theme toggle, which now lives on
+ * `/settings` with the app's other preferences: theme is a choice made once,
+ * and the sidebar is the one piece of chrome every page pays for. `SidebarFooter`
+ * draws a top border and pins itself with `mt-auto`, so an emptied one would
+ * leave a rule floating at the bottom of the panel — it is dropped rather than
+ * left childless, which is what makes `Settings`, already last in the list, the
+ * bottom-most row.
  *
  * Rows are deliberately **unhued**. `SidebarItem`'s `hue` prop exists for
  * consumers whose rows carry their own colour — a label list, a category tree —
@@ -201,9 +207,6 @@ export function AppSidebar({ collapsed, onToggle, closeRef }: AppSidebarProps) {
 					))}
 				</SidebarGroup>
 			</SidebarContent>
-			<SidebarFooter>
-				<ThemeToggle className="w-full" />
-			</SidebarFooter>
 		</SidebarShell>
 	);
 }

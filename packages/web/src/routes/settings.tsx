@@ -1,19 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { AiSettingsView } from "@/features/ai-settings/ai-settings-view";
+import { SettingsView } from "@/features/settings/settings-view";
 
 /**
- * The settings route (issue #120, PRD #115).
+ * The settings route (issue #120, PRD #115; issue #127).
  *
- * `/settings` rather than `/settings/ai`: mamen's settings surface has exactly
- * one section today, and a nav entry pointing at a path whose parent 404s is a
- * worse shape than one page that grows a second heading. The feature module is
- * named for what it is — `features/ai-settings` — so the split, when there is
- * something to split, is a layout route around views that already exist
- * separately.
+ * `/settings` rather than `/settings/ai` and now `/settings/appearance`: the
+ * second section arrived with #127 and is a single row, so the page grew the
+ * heading the original decision anticipated rather than a layout route over two
+ * children. `SettingsView` is the composition; the views under it stay separate
+ * modules, which is what makes that split cheap the day a section earns its own
+ * URL.
  *
- * No search params and no loader: both sections read through TanStack Query at
- * the SDK seam, as every other view here does.
+ * No search params and no loader: every section reads through TanStack Query at
+ * the SDK seam, as every other view here does — or, for the theme, through the
+ * `next-themes` provider `__root.tsx` mounts.
  */
 export const Route = createFileRoute("/settings")({
-	component: AiSettingsView,
+	component: SettingsView,
 });
