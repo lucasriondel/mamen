@@ -28,6 +28,15 @@ deploy.
 
 Nothing else in the app needs the binary or the token — only PDF import.
 
+**Only while extraction runs on `claude-code`.** Since issue #124 the
+`extract-pdf` task can be pointed at a hosted vendor (Anthropic, Google, OpenAI)
+on the settings page, and that branch spawns nothing: no binary, no Claude Code
+token, just that vendor's API key from the same encrypted store. A deployment
+that has moved extraction onto a hosted vendor needs neither of the first two
+requirements above — `TOKEN_ENCRYPTION_KEY` still applies, because the vendor's
+key lives in the same place. `claude-code` remains the default, so a deployment
+that has changed nothing still needs both.
+
 ## Per-call, not fail-at-build
 
 The token is resolved **when a PDF is uploaded**, not when the server's layers

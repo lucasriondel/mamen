@@ -251,9 +251,12 @@ repeated per package.
   not in the browser: the OAuth token stays a server secret and the model reads
   the staged file through its own `Read` tool. It runs through the **AI runner**,
   so the **task choice** is what picks the transport; on `claude-code` — the
-  default, and today the only wired one — that is the `claude` CLI through
-  `claude-code-effect`, exactly as before. The upload lives only in a **transient
-  temp dir** deleted on every exit path — nothing persists, no row is written.
+  default — that is the `claude` CLI through `claude-code-effect`, exactly as
+  before, and on a hosted **AI provider** the statement is sent to that vendor as
+  a **document part**. Nothing falls back: a vendor that refuses fails the run,
+  because the user chose which company sees their statement. The upload lives only
+  in a **transient temp dir** deleted on every exit path — nothing persists, no
+  row is written.
   The whole extraction failure taxonomy collapses to a single client-visible
   **`ExtractionFailed`** (real tag logged server-side); `InvalidFileType` and
   **`AiProviderNotConfigured`** are the two other, client-fixable, errors. See
@@ -299,6 +302,15 @@ repeated per package.
   itself — while a hosted vendor has neither tools nor a filesystem and must
   never be sent that material. A task with nothing to say differently lists the
   same builder twice, as a statement rather than an omission.
+
+- **Document part** — how a statement reaches a **hosted** provider: the file's
+  own bytes, attached to the request, rather than text mamen extracted first.
+  Text extraction was rejected because it discards the two-column Débit/Crédit
+  layout the extraction rules depend on. A hosted prompt column returns
+  `{ text, document }`; the base64 encoding happens at the wire and mamen carries
+  bytes throughout.
+  _Avoid_: attachment, upload (nothing is uploaded anywhere mamen owns; the
+  statement is still deleted on every exit path).
 
 - **AI provider** — who runs an **AI task**: the local `claude-code` CLI, or one
   of the hosted vendors `anthropic`, `google`, `openai`. It is the unit a

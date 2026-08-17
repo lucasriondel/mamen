@@ -152,12 +152,13 @@ deep import past `secrets/index.ts` is the design, and `secrets/boundary.test.ts
 names this and the **stored CLI token** as its only two callers. Nothing here
 decrypts or holds a key.
 
-The **hosted branch is refused at this seam**, through the same `generateHosted`
-argument a test would fake: it is not wired (a statement can only reach a vendor
-as a document part, blocked upstream — PRD #115), and the previous ticket already
-lets a hosted provider be *selected*, so without the refusal a bank statement
-would be posted to a vendor under a prompt naming a path on this machine. The
-refusal collapses to `ExtractionFailed` like every other upstream tag.
+Both branches run since issue #124. The hosted one is the package's **own**
+ai-sdk call, left to it rather than reimplemented; the only reason mamen names it
+at all is `HostedTransport` (`ai-runner/hosted.ts`), the **one new seam** — an
+optional tag read with `Effect.serviceOption`, so production provides nothing and
+a test provides a fake in one line and asserts *what reached the vendor*. Nothing
+under `src/` provides it, which is what keeps a faked vendor transport a thing
+only a test can introduce.
 
 **Stored CLI token**:
 `ClaudeConfigStored` (`ai-runner/claude.ts`) — the `claude-code-effect` config
@@ -192,9 +193,20 @@ tool allowance, and **two prompt columns**. Typed `Record<AiTask, TaskSpec<…>>
 so a task added to the catalogue does not compile until it has a row. The two
 columns are load-bearing: the CLI prompt names the absolute path of the staged
 PDF and tells the model to open it with its own `Read` tool, which a hosted
-vendor can neither act on nor be shown. The CLI column is the extraction prompt
-(`ai-runner/prompt.ts`) unchanged — it is the correctness surface of PDF import,
-and moving it is not editing it.
+vendor can neither act on nor be shown. The hosted column instead returns
+`{ text, document }` — the statement's **bytes**, as a document part, which is
+what preserves the two-column Débit/Crédit layout the rules depend on (issue
+#124; server-side text extraction would discard it). Both prompts are built from
+**one** copy of the extraction rules (`ai-runner/prompt.ts`), so the same
+statement cannot extract differently depending on the chosen vendor; the CLI
+prompt's own text is unchanged and `tasks.test.ts` holds it so.
+
+**Hosted document part**:
+The statement's bytes reach the task through `ExtractPdfInput.pdfBytes`, read by
+`import/extract.ts` out of the **transient temp dir**'s staged copy — so both
+transports are handed the same file and the same finalizer deletes it. The read
+is in the handler and not in the prompt column because a prompt builder is a pure
+function. The base64 encoding is the ai-sdk's, at the wire; mamen carries bytes.
 
 **Codec adapter**:
 `effectSchemaCodec` (`ai-runner/codec.ts`) — one contract schema as the

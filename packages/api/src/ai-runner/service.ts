@@ -1,9 +1,10 @@
 import { SqlClient } from "@effect/sql";
 import type { AiTask } from "@mamen/shared/contract";
-import { type HostedGenerate, makeTaskRunner } from "ai-task-runner-effect";
+import { makeTaskRunner } from "ai-task-runner-effect";
 import { Effect, Option } from "effect";
 import { TaskProvider } from "../ai-tasks";
 import { readSecret } from "../secrets/repository";
+import { HostedTransport } from "./hosted";
 import { AI_TASK_TABLE } from "./tasks";
 
 /**
@@ -24,34 +25,14 @@ import { AI_TASK_TABLE } from "./tasks";
  *   review, and this is the one place in mamen that does. It stays `Redacted`
  *   until the transport that spends it unwraps it, and `none` becomes the
  *   `null` the runner reads as "not runnable".
+ * - **`generateHosted` is left to the package** (#124). Both branches are wired
+ *   now, and the hosted one is the package's own ai-sdk call; the only reason
+ *   mamen names it at all is {@link HostedTransport}, the test seam.
  *
  * Nothing here decrypts, and nothing here holds a key: `readSecret` is called
  * and its answer is handed straight on, which leaves the single-decryptor rule
  * (ADR 0011) where #117 put it.
  */
-
-/**
- * The hosted transport, refused before it can reach a vendor.
- *
- * `makeTaskRunner`'s third argument substitutes the one HTTP call; the package
- * offers it so a test can fake the seam, and mamen uses it for the same reason
- * from the other direction — **the hosted branch is not wired** (PRD #115: a
- * statement can only reach a vendor as a document part, which is blocked on the
- * upstream package). Without this, a user who selects Anthropic today would have
- * their bank statement posted to a vendor under a prompt that names a path on
- * this machine and asks for a tool the vendor does not have: a real request,
- * spending their key, that could not have worked.
- *
- * So the run fails instead, and the statement never leaves the machine. The
- * failure is a `HostedApiError`, which collapses to the one client-visible
- * `ExtractionFailed` like every other upstream tag.
- */
-const refuseHosted: HostedGenerate = ({ vendor }) =>
-	Promise.reject(
-		new Error(
-			`the ${vendor} transport is not wired yet — extraction runs on the local Claude Code CLI`,
-		),
-	);
 
 export class AiRunner extends Effect.Service<AiRunner>()("api/AiRunner", {
 	effect: Effect.gen(function* () {
@@ -60,6 +41,15 @@ export class AiRunner extends Effect.Service<AiRunner>()("api/AiRunner", {
 		// requirement is `ClaudeCode` alone — which is what lets the extraction
 		// handler narrow that one service to its temp dir at the call site.
 		const sql = yield* SqlClient.SqlClient;
+
+		/**
+		 * The hosted branch's one HTTP call (issue #124). Absent in production, so
+		 * the package's own ai-sdk call runs and a statement really does reach the
+		 * vendor the user chose; present only when a test provides
+		 * {@link HostedTransport}, which is where "what reached the vendor" is
+		 * asserted.
+		 */
+		const hosted = yield* Effect.serviceOption(HostedTransport);
 
 		const runner = makeTaskRunner(
 			AI_TASK_TABLE,
@@ -73,7 +63,13 @@ export class AiRunner extends Effect.Service<AiRunner>()("api/AiRunner", {
 						Effect.map(Option.getOrNull),
 					),
 			},
-			{ generateHosted: refuseHosted },
+			// Omitted rather than passed as `undefined`: the package reads
+			// `internals.generateHosted ?? generateHostedLive`, and an absent seam is
+			// the live call.
+			Option.match(hosted, {
+				onNone: () => ({}),
+				onSome: (generateHosted) => ({ generateHosted }),
+			}),
 		);
 
 		return { run: runner.run } as const;

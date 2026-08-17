@@ -45,10 +45,12 @@ Two statement formats are supported today:
 - **CSV**, parsed in the browser. One parser ships, for Green-Got, auto-detected
   by its header fingerprint, with a manual format picker for the ambiguous cases.
   Adding a bank means adding one parser module.
-- **PDF**, extracted server-side by handing the file to the `claude` CLI, which
-  means the statement's contents go to Anthropic's API. The upload is staged in a
-  temp directory and deleted afterwards — it is never stored, and nothing reaches
-  the database until you commit the preview.
+- **PDF**, extracted server-side by handing the file to whichever AI provider you
+  picked in Settings. On the default, the local `claude` CLI, the statement's
+  contents go to Anthropic's API; pick a hosted vendor instead and the statement
+  is sent to that vendor as a document. Either way the upload is staged in a temp
+  directory and deleted afterwards — it is never stored, and nothing reaches the
+  database until you commit the preview.
 
 Amounts are EUR only, formatted `fr-FR`. There is no multi-currency support and
 no authentication of any kind — see [SECURITY.md](SECURITY.md).

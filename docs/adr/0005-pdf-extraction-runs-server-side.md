@@ -83,7 +83,8 @@ Extraction no longer calls `claude-code-effect` directly. It runs the
 `extract-pdf` row of the **task table** through the **AI runner**
 (`ai-task-runner-effect`), which resolves the task's stored **AI provider** and
 model and branches to that transport. Every decision above is unchanged in
-substance: on `claude-code` — the default, and today the only wired branch — the
+substance: on `claude-code` — the default, and at the time the only wired branch
+(issue #124 wired the other, see below) — the
 same CLI reads the same staged file with the same `Read`-only allowance, and the
 same rows come back. What moved is *who decides*: the transport is now the
 user's stored choice rather than a fact of the code.
@@ -132,3 +133,51 @@ is ADR 0011's.
 The `claude` binary on `PATH` remains an environment fact, and the CLI's other
 settings (`CLAUDE_BIN`, `CLAUDE_TIMEOUT_MS`) remain environment configuration:
 they are facts about the machine running the CLI, not credentials.
+
+## Amendment (issue #124) — extraction is no longer Claude Code-only
+
+Both transports are wired. Choosing `anthropic`, `google` or `openai` for the
+`extract-pdf` task **sends the bank statement to that vendor**, and it comes back
+as the same candidate rows and declared totals the local CLI produces. This is a
+privacy posture change and is written down as one: until this landed, a statement
+never left the machine.
+
+What that costs, stated plainly:
+
+- **The statement leaves the machine, in full.** It travels as a **base64
+  document part** on the vendor's own API, not as text mamen extracted first.
+  Server-side text extraction was rejected for the same reason client-side
+  extraction was rejected above — it would discard the two-column Débit/Crédit
+  layout the prompt's rules depend on, moving the correctness surface off the
+  prompt and onto a parser.
+- **`claude-code` is still the default**, so this only happens to a user who
+  went to Settings and chose it, and the picker says so in the row where the
+  choice is made.
+- **Nothing falls back.** A vendor that refuses fails the run. The user chose
+  which company sees their statement; a different company is not an acceptable
+  recovery, and a retry at another vendor would be exactly that.
+
+Everything the sections above establish survives:
+
+- **The transient temp dir is unchanged**, and it is transport-independent. The
+  statement is staged, read, and deleted on every exit path — the hosted branch
+  reads the bytes back out of the staged copy, so both transports are handed the
+  same file and the same finalizer removes it.
+- **The failure collapse is unchanged.** A vendor refusal, a timeout, and a
+  payload the codec rejects are three different tags server-side and one opaque
+  `ExtractionFailed` to the client, with the key scrubbed out of the message
+  upstream before mamen ever sees it. `AiProviderNotConfigured` remains the one
+  named exception.
+- **The credential still never reaches the browser.** It is read from the
+  encrypted store at the call that spends it (ADR 0011), and only the vendor the
+  task is pointed at is handed one.
+
+The **two prompt columns** are what makes the hosted branch possible, and this is
+where the second one is finally written. The CLI column names an absolute path
+and tells the model to open it with its own `Read` tool; a vendor has neither a
+filesystem nor tools, so its column says the statement is attached and carries
+the document. Both columns share **one copy of the extraction rules** — sign
+convention, which date, year inference, French number parsing, the excluded rows,
+the declared totals — because two copies would let the same statement extract
+differently depending on which vendor the user picked, and that drift would be
+silent.

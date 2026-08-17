@@ -3,14 +3,43 @@
 Issue [#123](https://github.com/lucasriondel/mamen/issues/123), the upstream
 prerequisite of PRD [#115](https://github.com/lucasriondel/mamen/issues/115).
 
-**Status: written and verified, not published.** The change below is
-implemented, typechecked and covered by 17 tests. It is not on npm, because
-`ai-task-runner-effect`'s repository has no remote and is not present in the
-environment this was written in, and there are no publish credentials here —
-the registry lists `0.1.0` and nothing else. The patch beside this file —
-`ai-task-runner-effect-0.2.0.patch` — is the artifact to apply in that
-repository. mamen's hosted extraction column stays blocked until someone
-applies it and publishes `0.2.0`.
+**Status: written and verified, not published — and applied locally in the
+meantime.** The change below is implemented, typechecked and covered by 17 tests.
+It is not on npm, because `ai-task-runner-effect`'s repository has no remote and
+is not present in the environment this was written in, and there are no publish
+credentials here — the registry lists `0.1.0` and nothing else. The patch beside
+this file — `ai-task-runner-effect-0.2.0.patch` — is the artifact to apply in
+that repository.
+
+Issue #124 could not wait for that, so mamen carries the **compiled equivalent**
+as a `bun patch` over the installed `0.1.0` (see *The stopgap in mamen* below).
+That is a stopgap with a date on it, not a fork: the source patch above stays the
+deliverable, and the local one is deleted the moment `0.2.0` is published.
+
+## The stopgap in mamen
+
+`patches/ai-task-runner-effect@0.1.0.patch`, declared in the root
+`package.json`'s `patchedDependencies`, applies the same change to the published
+package's **`dist/`** — the compiled form of exactly the hunks in *The change*
+below, and nothing else. `packages/api/src/test/upstream-ai-task-runner.test.ts`
+holds the two together: every source module the upstream patch touches must have
+a compiled counterpart in the local one.
+
+Two things about it are worth knowing:
+
+- **`prompt` lands at `dist/prompt.js`, not `dist/src/prompt.js`.** bun 1.3.14's
+  patch applier fails with `EACCES (mkdir)` when a patch creates a file two
+  directories deep, and succeeds one level up; the relative imports are adjusted
+  to match. Nothing else about the module moves, and the published `0.2.0` will
+  put it where `tsc` does.
+- **The `.js.map` files are not regenerated**, so a stack trace through the
+  patched lines maps to the wrong source. It is a stopgap, and regenerating maps
+  by hand would be a second thing to get wrong.
+
+**To drop it**: publish `0.2.0`, `bun add ai-task-runner-effect@^0.2.0` in
+`packages/api`, delete `patches/ai-task-runner-effect@0.1.0.patch` and the
+`patchedDependencies` entry. The guard test says so too — it refuses to let the
+local patch survive a dependency on `0.2.0`.
 
 ## What the patch touches
 

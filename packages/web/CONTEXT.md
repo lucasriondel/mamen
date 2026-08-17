@@ -33,7 +33,9 @@ _Avoid_: Adapter, mapper, importer.
 
 **PDF extraction**:
 The server-side act of turning a **PDF** Statement into candidate transaction
-records via an LLM (the `claude` CLI, wrapped by `claude-code-effect`). The web
+records via an LLM — the AI provider chosen on the settings page: by default the
+local `claude` CLI (wrapped by `claude-code-effect`), or a hosted vendor the
+statement is sent to as a document. The web
 client uploads the PDF to `POST /import/extract-pdf`; the API writes it to a
 transient temp dir, has the model read it, and returns **extracted
 transactions** plus **declared totals** — never touching the database. The PDF

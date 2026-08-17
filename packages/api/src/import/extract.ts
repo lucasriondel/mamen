@@ -105,15 +105,19 @@ const allowRead =
  *    closed by the surrounding `Effect.scoped`, so the dir — and the PDF — are
  *    deleted on **every** exit path: success, failure, and timeout/interrupt.
  *    Nothing is written to the DB and nothing persists on disk.
- * 3. Run the `extract-pdf` task through {@link AiRunner} (issue #121). The
- *    runner resolves the task's stored provider and model and branches on it;
- *    on `claude-code` — the default, and the only wired branch — the `claude`
- *    CLI reads the file through its own `Read` tool, scoped to the temp dir by
- *    {@link allowRead} and permitted nothing else by the task's `allowedTools`.
- *    The answer comes back already re-decoded through `ExtractPdfResult`.
- * 4. Collapse the whole upstream failure taxonomy — the CLI SDK's (spawn /
- *    invocation / API / parse / timeout / schema), the runner's, and the
- *    resolver's other refusals — to a single client-visible
+ * 3. Read the staged copy's bytes, so the task carries the statement in both the
+ *    forms its two transports need (issue #124).
+ * 4. Run the `extract-pdf` task through {@link AiRunner} (issue #121). The
+ *    runner resolves the task's stored provider and model and branches on it. On
+ *    `claude-code` — the default — the `claude` CLI reads the file through its
+ *    own `Read` tool, scoped to the temp dir by {@link allowRead} and permitted
+ *    nothing else by the task's `allowedTools`. On a hosted vendor the statement
+ *    is sent to *that* vendor as a document part, and nothing falls back. Either
+ *    way the answer comes back already re-decoded through `ExtractPdfResult`.
+ * 5. Collapse the whole upstream failure taxonomy — the CLI SDK's (spawn /
+ *    invocation / API / parse / timeout / schema), the runner's (a vendor
+ *    refusal, a payload the codec rejects), and the resolver's other refusals —
+ *    to a single client-visible
  *    {@link ExtractionFailed}; the real tag is logged server-side. The one
  *    exception is {@link notConfigured}: a provider with no credential stored is
  *    the only failure here the client can do something about (issue #122).
@@ -150,8 +154,15 @@ export const extractPdf = (
 		const pdfPath = path.join(dir, "statement.pdf");
 		yield* fs.copyFile(file.path, pdfPath).pipe(Effect.orDie);
 
+		// Read back out of the staged copy rather than off the upload, so both
+		// transports are handed the *same* file: the one inside the scoped dir that
+		// the finalizer deletes. Read here rather than in the task's hosted column
+		// because a prompt builder is a pure function; a statement is small enough
+		// that the CLI branch paying for the read is not worth a second input shape.
+		const pdfBytes = yield* fs.readFile(pdfPath).pipe(Effect.orDie);
+
 		const runner = yield* AiRunner;
-		const { output } = yield* runner.run(TASK, { pdfPath }).pipe(
+		const { output } = yield* runner.run(TASK, { pdfPath, pdfBytes }).pipe(
 			Effect.updateService(ClaudeCode, allowRead(dir)),
 			// One client-visible failure, or the one client-actionable one; either
 			// way the real tag is kept server-side and logged the same.

@@ -1,4 +1,6 @@
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { HttpApiBuilder, HttpApiClient } from "@effect/platform";
 import { BadArgument } from "@effect/platform/Error";
 import { NodeHttpServer } from "@effect/platform-node";
@@ -9,8 +11,10 @@ import {
 	ExtractionFailed,
 	InvalidFileType,
 } from "@mamen/shared/contract";
+import type { HostedGenerate } from "ai-task-runner-effect";
 import type { SpawnHandler } from "claude-code-effect";
 import { Effect, Layer } from "effect";
+import { HostedTransport } from "../ai-runner";
 import { ApiLive } from "../api-live";
 import { DatabaseTest } from "../db/test";
 import { OutboundStub } from "../net/test";
@@ -62,6 +66,60 @@ const httpLiveWith = (handler: SpawnHandler) =>
 		Layer.provideMerge(NodeHttpServer.layerTest),
 	);
 
+/** The Anthropic key these tests paste. Long enough for the store to accept. */
+const ANTHROPIC_KEY = "sk-ant-api03-Kj28fnQ2xLmPqR7v-3f9";
+
+/**
+ * The same stack with the hosted transport faked (issue #124) — the one new
+ * seam, and the only thing about a hosted run these tests stand in for. The CLI
+ * handler stays real and answers with the canned envelope by default, so "the
+ * CLI was not used" is a claim about a transport that was there.
+ */
+const httpLiveWithHosted = (
+	generate: HostedGenerate,
+	handler: SpawnHandler = () =>
+		Effect.succeed({
+			stdout: okEnvelope(CCF_OBJECT),
+			stderr: "",
+			exitCode: 0,
+		}),
+) =>
+	httpLiveWith(handler).pipe(
+		Layer.provide(Layer.succeed(HostedTransport, generate)),
+	);
+
+/** Every call the hosted seam saw, and a fake that answers with `respond`. */
+const hostedRecorder = (respond: () => Promise<unknown>) => {
+	const calls: Array<Parameters<HostedGenerate>[0]> = [];
+	const generate: HostedGenerate = (args) => {
+		calls.push(args);
+		return respond();
+	};
+	return { calls, generate };
+};
+
+/**
+ * The transient temp dir this request staged its statement in, found by its
+ * contents.
+ *
+ * The hosted turn deliberately carries no path — that is the whole point of the
+ * second prompt column — so the dir cannot be read off the call the way
+ * {@link stagedIn} reads it off the CLI's `--add-dir`. Matching on the uploaded
+ * bytes instead identifies *this* request's dir unambiguously, even with another
+ * extraction in flight in a parallel test file.
+ */
+const stagedDirOf = (marker: Uint8Array): string => {
+	const root = tmpdir();
+	for (const name of readdirSync(root)) {
+		if (!name.startsWith("mamen-pdf-")) continue;
+		const file = join(root, name, "statement.pdf");
+		if (existsSync(file) && Buffer.from(readFileSync(file)).equals(marker)) {
+			return join(root, name);
+		}
+	}
+	return "";
+};
+
 /**
  * The same stack, but with the CLI's token read from the **encrypted store**,
  * per call — the production config (issue #122). Everything above uses a pinned
@@ -77,18 +135,17 @@ const httpLiveWithStoredToken = (handler: SpawnHandler) =>
 		Layer.provideMerge(NodeHttpServer.layerTest),
 	);
 
+/** The four bytes every upload here carries unless a test wants its own. */
+const PDF_MAGIC = Uint8Array.from([0x25, 0x50, 0x44, 0x46]);
+
 /** A single-file `application/pdf` multipart upload (bytes are opaque here). */
 const pdfFormData = (
 	mime = "application/pdf",
 	filename = "RLV_CHQ1_LUCAS_RIO_001.pdf",
+	bytes: Uint8Array<ArrayBuffer> = PDF_MAGIC,
 ): FormData => {
 	const fd = new FormData();
-	fd.append(
-		"file",
-		new File([new Uint8Array([0x25, 0x50, 0x44, 0x46])], filename, {
-			type: mime,
-		}),
-	);
+	fd.append("file", new File([bytes], filename, { type: mime }));
 	return fd;
 };
 
@@ -530,71 +587,223 @@ describe("the Claude Code token comes from the credential store", () => {
 });
 
 /**
- * The hosted branch is **not wired** (issue #121: only `claude-code` is), and
- * the previous ticket already lets a hosted provider be *stored*. So there is a
- * reachable state — a saved Anthropic key and a task moved onto it — where a
- * bank statement would otherwise be posted to a vendor under a prompt naming a
- * path on this machine. It must fail instead, and nothing may leave here.
+ * The hosted branch **runs** (issue #124), so the reachable state the previous
+ * ticket had to refuse — a saved Anthropic key and the task moved onto it — is
+ * now the feature. What a client gets back must be indistinguishable from the
+ * CLI branch's answer, and the CLI must not be reached at all.
  */
-describe("a hosted provider does not run extraction yet", () => {
-	const realFetch = globalThis.fetch;
-
-	/**
-	 * Every URL `fetch` was asked for while the test ran. The ai-sdk reaches a
-	 * vendor through the global `fetch`, so this is where "the statement did not
-	 * leave this machine" is actually observable — asserting only that the run
-	 * failed would pass just as happily with the statement posted and the vendor
-	 * call erroring afterwards.
-	 */
-	let fetched: Array<string> = [];
-
+describe("a hosted provider extracts the statement", () => {
 	afterEach(() => {
 		delete process.env.TOKEN_ENCRYPTION_KEY;
-		globalThis.fetch = realFetch;
-		fetched = [];
 	});
 
-	it.effect("fails the run rather than sending the statement anywhere", () => {
+	/** Move extraction onto Anthropic, the way the settings page does. */
+	const chooseAnthropic = Effect.gen(function* () {
+		const client = yield* HttpApiClient.make(Api);
+		yield* client.secrets.put({
+			path: { name: "anthropic" },
+			payload: { value: ANTHROPIC_KEY },
+		});
+		yield* client.aiTasks.patch({
+			payload: { tasks: [{ task: "extract-pdf", provider: "anthropic" }] },
+		});
+	});
+
+	it.effect("returns the same rows and declared totals as the CLI does", () => {
 		process.env.TOKEN_ENCRYPTION_KEY = "a".repeat(64);
 		let spawned = false;
-		globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
-			fetched.push(input instanceof Request ? input.url : String(input));
-			return realFetch(input, init);
-		}) as typeof fetch;
+		const { calls, generate } = hostedRecorder(() =>
+			Promise.resolve(CCF_OBJECT),
+		);
 
 		return Effect.gen(function* () {
+			yield* chooseAnthropic;
 			const client = yield* HttpApiClient.make(Api);
-			yield* client.secrets.put({
-				path: { name: "anthropic" },
-				payload: { value: "sk-ant-api03-Kj28fnQ2xLmPqR7v-3f9" },
-			});
-			yield* client.aiTasks.patch({
-				payload: { tasks: [{ task: "extract-pdf", provider: "anthropic" }] },
+			const result = yield* client.import.extractPdf({
+				payload: pdfFormData(),
 			});
 
-			const error = yield* client.import
-				.extractPdf({ payload: pdfFormData() })
-				.pipe(Effect.flip);
-
-			// The same opaque failure every other upstream tag collapses to.
-			assert.ok(error instanceof ExtractionFailed);
-			// Nothing was posted to a vendor…
-			assert.deepStrictEqual(
-				fetched.filter((url) => !url.includes("localhost")),
-				[],
+			// Byte-for-byte the assertions the CLI branch's first test makes.
+			assert.strictEqual(result.transactions.length, 6);
+			assert.strictEqual(result.transactions[0].rawIssuerString, "CB AMAZON");
+			assert.strictEqual(result.transactions[0].amount, -6.99);
+			assert.ok(result.transactions[0].date instanceof Date);
+			assert.strictEqual(
+				result.transactions[0].date.toISOString().slice(0, 10),
+				"2026-01-03",
 			);
-			// …and the local CLI was not quietly used as a fallback either: nothing
-			// falls back, because the user chose which vendor sees their statement.
+			const credit = result.transactions.find((t) => t.amount > 0);
+			assert.strictEqual(credit?.amount, 1947.26);
+			assert.deepStrictEqual(result.declaredTotals, {
+				debit: 1929.71,
+				credit: 1947.26,
+			});
+
+			// The uploaded file itself went to the vendor — the same four bytes the
+			// multipart body carried, as a document and not as text.
+			assert.deepStrictEqual(calls[0]?.document, {
+				data: PDF_MAGIC,
+				mediaType: "application/pdf",
+			});
+			// Nothing falls back, in either direction: the CLI was available and
+			// was not used.
 			assert.isFalse(spawned);
 		}).pipe(
 			Effect.provide(
-				httpLiveWith(() => {
+				httpLiveWithHosted(generate, () => {
 					spawned = true;
 					return Effect.succeed({
 						stdout: okEnvelope(CCF_OBJECT),
 						stderr: "",
 						exitCode: 0,
 					});
+				}),
+			),
+		);
+	});
+
+	it.effect(
+		"collapses a vendor refusal to ExtractionFailed, key and all",
+		() => {
+			process.env.TOKEN_ENCRYPTION_KEY = "a".repeat(64);
+			const { generate } = hostedRecorder(() =>
+				// The shape of a real 401: the vendor quotes back what it was handed.
+				Promise.reject(new Error(`401 invalid x-api-key: ${ANTHROPIC_KEY}`)),
+			);
+
+			return Effect.gen(function* () {
+				yield* chooseAnthropic;
+				const client = yield* HttpApiClient.make(Api);
+				const error = yield* client.import
+					.extractPdf({ payload: pdfFormData() })
+					.pipe(Effect.flip);
+
+				// The same deliberately opaque 502 the CLI branch's failures collapse
+				// to (ADR 0005) — and nothing of the vendor's message came with it.
+				assert.ok(error instanceof ExtractionFailed);
+				assert.notInclude(JSON.stringify(error), ANTHROPIC_KEY);
+				assert.notInclude(JSON.stringify(error), "x-api-key");
+			}).pipe(Effect.provide(httpLiveWithHosted(generate)));
+		},
+	);
+
+	it.effect("deletes the statement whichever way the vendor answers", () => {
+		process.env.TOKEN_ENCRYPTION_KEY = "a".repeat(64);
+		// Bytes unique to this test, so the staged dir is found by its contents
+		// and no parallel extraction can be mistaken for it.
+		const marker = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x32]);
+		let staged = "";
+
+		return Effect.gen(function* () {
+			yield* chooseAnthropic;
+			const client = yield* HttpApiClient.make(Api);
+			yield* client.import
+				.extractPdf({
+					payload: pdfFormData("application/pdf", "RLV.pdf", marker),
+				})
+				.pipe(Effect.flip);
+
+			// It was staged while the vendor call was in flight (ADR 0005's temp
+			// dir is transport-independent, and the failure path is where a missing
+			// finalizer would show) — and it is gone now.
+			assert.match(staged, /mamen-pdf-/);
+			assert.isFalse(existsSync(staged));
+		}).pipe(
+			Effect.provide(
+				httpLiveWithHosted(() => {
+					staged = stagedDirOf(marker);
+					return Promise.reject(new Error("503 upstream unavailable"));
+				}),
+			),
+		);
+	});
+
+	/**
+	 * The seam above stands in for the HTTP call, so on its own it would pass just
+	 * as happily against a runner that never makes one. This test provides **no**
+	 * seam — the production wiring, the package's own ai-sdk call — and stubs
+	 * `fetch` one layer lower, at the socket the vendor is on.
+	 *
+	 * It is what actually holds the acceptance criterion "sent as a base64
+	 * document part": the base64 is the ai-sdk's doing, not mamen's, and this is
+	 * the only place mamen can see it. The stub answers with a 400 so the SDK
+	 * gives up rather than retrying, and the run's failure is beside the point —
+	 * what is asserted is the request that left.
+	 */
+	it.effect("posts the statement to the chosen vendor for real", () => {
+		process.env.TOKEN_ENCRYPTION_KEY = "a".repeat(64);
+		const realFetch = globalThis.fetch;
+		const requests: Array<{ url: string; headers: Headers; body: string }> = [];
+		globalThis.fetch = (async (
+			input: RequestInfo | URL,
+			init?: RequestInit,
+		) => {
+			const url = input instanceof Request ? input.url : String(input);
+			if (!url.includes("localhost")) {
+				requests.push({
+					url,
+					headers: new Headers(init?.headers),
+					body: String(init?.body ?? ""),
+				});
+				return new Response(JSON.stringify({ error: { message: "nope" } }), {
+					status: 400,
+					headers: { "content-type": "application/json" },
+				});
+			}
+			return realFetch(input, init);
+		}) as typeof fetch;
+
+		return Effect.gen(function* () {
+			yield* chooseAnthropic;
+			const client = yield* HttpApiClient.make(Api);
+			yield* client.aiTasks.patch({
+				payload: { tasks: [{ task: "extract-pdf", model: "claude-opus-5" }] },
+			});
+			yield* client.import
+				.extractPdf({ payload: pdfFormData() })
+				.pipe(Effect.flip);
+
+			assert.strictEqual(requests.length, 1);
+			const request = requests[0];
+			assert.ok(request);
+			// The vendor the user chose, with the vendor's own key…
+			assert.include(request.url, "api.anthropic.com");
+			assert.strictEqual(request.headers.get("x-api-key"), ANTHROPIC_KEY);
+			// …the model they chose…
+			const body = JSON.parse(request.body) as {
+				model: string;
+				system?: unknown;
+				messages: Array<{ content: Array<Record<string, unknown>> }>;
+			};
+			assert.strictEqual(body.model, "claude-opus-5");
+			// …and the statement itself, base64, beside the instruction.
+			const parts = body.messages[0]?.content ?? [];
+			const document = parts.find((part) => part.type === "document") as
+				| { source: { type: string; media_type: string; data: string } }
+				| undefined;
+			assert.ok(document, `no document part in ${JSON.stringify(parts)}`);
+			assert.strictEqual(document?.source.type, "base64");
+			assert.strictEqual(document?.source.media_type, "application/pdf");
+			assert.strictEqual(
+				document?.source.data,
+				Buffer.from(PDF_MAGIC).toString("base64"),
+			);
+			// The CLI column never travels: no path on this machine, no tool.
+			assert.notInclude(request.body, "statement.pdf");
+			assert.notInclude(request.body, "Read tool");
+		}).pipe(
+			Effect.provide(
+				httpLiveWith(() =>
+					Effect.succeed({
+						stdout: okEnvelope(CCF_OBJECT),
+						stderr: "",
+						exitCode: 0,
+					}),
+				),
+			),
+			Effect.ensuring(
+				Effect.sync(() => {
+					globalThis.fetch = realFetch;
 				}),
 			),
 		);

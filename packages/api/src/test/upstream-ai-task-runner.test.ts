@@ -97,7 +97,9 @@ const apiDependsOnPatchedVersion = (() => {
 
 	const differing = patched.findIndex((part, i) => declared[i] !== part);
 
-	return differing === -1 || (declared[differing] as number) > patched[differing];
+	return (
+		differing === -1 || (declared[differing] as number) > patched[differing]
+	);
 })();
 
 describe("the patch is the artifact the document describes", () => {
@@ -150,5 +152,70 @@ describe("the status line tracks whether mamen can actually depend on it", () =>
 		const saysUnpublished = DOC.includes("not published");
 
 		expect(saysUnpublished).toBe(!apiDependsOnPatchedVersion);
+	});
+});
+
+/**
+ * The **local stopgap** (issue #124).
+ *
+ * `0.2.0` is still not on npm, and hosted extraction could not wait for it, so
+ * mamen applies the compiled equivalent of the patch above to the installed
+ * `0.1.0` through `bun patch`. That is a fork unless something holds it to the
+ * artifact it stands in for — a module added to the upstream patch and forgotten
+ * here would mean mamen runs against a package that is *nearly* `0.2.0`, which
+ * is worse than running against `0.1.0`, because the difference is invisible.
+ *
+ * So the local patch is derived from the upstream one in the direction that
+ * matters (every source module it changes has a compiled counterpart), and it is
+ * required to disappear the day `packages/api` depends on the real `0.2.0`.
+ */
+const rootManifest = JSON.parse(read(`${ROOT}/package.json`)) as {
+	patchedDependencies?: Record<string, string>;
+};
+const patchedDependency = Object.entries(
+	rootManifest.patchedDependencies ?? {},
+).find(([spec]) => spec.startsWith(`${PACKAGE_NAME}@`));
+
+/** The `dist` paths the local patch touches, from its own headers. */
+const locallyPatchedFiles = patchedDependency
+	? [
+			...read(`${ROOT}/${patchedDependency[1]}`).matchAll(
+				/^diff --git a\/(\S+) b\/\S+$/gm,
+			),
+		].map((m) => m[1] as string)
+	: [];
+
+/** The upstream patch's own source modules — not its tests, docs or manifest. */
+const upstreamModules = patchedFiles
+	.filter((file) => file.endsWith(".ts") && !file.startsWith("test/"))
+	.map((file) => basename(file, ".ts"));
+
+describe("the local patch stands in for the published version", () => {
+	it("is declared against the exact version packages/api depends on", () => {
+		expect(patchedDependency?.[0]).toBe(`${PACKAGE_NAME}@${apiRange}`);
+		expect(existsSync(`${ROOT}/${patchedDependency?.[1]}`)).toBe(true);
+	});
+
+	it("carries a compiled counterpart of every module the patch changes", () => {
+		expect(upstreamModules.length).toBeGreaterThan(0);
+
+		for (const module of upstreamModules) {
+			expect(
+				locallyPatchedFiles.some((file) =>
+					new RegExp(`(^|/)${module}\\.(js|d\\.ts)$`).test(file),
+				),
+				`${module} is changed upstream but not in the local patch`,
+			).toBe(true);
+		}
+	});
+
+	it("touches the published artifact and nothing else", () => {
+		for (const file of locallyPatchedFiles) {
+			expect(file.startsWith("dist/")).toBe(true);
+		}
+	});
+
+	it("is gone once packages/api can depend on the real thing", () => {
+		expect(patchedDependency !== undefined).toBe(!apiDependsOnPatchedVersion);
 	});
 });
