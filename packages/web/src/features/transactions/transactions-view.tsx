@@ -1,5 +1,5 @@
 import { getRouteApi } from "@tanstack/react-router";
-import { PageHeader } from "@/components/page-header";
+import { PageLayout } from "@/components/page-layout";
 import { ColumnsToggle } from "./columns-toggle";
 import type { TransactionFilterValues } from "./transactions-filters";
 import { TransactionsSection } from "./transactions-section";
@@ -20,6 +20,13 @@ const EMPTY_SCOPE = {};
  * {@link TransactionsSection}, shared with the category and issuer drill-downs —
  * this view is the *unscoped* one, so it passes an empty scope and adds the
  * columns toggle no scoped page offers.
+ *
+ * The columns toggle is handed to the section, not to {@link PageLayout}'s
+ * actions slot, even though it is this page's only page-level control: it sits
+ * on the filter bar because it *is* one of them — it narrows what the table
+ * shows, beside the filters that narrow which rows it shows. Issue #125 asked
+ * for the title row to move and for the page to look exactly as it did, and
+ * lifting the toggle into the topbar is neither.
  */
 export function TransactionsView() {
 	const search = routeApi.useSearch();
@@ -50,7 +57,7 @@ export function TransactionsView() {
 	};
 
 	return (
-		<section className="flex flex-col gap-6">
+		<PageLayout title="Transactions">
 			<TransactionsSection
 				scope={EMPTY_SCOPE}
 				search={search}
@@ -69,13 +76,7 @@ export function TransactionsView() {
 						onReset={showAllColumns}
 					/>
 				}
-			>
-				<PageHeader>
-					<h1 className="text-balance text-2xl font-semibold text-gousse-ink">
-						Transactions
-					</h1>
-				</PageHeader>
-			</TransactionsSection>
-		</section>
+			/>
+		</PageLayout>
 	);
 }

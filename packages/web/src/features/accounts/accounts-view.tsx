@@ -1,6 +1,6 @@
 import type { Account } from "@mamen/shared/contract";
 import { type UseQueryResult, useQuery } from "@tanstack/react-query";
-import { PageHeader } from "@/components/page-header";
+import { PageLayout } from "@/components/page-layout";
 import { Button } from "@/components/ui/button";
 import { accountQueries } from "@/lib/sdk";
 import { AccountRow } from "./account-row";
@@ -20,24 +20,17 @@ export function AccountsView() {
 	const accountsQuery = useQuery(accountQueries.list());
 
 	return (
-		<section className="mx-auto flex max-w-4xl flex-col gap-8">
-			<header>
-				<PageHeader>
-					<h1 className="text-balance text-2xl font-semibold text-gousse-ink">
-						Accounts
-					</h1>
-				</PageHeader>
-				<p className="mt-1 text-gousse-muted">
-					The accounts your statements belong to.
-				</p>
-			</header>
-
+		<PageLayout
+			title="Accounts"
+			description="The accounts your statements belong to."
+			className="mx-auto max-w-4xl gap-8"
+		>
 			<CreateAccountForm />
 
 			<AccountsList query={accountsQuery} />
 
 			<ImportGrid />
-		</section>
+		</PageLayout>
 	);
 }
 

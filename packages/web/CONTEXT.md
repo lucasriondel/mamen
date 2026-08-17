@@ -255,4 +255,29 @@ wizard — preview, commit, hand-off — has any use for the distinction. It is
 cleared on every dropped file, so a CSV that then fails to parse cannot inherit
 the previous PDF's link.
 
+**Page layout** / **topbar**:
+`PageLayout` (`components/page-layout.tsx`) is the shape a page has: a **topbar**
+row — the page's title, the sidebar-reopen trigger, and that page's own actions —
+above the page's content (issue #125). A page names what is *in* the row and
+nothing about how the row is laid out; `className` is Tailwind-merged over the
+page column so a view can still cap its width or re-space itself.
+
+The trigger inside it is still `PageHeader`'s — composed, not re-implemented, so
+there is one place that decides when it renders (only while collapsed) and one
+place that hands `AppShell` the ref it focuses. The collapse flag itself is the
+shell's throughout; the layout only reads it, through the sidebar-collapsed
+context, which is why any page's trigger drives the same panel.
+
+**Adoption is partial.** Accounts and Transactions render through it; the other
+six title rows still call `PageHeader` directly and compose their own row, which
+is why `PageHeader` is a public component rather than an implementation detail.
+Sweeping the rest is a follow-up to #125.
+
+A page mounted in a test outside `AppShell` has no context and `PageHeader`
+throws, so a view test drives the layout with a stand-in provider rather than the
+real shell.
+
+_Avoid_: header (the `<header>` element is the topbar's markup; the *page header*
+is `PageHeader`, one part of it).
+
 <!-- Terms are added here as they are resolved during design. -->

@@ -11,6 +11,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import { SIDEBAR_COLLAPSED_STORAGE_KEY } from "@/lib/use-sidebar-collapsed";
 import { AppShell } from "./app-shell";
+import { PageLayout } from "./page-layout";
 
 /**
  * The app shell: the sidebar, the top bar that re-opens it, and the collapse
@@ -25,6 +26,11 @@ import { AppShell } from "./app-shell";
  * jsdom computes no layout, so the reflow itself is not observable; what stands
  * in for it is the shell's own contract — `inert` on the panel and the
  * `data-collapsed` mark the width transition keys off.
+ *
+ * The re-open trigger is not the shell's own markup: it is rendered per page, in
+ * the topbar {@link PageLayout} owns (issue #125), off the flag this shell hands
+ * down. So the route here renders through that layout — a bare `<p>` would test
+ * a shell whose collapse no user could undo.
  */
 
 const DESTINATION = "/transactions";
@@ -41,7 +47,11 @@ function renderShell() {
 		createRoute({
 			getParentRoute: () => rootRoute,
 			path: DESTINATION,
-			component: () => <p>Transactions page</p>,
+			component: () => (
+				<PageLayout title="Transactions">
+					<p>Transactions page</p>
+				</PageLayout>
+			),
 		}),
 	]);
 	const router = createRouter({

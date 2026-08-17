@@ -8,6 +8,7 @@ import {
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { SidebarCollapsedProvider } from "@/lib/sidebar-collapsed-context";
 import { validateTransactionsSearch } from "./search";
 import { TransactionsView } from "./transactions-view";
 
@@ -295,9 +296,28 @@ function makeRouter(initialEntry = "/transactions") {
 	});
 }
 
+// The view's topbar reads the shell's collapse flag (issue #125), and this
+// harness mounts the route without `AppShell`. Standing in for it with the panel
+// open is the state these cases are about: no re-open trigger in the way of the
+// controls they drive. The trigger itself is asserted in `page-layout.test.tsx`.
+const OPEN_SHELL = {
+	collapsed: false,
+	toggle: () => {},
+	triggerRef: { current: null },
+};
+
+/** Mount a router under the stand-in shell, as `AppShell` would. */
+function renderRouter(router: ReturnType<typeof makeRouter>) {
+	return render(
+		<SidebarCollapsedProvider value={OPEN_SHELL}>
+			<RouterProvider router={router} />
+		</SidebarCollapsedProvider>,
+	);
+}
+
 async function renderView(initialEntry = "/transactions") {
 	const router = makeRouter(initialEntry);
-	render(<RouterProvider router={router} />);
+	renderRouter(router);
 	// Wait for the table to render (the unresolved row's assignment button) so the
 	// sort header and rows exist before a test interacts with them. Scoped by role
 	// because the raw string also appears verbatim in the Raw issuer column.
@@ -911,7 +931,7 @@ describe("TransactionsView", () => {
 			listMembers = BUNDLE_MEMBERS;
 			listTotal = 1;
 			const router = makeRouter();
-			render(<RouterProvider router={router} />);
+			renderRouter(router);
 			await screen.findAllByText("Weekend away");
 
 			const parent = screen.getAllByText("Weekend away")[0].closest("tr");
