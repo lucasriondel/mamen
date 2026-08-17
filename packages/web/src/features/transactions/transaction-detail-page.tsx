@@ -9,6 +9,7 @@ import { getRouteApi, Link } from "@tanstack/react-router";
 import { BackLink } from "@/components/back-link";
 import { PageLayout } from "@/components/page-layout";
 import { Empty } from "@/components/ui/empty";
+import { Skeleton } from "@/components/ui/skeleton";
 import { BUTTON_CLASS } from "@/features/issuers/field-styles";
 import { useIssuerLookup } from "@/features/issuers/use-issuer-lookup";
 import { resolveCategoryColor } from "@/lib/category-tree";
@@ -56,7 +57,33 @@ export function TransactionDetailPage() {
 	});
 
 	if (txnQuery.isPending || issuerPending) {
-		return <TransactionDetailSkeleton />;
+		// The wait is a page too (issue #129): the collapse flag outlives the
+		// navigation that got here, so the way back to the panel has to survive the
+		// read. The topbar is the settled page's, slot for slot — the counterparty,
+		// the date and the amount stand in as placeholders where each will land,
+		// so the row arriving fills the header rather than replacing it.
+		return (
+			<PageLayout
+				back={<BackLink to="/transactions">Transactions</BackLink>}
+				title={
+					<>
+						{/* `h-7`: one line of the title's `text-2xl`, which is what lands
+						    in its place. */}
+						<Skeleton as="span" className="block h-7 w-56" />
+						{/* Never an empty heading: until the row names it, the page is
+						    titled by what it is — the same stand-in the not-found state
+						    below settles on, for the same reason. The wait itself is
+						    announced by the skeleton's live region, not twice here. */}
+						<span className="sr-only">Transaction</span>
+					</>
+				}
+				description={<Skeleton as="span" className="block h-3.5 w-24" />}
+				actions={<Skeleton as="span" className="block h-7 w-24" />}
+				className="gap-8"
+			>
+				<TransactionDetailSkeleton />
+			</PageLayout>
+		);
 	}
 
 	const txn = txnQuery.data as Transaction | undefined;

@@ -38,12 +38,22 @@ function BoolField({ value }: { value: boolean }) {
 	);
 }
 
-/** The row's amount, the one number this page is about. */
+/**
+ * The row's amount, the one number this page is about — and, since issue #129,
+ * a number at the end of a title row rather than a headline of its own. So it is
+ * set like the other two title-row numbers (a category's total, a recap line's)
+ * instead of the headline scale it wore when it had a line to itself — beside a
+ * `text-2xl` title, a bigger number reads as the page's name.
+ *
+ * A `span`, not the `<output>` those two are: this is a field of the row, fixed
+ * for as long as the page is open, not a total the filters recompute — there is
+ * nothing here for a live region to announce.
+ */
 function DetailAmount({ amount }: { amount: number }) {
 	return (
 		<span
 			className={cn(
-				"text-3xl font-semibold tabular-nums",
+				"shrink-0 font-medium text-xl tabular-nums",
 				amount < 0 && "text-gousse-high",
 				amount > 0 && "text-gousse-low",
 				amount === 0 && "text-gousse-ink",

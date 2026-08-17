@@ -166,20 +166,29 @@ const COUNTERPART = {
 
 let candidateRows: Array<Record<string, unknown>> = [];
 
+/**
+ * An id whose read never settles, so a test can hold the page in its **loading**
+ * state and look at it. Every other id resolves on the next tick, which is far
+ * too fast to assert anything about the wait.
+ */
+const PENDING_ID = 999;
+
 vi.mock("@mamen/sdk", () => ({
 	transactionQueries: {
 		getById: (id: number) => ({
 			queryKey: ["transactions", "detail", id],
 			queryFn: async () =>
-				id === TXN.id
-					? TXN
-					: id === BUNDLE.id
-						? BUNDLE
-						: id === FLAGGED_BUNDLE.id
-							? FLAGGED_BUNDLE
-							: id === LEG.id
-								? LEG
-								: undefined,
+				id === PENDING_ID
+					? new Promise<never>(() => {})
+					: id === TXN.id
+						? TXN
+						: id === BUNDLE.id
+							? BUNDLE
+							: id === FLAGGED_BUNDLE.id
+								? FLAGGED_BUNDLE
+								: id === LEG.id
+									? LEG
+									: undefined,
 		}),
 		list: (params: Record<string, unknown>) => ({
 			queryKey: ["transactions", "list", params],
@@ -298,6 +307,29 @@ describe("TransactionDetailPage", () => {
 
 		expect(
 			await screen.findByRole("button", { name: "Open sidebar" }),
+		).toBeInTheDocument();
+	});
+
+	// A page that is still reading is still a page. The wait is short when the
+	// row is cached and not at all short when it isn't, and the collapse flag
+	// outlives the navigation that got here — so the loading state carries the
+	// same topbar the settled one does (issue #129).
+	it("carries the topbar while the row is still loading", async () => {
+		renderPage(PENDING_ID, COLLAPSED_SHELL);
+
+		expect(
+			await screen.findByRole("button", { name: "Open sidebar" }),
+		).toBeInTheDocument();
+		// Titled by what the page *is* until the row names it — the same stand-in
+		// title the not-found state uses, for the same reason: there is no
+		// counterparty to show yet.
+		expect(
+			screen.getByRole("heading", { level: 1, name: "Transaction" }),
+		).toBeInTheDocument();
+		// The way back needs no data, so it is real from the first frame rather
+		// than a placeholder bar that turns into a link.
+		expect(
+			screen.getByRole("link", { name: "Transactions" }),
 		).toBeInTheDocument();
 	});
 

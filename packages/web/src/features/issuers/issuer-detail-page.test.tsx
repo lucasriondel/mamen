@@ -16,7 +16,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { validateTransactionsSearch } from "@/features/transactions/search";
-import { withShell } from "@/test/sidebar-shell";
+import { COLLAPSED_SHELL, OPEN_SHELL, withShell } from "@/test/sidebar-shell";
 
 // Mock the SDK seam (PRD): the page reads the issuer (`issuerQueries.getById`),
 // its transactions (`transactionQueries.list`) and its rules (`ruleQueries.list`
@@ -102,6 +102,9 @@ const CATEGORIES = [
 /** One account, so the transactions section's account filter has an option. */
 const ACCOUNTS = [{ id: 1, name: "Checking" }] as unknown as Account[];
 
+/** The issuer id whose read never settles — the page's loading state, held open. */
+const PENDING_ID = 99;
+
 vi.mock("@mamen/sdk", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("@mamen/sdk")>();
 	return {
@@ -109,7 +112,12 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
 		issuerQueries: {
 			getById: (id: number) => ({
 				queryKey: ["issuers", "detail", id],
-				queryFn: async () => issuersById[id],
+				queryFn: async () =>
+					id === PENDING_ID
+						? // Never settles, so a test can hold the page in its loading
+							// state; every other id resolves on the next tick.
+							new Promise<never>(() => {})
+						: issuersById[id],
 			}),
 			// The picker read: a name search over the whole set, like the server (#79).
 			searchByName: (term: string) => ({
@@ -271,8 +279,15 @@ function makeRouter(initialEntry: string) {
 	});
 }
 
-function renderAt(initialEntry: string) {
-	render(withShell(<RouterProvider router={makeRouter(initialEntry)} />));
+/**
+ * The page's topbar is a `PageLayout` (issue #129), which reads the shell's
+ * collapse flag; this harness mounts the route without `AppShell`, so it stands
+ * in for it — open, unless a case is about the trigger itself.
+ */
+function renderAt(initialEntry: string, shellValue = OPEN_SHELL) {
+	render(
+		withShell(<RouterProvider router={makeRouter(initialEntry)} />, shellValue),
+	);
 }
 
 beforeEach(() => {
@@ -306,6 +321,24 @@ beforeEach(() => {
 });
 
 describe("IssuerDetailPage", () => {
+	// A page that is still reading is still a page: the collapse flag outlives
+	// the navigation that got here, so the topbar — and the one way back to the
+	// panel — has to survive the read as well as the settled state (issue #129).
+	it("carries the topbar while the issuer is still loading", async () => {
+		renderAt(`/issuers/${PENDING_ID}`, COLLAPSED_SHELL);
+
+		expect(
+			await screen.findByRole("button", { name: "Open sidebar" }),
+		).toBeInTheDocument();
+		// Titled by what the page is until the issuer names it — the stand-in the
+		// not-found state settles on, for the same reason.
+		expect(
+			screen.getByRole("heading", { level: 1, name: "Issuer" }),
+		).toBeInTheDocument();
+		// The way back needs no data, so it is a real link from the first frame.
+		expect(screen.getByRole("link", { name: "Issuers" })).toBeInTheDocument();
+	});
+
 	it("navigates from an issuer card to its detail page", async () => {
 		const user = userEvent.setup();
 		renderAt("/issuers");

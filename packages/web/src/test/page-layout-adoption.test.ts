@@ -109,6 +109,26 @@ describe("the shared page layout", () => {
 		expect(files).toStrictEqual([LAYOUT]);
 	});
 
+	it("sets the page title as the largest type in the app", () => {
+		// "One title style" is not only one `<h1>`: it is also that nothing sits
+		// beside a title shouting louder than it. Three drill-down pages end their
+		// title row with a number — a category's total, a recap line's, a
+		// transaction's amount — and the amount was a `text-3xl` headline back when
+		// it was a row of its own, which reads as the page's title once it moves
+		// into the title's row.
+		//
+		// Named steps only: an arbitrary `text-[…]` is as often a colour as a size,
+		// and guessing which would make this guard lie either way.
+		const files = FILES.filter(({ text }) =>
+			/\btext-(?:3xl|4xl|5xl|6xl|7xl|8xl|9xl)\b/.test(text),
+		).map(({ path }) => path);
+
+		expect(
+			files,
+			"these set type above the title's `text-2xl`: size them at or below it, or say here why this one outranks a page's name",
+		).toStrictEqual([]);
+	});
+
 	it("left no `PageHeader` behind", () => {
 		// The wrapper #125 composed for the trigger. With every page going through
 		// the layout it had one caller, so it is gone and the layout renders the
