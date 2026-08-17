@@ -57,3 +57,26 @@ if (!("createObjectURL" in URL)) {
 if (!("revokeObjectURL" in URL)) {
 	URL.revokeObjectURL = () => {};
 }
+
+// jsdom evaluates no media queries and ships no `matchMedia`, which `next-themes`
+// calls the moment its provider mounts — `enableSystem={false}` decides what it
+// does with the answer, not whether it asks. Anything rendering the theme
+// preference (issue #127) therefore needs one. It reports "not dark" and never
+// changes: the app pins the choice to light or dark itself, so no test here has
+// any use for the OS preference, and a stub that could fire would invite one.
+if (typeof window !== "undefined" && typeof window.matchMedia !== "function") {
+	Object.defineProperty(window, "matchMedia", {
+		configurable: true,
+		value: (query: string): MediaQueryList =>
+			({
+				media: query,
+				matches: false,
+				onchange: null,
+				addListener: () => {},
+				removeListener: () => {},
+				addEventListener: () => {},
+				removeEventListener: () => {},
+				dispatchEvent: () => false,
+			}) as unknown as MediaQueryList,
+	});
+}

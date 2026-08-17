@@ -198,25 +198,38 @@ describe("AppSidebar", () => {
 		).not.toHaveAttribute("aria-current");
 	});
 
-	it("keeps the brand and the theme toggle around the nav", async () => {
+	it("keeps the brand above the nav", async () => {
 		renderSidebar();
 
 		expect(await screen.findByText("mamen")).toBeInTheDocument();
-		expect(
-			screen.getByRole("button", { name: /Switch to (light|dark) theme/ }),
-		).toBeInTheDocument();
 	});
 
-	it("pins the theme toggle in the footer", async () => {
+	// #127: the theme moved to `/settings`. It is a preference, not a
+	// destination, and the sidebar is the one piece of chrome every page shows.
+	it("carries no theme control of any kind", async () => {
 		renderSidebar();
 
-		const toggle = await screen.findByRole("button", {
-			name: /Switch to (light|dark) theme/,
-		});
-		// `mt-auto` is what pins the footer to the bottom of the column; asserting
-		// the toggle sits inside that element is what "pinned in the footer"
-		// means in a renderer that computes no layout.
-		expect(toggle.closest(".mt-auto")).not.toBeNull();
+		await waitFor(() => expect(navItems()).toHaveLength(DESTINATIONS.length));
+		expect(
+			screen.queryByRole("button", { name: /Switch to (light|dark) theme/ }),
+		).toBeNull();
+		// Not just the button this shipped as: no control here is about the theme,
+		// whatever shape it takes.
+		expect(screen.queryByLabelText(/theme/i)).toBeNull();
+	});
+
+	it("leaves Settings the bottom-most thing in the panel", async () => {
+		renderSidebar();
+
+		await waitFor(() => expect(navItems()).toHaveLength(DESTINATIONS.length));
+		const settings = screen.getByRole("link", { name: "Settings" });
+		expect(navItems().at(-1)).toBe(settings);
+		// With the footer gone, the scrolling content region is the last thing the
+		// shell renders — so the last row of the nav is the last row of the panel.
+		// `mt-auto` is the footer's own pin, and nothing wears it any more.
+		const shell = document.querySelector("aside");
+		expect(shell?.lastElementChild).toContainElement(settings);
+		expect(shell?.querySelector(".mt-auto")).toBeNull();
 	});
 
 	it("leaves every row unhued, on the neutral resting surface", async () => {

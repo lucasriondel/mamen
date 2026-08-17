@@ -387,11 +387,13 @@ repeated per package.
   here". See [ADR 0011](./docs/adr/0011-credentials-are-encrypted-at-rest.md).
   _Avoid_: truncated key, key preview.
 
-- **AI settings page** — the one screen the credential store and the **task
-  choice** are made from (`/settings`): a tile per **AI provider** showing
-  whether one is stored, and a row per **AI task** naming which provider and
-  model runs it. Its picker **offers only providers that can run the task** —
-  the **save-time check**'s own rule, surfaced rather than left to be discovered
+- **AI settings** — the one place the credential store and the **task choice**
+  are made from: a tile per **AI provider** showing whether one is stored, and a
+  row per **AI task** naming which provider and model runs it. It was the whole
+  of `/settings` until issue #127 and is now the second half of it, below the
+  **theme preference** — the page is *Settings*, this is a section of it. Its
+  picker **offers only providers that can run the task** — the **save-time
+  check**'s own rule, surfaced rather than left to be discovered
   by refusal — and the two are not equal partners: the doors stay the authority,
   so a save the picker somehow allowed is still refused *and the refusal is shown
   in place*. Saving is **immediate**, without a submit button, so the picker
@@ -401,7 +403,19 @@ repeated per package.
   one never leaves the machine, and that is a privacy posture change worth
   reading as a deliberate choice.
   _Avoid_: LLM settings (the deleted surface it replaces), API key page (the
-  credentials are half of it; which vendor runs a task is the other half).
+  credentials are half of it; which vendor runs a task is the other half), AI
+  settings page (it is a section of the settings page, not a page).
+
+- **Theme preference** — light or dark, chosen on the **settings page** and
+  applied as the `.dark` class on `<html>` (issue #127). A strict pair: there is
+  no *System* option, because `next-themes` is mounted with `enableSystem` off
+  and a third state is a product decision, not a consequence of moving the
+  control. It lived in the sidebar footer until #127 — theme is a preference,
+  not a destination, and it was competing with the navigation on every page.
+  Stored in the browser, never on the server: a different browser is a different
+  choice.
+  _Avoid_: dark mode toggle (it is a preference with two values, and there is no
+  longer anything to toggle).
 
 - **Inherited colour** — a Category whose `color` is **null**, meaning *I never
   chose one*: the colour it paints is its nearest ancestor's, found by walking

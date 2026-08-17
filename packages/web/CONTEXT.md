@@ -216,10 +216,28 @@ and never prefix `/api` or `/uploads`, which stay at the root and are reached
 same-origin through the dev proxy or nginx.
 _Avoid_: base URL (that names the API's origin, `VITE_API_URL`).
 
-**AI settings page**:
-See [CONTEXT-MAP.md](../../CONTEXT-MAP.md). `/settings`, built in
-`features/ai-settings/`. Two things about it are this package's, not the
-domain's:
+**Settings page**:
+`/settings`, composed in `features/settings/settings-view.tsx` out of two views
+that stay separate modules: the **theme preference** (`features/settings/`) and
+the **AI settings** (`features/ai-settings/`). The page owns the title, the
+width and the order; each view owns its own sections, headings and reads. That
+is the shape the original route note anticipated for the day a second settings
+area arrived (issue #127) — minus the layout route, which buys nothing while the
+second area is one row, and which the split above keeps cheap.
+
+The theme row is a `Select` over light/dark, not the flip-button it was in the
+sidebar footer: a toggle is labelled with the theme it would switch *to*, which
+answers the wrong question on a page whose other rows state what is in force.
+It writes through `next-themes` alone — `localStorage` plus the `.dark` class on
+`<html>` — so it has no `SavedFlash` and no disabled state; nothing crosses the
+network. `enableSystem={false}` in `routes/__root.tsx` is what makes the choice
+a strict pair, and `settings-view.test.tsx` reads that file so the two cannot
+drift.
+
+**AI settings**:
+See [CONTEXT-MAP.md](../../CONTEXT-MAP.md). Built in `features/ai-settings/`,
+the second section of the settings page. Two things about it are this package's,
+not the domain's:
 
 - **It is composed, not written.** Every visible part is a gousse component
   vendored from the registry (ADR 0003) — `CredentialTile`/`CredentialGrid`,
@@ -238,8 +256,8 @@ domain's:
   choice the server rejected. The one piece of local state is the **draft** in
   a `SecretField`, and it is dropped the moment the value is stored.
 
-_Avoid_: settings view (the route is `/settings` but the feature is the AI one;
-a second settings area becomes a layout around two views).
+_Avoid_: AI settings page (since #127 it is a section of the settings page, and
+`SettingsView` is the page).
 
 **Import's route to Settings**:
 The upload step's alert carries a **link** to `/settings` for exactly one
