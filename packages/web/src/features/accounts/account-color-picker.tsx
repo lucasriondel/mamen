@@ -1,5 +1,5 @@
 import { type FormEvent, useId, useState } from "react";
-import { normaliseHex } from "@/components/color-picker";
+import { normaliseHex } from "@/components/color-fields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {

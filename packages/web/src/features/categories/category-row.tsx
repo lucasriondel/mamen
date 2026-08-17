@@ -2,8 +2,10 @@ import type { Category } from "@mamen/shared/contract";
 import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
-import { ColorPicker } from "@/components/color-picker";
-import { IconPicker } from "@/components/icon-picker";
+import {
+	type Appearance,
+	AppearancePicker,
+} from "@/components/appearance-picker";
 import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -59,10 +61,11 @@ export interface CategoryRowProps {
 	childCount: number;
 	expanded: boolean;
 	onToggle: () => void;
-	/** Store a new **Icon name** on this node (issue #58). */
-	onIcon: (icon: string) => void;
-	/** Store a colour, or `null` to resume inheriting (issue #58). */
-	onColor: (color: string | null) => void;
+	/**
+	 * Store this node's **appearance** — its **Icon name** and its colour, `null`
+	 * for "resume inheriting" — as one write (issues #58, #130).
+	 */
+	onAppearance: (appearance: Appearance) => void;
 	/** A styling write is in flight. */
 	styling: boolean;
 	/** The `⋯` cluster — passed in so the row shell stays free of mutations. */
@@ -96,8 +99,7 @@ export function CategoryRow({
 	childCount,
 	expanded,
 	onToggle,
-	onIcon,
-	onColor,
+	onAppearance,
 	styling,
 	actions,
 }: CategoryRowProps) {
@@ -145,8 +147,7 @@ export function CategoryRow({
 				depth={depth}
 				isFolder={isFolder}
 				styling={styling}
-				onIcon={onIcon}
-				onColor={onColor}
+				onAppearance={onAppearance}
 			/>
 
 			{isFolder && (
@@ -197,15 +198,16 @@ export function CategoryRow({
 }
 
 /**
- * A node's identity: its icon chip, its colour swatch, and a link to its
- * transactions (issue #25).
+ * A node's identity: its **appearance** chip and a link to its transactions
+ * (issue #25).
  *
- * The chip and the swatch are the **editors** for what they show (issue #58) —
- * click the icon to change the icon, click the swatch to change the colour —
- * which is why they sit *outside* the link: nesting a button inside an anchor is
- * invalid, and one gesture can't mean both "navigate" and "edit".
+ * The chip is the **editor** for what it shows (issues #58, #130) — click the
+ * icon to change the icon *and* the colour, which used to be two triggers two
+ * pixels apart — which is why it sits *outside* the link: nesting a button
+ * inside an anchor is invalid, and one gesture can't mean both "navigate" and
+ * "edit".
  *
- * Both paint the **Resolved colour**, never the stored `color`, so a leaf that
+ * It paints the **Resolved colour**, never the stored `color`, so a leaf that
  * inherits visibly tracks the folder above it and a folder recolour repaints its
  * whole subtree on the next read (ADR 0006).
  */
@@ -215,32 +217,24 @@ function CategoryRowIdentity({
 	depth,
 	isFolder,
 	styling,
-	onIcon,
-	onColor,
+	onAppearance,
 }: {
 	node: Category;
 	color: string;
 	depth: number;
 	isFolder: boolean;
 	styling: boolean;
-	onIcon: (icon: string) => void;
-	onColor: (color: string | null) => void;
+	onAppearance: (appearance: Appearance) => void;
 }) {
 	return (
 		<span className="flex min-w-0 items-center gap-1.5">
-			<IconPicker
+			<AppearancePicker
 				label={node.name}
-				value={node.icon}
-				color={color}
-				pending={styling}
-				onSelect={onIcon}
-			/>
-			<ColorPicker
-				label={node.name}
-				value={node.color}
+				icon={node.icon}
+				color={node.color}
 				resolved={color}
 				pending={styling}
-				onSubmit={onColor}
+				onSubmit={onAppearance}
 			/>
 			<Link
 				to="/categories/$categoryId"

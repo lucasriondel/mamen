@@ -1,17 +1,4 @@
-import {
-	type FormEvent,
-	type KeyboardEvent,
-	useId,
-	useRef,
-	useState,
-} from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "@/components/ui/popover";
+import { type KeyboardEvent, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -166,20 +153,6 @@ export const PALETTE = [
 	{ name: "Ink", hex: "#1e293b" },
 ] as const satisfies readonly { name: string; hex: string }[];
 
-export interface ColorPickerProps {
-	/** The thing being recoloured — names the trigger, e.g. "Change Food colour". */
-	label: string;
-	/** The category's **own** `color`; `null` = it inherits (ADR 0006). */
-	value: string | null;
-	/** Its **Resolved colour** — what the swatch paints, stored or inherited. */
-	resolved: string;
-	/** A write is in flight; the form stays open but won't fire a second one. */
-	pending?: boolean;
-	/** `null` clears the stored colour, resuming inheritance. */
-	onSubmit: (color: string | null) => void;
-	className?: string;
-}
-
 /** Where each arrow key moves within the palette grid. */
 const PALETTE_ARROWS: Record<string, number | undefined> = {
 	ArrowRight: 1,
@@ -191,18 +164,17 @@ const PALETTE_ARROWS: Record<string, number | undefined> = {
 /**
  * The swatch grid — the common case, one click away.
  *
- * A **roving `tabIndex`**, as in {@link IconPicker}: the whole grid is one tab
+ * A **roving `tabIndex`**, as in {@link IconGrid}: the whole grid is one tab
  * stop and the arrows walk it in two dimensions. Twenty-four tab stops between
- * the popover opening and the spectrum below it would make the keyboard path
+ * the panel opening and the spectrum below it would make the keyboard path
  * through this panel worse than the mouse one, which is the opposite of the
  * point.
  *
- * It also decides where the popover *opens*: Base UI focuses the first tabbable
- * element in the panel, and that is this grid's active cell — the swatch the
- * stored colour already sits on, or the first one. The hex field is the escape
- * hatch now, so it no longer takes focus on open.
+ * The cell the grid *starts* on is the one the stored colour already sits on, or
+ * the first — so arriving here by Tab lands on the current colour rather than on
+ * a red the category never chose.
  */
-function PaletteGrid({
+export function PaletteGrid({
 	selected,
 	pending,
 	onPick,
@@ -297,7 +269,7 @@ const HUE_TRACK =
  * the platform's own keyboard, touch and AT behaviour is better than any
  * re-implementation.
  */
-function SpectrumArea({
+export function SpectrumArea({
 	hsv,
 	pending,
 	onChange,
@@ -416,200 +388,5 @@ function SpectrumArea({
 				)}
 			/>
 		</div>
-	);
-}
-
-/**
- * The colour editor for a category, opened by clicking the swatch it edits
- * (issue #58, rebuilt in #128). A popover holding a **palette** of swatches for
- * the common case, a **spectrum** for a colour that is not in it, and the hex
- * field as the escape hatch for a user who does have a code.
- *
- * All three drive **one draft**, and only *Save* writes. A palette click that
- * committed on the spot — the {@link AccountColorPicker}'s bargain, where the
- * grid is the whole picker — would make the spectrum unreachable as a
- * refinement of a palette pick, and would sit oddly next to a Save button it
- * ignores. So the grid stages, the spectrum stages, the field stages, and the
- * popover has exactly one commit gesture.
- *
- * The swatch shows the **Resolved colour**, never the stored one: a leaf that
- * inherits has nothing of its own to show, and showing a blank there would hide
- * the very propagation this surface exists to demonstrate. Clearing writes
- * `null` — a *reference* to the nearest coloured ancestor, not an absent value —
- * and is offered only when there is something to clear.
- *
- * An unparseable value is refused here rather than sent: `color` is a bare
- * `Schema.String` on the wire, so the server would happily store "purple-ish"
- * and every descendant inheriting it would paint nothing.
- */
-export function ColorPicker({
-	label,
-	value,
-	resolved,
-	pending,
-	onSubmit,
-	className,
-}: ColorPickerProps) {
-	const [open, setOpen] = useState(false);
-	const [draft, setDraft] = useState(value ?? "");
-	const [invalid, setInvalid] = useState(false);
-	/**
-	 * Where the spectrum is standing. Seeded from the **Resolved colour** when the
-	 * category inherits: there is no stored colour to start from, and starting on
-	 * black would make the first drag begin somewhere the row has never been.
-	 */
-	const [hsv, setHsv] = useState<Hsv>(() => hexToHsv(value ?? resolved));
-	// One picker renders per tree row, so a static id would collide across rows.
-	const fieldId = useId();
-	const errorId = useId();
-
-	const handleOpenChange = (next: boolean) => {
-		setOpen(next);
-		// Re-seed from the stored colour on every open, so a cancelled edit (Escape,
-		// or clicking away) never leaks into the next one.
-		if (next) {
-			setDraft(value ?? "");
-			setHsv(hexToHsv(value ?? resolved));
-			setInvalid(false);
-		}
-	};
-
-	/**
-	 * The draft text, and the spectrum moved to wherever it now points. Both the
-	 * field and the palette land here: a swatch click is the same event as typing
-	 * that colour's code, and having two ways to reach the draft is what would let
-	 * the two halves of the popover drift apart.
-	 */
-	const handleDraft = (next: string) => {
-		setDraft(next);
-		setInvalid(false);
-		const hex = normaliseHex(next);
-		if (hex === null) return;
-		setHsv((previous) => {
-			const point = hexToHsv(hex);
-			// A grey carries no hue, so typing `#ffffff` would otherwise swing the
-			// track to red. Keep the hue the spectrum was already on.
-			return point.s === 0 ? { ...point, h: previous.h } : point;
-		});
-	};
-
-	const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-		event.preventDefault();
-		if (pending) return;
-		const hex = normaliseHex(draft);
-		if (hex === null) {
-			setInvalid(true);
-			return;
-		}
-		setInvalid(false);
-		onSubmit(hex);
-		setOpen(false);
-	};
-
-	const clear = () => {
-		if (pending) return;
-		onSubmit(null);
-		setOpen(false);
-	};
-
-	/** A spectrum move into the draft, already canonically spelled. */
-	const moveSpectrum = (next: Hsv) => {
-		setHsv(next);
-		setDraft(hsvToHex(next));
-		setInvalid(false);
-	};
-
-	return (
-		<Popover open={open} onOpenChange={handleOpenChange}>
-			<PopoverTrigger
-				render={
-					<button
-						type="button"
-						aria-label={`Change ${label} colour`}
-						title={`Change ${label} colour`}
-						className={cn(
-							"shrink-0 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-gousse-accent focus-visible:ring-offset-1 focus-visible:ring-offset-gousse-panel",
-							className,
-						)}
-					>
-						{/* A **chosen** colour is a solid dot; an **inherited** one is the
-						    same dot hollowed to a ring. `color: null` is a *reference* to
-						    the nearest coloured ancestor (ADR 0006), so the swatch can say
-						    which without a second glyph — previously both painted
-						    identically and the propagation was invisible until you edited
-						    something. Both spellings paint the **Resolved colour**. */}
-						<span
-							data-color-swatch={resolved}
-							data-color-inherited={value === null ? "" : undefined}
-							style={
-								value === null
-									? { boxShadow: `inset 0 0 0 2px ${resolved}` }
-									: { backgroundColor: resolved }
-							}
-							className={cn(
-								"block size-3.5 rounded-full",
-								value === null ? "opacity-75" : "border border-gousse-line",
-							)}
-						/>
-					</button>
-				}
-			/>
-			<PopoverContent className="w-64 p-3">
-				<div className="flex flex-col gap-3">
-					<PaletteGrid
-						selected={normaliseHex(draft)}
-						pending={pending}
-						onPick={handleDraft}
-					/>
-					<SpectrumArea hsv={hsv} pending={pending} onChange={moveSpectrum} />
-					<form onSubmit={handleSubmit} className="flex flex-col gap-2">
-						<label
-							htmlFor={fieldId}
-							className="text-gousse-muted text-xs uppercase tracking-wide"
-						>
-							Hex colour
-						</label>
-						<Input
-							id={fieldId}
-							value={draft}
-							onChange={(e) => handleDraft(e.target.value)}
-							aria-invalid={invalid}
-							aria-describedby={invalid ? errorId : undefined}
-							placeholder="#ef4444"
-							spellCheck={false}
-							autoComplete="off"
-						/>
-						{invalid ? (
-							<p id={errorId} className="text-gousse-high text-xs">
-								Enter a hex colour like #ef4444.
-							</p>
-						) : null}
-						<div className="flex items-center justify-between gap-2">
-							{value === null ? (
-								// Already inheriting — there is nothing to clear, so no no-op.
-								<span className="text-gousse-muted text-xs">Inheriting</span>
-							) : (
-								<Button
-									variant="ghost"
-									size="sm"
-									onClick={clear}
-									disabled={pending}
-								>
-									Inherit
-								</Button>
-							)}
-							<Button
-								variant="primary"
-								size="sm"
-								type="submit"
-								disabled={pending}
-							>
-								Save
-							</Button>
-						</div>
-					</form>
-				</div>
-			</PopoverContent>
-		</Popover>
 	);
 }

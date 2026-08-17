@@ -59,16 +59,23 @@ export function useCategoryMutations() {
 			name,
 			parentId,
 			icon = NEW_CATEGORY_ICON,
+			color = NEW_COLOR,
 		}: {
 			name: string;
 			parentId: CategoryId | null;
 			/** An **Icon name** chosen up front; omitted, the node gets the default. */
 			icon?: string;
+			/**
+			 * A colour chosen up front (issue #130): the create dialog offers the same
+			 * merged appearance editor the rows do, so a category can be born with one.
+			 * Omitted — and by default — it is `null` and the node **inherits**.
+			 */
+			color?: string | null;
 		}): Promise<Category> =>
 			categoryMutations.create({
 				name,
 				slug: slugify(name),
-				color: NEW_COLOR,
+				color,
 				icon,
 				parentId,
 				sortOrder: 0,
@@ -87,26 +94,34 @@ export function useCategoryMutations() {
 		onError,
 	});
 
-	// Set a node's **Icon name** — the Lucide id the picker chose (ADR 0006 /
-	// issue #58). A single-field patch, deliberately: it rides the same update
-	// endpoint as rename and move but never sends the other fields, so two people
-	// editing different facets of one category can't clobber each other.
-	const setIcon = useMutation({
-		mutationFn: ({ id, icon }: { id: CategoryId; icon: string }) =>
-			categoryMutations.update(id, { icon }),
-		onSuccess: invalidate,
-		onError,
-	});
-
-	// Set — or **clear** — a node's colour. `null` is the whole point: it stores a
-	// *reference* to the nearest coloured ancestor rather than a colour, so the
-	// node resumes inheriting and a later folder recolour reaches it again (ADR
-	// 0006). Invalidating refetches the tree, which is what repaints every
-	// descendant that never opted out — the propagation is a re-resolve, not a
-	// cascade of writes.
-	const setColor = useMutation({
-		mutationFn: ({ id, color }: { id: CategoryId; color: string | null }) =>
-			categoryMutations.update(id, { color }),
+	// Set a node's **appearance** — its **Icon name** (the Lucide id the grid
+	// chose) and its colour, in **one** patch (ADR 0006 / issues #58, #130). They
+	// were two single-field mutations behind two popovers; the editor is one
+	// control now, so a visit that changes both is one request rather than two
+	// racing invalidations of the same tree.
+	//
+	// Still a narrow patch, and narrower than the editor: the caller sends only the
+	// half that actually moved, so this rides the same update endpoint as rename
+	// and move without ever restating a field it wasn't asked about. One gesture
+	// does not have to mean one rewrite of both columns — someone renaming the
+	// category cannot be clobbered by someone restyling it, and a Save that changed
+	// nothing is no write at all.
+	//
+	// `color: null` is the whole point of the colour half: it stores a *reference*
+	// to the nearest coloured ancestor rather than a colour, so the node resumes
+	// inheriting and a later folder recolour reaches it again. Invalidating
+	// refetches the tree, which is what repaints every descendant that never opted
+	// out — the propagation is a re-resolve, not a cascade of writes.
+	const setAppearance = useMutation({
+		mutationFn: ({
+			id,
+			...patch
+		}: {
+			id: CategoryId;
+			/** Omitted = unchanged; the editor sends what moved and nothing else. */
+			icon?: string;
+			color?: string | null;
+		}) => categoryMutations.update(id, patch),
 		onSuccess: invalidate,
 		onError,
 	});
@@ -159,5 +174,5 @@ export function useCategoryMutations() {
 		onError,
 	});
 
-	return { create, rename, setIcon, setColor, move, spill, remove };
+	return { create, rename, setAppearance, move, spill, remove };
 }
