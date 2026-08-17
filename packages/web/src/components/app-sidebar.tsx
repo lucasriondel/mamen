@@ -1,12 +1,12 @@
 import { APP_BASE_PATH_SLASH } from "@mamen/shared";
 import { createLink } from "@tanstack/react-router";
 import {
-	ArrowLeftRight,
 	ArrowRightLeft,
 	Building2,
 	FolderTree,
 	type LucideIcon,
 	PieChart,
+	Receipt,
 	Settings,
 	Upload,
 	Wallet,
@@ -115,9 +115,25 @@ interface NavLink {
 	icon: LucideIcon;
 }
 
-/** The primary navigation surfaces, in sidebar order. */
+/**
+ * The primary navigation surfaces, in sidebar order.
+ *
+ * **One glyph, one destination** (issue #126). A row is scanned before it is
+ * read, so a glyph that names two rows costs the nav the only thing it offers
+ * over a list of words. Mirrored twins count as one glyph: `ArrowLeftRight` and
+ * `ArrowRightLeft` are the same drawing flipped, and at 16px nothing tells them
+ * apart — which is why `Receipt` is here and the arrows are Transfers' alone.
+ *
+ * The arrows staying there is the substantive half, and the app had already
+ * decided it: `TransferBadge` marks a transfer row with `ArrowLeftRight` — the
+ * very glyph this row gave up — and `rules-section.tsx` declines the pair on a
+ * rule move because it "already reads as the transaction transfer feature". So
+ * the arrow family means *transfer* app-wide, which is the reason Transactions
+ * could not keep it: the row was not merely hard to tell from its neighbour, it
+ * was wearing the neighbour's meaning.
+ */
 const NAV_LINKS: readonly NavLink[] = [
-	{ to: "/transactions", label: "Transactions", icon: ArrowLeftRight },
+	{ to: "/transactions", label: "Transactions", icon: Receipt },
 	{ to: "/transfers", label: "Transfers", icon: ArrowRightLeft },
 	{ to: "/recap", label: "Recap", icon: PieChart },
 	{ to: "/import", label: "Import", icon: Upload },

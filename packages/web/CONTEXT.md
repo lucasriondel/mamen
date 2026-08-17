@@ -298,4 +298,26 @@ real shell.
 _Avoid_: header (the `<header>` element is the topbar's markup; the *page header*
 is `PageHeader`, one part of it).
 
+**Nav glyph**:
+The 16px Lucide mark on a sidebar row, and **one glyph names one destination**
+(issue #126). The rule is what the nav offers over a list of words: a row is
+found by its mark before it is read, which stops working the moment two rows
+share one. A **mirrored twin** counts as the same glyph — `ArrowLeftRight` is
+`ArrowRightLeft` flipped, and at this size nothing tells the two apart, which is
+why Transactions carries `Receipt` and the arrow pair is Transfers' alone.
+
+The arrows belong there on the merits, and the app had already said so: the
+`TransferBadge` on a transactions row uses `ArrowLeftRight` — the glyph the nav
+row gave up — and `rules-section.tsx` turns the pair down for a rule move
+because it already reads as the transfer feature. The arrow family means
+*transfer* app-wide, so the old Transactions row was wearing its neighbour's
+meaning, not just a similar shape.
+
+`app-sidebar.test.tsx` holds the whole assignment as a table and fails on a
+repeat through three nets, which catch different things: the **id**; the id's
+**words unordered**, which is the only one that sees a mirrored twin (the twins'
+path data genuinely differs, so geometry does not); and the **rendered
+geometry**, for two unrelated ids that draw one picture (`clock` and `clock-4`
+are byte-identical).
+
 <!-- Terms are added here as they are resolved during design. -->

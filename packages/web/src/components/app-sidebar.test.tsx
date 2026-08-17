@@ -34,18 +34,30 @@ import { AppSidebar } from "./app-sidebar";
  * counts the brand among the destinations.
  */
 
-/** Every destination the sidebar offers, in the order it offers them. */
+/**
+ * Every destination the sidebar offers, in the order it offers them, with the
+ * Lucide id of the glyph that stands for it.
+ *
+ * The glyph column is part of the destination and not an afterthought: a row is
+ * scanned before it is read, so the mark is half of what tells two rows apart
+ * (issue #126).
+ */
 const DESTINATIONS = [
-	["Transactions", "/transactions"],
-	["Transfers", "/transfers"],
-	["Recap", "/recap"],
-	["Import", "/import"],
-	["Accounts", "/accounts"],
-	["Issuers", "/issuers"],
-	["Categories", "/categories"],
+	// Not an arrow pair. `ArrowLeftRight` was `ArrowRightLeft` mirrored, so at
+	// 16px this row and the one below it were the same row twice; the arrows stay
+	// with the concept that genuinely is directional (issue #126).
+	["Transactions", "/transactions", "receipt"],
+	["Transfers", "/transfers", "arrow-right-left"],
+	// `chart-pie` and `building2` are the ids Lucide draws under; `PieChart` and
+	// `Building2` are the export names, and for the first of those the two differ.
+	["Recap", "/recap", "chart-pie"],
+	["Import", "/import", "upload"],
+	["Accounts", "/accounts", "wallet"],
+	["Issuers", "/issuers", "building2"],
+	["Categories", "/categories", "folder-tree"],
 	// Last, and after a rule: settings is where the app is configured rather than
 	// where its money is looked at, so it sits below the feature surfaces.
-	["Settings", "/settings"],
+	["Settings", "/settings", "settings"],
 ] as const;
 
 /** Where the brand row goes: the app's root, which is its landing surface. */
@@ -120,6 +132,35 @@ const ownStyling = (row: Element) =>
 		.sort()
 		.join(" ");
 
+/**
+ * The Lucide id of the glyph a row carries.
+ *
+ * Every Lucide icon puts `lucide-<id>` on its own `<svg>` — the library's output,
+ * not something this call site writes — so which glyph a row got is readable from
+ * the rendered tree without a test-only attribute threaded through the nav.
+ */
+const glyphOf = (row: Element) => {
+	const svg = row.querySelector("svg");
+	const id = Array.from(svg?.classList ?? [])
+		.filter((name) => name.startsWith("lucide-"))
+		.map((name) => name.slice("lucide-".length))
+		.at(0);
+	if (id === undefined)
+		throw new Error(`no Lucide glyph on ${row.textContent}`);
+	return id;
+};
+
+/**
+ * The **family** of a glyph: its id's words, unordered.
+ *
+ * Lucide names a mirrored twin by permuting the direction words of the glyph it
+ * mirrors — `arrow-left-right` and `arrow-right-left`, `move-up-left` and
+ * `move-left-up`. Two ids are different strings, so id-distinctness alone happily
+ * accepts the pair that started issue #126; sorting the words collapses each such
+ * pair onto one key, which is the collision worth failing on.
+ */
+const glyphFamily = (id: string) => id.split("-").sort().join("-");
+
 describe("AppSidebar", () => {
 	it("offers every destination, in order, as a router link", async () => {
 		renderSidebar();
@@ -174,6 +215,42 @@ describe("AppSidebar", () => {
 		await waitFor(() => expect(navItems()).toHaveLength(DESTINATIONS.length));
 		const withIcon = navItems().filter((row) => row.querySelector("svg"));
 		expect(withIcon).toHaveLength(DESTINATIONS.length);
+	});
+
+	// #126: which glyph, not merely that there is one. Transactions carries a
+	// receipt — a thing you are handed per purchase — and the arrows stay on
+	// Transfers, where the direction they draw is the whole concept.
+	it("gives every row the glyph that stands for its destination", async () => {
+		renderSidebar();
+
+		await waitFor(() => expect(navItems()).toHaveLength(DESTINATIONS.length));
+		expect(navItems().map(glyphOf)).toStrictEqual(
+			DESTINATIONS.map(([, , glyph]) => glyph),
+		);
+	});
+
+	// #126's general rule, so the next row added cannot re-create the collision:
+	// a glyph is how a row is found without reading it, which only works while a
+	// glyph names one destination.
+	it("gives no two rows the same glyph, or a mirrored twin of one", async () => {
+		renderSidebar();
+
+		await waitFor(() => expect(navItems()).toHaveLength(DESTINATIONS.length));
+		const glyphs = navItems().map(glyphOf);
+		expect(new Set(glyphs).size).toBe(DESTINATIONS.length);
+		// The collision that started #126, and the only net that catches it: a
+		// mirrored twin's markup *differs* — `arrow-left-right` and
+		// `arrow-right-left` are four different `d` values — so neither the id
+		// check above nor the geometry check below sees it. What repeats is the
+		// reading at 16px, and the id's words are the readable trace of that.
+		expect(new Set(glyphs.map(glyphFamily)).size).toBe(DESTINATIONS.length);
+		// The converse case, which the words miss: two ids that share no word can
+		// be one drawing — `clock` and `clock-4` are byte-identical icon nodes in
+		// this Lucide. Geometry is the last word on those.
+		const drawings = navItems().map(
+			(row) => row.querySelector("svg")?.innerHTML,
+		);
+		expect(new Set(drawings).size).toBe(DESTINATIONS.length);
 	});
 
 	it("navigates client-side, moving the mark with the route", async () => {
