@@ -207,6 +207,12 @@ The statement's bytes reach the task through `ExtractPdfInput.pdfBytes`, read by
 transports are handed the same file and the same finalizer deletes it. The read
 is in the handler and not in the prompt column because a prompt builder is a pure
 function. The base64 encoding is the ai-sdk's, at the wire; mamen carries bytes.
+**The wire shape is the vendor's, not mamen's** — Anthropic takes a `document`
+part with a base64 `source`, Google an `inlineData` part, OpenAI a `file` part
+holding a data URL — so each is asserted on its own request, `fetch` stubbed
+under the production wiring with no seam provided (`import/handlers.test.ts`).
+The seam sits above the conversion that makes them differ and cannot tell them
+apart.
 
 **Codec adapter**:
 `effectSchemaCodec` (`ai-runner/codec.ts`) — one contract schema as the

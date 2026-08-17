@@ -69,6 +69,10 @@ const httpLiveWith = (handler: SpawnHandler) =>
 /** The Anthropic key these tests paste. Long enough for the store to accept. */
 const ANTHROPIC_KEY = "sk-ant-api03-Kj28fnQ2xLmPqR7v-3f9";
 
+/** The other two vendors' keys, in each vendor's own shape. */
+const GOOGLE_KEY = "AIzaSyB-Qw3xTn7Lp0aa11bb22cc33dd44ee";
+const OPENAI_KEY = "sk-proj-7Hq2Rf8pLxNv0kTz-Ww4";
+
 /**
  * The same stack with the hosted transport faked (issue #124) — the one new
  * seam, and the only thing about a hosted run these tests stand in for. The CLI
@@ -98,6 +102,12 @@ const hostedRecorder = (respond: () => Promise<unknown>) => {
 	return { calls, generate };
 };
 
+/** The staging dirs already in the temp root — the snapshot `stagedDirOf` skips. */
+const stagedDirsBefore = (): ReadonlySet<string> =>
+	new Set(
+		readdirSync(tmpdir()).filter((name) => name.startsWith("mamen-pdf-")),
+	);
+
 /**
  * The transient temp dir this request staged its statement in, found by its
  * contents.
@@ -107,11 +117,19 @@ const hostedRecorder = (respond: () => Promise<unknown>) => {
  * {@link stagedIn} reads it off the CLI's `--add-dir`. Matching on the uploaded
  * bytes instead identifies *this* request's dir unambiguously, even with another
  * extraction in flight in a parallel test file.
+ *
+ * `before` is what makes that true a second time: a run killed mid-flight leaves
+ * a dir behind, and a *deletion* test that found the corpse of an earlier run
+ * would fail for a reason that has nothing to do with the code under test. Only
+ * dirs that appeared after the snapshot count.
  */
-const stagedDirOf = (marker: Uint8Array): string => {
+const stagedDirOf = (
+	marker: Uint8Array,
+	before: ReadonlySet<string>,
+): string => {
 	const root = tmpdir();
 	for (const name of readdirSync(root)) {
-		if (!name.startsWith("mamen-pdf-")) continue;
+		if (!name.startsWith("mamen-pdf-") || before.has(name)) continue;
 		const file = join(root, name, "statement.pdf");
 		if (existsSync(file) && Buffer.from(readFileSync(file)).equals(marker)) {
 			return join(root, name);
@@ -595,19 +613,37 @@ describe("the Claude Code token comes from the credential store", () => {
 describe("a hosted provider extracts the statement", () => {
 	afterEach(() => {
 		delete process.env.TOKEN_ENCRYPTION_KEY;
+		delete process.env.ANTHROPIC_API_KEY;
 	});
 
+	/**
+	 * Store `key` for `provider` and move extraction onto it — through the same
+	 * two endpoints the settings page uses, so every hosted state under test is
+	 * one a user could actually have reached. `model` omitted leaves the task on
+	 * that provider's default.
+	 */
+	const chooseHosted = (
+		provider: "anthropic" | "google" | "openai",
+		key: string,
+		model?: string,
+	) =>
+		Effect.gen(function* () {
+			const client = yield* HttpApiClient.make(Api);
+			yield* client.secrets.put({
+				path: { name: provider },
+				payload: { value: key },
+			});
+			yield* client.aiTasks.patch({
+				payload: {
+					tasks: [
+						{ task: "extract-pdf", provider, ...(model ? { model } : {}) },
+					],
+				},
+			});
+		});
+
 	/** Move extraction onto Anthropic, the way the settings page does. */
-	const chooseAnthropic = Effect.gen(function* () {
-		const client = yield* HttpApiClient.make(Api);
-		yield* client.secrets.put({
-			path: { name: "anthropic" },
-			payload: { value: ANTHROPIC_KEY },
-		});
-		yield* client.aiTasks.patch({
-			payload: { tasks: [{ task: "extract-pdf", provider: "anthropic" }] },
-		});
-	});
+	const chooseAnthropic = chooseHosted("anthropic", ANTHROPIC_KEY);
 
 	it.effect("returns the same rows and declared totals as the CLI does", () => {
 		process.env.TOKEN_ENCRYPTION_KEY = "a".repeat(64);
@@ -687,127 +723,263 @@ describe("a hosted provider extracts the statement", () => {
 		},
 	);
 
-	it.effect("deletes the statement whichever way the vendor answers", () => {
-		process.env.TOKEN_ENCRYPTION_KEY = "a".repeat(64);
-		// Bytes unique to this test, so the staged dir is found by its contents
-		// and no parallel extraction can be mistaken for it.
-		const marker = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x32]);
-		let staged = "";
+	/**
+	 * Both ways the vendor can answer, because the statement must not outlive the
+	 * request either way (ADR 0005, story 29) — and a finalizer that only fires on
+	 * one of them is exactly the bug a single-path test would keep.
+	 *
+	 * Each case's bytes are its own, so the staged dir is found by its contents and
+	 * no extraction in flight in a parallel test file can be mistaken for it.
+	 */
+	const VENDOR_ANSWERS = [
+		{
+			answer: "answers",
+			marker: new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x31]),
+			respond: () => Promise.resolve(CCF_OBJECT),
+			failed: false,
+		},
+		{
+			answer: "refuses",
+			marker: new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x32]),
+			respond: () => Promise.reject(new Error("503 upstream unavailable")),
+			failed: true,
+		},
+	] as const;
 
-		return Effect.gen(function* () {
-			yield* chooseAnthropic;
-			const client = yield* HttpApiClient.make(Api);
-			yield* client.import
-				.extractPdf({
-					payload: pdfFormData("application/pdf", "RLV.pdf", marker),
-				})
-				.pipe(Effect.flip);
+	for (const outcome of VENDOR_ANSWERS) {
+		it.effect(`deletes the statement when the vendor ${outcome.answer}`, () => {
+			process.env.TOKEN_ENCRYPTION_KEY = "a".repeat(64);
+			const before = stagedDirsBefore();
+			let staged = "";
 
-			// It was staged while the vendor call was in flight (ADR 0005's temp
-			// dir is transport-independent, and the failure path is where a missing
-			// finalizer would show) — and it is gone now.
-			assert.match(staged, /mamen-pdf-/);
-			assert.isFalse(existsSync(staged));
-		}).pipe(
-			Effect.provide(
-				httpLiveWithHosted(() => {
-					staged = stagedDirOf(marker);
-					return Promise.reject(new Error("503 upstream unavailable"));
-				}),
-			),
-		);
-	});
+			return Effect.gen(function* () {
+				yield* chooseAnthropic;
+				const client = yield* HttpApiClient.make(Api);
+				const run = client.import.extractPdf({
+					payload: pdfFormData("application/pdf", "RLV.pdf", outcome.marker),
+				});
+				yield* outcome.failed ? Effect.flip(run) : run;
+
+				// It was staged while the vendor call was in flight (ADR 0005's temp
+				// dir is transport-independent) — and it is gone now.
+				assert.match(staged, /mamen-pdf-/);
+				assert.isFalse(existsSync(staged));
+			}).pipe(
+				Effect.provide(
+					httpLiveWithHosted(() => {
+						staged = stagedDirOf(outcome.marker, before);
+						return outcome.respond();
+					}),
+				),
+			);
+		});
+	}
 
 	/**
 	 * The seam above stands in for the HTTP call, so on its own it would pass just
-	 * as happily against a runner that never makes one. This test provides **no**
-	 * seam — the production wiring, the package's own ai-sdk call — and stubs
-	 * `fetch` one layer lower, at the socket the vendor is on.
+	 * as happily against a runner that never makes one. The three tests below
+	 * provide **no** seam — the production wiring, the package's own ai-sdk call —
+	 * and stub `fetch` one layer lower, at the socket the vendor is on.
 	 *
-	 * It is what actually holds the acceptance criterion "sent as a base64
+	 * They are what actually hold the acceptance criterion "sent as a base64
 	 * document part": the base64 is the ai-sdk's doing, not mamen's, and this is
-	 * the only place mamen can see it. The stub answers with a 400 so the SDK
-	 * gives up rather than retrying, and the run's failure is beside the point —
-	 * what is asserted is the request that left.
+	 * the only place mamen can see it. The stub answers with a 400 so the SDK gives
+	 * up rather than retrying, and the run's failure is beside the point — what is
+	 * asserted is the request that left.
+	 *
+	 * One case per hosted vendor, because **the wire shape is the vendor's, not
+	 * mamen's**: Anthropic takes a `document` part with a `source`, Google an
+	 * `inlineData` part, OpenAI a `file` part holding a data URL. Three vendors the
+	 * user can pick means three shapes that can each be wrong on their own — the
+	 * seam above cannot tell them apart, because it sits above the conversion that
+	 * makes them differ.
 	 */
-	it.effect("posts the statement to the chosen vendor for real", () => {
-		process.env.TOKEN_ENCRYPTION_KEY = "a".repeat(64);
+	interface VendorRequest {
+		readonly url: string;
+		readonly headers: Headers;
+		readonly body: string;
+	}
+
+	/**
+	 * Capture every request that leaves for a vendor, answering each one 400 so the
+	 * SDK gives up rather than retrying. Requests to `localhost` are the test
+	 * server's own and go through untouched.
+	 */
+	const captureVendorRequests = () => {
 		const realFetch = globalThis.fetch;
-		const requests: Array<{ url: string; headers: Headers; body: string }> = [];
+		const requests: Array<VendorRequest> = [];
 		globalThis.fetch = (async (
 			input: RequestInfo | URL,
 			init?: RequestInit,
 		) => {
 			const url = input instanceof Request ? input.url : String(input);
-			if (!url.includes("localhost")) {
-				requests.push({
-					url,
-					headers: new Headers(init?.headers),
-					body: String(init?.body ?? ""),
-				});
-				return new Response(JSON.stringify({ error: { message: "nope" } }), {
-					status: 400,
-					headers: { "content-type": "application/json" },
-				});
-			}
-			return realFetch(input, init);
-		}) as typeof fetch;
-
-		return Effect.gen(function* () {
-			yield* chooseAnthropic;
-			const client = yield* HttpApiClient.make(Api);
-			yield* client.aiTasks.patch({
-				payload: { tasks: [{ task: "extract-pdf", model: "claude-opus-5" }] },
+			if (url.includes("localhost")) return realFetch(input, init);
+			requests.push({
+				url,
+				headers: new Headers(init?.headers),
+				body: String(init?.body ?? ""),
 			});
-			yield* client.import
-				.extractPdf({ payload: pdfFormData() })
-				.pipe(Effect.flip);
+			return new Response(JSON.stringify({ error: { message: "nope" } }), {
+				status: 400,
+				headers: { "content-type": "application/json" },
+			});
+		}) as typeof fetch;
+		return {
+			requests,
+			restore: Effect.sync(() => {
+				globalThis.fetch = realFetch;
+			}),
+		};
+	};
 
-			assert.strictEqual(requests.length, 1);
-			const request = requests[0];
-			assert.ok(request);
-			// The vendor the user chose, with the vendor's own key…
-			assert.include(request.url, "api.anthropic.com");
-			assert.strictEqual(request.headers.get("x-api-key"), ANTHROPIC_KEY);
-			// …the model they chose…
-			const body = JSON.parse(request.body) as {
-				model: string;
-				system?: unknown;
-				messages: Array<{ content: Array<Record<string, unknown>> }>;
-			};
-			assert.strictEqual(body.model, "claude-opus-5");
-			// …and the statement itself, base64, beside the instruction.
-			const parts = body.messages[0]?.content ?? [];
-			const document = parts.find((part) => part.type === "document") as
-				| { source: { type: string; media_type: string; data: string } }
-				| undefined;
-			assert.ok(document, `no document part in ${JSON.stringify(parts)}`);
-			assert.strictEqual(document?.source.type, "base64");
-			assert.strictEqual(document?.source.media_type, "application/pdf");
-			assert.strictEqual(
-				document?.source.data,
-				Buffer.from(PDF_MAGIC).toString("base64"),
-			);
-			// The CLI column never travels: no path on this machine, no tool.
-			assert.notInclude(request.body, "statement.pdf");
-			assert.notInclude(request.body, "Read tool");
-		}).pipe(
-			Effect.provide(
-				httpLiveWith(() =>
-					Effect.succeed({
-						stdout: okEnvelope(CCF_OBJECT),
-						stderr: "",
-						exitCode: 0,
-					}),
+	/** The statement as one vendor's wire carries it, once dug out of its shape. */
+	interface WireDocument {
+		readonly mediaType: string;
+		readonly data: string;
+	}
+
+	/**
+	 * One hosted vendor's wire: where its key rides, where its model id is written,
+	 * and how to read the attached statement back out of its own request shape.
+	 */
+	interface WireCase {
+		readonly provider: "anthropic" | "google" | "openai";
+		readonly key: string;
+		readonly model: string;
+		readonly host: string;
+		readonly credential: (request: VendorRequest) => string | null;
+		readonly modelOnTheWire: (request: VendorRequest) => unknown;
+		readonly statement: (request: VendorRequest) => WireDocument | undefined;
+	}
+
+	const bodyOf = (request: VendorRequest): Record<string, unknown> =>
+		JSON.parse(request.body) as Record<string, unknown>;
+
+	const WIRE_CASES: ReadonlyArray<WireCase> = [
+		{
+			provider: "anthropic",
+			key: ANTHROPIC_KEY,
+			model: "claude-opus-5",
+			host: "api.anthropic.com",
+			credential: (request) => request.headers.get("x-api-key"),
+			modelOnTheWire: (request) => bodyOf(request).model,
+			statement: (request) => {
+				const { messages } = bodyOf(request) as {
+					messages: Array<{ content: Array<Record<string, never>> }>;
+				};
+				const part = (messages[0]?.content ?? []).find(
+					(candidate: { type?: string }) => candidate.type === "document",
+				) as
+					| { source: { type: string; media_type: string; data: string } }
+					| undefined;
+				// `source.type` is where Anthropic says base64 rather than a URL or a
+				// file id, so a part that is not base64 reads as no document at all.
+				return part?.source.type === "base64"
+					? { mediaType: part.source.media_type, data: part.source.data }
+					: undefined;
+			},
+		},
+		{
+			provider: "google",
+			key: GOOGLE_KEY,
+			model: "gemini-2.5-pro",
+			host: "generativelanguage.googleapis.com",
+			credential: (request) => request.headers.get("x-goog-api-key"),
+			// Google names the model in the path, not the body.
+			modelOnTheWire: (request) => request.url.split("/").pop()?.split(":")[0],
+			statement: (request) => {
+				const { contents } = bodyOf(request) as {
+					contents: Array<{ parts: Array<Record<string, never>> }>;
+				};
+				const part = (contents[0]?.parts ?? []).find(
+					(candidate) => "inlineData" in candidate,
+				) as { inlineData: { mimeType: string; data: string } } | undefined;
+				return part
+					? { mediaType: part.inlineData.mimeType, data: part.inlineData.data }
+					: undefined;
+			},
+		},
+		{
+			provider: "openai",
+			key: OPENAI_KEY,
+			model: "gpt-5",
+			host: "api.openai.com",
+			credential: (request) =>
+				request.headers.get("authorization")?.replace("Bearer ", "") ?? null,
+			modelOnTheWire: (request) => bodyOf(request).model,
+			statement: (request) => {
+				const { messages } = bodyOf(request) as {
+					messages: Array<{ content: unknown }>;
+				};
+				const turn = messages.find((message) => Array.isArray(message.content));
+				const parts = (turn?.content ?? []) as Array<{ type?: string }>;
+				const part = parts.find((candidate) => candidate.type === "file") as
+					| { file: { filename: string; file_data: string } }
+					| undefined;
+				// OpenAI takes the document as a data URL, so the media type and the
+				// base64 arrive spelled into one string.
+				const url = /^data:([^;]+);base64,(.*)$/.exec(
+					part?.file.file_data ?? "",
+				);
+				return url?.[1] && url[2] !== undefined
+					? { mediaType: url[1], data: url[2] }
+					: undefined;
+			},
+		},
+	];
+
+	for (const wire of WIRE_CASES) {
+		it.effect(`posts the statement to ${wire.provider} for real`, () => {
+			process.env.TOKEN_ENCRYPTION_KEY = "a".repeat(64);
+			const { requests, restore } = captureVendorRequests();
+
+			return Effect.gen(function* () {
+				yield* chooseHosted(wire.provider, wire.key, wire.model);
+				const client = yield* HttpApiClient.make(Api);
+				yield* client.import
+					.extractPdf({ payload: pdfFormData() })
+					.pipe(Effect.flip);
+
+				// One request, to the vendor the user chose, with that vendor's own
+				// key — nothing fanned out to a second vendor on the way.
+				assert.strictEqual(requests.length, 1);
+				const request = requests[0];
+				assert.ok(request);
+				assert.include(request.url, wire.host);
+				assert.strictEqual(wire.credential(request), wire.key);
+				// …the model they chose…
+				assert.strictEqual(wire.modelOnTheWire(request), wire.model);
+				// …and the statement itself, base64, in this vendor's own shape.
+				const statement = wire.statement(request);
+				assert.ok(
+					statement,
+					`no document part in ${request.body.slice(0, 400)}`,
+				);
+				assert.strictEqual(statement?.mediaType, "application/pdf");
+				assert.strictEqual(
+					statement?.data,
+					Buffer.from(PDF_MAGIC).toString("base64"),
+				);
+				// The CLI column never travels: no path on this machine, no tool. Nor
+				// does the name the user uploaded — the only filename any vendor sees
+				// is the SDK's own placeholder.
+				assert.notInclude(request.body, "statement.pdf");
+				assert.notInclude(request.body, "Read tool");
+				assert.notInclude(request.body, "RLV_CHQ1_LUCAS_RIO_001");
+			}).pipe(
+				Effect.provide(
+					httpLiveWith(() =>
+						Effect.succeed({
+							stdout: okEnvelope(CCF_OBJECT),
+							stderr: "",
+							exitCode: 0,
+						}),
+					),
 				),
-			),
-			Effect.ensuring(
-				Effect.sync(() => {
-					globalThis.fetch = realFetch;
-				}),
-			),
-		);
-	});
+				Effect.ensuring(restore),
+			);
+		});
+	}
 
 	/**
 	 * The one state where a *hosted* provider reaches the run with no usable key
@@ -855,6 +1027,58 @@ describe("a hosted provider extracts the statement", () => {
 					}),
 				),
 			),
+		);
+	});
+
+	/**
+	 * The environment is ignored for credentials, and this is the branch where
+	 * that is not mamen's own code doing the ignoring (PRD #115, story 13).
+	 *
+	 * The ai-sdk's `loadApiKey` falls back to `ANTHROPIC_API_KEY` — and to
+	 * `GOOGLE_GENERATIVE_AI_API_KEY` and `OPENAI_API_KEY` — the moment it is handed
+	 * no key. The only thing standing between a stale key in a deployment config
+	 * and a bank statement is the runner refusing to call at all when the store has
+	 * nothing usable, which is upstream of every assertion in this file.
+	 *
+	 * So it is asserted where it can be seen: an unreadable stored blob (a rotated
+	 * `TOKEN_ENCRYPTION_KEY`, the one reachable way a hosted task meets a missing
+	 * key) plus a vendor key in the environment must produce the actionable error
+	 * and **no request at all** — not a run silently paid for by whoever owns the
+	 * environment's key.
+	 */
+	it.effect("never spends a vendor key that came from the environment", () => {
+		process.env.TOKEN_ENCRYPTION_KEY = "a".repeat(64);
+		const { requests, restore } = captureVendorRequests();
+
+		return Effect.gen(function* () {
+			yield* chooseHosted("anthropic", ANTHROPIC_KEY);
+
+			// The operator rotates the encryption key, so the stored blob is no
+			// longer readable — and leaves a key in the environment, the place this
+			// feature took credentials *out* of.
+			process.env.TOKEN_ENCRYPTION_KEY = "e".repeat(64);
+			process.env.ANTHROPIC_API_KEY = "sk-ant-api03-fromTheEnvironment-0001";
+
+			const client = yield* HttpApiClient.make(Api);
+			const error = yield* client.import
+				.extractPdf({ payload: pdfFormData() })
+				.pipe(Effect.flip);
+
+			assert.ok(error instanceof AiProviderNotConfigured);
+			// Nothing left for the vendor: the environment's key bought nothing,
+			// which is the whole of "there is exactly one place any secret lives".
+			assert.strictEqual(requests.length, 0);
+		}).pipe(
+			Effect.provide(
+				httpLiveWith(() =>
+					Effect.succeed({
+						stdout: okEnvelope(CCF_OBJECT),
+						stderr: "",
+						exitCode: 0,
+					}),
+				),
+			),
+			Effect.ensuring(restore),
 		);
 	});
 });
