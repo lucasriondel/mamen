@@ -121,6 +121,23 @@ live and is not, and it would silently take a value the user never chose to give
 to this store. miel's ADR 0001 made the same call. A user with a key in the old
 place pastes it once.
 
+## The vendor SDK's own environment fallback is fenced, not trusted
+
+"No environment fallback" is a rule mamen can only enforce in its own code, and
+the hosted branch runs someone else's. The ai-sdk's `loadApiKey` reads
+`ANTHROPIC_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY` or `OPENAI_API_KEY` the
+moment it is handed no key — so a deployment with a stale variable in its config
+would quietly pay for extractions out of whoever owns that key, and the settings
+page would show no credential while the feature worked.
+
+What prevents it is that the runner **never calls with no key**: a provider whose
+store holds nothing usable fails the run before the SDK is constructed
+(`AiProviderNotConfigured`, ADR 0005's one named exception). The fallback is
+therefore unreachable rather than disabled, which is a property of a call that
+did not happen — so it is asserted as one, in `import/handlers.test.ts`: a
+rotated `TOKEN_ENCRYPTION_KEY` and a vendor key in the environment must produce
+the actionable error and **zero** outbound requests.
+
 ## Considered options
 
 **Plaintext in the database, protected by file permissions.** Rejected: the file
