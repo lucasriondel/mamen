@@ -16,6 +16,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { validateTransactionsSearch } from "@/features/transactions/search";
+import { SidebarCollapsedProvider } from "@/lib/sidebar-collapsed-context";
 
 // Mock the SDK seam (PRD): the page reads the issuer (`issuerQueries.getById`),
 // its transactions (`transactionQueries.list`) and its rules (`ruleQueries.list`
@@ -270,8 +271,22 @@ function makeRouter(initialEntry: string) {
 	});
 }
 
+// The page's topbar reads the shell's collapse flag (issue #125), and this
+// harness mounts the route without `AppShell`. Standing in for it with the panel
+// open is the state these cases are about: no re-open trigger in the way of the
+// controls they drive. The trigger itself is asserted in `page-layout.test.tsx`.
+const OPEN_SHELL = {
+	collapsed: false,
+	toggle: () => {},
+	triggerRef: { current: null },
+};
+
 function renderAt(initialEntry: string) {
-	render(<RouterProvider router={makeRouter(initialEntry)} />);
+	render(
+		<SidebarCollapsedProvider value={OPEN_SHELL}>
+			<RouterProvider router={makeRouter(initialEntry)} />
+		</SidebarCollapsedProvider>,
+	);
 }
 
 beforeEach(() => {

@@ -1,3 +1,4 @@
+import { APP_BASE_PATH_SLASH } from "@mamen/shared";
 import { createLink } from "@tanstack/react-router";
 import {
 	ArrowLeftRight,
@@ -20,7 +21,13 @@ import {
 	SidebarShell,
 	SidebarTitle,
 } from "@/components/ui/sidebar";
-import iconSrc from "/icon-192x192.png";
+
+// `public/` is copied under the app's base, so a root-relative spelling of this
+// icon is a path nothing serves once the SPA moves under a prefix (issue #111).
+// Vite rewrites rooted URLs in `index.html` and in CSS, but not one written as a
+// `src` in TSX — that is a string it never parses as a URL — so the prefix is
+// applied here rather than assumed.
+const iconSrc = `${APP_BASE_PATH_SLASH}icon-192x192.png`;
 
 type SidebarBrandRowProps = Omit<ComponentProps<"a">, "children"> & {
 	/** Rendered in the primitive's fixed mark slot, ahead of the name. */

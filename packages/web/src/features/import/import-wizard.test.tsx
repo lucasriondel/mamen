@@ -8,6 +8,7 @@ import {
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { SidebarCollapsedProvider } from "@/lib/sidebar-collapsed-context";
 
 // A two-row Green-Got statement spanning a month boundary (Jan debit + Feb
 // credit) — the shape that used to cost the earlier month its rows, and that the
@@ -88,6 +89,24 @@ function makeRouter() {
 	});
 }
 
+// The wizard's topbar reads the shell's collapse flag (issue #125), and this
+// harness mounts the route without `AppShell`. Standing in for it with the panel
+// open is the state these cases are about: no re-open trigger in the way of the
+// controls they drive. The trigger itself is asserted in `page-layout.test.tsx`.
+const OPEN_SHELL = {
+	collapsed: false,
+	toggle: () => {},
+	triggerRef: { current: null },
+};
+
+function renderWizard(router = makeRouter()) {
+	render(
+		<SidebarCollapsedProvider value={OPEN_SHELL}>
+			<RouterProvider router={router} />
+		</SidebarCollapsedProvider>,
+	);
+}
+
 beforeEach(() => {
 	bulkCreate.mockReset().mockResolvedValue([]);
 	extractPdf.mockReset();
@@ -112,7 +131,7 @@ const STORED_SHOP_A = {
 describe("ImportWizard", () => {
 	it("drops a CSV, previews, and commits both months in one insert", async () => {
 		const user = userEvent.setup();
-		render(<RouterProvider router={makeRouter()} />);
+		renderWizard();
 
 		// Step 1 — drop the CSV; the format auto-detects and the config panel opens.
 		const file = new File([CSV], "statement.csv", { type: "text/csv" });
@@ -167,7 +186,7 @@ describe("ImportWizard", () => {
 					? { items: [STORED_SHOP_A], total: 1, bundleMembers: [] }
 					: { items: [], total: 0, bundleMembers: [] },
 		);
-		render(<RouterProvider router={makeRouter()} />);
+		renderWizard();
 
 		await user.upload(
 			await screen.findByLabelText("CSV or PDF statement"),
@@ -217,7 +236,7 @@ describe("ImportWizard", () => {
 					? { items: [STORED_SHOP_A], total: 1, bundleMembers: [] }
 					: { items: [], total: 0, bundleMembers: [] },
 		);
-		render(<RouterProvider router={makeRouter()} />);
+		renderWizard();
 
 		await user.upload(
 			await screen.findByLabelText("CSV or PDF statement"),
@@ -254,7 +273,7 @@ describe("ImportWizard", () => {
 
 	it("takes a skipped row back into the commit", async () => {
 		const user = userEvent.setup();
-		render(<RouterProvider router={makeRouter()} />);
+		renderWizard();
 
 		await user.upload(
 			await screen.findByLabelText("CSV or PDF statement"),
@@ -291,7 +310,7 @@ describe("ImportWizard", () => {
 			total: 1,
 			bundleMembers: [],
 		});
-		render(<RouterProvider router={makeRouter()} />);
+		renderWizard();
 
 		await user.upload(
 			await screen.findByLabelText("CSV or PDF statement"),
@@ -329,7 +348,7 @@ describe("ImportWizard", () => {
 			routeTree: rootRoute.addChildren([importRoute]),
 			history: createMemoryHistory({ initialEntries: ["/import"] }),
 		});
-		render(<RouterProvider router={router} />);
+		renderWizard(router);
 
 		// Format auto-detected from the handed-off headers (no drop needed)…
 		expect(await screen.findByText("Auto-detected.")).toBeInTheDocument();
@@ -359,7 +378,7 @@ describe("ImportWizard", () => {
 			],
 			declaredTotals: { debit: 10, credit: 20 },
 		});
-		render(<RouterProvider router={makeRouter()} />);
+		renderWizard();
 
 		// Step 1 — drop the PDF; extraction fires and lands the extracted rows.
 		const file = new File(["%PDF-1.7"], "statement.pdf", {
@@ -411,7 +430,7 @@ describe("ImportWizard", () => {
 			],
 			declaredTotals: { debit: 10, credit: 0 },
 		});
-		render(<RouterProvider router={makeRouter()} />);
+		renderWizard();
 
 		await user.upload(
 			await screen.findByLabelText("CSV or PDF statement"),
@@ -476,7 +495,7 @@ describe("ImportWizard", () => {
 			total: 1,
 			bundleMembers: [],
 		});
-		render(<RouterProvider router={makeRouter()} />);
+		renderWizard();
 
 		await user.upload(
 			await screen.findByLabelText("CSV or PDF statement"),
@@ -518,7 +537,7 @@ describe("ImportWizard", () => {
 			],
 			declaredTotals: { debit: 50, credit: 0 },
 		});
-		render(<RouterProvider router={makeRouter()} />);
+		renderWizard();
 
 		await user.upload(
 			await screen.findByLabelText("CSV or PDF statement"),
@@ -553,7 +572,7 @@ describe("ImportWizard", () => {
 			],
 			declaredTotals: { debit: 10, credit: 0 },
 		});
-		render(<RouterProvider router={makeRouter()} />);
+		renderWizard();
 
 		await user.upload(
 			await screen.findByLabelText("CSV or PDF statement"),
@@ -574,7 +593,7 @@ describe("ImportWizard", () => {
 	it("surfaces an extraction failure and stays on the upload step", async () => {
 		const user = userEvent.setup();
 		extractPdf.mockRejectedValue({ _tag: "ExtractionFailed" });
-		render(<RouterProvider router={makeRouter()} />);
+		renderWizard();
 
 		const file = new File(["%PDF-1.7"], "statement.pdf", {
 			type: "application/pdf",
@@ -605,7 +624,7 @@ describe("ImportWizard", () => {
 			task: "extract-pdf",
 			provider: "claude-code",
 		});
-		render(<RouterProvider router={makeRouter()} />);
+		renderWizard();
 
 		await user.upload(
 			await screen.findByLabelText("CSV or PDF statement"),
@@ -637,7 +656,7 @@ describe("ImportWizard", () => {
 			task: "extract-pdf",
 			provider: "claude-code",
 		});
-		render(<RouterProvider router={makeRouter()} />);
+		renderWizard();
 
 		const input = await screen.findByLabelText("CSV or PDF statement");
 		await user.upload(
@@ -667,7 +686,7 @@ describe("ImportWizard", () => {
 	it("surfaces a distinct message when the PDF is rejected as an invalid file type", async () => {
 		const user = userEvent.setup();
 		extractPdf.mockRejectedValue({ _tag: "InvalidFileType" });
-		render(<RouterProvider router={makeRouter()} />);
+		renderWizard();
 
 		const file = new File(["%PDF-1.7"], "statement.pdf", {
 			type: "application/pdf",
@@ -689,7 +708,7 @@ describe("ImportWizard", () => {
 
 	it("rejects an oversize PDF client-side without attempting extraction", async () => {
 		const user = userEvent.setup();
-		render(<RouterProvider router={makeRouter()} />);
+		renderWizard();
 
 		const file = new File(["%PDF-1.7"], "statement.pdf", {
 			type: "application/pdf",
@@ -715,7 +734,7 @@ describe("ImportWizard", () => {
 
 	it("clears a prior loaded CSV when a later oversize PDF is rejected", async () => {
 		const user = userEvent.setup();
-		render(<RouterProvider router={makeRouter()} />);
+		renderWizard();
 
 		// A valid CSV is loaded first and an account chosen — the wizard is now one
 		// click from previewing it.
