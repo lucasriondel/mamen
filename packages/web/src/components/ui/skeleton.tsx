@@ -22,12 +22,23 @@ import { cn } from "@/lib/utils";
  * as a grey brick. A block standing in for a panel passes the box corner
  * through `className`, as the round avatars already did.
  */
+export interface SkeletonProps extends React.ComponentPropsWithoutRef<"div"> {
+	/**
+	 * The element to draw the block as. `span` for a block standing in inside
+	 * text-level content — a page title's `h1`, its description `p` — where a
+	 * `div` is invalid nesting and React says so. Sizing still comes from
+	 * `className`, so such a block passes `block` with its height and width.
+	 */
+	as?: "div" | "span";
+}
+
 export function Skeleton({
+	as: Block = "div",
 	className,
 	...props
-}: React.ComponentPropsWithoutRef<"div">) {
+}: SkeletonProps) {
 	return (
-		<div
+		<Block
 			aria-hidden
 			className={cn(
 				"motion-safe:animate-pulse rounded-full bg-gousse-line",

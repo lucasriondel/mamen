@@ -293,7 +293,18 @@ sidebar-collapsed context, which is why any page's trigger drives the same panel
 `PageHeader`, the wrapper #125 composed for the trigger, is gone: with one caller
 the indirection was a second place to look. `test/page-layout-adoption.test.ts`
 holds the property — one `<h1>`, one `SidebarTrigger`, one reader of the flag,
-and a page named for every route.
+a page named for every route, and no type in the app set above the title's
+`text-2xl`, so nothing beside a title outranks it.
+
+**Every state of a page is a page**, including the ones with no data yet: a page
+whose read is pending or failed renders the same topbar with placeholders (or a
+stand-in title — "Issuer", "Transaction") in its slots, because the collapse flag
+outlives the navigation that got there and the way back has to survive the read.
+So a page-level skeleton (`issuer-detail-skeleton.tsx`,
+`transaction-detail-skeleton.tsx`) draws only what is *below* the topbar; the
+layout draws the rest, which is also what keeps the header from jumping when the
+data lands. A placeholder standing in inside the title or the description is
+`<Skeleton as="span">` — a `div` there is invalid nesting.
 
 A page mounted in a test outside `AppShell` has no context and the layout throws,
 so a view test wraps it in the stand-in from `test/sidebar-shell.tsx`

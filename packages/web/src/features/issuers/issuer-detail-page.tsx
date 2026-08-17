@@ -8,6 +8,7 @@ import { BackLink } from "@/components/back-link";
 import { PageLayout } from "@/components/page-layout";
 import { Button } from "@/components/ui/button";
 import { Empty } from "@/components/ui/empty";
+import { Skeleton } from "@/components/ui/skeleton";
 import { RulesSection } from "@/features/rules/rules-section";
 import type { TransactionsSearch } from "@/features/transactions/search";
 import type { TransactionFilterValues } from "@/features/transactions/transactions-filters";
@@ -52,7 +53,38 @@ export function IssuerDetailPage() {
 	const issuerQuery = useQuery(issuerQueries.getById(id));
 
 	if (issuerQuery.isPending) {
-		return <IssuerDetailSkeleton />;
+		// The wait is a page too (issue #129): the collapse flag outlives the
+		// navigation that got here, so the way back to the panel has to survive the
+		// read. The topbar is the settled page's, slot for slot — avatar, name and
+		// the count/net line stand in where each will land, so the issuer arriving
+		// fills the header rather than replacing it.
+		return (
+			<PageLayout
+				back={<BackLink to="/issuers">Issuers</BackLink>}
+				title={
+					<>
+						{/* `size-12` and `h-7`: the avatar's `lg` chip and one line of the
+						    title's `text-2xl`, which is what lands in their place. */}
+						<Skeleton as="span" className="block size-12 shrink-0" />
+						<Skeleton as="span" className="block h-7 w-56" />
+						{/* Never an empty heading: until the issuer names it, the page is
+						    titled by what it is — the same stand-in the error state below
+						    settles on. The wait itself is announced by the skeleton's live
+						    region, so it is not said twice here. */}
+						<span className="sr-only">Issuer</span>
+					</>
+				}
+				description={
+					<span className="flex items-baseline gap-2">
+						<Skeleton as="span" className="block h-3.5 w-28" />
+						<Skeleton as="span" className="block h-3.5 w-20" />
+					</span>
+				}
+				className="gap-8"
+			>
+				<IssuerDetailSkeleton />
+			</PageLayout>
+		);
 	}
 
 	const issuer = issuerQuery.data as Issuer | undefined;
