@@ -8,9 +8,15 @@ import {
   sortIssuers,
 } from "./issuer-sort";
 
-function metric(name: string, count: number, net: number, value: number): IssuerMetrics {
+function metric(
+  name: string,
+  count: number,
+  net: number,
+  value: number,
+  excludedFromRecap?: boolean,
+): IssuerMetrics {
   return {
-    issuer: { id: 1 as Issuer["id"], name } as Issuer,
+    issuer: { id: 1 as Issuer["id"], name, excludedFromRecap } as Issuer,
     count,
     net,
     value,
@@ -18,6 +24,49 @@ function metric(name: string, count: number, net: number, value: number): Issuer
 }
 
 const names = (m: readonly IssuerMetrics[]) => m.map((x) => x.issuer.name);
+
+describe("sortIssuers by recap exclusion", () => {
+  const counted = metric("counted", 1, -10, 10);
+  const excluded = metric("excluded", 1, -10, 10, true);
+  const alsoCounted = metric("also counted", 1, -10, 10, false);
+
+  it("groups the excluded issuers first by default (desc)", () => {
+    const out = sortIssuers([counted, excluded, alsoCounted], {
+      key: "recap",
+      direction: "desc",
+    });
+    expect(names(out)).toEqual(["excluded", "also counted", "counted"]);
+  });
+
+  it("groups the counted issuers first when flipped (asc)", () => {
+    const out = sortIssuers([counted, excluded, alsoCounted], {
+      key: "recap",
+      direction: "asc",
+    });
+    expect(names(out)).toEqual(["also counted", "counted", "excluded"]);
+  });
+
+  it("treats an absent flag as counted, like the cell does", () => {
+    // `excludedFromRecap` is optional on the wire; only `true` means excluded,
+    // so an issuer that has never been touched ranks with the counted ones.
+    const out = sortIssuers([excluded, counted], { key: "recap", direction: "asc" });
+    expect(names(out)).toEqual(["counted", "excluded"]);
+  });
+
+  it("breaks ties by name A→Z in both directions", () => {
+    // Within each group the order must not jitter — same rule as count/value.
+    const b = metric("beta", 1, -10, 10, true);
+    const a = metric("alpha", 1, -10, 10, true);
+    expect(names(sortIssuers([b, a], { key: "recap", direction: "desc" }))).toEqual([
+      "alpha",
+      "beta",
+    ]);
+    expect(names(sortIssuers([b, a], { key: "recap", direction: "asc" }))).toEqual([
+      "alpha",
+      "beta",
+    ]);
+  });
+});
 
 describe("sortIssuers", () => {
   const zebra = metric("Zebra", 1, -10, 10);

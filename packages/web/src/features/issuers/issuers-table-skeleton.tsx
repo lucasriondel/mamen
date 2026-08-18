@@ -9,14 +9,16 @@ import {
 } from "@/components/ui/table";
 
 /**
- * Placeholder widths for the table's four columns (**Issuer | Category |
- * Transactions | Net**), matching the settled table so the layout doesn't shift
- * when the rows arrive. `ml-auto` right-aligns the two numeric cells as the real
- * ones are.
+ * Placeholder widths for the table's five columns (**Issuer | Category |
+ * Excluded | Transactions | Net**), matching the settled table so the layout doesn't
+ * shift when the rows arrive. `ml-auto` right-aligns the two numeric cells as
+ * the real ones are; the Recap cell is a checkbox-sized square (`w-4` against
+ * the shared `h-4`), not a bar.
  */
 const COLUMNS = [
   { id: "issuer", head: "w-12", cell: "w-32" },
   { id: "category", head: "w-16", cell: "w-24" },
+  { id: "recap", head: "w-16", cell: "w-4" },
   { id: "count", head: "w-20 ml-auto", cell: "w-8 ml-auto" },
   { id: "net", head: "w-8 ml-auto", cell: "w-16 ml-auto" },
 ] as const;

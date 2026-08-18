@@ -5,6 +5,7 @@ import { CategoryCell } from "@/features/transactions/transaction-cells";
 import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { IssuerAvatar } from "./issuer-avatar";
+import { IssuerRecapCell } from "./issuer-recap-cell";
 import type { IssuerMetrics } from "./issuer-sort";
 
 export interface IssuersTableRowProps extends IssuerMetrics {
@@ -15,8 +16,8 @@ export interface IssuersTableRowProps extends IssuerMetrics {
 }
 
 /**
- * One issuer row: avatar + name, its default category, transaction count, and
- * net €. Presentational — the metrics are derived once by {@link IssuersView} so
+ * One issuer row: avatar + name, its default category, whether its transactions
+ * are excluded from the recap, transaction count, and net €. Presentational — the metrics are derived once by {@link IssuersView} so
  * the sort and the cells share a single source of truth (issue #41), and the
  * category is looked up there too so the whole table costs one tree read rather
  * than one per row. `value` travels in the props but isn't rendered: it's what
@@ -26,6 +27,11 @@ export interface IssuersTableRowProps extends IssuerMetrics {
  * real anchor keeps middle-click, ⌘-click and "copy link" working, which a
  * `role="link"` row handler cannot. The link's `after:` overlay stretches its
  * hit area across the row, so clicking anywhere still navigates.
+ *
+ * That overlay is why the Recap cell is positioned and raised: the stretched
+ * `after:` pseudo-element sits above static siblings, so an in-row control has
+ * to be lifted out of its way or the checkbox reads as "navigate to the issuer"
+ * and the one gesture the column exists for is unreachable.
  */
 export function IssuersTableRow({
   issuer,
@@ -56,6 +62,12 @@ export function IssuersTableRow({
         {/* The issuer's *default* category — the chain's second rung. Shown
             read-only here; it's edited on the issuer's own page. */}
         <CategoryCell category={category} color={categoryColor} />
+      </TableCell>
+      {/* Raised above the name link's stretched overlay so the checkbox is
+          clickable rather than navigating — see the note above. Ticked reads
+          as *excluded*, which is what the column is named for. */}
+      <TableCell className="relative z-10 w-px">
+        <IssuerRecapCell issuer={issuer} />
       </TableCell>
       <TableCell className="text-right tabular-nums text-gousse-muted">{count}</TableCell>
       {/* The signed net, coloured by direction. The row is *ranked* by

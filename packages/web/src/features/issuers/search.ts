@@ -21,7 +21,7 @@ export interface IssuersSearch {
   q?: string;
 }
 
-const SORT_KEYS: ReadonlyArray<IssuerSortKey> = ["name", "count", "value"];
+const SORT_KEYS: ReadonlyArray<IssuerSortKey> = ["name", "count", "value", "recap"];
 
 /**
  * Normalize raw URL search into {@link IssuersSearch}. Unknown/blank values fall

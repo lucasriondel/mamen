@@ -16,8 +16,10 @@ export interface IssuersTableProps {
 }
 
 /**
- * The issuers data grid (columns **Issuer | Category | Transactions | Net**), on
- * the same token-styled `Table` primitive as the transactions grid.
+ * The issuers data grid (columns **Issuer | Category | Excluded | Transactions
+ * | Net**), on the same token-styled `Table` primitive as the transactions
+ * grid — whose own recap column carries the same name, so the two read as one
+ * question asked at two scales.
  *
  * Sorting is client-side and driven by the column headers: the whole issuer list
  * is already in memory (the view fetches it in one page to derive the count and
@@ -45,6 +47,15 @@ export function IssuersTable({
             {/* Not a sort key: the default category is a label, and ranking
                 by it would only group rows, in no obvious order. */}
             <TableHead>Category</TableHead>
+            {/* Sortable, unlike Category: exclusion is a yes/no, so ranking by
+                it gathers the issuers being held out of the totals into one
+                block — the set worth auditing after a bulk sweep. */}
+            <IssuersTableHead
+              sortKey="recap"
+              label="Excluded"
+              sort={sort}
+              onSortChange={onSortChange}
+            />
             <IssuersTableHead
               sortKey="count"
               label="Transactions"

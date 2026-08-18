@@ -1,14 +1,18 @@
 import type { Issuer } from "@mamen/shared/contract";
 
 /**
- * The three ways the issuers grid can be ordered (issue #41):
+ * The four ways the issuers grid can be ordered (issue #41):
  * - `name` — alphabetical by issuer name (the default).
  * - `count` — by number of transactions.
  * - `value` — by total money moved, the sum of the transactions' *absolute*
  *   amounts (distinct from the signed net € the card shows, so an issuer with
  *   equal debits and credits still ranks by its activity).
+ * - `recap` — by recap exclusion, which groups the excluded issuers together.
+ *   Unlike the default category (a label, whose order would be arbitrary) this
+ *   is a yes/no, so ranking by it answers a real question: *which issuers am I
+ *   holding out of my totals?* — the set the user audits after a sweep.
  */
-export type IssuerSortKey = "name" | "count" | "value";
+export type IssuerSortKey = "name" | "count" | "value" | "recap";
 
 /** Ascending or descending; every sort key supports both (issue #41). */
 export type SortDirection = "asc" | "desc";
@@ -33,6 +37,9 @@ export const DEFAULT_DIRECTION: Record<IssuerSortKey, SortDirection> = {
   name: "asc",
   count: "desc",
   value: "desc",
+  // Excluded-first: the point of sorting by this column is to see the set being
+  // held out of the totals, which is the smaller, more interesting half.
+  recap: "desc",
 };
 
 /**
@@ -87,6 +94,9 @@ export function issuerMetrics(
   };
 }
 
+/** Excluded issuers rank as 1, counted ones as 0, so `desc` puts excluded first. */
+const recapRank = (row: IssuerMetrics) => (row.issuer.excludedFromRecap === true ? 1 : 0);
+
 /** The A→Z tiebreaker every key falls back to — locale-aware, case-insensitive. */
 const byName = (a: IssuerMetrics, b: IssuerMetrics) =>
   a.issuer.name.localeCompare(b.issuer.name, undefined, {
@@ -112,6 +122,8 @@ export function sortIssuers(metrics: readonly IssuerMetrics[], sort: IssuerSort)
         return sign * (a.count - b.count) || byName(a, b);
       case "value":
         return sign * (a.value - b.value) || byName(a, b);
+      case "recap":
+        return sign * (recapRank(a) - recapRank(b)) || byName(a, b);
     }
   };
 
