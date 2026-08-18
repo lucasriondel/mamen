@@ -13,7 +13,6 @@
 			"!packages/web/src/components/ui/sidebar.tsx",
 			"!*.config.ts",
 			"!*.config.js",
-			"!_bmad-output",
 			"!graphify-out",
 			"!**/*.gen.ts",
 			"!**/*.gen.tsx",
