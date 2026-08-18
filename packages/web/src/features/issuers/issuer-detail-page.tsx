@@ -26,6 +26,7 @@ import {
 import { cn } from "@/lib/utils";
 import { BUTTON_CLASS } from "./field-styles";
 import { IssuerAvatarMenu } from "./issuer-avatar-menu";
+import { IssuerDeleteButton } from "./issuer-delete-button";
 import { IssuerDetailHeader } from "./issuer-detail-header";
 import { IssuerDetailSkeleton } from "./issuer-detail-skeleton";
 import { DEFAULT_ISSUER_TAB, type IssuerTab, parseIssuerTab } from "./issuer-detail-tabs";
@@ -126,9 +127,10 @@ interface IssuerDetailContentProps {
  * lands on the panel the sender was looking at; the default panel stays out of
  * the URL so `/issuers/1` has exactly one spelling.
  *
- * Deletion stays blocked while transactions reference the issuer (the menu item
- * is disabled with the existing explanation), so no row is ever left pointing at
- * a deleted issuer; a successful delete navigates back to the issuers grid. The
+ * Deletion stays blocked while transactions reference the issuer (the button is
+ * disabled with the existing explanation beside it), so no row is ever left
+ * pointing at a deleted issuer; an allowed delete is confirmed in a dialog
+ * first, and a successful one navigates back to the issuers grid. The
  * 2 MiB image cap is pre-checked here for an instant message (the contract's
  * multipart parser also enforces it server-side).
  */
@@ -229,9 +231,6 @@ function IssuerDetailContent({ issuer }: IssuerDetailContentProps) {
               onUpload={() => fileInputRef.current?.click()}
               onSearchLogo={() => setLogoSearchOpen(true)}
               onRemoveImage={() => deleteImage.mutate(issuer.id)}
-              onDelete={handleDelete}
-              deleteBlocked={hasTransactions}
-              transactionCount={referenceCount}
               busy={uploadImage.isPending || deleteImage.isPending}
             />
           </span>
@@ -251,6 +250,15 @@ function IssuerDetailContent({ issuer }: IssuerDetailContentProps) {
         net={net}
         onToggleRecap={(excluded) => setExcludedFromRecap.mutate({ id: issuer.id, excluded })}
         recapBusy={setExcludedFromRecap.isPending}
+        deleteAction={
+          <IssuerDeleteButton
+            issuerName={issuer.name}
+            deleteBlocked={hasTransactions}
+            transactionCount={referenceCount}
+            onConfirm={handleDelete}
+            busy={remove.isPending}
+          />
+        }
       />
 
       {/* The second way in: search rather than a file (issue #61). Both paths

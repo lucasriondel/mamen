@@ -6,7 +6,7 @@ import {
   createRouter,
   RouterProvider,
 } from "@tanstack/react-router";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { validateTransactionsSearch } from "@/features/transactions/search";
@@ -483,33 +483,68 @@ describe("IssuerDetailPage", () => {
     const user = userEvent.setup();
     renderAt("/issuers/1");
 
-    await openAvatarMenu(user);
-
-    const deleteItem = await screen.findByRole("menuitem", { name: /Delete issuer/ });
-    await waitFor(() => expect(deleteItem).toHaveAttribute("data-disabled"));
-    // The reason lives under the blocked item, where the refusal is read.
+    const deleteButton = await screen.findByRole("button", { name: /Delete issuer/ });
+    await waitFor(() => expect(deleteButton).toBeDisabled());
+    // The reason lives beside the blocked button, where the refusal is read.
     expect(screen.getByText(/reference this issuer/)).toBeInTheDocument();
 
-    await user.click(deleteItem);
+    await user.click(deleteButton);
+    // No dialog, no write: a blocked delete never gets as far as confirming.
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(removeIssuer).not.toHaveBeenCalled();
   });
 
-  it("deletes an unreferenced issuer and navigates back to the grid", async () => {
-    transactionsByIssuer = { 1: [] };
+  // Delete is out of the avatar's menu entirely — that trigger is about the
+  // image now, and nothing destructive hides behind it.
+  it("keeps delete out of the avatar menu", async () => {
     const user = userEvent.setup();
     renderAt("/issuers/1");
 
     await openAvatarMenu(user);
+    await screen.findByRole("menuitem", { name: /Upload image/ });
 
-    const deleteItem = await screen.findByRole("menuitem", { name: /Delete issuer/ });
-    await waitFor(() => expect(deleteItem).not.toHaveAttribute("data-disabled"));
-    await user.click(deleteItem);
+    expect(screen.queryByRole("menuitem", { name: /Delete issuer/ })).not.toBeInTheDocument();
+  });
+
+  // The irreversible step asks first: the button opens a dialog, and only the
+  // dialog's own Delete writes.
+  it("confirms before deleting, then navigates back to the grid", async () => {
+    transactionsByIssuer = { 1: [] };
+    const user = userEvent.setup();
+    renderAt("/issuers/1");
+
+    const deleteButton = await screen.findByRole("button", { name: /Delete issuer/ });
+    await waitFor(() => expect(deleteButton).not.toBeDisabled());
+    await user.click(deleteButton);
+
+    // The dialog names the issuer, and nothing has been written yet.
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/Delete Spotify\?/)).toBeInTheDocument();
+    expect(removeIssuer).not.toHaveBeenCalled();
+
+    await user.click(within(dialog).getByRole("button", { name: "Delete issuer" }));
 
     await waitFor(() => expect(removeIssuer).toHaveBeenCalledWith(1));
     // Back on the issuers grid (its unique header copy).
     expect(
       await screen.findByText(/The places your money comes from and goes to/),
     ).toBeInTheDocument();
+  });
+
+  it("cancels the delete confirmation without writing", async () => {
+    transactionsByIssuer = { 1: [] };
+    const user = userEvent.setup();
+    renderAt("/issuers/1");
+
+    const deleteButton = await screen.findByRole("button", { name: /Delete issuer/ });
+    await waitFor(() => expect(deleteButton).not.toBeDisabled());
+    await user.click(deleteButton);
+
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(removeIssuer).not.toHaveBeenCalled();
   });
 
   it("sets the issuer default category from a leaf", async () => {

@@ -1,12 +1,11 @@
 import type { Issuer } from "@mamen/shared/contract";
-import { ChevronDown, ImageOff, Search, Trash2, Upload } from "lucide-react";
+import { ChevronDown, ImageOff, Search, Upload } from "lucide-react";
 import {
   Menu,
   MenuContent,
   MenuGroup,
   MenuGroupLabel,
   MenuItem,
-  MenuSeparator,
   MenuTrigger,
 } from "@/components/ui/menu";
 import { IssuerAvatar } from "./issuer-avatar";
@@ -18,38 +17,29 @@ export interface IssuerAvatarMenuProps {
   /** Open the logo search — the other path to the same bytes (ADR 0007). */
   onSearchLogo: () => void;
   onRemoveImage: () => void;
-  onDelete: () => void;
-  /** Transactions still point here, so deleting would orphan them. */
-  deleteBlocked: boolean;
-  /** How many — the sentence under a blocked Delete names the number. */
-  transactionCount: number;
   busy?: boolean;
 }
 
 /**
- * The issuer's **avatar as a menu trigger** — every action that acts on the
- * issuer *as an object* (its picture, and its existence) behind one control.
+ * The issuer's **avatar as a menu trigger** — the three ways to change its
+ * picture behind the picture itself.
  *
- * The three image buttons used to sit in a row under the header, which gave a
- * rarely-used control the width of the page and pushed the transactions — the
- * reason the page is open — below the fold. Hanging them off the avatar puts
- * them where the thing they change already is, and the resting header is the
- * issuer rather than a toolbar.
+ * Those buttons used to sit in a row under the header, which gave a rarely-used
+ * control the width of the page and pushed the transactions — the reason the
+ * page is open — below the fold. Hanging them off the avatar puts them where the
+ * thing they change already is, and the resting header is the issuer rather than
+ * a toolbar.
  *
- * Delete sits last, tinted, behind a separator, exactly as on an account card
- * ({@link AccountActionsMenu}): a mis-aimed click lands on a separator rather
- * than on the destructive item. It stays *rendered* while blocked so the reason
- * has somewhere to live — the API would refuse the write anyway, but a disabled
- * item with a sentence under it answers "why not" where a hidden one raises it.
+ * Deleting the issuer is **not** here: it lived as this menu's last item, which
+ * filed the one irreversible action on the page behind a trigger labelled
+ * "Issuer image". It is a button on the page now, in front of a confirmation —
+ * see {@link IssuerDeleteButton}.
  */
 export function IssuerAvatarMenu({
   issuer,
   onUpload,
   onSearchLogo,
   onRemoveImage,
-  onDelete,
-  deleteBlocked,
-  transactionCount,
   busy = false,
 }: IssuerAvatarMenuProps) {
   const hasImage = issuer.imageUrl != null;
@@ -102,28 +92,6 @@ export function IssuerAvatarMenu({
           </MenuItem>
         </MenuGroup>
 
-        <MenuSeparator />
-
-        <MenuGroup>
-          <MenuGroupLabel>Danger zone</MenuGroupLabel>
-          <MenuItem
-            danger
-            disabled={deleteBlocked || busy}
-            onClick={onDelete}
-            // Base UI closes on select; a refused delete would close the menu on
-            // the reason it just showed. Disabled items don't fire anyway.
-            closeOnClick={!deleteBlocked}
-          >
-            <Trash2 className="size-3.5" aria-hidden />
-            Delete issuer
-          </MenuItem>
-          {deleteBlocked ? (
-            <p className="px-2.5 pt-0.5 pb-1 text-gousse-muted text-xs tabular-nums">
-              {transactionCount} transaction{transactionCount === 1 ? "" : "s"} reference this
-              issuer — reassign them to delete.
-            </p>
-          ) : null}
-        </MenuGroup>
       </MenuContent>
     </Menu>
   );

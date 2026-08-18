@@ -1,4 +1,5 @@
 import type { Issuer } from "@mamen/shared/contract";
+import type { ReactNode } from "react";
 import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { IssuerDefaultCategoryPicker } from "./issuer-default-category-picker";
@@ -12,6 +13,12 @@ export interface IssuerDetailHeaderProps {
   net: number;
   onToggleRecap: (excluded: boolean) => void;
   recapBusy?: boolean;
+  /**
+   * The destructive action for this issuer ({@link IssuerDeleteButton}), passed
+   * in rather than built here: it needs the reference count and the navigation
+   * that follows a successful delete, both of which the page owns.
+   */
+  deleteAction?: ReactNode;
 }
 
 /**
@@ -37,6 +44,7 @@ export function IssuerDetailHeader({
   net,
   onToggleRecap,
   recapBusy,
+  deleteAction,
 }: IssuerDetailHeaderProps) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
@@ -66,6 +74,11 @@ export function IssuerDetailHeader({
           {count} transaction{count === 1 ? "" : "s"}
         </span>
       </div>
+
+      {/* Last in the hero and on its own row: the one irreversible action here
+          should be reachable without hunting through a menu, but never sat
+          among the settings a user came to change. */}
+      {deleteAction ? <div className="w-full">{deleteAction}</div> : null}
     </div>
   );
 }
