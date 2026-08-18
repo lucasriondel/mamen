@@ -312,6 +312,16 @@ beforeEach(() => {
   rulesByIssuer = { 1: [rule()] };
 });
 
+/** Open one of the detail page's panels by clicking its tab. */
+async function openTab(user: ReturnType<typeof userEvent.setup>, name: RegExp) {
+  await user.click(await screen.findByRole("tab", { name }));
+}
+
+/** Open the avatar's menu — where the image actions and Delete now live. */
+async function openAvatarMenu(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(await screen.findByRole("button", { name: "Issuer image and actions" }));
+}
+
 describe("IssuerDetailPage", () => {
   // A page that is still reading is still a page: the collapse flag outlives
   // the navigation that got here, so the topbar — and the one way back to the
@@ -337,7 +347,11 @@ describe("IssuerDetailPage", () => {
     // surface) and the issuer's rows. Each row is labelled by its raw string;
     // the Issuer column shows the *resolved* issuer, so the raw text lives in
     // the row's accessible name rather than in a cell.
-    expect(await screen.findByRole("heading", { name: "Transactions" })).toBeInTheDocument();
+    // Transactions is the default panel, so its tab is the selected one.
+    expect(await screen.findByRole("tab", { name: /Transactions/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
     expect(await screen.findByRole("link", { name: /SPOTIFY P2A34/ })).toBeInTheDocument();
   });
 
@@ -367,11 +381,22 @@ describe("IssuerDetailPage", () => {
     });
   });
 
-  it("lists the issuer's Matching Rules", async () => {
+  it("lists the issuer's Matching Rules in the Rules panel", async () => {
+    const user = userEvent.setup();
     renderAt("/issuers/1");
+
+    await openTab(user, /Rules/);
 
     expect(await screen.findByText("SPOTIFY.*")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Matching Rules" })).toBeInTheDocument();
+  });
+
+  it("opens straight onto the panel the URL names", async () => {
+    renderAt("/issuers/1?tab=rules");
+
+    // No click: the tab came from the URL, so a refresh or a shared link lands
+    // on the panel the sender was looking at.
+    expect(await screen.findByRole("heading", { name: "Matching Rules" })).toBeInTheDocument();
   });
 
   it("renames the issuer inline, autosaving once typing settles", async () => {
@@ -379,7 +404,7 @@ describe("IssuerDetailPage", () => {
     renderAt("/issuers/1");
 
     // The heading *is* the field: no separate rename form, no Save button.
-    await user.click(await screen.findByRole("button", { name: /Spotify/ }));
+    await user.click(await screen.findByRole("button", { name: "Spotify" }));
 
     const input = await screen.findByLabelText("Issuer name");
     await user.clear(input);
@@ -392,7 +417,9 @@ describe("IssuerDetailPage", () => {
     const user = userEvent.setup();
     renderAt("/issuers/1");
 
-    const notes = await screen.findByLabelText("Notes");
+    // The line under the title *is* the field — click it to edit in place.
+    await user.click(await screen.findByRole("button", { name: /Add a note/ }));
+    const notes = await screen.findByRole("textbox", { name: "Notes" });
     await user.type(notes, "Cancels in March");
 
     await waitFor(() =>
@@ -404,9 +431,24 @@ describe("IssuerDetailPage", () => {
 
   it("shows an existing note in the field", async () => {
     issuersById[1] = { ...issuersById[1], notes: "Shared with Ana" } as Issuer;
+    const user = userEvent.setup();
     renderAt("/issuers/1");
 
-    expect(await screen.findByLabelText("Notes")).toHaveValue("Shared with Ana");
+    await user.click(await screen.findByRole("button", { name: /Note: Shared with Ana/ }));
+
+    expect(await screen.findByRole("textbox", { name: "Notes" })).toHaveValue("Shared with Ana");
+  });
+
+  // The note reads as the page's description without any click at all.
+  it("shows the note under the name as the page description", async () => {
+    issuersById[1] = { ...issuersById[1], notes: "Shared with Ana" } as Issuer;
+    renderAt("/issuers/1");
+
+    expect(
+      await screen.findByRole("button", { name: /Note: Shared with Ana/ }),
+    ).toBeInTheDocument();
+    // Not behind a tab: there are exactly two panels, and neither is Notes.
+    expect(screen.queryByRole("tab", { name: /Notes/ })).not.toBeInTheDocument();
   });
 
   // Emptying the box is the *only* way to remove a note, so — unlike the name
@@ -417,7 +459,8 @@ describe("IssuerDetailPage", () => {
     const user = userEvent.setup();
     renderAt("/issuers/1");
 
-    const notes = await screen.findByLabelText("Notes");
+    await user.click(await screen.findByRole("button", { name: /Note: Temporary/ }));
+    const notes = await screen.findByRole("textbox", { name: "Notes" });
     await user.clear(notes);
 
     await waitFor(() => expect(updateIssuer).toHaveBeenCalledWith(1, { notes: null }));
@@ -427,7 +470,7 @@ describe("IssuerDetailPage", () => {
     const user = userEvent.setup();
     renderAt("/issuers/1");
 
-    await user.click(await screen.findByRole("button", { name: /Spotify/ }));
+    await user.click(await screen.findByRole("button", { name: "Spotify" }));
     await screen.findByLabelText("Issuer name");
 
     // Tabbing away blurs the field, which is what closes it.
@@ -440,13 +483,14 @@ describe("IssuerDetailPage", () => {
     const user = userEvent.setup();
     renderAt("/issuers/1");
 
-    const deleteButton = await screen.findByRole("button", {
-      name: "Delete issuer",
-    });
-    await waitFor(() => expect(deleteButton).toBeDisabled());
+    await openAvatarMenu(user);
+
+    const deleteItem = await screen.findByRole("menuitem", { name: /Delete issuer/ });
+    await waitFor(() => expect(deleteItem).toHaveAttribute("data-disabled"));
+    // The reason lives under the blocked item, where the refusal is read.
     expect(screen.getByText(/reference this issuer/)).toBeInTheDocument();
 
-    await user.click(deleteButton);
+    await user.click(deleteItem);
     expect(removeIssuer).not.toHaveBeenCalled();
   });
 
@@ -455,11 +499,11 @@ describe("IssuerDetailPage", () => {
     const user = userEvent.setup();
     renderAt("/issuers/1");
 
-    const deleteButton = await screen.findByRole("button", {
-      name: "Delete issuer",
-    });
-    await waitFor(() => expect(deleteButton).toBeEnabled());
-    await user.click(deleteButton);
+    await openAvatarMenu(user);
+
+    const deleteItem = await screen.findByRole("menuitem", { name: /Delete issuer/ });
+    await waitFor(() => expect(deleteItem).not.toHaveAttribute("data-disabled"));
+    await user.click(deleteItem);
 
     await waitFor(() => expect(removeIssuer).toHaveBeenCalledWith(1));
     // Back on the issuers grid (its unique header copy).
@@ -533,7 +577,8 @@ describe("IssuerDetailPage", () => {
     const user = userEvent.setup();
     renderAt("/issuers/1");
 
-    await user.click(await screen.findByRole("button", { name: /exclude from recap/i }));
+    await user.click(await screen.findByRole("button", { name: /counted in recap/i }));
+    await user.click(await screen.findByRole("menuitem", { name: /exclude from recap/i }));
 
     await waitFor(() => expect(updateIssuer).toHaveBeenCalledWith(1, { excludedFromRecap: true }));
   });
@@ -543,7 +588,8 @@ describe("IssuerDetailPage", () => {
     const user = userEvent.setup();
     renderAt("/issuers/1");
 
-    await user.click(await screen.findByRole("button", { name: /include in recap/i }));
+    await user.click(await screen.findByRole("button", { name: /excluded from recap/i }));
+    await user.click(await screen.findByRole("menuitem", { name: /count in recap/i }));
 
     await waitFor(() =>
       expect(updateIssuer).toHaveBeenCalledWith(1, {
@@ -552,17 +598,17 @@ describe("IssuerDetailPage", () => {
     );
   });
 
-  it("opens Logo search from beside the upload control", async () => {
+  it("opens Logo search from the avatar menu, beside the upload path", async () => {
     const user = userEvent.setup();
     renderAt("/issuers/1");
 
-    const search = await screen.findByRole("button", { name: /Search logo/ });
-    // Beside, not somewhere else on the page: same row as Upload image.
-    expect(search.parentElement).toBe(
-      screen.getByRole("button", { name: "Upload image" }).parentElement,
-    );
+    await openAvatarMenu(user);
 
-    await user.click(search);
+    // Both paths to the same bytes (ADR 0007) sit in the same menu group —
+    // neither is the fallback for the other.
+    expect(await screen.findByRole("menuitem", { name: /Upload image/ })).toBeInTheDocument();
+    await user.click(await screen.findByRole("menuitem", { name: /Search logo/ }));
+
     expect(await screen.findByLabelText("Logo search query")).toHaveValue("Spotify");
   });
 
@@ -570,7 +616,8 @@ describe("IssuerDetailPage", () => {
     const user = userEvent.setup();
     renderAt("/issuers/1");
 
-    await user.click(await screen.findByRole("button", { name: /Search logo/ }));
+    await openAvatarMenu(user);
+    await user.click(await screen.findByRole("menuitem", { name: /Search logo/ }));
     await user.click(screen.getByRole("button", { name: "Search" }));
     await user.click(await screen.findByRole("button", { name: "Spotify logo" }));
 
@@ -584,7 +631,7 @@ describe("IssuerDetailPage", () => {
     );
   });
 
-  it("still uploads an image from a file, now that search sits beside it", async () => {
+  it("still uploads an image from a file, now that the menu holds both paths", async () => {
     const user = userEvent.setup();
     renderAt("/issuers/1");
 

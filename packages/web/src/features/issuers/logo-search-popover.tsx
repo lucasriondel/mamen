@@ -31,6 +31,26 @@ export function defaultLogoQuery(name: string): string {
 export interface LogoSearchPopoverProps {
   issuer: Issuer;
   className?: string;
+  /**
+   * Drive the popover from outside — for the detail page, whose *Search logo…*
+   * lives in the avatar menu rather than in a button beside it. Omit both this
+   * and {@link LogoSearchPopoverProps.onOpenChange} and the popover holds its
+   * own state, which is what the standalone (trigger-rendering) usage wants.
+   */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /**
+   * Render the built-in *Search logo* button. `false` when something else opens
+   * the popover (a menu item), leaving only the anchor the panel hangs off —
+   * see {@link LogoSearchPopoverProps.anchor}.
+   */
+  withTrigger?: boolean;
+  /**
+   * What the panel positions against when there is no trigger to hang off.
+   * Without it a triggerless popover would anchor to nothing and land in the
+   * corner of the viewport.
+   */
+  anchor?: Element | null;
 }
 
 /**
@@ -62,8 +82,23 @@ export interface LogoSearchPopoverProps {
  * the guards is that some results are unfetchable; the recovery is picking a
  * different one, which requires still being able to see them.
  */
-export function LogoSearchPopover({ issuer, className }: LogoSearchPopoverProps) {
-  const [open, setOpen] = useState(false);
+export function LogoSearchPopover({
+  issuer,
+  className,
+  open: controlledOpen,
+  onOpenChange,
+  withTrigger = true,
+  anchor,
+}: LogoSearchPopoverProps) {
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  // Controlled when a caller passes `open`, self-held otherwise — the standard
+  // either/or, so the standalone usage keeps working untouched.
+  const isControlled = controlledOpen != null;
+  const open = isControlled ? controlledOpen : uncontrolledOpen;
+  const setOpen = (next: boolean) => {
+    if (!isControlled) setUncontrolledOpen(next);
+    onOpenChange?.(next);
+  };
   const [draft, setDraft] = useState(() => defaultLogoQuery(issuer.name));
   /**
    * The query that has actually been *submitted*, or `null` before the first
@@ -116,15 +151,19 @@ export function LogoSearchPopover({ issuer, className }: LogoSearchPopoverProps)
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
-      <PopoverTrigger
-        render={
-          <Button variant="secondary" size="sm" className={className}>
-            <Search size={14} aria-hidden />
-            Search logo
-          </Button>
-        }
-      />
+      {withTrigger ? (
+        <PopoverTrigger
+          render={
+            <Button variant="secondary" size="sm" className={className}>
+              <Search size={14} aria-hidden />
+              Search logo
+            </Button>
+          }
+        />
+      ) : null}
       <PopoverContent
+        // Only meaningful without a trigger: with one, Base UI anchors to it.
+        anchor={withTrigger ? undefined : (anchor ?? undefined)}
         className="flex w-80 flex-col gap-3 p-3"
         // Base UI would focus the first tabbable element — the query field.
         // Focus the *action* instead, so the common case (the pre-filled query
