@@ -1,0 +1,36 @@
+{
+	"$schema": "./node_modules/oxlint/configuration_schema.json",
+	"plugins": [
+		"typescript",
+		"unicorn",
+		"oxc",
+		"react",
+		"react-hooks",
+		"jsx-a11y"
+	],
+	"categories": {
+		"correctness": "error",
+		"suspicious": "error"
+	},
+	"rules": {
+		"react/react-in-jsx-scope": "off",
+		"typescript/no-explicit-any": "off",
+		"typescript/no-non-null-assertion": "off",
+		"jsx-a11y/label-has-associated-control": [
+			"error",
+			{
+				"controlComponents": ["Input", "Select", "Textarea", "Checkbox"]
+			}
+		]
+	},
+	"ignorePatterns": [
+		"**/dist/**",
+		"packages/web/src/styles/gousse",
+		"packages/web/src/components/ui/sidebar.tsx",
+		"**/*.gen.ts",
+		"**/*.gen.tsx",
+		"packages/api/openapi.json",
+		"_bmad-output",
+		"graphify-out"
+	]
+}

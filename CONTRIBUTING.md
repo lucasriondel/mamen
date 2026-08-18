@@ -79,6 +79,21 @@ A few things worth knowing before the first red run:
   to. Compare the count before and after your change rather than expecting zero,
   and leave every file you touch clean.
 
+### The oxc toolchain, for now
+
+`.oxlintrc.json` and `.oxfmtrc.json` configure [oxlint](https://oxc.rs) and
+oxfmt, which are being evaluated as Biome's replacement:
+
+```sh
+bun run lint:ox
+bun run format:ox:check
+```
+
+Both are **reports, not gates** — neither runs in CI, neither writes to a file,
+and both are red today by design: oxlint sees rules Biome does not have, and
+oxfmt's defaults (spaces) disagree with the tabs the repo is formatted in. Until
+that changes, `bun run lint` is the check your change has to keep green.
+
 ## Sending a change
 
 - One change per pull request, and say what it does in prose — what you decided

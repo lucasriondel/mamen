@@ -1,0 +1,13 @@
+{
+	"$schema": "./node_modules/oxfmt/configuration_schema.json",
+	"ignorePatterns": [
+		"**/dist/**",
+		"packages/web/src/styles/gousse",
+		"packages/web/src/components/ui/sidebar.tsx",
+		"**/*.gen.ts",
+		"**/*.gen.tsx",
+		"packages/api/openapi.json",
+		"_bmad-output",
+		"graphify-out"
+	]
+}
