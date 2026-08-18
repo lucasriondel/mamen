@@ -32,10 +32,10 @@ import { cn } from "@/lib/utils";
  * the value mamen has always used — Base UI's own default is twice that.
  */
 export function TooltipProvider({
-	delay = 300,
-	...props
+  delay = 300,
+  ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
-	return <TooltipPrimitive.Provider delay={delay} {...props} />;
+  return <TooltipPrimitive.Provider delay={delay} {...props} />;
 }
 
 export const Tooltip = TooltipPrimitive.Root;
@@ -61,45 +61,45 @@ export const TooltipTrigger = TooltipPrimitive.Trigger;
  * wrap.
  */
 export function TooltipContent({
-	className,
-	sideOffset = 6,
-	children,
-	...props
+  className,
+  sideOffset = 6,
+  children,
+  ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Popup> & {
-	/** Distance from the trigger in px — passed through to the positioner. */
-	sideOffset?: number;
+  /** Distance from the trigger in px — passed through to the positioner. */
+  sideOffset?: number;
 }) {
-	return (
-		<TooltipPrimitive.Portal>
-			<TooltipPrimitive.Positioner sideOffset={sideOffset} className="z-50">
-				<TooltipPrimitive.Popup
-					// Base UI gives the popup no role of its own. Radix's did, and the
-					// app's tests read the surface through it; restated here so the
-					// swap costs no semantics that a single prop can keep.
-					role="tooltip"
-					className={cn(
-						// The box corner the other overlays take (issue #97). On a label this
-						// short the radius all but meets in the middle, which is the intent:
-						// where a shape is in doubt the kit takes the rounder option.
-						"rounded-2xl border border-gousse-line bg-gousse-panel px-2.5 py-1.5 text-gousse-ink text-xs shadow-lg",
-						// Origin-aware entrance, matching the popover's. Base UI sets
-						// `--transform-origin` per side on the positioner; custom properties
-						// inherit, so the popup can read it.
-						"origin-(--transform-origin)",
-						// `data-instant` is Base UI's own signal that the animation should be
-						// skipped — a group re-open, a focus, a dismiss — so it gates both
-						// directions instead of being fought with a shorter duration. It is
-						// what Radix expressed as its `instant-open` / `delayed-open` split.
-						"duration-150",
-						"not-data-[instant]:data-[open]:animate-in not-data-[instant]:data-[open]:fade-in-0 not-data-[instant]:data-[open]:zoom-in-95",
-						"not-data-[instant]:data-[ending-style]:animate-out not-data-[instant]:data-[ending-style]:fade-out-0 not-data-[instant]:data-[ending-style]:zoom-out-95",
-						className,
-					)}
-					{...props}
-				>
-					{children}
-				</TooltipPrimitive.Popup>
-			</TooltipPrimitive.Positioner>
-		</TooltipPrimitive.Portal>
-	);
+  return (
+    <TooltipPrimitive.Portal>
+      <TooltipPrimitive.Positioner sideOffset={sideOffset} className="z-50">
+        <TooltipPrimitive.Popup
+          // Base UI gives the popup no role of its own. Radix's did, and the
+          // app's tests read the surface through it; restated here so the
+          // swap costs no semantics that a single prop can keep.
+          role="tooltip"
+          className={cn(
+            // The box corner the other overlays take (issue #97). On a label this
+            // short the radius all but meets in the middle, which is the intent:
+            // where a shape is in doubt the kit takes the rounder option.
+            "rounded-2xl border border-gousse-line bg-gousse-panel px-2.5 py-1.5 text-gousse-ink text-xs shadow-lg",
+            // Origin-aware entrance, matching the popover's. Base UI sets
+            // `--transform-origin` per side on the positioner; custom properties
+            // inherit, so the popup can read it.
+            "origin-(--transform-origin)",
+            // `data-instant` is Base UI's own signal that the animation should be
+            // skipped — a group re-open, a focus, a dismiss — so it gates both
+            // directions instead of being fought with a shorter duration. It is
+            // what Radix expressed as its `instant-open` / `delayed-open` split.
+            "duration-150",
+            "not-data-[instant]:data-[open]:animate-in not-data-[instant]:data-[open]:fade-in-0 not-data-[instant]:data-[open]:zoom-in-95",
+            "not-data-[instant]:data-[ending-style]:animate-out not-data-[instant]:data-[ending-style]:fade-out-0 not-data-[instant]:data-[ending-style]:zoom-out-95",
+            className,
+          )}
+          {...props}
+        >
+          {children}
+        </TooltipPrimitive.Popup>
+      </TooltipPrimitive.Positioner>
+    </TooltipPrimitive.Portal>
+  );
 }

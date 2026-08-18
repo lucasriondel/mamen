@@ -15,52 +15,50 @@ const TOKEN_CHIPS = 5;
  * fields don't jump into place once the rule lands.
  */
 export function RuleFormSkeleton() {
-	return (
-		<SkeletonScreen label="Loading rule…" className="flex flex-col gap-4">
-			<div className="flex flex-col gap-1">
-				<Skeleton className="h-3.5 w-16" />
-				<Skeleton className="h-9 w-full" />
-				<Skeleton className="h-3 w-72" />
-			</div>
+  return (
+    <SkeletonScreen label="Loading rule…" className="flex flex-col gap-4">
+      <div className="flex flex-col gap-1">
+        <Skeleton className="h-3.5 w-16" />
+        <Skeleton className="h-9 w-full" />
+        <Skeleton className="h-3 w-72" />
+      </div>
 
-			{/* The three optional predicates: value, account, sign. */}
-			<div className="flex flex-col gap-1">
-				<Skeleton className="h-3.5 w-28" />
-				<Skeleton className="h-9 w-40" />
-			</div>
+      {/* The three optional predicates: value, account, sign. */}
+      <div className="flex flex-col gap-1">
+        <Skeleton className="h-3.5 w-28" />
+        <Skeleton className="h-9 w-40" />
+      </div>
 
-			<div className="flex flex-col gap-1">
-				<Skeleton className="h-3.5 w-20" />
-				<Skeleton className="h-9 w-40" />
-			</div>
+      <div className="flex flex-col gap-1">
+        <Skeleton className="h-3.5 w-20" />
+        <Skeleton className="h-9 w-40" />
+      </div>
 
-			<div className="flex flex-col gap-1">
-				<Skeleton className="h-3.5 w-24" />
-				<Skeleton className="h-9 w-40" />
-			</div>
+      <div className="flex flex-col gap-1">
+        <Skeleton className="h-3.5 w-24" />
+        <Skeleton className="h-9 w-40" />
+      </div>
 
-			<div className="flex flex-wrap items-center gap-2">
-				<Skeleton className="h-3 w-16" />
-				<Skeleton className="h-7 w-32" />
-			</div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Skeleton className="h-3 w-16" />
+        <Skeleton className="h-7 w-32" />
+      </div>
 
-			<div className="flex flex-col gap-1">
-				<Skeleton className="h-3 w-12" />
-				<div className="flex flex-wrap gap-1.5">
-					{Array.from({ length: TOKEN_CHIPS }, (_, index) => index).map(
-						(index) => (
-							<Skeleton key={index} className="h-5 w-10" />
-						),
-					)}
-				</div>
-			</div>
+      <div className="flex flex-col gap-1">
+        <Skeleton className="h-3 w-12" />
+        <div className="flex flex-wrap gap-1.5">
+          {Array.from({ length: TOKEN_CHIPS }, (_, index) => index).map((index) => (
+            <Skeleton key={index} className="h-5 w-10" />
+          ))}
+        </div>
+      </div>
 
-			<Skeleton className="h-40 w-full" />
+      <Skeleton className="h-40 w-full" />
 
-			<div className="flex gap-2">
-				<Skeleton className="h-9 w-24" />
-				<Skeleton className="h-9 w-20" />
-			</div>
-		</SkeletonScreen>
-	);
+      <div className="flex gap-2">
+        <Skeleton className="h-9 w-24" />
+        <Skeleton className="h-9 w-20" />
+      </div>
+    </SkeletonScreen>
+  );
 }

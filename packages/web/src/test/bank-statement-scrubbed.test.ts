@@ -39,8 +39,7 @@ const ROOT = "../..";
  * working tree and the digest is all that is left of it — enough to recognise a
  * copy, useless for reconstructing one.
  */
-const LEAKED_SHA256 =
-	"0f091c60e3d03e94cf640660d883cff8dcd323ad63fdf6c9719bad81caaef871";
+const LEAKED_SHA256 = "0f091c60e3d03e94cf640660d883cff8dcd323ad63fdf6c9719bad81caaef871";
 
 /** Where it sat, under the bank's own download filename. */
 const STATEMENT = "relevé_de_comptes_du_01.01.2026_au_31.01.2026.csv";
@@ -74,40 +73,39 @@ const SYNTHETIC_IBAN_PREFIX = "FR7699999";
  * deploys from.
  */
 const PRUNED = new Set([
-	".claude",
-	".git",
-	".turbo",
-	"coverage",
-	"dist",
-	"graphify-out",
-	"logs",
-	"node_modules",
+  ".claude",
+  ".git",
+  ".turbo",
+  "coverage",
+  "dist",
+  "graphify-out",
+  "logs",
+  "node_modules",
 ]);
 
 /** Every non-pruned file in the repo, as repo-relative paths. */
 function repoFiles(dir = ROOT, prefix = ""): string[] {
-	const out: string[] = [];
+  const out: string[] = [];
 
-	for (const entry of readdirSync(dir)) {
-		if (PRUNED.has(entry)) continue;
+  for (const entry of readdirSync(dir)) {
+    if (PRUNED.has(entry)) continue;
 
-		const path = `${dir}/${entry}`;
-		const relative = prefix ? `${prefix}/${entry}` : entry;
+    const path = `${dir}/${entry}`;
+    const relative = prefix ? `${prefix}/${entry}` : entry;
 
-		if (statSync(path).isDirectory()) {
-			out.push(...repoFiles(path, relative));
-			continue;
-		}
-		out.push(relative);
-	}
+    if (statSync(path).isDirectory()) {
+      out.push(...repoFiles(path, relative));
+      continue;
+    }
+    out.push(relative);
+  }
 
-	return out;
+  return out;
 }
 
 const bytes = (path: string) => readFileSync(`${ROOT}/${path}`);
 
-const sha256 = (path: string) =>
-	createHash("sha256").update(bytes(path)).digest("hex");
+const sha256 = (path: string) => createHash("sha256").update(bytes(path)).digest("hex");
 
 /**
  * The text of a file, or `null` if it is binary. A NUL byte is the same
@@ -117,89 +115,83 @@ const sha256 = (path: string) =>
  * the digest scan above does not already cover.
  */
 function textOf(path: string): string | null {
-	const buffer = bytes(path);
-	return buffer.includes(0) ? null : buffer.toString("utf8");
+  const buffer = bytes(path);
+  return buffer.includes(0) ? null : buffer.toString("utf8");
 }
 
 /** `git check-ignore` exits 0 when a path is excluded, 1 when it is not. */
 function isIgnored(path: string): boolean {
-	try {
-		execFileSync("git", ["check-ignore", "-q", "--", path], { cwd: ROOT });
-		return true;
-	} catch {
-		return false;
-	}
+  try {
+    execFileSync("git", ["check-ignore", "-q", "--", path], { cwd: ROOT });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 describe("the tracked bank statement", () => {
-	it("is absent from the working tree", () => {
-		expect(existsSync(`${ROOT}/${STATEMENT}`)).toBe(false);
-	});
+  it("is absent from the working tree", () => {
+    expect(existsSync(`${ROOT}/${STATEMENT}`)).toBe(false);
+  });
 
-	it("left no CSV at the repo root at all", () => {
-		// The root is where a bank's own download lands, and nothing in this
-		// monorepo legitimately keeps data there — fixtures live beside the parser
-		// that reads them.
-		const atRoot = readdirSync(ROOT).filter((entry) =>
-			entry.toLowerCase().endsWith(".csv"),
-		);
+  it("left no CSV at the repo root at all", () => {
+    // The root is where a bank's own download lands, and nothing in this
+    // monorepo legitimately keeps data there — fixtures live beside the parser
+    // that reads them.
+    const atRoot = readdirSync(ROOT).filter((entry) => entry.toLowerCase().endsWith(".csv"));
 
-		expect(atRoot).toStrictEqual([]);
-	});
+    expect(atRoot).toStrictEqual([]);
+  });
 
-	it("has no copy anywhere in the repo, under any name", () => {
-		const copies = repoFiles().filter((path) => sha256(path) === LEAKED_SHA256);
+  it("has no copy anywhere in the repo, under any name", () => {
+    const copies = repoFiles().filter((path) => sha256(path) === LEAKED_SHA256);
 
-		expect(copies).toStrictEqual([]);
-	});
+    expect(copies).toStrictEqual([]);
+  });
 });
 
 describe("the Green-Got import fixture", () => {
-	it("still ships, so the parser keeps a file to be tested against", () => {
-		expect(existsSync(FIXTURE)).toBe(true);
-	});
+  it("still ships, so the parser keeps a file to be tested against", () => {
+    expect(existsSync(FIXTURE)).toBe(true);
+  });
 
-	it("carries only synthetic account numbers", () => {
-		const ibans = frenchIbans(readFileSync(FIXTURE, "utf8"));
+  it("carries only synthetic account numbers", () => {
+    const ibans = frenchIbans(readFileSync(FIXTURE, "utf8"));
 
-		// It is a bank statement fixture; if it stops carrying IBANs entirely the
-		// assertion below passes vacuously and stops meaning anything.
-		expect(ibans.length).toBeGreaterThan(0);
+    // It is a bank statement fixture; if it stops carrying IBANs entirely the
+    // assertion below passes vacuously and stops meaning anything.
+    expect(ibans.length).toBeGreaterThan(0);
 
-		const real = ibans.filter(
-			(iban) => !iban.startsWith(SYNTHETIC_IBAN_PREFIX),
-		);
-		expect(real).toStrictEqual([]);
-	});
+    const real = ibans.filter((iban) => !iban.startsWith(SYNTHETIC_IBAN_PREFIX));
+    expect(real).toStrictEqual([]);
+  });
 });
 
 describe("every text file in the repo", () => {
-	it("carries no account number outside the fixture", () => {
-		const offenders = repoFiles()
-			.filter((path) => path !== FIXTURE_FROM_ROOT)
-			.filter((path) => frenchIbans(textOf(path) ?? "").length > 0);
+  it("carries no account number outside the fixture", () => {
+    const offenders = repoFiles()
+      .filter((path) => path !== FIXTURE_FROM_ROOT)
+      .filter((path) => frenchIbans(textOf(path) ?? "").length > 0);
 
-		expect(offenders).toStrictEqual([]);
-	});
+    expect(offenders).toStrictEqual([]);
+  });
 });
 
 describe(".gitignore", () => {
-	it("blocks bank-statement CSVs at the repo root", () => {
-		expect(isIgnored(STATEMENT)).toBe(true);
-		expect(isIgnored("statement.csv")).toBe(true);
-		expect(isIgnored("relevé_de_comptes_du_01.02.2026_au_28.02.2026.csv")).toBe(
-			true,
-		);
-	});
+  it("blocks bank-statement CSVs at the repo root", () => {
+    expect(isIgnored(STATEMENT)).toBe(true);
+    expect(isIgnored("statement.csv")).toBe(true);
+    expect(isIgnored("relevé_de_comptes_du_01.02.2026_au_28.02.2026.csv")).toBe(true);
+  });
 
-	it("blocks the same statement wherever it is dropped, not just at the root", () => {
-		// The copy that mattered was not at the root — it was four directories
-		// down, named like a fixture.
-		expect(isIgnored(`packages/web/src/${STATEMENT}`)).toBe(true);
-		expect(isIgnored("packages/api/releve_de_comptes_janvier.csv")).toBe(true);
-	});
+  it("blocks the same statement wherever it is dropped, not just at the root", () => {
+    // The copy that mattered was not at the root — it was four directories
+    // down, named like a fixture.
+    expect(isIgnored(`packages/web/src/${STATEMENT}`)).toBe(true);
+    expect(isIgnored("packages/api/releve_de_comptes_janvier.csv")).toBe(true);
+  });
 
-	it("leaves the synthetic fixture tracked", () => {
-		expect(isIgnored(FIXTURE_FROM_ROOT)).toBe(false);
-	});
+  it("leaves the synthetic fixture tracked", () => {
+    expect(isIgnored(FIXTURE_FROM_ROOT)).toBe(false);
+  });
 });

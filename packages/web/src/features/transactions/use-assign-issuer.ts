@@ -2,13 +2,22 @@ import type { Issuer, IssuerId, TransactionId } from "@mamen/shared/contract";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
-	issuerKeys,
-	issuerMutations,
-	ruleKeys,
-	transactionKeys,
-	transactionMutations,
+  issuerKeys,
+  issuerMutations,
+  ruleKeys,
+  transactionKeys,
+  transactionMutations,
 } from "@/lib/sdk";
 import { toErrorMessage } from "@/lib/sdk-error";
+
+/**
+ * Every write in this file fails the same way: the tagged error's own copy, as a
+ * toast. Module scope rather than inside the hook — it closes over nothing, so a
+ * copy per render would be one closure per render for one constant behaviour.
+ */
+const onError = (error: unknown) => {
+  toast.error(toErrorMessage(error));
+};
 
 /**
  * The issuer-assignment mutations behind the transactions assignment picker
@@ -40,47 +49,43 @@ import { toErrorMessage } from "@/lib/sdk-error";
  * matches what the server would say. Failures raise a `sonner` toast.
  */
 export function useAssignIssuer() {
-	const queryClient = useQueryClient();
+  const queryClient = useQueryClient();
 
-	const invalidate = () => {
-		queryClient.invalidateQueries({ queryKey: transactionKeys.all });
-		queryClient.invalidateQueries({ queryKey: issuerKeys.all });
-		queryClient.invalidateQueries({ queryKey: ruleKeys.all });
-	};
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: transactionKeys.all });
+    queryClient.invalidateQueries({ queryKey: issuerKeys.all });
+    queryClient.invalidateQueries({ queryKey: ruleKeys.all });
+  };
 
-	const onError = (error: unknown) => {
-		toast.error(toErrorMessage(error));
-	};
+  const assignExisting = useMutation({
+    mutationFn: ({
+      transactionId,
+      issuerId,
+    }: {
+      transactionId: TransactionId;
+      issuerId: IssuerId;
+    }) =>
+      transactionMutations.update(transactionId, {
+        issuerId,
+        manualIssuer: true,
+      }),
+    onSuccess: invalidate,
+    onError,
+  });
 
-	const assignExisting = useMutation({
-		mutationFn: ({
-			transactionId,
-			issuerId,
-		}: {
-			transactionId: TransactionId;
-			issuerId: IssuerId;
-		}) =>
-			transactionMutations.update(transactionId, {
-				issuerId,
-				manualIssuer: true,
-			}),
-		onSuccess: invalidate,
-		onError,
-	});
+  const createIssuer = useMutation({
+    mutationFn: ({ name }: { name: string }): Promise<Issuer> =>
+      issuerMutations.create({ name, firstSeen: new Date() }),
+    onSuccess: invalidate,
+    onError,
+  });
 
-	const createIssuer = useMutation({
-		mutationFn: ({ name }: { name: string }): Promise<Issuer> =>
-			issuerMutations.create({ name, firstSeen: new Date() }),
-		onSuccess: invalidate,
-		onError,
-	});
+  const removeManualIssuer = useMutation({
+    mutationFn: ({ transactionId }: { transactionId: TransactionId }) =>
+      transactionMutations.removeManualIssuer(transactionId),
+    onSuccess: invalidate,
+    onError,
+  });
 
-	const removeManualIssuer = useMutation({
-		mutationFn: ({ transactionId }: { transactionId: TransactionId }) =>
-			transactionMutations.removeManualIssuer(transactionId),
-		onSuccess: invalidate,
-		onError,
-	});
-
-	return { assignExisting, createIssuer, removeManualIssuer };
+  return { assignExisting, createIssuer, removeManualIssuer };
 }

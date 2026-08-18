@@ -29,33 +29,30 @@ export const MenuTrigger = MenuPrimitive.Trigger;
 
 /** A non-interactive heading over a run of related items. */
 export function MenuGroupLabel({
-	className,
-	...props
+  className,
+  ...props
 }: React.ComponentProps<typeof MenuPrimitive.GroupLabel>) {
-	return (
-		<MenuPrimitive.GroupLabel
-			className={cn(
-				"px-2 pt-1.5 pb-1 text-[10px] text-gousse-muted uppercase tracking-wider",
-				className,
-			)}
-			{...props}
-		/>
-	);
+  return (
+    <MenuPrimitive.GroupLabel
+      className={cn(
+        "px-2 pt-1.5 pb-1 text-[10px] text-gousse-muted uppercase tracking-wider",
+        className,
+      )}
+      {...props}
+    />
+  );
 }
 
 export const MenuGroup = MenuPrimitive.Group;
 
 /** A hairline between runs of items. */
 export function MenuSeparator({
-	className,
-	...props
+  className,
+  ...props
 }: React.ComponentProps<typeof MenuPrimitive.Separator>) {
-	return (
-		<MenuPrimitive.Separator
-			className={cn("my-1 h-px bg-gousse-line", className)}
-			{...props}
-		/>
-	);
+  return (
+    <MenuPrimitive.Separator className={cn("my-1 h-px bg-gousse-line", className)} {...props} />
+  );
 }
 
 /**
@@ -68,29 +65,29 @@ export function MenuSeparator({
  * only useful if the item is still there to carry it.
  */
 export function MenuItem({
-	className,
-	danger,
-	...props
+  className,
+  danger,
+  ...props
 }: React.ComponentProps<typeof MenuPrimitive.Item> & { danger?: boolean }) {
-	return (
-		<MenuPrimitive.Item
-			className={cn(
-				"flex w-full cursor-default select-none items-center gap-2.5 rounded-full px-2.5 py-2 text-sm outline-none",
-				"data-[highlighted]:bg-gousse-line/60",
-				"data-[disabled]:pointer-events-none data-[disabled]:opacity-45",
-				danger ? "text-gousse-high" : "text-gousse-ink",
-				className,
-			)}
-			{...props}
-		/>
-	);
+  return (
+    <MenuPrimitive.Item
+      className={cn(
+        "flex w-full cursor-default select-none items-center gap-2.5 rounded-full px-2.5 py-2 text-sm outline-none",
+        "data-[highlighted]:bg-gousse-line/60",
+        "data-[disabled]:pointer-events-none data-[disabled]:opacity-45",
+        danger ? "text-gousse-high" : "text-gousse-ink",
+        className,
+      )}
+      {...props}
+    />
+  );
 }
 
 /** Radix's collision middleware in Base UI's vocabulary — see `PopoverContent`. */
 const RADIX_COLLISION_AVOIDANCE = {
-	side: "flip",
-	align: "shift",
-	fallbackAxisSide: "none",
+  side: "flip",
+  align: "shift",
+  fallbackAxisSide: "none",
 } as const;
 
 /**
@@ -105,56 +102,51 @@ const RADIX_COLLISION_AVOIDANCE = {
  * push the panel off the card.
  */
 export function MenuContent({
-	className,
-	align = "end",
-	sideOffset = 6,
-	side,
-	alignOffset,
-	collisionBoundary,
-	collisionPadding = 8,
-	portalContainer,
-	children,
-	...props
+  className,
+  align = "end",
+  sideOffset = 6,
+  side,
+  alignOffset,
+  collisionBoundary,
+  collisionPadding = 8,
+  portalContainer,
+  children,
+  ...props
 }: React.ComponentProps<typeof MenuPrimitive.Popup> &
-	Pick<
-		React.ComponentProps<typeof MenuPrimitive.Positioner>,
-		| "align"
-		| "side"
-		| "sideOffset"
-		| "alignOffset"
-		| "collisionBoundary"
-		| "collisionPadding"
-	> & {
-		/** Render the portal here instead of `document.body`. */
-		portalContainer?: HTMLElement | null;
-	}) {
-	return (
-		<MenuPrimitive.Portal container={portalContainer ?? undefined}>
-			<MenuPrimitive.Positioner
-				align={align}
-				side={side}
-				sideOffset={sideOffset}
-				alignOffset={alignOffset}
-				positionMethod="fixed"
-				collisionBoundary={collisionBoundary}
-				collisionPadding={collisionPadding}
-				collisionAvoidance={RADIX_COLLISION_AVOIDANCE}
-				className="z-50"
-			>
-				<MenuPrimitive.Popup
-					className={cn(
-						// A container, not a control: the box corner, never the kit's pill.
-						"min-w-48 rounded-2xl border border-gousse-line bg-gousse-panel p-1.5 text-gousse-ink shadow-lg outline-none",
-						"origin-(--transform-origin)",
-						"duration-150 data-[open]:animate-in data-[ending-style]:animate-out",
-						"data-[open]:fade-in-0 data-[ending-style]:fade-out-0 data-[open]:zoom-in-95 data-[ending-style]:zoom-out-95",
-						className,
-					)}
-					{...props}
-				>
-					{children}
-				</MenuPrimitive.Popup>
-			</MenuPrimitive.Positioner>
-		</MenuPrimitive.Portal>
-	);
+  Pick<
+    React.ComponentProps<typeof MenuPrimitive.Positioner>,
+    "align" | "side" | "sideOffset" | "alignOffset" | "collisionBoundary" | "collisionPadding"
+  > & {
+    /** Render the portal here instead of `document.body`. */
+    portalContainer?: HTMLElement | null;
+  }) {
+  return (
+    <MenuPrimitive.Portal container={portalContainer ?? undefined}>
+      <MenuPrimitive.Positioner
+        align={align}
+        side={side}
+        sideOffset={sideOffset}
+        alignOffset={alignOffset}
+        positionMethod="fixed"
+        collisionBoundary={collisionBoundary}
+        collisionPadding={collisionPadding}
+        collisionAvoidance={RADIX_COLLISION_AVOIDANCE}
+        className="z-50"
+      >
+        <MenuPrimitive.Popup
+          className={cn(
+            // A container, not a control: the box corner, never the kit's pill.
+            "min-w-48 rounded-2xl border border-gousse-line bg-gousse-panel p-1.5 text-gousse-ink shadow-lg outline-none",
+            "origin-(--transform-origin)",
+            "duration-150 data-[open]:animate-in data-[ending-style]:animate-out",
+            "data-[open]:fade-in-0 data-[ending-style]:fade-out-0 data-[open]:zoom-in-95 data-[ending-style]:zoom-out-95",
+            className,
+          )}
+          {...props}
+        >
+          {children}
+        </MenuPrimitive.Popup>
+      </MenuPrimitive.Positioner>
+    </MenuPrimitive.Portal>
+  );
 }

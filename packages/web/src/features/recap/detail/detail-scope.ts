@@ -1,8 +1,8 @@
 import {
-	type AccountId,
-	type CategoryId,
-	type IssuerId,
-	UNASSIGNED_FILTER,
+  type AccountId,
+  type CategoryId,
+  type IssuerId,
+  UNASSIGNED_FILTER,
 } from "@mamen/shared/contract";
 import type { TransactionCountParams } from "@/lib/sdk";
 import { type Period, periodToFilter } from "../period";
@@ -32,29 +32,21 @@ import type { RecapDetailTarget } from "./search";
  * members) is already held out of `list` by construction or by that same filter.
  */
 export function toDetailScope(
-	target: RecapDetailTarget,
-	period: Period,
-	accountIds: readonly number[],
+  target: RecapDetailTarget,
+  period: Period,
+  accountIds: readonly number[],
 ): TransactionCountParams {
-	return {
-		...(target.axis === "issuer"
-			? {
-					issuerId:
-						target.bucket === null
-							? UNASSIGNED_FILTER
-							: (target.bucket as IssuerId),
-				}
-			: {
-					categoryId:
-						target.bucket === null
-							? UNASSIGNED_FILTER
-							: (target.bucket as CategoryId),
-				}),
-		...periodToFilter(period),
-		// An empty selection is "every account", which is the absent filter — passing
-		// `[]` would ask for the accounts in an empty set, i.e. nothing.
-		...(accountIds.length > 0
-			? { accountId: accountIds as ReadonlyArray<AccountId> }
-			: {}),
-	};
+  return {
+    ...(target.axis === "issuer"
+      ? {
+          issuerId: target.bucket === null ? UNASSIGNED_FILTER : (target.bucket as IssuerId),
+        }
+      : {
+          categoryId: target.bucket === null ? UNASSIGNED_FILTER : (target.bucket as CategoryId),
+        }),
+    ...periodToFilter(period),
+    // An empty selection is "every account", which is the absent filter — passing
+    // `[]` would ask for the accounts in an empty set, i.e. nothing.
+    ...(accountIds.length > 0 ? { accountId: accountIds as ReadonlyArray<AccountId> } : {}),
+  };
 }

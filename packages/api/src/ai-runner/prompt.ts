@@ -65,7 +65,7 @@ Return only the structured object: the array of transactions and the declared to
 
 /** The CLI transport's prompt: the model opens the staged file itself. */
 export const extractionPrompt = (pdfPath: string): string =>
-	`You are extracting transactions from a French bank statement (relevé de compte) PDF.
+  `You are extracting transactions from a French bank statement (relevé de compte) PDF.
 
 Use your Read tool to open and read the PDF at this absolute path:
 ${pdfPath}
@@ -82,7 +82,7 @@ ${EXTRACTION_RULES}`;
  * ones, from the same constant.
  */
 export const hostedExtractionPrompt = (): string =>
-	`You are extracting transactions from a French bank statement (relevé de compte) PDF.
+  `You are extracting transactions from a French bank statement (relevé de compte) PDF.
 
 The statement is attached to the user's message as a PDF document. Read it directly — there is no file to open and no tool to call.
 
@@ -94,4 +94,4 @@ ${EXTRACTION_RULES}`;
  * system message.
  */
 export const HOSTED_EXTRACTION_INSTRUCTION =
-	"Extract the transactions from the attached bank statement PDF, following the rules above.";
+  "Extract the transactions from the attached bank statement PDF, following the rules above.";

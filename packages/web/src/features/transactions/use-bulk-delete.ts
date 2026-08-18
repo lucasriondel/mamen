@@ -31,19 +31,19 @@ import { toErrorMessage } from "@/lib/sdk-error";
  * Failures raise a `sonner` toast.
  */
 export function useBulkDelete() {
-	const queryClient = useQueryClient();
+  const queryClient = useQueryClient();
 
-	const bulkDelete = useMutation({
-		mutationFn: ({ ids }: { ids: ReadonlyArray<TransactionId> }) =>
-			transactionMutations.bulkDelete(ids),
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: transactionKeys.all });
-			queryClient.invalidateQueries({ queryKey: ruleKeys.all });
-		},
-		onError: (error: unknown) => {
-			toast.error(toErrorMessage(error));
-		},
-	});
+  const bulkDelete = useMutation({
+    mutationFn: ({ ids }: { ids: ReadonlyArray<TransactionId> }) =>
+      transactionMutations.bulkDelete(ids),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: transactionKeys.all });
+      queryClient.invalidateQueries({ queryKey: ruleKeys.all });
+    },
+    onError: (error: unknown) => {
+      toast.error(toErrorMessage(error));
+    },
+  });
 
-	return { bulkDelete };
+  return { bulkDelete };
 }

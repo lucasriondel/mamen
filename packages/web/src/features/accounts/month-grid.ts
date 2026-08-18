@@ -26,33 +26,33 @@ export type CellState = "imported" | "available" | "disabled";
 
 /** Short month labels, January → December. */
 export const MONTH_LABELS = [
-	"Jan",
-	"Feb",
-	"Mar",
-	"Apr",
-	"May",
-	"Jun",
-	"Jul",
-	"Aug",
-	"Sep",
-	"Oct",
-	"Nov",
-	"Dec",
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
 ] as const;
 
 /** Zero-pad a 1-based month number to the `MM` half of a {@link MonthKey}. */
 function pad2(month: number): string {
-	return String(month).padStart(2, "0");
+  return String(month).padStart(2, "0");
 }
 
 /** The `YYYY-MM` key for a given year and 1-based month. */
 export function monthKey(year: number, month1Based: number): MonthKey {
-	return `${year}-${pad2(month1Based)}`;
+  return `${year}-${pad2(month1Based)}`;
 }
 
 /** The twelve `YYYY-MM` keys of a year, January → December. */
 export function monthsOfYear(year: number): MonthKey[] {
-	return Array.from({ length: 12 }, (_, index) => monthKey(year, index + 1));
+  return Array.from({ length: 12 }, (_, index) => monthKey(year, index + 1));
 }
 
 /**
@@ -62,16 +62,13 @@ export function monthsOfYear(year: number): MonthKey[] {
  * statement is still accruing, and future months obviously so. Comparison is
  * lexicographic, which is correct for zero-padded `YYYY-MM`.
  */
-export function isMonthImportable(
-	month: MonthKey,
-	currentMonth: MonthKey,
-): boolean {
-	return month < currentMonth;
+export function isMonthImportable(month: MonthKey, currentMonth: MonthKey): boolean {
+  return month < currentMonth;
 }
 
 /** Extract the year (number) from a `YYYY-MM` key. */
 export function yearOf(month: MonthKey): number {
-	return Number(month.slice(0, 4));
+  return Number(month.slice(0, 4));
 }
 
 /**
@@ -82,25 +79,22 @@ export function yearOf(month: MonthKey): number {
  * that holds data plus the year they're living in, and never a future year with
  * nothing importable in it.
  */
-export function availableYears(
-	importedMonths: Iterable<MonthKey>,
-	currentYear: number,
-): number[] {
-	let earliest = currentYear;
-	for (const month of importedMonths) {
-		const year = yearOf(month);
-		if (Number.isFinite(year) && year < earliest) earliest = year;
-	}
-	const years: number[] = [];
-	for (let year = currentYear; year >= earliest; year--) years.push(year);
-	return years;
+export function availableYears(importedMonths: Iterable<MonthKey>, currentYear: number): number[] {
+  let earliest = currentYear;
+  for (const month of importedMonths) {
+    const year = yearOf(month);
+    if (Number.isFinite(year) && year < earliest) earliest = year;
+  }
+  const years: number[] = [];
+  for (let year = currentYear; year >= earliest; year--) years.push(year);
+  return years;
 }
 
 /** One month of a strip: its key, its column label and its state. */
 export interface MonthCellSpec {
-	month: MonthKey;
-	label: string;
-	state: CellState;
+  month: MonthKey;
+  label: string;
+  state: CellState;
 }
 
 /**
@@ -111,19 +105,19 @@ export interface MonthCellSpec {
  * holds one account, the imported set holds all of them.
  */
 export function monthCells(
-	year: number,
-	currentMonth: MonthKey,
-	isImported: (month: MonthKey) => boolean,
+  year: number,
+  currentMonth: MonthKey,
+  isImported: (month: MonthKey) => boolean,
 ): MonthCellSpec[] {
-	return monthsOfYear(year).map((month, index) => ({
-		month,
-		label: MONTH_LABELS[index],
-		state: !isMonthImportable(month, currentMonth)
-			? "disabled"
-			: isImported(month)
-				? "imported"
-				: "available",
-	}));
+  return monthsOfYear(year).map((month, index) => ({
+    month,
+    label: MONTH_LABELS[index],
+    state: !isMonthImportable(month, currentMonth)
+      ? "disabled"
+      : isImported(month)
+        ? "imported"
+        : "available",
+  }));
 }
 
 /**
@@ -135,15 +129,15 @@ export function monthCells(
  * caught up eleven months behind, which inverts the thing the stat is for.
  */
 export function monthProgress(cells: readonly MonthCellSpec[]): {
-	imported: number;
-	importable: number;
+  imported: number;
+  importable: number;
 } {
-	let imported = 0;
-	let importable = 0;
-	for (const cell of cells) {
-		if (cell.state === "disabled") continue;
-		importable++;
-		if (cell.state === "imported") imported++;
-	}
-	return { imported, importable };
+  let imported = 0;
+  let importable = 0;
+  for (const cell of cells) {
+    if (cell.state === "disabled") continue;
+    importable++;
+    if (cell.state === "imported") imported++;
+  }
+  return { imported, importable };
 }

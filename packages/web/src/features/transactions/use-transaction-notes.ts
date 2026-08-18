@@ -18,23 +18,18 @@ import { toErrorMessage } from "@/lib/sdk-error";
  * Invalidates the transactions key family so the Notes column re-reads.
  */
 export function useTransactionNotes() {
-	const queryClient = useQueryClient();
+  const queryClient = useQueryClient();
 
-	const setNotes = useMutation({
-		mutationFn: ({
-			transactionId,
-			notes,
-		}: {
-			transactionId: TransactionId;
-			notes: string;
-		}) => transactionMutations.update(transactionId, { notes: notes.trim() }),
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: transactionKeys.all });
-		},
-		onError: (error: unknown) => {
-			toast.error(toErrorMessage(error));
-		},
-	});
+  const setNotes = useMutation({
+    mutationFn: ({ transactionId, notes }: { transactionId: TransactionId; notes: string }) =>
+      transactionMutations.update(transactionId, { notes: notes.trim() }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: transactionKeys.all });
+    },
+    onError: (error: unknown) => {
+      toast.error(toErrorMessage(error));
+    },
+  });
 
-	return { setNotes };
+  return { setNotes };
 }

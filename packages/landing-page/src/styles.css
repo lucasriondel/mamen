@@ -7,108 +7,113 @@
    as a hashed asset, so the built page carries no inline style block. */
 
 :root {
-	color-scheme: dark;
-	--bg: #0a0a0a;
-	--fg: #ededed;
-	--muted: #a1a1a1;
-	--accent: #d8b26e;
-	--line: #262626;
+  color-scheme: dark;
+  --bg: #0a0a0a;
+  --fg: #ededed;
+  --muted: #a1a1a1;
+  --accent: #d8b26e;
+  --line: #262626;
 }
 
 *,
 *::before,
 *::after {
-	box-sizing: border-box;
+  box-sizing: border-box;
 }
 
 body {
-	margin: 0;
-	padding: 4rem 1.5rem;
-	background: var(--bg);
-	color: var(--fg);
-	font-family:
-		ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-	line-height: 1.6;
-	-webkit-font-smoothing: antialiased;
+  margin: 0;
+  padding: 4rem 1.5rem;
+  background: var(--bg);
+  color: var(--fg);
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
 }
 
 main {
-	max-width: 42rem;
-	margin: 0 auto;
+  max-width: 42rem;
+  margin: 0 auto;
 }
 
 h1 {
-	margin: 0 0 0.5rem;
-	font-size: 3rem;
-	letter-spacing: -0.03em;
-	color: var(--accent);
+  margin: 0 0 0.5rem;
+  font-size: 3rem;
+  letter-spacing: -0.03em;
+  color: var(--accent);
 }
 
 .lead {
-	margin: 0 0 2rem;
-	font-size: 1.125rem;
-	color: var(--muted);
+  margin: 0 0 2rem;
+  font-size: 1.125rem;
+  color: var(--muted);
 }
 
 .points {
-	margin: 0 0 2.5rem;
-	padding: 0;
-	list-style: none;
-	border-top: 1px solid var(--line);
+  margin: 0 0 2.5rem;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
 }
 
 .points li {
-	padding: 1rem 0;
-	border-bottom: 1px solid var(--line);
-	color: var(--muted);
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
 }
 
 .points strong {
-	color: var(--fg);
-	font-weight: 600;
+  color: var(--fg);
+  font-weight: 600;
 }
 
 .actions {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 1rem;
-	align-items: center;
-	margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  margin: 0;
 }
 
 a {
-	color: var(--accent);
+  color: var(--accent);
 }
 
 .cta {
-	display: inline-block;
-	padding: 0.625rem 1.25rem;
-	border-radius: 0.5rem;
-	background: var(--accent);
-	color: var(--bg);
-	font-weight: 600;
-	text-decoration: none;
+  display: inline-block;
+  padding: 0.625rem 1.25rem;
+  border-radius: 0.5rem;
+  background: var(--accent);
+  color: var(--bg);
+  font-weight: 600;
+  text-decoration: none;
 }
 
 .cta:hover {
-	filter: brightness(1.1);
+  filter: brightness(1.1);
 }
 
 .secondary {
-	color: var(--muted);
-	text-decoration: none;
+  color: var(--muted);
+  text-decoration: none;
 }
 
 .secondary:hover {
-	color: var(--fg);
+  color: var(--fg);
 }
 
 @media (prefers-reduced-motion: no-preference) {
-	.cta {
-		transition: filter 150ms ease;
-	}
+  .cta {
+    transition: filter 150ms ease;
+  }
 
-	.secondary {
-		transition: color 150ms ease;
-	}
+  .secondary {
+    transition: color 150ms ease;
+  }
 }

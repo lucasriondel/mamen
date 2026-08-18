@@ -13,21 +13,21 @@ import type { RecapDetailAxis, RecapDetailSearch } from "./search";
  * applies and the user can widen it to inspect what was held out.
  */
 export function toDetailSearch(
-	axis: RecapDetailAxis,
-	bucket: number | null,
-	period: Period,
-	accountIds: readonly number[],
+  axis: RecapDetailAxis,
+  bucket: number | null,
+  period: Period,
+  accountIds: readonly number[],
 ): RecapDetailSearch {
-	return {
-		by: axis,
-		// `null` — the *Unassigned* bucket — travels as the `"none"` filter value:
-		// every URL value is a string, so an omitted param could not tell "the rows
-		// with no issuer" apart from "any issuer".
-		bucket: bucket === null ? UNASSIGNED_FILTER : bucket,
-		period: period.kind,
-		month: period.kind === "month" ? period.month : undefined,
-		year: period.kind === "year" ? period.year : undefined,
-		accountIds: accountIds.length > 0 ? [...accountIds] : undefined,
-		excludedFromRecap: false,
-	};
+  return {
+    by: axis,
+    // `null` — the *Unassigned* bucket — travels as the `"none"` filter value:
+    // every URL value is a string, so an omitted param could not tell "the rows
+    // with no issuer" apart from "any issuer".
+    bucket: bucket === null ? UNASSIGNED_FILTER : bucket,
+    period: period.kind,
+    month: period.kind === "month" ? period.month : undefined,
+    year: period.kind === "year" ? period.year : undefined,
+    accountIds: accountIds.length > 0 ? [...accountIds] : undefined,
+    excludedFromRecap: false,
+  };
 }

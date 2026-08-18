@@ -23,29 +23,29 @@ let prefersDark = false;
  * once, while its provider mounts.
  */
 export function setPrefersDark(value: boolean): void {
-	prefersDark = value;
+  prefersDark = value;
 }
 
 /** Install the stub. `test/setup.ts` calls this once per test file. */
 export function installMatchMedia(): void {
-	if (typeof window === "undefined") return;
+  if (typeof window === "undefined") return;
 
-	Object.defineProperty(window, "matchMedia", {
-		configurable: true,
-		value: (query: string): MediaQueryList =>
-			({
-				media: query,
-				// A getter, not a value: `next-themes` holds the list it made at
-				// mount and re-reads `.matches` from it.
-				get matches() {
-					return /prefers-color-scheme:\s*dark/.test(query) && prefersDark;
-				},
-				onchange: null,
-				addListener: () => {},
-				removeListener: () => {},
-				addEventListener: () => {},
-				removeEventListener: () => {},
-				dispatchEvent: () => false,
-			}) as unknown as MediaQueryList,
-	});
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    value: (query: string): MediaQueryList =>
+      ({
+        media: query,
+        // A getter, not a value: `next-themes` holds the list it made at
+        // mount and re-reads `.matches` from it.
+        get matches() {
+          return /prefers-color-scheme:\s*dark/.test(query) && prefersDark;
+        },
+        onchange: null,
+        addListener: () => {},
+        removeListener: () => {},
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }) as unknown as MediaQueryList,
+  });
 }

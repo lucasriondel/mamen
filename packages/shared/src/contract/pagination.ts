@@ -15,12 +15,12 @@ export const PaginationDefaults = { limit: 50, offset: 0 } as const;
  * envelope is the full filtered count before limit/offset is applied.
  */
 export const Pagination = {
-	limit: Schema.optionalWith(Schema.NumberFromString, {
-		default: () => PaginationDefaults.limit,
-	}),
-	offset: Schema.optionalWith(Schema.NumberFromString, {
-		default: () => PaginationDefaults.offset,
-	}),
+  limit: Schema.optionalWith(Schema.NumberFromString, {
+    default: () => PaginationDefaults.limit,
+  }),
+  offset: Schema.optionalWith(Schema.NumberFromString, {
+    default: () => PaginationDefaults.offset,
+  }),
 } as const;
 
 /**
@@ -29,7 +29,7 @@ export const Pagination = {
  * filtered set (so the client can page); `items` is the current page.
  */
 export const Paged = <A, I, R>(item: Schema.Schema<A, I, R>) =>
-	Schema.Struct({
-		items: Schema.Array(item),
-		total: Schema.Number,
-	});
+  Schema.Struct({
+    items: Schema.Array(item),
+    total: Schema.Number,
+  });

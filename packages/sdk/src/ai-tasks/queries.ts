@@ -11,35 +11,32 @@ import { Client, runQuery } from "../runtime";
  * literal and `GET /ai/tasks` answers exhaustively, one entry per task.
  */
 export const aiTaskKeys = {
-	all: ["ai-tasks"] as const,
-	list: () => [...aiTaskKeys.all, "list"] as const,
-	resolution: (task: AiTask) =>
-		[...aiTaskKeys.all, "resolution", task] as const,
+  all: ["ai-tasks"] as const,
+  list: () => [...aiTaskKeys.all, "list"] as const,
+  resolution: (task: AiTask) => [...aiTaskKeys.all, "resolution", task] as const,
 };
 
 /** tanstack-query read options for the per-task provider/model choice. */
 export const aiTaskQueries = {
-	list: () =>
-		queryOptions({
-			queryKey: aiTaskKeys.list(),
-			queryFn: ({ signal }) =>
-				runQuery(
-					Effect.flatMap(Client, (client) => client.aiTasks.list()),
-					signal,
-				),
-		}),
+  list: () =>
+    queryOptions({
+      queryKey: aiTaskKeys.list(),
+      queryFn: ({ signal }) =>
+        runQuery(
+          Effect.flatMap(Client, (client) => client.aiTasks.list()),
+          signal,
+        ),
+    }),
 
-	resolution: (task: AiTask) =>
-		queryOptions({
-			queryKey: aiTaskKeys.resolution(task),
-			queryFn: ({ signal }) =>
-				runQuery(
-					Effect.flatMap(Client, (client) =>
-						client.aiTasks.resolve({ path: { task } }),
-					),
-					signal,
-				),
-		}),
+  resolution: (task: AiTask) =>
+    queryOptions({
+      queryKey: aiTaskKeys.resolution(task),
+      queryFn: ({ signal }) =>
+        runQuery(
+          Effect.flatMap(Client, (client) => client.aiTasks.resolve({ path: { task } })),
+          signal,
+        ),
+    }),
 };
 
 /**
@@ -54,10 +51,6 @@ export const aiTaskQueries = {
  * picker to what is actually stored.
  */
 export const aiTaskMutations = {
-	patch: (tasks: ReadonlyArray<AiTaskChange>) =>
-		runQuery(
-			Effect.flatMap(Client, (client) =>
-				client.aiTasks.patch({ payload: { tasks } }),
-			),
-		),
+  patch: (tasks: ReadonlyArray<AiTaskChange>) =>
+    runQuery(Effect.flatMap(Client, (client) => client.aiTasks.patch({ payload: { tasks } }))),
 };

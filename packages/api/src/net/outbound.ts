@@ -23,24 +23,21 @@ import { Context, Layer } from "effect";
  * accident.
  */
 export interface OutboundOps {
-	/**
-	 * `fetch`, narrowed to what the guarded path uses. The caller always passes
-	 * `redirect: "manual"` — following redirects is the *caller's* job precisely
-	 * because each hop needs re-checking.
-	 */
-	readonly fetch: (url: string, init: RequestInit) => Promise<Response>;
-	/**
-	 * Resolve a hostname to every address it answers with. All of them, not the
-	 * first: a name that returns one public and one private address must be
-	 * refused, and `lookup` without `all` would show only one of the two.
-	 */
-	readonly lookup: (hostname: string) => Promise<ReadonlyArray<string>>;
+  /**
+   * `fetch`, narrowed to what the guarded path uses. The caller always passes
+   * `redirect: "manual"` — following redirects is the *caller's* job precisely
+   * because each hop needs re-checking.
+   */
+  readonly fetch: (url: string, init: RequestInit) => Promise<Response>;
+  /**
+   * Resolve a hostname to every address it answers with. All of them, not the
+   * first: a name that returns one public and one private address must be
+   * refused, and `lookup` without `all` would show only one of the two.
+   */
+  readonly lookup: (hostname: string) => Promise<ReadonlyArray<string>>;
 }
 
-export class Outbound extends Context.Tag("Outbound")<
-	Outbound,
-	OutboundOps
->() {}
+export class Outbound extends Context.Tag("Outbound")<Outbound, OutboundOps>() {}
 
 /**
  * The real network: the platform `fetch` and the OS resolver.
@@ -51,9 +48,9 @@ export class Outbound extends Context.Tag("Outbound")<
  * as a set is pure noise.
  */
 export const OutboundLive = Layer.succeed(Outbound, {
-	fetch: (url, init) => globalThis.fetch(url, init),
-	lookup: (hostname) =>
-		lookup(hostname, { all: true, verbatim: true }).then((addresses) =>
-			addresses.map((a) => a.address),
-		),
+  fetch: (url, init) => globalThis.fetch(url, init),
+  lookup: (hostname) =>
+    lookup(hostname, { all: true, verbatim: true }).then((addresses) =>
+      addresses.map((a) => a.address),
+    ),
 });

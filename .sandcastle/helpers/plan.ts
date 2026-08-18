@@ -11,9 +11,7 @@
 import { z } from "zod";
 
 export const planSchema = z.object({
-  issues: z.array(
-    z.object({ id: z.string(), title: z.string(), branch: z.string() }),
-  ),
+  issues: z.array(z.object({ id: z.string(), title: z.string(), branch: z.string() })),
 });
 
 /** A single unblocked issue the planner selected for this iteration. */

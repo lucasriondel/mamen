@@ -8,6 +8,6 @@ import { validateIssuersSearch } from "@/features/issuers/search";
  * reads these params and owns its queries.
  */
 export const Route = createFileRoute("/issuers/")({
-	validateSearch: validateIssuersSearch,
-	component: IssuersView,
+  validateSearch: validateIssuersSearch,
+  component: IssuersView,
 });

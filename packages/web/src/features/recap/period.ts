@@ -18,13 +18,13 @@ export type PeriodKind = "month" | "year" | "all";
  * neither — it is the unbounded window.
  */
 export type Period =
-	| { kind: "month"; month: string }
-	| { kind: "year"; year: string }
-	| { kind: "all" };
+  | { kind: "month"; month: string }
+  | { kind: "year"; year: string }
+  | { kind: "all" };
 
 /** Zero-pad a 1–2 digit number to two chars (`3` → `"03"`). */
 function pad2(n: number): string {
-	return String(n).padStart(2, "0");
+  return String(n).padStart(2, "0");
 }
 
 /**
@@ -34,7 +34,7 @@ function pad2(n: number): string {
  * the derivation stays pure and testable.
  */
 export function monthKeyOf(today: Date): string {
-	return `${today.getFullYear()}-${pad2(today.getMonth() + 1)}`;
+  return `${today.getFullYear()}-${pad2(today.getMonth() + 1)}`;
 }
 
 /**
@@ -42,7 +42,7 @@ export function monthKeyOf(today: Date): string {
  * from an injected `today` so the default is deterministic in tests.
  */
 export function currentMonthPeriod(today: Date): Period {
-	return { kind: "month", month: monthKeyOf(today) };
+  return { kind: "month", month: monthKeyOf(today) };
 }
 
 /**
@@ -66,25 +66,25 @@ export function currentMonthPeriod(today: Date): Period {
  * last day is derived (`day 0` of the next month), never assumed to be 30 or 31.
  */
 export function periodToFilter(period: Period): RecapParams {
-	switch (period.kind) {
-		case "month": {
-			const year = Number(period.month.slice(0, 4));
-			// 1-based, as the key writes it: `Date.UTC(y, m, 0)` is then the last
-			// day of month `m`, and `Date.UTC(y, m - 1, 1)` its first.
-			const month = Number(period.month.slice(5, 7));
-			return {
-				startDate: new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0)),
-				endDate: new Date(Date.UTC(year, month, 0, 23, 59, 59, 999)),
-			};
-		}
-		case "year": {
-			const year = Number(period.year);
-			return {
-				startDate: new Date(Date.UTC(year, 0, 1, 0, 0, 0, 0)),
-				endDate: new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999)),
-			};
-		}
-		case "all":
-			return {};
-	}
+  switch (period.kind) {
+    case "month": {
+      const year = Number(period.month.slice(0, 4));
+      // 1-based, as the key writes it: `Date.UTC(y, m, 0)` is then the last
+      // day of month `m`, and `Date.UTC(y, m - 1, 1)` its first.
+      const month = Number(period.month.slice(5, 7));
+      return {
+        startDate: new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0)),
+        endDate: new Date(Date.UTC(year, month, 0, 23, 59, 59, 999)),
+      };
+    }
+    case "year": {
+      const year = Number(period.year);
+      return {
+        startDate: new Date(Date.UTC(year, 0, 1, 0, 0, 0, 0)),
+        endDate: new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999)),
+      };
+    }
+    case "all":
+      return {};
+  }
 }

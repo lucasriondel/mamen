@@ -1,8 +1,8 @@
 import {
-	LogoSearchFailed,
-	LogoSearchQuotaExceeded,
-	type LogoSearchResult,
-	LogoSearchUnconfigured,
+  LogoSearchFailed,
+  LogoSearchQuotaExceeded,
+  type LogoSearchResult,
+  LogoSearchUnconfigured,
 } from "@mamen/shared/contract";
 import { Effect, Option } from "effect";
 import { LogodevToken } from "../config";
@@ -61,19 +61,19 @@ const THUMB_SIZE = 128;
  * result silently store a monogram if the logo vanished upstream.
  */
 const variantUrl = (
-	query: string,
-	token: string,
-	theme: (typeof THEMES)[number],
-	size: number,
+  query: string,
+  token: string,
+  theme: (typeof THEMES)[number],
+  size: number,
 ): string => {
-	const url = new URL(`/name/${encodeURIComponent(query)}`, ENDPOINT);
-	url.searchParams.set("token", token);
-	url.searchParams.set("size", String(size));
-	url.searchParams.set("format", "png");
-	url.searchParams.set("theme", theme);
-	url.searchParams.set("retina", "true");
-	url.searchParams.set("fallback", "404");
-	return url.href;
+  const url = new URL(`/name/${encodeURIComponent(query)}`, ENDPOINT);
+  url.searchParams.set("token", token);
+  url.searchParams.set("size", String(size));
+  url.searchParams.set("format", "png");
+  url.searchParams.set("theme", theme);
+  url.searchParams.set("retina", "true");
+  url.searchParams.set("fallback", "404");
+  return url.href;
 };
 
 /** A configured value counts as absent when it is blank — `FOO=` in an env
@@ -82,69 +82,67 @@ const variantUrl = (
 const isBlank = (value: string) => value.trim() === "";
 
 export const searchLogos = (
-	query: string,
+  query: string,
 ): Effect.Effect<
-	{ readonly results: ReadonlyArray<LogoSearchResult> },
-	LogoSearchUnconfigured | LogoSearchQuotaExceeded | LogoSearchFailed,
-	Outbound
+  { readonly results: ReadonlyArray<LogoSearchResult> },
+  LogoSearchUnconfigured | LogoSearchQuotaExceeded | LogoSearchFailed,
+  Outbound
 > =>
-	Effect.gen(function* () {
-		// `Config.option`, so absence is a value rather than an error; anything
-		// that *does* fail here is a broken ConfigProvider, which is an
-		// infrastructure defect and not this endpoint's to describe.
-		const token = yield* Effect.orDie(LogodevToken);
+  Effect.gen(function* () {
+    // `Config.option`, so absence is a value rather than an error; anything
+    // that *does* fail here is a broken ConfigProvider, which is an
+    // infrastructure defect and not this endpoint's to describe.
+    const token = yield* Effect.orDie(LogodevToken);
 
-		if (Option.isNone(token) || isBlank(token.value)) {
-			return yield* Effect.fail(
-				new LogoSearchUnconfigured({ missing: ["LOGODEV_TOKEN"] }),
-			);
-		}
-		const pk = token.value;
+    if (Option.isNone(token) || isBlank(token.value)) {
+      return yield* Effect.fail(new LogoSearchUnconfigured({ missing: ["LOGODEV_TOKEN"] }));
+    }
+    const pk = token.value;
 
-		// The probe doubles as the first result's URL: one request decides
-		// whether logo.dev knows this name, and its answer is cached by the CDN
-		// for when the mosaic actually renders it.
-		const probe = variantUrl(query, pk, "auto", IMAGE_SIZE);
+    // The probe doubles as the first result's URL: one request decides
+    // whether logo.dev knows this name, and its answer is cached by the CDN
+    // for when the mosaic actually renders it.
+    const probe = variantUrl(query, pk, "auto", IMAGE_SIZE);
 
-		const outbound = yield* Outbound;
-		const response = yield* Effect.tryPromise({
-			try: (signal) => outbound.fetch(probe, { signal }),
-			// Never quote the URL: it carries the token, and this message is sent
-			// to the browser. The token is publishable, but the habit is not.
-			catch: (cause) =>
-				new LogoSearchFailed({
-					message: `could not reach logo.dev: ${cause}`,
-				}),
-		});
+    const outbound = yield* Outbound;
+    const response = yield* Effect.tryPromise({
+      try: (signal) => outbound.fetch(probe, { signal }),
+      // Never quote the URL: it carries the token, and this message is sent
+      // to the browser. The token is publishable, but the habit is not.
+      catch: (cause) =>
+        new LogoSearchFailed({
+          message: `could not reach logo.dev: ${cause}`,
+        }),
+    });
 
-		// `fallback=404` turns "no logo for this name" into a plain 404 — an
-		// empty result set, not a failure.
-		if (response.status === 404) {
-			return { results: [] };
-		}
-		if (response.status === 429) {
-			return yield* Effect.fail(new LogoSearchQuotaExceeded());
-		}
-		if (!response.ok) {
-			return yield* Effect.fail(
-				new LogoSearchFailed({
-					message: `logo.dev answered ${response.status}`,
-				}),
-			);
-		}
+    // `fallback=404` turns "no logo for this name" into a plain 404 — an
+    // empty result set, not a failure.
+    if (response.status === 404) {
+      return { results: [] };
+    }
+    if (response.status === 429) {
+      return yield* Effect.fail(new LogoSearchQuotaExceeded());
+    }
+    if (!response.ok) {
+      return yield* Effect.fail(
+        new LogoSearchFailed({
+          message: `logo.dev answered ${response.status}`,
+        }),
+      );
+    }
 
-		return {
-			results: THEMES.map((theme) => ({
-				title: theme === "auto" ? query : `${query} — ${theme} background`,
-				imageUrl: variantUrl(query, pk, theme, IMAGE_SIZE),
-				thumbnailUrl: variantUrl(query, pk, theme, THUMB_SIZE),
-			})),
-		};
-	}).pipe(
-		// A hanging logo.dev is a transport failure, not a quota one: retrying is
-		// exactly the right advice, which is the distinction being preserved.
-		Effect.timeoutFail({
-			duration: FETCH_TIMEOUT,
-			onTimeout: () => new LogoSearchFailed({ message: "logo.dev timed out" }),
-		}),
-	);
+    return {
+      results: THEMES.map((theme) => ({
+        title: theme === "auto" ? query : `${query} — ${theme} background`,
+        imageUrl: variantUrl(query, pk, theme, IMAGE_SIZE),
+        thumbnailUrl: variantUrl(query, pk, theme, THUMB_SIZE),
+      })),
+    };
+  }).pipe(
+    // A hanging logo.dev is a transport failure, not a quota one: retrying is
+    // exactly the right advice, which is the distinction being preserved.
+    Effect.timeoutFail({
+      duration: FETCH_TIMEOUT,
+      onTimeout: () => new LogoSearchFailed({ message: "logo.dev timed out" }),
+    }),
+  );

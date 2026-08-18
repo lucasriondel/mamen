@@ -13,8 +13,8 @@ import { Effect } from "effect";
  * on every pre-existing row.
  */
 export default Effect.flatMap(SqlClient.SqlClient, (sql) =>
-	Effect.all([
-		sql`ALTER TABLE transactions ADD COLUMN transferGroupId INTEGER`,
-		sql`CREATE INDEX IF NOT EXISTS idx_tx_transferGroupId ON transactions(transferGroupId)`,
-	]).pipe(Effect.asVoid),
+  Effect.all([
+    sql`ALTER TABLE transactions ADD COLUMN transferGroupId INTEGER`,
+    sql`CREATE INDEX IF NOT EXISTS idx_tx_transferGroupId ON transactions(transferGroupId)`,
+  ]).pipe(Effect.asVoid),
 );

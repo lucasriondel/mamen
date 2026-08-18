@@ -9,5 +9,5 @@ import { Effect } from "effect";
  * nor ordered on.
  */
 export default Effect.flatMap(SqlClient.SqlClient, (sql) =>
-	sql`ALTER TABLE issuers ADD COLUMN notes TEXT`.pipe(Effect.asVoid),
+  sql`ALTER TABLE issuers ADD COLUMN notes TEXT`.pipe(Effect.asVoid),
 );

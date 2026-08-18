@@ -2,10 +2,10 @@ import { Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface GroupedToggleProps {
-	/** Whether the filter is currently applied. */
-	pressed: boolean;
-	/** Apply or clear the filter. */
-	onPressedChange: (pressed: boolean) => void;
+  /** Whether the filter is currently applied. */
+  pressed: boolean;
+  /** Apply or clear the filter. */
+  onPressedChange: (pressed: boolean) => void;
 }
 
 /**
@@ -24,25 +24,22 @@ export interface GroupedToggleProps {
  * halves of those are views a user asks for, but "everything that is not a
  * bundle parent" is not one, so the off state here is simply no filter.
  */
-export function GroupedToggle({
-	pressed,
-	onPressedChange,
-}: GroupedToggleProps) {
-	return (
-		<button
-			type="button"
-			aria-pressed={pressed}
-			onClick={() => onPressedChange(!pressed)}
-			className={cn(
-				"flex h-9 items-center gap-2 rounded-full border px-4 text-sm transition-colors",
-				"outline-none focus-visible:ring-2 focus-visible:ring-gousse-accent",
-				pressed
-					? "border-gousse-accent/40 bg-gousse-accent/10 text-gousse-ink"
-					: "border-gousse-line bg-gousse-panel text-gousse-muted hover:text-gousse-ink",
-			)}
-		>
-			<Layers size={14} />
-			Grouped only
-		</button>
-	);
+export function GroupedToggle({ pressed, onPressedChange }: GroupedToggleProps) {
+  return (
+    <button
+      type="button"
+      aria-pressed={pressed}
+      onClick={() => onPressedChange(!pressed)}
+      className={cn(
+        "flex h-9 items-center gap-2 rounded-full border px-4 text-sm transition-colors",
+        "outline-none focus-visible:ring-2 focus-visible:ring-gousse-accent",
+        pressed
+          ? "border-gousse-accent/40 bg-gousse-accent/10 text-gousse-ink"
+          : "border-gousse-line bg-gousse-panel text-gousse-muted hover:text-gousse-ink",
+      )}
+    >
+      <Layers size={14} />
+      Grouped only
+    </button>
+  );
 }

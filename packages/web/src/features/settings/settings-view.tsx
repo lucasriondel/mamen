@@ -18,14 +18,14 @@ import { AppearanceSettings } from "./appearance-settings";
  * — a preference with no credential and no server behind it.
  */
 export function SettingsView() {
-	return (
-		<PageLayout
-			title="Settings"
-			description="How mamen looks, and which provider reads your statements."
-			className="mx-auto max-w-4xl gap-8"
-		>
-			<AppearanceSettings />
-			<AiSettingsView />
-		</PageLayout>
-	);
+  return (
+    <PageLayout
+      title="Settings"
+      description="How mamen looks, and which provider reads your statements."
+      className="mx-auto max-w-4xl gap-8"
+    >
+      <AppearanceSettings />
+      <AiSettingsView />
+    </PageLayout>
+  );
 }

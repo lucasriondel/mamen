@@ -9,6 +9,6 @@ import { validateRecapSearch } from "@/features/recap/search";
  * (no Router loader), mirroring the transactions route.
  */
 export const Route = createFileRoute("/recap")({
-	validateSearch: validateRecapSearch,
-	component: RecapView,
+  validateSearch: validateRecapSearch,
+  component: RecapView,
 });

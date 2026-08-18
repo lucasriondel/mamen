@@ -10,8 +10,8 @@ import { Effect } from "effect";
  * kept as a `"YYYY-MM"` string. No DB-level foreign keys or uniqueness.
  */
 export default Effect.flatMap(SqlClient.SqlClient, (sql) =>
-	Effect.all([
-		sql`
+  Effect.all([
+    sql`
 			CREATE TABLE IF NOT EXISTS transactions (
 				id INTEGER PRIMARY KEY AUTOINCREMENT,
 				accountId INTEGER NOT NULL,
@@ -33,16 +33,16 @@ export default Effect.flatMap(SqlClient.SqlClient, (sql) =>
 				importBatchId TEXT
 			)
 		`,
-		sql`CREATE INDEX IF NOT EXISTS idx_tx_accountId ON transactions(accountId)`,
-		sql`CREATE INDEX IF NOT EXISTS idx_tx_date ON transactions(date)`,
-		sql`CREATE INDEX IF NOT EXISTS idx_tx_amount ON transactions(amount)`,
-		sql`CREATE INDEX IF NOT EXISTS idx_tx_issuerId ON transactions(issuerId)`,
-		sql`CREATE INDEX IF NOT EXISTS idx_tx_categoryId ON transactions(categoryId)`,
-		sql`CREATE INDEX IF NOT EXISTS idx_tx_subcategoryId ON transactions(subcategoryId)`,
-		sql`CREATE INDEX IF NOT EXISTS idx_tx_manualCategory ON transactions(manualCategory)`,
-		sql`CREATE INDEX IF NOT EXISTS idx_tx_linkedRefundId ON transactions(linkedRefundId)`,
-		sql`CREATE INDEX IF NOT EXISTS idx_tx_importMonth ON transactions(importMonth)`,
-		sql`CREATE INDEX IF NOT EXISTS idx_tx_importBatchId ON transactions(importBatchId)`,
-		sql`CREATE INDEX IF NOT EXISTS idx_tx_account_month ON transactions(accountId, importMonth)`,
-	]).pipe(Effect.asVoid),
+    sql`CREATE INDEX IF NOT EXISTS idx_tx_accountId ON transactions(accountId)`,
+    sql`CREATE INDEX IF NOT EXISTS idx_tx_date ON transactions(date)`,
+    sql`CREATE INDEX IF NOT EXISTS idx_tx_amount ON transactions(amount)`,
+    sql`CREATE INDEX IF NOT EXISTS idx_tx_issuerId ON transactions(issuerId)`,
+    sql`CREATE INDEX IF NOT EXISTS idx_tx_categoryId ON transactions(categoryId)`,
+    sql`CREATE INDEX IF NOT EXISTS idx_tx_subcategoryId ON transactions(subcategoryId)`,
+    sql`CREATE INDEX IF NOT EXISTS idx_tx_manualCategory ON transactions(manualCategory)`,
+    sql`CREATE INDEX IF NOT EXISTS idx_tx_linkedRefundId ON transactions(linkedRefundId)`,
+    sql`CREATE INDEX IF NOT EXISTS idx_tx_importMonth ON transactions(importMonth)`,
+    sql`CREATE INDEX IF NOT EXISTS idx_tx_importBatchId ON transactions(importBatchId)`,
+    sql`CREATE INDEX IF NOT EXISTS idx_tx_account_month ON transactions(accountId, importMonth)`,
+  ]).pipe(Effect.asVoid),
 );

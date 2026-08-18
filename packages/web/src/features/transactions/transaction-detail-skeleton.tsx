@@ -2,37 +2,28 @@ import { Skeleton, SkeletonScreen } from "@/components/ui/skeleton";
 
 /** One `DetailField` row: muted term in the fixed-width left column, value right. */
 function DetailFieldSkeleton({ valueWidth }: { valueWidth: string }) {
-	return (
-		<div className="flex flex-col gap-1 border-b border-gousse-line py-3 last:border-0 sm:flex-row sm:items-baseline sm:gap-4">
-			<Skeleton className="h-3.5 w-24 shrink-0 sm:w-40" />
-			<Skeleton className={`h-3.5 ${valueWidth}`} />
-		</div>
-	);
+  return (
+    <div className="flex flex-col gap-1 border-b border-gousse-line py-3 last:border-0 sm:flex-row sm:items-baseline sm:gap-4">
+      <Skeleton className="h-3.5 w-24 shrink-0 sm:w-40" />
+      <Skeleton className={`h-3.5 ${valueWidth}`} />
+    </div>
+  );
 }
 
 /** A bordered `dl` of fields, as the detail page's sections render them. */
 function FieldListSkeleton({ widths }: { widths: readonly string[] }) {
-	return (
-		<div className="rounded-2xl border border-gousse-line px-4">
-			{widths.map((width, index) => (
-				// biome-ignore lint/suspicious/noArrayIndexKey: a static placeholder list — never reordered, and two fields may share a width
-				<DetailFieldSkeleton key={index} valueWidth={width} />
-			))}
-		</div>
-	);
+  return (
+    <div className="rounded-2xl border border-gousse-line px-4">
+      {widths.map((width, index) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: a static placeholder list — never reordered, and two fields may share a width
+        <DetailFieldSkeleton key={index} valueWidth={width} />
+      ))}
+    </div>
+  );
 }
 
 /** The eight core fields — id, date, amount, account, raw issuer, issuer, category, notes. */
-const CORE_WIDTHS = [
-	"w-16",
-	"w-24",
-	"w-20",
-	"w-32",
-	"w-64",
-	"w-40",
-	"w-28",
-	"w-48",
-] as const;
+const CORE_WIDTHS = ["w-16", "w-24", "w-20", "w-32", "w-64", "w-40", "w-28", "w-48"] as const;
 
 /** The refund + duplicate block's fields. */
 const REFUND_WIDTHS = ["w-12", "w-36", "w-14"] as const;
@@ -51,17 +42,14 @@ const REFUND_WIDTHS = ["w-12", "w-36", "w-14"] as const;
  * the page untitled and with no way back to a collapsed sidebar while it read.
  */
 export function TransactionDetailSkeleton() {
-	return (
-		<SkeletonScreen
-			label="Loading transaction…"
-			className="flex flex-col gap-8"
-		>
-			<FieldListSkeleton widths={CORE_WIDTHS} />
+  return (
+    <SkeletonScreen label="Loading transaction…" className="flex flex-col gap-8">
+      <FieldListSkeleton widths={CORE_WIDTHS} />
 
-			<div className="flex flex-col gap-3 border-t border-gousse-line pt-6">
-				<Skeleton className="h-5 w-44" />
-				<FieldListSkeleton widths={REFUND_WIDTHS} />
-			</div>
-		</SkeletonScreen>
-	);
+      <div className="flex flex-col gap-3 border-t border-gousse-line pt-6">
+        <Skeleton className="h-5 w-44" />
+        <FieldListSkeleton widths={REFUND_WIDTHS} />
+      </div>
+    </SkeletonScreen>
+  );
 }

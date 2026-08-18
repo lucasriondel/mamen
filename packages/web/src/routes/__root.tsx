@@ -30,21 +30,21 @@ import { queryClient } from "@/lib/query-client";
  * around it.
  */
 function RootLayout() {
-	return (
-		<QueryClientProvider client={queryClient}>
-			<ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-				<TooltipProvider>
-					<AppShell>
-						<Outlet />
-					</AppShell>
-					<Toaster position="bottom-right" richColors closeButton />
-					<ReactQueryDevtools initialIsOpen={false} />
-				</TooltipProvider>
-			</ThemeProvider>
-		</QueryClientProvider>
-	);
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+        <TooltipProvider>
+          <AppShell>
+            <Outlet />
+          </AppShell>
+          <Toaster position="bottom-right" richColors closeButton />
+          <ReactQueryDevtools initialIsOpen={false} />
+        </TooltipProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
+  );
 }
 
 export const Route = createRootRoute({
-	component: RootLayout,
+  component: RootLayout,
 });

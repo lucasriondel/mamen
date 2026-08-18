@@ -35,44 +35,44 @@ import { AI_TASK_TABLE } from "./tasks";
  */
 
 export class AiRunner extends Effect.Service<AiRunner>()("api/AiRunner", {
-	effect: Effect.gen(function* () {
-		const tasks = yield* TaskProvider;
-		// Closed over rather than required per call, so `run`'s remaining
-		// requirement is `ClaudeCode` alone — which is what lets the extraction
-		// handler narrow that one service to its temp dir at the call site.
-		const sql = yield* SqlClient.SqlClient;
+  effect: Effect.gen(function* () {
+    const tasks = yield* TaskProvider;
+    // Closed over rather than required per call, so `run`'s remaining
+    // requirement is `ClaudeCode` alone — which is what lets the extraction
+    // handler narrow that one service to its temp dir at the call site.
+    const sql = yield* SqlClient.SqlClient;
 
-		/**
-		 * The hosted branch's one HTTP call (issue #124). Absent in production, so
-		 * the package's own ai-sdk call runs and a statement really does reach the
-		 * vendor the user chose; present only when a test provides
-		 * {@link HostedTransport}, which is where "what reached the vendor" is
-		 * asserted.
-		 */
-		const hosted = yield* Effect.serviceOption(HostedTransport);
+    /**
+     * The hosted branch's one HTTP call (issue #124). Absent in production, so
+     * the package's own ai-sdk call runs and a statement really does reach the
+     * vendor the user chose; present only when a test provides
+     * {@link HostedTransport}, which is where "what reached the vendor" is
+     * asserted.
+     */
+    const hosted = yield* Effect.serviceOption(HostedTransport);
 
-		const runner = makeTaskRunner(
-			AI_TASK_TABLE,
-			{
-				// The table is keyed by `AiTask`, so its keys are the only strings the
-				// runner can pass back here.
-				resolve: (task) => tasks.resolve(task as AiTask),
-				credential: (vendor) =>
-					readSecret(vendor).pipe(
-						Effect.provideService(SqlClient.SqlClient, sql),
-						Effect.map(Option.getOrNull),
-					),
-			},
-			// Omitted rather than passed as `undefined`: the package reads
-			// `internals.generateHosted ?? generateHostedLive`, and an absent seam is
-			// the live call.
-			Option.match(hosted, {
-				onNone: () => ({}),
-				onSome: (generateHosted) => ({ generateHosted }),
-			}),
-		);
+    const runner = makeTaskRunner(
+      AI_TASK_TABLE,
+      {
+        // The table is keyed by `AiTask`, so its keys are the only strings the
+        // runner can pass back here.
+        resolve: (task) => tasks.resolve(task as AiTask),
+        credential: (vendor) =>
+          readSecret(vendor).pipe(
+            Effect.provideService(SqlClient.SqlClient, sql),
+            Effect.map(Option.getOrNull),
+          ),
+      },
+      // Omitted rather than passed as `undefined`: the package reads
+      // `internals.generateHosted ?? generateHostedLive`, and an absent seam is
+      // the live call.
+      Option.match(hosted, {
+        onNone: () => ({}),
+        onSome: (generateHosted) => ({ generateHosted }),
+      }),
+    );
 
-		return { run: runner.run } as const;
-	}),
-	dependencies: [TaskProvider.Default],
+    return { run: runner.run } as const;
+  }),
+  dependencies: [TaskProvider.Default],
 }) {}

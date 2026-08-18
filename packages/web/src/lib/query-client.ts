@@ -13,15 +13,15 @@ import { QueryClient } from "@tanstack/react-query";
  * Mutations own their own invalidation (the SDK stays invalidation-agnostic).
  */
 export function createQueryClient(): QueryClient {
-	return new QueryClient({
-		defaultOptions: {
-			queries: {
-				staleTime: 30_000,
-				retry: 1,
-				refetchOnWindowFocus: false,
-			},
-		},
-	});
+  return new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: 30_000,
+        retry: 1,
+        refetchOnWindowFocus: false,
+      },
+    },
+  });
 }
 
 /**

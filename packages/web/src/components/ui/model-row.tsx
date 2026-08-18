@@ -28,93 +28,92 @@ import { SettingRow } from "@/components/ui/setting-row";
  */
 
 export interface ModelOption {
-	id: string;
-	label: string;
+  id: string;
+  label: string;
 }
 
 export interface ProviderOption {
-	id: string;
-	label: string;
+  id: string;
+  label: string;
 }
 
 export function ModelRow({
-	title,
-	description,
-	provider,
-	providers,
-	model,
-	models,
-	onProviderChange,
-	onModelChange,
-	disabled = false,
-	saving = false,
-	saved = false,
-	error,
-	alignTop = false,
-	children,
+  title,
+  description,
+  provider,
+  providers,
+  model,
+  models,
+  onProviderChange,
+  onModelChange,
+  disabled = false,
+  saving = false,
+  saved = false,
+  error,
+  alignTop = false,
+  children,
 }: {
-	title: string;
-	description?: ReactNode;
-	/** Selected provider id. */
-	provider: string;
-	/** Providers offered — normally only those with a stored credential. */
-	providers: readonly ProviderOption[];
-	/** Selected model id. */
-	model: string;
-	/** Models the selected provider offers. */
-	models: readonly ModelOption[];
-	onProviderChange?: (provider: string) => void;
-	onModelChange?: (model: string) => void;
-	disabled?: boolean;
-	saving?: boolean;
-	saved?: boolean;
-	error?: string | null;
-	alignTop?: boolean;
-	children?: ReactNode;
+  title: string;
+  description?: ReactNode;
+  /** Selected provider id. */
+  provider: string;
+  /** Providers offered — normally only those with a stored credential. */
+  providers: readonly ProviderOption[];
+  /** Selected model id. */
+  model: string;
+  /** Models the selected provider offers. */
+  models: readonly ModelOption[];
+  onProviderChange?: (provider: string) => void;
+  onModelChange?: (model: string) => void;
+  disabled?: boolean;
+  saving?: boolean;
+  saved?: boolean;
+  error?: string | null;
+  alignTop?: boolean;
+  children?: ReactNode;
 }) {
-	return (
-		<SettingRow
-			title={title}
-			description={description}
-			alignTop={alignTop || Boolean(children)}
-			control={
-				<>
-					<div className="flex gap-2">
-						<Select
-							aria-label={`${title} provider`}
-							disabled={disabled || saving}
-							value={provider}
-							onChange={(e) => {
-								if (e.target.value !== provider)
-									onProviderChange?.(e.target.value);
-							}}
-							className="w-40 disabled:opacity-60"
-						>
-							{providers.map((p) => (
-								<option key={p.id} value={p.id}>
-									{p.label}
-								</option>
-							))}
-						</Select>
-						<Select
-							aria-label={`${title} model`}
-							disabled={disabled || saving}
-							value={model}
-							onChange={(e) => onModelChange?.(e.target.value)}
-							className="w-52 disabled:opacity-60"
-						>
-							{models.map((m) => (
-								<option key={m.id} value={m.id}>
-									{m.label}
-								</option>
-							))}
-						</Select>
-					</div>
-					<SavedFlash saving={saving} saved={saved && !error} error={error} />
-				</>
-			}
-		>
-			{children}
-		</SettingRow>
-	);
+  return (
+    <SettingRow
+      title={title}
+      description={description}
+      alignTop={alignTop || Boolean(children)}
+      control={
+        <>
+          <div className="flex gap-2">
+            <Select
+              aria-label={`${title} provider`}
+              disabled={disabled || saving}
+              value={provider}
+              onChange={(e) => {
+                if (e.target.value !== provider) onProviderChange?.(e.target.value);
+              }}
+              className="w-40 disabled:opacity-60"
+            >
+              {providers.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}
+                </option>
+              ))}
+            </Select>
+            <Select
+              aria-label={`${title} model`}
+              disabled={disabled || saving}
+              value={model}
+              onChange={(e) => onModelChange?.(e.target.value)}
+              className="w-52 disabled:opacity-60"
+            >
+              {models.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <SavedFlash saving={saving} saved={saved && !error} error={error} />
+        </>
+      }
+    >
+      {children}
+    </SettingRow>
+  );
 }

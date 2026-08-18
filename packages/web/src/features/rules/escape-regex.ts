@@ -17,5 +17,5 @@
  * `RegExp` as a string, so there is no delimiter to break out of.
  */
 export function escapeRegex(source: string): string {
-	return source.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return source.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

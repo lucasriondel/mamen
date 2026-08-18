@@ -1,60 +1,60 @@
 {
-	"$schema": "https://biomejs.dev/schemas/2.3.14/schema.json",
-	"vcs": {
-		"enabled": true,
-		"clientKind": "git",
-		"useIgnoreFile": true
-	},
-	"files": {
-		"includes": [
-			"**",
-			"!**/dist",
-			"!packages/web/src/styles/gousse",
-			"!packages/web/src/components/ui/sidebar.tsx",
-			"!*.config.ts",
-			"!*.config.js",
-			"!graphify-out",
-			"!**/*.gen.ts",
-			"!**/*.gen.tsx",
-			"!packages/api/openapi.json"
-		]
-	},
-	"css": {
-		"parser": {
-			"tailwindDirectives": true
-		}
-	},
-	"formatter": {
-		"enabled": true,
-		"indentStyle": "tab",
-		"lineWidth": 80
-	},
-	"linter": {
-		"enabled": true,
-		"rules": {
-			"recommended": true,
-			"a11y": {
-				"noLabelWithoutControl": {
-					"level": "error",
-					"options": {
-						"inputComponents": ["Input", "Select"]
-					}
-				}
-			},
-			"style": {
-				"noNonNullAssertion": "off"
-			},
-			"suspicious": {
-				"noExplicitAny": "off"
-			}
-		}
-	},
-	"assist": {
-		"enabled": true,
-		"actions": {
-			"source": {
-				"organizeImports": "on"
-			}
-		}
-	}
+  "$schema": "https://biomejs.dev/schemas/2.3.14/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "includes": [
+      "**",
+      "!**/dist",
+      "!packages/web/src/styles/gousse",
+      "!packages/web/src/components/ui/sidebar.tsx",
+      "!*.config.ts",
+      "!*.config.js",
+      "!graphify-out",
+      "!**/*.gen.ts",
+      "!**/*.gen.tsx",
+      "!packages/api/openapi.json"
+    ]
+  },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    }
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "tab",
+    "lineWidth": 80
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "a11y": {
+        "noLabelWithoutControl": {
+          "level": "error",
+          "options": {
+            "inputComponents": ["Input", "Select"]
+          }
+        }
+      },
+      "style": {
+        "noNonNullAssertion": "off"
+      },
+      "suspicious": {
+        "noExplicitAny": "off"
+      }
+    }
+  },
+  "assist": {
+    "enabled": true,
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  }
 }

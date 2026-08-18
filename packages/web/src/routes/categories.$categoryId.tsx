@@ -9,6 +9,6 @@ import { validateTransactionsSearch } from "@/features/transactions/search";
  * path param names the leaf or folder whose transactions (and total) it shows.
  */
 export const Route = createFileRoute("/categories/$categoryId")({
-	validateSearch: validateTransactionsSearch,
-	component: CategoryTransactionsView,
+  validateSearch: validateTransactionsSearch,
+  component: CategoryTransactionsView,
 });

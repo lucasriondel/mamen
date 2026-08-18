@@ -1,9 +1,4 @@
-import {
-	HttpApiEndpoint,
-	HttpApiGroup,
-	HttpApiSchema,
-	OpenApi,
-} from "@effect/platform";
+import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema, OpenApi } from "@effect/platform";
 import { Schema } from "effect";
 import { NotFound } from "./errors";
 import { AccountId, numFromStr } from "./ids";
@@ -20,12 +15,12 @@ import { Paged, Pagination } from "./pagination";
  * who never opens the colour picker never sees an uncoloured account.
  */
 export class Account extends Schema.Class<Account>("Account")({
-	id: AccountId,
-	name: Schema.String,
-	type: Schema.Literal("checking", "savings", "credit_card", "other"),
-	color: Schema.NullOr(Schema.String), // null = auto-derive from id
-	createdAt: Schema.Date,
-	updatedAt: Schema.Date,
+  id: AccountId,
+  name: Schema.String,
+  type: Schema.Literal("checking", "savings", "credit_card", "other"),
+  color: Schema.NullOr(Schema.String), // null = auto-derive from id
+  createdAt: Schema.Date,
+  updatedAt: Schema.Date,
 }) {}
 
 /**
@@ -34,9 +29,9 @@ export class Account extends Schema.Class<Account>("Account")({
  * send `name`/`type` stay valid; an omitted colour lands as null, i.e. auto.
  */
 export const AccountCreate = Schema.Struct({
-	name: Account.fields.name,
-	type: Account.fields.type,
-	color: Schema.optional(Account.fields.color),
+  name: Account.fields.name,
+  type: Account.fields.type,
+  color: Schema.optional(Account.fields.color),
 });
 export type AccountCreate = typeof AccountCreate.Type;
 
@@ -50,43 +45,37 @@ export type AccountUpdate = typeof AccountUpdate.Type;
  * 404 on a missing id (behavior change vs the old silent `{ ok: true }`).
  */
 export class AccountsGroup extends HttpApiGroup.make("accounts")
-	.add(
-		HttpApiEndpoint.get("list")`/accounts`
-			.setUrlParams(Schema.Struct(Pagination))
-			.addSuccess(Paged(Account)),
-	)
-	.add(
-		HttpApiEndpoint.get(
-			"getById",
-		)`/accounts/${HttpApiSchema.param("id", numFromStr(AccountId))}`
-			.addSuccess(Account)
-			.addError(NotFound),
-	)
-	.add(
-		HttpApiEndpoint.get(
-			"getByName",
-		)`/accounts/by-name/${HttpApiSchema.param("name", Schema.String)}`
-			.addSuccess(Account)
-			.addError(NotFound),
-	)
-	.add(
-		HttpApiEndpoint.post("create")`/accounts`
-			.setPayload(AccountCreate)
-			.addSuccess(Account, { status: 201 }),
-	)
-	.add(
-		HttpApiEndpoint.put(
-			"update",
-		)`/accounts/${HttpApiSchema.param("id", numFromStr(AccountId))}`
-			.setPayload(AccountUpdate)
-			.addSuccess(Account)
-			.addError(NotFound),
-	)
-	.add(
-		HttpApiEndpoint.del(
-			"remove",
-		)`/accounts/${HttpApiSchema.param("id", numFromStr(AccountId))}`
-			.addSuccess(HttpApiSchema.NoContent)
-			.addError(NotFound),
-	)
-	.annotateContext(OpenApi.annotations({ title: "Accounts" })) {}
+  .add(
+    HttpApiEndpoint.get("list")`/accounts`
+      .setUrlParams(Schema.Struct(Pagination))
+      .addSuccess(Paged(Account)),
+  )
+  .add(
+    HttpApiEndpoint.get("getById")`/accounts/${HttpApiSchema.param("id", numFromStr(AccountId))}`
+      .addSuccess(Account)
+      .addError(NotFound),
+  )
+  .add(
+    HttpApiEndpoint.get(
+      "getByName",
+    )`/accounts/by-name/${HttpApiSchema.param("name", Schema.String)}`
+      .addSuccess(Account)
+      .addError(NotFound),
+  )
+  .add(
+    HttpApiEndpoint.post("create")`/accounts`
+      .setPayload(AccountCreate)
+      .addSuccess(Account, { status: 201 }),
+  )
+  .add(
+    HttpApiEndpoint.put("update")`/accounts/${HttpApiSchema.param("id", numFromStr(AccountId))}`
+      .setPayload(AccountUpdate)
+      .addSuccess(Account)
+      .addError(NotFound),
+  )
+  .add(
+    HttpApiEndpoint.del("remove")`/accounts/${HttpApiSchema.param("id", numFromStr(AccountId))}`
+      .addSuccess(HttpApiSchema.NoContent)
+      .addError(NotFound),
+  )
+  .annotateContext(OpenApi.annotations({ title: "Accounts" })) {}

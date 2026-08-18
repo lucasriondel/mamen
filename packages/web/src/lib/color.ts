@@ -19,32 +19,32 @@ const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
 
 /** Is this a hex colour string this module can reason about? */
 export function isHexColor(value: string): boolean {
-	return HEX.test(value.trim());
+  return HEX.test(value.trim());
 }
 
 /** `#abc` / `#aabbcc` → `[r, g, b]` in 0–255, or `null` if it is neither. */
 function parseHex(value: string): [number, number, number] | null {
-	const hex = value.trim();
-	if (!isHexColor(hex)) return null;
-	const body = hex.slice(1);
-	const full =
-		body.length === 3
-			? body
-					.split("")
-					.map((c) => c + c)
-					.join("")
-			: body;
-	return [
-		Number.parseInt(full.slice(0, 2), 16),
-		Number.parseInt(full.slice(2, 4), 16),
-		Number.parseInt(full.slice(4, 6), 16),
-	];
+  const hex = value.trim();
+  if (!isHexColor(hex)) return null;
+  const body = hex.slice(1);
+  const full =
+    body.length === 3
+      ? body
+          .split("")
+          .map((c) => c + c)
+          .join("")
+      : body;
+  return [
+    Number.parseInt(full.slice(0, 2), 16),
+    Number.parseInt(full.slice(2, 4), 16),
+    Number.parseInt(full.slice(4, 6), 16),
+  ];
 }
 
 /** One sRGB channel, linearised — WCAG 2.x §relative luminance. */
 function linearise(channel: number): number {
-	const c = channel / 255;
-	return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  const c = channel / 255;
+  return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
 }
 
 /**
@@ -53,10 +53,10 @@ function linearise(channel: number): number {
  * means rather than silently treating it as black.
  */
 function relativeLuminance(color: string): number | null {
-	const rgb = parseHex(color);
-	if (rgb === null) return null;
-	const [r, g, b] = rgb.map(linearise) as [number, number, number];
-	return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  const rgb = parseHex(color);
+  if (rgb === null) return null;
+  const [r, g, b] = rgb.map(linearise) as [number, number, number];
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
 /**
@@ -66,11 +66,11 @@ function relativeLuminance(color: string): number | null {
  * never win a comparison against a colour that does parse.
  */
 export function contrastRatio(a: string, b: string): number {
-	const la = relativeLuminance(a);
-	const lb = relativeLuminance(b);
-	if (la === null || lb === null) return 1;
-	const [hi, lo] = la >= lb ? [la, lb] : [lb, la];
-	return (hi + 0.05) / (lo + 0.05);
+  const la = relativeLuminance(a);
+  const lb = relativeLuminance(b);
+  if (la === null || lb === null) return 1;
+  const [hi, lo] = la >= lb ? [la, lb] : [lb, la];
+  return (hi + 0.05) / (lo + 0.05);
 }
 
 /**
@@ -80,8 +80,7 @@ export function contrastRatio(a: string, b: string): number {
  * degrades to.
  */
 export function readableInk(background: string): string {
-	return contrastRatio(background, INK_LIGHT) >
-		contrastRatio(background, INK_DARK)
-		? INK_LIGHT
-		: INK_DARK;
+  return contrastRatio(background, INK_LIGHT) > contrastRatio(background, INK_DARK)
+    ? INK_LIGHT
+    : INK_DARK;
 }

@@ -17,7 +17,7 @@ import { routeTree } from "./routeTree.gen";
 export const router = createRouter({ routeTree, basepath: APP_BASE_PATH });
 
 declare module "@tanstack/react-router" {
-	interface Register {
-		router: typeof router;
-	}
+  interface Register {
+    router: typeof router;
+  }
 }

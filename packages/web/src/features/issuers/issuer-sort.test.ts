@@ -1,135 +1,131 @@
 import type { Issuer } from "@mamen/shared/contract";
 import { describe, expect, it } from "vitest";
 import {
-	DEFAULT_ISSUER_SORT,
-	type IssuerMetrics,
-	issuerMetrics,
-	nextIssuerSort,
-	sortIssuers,
+  DEFAULT_ISSUER_SORT,
+  type IssuerMetrics,
+  issuerMetrics,
+  nextIssuerSort,
+  sortIssuers,
 } from "./issuer-sort";
 
-function metric(
-	name: string,
-	count: number,
-	net: number,
-	value: number,
-): IssuerMetrics {
-	return {
-		issuer: { id: 1 as Issuer["id"], name } as Issuer,
-		count,
-		net,
-		value,
-	};
+function metric(name: string, count: number, net: number, value: number): IssuerMetrics {
+  return {
+    issuer: { id: 1 as Issuer["id"], name } as Issuer,
+    count,
+    net,
+    value,
+  };
 }
 
 const names = (m: readonly IssuerMetrics[]) => m.map((x) => x.issuer.name);
 
 describe("sortIssuers", () => {
-	const zebra = metric("Zebra", 1, -10, 10);
-	const apple = metric("apple", 5, -50, 50);
-	const mango = metric("Mango", 3, 30, 30);
+  const zebra = metric("Zebra", 1, -10, 10);
+  const apple = metric("apple", 5, -50, 50);
+  const mango = metric("Mango", 3, 30, 30);
 
-	it("defaults to alphabetical A→Z, case-insensitively", () => {
-		const out = sortIssuers([zebra, apple, mango], DEFAULT_ISSUER_SORT);
-		expect(names(out)).toEqual(["apple", "Mango", "Zebra"]);
-	});
+  it("defaults to alphabetical A→Z, case-insensitively", () => {
+    const out = sortIssuers([zebra, apple, mango], DEFAULT_ISSUER_SORT);
+    expect(names(out)).toEqual(["apple", "Mango", "Zebra"]);
+  });
 
-	it("sorts by name descending (Z→A)", () => {
-		const out = sortIssuers([zebra, apple, mango], {
-			key: "name",
-			direction: "desc",
-		});
-		expect(names(out)).toEqual(["Zebra", "Mango", "apple"]);
-	});
+  it("sorts by name descending (Z→A)", () => {
+    const out = sortIssuers([zebra, apple, mango], {
+      key: "name",
+      direction: "desc",
+    });
+    expect(names(out)).toEqual(["Zebra", "Mango", "apple"]);
+  });
 
-	it("sorts by transaction count", () => {
-		expect(
-			names(
-				sortIssuers([zebra, apple, mango], { key: "count", direction: "asc" }),
-			),
-		).toEqual(["Zebra", "Mango", "apple"]);
-		expect(
-			names(
-				sortIssuers([zebra, apple, mango], { key: "count", direction: "desc" }),
-			),
-		).toEqual(["apple", "Mango", "Zebra"]);
-	});
+  it("sorts by transaction count", () => {
+    expect(names(sortIssuers([zebra, apple, mango], { key: "count", direction: "asc" }))).toEqual([
+      "Zebra",
+      "Mango",
+      "apple",
+    ]);
+    expect(names(sortIssuers([zebra, apple, mango], { key: "count", direction: "desc" }))).toEqual([
+      "apple",
+      "Mango",
+      "Zebra",
+    ]);
+  });
 
-	it("sorts by total value (absolute money moved)", () => {
-		expect(
-			names(
-				sortIssuers([zebra, apple, mango], { key: "value", direction: "desc" }),
-			),
-		).toEqual(["apple", "Mango", "Zebra"]);
-	});
+  it("sorts by total value (absolute money moved)", () => {
+    expect(names(sortIssuers([zebra, apple, mango], { key: "value", direction: "desc" }))).toEqual([
+      "apple",
+      "Mango",
+      "Zebra",
+    ]);
+  });
 
-	it("breaks numeric ties by name A→Z regardless of direction", () => {
-		const a = metric("Beta", 2, 0, 0);
-		const b = metric("Alpha", 2, 0, 0);
-		expect(
-			names(sortIssuers([a, b], { key: "count", direction: "desc" })),
-		).toEqual(["Alpha", "Beta"]);
-		expect(
-			names(sortIssuers([a, b], { key: "count", direction: "asc" })),
-		).toEqual(["Alpha", "Beta"]);
-	});
+  it("breaks numeric ties by name A→Z regardless of direction", () => {
+    const a = metric("Beta", 2, 0, 0);
+    const b = metric("Alpha", 2, 0, 0);
+    expect(names(sortIssuers([a, b], { key: "count", direction: "desc" }))).toEqual([
+      "Alpha",
+      "Beta",
+    ]);
+    expect(names(sortIssuers([a, b], { key: "count", direction: "asc" }))).toEqual([
+      "Alpha",
+      "Beta",
+    ]);
+  });
 
-	it("does not mutate the input array", () => {
-		const input = [zebra, apple, mango];
-		sortIssuers(input, DEFAULT_ISSUER_SORT);
-		expect(names(input)).toEqual(["Zebra", "apple", "Mango"]);
-	});
+  it("does not mutate the input array", () => {
+    const input = [zebra, apple, mango];
+    sortIssuers(input, DEFAULT_ISSUER_SORT);
+    expect(names(input)).toEqual(["Zebra", "apple", "Mango"]);
+  });
 });
 
 describe("issuerMetrics", () => {
-	const iss = { id: 1 as Issuer["id"], name: "Acme" } as Issuer;
+  const iss = { id: 1 as Issuer["id"], name: "Acme" } as Issuer;
 
-	it("sums net (signed) and value (absolute) separately", () => {
-		const m = issuerMetrics(iss, [{ amount: -30 }, { amount: 20 }], 2);
-		expect(m).toEqual({ issuer: iss, count: 2, net: -10, value: 50 });
-	});
+  it("sums net (signed) and value (absolute) separately", () => {
+    const m = issuerMetrics(iss, [{ amount: -30 }, { amount: 20 }], 2);
+    expect(m).toEqual({ issuer: iss, count: 2, net: -10, value: 50 });
+  });
 
-	it("takes count from the passed total, not the scanned length", () => {
-		// The scanned page can be capped below the true count.
-		const m = issuerMetrics(iss, [{ amount: -5 }], 999);
-		expect(m.count).toBe(999);
-	});
+  it("takes count from the passed total, not the scanned length", () => {
+    // The scanned page can be capped below the true count.
+    const m = issuerMetrics(iss, [{ amount: -5 }], 999);
+    expect(m.count).toBe(999);
+  });
 
-	it("is zero for an issuer with no transactions", () => {
-		expect(issuerMetrics(iss, [], 0)).toEqual({
-			issuer: iss,
-			count: 0,
-			net: 0,
-			value: 0,
-		});
-	});
+  it("is zero for an issuer with no transactions", () => {
+    expect(issuerMetrics(iss, [], 0)).toEqual({
+      issuer: iss,
+      count: 0,
+      net: 0,
+      value: 0,
+    });
+  });
 });
 
 describe("nextIssuerSort", () => {
-	it("flips direction when the active key is re-selected", () => {
-		expect(nextIssuerSort({ key: "name", direction: "asc" }, "name")).toEqual({
-			key: "name",
-			direction: "desc",
-		});
-		expect(
-			nextIssuerSort({ key: "count", direction: "desc" }, "count"),
-		).toEqual({ key: "count", direction: "asc" });
-	});
+  it("flips direction when the active key is re-selected", () => {
+    expect(nextIssuerSort({ key: "name", direction: "asc" }, "name")).toEqual({
+      key: "name",
+      direction: "desc",
+    });
+    expect(nextIssuerSort({ key: "count", direction: "desc" }, "count")).toEqual({
+      key: "count",
+      direction: "asc",
+    });
+  });
 
-	it("adopts a key's default direction when switching to it", () => {
-		expect(nextIssuerSort({ key: "name", direction: "asc" }, "count")).toEqual({
-			key: "count",
-			direction: "desc",
-		});
-		expect(nextIssuerSort({ key: "count", direction: "asc" }, "name")).toEqual({
-			key: "name",
-			direction: "asc",
-		});
-		expect(nextIssuerSort({ key: "name", direction: "desc" }, "value")).toEqual(
-			{
-				key: "value",
-				direction: "desc",
-			},
-		);
-	});
+  it("adopts a key's default direction when switching to it", () => {
+    expect(nextIssuerSort({ key: "name", direction: "asc" }, "count")).toEqual({
+      key: "count",
+      direction: "desc",
+    });
+    expect(nextIssuerSort({ key: "count", direction: "asc" }, "name")).toEqual({
+      key: "name",
+      direction: "asc",
+    });
+    expect(nextIssuerSort({ key: "name", direction: "desc" }, "value")).toEqual({
+      key: "value",
+      direction: "desc",
+    });
+  });
 });

@@ -24,34 +24,34 @@ import { RuleRepo } from "./repository";
  * the recompute they already run.
  */
 export const RulesLive = HttpApiBuilder.group(Api, "rules", (handlers) =>
-	Effect.gen(function* () {
-		const repo = yield* RuleRepo;
-		const matcher = yield* IssuerMatcher;
-		return handlers
-			.handle("list", (_) =>
-				repo
-					.list(_.urlParams)
-					.pipe(
-						Effect.flatMap((page) =>
-							matcher
-								.withOwnedCounts(page.items)
-								.pipe(Effect.map((items) => ({ items, total: page.total }))),
-						),
-					),
-			)
-			.handle("count", (_) => repo.count(_.urlParams.issuerId))
-			.handle("getById", (_) =>
-				repo.getById(_.path.id).pipe(Effect.flatMap(matcher.withOwnedCount)),
-			)
-			.handle("getByIssuerPattern", (_) =>
-				repo
-					.getByIssuerPattern(_.path.issuerId, _.path.pattern)
-					.pipe(Effect.flatMap(matcher.withOwnedCount)),
-			)
-			.handle("preview", (_) => matcher.preview(_.payload))
-			.handle("previewDelete", (_) => matcher.previewDelete(_.path.id))
-			.handle("create", (_) => matcher.applyRuleCreate(_.payload))
-			.handle("update", (_) => matcher.applyRuleUpdate(_.path.id, _.payload))
-			.handle("remove", (_) => matcher.applyRuleDelete(_.path.id));
-	}),
+  Effect.gen(function* () {
+    const repo = yield* RuleRepo;
+    const matcher = yield* IssuerMatcher;
+    return handlers
+      .handle("list", (_) =>
+        repo
+          .list(_.urlParams)
+          .pipe(
+            Effect.flatMap((page) =>
+              matcher
+                .withOwnedCounts(page.items)
+                .pipe(Effect.map((items) => ({ items, total: page.total }))),
+            ),
+          ),
+      )
+      .handle("count", (_) => repo.count(_.urlParams.issuerId))
+      .handle("getById", (_) =>
+        repo.getById(_.path.id).pipe(Effect.flatMap(matcher.withOwnedCount)),
+      )
+      .handle("getByIssuerPattern", (_) =>
+        repo
+          .getByIssuerPattern(_.path.issuerId, _.path.pattern)
+          .pipe(Effect.flatMap(matcher.withOwnedCount)),
+      )
+      .handle("preview", (_) => matcher.preview(_.payload))
+      .handle("previewDelete", (_) => matcher.previewDelete(_.path.id))
+      .handle("create", (_) => matcher.applyRuleCreate(_.payload))
+      .handle("update", (_) => matcher.applyRuleUpdate(_.path.id, _.payload))
+      .handle("remove", (_) => matcher.applyRuleDelete(_.path.id));
+  }),
 ).pipe(Layer.provide([RuleRepo.Default, IssuerMatcher.Default]));

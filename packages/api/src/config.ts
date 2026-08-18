@@ -9,14 +9,10 @@ import { Config } from "effect";
  * them and the other is where its own requests come from, so a number changed
  * in one place and not the other is a dev setup that half works.
  */
-export const Port = Config.integer("PORT").pipe(
-	Config.withDefault(API_DEV_PORT),
-);
+export const Port = Config.integer("PORT").pipe(Config.withDefault(API_DEV_PORT));
 
 /** Sqlite database file; defaults to `mamen.db` in the working directory. */
-export const DbPath = Config.string("DB_PATH").pipe(
-	Config.withDefault("mamen.db"),
-);
+export const DbPath = Config.string("DB_PATH").pipe(Config.withDefault("mamen.db"));
 
 /**
  * Directory that backs the `/uploads/*` static route and holds issuer images
@@ -24,9 +20,7 @@ export const DbPath = Config.string("DB_PATH").pipe(
  * mirroring the old server's on-disk location. `imageUrl` is always stored as a
  * root-relative `/uploads/...` path independent of where this resolves.
  */
-export const UploadsDir = Config.string("UPLOADS_DIR").pipe(
-	Config.withDefault("uploads"),
-);
+export const UploadsDir = Config.string("UPLOADS_DIR").pipe(Config.withDefault("uploads"));
 
 /**
  * The logo.dev publishable token (`pk_…`) that backs **Logo search** (ADR
@@ -61,12 +55,10 @@ export const LogodevToken = Config.option(Config.string("LOGODEV_TOKEN"));
  * Rotating it does not re-encrypt anything: the stored blobs become unreadable
  * and are re-pasted. See DEPLOY.md.
  */
-export const TokenEncryptionKey = Config.option(
-	Config.redacted("TOKEN_ENCRYPTION_KEY"),
-);
+export const TokenEncryptionKey = Config.option(Config.redacted("TOKEN_ENCRYPTION_KEY"));
 
 /** Comma-separated allowed CORS origins; defaults to the Vite dev server. */
 export const CorsOrigins = Config.string("CORS_ORIGINS").pipe(
-	Config.withDefault(`http://localhost:${WEB_DEV_PORT}`),
-	Config.map((raw) => raw.split(",").map((s) => s.trim())),
+  Config.withDefault(`http://localhost:${WEB_DEV_PORT}`),
+  Config.map((raw) => raw.split(",").map((s) => s.trim())),
 );

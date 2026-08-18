@@ -1,28 +1,28 @@
 {
-	"name": "@mamen/shared",
-	"version": "0.0.0",
-	"private": true,
-	"type": "module",
-	"main": "./src/index.ts",
-	"types": "./src/index.ts",
-	"exports": {
-		".": "./src/index.ts",
-		"./contract": "./src/contract/index.ts",
-		"./app-base-path": "./src/app-base-path.ts",
-		"./ports": "./src/ports.ts",
-		"./*": "./src/*"
-	},
-	"scripts": {
-		"build": "tsc",
-		"typecheck": "tsc --noEmit",
-		"test": "vitest run",
-		"test:watch": "vitest"
-	},
-	"dependencies": {
-		"@effect/platform": "0.96.2",
-		"effect": "3.21.4"
-	},
-	"devDependencies": {
-		"vitest": "3.2.4"
-	}
+  "name": "@mamen/shared",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./contract": "./src/contract/index.ts",
+    "./app-base-path": "./src/app-base-path.ts",
+    "./ports": "./src/ports.ts",
+    "./*": "./src/*"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@effect/platform": "0.96.2",
+    "effect": "3.21.4"
+  },
+  "devDependencies": {
+    "vitest": "3.2.4"
+  }
 }

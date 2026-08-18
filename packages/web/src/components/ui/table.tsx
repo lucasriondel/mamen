@@ -10,84 +10,50 @@ import { cn } from "@/lib/utils";
  */
 
 /** Scroll container + the `<table>` element. */
-export function Table({
-	className,
-	...props
-}: React.ComponentPropsWithoutRef<"table">) {
-	return (
-		<div className="w-full overflow-x-auto">
-			<table
-				className={cn("w-full caption-bottom text-sm", className)}
-				{...props}
-			/>
-		</div>
-	);
+export function Table({ className, ...props }: React.ComponentPropsWithoutRef<"table">) {
+  return (
+    <div className="w-full overflow-x-auto">
+      <table className={cn("w-full caption-bottom text-sm", className)} {...props} />
+    </div>
+  );
 }
 
 /** `<thead>` — the header row group. */
-export function TableHeader({
-	className,
-	...props
-}: React.ComponentPropsWithoutRef<"thead">) {
-	return (
-		<thead
-			className={cn("[&_tr]:border-b [&_tr]:border-gousse-line", className)}
-			{...props}
-		/>
-	);
+export function TableHeader({ className, ...props }: React.ComponentPropsWithoutRef<"thead">) {
+  return (
+    <thead className={cn("[&_tr]:border-b [&_tr]:border-gousse-line", className)} {...props} />
+  );
 }
 
 /** `<tbody>` — the data row group. */
-export function TableBody({
-	className,
-	...props
-}: React.ComponentPropsWithoutRef<"tbody">) {
-	return (
-		<tbody className={cn("[&_tr:last-child]:border-0", className)} {...props} />
-	);
+export function TableBody({ className, ...props }: React.ComponentPropsWithoutRef<"tbody">) {
+  return <tbody className={cn("[&_tr:last-child]:border-0", className)} {...props} />;
 }
 
 /** `<tr>` — a row; hover-highlighted via the `bg` token. */
-export function TableRow({
-	className,
-	...props
-}: React.ComponentPropsWithoutRef<"tr">) {
-	return (
-		<tr
-			className={cn(
-				"border-b border-gousse-line transition-colors hover:bg-gousse-bg data-[state=selected]:bg-gousse-bg",
-				className,
-			)}
-			{...props}
-		/>
-	);
+export function TableRow({ className, ...props }: React.ComponentPropsWithoutRef<"tr">) {
+  return (
+    <tr
+      className={cn(
+        "border-b border-gousse-line transition-colors hover:bg-gousse-bg data-[state=selected]:bg-gousse-bg",
+        className,
+      )}
+      {...props}
+    />
+  );
 }
 
 /** `<th>` — a header cell (muted, left-aligned by default). */
-export function TableHead({
-	className,
-	...props
-}: React.ComponentPropsWithoutRef<"th">) {
-	return (
-		<th
-			className={cn(
-				"h-10 px-3 text-left align-middle font-medium text-gousse-muted",
-				className,
-			)}
-			{...props}
-		/>
-	);
+export function TableHead({ className, ...props }: React.ComponentPropsWithoutRef<"th">) {
+  return (
+    <th
+      className={cn("h-10 px-3 text-left align-middle font-medium text-gousse-muted", className)}
+      {...props}
+    />
+  );
 }
 
 /** `<td>` — a data cell. */
-export function TableCell({
-	className,
-	...props
-}: React.ComponentPropsWithoutRef<"td">) {
-	return (
-		<td
-			className={cn("px-3 py-2.5 align-middle text-gousse-ink", className)}
-			{...props}
-		/>
-	);
+export function TableCell({ className, ...props }: React.ComponentPropsWithoutRef<"td">) {
+  return <td className={cn("px-3 py-2.5 align-middle text-gousse-ink", className)} {...props} />;
 }

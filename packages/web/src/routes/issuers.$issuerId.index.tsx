@@ -8,6 +8,6 @@ import { validateTransactionsSearch } from "@/features/transactions/search";
  * transactions table behaves (and bookmarks) exactly like the global one.
  */
 export const Route = createFileRoute("/issuers/$issuerId/")({
-	validateSearch: validateTransactionsSearch,
-	component: IssuerDetailPage,
+  validateSearch: validateTransactionsSearch,
+  component: IssuerDetailPage,
 });

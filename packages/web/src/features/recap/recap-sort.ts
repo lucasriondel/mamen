@@ -11,14 +11,14 @@ export type SpendSortKey = "spent" | "name";
 export type SortDirection = "asc" | "desc";
 
 export type SpendSort = {
-	key: SpendSortKey;
-	direction: SortDirection;
+  key: SpendSortKey;
+  direction: SortDirection;
 };
 
 /** Sections open ranked by spend, biggest first — the review-your-spending default. */
 export const DEFAULT_SPEND_SORT: SpendSort = {
-	key: "spent",
-	direction: "desc",
+  key: "spent",
+  direction: "desc",
 };
 
 /**
@@ -27,8 +27,8 @@ export const DEFAULT_SPEND_SORT: SpendSort = {
  * key toggles from here.
  */
 export const DEFAULT_DIRECTION: Record<SpendSortKey, SortDirection> = {
-	spent: "desc",
-	name: "asc",
+  spent: "desc",
+  name: "asc",
 };
 
 /**
@@ -36,15 +36,16 @@ export const DEFAULT_DIRECTION: Record<SpendSortKey, SortDirection> = {
  * adopts that key's default direction; clicking the already-active key flips it.
  * Mirrors the issuers grid's `nextIssuerSort` so the two controls behave alike.
  */
-export function nextSpendSort(
-	current: SpendSort,
-	key: SpendSortKey,
-): SpendSort {
-	if (current.key === key) {
-		return { key, direction: current.direction === "asc" ? "desc" : "asc" };
-	}
-	return { key, direction: DEFAULT_DIRECTION[key] };
+export function nextSpendSort(current: SpendSort, key: SpendSortKey): SpendSort {
+  if (current.key === key) {
+    return { key, direction: current.direction === "asc" ? "desc" : "asc" };
+  }
+  return { key, direction: DEFAULT_DIRECTION[key] };
 }
+
+/** The A→Z tiebreaker every key falls back to — locale-aware, case-insensitive. */
+const byName = (a: SpendRow, b: SpendRow) =>
+  a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
 
 /**
  * Order spend rows by the chosen key + direction (issue #35). Returns a new
@@ -52,23 +53,17 @@ export function nextSpendSort(
  * insensitive compare; the `spent` key breaks ties by name (A→Z) so equal-value
  * buckets keep a stable, readable order regardless of direction.
  */
-export function sortSpendRows(
-	rows: readonly SpendRow[],
-	sort: SpendSort,
-): SpendRow[] {
-	const byName = (a: SpendRow, b: SpendRow) =>
-		a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+export function sortSpendRows(rows: readonly SpendRow[], sort: SpendSort): SpendRow[] {
+  const sign = sort.direction === "desc" ? -1 : 1;
 
-	const sign = sort.direction === "desc" ? -1 : 1;
+  const compare = (a: SpendRow, b: SpendRow): number => {
+    switch (sort.key) {
+      case "name":
+        return sign * byName(a, b);
+      case "spent":
+        return sign * (a.spent - b.spent) || byName(a, b);
+    }
+  };
 
-	const compare = (a: SpendRow, b: SpendRow): number => {
-		switch (sort.key) {
-			case "name":
-				return sign * byName(a, b);
-			case "spent":
-				return sign * (a.spent - b.spent) || byName(a, b);
-		}
-	};
-
-	return [...rows].sort(compare);
+  return [...rows].sort(compare);
 }

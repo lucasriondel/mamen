@@ -27,16 +27,14 @@ import { indexById } from "@/lib/utils";
  * the `null` key). The one adjacency map the recursive descents share, so both
  * read structure the same way.
  */
-function childrenByParent(
-	categories: readonly Category[],
-): Map<number | null, Category[]> {
-	const childrenOf = new Map<number | null, Category[]>();
-	for (const cat of categories) {
-		const bucket = childrenOf.get(cat.parentId) ?? [];
-		bucket.push(cat);
-		childrenOf.set(cat.parentId, bucket);
-	}
-	return childrenOf;
+function childrenByParent(categories: readonly Category[]): Map<number | null, Category[]> {
+  const childrenOf = new Map<number | null, Category[]>();
+  for (const cat of categories) {
+    const bucket = childrenOf.get(cat.parentId) ?? [];
+    bucket.push(cat);
+    childrenOf.set(cat.parentId, bucket);
+  }
+  return childrenOf;
 }
 
 /**
@@ -48,19 +46,13 @@ function childrenByParent(
  * assignable leaf). Needs the whole list to probe for children, so the check
  * lives beside the tree it reads.
  */
-export function isFolder(
-	categories: readonly Category[],
-	category: Category,
-): boolean {
-	return categories.some((c) => c.parentId === category.id);
+export function isFolder(categories: readonly Category[], category: Category): boolean {
+  return categories.some((c) => c.parentId === category.id);
 }
 
 /** A **Category leaf** — assignable — is the complement of {@link isFolder}. */
-export function isLeaf(
-	categories: readonly Category[],
-	category: Category,
-): boolean {
-	return !isFolder(categories, category);
+export function isLeaf(categories: readonly Category[], category: Category): boolean {
+  return !isFolder(categories, category);
 }
 
 /**
@@ -73,18 +65,18 @@ export function isLeaf(
  * rootless — this never invents structure.
  */
 export function buildTree(categories: readonly Category[]): CategoryTreeNode[] {
-	const childrenOf = childrenByParent(categories);
-	const build = (parentId: number | null): CategoryTreeNode[] =>
-		(childrenOf.get(parentId) ?? []).map((cat) => ({
-			...cat,
-			children: build(cat.id ?? null),
-		}));
-	return build(null);
+  const childrenOf = childrenByParent(categories);
+  const build = (parentId: number | null): CategoryTreeNode[] =>
+    (childrenOf.get(parentId) ?? []).map((cat) => ({
+      ...cat,
+      children: build(cat.id ?? null),
+    }));
+  return build(null);
 }
 
 /** Case-insensitive substring match of a category name against the query. */
 function matches(name: string, query: string): boolean {
-	return name.toLowerCase().includes(query.trim().toLowerCase());
+  return name.toLowerCase().includes(query.trim().toLowerCase());
 }
 
 /**
@@ -104,27 +96,24 @@ export type PickerNode = { category: Category; depth: number; isLeaf: boolean };
  * over the folder headings, which are not items. Supersedes the old two-level
  * folder grouping the pickers used, which only ever saw one hop of nesting.
  */
-export function searchTree(
-	categories: readonly Category[],
-	query: string,
-): PickerNode[] {
-	const walk = (nodes: CategoryTreeNode[], depth: number): PickerNode[] => {
-		const out: PickerNode[] = [];
-		for (const { children, ...category } of nodes) {
-			if (children.length > 0) {
-				const inner = walk(children, depth + 1);
-				// A folder earns its heading only when something under it survived.
-				if (inner.length > 0) {
-					out.push({ category, depth, isLeaf: false });
-					out.push(...inner);
-				}
-			} else if (matches(category.name, query)) {
-				out.push({ category, depth, isLeaf: true });
-			}
-		}
-		return out;
-	};
-	return walk(buildTree(categories), 0);
+export function searchTree(categories: readonly Category[], query: string): PickerNode[] {
+  const walk = (nodes: CategoryTreeNode[], depth: number): PickerNode[] => {
+    const out: PickerNode[] = [];
+    for (const { children, ...category } of nodes) {
+      if (children.length > 0) {
+        const inner = walk(children, depth + 1);
+        // A folder earns its heading only when something under it survived.
+        if (inner.length > 0) {
+          out.push({ category, depth, isLeaf: false });
+          out.push(...inner);
+        }
+      } else if (matches(category.name, query)) {
+        out.push({ category, depth, isLeaf: true });
+      }
+    }
+    return out;
+  };
+  return walk(buildTree(categories), 0);
 }
 
 /**
@@ -141,24 +130,21 @@ export function searchTree(
  * does) would be a lie here: it is genuinely pickable, so it matches on its own
  * name like any other row, and a branch survives iff something in it matched.
  */
-export function searchAllNodes(
-	categories: readonly Category[],
-	query: string,
-): PickerNode[] {
-	const walk = (nodes: CategoryTreeNode[], depth: number): PickerNode[] => {
-		const out: PickerNode[] = [];
-		for (const { children, ...category } of nodes) {
-			const inner = walk(children, depth + 1);
-			// Keep a node when it matches itself, or when it is the path to one that
-			// does — an ancestor of a match is context the nesting needs to read.
-			if (inner.length > 0 || matches(category.name, query)) {
-				out.push({ category, depth, isLeaf: true });
-				out.push(...inner);
-			}
-		}
-		return out;
-	};
-	return walk(buildTree(categories), 0);
+export function searchAllNodes(categories: readonly Category[], query: string): PickerNode[] {
+  const walk = (nodes: CategoryTreeNode[], depth: number): PickerNode[] => {
+    const out: PickerNode[] = [];
+    for (const { children, ...category } of nodes) {
+      const inner = walk(children, depth + 1);
+      // Keep a node when it matches itself, or when it is the path to one that
+      // does — an ancestor of a match is context the nesting needs to read.
+      if (inner.length > 0 || matches(category.name, query)) {
+        out.push({ category, depth, isLeaf: true });
+        out.push(...inner);
+      }
+    }
+    return out;
+  };
+  return walk(buildTree(categories), 0);
 }
 
 /**
@@ -172,18 +158,15 @@ export function searchAllNodes(
  * `count`/`list` endpoints, which accept a set of category ids (ADR 0002) — one
  * id set, one query, no matter how deep the tree.
  */
-export function descendantIds(
-	categories: readonly Category[],
-	folderId: number,
-): CategoryId[] {
-	const childrenOf = childrenByParent(categories);
-	// A child with its own children is an intermediate folder — descend past it;
-	// a childless child is a leaf — collect it.
-	const collect = (id: number): CategoryId[] =>
-		(childrenOf.get(id) ?? []).flatMap((child) =>
-			childrenOf.has(child.id) ? collect(child.id) : [child.id],
-		);
-	return collect(folderId);
+export function descendantIds(categories: readonly Category[], folderId: number): CategoryId[] {
+  const childrenOf = childrenByParent(categories);
+  // A child with its own children is an intermediate folder — descend past it;
+  // a childless child is a leaf — collect it.
+  const collect = (id: number): CategoryId[] =>
+    (childrenOf.get(id) ?? []).flatMap((child) =>
+      childrenOf.has(child.id) ? collect(child.id) : [child.id],
+    );
+  return collect(folderId);
 }
 
 /**
@@ -194,18 +177,15 @@ export function descendantIds(
  * Unlike {@link descendantIds} this keeps the intermediate folders, since those
  * are exactly the illegal targets.
  */
-export function subtreeIds(
-	categories: readonly Category[],
-	rootId: number,
-): Set<CategoryId> {
-	const childrenOf = childrenByParent(categories);
-	const ids = new Set<CategoryId>();
-	const walk = (id: number): void => {
-		ids.add(id as CategoryId);
-		for (const child of childrenOf.get(id) ?? []) walk(child.id);
-	};
-	walk(rootId);
-	return ids;
+export function subtreeIds(categories: readonly Category[], rootId: number): Set<CategoryId> {
+  const childrenOf = childrenByParent(categories);
+  const ids = new Set<CategoryId>();
+  const walk = (id: number): void => {
+    ids.add(id as CategoryId);
+    for (const child of childrenOf.get(id) ?? []) walk(child.id);
+  };
+  walk(rootId);
+  return ids;
 }
 
 /**
@@ -229,18 +209,18 @@ export const NEUTRAL_CATEGORY_COLOR = "#94a3b8";
  * guard the other has.
  */
 function* ancestorsOf(
-	byId: ReadonlyMap<number, Category>,
-	category: Category,
+  byId: ReadonlyMap<number, Category>,
+  category: Category,
 ): Generator<Category> {
-	const seen = new Set<number>([category.id]);
-	let parentId = category.parentId;
-	while (parentId != null && !seen.has(parentId)) {
-		seen.add(parentId);
-		const parent = byId.get(parentId);
-		if (parent === undefined) return;
-		yield parent;
-		parentId = parent.parentId;
-	}
+  const seen = new Set<number>([category.id]);
+  let parentId = category.parentId;
+  while (parentId != null && !seen.has(parentId)) {
+    seen.add(parentId);
+    const parent = byId.get(parentId);
+    if (parent === undefined) return;
+    yield parent;
+    parentId = parent.parentId;
+  }
 }
 
 /**
@@ -255,20 +235,17 @@ function* ancestorsOf(
  * effectively is.
  */
 function chosenColor(category: Category): string | null {
-	const color = category.color?.trim();
-	return color === undefined || color === "" ? null : color;
+  const color = category.color?.trim();
+  return color === undefined || color === "" ? null : color;
 }
 
 /** The first colour anybody in the ancestry chose, else the neutral constant. */
-function inheritedColor(
-	byId: ReadonlyMap<number, Category>,
-	category: Category,
-): string {
-	for (const ancestor of ancestorsOf(byId, category)) {
-		const chosen = chosenColor(ancestor);
-		if (chosen !== null) return chosen;
-	}
-	return NEUTRAL_CATEGORY_COLOR;
+function inheritedColor(byId: ReadonlyMap<number, Category>, category: Category): string {
+  for (const ancestor of ancestorsOf(byId, category)) {
+    const chosen = chosenColor(ancestor);
+    if (chosen !== null) return chosen;
+  }
+  return NEUTRAL_CATEGORY_COLOR;
 }
 
 /**
@@ -286,13 +263,8 @@ function inheritedColor(
  * a list of them wants {@link resolveCategoryColors}, which builds that index
  * once. This single-node form is for the surfaces that paint exactly one.
  */
-export function resolveCategoryColor(
-	categories: readonly Category[],
-	category: Category,
-): string {
-	return (
-		chosenColor(category) ?? inheritedColor(indexById(categories), category)
-	);
+export function resolveCategoryColor(categories: readonly Category[], category: Category): string {
+  return chosenColor(category) ?? inheritedColor(indexById(categories), category);
 }
 
 /**
@@ -306,16 +278,9 @@ export function resolveCategoryColor(
  * an inheriting leaf's colour lives on an ancestor that the filter may well have
  * dropped.
  */
-export function resolveCategoryColors(
-	categories: readonly Category[],
-): Map<CategoryId, string> {
-	const byId = indexById(categories);
-	return new Map(
-		categories.map((cat) => [
-			cat.id,
-			chosenColor(cat) ?? inheritedColor(byId, cat),
-		]),
-	);
+export function resolveCategoryColors(categories: readonly Category[]): Map<CategoryId, string> {
+  const byId = indexById(categories);
+  return new Map(categories.map((cat) => [cat.id, chosenColor(cat) ?? inheritedColor(byId, cat)]));
 }
 
 /**
@@ -325,13 +290,10 @@ export function resolveCategoryColors(
  * folders (issue #32). Reads the tree through {@link ancestorsOf}, so it stops
  * at a root, a missing link, or a cycle.
  */
-export function categoryPath(
-	categories: readonly Category[],
-	category: Category,
-): string {
-	const names = [category.name];
-	for (const ancestor of ancestorsOf(indexById(categories), category)) {
-		names.unshift(ancestor.name);
-	}
-	return names.join(" › ");
+export function categoryPath(categories: readonly Category[], category: Category): string {
+  const names = [category.name];
+  for (const ancestor of ancestorsOf(indexById(categories), category)) {
+    names.unshift(ancestor.name);
+  }
+  return names.join(" › ");
 }

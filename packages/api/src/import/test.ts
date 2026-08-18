@@ -1,10 +1,10 @@
 import type { SqlClient } from "@effect/sql";
 import {
-	type ClaudeCode,
-	ClaudeCodeLive,
-	ClaudeCodeTest,
-	ClaudeConfig,
-	type SpawnHandler,
+  type ClaudeCode,
+  ClaudeCodeLive,
+  ClaudeCodeTest,
+  ClaudeConfig,
+  type SpawnHandler,
 } from "claude-code-effect";
 import { Duration, Effect, Layer, Option, Redacted } from "effect";
 import { ClaudeConfigStored } from "../ai-runner/claude";
@@ -29,10 +29,10 @@ import { ClaudeConfigStored } from "../ai-runner/claude";
  *   second implementation of it. It requires `SqlClient` for that reason.
  */
 const TestConfig = Layer.succeed(ClaudeConfig, {
-	token: Redacted.make("test-token"),
-	binPath: "claude",
-	defaultModel: Option.none(),
-	timeout: Duration.millis(120_000),
+  token: Redacted.make("test-token"),
+  binPath: "claude",
+  defaultModel: Option.none(),
+  timeout: Duration.millis(120_000),
 });
 
 /**
@@ -42,13 +42,8 @@ const TestConfig = Layer.succeed(ClaudeConfig, {
  * `Effect.fail(PlatformError)` → `ClaudeSpawnError`; an envelope-bearing capture
  * lets the parser derive the rest.
  */
-export const claudeCodeTestLayer = (
-	handler: SpawnHandler,
-): Layer.Layer<ClaudeCode> =>
-	ClaudeCodeLive.pipe(
-		Layer.provide(ClaudeCodeTest.handler(handler)),
-		Layer.provide(TestConfig),
-	);
+export const claudeCodeTestLayer = (handler: SpawnHandler): Layer.Layer<ClaudeCode> =>
+  ClaudeCodeLive.pipe(Layer.provide(ClaudeCodeTest.handler(handler)), Layer.provide(TestConfig));
 
 /**
  * The same deep-fake spawn, over the **production** config — so the token comes
@@ -61,12 +56,12 @@ export const claudeCodeTestLayer = (
  * a handler test already has from {@link DatabaseTest}.
  */
 export const claudeCodeStoredTokenLayer = (
-	handler: SpawnHandler,
+  handler: SpawnHandler,
 ): Layer.Layer<ClaudeCode, never, SqlClient.SqlClient> =>
-	ClaudeCodeLive.pipe(
-		Layer.provide(ClaudeCodeTest.handler(handler)),
-		Layer.provide(ClaudeConfigStored),
-	);
+  ClaudeCodeLive.pipe(
+    Layer.provide(ClaudeCodeTest.handler(handler)),
+    Layer.provide(ClaudeConfigStored),
+  );
 
 /**
  * A benign `ClaudeCode` stub for the many handler tests that never touch the
@@ -75,16 +70,16 @@ export const claudeCodeStoredTokenLayer = (
  * ever calls extraction, so the body is never read.
  */
 export const ClaudeCodeStub = claudeCodeTestLayer(() =>
-	Effect.succeed({
-		stdout: JSON.stringify({
-			is_error: false,
-			result: "{}",
-			session_id: "stub",
-			modelUsage: { claude: {} },
-			usage: { input_tokens: 0, output_tokens: 0 },
-			total_cost_usd: 0,
-		}),
-		stderr: "",
-		exitCode: 0,
-	}),
+  Effect.succeed({
+    stdout: JSON.stringify({
+      is_error: false,
+      result: "{}",
+      session_id: "stub",
+      modelUsage: { claude: {} },
+      usage: { input_tokens: 0, output_tokens: 0 },
+      total_cost_usd: 0,
+    }),
+    stderr: "",
+    exitCode: 0,
+  }),
 );

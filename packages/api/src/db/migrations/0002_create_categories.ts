@@ -8,8 +8,8 @@ import { Effect } from "effect";
  * no DB-level uniqueness on `slug`.
  */
 export default Effect.flatMap(SqlClient.SqlClient, (sql) =>
-	Effect.all([
-		sql`
+  Effect.all([
+    sql`
 			CREATE TABLE IF NOT EXISTS categories (
 				id INTEGER PRIMARY KEY AUTOINCREMENT,
 				name TEXT NOT NULL,
@@ -21,8 +21,8 @@ export default Effect.flatMap(SqlClient.SqlClient, (sql) =>
 				createdAt TEXT NOT NULL
 			)
 		`,
-		sql`CREATE INDEX IF NOT EXISTS idx_categories_parentId ON categories(parentId)`,
-		sql`CREATE INDEX IF NOT EXISTS idx_categories_slug ON categories(slug)`,
-		sql`CREATE INDEX IF NOT EXISTS idx_categories_sortOrder ON categories(sortOrder)`,
-	]).pipe(Effect.asVoid),
+    sql`CREATE INDEX IF NOT EXISTS idx_categories_parentId ON categories(parentId)`,
+    sql`CREATE INDEX IF NOT EXISTS idx_categories_slug ON categories(slug)`,
+    sql`CREATE INDEX IF NOT EXISTS idx_categories_sortOrder ON categories(sortOrder)`,
+  ]).pipe(Effect.asVoid),
 );

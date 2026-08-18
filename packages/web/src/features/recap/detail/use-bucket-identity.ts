@@ -19,18 +19,18 @@ import type { RecapDetailTarget } from "./search";
  * category's icon in its **Resolved colour**.
  */
 export type BucketIdentity = {
-	/** The bucket's display name, or the *Unassigned* label. */
-	name: string;
-	/** Issuer image URL, for the by-issuer header. */
-	imageUrl?: string;
-	/** The issuer's default category id — the avatar resolves the chain from it. */
-	defaultCategoryId?: number;
-	/** The category's **Icon name** (a Lucide id), for the by-category header. */
-	icon?: string;
-	/** The category's **Resolved colour** (ADR 0006), resolved over the whole tree. */
-	color?: string;
-	isPending: boolean;
-	isError: boolean;
+  /** The bucket's display name, or the *Unassigned* label. */
+  name: string;
+  /** Issuer image URL, for the by-issuer header. */
+  imageUrl?: string;
+  /** The issuer's default category id — the avatar resolves the chain from it. */
+  defaultCategoryId?: number;
+  /** The category's **Icon name** (a Lucide id), for the by-category header. */
+  icon?: string;
+  /** The category's **Resolved colour** (ADR 0006), resolved over the whole tree. */
+  color?: string;
+  isPending: boolean;
+  isError: boolean;
 };
 
 /**
@@ -44,63 +44,58 @@ export type BucketIdentity = {
  * is named by {@link UNASSIGNED_LABEL} and carries no glyph, exactly as its recap
  * row does.
  */
-export function useBucketIdentity(
-	target: RecapDetailTarget | undefined,
-): BucketIdentity {
-	const isIssuer = target?.axis === "issuer";
-	const isCategory = target?.axis === "category";
-	const id = target?.bucket ?? null;
+export function useBucketIdentity(target: RecapDetailTarget | undefined): BucketIdentity {
+  const isIssuer = target?.axis === "issuer";
+  const isCategory = target?.axis === "category";
+  const id = target?.bucket ?? null;
 
-	const {
-		issuersById,
-		isPending: issuerPending,
-		isError: issuerError,
-	} = useIssuerLookup(isIssuer && id !== null ? [id as IssuerId] : []);
+  const {
+    issuersById,
+    isPending: issuerPending,
+    isError: issuerError,
+  } = useIssuerLookup(isIssuer && id !== null ? [id as IssuerId] : []);
 
-	// The whole tree, not just this leaf: the **Resolved colour** walk needs the
-	// ancestors. Wide limit — a single user's taxonomy is coarse (PRD).
-	const categoriesQuery = useQuery({
-		...categoryQueries.list({ limit: 200 }),
-		enabled: isCategory && id !== null,
-	});
+  // The whole tree, not just this leaf: the **Resolved colour** walk needs the
+  // ancestors. Wide limit — a single user's taxonomy is coarse (PRD).
+  const categoriesQuery = useQuery({
+    ...categoryQueries.list({ limit: 200 }),
+    enabled: isCategory && id !== null,
+  });
 
-	return useMemo(() => {
-		if (target === undefined) {
-			return { name: UNASSIGNED_LABEL, isPending: false, isError: false };
-		}
-		if (target.bucket === null) {
-			return { name: UNASSIGNED_LABEL, isPending: false, isError: false };
-		}
-		if (target.axis === "issuer") {
-			const issuer = issuersById.get(target.bucket);
-			return {
-				name: issuer?.name ?? UNASSIGNED_LABEL,
-				imageUrl: issuer?.imageUrl,
-				defaultCategoryId: issuer?.defaultCategoryId,
-				isPending: issuerPending,
-				isError: issuerError,
-			};
-		}
-		const categories = (categoriesQuery.data?.items ??
-			[]) as readonly Category[];
-		const category = categories.find((c) => c.id === target.bucket);
-		return {
-			name: category?.name ?? UNASSIGNED_LABEL,
-			icon: category?.icon,
-			color:
-				category === undefined
-					? undefined
-					: resolveCategoryColors(categories).get(category.id),
-			isPending: categoriesQuery.isPending,
-			isError: categoriesQuery.isError,
-		};
-	}, [
-		target,
-		issuersById,
-		issuerPending,
-		issuerError,
-		categoriesQuery.data,
-		categoriesQuery.isPending,
-		categoriesQuery.isError,
-	]);
+  return useMemo(() => {
+    if (target === undefined) {
+      return { name: UNASSIGNED_LABEL, isPending: false, isError: false };
+    }
+    if (target.bucket === null) {
+      return { name: UNASSIGNED_LABEL, isPending: false, isError: false };
+    }
+    if (target.axis === "issuer") {
+      const issuer = issuersById.get(target.bucket);
+      return {
+        name: issuer?.name ?? UNASSIGNED_LABEL,
+        imageUrl: issuer?.imageUrl,
+        defaultCategoryId: issuer?.defaultCategoryId,
+        isPending: issuerPending,
+        isError: issuerError,
+      };
+    }
+    const categories = (categoriesQuery.data?.items ?? []) as readonly Category[];
+    const category = categories.find((c) => c.id === target.bucket);
+    return {
+      name: category?.name ?? UNASSIGNED_LABEL,
+      icon: category?.icon,
+      color:
+        category === undefined ? undefined : resolveCategoryColors(categories).get(category.id),
+      isPending: categoriesQuery.isPending,
+      isError: categoriesQuery.isError,
+    };
+  }, [
+    target,
+    issuersById,
+    issuerPending,
+    issuerError,
+    categoriesQuery.data,
+    categoriesQuery.isPending,
+    categoriesQuery.isError,
+  ]);
 }

@@ -31,9 +31,7 @@ interface RtkSummary {
  * missing or malformed stats DB must never fail the pipeline that produced it,
  * so every failure mode collapses to `null` rather than throwing.
  */
-export async function readRtkGain(
-  sandbox: Sandbox,
-): Promise<RtkSummary | null> {
+export async function readRtkGain(sandbox: Sandbox): Promise<RtkSummary | null> {
   try {
     const result = await sandbox.exec("rtk gain -f json");
     if (result.exitCode !== 0) return null;

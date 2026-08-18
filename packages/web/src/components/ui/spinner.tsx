@@ -13,10 +13,11 @@
  * the shape.
  */
 export const Spinner = ({ size = 16 }: { size?: number }) => (
-	<span
-		role="status"
-		aria-label="Loading"
-		className="inline-block animate-spin rounded-full border-2 border-gousse-line border-t-gousse-accent"
-		style={{ width: size, height: size }}
-	/>
+  <span
+    // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- `<output>` is a form's calculated result; see the note above
+    role="status"
+    aria-label="Loading"
+    className="inline-block animate-spin rounded-full border-2 border-gousse-line border-t-gousse-accent"
+    style={{ width: size, height: size }}
+  />
 );

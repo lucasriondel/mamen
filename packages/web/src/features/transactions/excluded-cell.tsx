@@ -22,30 +22,30 @@ import { useRecapExclusion } from "./use-recap-exclusion";
  * with no room for text beside it, and the header carries the visible name.
  */
 export function ExcludedCell({ transaction }: { transaction: Transaction }) {
-	const { setExcluded } = useRecapExclusion();
-	const isExcluded = transaction.excludedFromRecap === true;
+  const { setExcluded } = useRecapExclusion();
+  const isExcluded = transaction.excludedFromRecap === true;
 
-	return (
-		<Checkbox
-			checked={isExcluded}
-			disabled={setExcluded.isPending}
-			onChange={() =>
-				setExcluded.mutate({
-					transactionId: transaction.id,
-					excluded: !isExcluded,
-				})
-			}
-			aria-label={
-				isExcluded
-					? `Include ${transaction.rawIssuerString} in recap`
-					: `Exclude ${transaction.rawIssuerString} from recap`
-			}
-			title={
-				isExcluded
-					? "Excluded from your recap spend — untick to count it again"
-					: "Counts toward your recap spend — tick to exclude it"
-			}
-			className="align-middle"
-		/>
-	);
+  return (
+    <Checkbox
+      checked={isExcluded}
+      disabled={setExcluded.isPending}
+      onChange={() =>
+        setExcluded.mutate({
+          transactionId: transaction.id,
+          excluded: !isExcluded,
+        })
+      }
+      aria-label={
+        isExcluded
+          ? `Include ${transaction.rawIssuerString} in recap`
+          : `Exclude ${transaction.rawIssuerString} from recap`
+      }
+      title={
+        isExcluded
+          ? "Excluded from your recap spend — untick to count it again"
+          : "Counts toward your recap spend — tick to exclude it"
+      }
+      className="align-middle"
+    />
+  );
 }

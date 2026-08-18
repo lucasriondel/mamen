@@ -1,19 +1,13 @@
-import {
-	HttpApiEndpoint,
-	HttpApiGroup,
-	HttpApiSchema,
-	Multipart,
-	OpenApi,
-} from "@effect/platform";
+import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema, Multipart, OpenApi } from "@effect/platform";
 import { Option, Schema } from "effect";
 import {
-	CategoryNotLeaf,
-	ImageFetchRefused,
-	InvalidFileType,
-	LogoSearchFailed,
-	LogoSearchQuotaExceeded,
-	LogoSearchUnconfigured,
-	NotFound,
+  CategoryNotLeaf,
+  ImageFetchRefused,
+  InvalidFileType,
+  LogoSearchFailed,
+  LogoSearchQuotaExceeded,
+  LogoSearchUnconfigured,
+  NotFound,
 } from "./errors";
 import { CategoryId, IssuerId, numFromStr } from "./ids";
 import { Paged, Pagination } from "./pagination";
@@ -34,29 +28,29 @@ export const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 
 /** Issuer entity — the wire shape returned by every issuers endpoint. */
 export class Issuer extends Schema.Class<Issuer>("Issuer")({
-	id: IssuerId,
-	name: Schema.String,
-	imageUrl: Schema.optional(Schema.String), // root-relative "/uploads/issuers/..."
-	defaultCategoryId: Schema.optional(CategoryId),
-	/** Free-text note about this issuer. Absent when never written or cleared. */
-	notes: Schema.optional(Schema.String),
-	/**
-	 * **Excluded from recap**, the bulk lever (issue #69, ADR 0008) — every
-	 * transaction of this issuer is held out of spend totals *by default*: the
-	 * standing transfer to a joint account, the savings sweep, the internal
-	 * movement that arrives every month under the same name. Optional; absent
-	 * means the issuer's rows count.
-	 *
-	 * It is a **default**, never a stamp: no transaction column is written, the
-	 * value is read through the issuer at query time. So a row imported under an
-	 * excluded issuer is excluded the moment it lands, and a row the user
-	 * decided about by hand (`Transaction.manualExcluded`) overrides this in
-	 * either direction — exactly as `defaultCategoryId` stands to a row's
-	 * `manualCategory`.
-	 */
-	excludedFromRecap: Schema.optional(Schema.Boolean),
-	createdAt: Schema.Date,
-	firstSeen: Schema.Date,
+  id: IssuerId,
+  name: Schema.String,
+  imageUrl: Schema.optional(Schema.String), // root-relative "/uploads/issuers/..."
+  defaultCategoryId: Schema.optional(CategoryId),
+  /** Free-text note about this issuer. Absent when never written or cleared. */
+  notes: Schema.optional(Schema.String),
+  /**
+   * **Excluded from recap**, the bulk lever (issue #69, ADR 0008) — every
+   * transaction of this issuer is held out of spend totals *by default*: the
+   * standing transfer to a joint account, the savings sweep, the internal
+   * movement that arrives every month under the same name. Optional; absent
+   * means the issuer's rows count.
+   *
+   * It is a **default**, never a stamp: no transaction column is written, the
+   * value is read through the issuer at query time. So a row imported under an
+   * excluded issuer is excluded the moment it lands, and a row the user
+   * decided about by hand (`Transaction.manualExcluded`) overrides this in
+   * either direction — exactly as `defaultCategoryId` stands to a row's
+   * `manualCategory`.
+   */
+  excludedFromRecap: Schema.optional(Schema.Boolean),
+  createdAt: Schema.Date,
+  firstSeen: Schema.Date,
 }) {}
 
 /**
@@ -64,12 +58,12 @@ export class Issuer extends Schema.Class<Issuer>("Issuer")({
  * caller-provided (faithful port: the old adapter accepted it on the record).
  */
 export const IssuerCreate = Schema.Struct({
-	name: Issuer.fields.name,
-	imageUrl: Issuer.fields.imageUrl,
-	defaultCategoryId: Issuer.fields.defaultCategoryId,
-	notes: Issuer.fields.notes,
-	excludedFromRecap: Issuer.fields.excludedFromRecap,
-	firstSeen: Issuer.fields.firstSeen,
+  name: Issuer.fields.name,
+  imageUrl: Issuer.fields.imageUrl,
+  defaultCategoryId: Issuer.fields.defaultCategoryId,
+  notes: Issuer.fields.notes,
+  excludedFromRecap: Issuer.fields.excludedFromRecap,
+  firstSeen: Issuer.fields.firstSeen,
 });
 export type IssuerCreate = typeof IssuerCreate.Type;
 
@@ -90,11 +84,11 @@ export type IssuerCreate = typeof IssuerCreate.Type;
  * `false` say different things already.
  */
 export const IssuerUpdate = Schema.partial(
-	Schema.Struct({
-		...IssuerCreate.fields,
-		defaultCategoryId: Schema.NullOr(CategoryId),
-		notes: Schema.NullOr(Schema.String),
-	}),
+  Schema.Struct({
+    ...IssuerCreate.fields,
+    defaultCategoryId: Schema.NullOr(CategoryId),
+    notes: Schema.NullOr(Schema.String),
+  }),
 );
 export type IssuerUpdate = typeof IssuerUpdate.Type;
 
@@ -115,8 +109,8 @@ export type IssuerUpdate = typeof IssuerUpdate.Type;
  * unfiltered table would return every issuer to a caller that asked for none.
  */
 export const IssuerIdFilter = Schema.Union(
-	numFromStr(IssuerId),
-	Schema.Array(numFromStr(IssuerId)),
+  numFromStr(IssuerId),
+  Schema.Array(numFromStr(IssuerId)),
 );
 
 /**
@@ -139,9 +133,9 @@ export const IssuerIdFilter = Schema.Union(
  * and the LIKE metacharacters are literal.
  */
 export const IssuerListFilters = {
-	orderBy: Schema.optional(Schema.Literal("name")),
-	id: Schema.optional(IssuerIdFilter),
-	search: Schema.optional(Schema.String),
+  orderBy: Schema.optional(Schema.Literal("name")),
+  id: Schema.optional(IssuerIdFilter),
+  search: Schema.optional(Schema.String),
 } as const;
 
 /**
@@ -154,11 +148,11 @@ export const IssuerListFilters = {
  * The derived client types this as `FormData`.
  */
 export const IssuerImageUpload = HttpApiSchema.Multipart(
-	Schema.Struct({ file: Multipart.SingleFileSchema }),
-	{
-		maxFileSize: Option.some(MAX_IMAGE_BYTES),
-		maxParts: Option.some(1),
-	},
+  Schema.Struct({ file: Multipart.SingleFileSchema }),
+  {
+    maxFileSize: Option.some(MAX_IMAGE_BYTES),
+    maxParts: Option.some(1),
+  },
 );
 
 /**
@@ -174,21 +168,19 @@ export const IssuerImageUpload = HttpApiSchema.Multipart(
  * search and so must guard the URL it is given whatever its provenance (ADR
  * 0007).
  */
-export class LogoSearchResult extends Schema.Class<LogoSearchResult>(
-	"LogoSearchResult",
-)({
-	title: Schema.String,
-	imageUrl: Schema.String,
-	thumbnailUrl: Schema.String,
-	contextUrl: Schema.optional(Schema.String),
-	width: Schema.optional(Schema.Number),
-	height: Schema.optional(Schema.Number),
+export class LogoSearchResult extends Schema.Class<LogoSearchResult>("LogoSearchResult")({
+  title: Schema.String,
+  imageUrl: Schema.String,
+  thumbnailUrl: Schema.String,
+  contextUrl: Schema.optional(Schema.String),
+  width: Schema.optional(Schema.Number),
+  height: Schema.optional(Schema.Number),
 }) {}
 
 /** The `searchLogos` success body. A struct, so extra facets can be added later
  * without a breaking change to a bare array. */
 export const LogoSearchResults = Schema.Struct({
-	results: Schema.Array(LogoSearchResult),
+  results: Schema.Array(LogoSearchResult),
 });
 
 /**
@@ -200,7 +192,7 @@ export const LogoSearchResults = Schema.Struct({
  * would spend an upstream call to get nothing back.
  */
 export const LogoSearchQuery = Schema.Struct({
-	q: Schema.NonEmptyTrimmedString,
+  q: Schema.NonEmptyTrimmedString,
 });
 
 /**
@@ -211,7 +203,7 @@ export const LogoSearchQuery = Schema.Struct({
  * server refuses with {@link ImageFetchRefused}.
  */
 export const IssuerImageFromUrl = Schema.Struct({
-	url: Schema.String,
+  url: Schema.String,
 });
 export type IssuerImageFromUrl = typeof IssuerImageFromUrl.Type;
 
@@ -245,85 +237,77 @@ export type IssuerImageFromUrl = typeof IssuerImageFromUrl.Type;
  * `docs/operations/logo-search-setup.md`.
  */
 export class IssuersGroup extends HttpApiGroup.make("issuers")
-	.add(
-		HttpApiEndpoint.get("list")`/issuers`
-			.setUrlParams(Schema.Struct({ ...Pagination, ...IssuerListFilters }))
-			.addSuccess(Paged(Issuer)),
-	)
-	.add(
-		HttpApiEndpoint.get(
-			"getById",
-		)`/issuers/${HttpApiSchema.param("id", numFromStr(IssuerId))}`
-			.addSuccess(Issuer)
-			.addError(NotFound),
-	)
-	.add(
-		HttpApiEndpoint.get(
-			"getByName",
-		)`/issuers/by-name/${HttpApiSchema.param("name", Schema.String)}`
-			.addSuccess(Issuer)
-			.addError(NotFound),
-	)
-	.add(
-		HttpApiEndpoint.get(
-			"getByNameCi",
-		)`/issuers/by-name-ci/${HttpApiSchema.param("name", Schema.String)}`
-			.addSuccess(Issuer)
-			.addError(NotFound),
-	)
-	.add(
-		HttpApiEndpoint.post("create")`/issuers`
-			.setPayload(IssuerCreate)
-			.addSuccess(Issuer, { status: 201 })
-			.addError(CategoryNotLeaf),
-	)
-	.add(
-		HttpApiEndpoint.put(
-			"update",
-		)`/issuers/${HttpApiSchema.param("id", numFromStr(IssuerId))}`
-			.setPayload(IssuerUpdate)
-			.addSuccess(Issuer)
-			.addError(NotFound)
-			.addError(CategoryNotLeaf),
-	)
-	.add(
-		HttpApiEndpoint.del(
-			"remove",
-		)`/issuers/${HttpApiSchema.param("id", numFromStr(IssuerId))}`
-			.addSuccess(HttpApiSchema.NoContent)
-			.addError(NotFound),
-	)
-	.add(
-		HttpApiEndpoint.post(
-			"uploadImage",
-		)`/issuers/${HttpApiSchema.param("id", numFromStr(IssuerId))}/image`
-			.setPayload(IssuerImageUpload)
-			.addSuccess(Issuer)
-			.addError(NotFound)
-			.addError(InvalidFileType),
-	)
-	.add(
-		HttpApiEndpoint.del(
-			"deleteImage",
-		)`/issuers/${HttpApiSchema.param("id", numFromStr(IssuerId))}/image`
-			.addSuccess(Issuer)
-			.addError(NotFound),
-	)
-	.add(
-		HttpApiEndpoint.get("searchLogos")`/issuers/logo-search`
-			.setUrlParams(LogoSearchQuery)
-			.addSuccess(LogoSearchResults)
-			.addError(LogoSearchUnconfigured)
-			.addError(LogoSearchQuotaExceeded)
-			.addError(LogoSearchFailed),
-	)
-	.add(
-		HttpApiEndpoint.post(
-			"setImageFromUrl",
-		)`/issuers/${HttpApiSchema.param("id", numFromStr(IssuerId))}/image/from-url`
-			.setPayload(IssuerImageFromUrl)
-			.addSuccess(Issuer)
-			.addError(NotFound)
-			.addError(ImageFetchRefused),
-	)
-	.annotateContext(OpenApi.annotations({ title: "Issuers" })) {}
+  .add(
+    HttpApiEndpoint.get("list")`/issuers`
+      .setUrlParams(Schema.Struct({ ...Pagination, ...IssuerListFilters }))
+      .addSuccess(Paged(Issuer)),
+  )
+  .add(
+    HttpApiEndpoint.get("getById")`/issuers/${HttpApiSchema.param("id", numFromStr(IssuerId))}`
+      .addSuccess(Issuer)
+      .addError(NotFound),
+  )
+  .add(
+    HttpApiEndpoint.get("getByName")`/issuers/by-name/${HttpApiSchema.param("name", Schema.String)}`
+      .addSuccess(Issuer)
+      .addError(NotFound),
+  )
+  .add(
+    HttpApiEndpoint.get(
+      "getByNameCi",
+    )`/issuers/by-name-ci/${HttpApiSchema.param("name", Schema.String)}`
+      .addSuccess(Issuer)
+      .addError(NotFound),
+  )
+  .add(
+    HttpApiEndpoint.post("create")`/issuers`
+      .setPayload(IssuerCreate)
+      .addSuccess(Issuer, { status: 201 })
+      .addError(CategoryNotLeaf),
+  )
+  .add(
+    HttpApiEndpoint.put("update")`/issuers/${HttpApiSchema.param("id", numFromStr(IssuerId))}`
+      .setPayload(IssuerUpdate)
+      .addSuccess(Issuer)
+      .addError(NotFound)
+      .addError(CategoryNotLeaf),
+  )
+  .add(
+    HttpApiEndpoint.del("remove")`/issuers/${HttpApiSchema.param("id", numFromStr(IssuerId))}`
+      .addSuccess(HttpApiSchema.NoContent)
+      .addError(NotFound),
+  )
+  .add(
+    HttpApiEndpoint.post(
+      "uploadImage",
+    )`/issuers/${HttpApiSchema.param("id", numFromStr(IssuerId))}/image`
+      .setPayload(IssuerImageUpload)
+      .addSuccess(Issuer)
+      .addError(NotFound)
+      .addError(InvalidFileType),
+  )
+  .add(
+    HttpApiEndpoint.del(
+      "deleteImage",
+    )`/issuers/${HttpApiSchema.param("id", numFromStr(IssuerId))}/image`
+      .addSuccess(Issuer)
+      .addError(NotFound),
+  )
+  .add(
+    HttpApiEndpoint.get("searchLogos")`/issuers/logo-search`
+      .setUrlParams(LogoSearchQuery)
+      .addSuccess(LogoSearchResults)
+      .addError(LogoSearchUnconfigured)
+      .addError(LogoSearchQuotaExceeded)
+      .addError(LogoSearchFailed),
+  )
+  .add(
+    HttpApiEndpoint.post(
+      "setImageFromUrl",
+    )`/issuers/${HttpApiSchema.param("id", numFromStr(IssuerId))}/image/from-url`
+      .setPayload(IssuerImageFromUrl)
+      .addSuccess(Issuer)
+      .addError(NotFound)
+      .addError(ImageFetchRefused),
+  )
+  .annotateContext(OpenApi.annotations({ title: "Issuers" })) {}

@@ -18,18 +18,18 @@ import { TransactionsTableSkeleton } from "@/features/transactions/transactions-
  * wait, and a second announcement would report it twice.
  */
 export function IssuerDetailSkeleton() {
-	return (
-		<SkeletonScreen label="Loading issuer…" className="flex flex-col gap-8">
-			<div className="flex flex-wrap gap-2">
-				<Skeleton className="h-8 w-32" />
-				<Skeleton className="h-8 w-28" />
-				<Skeleton className="h-8 w-32" />
-			</div>
+  return (
+    <SkeletonScreen label="Loading issuer…" className="flex flex-col gap-8">
+      <div className="flex flex-wrap gap-2">
+        <Skeleton className="h-8 w-32" />
+        <Skeleton className="h-8 w-28" />
+        <Skeleton className="h-8 w-32" />
+      </div>
 
-			<Skeleton className="h-9 w-64" />
-			<Skeleton className="h-20 w-full" />
+      <Skeleton className="h-9 w-64" />
+      <Skeleton className="h-20 w-full" />
 
-			<TransactionsTableSkeleton rows={5} announce={false} />
-		</SkeletonScreen>
-	);
+      <TransactionsTableSkeleton rows={5} announce={false} />
+    </SkeletonScreen>
+  );
 }

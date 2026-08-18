@@ -3,15 +3,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { RuleFormPage } from "@/features/rules/rule-form-page";
 
 export const Route = createFileRoute("/issuers/$issuerId/rules/$ruleId")({
-	component: EditRulePage,
+  component: EditRulePage,
 });
 
 function EditRulePage() {
-	const { issuerId, ruleId } = Route.useParams();
-	return (
-		<RuleFormPage
-			issuerId={Number(issuerId) as IssuerId}
-			ruleId={Number(ruleId) as RuleId}
-		/>
-	);
+  const { issuerId, ruleId } = Route.useParams();
+  return <RuleFormPage issuerId={Number(issuerId) as IssuerId} ruleId={Number(ruleId) as RuleId} />;
 }

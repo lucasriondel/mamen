@@ -27,8 +27,8 @@ const SCOPE = "@lucasriondel";
 const TOKEN = "NODE_AUTH_TOKEN";
 
 const webPackageJson = JSON.parse(read("package.json")) as {
-	dependencies?: Record<string, string>;
-	devDependencies?: Record<string, string>;
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
 };
 
 /**
@@ -38,14 +38,14 @@ const webPackageJson = JSON.parse(read("package.json")) as {
  * deploys from.
  */
 const PRUNED = new Set([
-	".claude",
-	".git",
-	".turbo",
-	"coverage",
-	"dist",
-	"graphify-out",
-	"logs",
-	"node_modules",
+  ".claude",
+  ".git",
+  ".turbo",
+  "coverage",
+  "dist",
+  "graphify-out",
+  "logs",
+  "node_modules",
 ]);
 
 /** Resolved dependency graphs — asserted separately, and megabytes each. */
@@ -56,88 +56,88 @@ const LOCKFILES = new Set(["bun.lock", "package-lock.json"]);
  * and its sibling, which holds prose to the same rule (issue #98).
  */
 const SELF = new Set([
-	"packages/web/src/test/gousse-package-removed.test.ts",
-	"packages/web/src/test/gousse-adr.test.ts",
+  "packages/web/src/test/gousse-package-removed.test.ts",
+  "packages/web/src/test/gousse-adr.test.ts",
 ]);
 
 /** Every non-pruned file in the repo, as `[repo-relative path, contents]`. */
 function repoFiles(dir = "../..", prefix = ""): Array<[string, string]> {
-	const out: Array<[string, string]> = [];
+  const out: Array<[string, string]> = [];
 
-	for (const entry of readdirSync(dir)) {
-		if (PRUNED.has(entry)) continue;
+  for (const entry of readdirSync(dir)) {
+    if (PRUNED.has(entry)) continue;
 
-		const path = `${dir}/${entry}`;
-		const relative = prefix ? `${prefix}/${entry}` : entry;
+    const path = `${dir}/${entry}`;
+    const relative = prefix ? `${prefix}/${entry}` : entry;
 
-		if (statSync(path).isDirectory()) {
-			out.push(...repoFiles(path, relative));
-			continue;
-		}
-		if (LOCKFILES.has(relative) || SELF.has(relative)) continue;
+    if (statSync(path).isDirectory()) {
+      out.push(...repoFiles(path, relative));
+      continue;
+    }
+    if (LOCKFILES.has(relative) || SELF.has(relative)) continue;
 
-		out.push([relative, read(path)]);
-	}
+    out.push([relative, read(path)]);
+  }
 
-	return out;
+  return out;
 }
 
 describe("the npm dependency", () => {
-	it("is absent from the web package's manifest", () => {
-		expect(webPackageJson.dependencies).not.toHaveProperty(PACKAGE);
-		expect(webPackageJson.devDependencies).not.toHaveProperty(PACKAGE);
-	});
+  it("is absent from the web package's manifest", () => {
+    expect(webPackageJson.dependencies).not.toHaveProperty(PACKAGE);
+    expect(webPackageJson.devDependencies).not.toHaveProperty(PACKAGE);
+  });
 
-	it("is absent from the lockfile, so no install resolves it", () => {
-		expect(read("../../bun.lock")).not.toContain(SCOPE);
-	});
+  it("is absent from the lockfile, so no install resolves it", () => {
+    expect(read("../../bun.lock")).not.toContain(SCOPE);
+  });
 });
 
 describe("the private registry credential", () => {
-	it("leaves no .npmrc pointing the scope at GitHub Packages", () => {
-		expect(existsSync("../../.npmrc")).toBe(false);
-		expect(existsSync(".npmrc")).toBe(false);
-	});
+  it("leaves no .npmrc pointing the scope at GitHub Packages", () => {
+    expect(existsSync("../../.npmrc")).toBe(false);
+    expect(existsSync(".npmrc")).toBe(false);
+  });
 
-	it("is not passed to, or read by, the web image", () => {
-		const dockerfile = read("Dockerfile");
+  it("is not passed to, or read by, the web image", () => {
+    const dockerfile = read("Dockerfile");
 
-		expect(dockerfile).not.toContain(TOKEN);
-		expect(dockerfile).not.toContain(".npmrc");
-	});
+    expect(dockerfile).not.toContain(TOKEN);
+    expect(dockerfile).not.toContain(".npmrc");
+  });
 
-	it("is referenced by no build or deploy path left in the repo", () => {
-		// Prose is exempt here and scanned in `gousse-adr.test.ts`, which holds it
-		// to a tighter rule: exactly one document may name the variable — the
-		// superseded ADR 0002, whose subject *is* the era that needed it, and a
-		// decision record that erased the credential it once required would be a
-		// worse record. Nothing in `.md` runs; the one operational document that
-		// could mislead an operator — the runbook — has its own assertion below.
-		const offenders = repoFiles()
-			.filter(([path]) => !path.endsWith(".md"))
-			.filter(([, body]) => body.includes(TOKEN))
-			.map(([path]) => path);
+  it("is referenced by no build or deploy path left in the repo", () => {
+    // Prose is exempt here and scanned in `gousse-adr.test.ts`, which holds it
+    // to a tighter rule: exactly one document may name the variable — the
+    // superseded ADR 0002, whose subject *is* the era that needed it, and a
+    // decision record that erased the credential it once required would be a
+    // worse record. Nothing in `.md` runs; the one operational document that
+    // could mislead an operator — the runbook — has its own assertion below.
+    const offenders = repoFiles()
+      .filter(([path]) => !path.endsWith(".md"))
+      .filter(([, body]) => body.includes(TOKEN))
+      .map(([path]) => path);
 
-		expect(offenders).toStrictEqual([]);
-	});
+    expect(offenders).toStrictEqual([]);
+  });
 });
 
 describe("the Vitest inline workaround", () => {
-	it("is gone, along with the package it inlined", () => {
-		const config = read("vitest.config.ts");
+  it("is gone, along with the package it inlined", () => {
+    const config = read("vitest.config.ts");
 
-		expect(config).not.toContain(PACKAGE);
-		expect(config).not.toMatch(/server\s*:/);
-		expect(config).not.toContain("inline");
-	});
+    expect(config).not.toContain(PACKAGE);
+    expect(config).not.toMatch(/server\s*:/);
+    expect(config).not.toContain("inline");
+  });
 });
 
 describe("the deploy runbook", () => {
-	it("no longer asks for the token, nor documents its 401", () => {
-		const runbook = read("../../DEPLOY.md");
+  it("no longer asks for the token, nor documents its 401", () => {
+    const runbook = read("../../DEPLOY.md");
 
-		expect(runbook).not.toContain(TOKEN);
-		expect(runbook).not.toContain(PACKAGE);
-		expect(runbook).not.toContain("401");
-	});
+    expect(runbook).not.toContain(TOKEN);
+    expect(runbook).not.toContain(PACKAGE);
+    expect(runbook).not.toContain("401");
+  });
 });

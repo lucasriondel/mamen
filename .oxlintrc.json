@@ -1,35 +1,43 @@
 {
-	"$schema": "./node_modules/oxlint/configuration_schema.json",
-	"plugins": [
-		"typescript",
-		"unicorn",
-		"oxc",
-		"react",
-		"react-hooks",
-		"jsx-a11y"
-	],
-	"categories": {
-		"correctness": "error",
-		"suspicious": "error"
-	},
-	"rules": {
-		"react/react-in-jsx-scope": "off",
-		"typescript/no-explicit-any": "off",
-		"typescript/no-non-null-assertion": "off",
-		"jsx-a11y/label-has-associated-control": [
-			"error",
-			{
-				"controlComponents": ["Input", "Select", "Textarea", "Checkbox"]
-			}
-		]
-	},
-	"ignorePatterns": [
-		"**/dist/**",
-		"packages/web/src/styles/gousse",
-		"packages/web/src/components/ui/sidebar.tsx",
-		"**/*.gen.ts",
-		"**/*.gen.tsx",
-		"packages/api/openapi.json",
-		"graphify-out"
-	]
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc", "react", "react-hooks", "jsx-a11y"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error"
+  },
+  "rules": {
+    "react/react-in-jsx-scope": "off",
+    // `_tag` is Effect's own discriminant on a tagged error — `Data.TaggedError`
+    // writes it and every `catchTag`/`match` in the api and the sdk reads it, so
+    // it is not this repo's naming to change. `__BUILD_DATE__` is the same shape
+    // one layer down: Vite's `define` convention for a compile-time constant,
+    // declared once in `vite-env.d.ts`.
+    "no-underscore-dangle": ["error", { "allow": ["_tag", "__BUILD_DATE__"] }],
+    // Both rules ask for `toSorted`/`toReversed`, which are ES2023. This repo
+    // compiles to ES2022 (`tsconfig.base.json`, and `packages/web` restates the
+    // `lib` explicitly), so the replacement they name does not typecheck — and
+    // raising the language level is a browser-support decision, not a lint fix.
+    // `oxlint-oxfmt-config.test.ts` holds the two together: move the target and
+    // the guard asks for these back.
+    "unicorn/no-array-sort": "off",
+    // Same reason, the other method: `toReversed` is ES2023 too.
+    "unicorn/no-array-reverse": "off",
+    "typescript/no-explicit-any": "off",
+    "typescript/no-non-null-assertion": "off",
+    "jsx-a11y/label-has-associated-control": [
+      "error",
+      {
+        "controlComponents": ["Input", "Select", "Textarea", "Checkbox"]
+      }
+    ]
+  },
+  "ignorePatterns": [
+    "**/dist/**",
+    "packages/web/src/styles/gousse",
+    "packages/web/src/components/ui/sidebar.tsx",
+    "**/*.gen.ts",
+    "**/*.gen.tsx",
+    "packages/api/openapi.json",
+    "graphify-out"
+  ]
 }

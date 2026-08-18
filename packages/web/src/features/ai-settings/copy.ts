@@ -16,21 +16,21 @@ import { AI_PROVIDER_LABELS } from "@mamen/shared/contract";
 
 /** What the credential *is*, per provider — shown under the provider's name. */
 export const CREDENTIAL_KIND: { readonly [P in AiProvider]: string } = {
-	// Not an API key: the local CLI authenticates with an OAuth token minted by
-	// `claude setup-token`, and calling it a key would send the user to the
-	// Anthropic console for the wrong thing.
-	"claude-code": "OAuth token",
-	anthropic: "API key",
-	google: "API key",
-	openai: "API key",
+  // Not an API key: the local CLI authenticates with an OAuth token minted by
+  // `claude setup-token`, and calling it a key would send the user to the
+  // Anthropic console for the wrong thing.
+  "claude-code": "OAuth token",
+  anthropic: "API key",
+  google: "API key",
+  openai: "API key",
 };
 
 /** Where a user gets one. Shown only while the tile is unset. */
 export const CREDENTIAL_SOURCE: { readonly [P in AiProvider]: string } = {
-	"claude-code": "Run `claude setup-token` locally",
-	anthropic: "console.anthropic.com",
-	google: "aistudio.google.com",
-	openai: "platform.openai.com",
+  "claude-code": "Run `claude setup-token` locally",
+  anthropic: "console.anthropic.com",
+  google: "aistudio.google.com",
+  openai: "platform.openai.com",
 };
 
 /**
@@ -39,19 +39,19 @@ export const CREDENTIAL_SOURCE: { readonly [P in AiProvider]: string } = {
  * "Anthropic API key" rather than a second table to keep in step.
  */
 export const credentialFieldLabel = (provider: AiProvider): string =>
-	`${AI_PROVIDER_LABELS[provider]} ${CREDENTIAL_KIND[provider]}`;
+  `${AI_PROVIDER_LABELS[provider]} ${CREDENTIAL_KIND[provider]}`;
 
 /** What a task is called on screen, and what it does, in one line each. */
 export const AI_TASK_COPY: {
-	readonly [T in AiTask]: {
-		readonly title: string;
-		readonly description: string;
-	};
+  readonly [T in AiTask]: {
+    readonly title: string;
+    readonly description: string;
+  };
 } = {
-	"extract-pdf": {
-		title: "PDF statement extraction",
-		description: "Reads transactions out of an uploaded PDF bank statement.",
-	},
+  "extract-pdf": {
+    title: "PDF statement extraction",
+    description: "Reads transactions out of an uploaded PDF bank statement.",
+  },
 };
 
 /**
@@ -66,4 +66,4 @@ export const AI_TASK_COPY: {
  * vendor is a sentence a screen reader reads in pieces.
  */
 export const hostedVendorNotice = (provider: AiProvider): string =>
-	`Your bank statement will be sent to ${AI_PROVIDER_LABELS[provider]} for extraction.`;
+  `Your bank statement will be sent to ${AI_PROVIDER_LABELS[provider]} for extraction.`;

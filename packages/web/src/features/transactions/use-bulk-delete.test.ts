@@ -8,13 +8,13 @@ import { queryClient } from "@/lib/query-client";
 const bulkDeleteFn = vi.fn();
 
 vi.mock("@mamen/sdk", async (importOriginal) => {
-	const actual = await importOriginal<typeof import("@mamen/sdk")>();
-	return {
-		...actual,
-		transactionMutations: {
-			bulkDelete: (ids: unknown) => bulkDeleteFn(ids),
-		},
-	};
+  const actual = await importOriginal<typeof import("@mamen/sdk")>();
+  return {
+    ...actual,
+    transactionMutations: {
+      bulkDelete: (ids: unknown) => bulkDeleteFn(ids),
+    },
+  };
 });
 
 // Imported after the mock so it binds to the mocked SDK surface.
@@ -24,52 +24,51 @@ const { useBulkDelete } = await import("./use-bulk-delete");
 const RULES_KEY = ruleKeys.list({});
 const TX_KEY = transactionKeys.all;
 
-const isStale = (key: readonly unknown[]) =>
-	queryClient.getQueryState(key)?.isInvalidated === true;
+const isStale = (key: readonly unknown[]) => queryClient.getQueryState(key)?.isInvalidated === true;
 
 describe("useBulkDelete", () => {
-	beforeEach(() => {
-		bulkDeleteFn.mockReset().mockResolvedValue({ count: 2 });
-		queryClient.setQueryData(RULES_KEY, { items: [], total: 0 });
-		queryClient.setQueryData(TX_KEY, { items: [], total: 0 });
-	});
+  beforeEach(() => {
+    bulkDeleteFn.mockReset().mockResolvedValue({ count: 2 });
+    queryClient.setQueryData(RULES_KEY, { items: [], total: 0 });
+    queryClient.setQueryData(TX_KEY, { items: [], total: 0 });
+  });
 
-	it("sends exactly the ids it was given", async () => {
-		const { result } = renderHook(() => useBulkDelete());
+  it("sends exactly the ids it was given", async () => {
+    const { result } = renderHook(() => useBulkDelete());
 
-		act(() => {
-			result.current.bulkDelete.mutate({ ids: [100, 101] as never });
-		});
+    act(() => {
+      result.current.bulkDelete.mutate({ ids: [100, 101] as never });
+    });
 
-		await waitFor(() => expect(result.current.bulkDelete.isSuccess).toBe(true));
-		expect(bulkDeleteFn).toHaveBeenCalledWith([100, 101]);
-	});
+    await waitFor(() => expect(result.current.bulkDelete.isSuccess).toBe(true));
+    expect(bulkDeleteFn).toHaveBeenCalledWith([100, 101]);
+  });
 
-	it("invalidates the transactions cache", async () => {
-		const { result } = renderHook(() => useBulkDelete());
+  it("invalidates the transactions cache", async () => {
+    const { result } = renderHook(() => useBulkDelete());
 
-		act(() => {
-			result.current.bulkDelete.mutate({ ids: [100] as never });
-		});
+    act(() => {
+      result.current.bulkDelete.mutate({ ids: [100] as never });
+    });
 
-		await waitFor(() => expect(result.current.bulkDelete.isSuccess).toBe(true));
-		expect(isStale(TX_KEY)).toBe(true);
-	});
+    await waitFor(() => expect(result.current.bulkDelete.isSuccess).toBe(true));
+    expect(isStale(TX_KEY)).toBe(true);
+  });
 
-	/**
-	 * A rule's `ownedCount` is derived from the live transactions table on every
-	 * read (issue #63), so deleting rows takes rows away from whichever rules
-	 * owned them — including a **bundle parent**, an ordinary row carrying the
-	 * user's label as its `rawIssuerString` (issue #78).
-	 */
-	it("invalidates the rules cache", async () => {
-		const { result } = renderHook(() => useBulkDelete());
+  /**
+   * A rule's `ownedCount` is derived from the live transactions table on every
+   * read (issue #63), so deleting rows takes rows away from whichever rules
+   * owned them — including a **bundle parent**, an ordinary row carrying the
+   * user's label as its `rawIssuerString` (issue #78).
+   */
+  it("invalidates the rules cache", async () => {
+    const { result } = renderHook(() => useBulkDelete());
 
-		act(() => {
-			result.current.bulkDelete.mutate({ ids: [100] as never });
-		});
+    act(() => {
+      result.current.bulkDelete.mutate({ ids: [100] as never });
+    });
 
-		await waitFor(() => expect(result.current.bulkDelete.isSuccess).toBe(true));
-		expect(isStale(RULES_KEY)).toBe(true);
-	});
+    await waitFor(() => expect(result.current.bulkDelete.isSuccess).toBe(true));
+    expect(isStale(RULES_KEY)).toBe(true);
+  });
 });

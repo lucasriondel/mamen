@@ -39,14 +39,14 @@ const RETIRED = "TODO.md";
  * those are documents written for a reader, which is the distinction.
  */
 const SCRATCH_NAMES = new Set([
-	"todo",
-	"todos",
-	"notes",
-	"scratch",
-	"scratchpad",
-	"ideas",
-	"roadmap",
-	"backlog",
+  "todo",
+  "todos",
+  "notes",
+  "scratch",
+  "scratchpad",
+  "ideas",
+  "roadmap",
+  "backlog",
 ]);
 
 /**
@@ -56,14 +56,14 @@ const SCRATCH_NAMES = new Set([
  * deploys from. Mirrors `bank-statement-scrubbed.test.ts`.
  */
 const PRUNED = new Set([
-	".claude",
-	".git",
-	".turbo",
-	"coverage",
-	"dist",
-	"graphify-out",
-	"logs",
-	"node_modules",
+  ".claude",
+  ".git",
+  ".turbo",
+  "coverage",
+  "dist",
+  "graphify-out",
+  "logs",
+  "node_modules",
 ]);
 
 /**
@@ -75,22 +75,22 @@ const SELF = "packages/web/src/test/no-scratch-file.test.ts";
 
 /** Every non-pruned file in the repo, as repo-relative paths. */
 function repoFiles(dir = ROOT, prefix = ""): string[] {
-	const out: string[] = [];
+  const out: string[] = [];
 
-	for (const entry of readdirSync(dir)) {
-		if (PRUNED.has(entry)) continue;
+  for (const entry of readdirSync(dir)) {
+    if (PRUNED.has(entry)) continue;
 
-		const path = `${dir}/${entry}`;
-		const relative = prefix ? `${prefix}/${entry}` : entry;
+    const path = `${dir}/${entry}`;
+    const relative = prefix ? `${prefix}/${entry}` : entry;
 
-		if (statSync(path).isDirectory()) {
-			out.push(...repoFiles(path, relative));
-			continue;
-		}
-		out.push(relative);
-	}
+    if (statSync(path).isDirectory()) {
+      out.push(...repoFiles(path, relative));
+      continue;
+    }
+    out.push(relative);
+  }
 
-	return out;
+  return out;
 }
 
 /**
@@ -99,48 +99,46 @@ function repoFiles(dir = ROOT, prefix = ""): string[] {
  * markdown file at the root.
  */
 function textOf(path: string): string | null {
-	const buffer = readFileSync(`${ROOT}/${path}`);
-	return buffer.includes(0) ? null : buffer.toString("utf8");
+  const buffer = readFileSync(`${ROOT}/${path}`);
+  return buffer.includes(0) ? null : buffer.toString("utf8");
 }
 
 /** A file's name with its extension dropped, lowercased. */
 const stem = (name: string) => name.replace(/\.[^.]*$/, "").toLowerCase();
 
 describe("the retired TODO.md", () => {
-	it("is gone from the repo root", () => {
-		expect(existsSync(`${ROOT}/${RETIRED}`)).toBe(false);
-	});
+  it("is gone from the repo root", () => {
+    expect(existsSync(`${ROOT}/${RETIRED}`)).toBe(false);
+  });
 
-	it("has not come back under another scratchpad name", () => {
-		// A root-level `NOTES.md` is the same file with the check routed around:
-		// the objection was never to the word "todo", it was to a private list
-		// sitting where a visitor reads the project's intentions.
-		const found = readdirSync(ROOT, { withFileTypes: true })
-			.filter((entry) => entry.isFile() && SCRATCH_NAMES.has(stem(entry.name)))
-			.map((entry) => entry.name);
+  it("has not come back under another scratchpad name", () => {
+    // A root-level `NOTES.md` is the same file with the check routed around:
+    // the objection was never to the word "todo", it was to a private list
+    // sitting where a visitor reads the project's intentions.
+    const found = readdirSync(ROOT, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && SCRATCH_NAMES.has(stem(entry.name)))
+      .map((entry) => entry.name);
 
-		expect(found).toStrictEqual([]);
-	});
+    expect(found).toStrictEqual([]);
+  });
 
-	it("is referenced by no file in the repo", () => {
-		// Including the ones a grep for a broken *link* would miss — a bare
-		// mention in prose or in an agent instruction file still sends a reader
-		// looking for a file that isn't there.
-		const referrers = repoFiles()
-			.filter((path) => path !== SELF)
-			.filter((path) => textOf(path)?.includes(RETIRED));
+  it("is referenced by no file in the repo", () => {
+    // Including the ones a grep for a broken *link* would miss — a bare
+    // mention in prose or in an agent instruction file still sends a reader
+    // looking for a file that isn't there.
+    const referrers = repoFiles()
+      .filter((path) => path !== SELF)
+      .filter((path) => textOf(path)?.includes(RETIRED));
 
-		expect(referrers).toStrictEqual([]);
-	});
+    expect(referrers).toStrictEqual([]);
+  });
 });
 
 describe("CONTRIBUTING.md", () => {
-	it("still says there is no roadmap, which is why the root carries none", () => {
-		// The reason the scratchpad had to go, kept next to the check that
-		// enforces it: if this project ever does publish a roadmap, this test is
-		// the thing that should be reconsidered rather than routed around.
-		expect(readFileSync(`${ROOT}/CONTRIBUTING.md`, "utf8")).toContain(
-			"no roadmap",
-		);
-	});
+  it("still says there is no roadmap, which is why the root carries none", () => {
+    // The reason the scratchpad had to go, kept next to the check that
+    // enforces it: if this project ever does publish a roadmap, this test is
+    // the thing that should be reconsidered rather than routed around.
+    expect(readFileSync(`${ROOT}/CONTRIBUTING.md`, "utf8")).toContain("no roadmap");
+  });
 });

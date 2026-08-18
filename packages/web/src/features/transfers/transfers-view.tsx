@@ -7,12 +7,12 @@ import { PageLayout } from "@/components/page-layout";
 import { Button } from "@/components/ui/button";
 import { Empty } from "@/components/ui/empty";
 import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import { AccountBadge } from "@/features/accounts/account-badge";
 import { AmountCell } from "@/features/transactions/transaction-cells";
@@ -44,101 +44,97 @@ import { TransfersListSkeleton } from "./transfers-list-skeleton";
  * outstanding work — because both mutations invalidate the read behind it.
  */
 export function TransfersView() {
-	const candidatesQuery = useQuery(transactionQueries.transferCandidates());
-	const accountsQuery = useQuery(accountQueries.list());
+  const candidatesQuery = useQuery(transactionQueries.transferCandidates());
+  const accountsQuery = useQuery(accountQueries.list());
 
-	const accountsById = useMemo(
-		() => indexById((accountsQuery.data?.items ?? []) as readonly Account[]),
-		[accountsQuery.data],
-	);
+  const accountsById = useMemo(
+    () => indexById((accountsQuery.data?.items ?? []) as readonly Account[]),
+    [accountsQuery.data],
+  );
 
-	// The payload is *already* one entry per debit leg, ranked by its closest
-	// counterpart — so this page renders it as it arrives. No two-way index here:
-	// that exists to mark credit *rows* in a table of transactions, and a page
-	// listing both sides would show every decision twice.
-	const legs = (candidatesQuery.data ?? []) as readonly TransferCandidate[];
+  // The payload is *already* one entry per debit leg, ranked by its closest
+  // counterpart — so this page renders it as it arrives. No two-way index here:
+  // that exists to mark credit *rows* in a table of transactions, and a page
+  // listing both sides would show every decision twice.
+  const legs = (candidatesQuery.data ?? []) as readonly TransferCandidate[];
 
-	return (
-		<PageLayout
-			title="Transfers"
-			description="Money you moved between your own accounts, detected automatically. Confirm a pair to net it out of your recap, or clear the ones that aren't transfers."
-			className="mx-auto max-w-4xl gap-8"
-		>
-			{candidatesQuery.isPending ? (
-				<TransfersListSkeleton />
-			) : candidatesQuery.isError ? (
-				<div className="rounded-2xl border border-gousse-line bg-gousse-panel p-6 text-center">
-					<p className="font-medium text-gousse-ink">
-						Couldn't detect transfers.
-					</p>
-					<Button
-						variant="secondary"
-						size="sm"
-						className="mt-3"
-						onClick={() => candidatesQuery.refetch()}
-					>
-						Try again
-					</Button>
-				</div>
-			) : legs.length === 0 ? (
-				<Empty
-					icon={<ArrowRightLeft size={20} aria-hidden />}
-					title="No transfers detected"
-					description="When two of your accounts show the same amount moving in and out around the same time, it'll show up here to confirm."
-				/>
-			) : (
-				<div className="overflow-hidden rounded-2xl border border-gousse-line">
-					<Table>
-						<TableHeader>
-							<TableRow>
-								<TableHead>Date</TableHead>
-								<TableHead>Account</TableHead>
-								<TableHead>Raw issuer</TableHead>
-								<TableHead>
-									<span className="block text-right">Amount</span>
-								</TableHead>
-								<TableHead>Matches</TableHead>
-							</TableRow>
-						</TableHeader>
-						<TableBody>
-							{legs.map((entry) => (
-								<TableRow key={entry.leg.id}>
-									<TableCell className="tabular-nums">
-										<Link
-											to="/transactions/$transactionId"
-											params={{
-												transactionId: String(entry.leg.id),
-											}}
-											className="hover:underline"
-										>
-											{formatShortDate(entry.leg.date)}
-										</Link>
-									</TableCell>
-									<TableCell>
-										<AccountBadge
-											account={accountsById.get(entry.leg.accountId)}
-										/>
-									</TableCell>
-									<TableCell>
-										<span className="whitespace-pre-wrap break-words font-mono text-gousse-muted text-xs">
-											{entry.leg.rawIssuerString}
-										</span>
-									</TableCell>
-									<TableCell>
-										<AmountCell amount={entry.leg.amount} />
-									</TableCell>
-									<TableCell>
-										<TransferSuggestionPanel
-											transaction={entry.leg}
-											counterparts={entry.counterparts}
-										/>
-									</TableCell>
-								</TableRow>
-							))}
-						</TableBody>
-					</Table>
-				</div>
-			)}
-		</PageLayout>
-	);
+  return (
+    <PageLayout
+      title="Transfers"
+      description="Money you moved between your own accounts, detected automatically. Confirm a pair to net it out of your recap, or clear the ones that aren't transfers."
+      className="mx-auto max-w-4xl gap-8"
+    >
+      {candidatesQuery.isPending ? (
+        <TransfersListSkeleton />
+      ) : candidatesQuery.isError ? (
+        <div className="rounded-2xl border border-gousse-line bg-gousse-panel p-6 text-center">
+          <p className="font-medium text-gousse-ink">Couldn't detect transfers.</p>
+          <Button
+            variant="secondary"
+            size="sm"
+            className="mt-3"
+            onClick={() => candidatesQuery.refetch()}
+          >
+            Try again
+          </Button>
+        </div>
+      ) : legs.length === 0 ? (
+        <Empty
+          icon={<ArrowRightLeft size={20} aria-hidden />}
+          title="No transfers detected"
+          description="When two of your accounts show the same amount moving in and out around the same time, it'll show up here to confirm."
+        />
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-gousse-line">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Date</TableHead>
+                <TableHead>Account</TableHead>
+                <TableHead>Raw issuer</TableHead>
+                <TableHead>
+                  <span className="block text-right">Amount</span>
+                </TableHead>
+                <TableHead>Matches</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {legs.map((entry) => (
+                <TableRow key={entry.leg.id}>
+                  <TableCell className="tabular-nums">
+                    <Link
+                      to="/transactions/$transactionId"
+                      params={{
+                        transactionId: String(entry.leg.id),
+                      }}
+                      className="hover:underline"
+                    >
+                      {formatShortDate(entry.leg.date)}
+                    </Link>
+                  </TableCell>
+                  <TableCell>
+                    <AccountBadge account={accountsById.get(entry.leg.accountId)} />
+                  </TableCell>
+                  <TableCell>
+                    <span className="whitespace-pre-wrap break-words font-mono text-gousse-muted text-xs">
+                      {entry.leg.rawIssuerString}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <AmountCell amount={entry.leg.amount} />
+                  </TableCell>
+                  <TableCell>
+                    <TransferSuggestionPanel
+                      transaction={entry.leg}
+                      counterparts={entry.counterparts}
+                    />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+    </PageLayout>
+  );
 }

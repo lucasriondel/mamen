@@ -13,11 +13,11 @@ import { type MonthCellSpec, monthProgress } from "./month-grid";
 import { useAccountMutations } from "./use-account-mutations";
 
 export interface AccountCardProps {
-	account: Account;
-	/** The year the strip shows — the page's year pager owns it. */
-	year: number;
-	/** This account's twelve cells for that year (`monthCells()`). */
-	cells: readonly MonthCellSpec[];
+  account: Account;
+  /** The year the strip shows — the page's year pager owns it. */
+  year: number;
+  /** This account's twelve cells for that year (`monthCells()`). */
+  cells: readonly MonthCellSpec[];
 }
 
 /**
@@ -43,120 +43,108 @@ export interface AccountCardProps {
  * refactor from being gone.
  */
 export function AccountCard({ account, year, cells }: AccountCardProps) {
-	const { rename, recolor, remove } = useAccountMutations();
-	const [editing, setEditing] = useState(false);
-	const [draftName, setDraftName] = useState(account.name);
+  const { rename, recolor, remove } = useAccountMutations();
+  const [editing, setEditing] = useState(false);
+  const [draftName, setDraftName] = useState(account.name);
 
-	const countQuery = useQuery(
-		transactionQueries.count({ accountId: account.id }),
-	);
-	const transactionCount = countQuery.data?.count ?? 0;
-	const hasTransactions = transactionCount > 0;
+  const countQuery = useQuery(transactionQueries.count({ accountId: account.id }));
+  const transactionCount = countQuery.data?.count ?? 0;
+  const hasTransactions = transactionCount > 0;
 
-	const progress = monthProgress(cells);
+  const progress = monthProgress(cells);
 
-	const handleRename = (event: FormEvent<HTMLFormElement>) => {
-		event.preventDefault();
-		const trimmed = draftName.trim();
-		if (trimmed.length === 0 || rename.isPending) return;
-		if (trimmed === account.name) {
-			setEditing(false);
-			return;
-		}
-		rename.mutate(
-			{ id: account.id, name: trimmed },
-			{ onSuccess: () => setEditing(false) },
-		);
-	};
+  const handleRename = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const trimmed = draftName.trim();
+    if (trimmed.length === 0 || rename.isPending) return;
+    if (trimmed === account.name) {
+      setEditing(false);
+      return;
+    }
+    rename.mutate({ id: account.id, name: trimmed }, { onSuccess: () => setEditing(false) });
+  };
 
-	const handleDelete = () => {
-		// Guard: never orphan transactions. The menu item is disabled in this
-		// state, but re-check here so the guard holds however delete is reached.
-		if (hasTransactions || remove.isPending) return;
-		remove.mutate(account.id);
-	};
+  const handleDelete = () => {
+    // Guard: never orphan transactions. The menu item is disabled in this
+    // state, but re-check here so the guard holds however delete is reached.
+    if (hasTransactions || remove.isPending) return;
+    remove.mutate(account.id);
+  };
 
-	return (
-		<li className="flex flex-col gap-3.5 rounded-2xl border border-gousse-line bg-gousse-panel p-4">
-			{editing ? (
-				<form
-					onSubmit={handleRename}
-					className="flex flex-wrap items-center gap-2"
-				>
-					<Input
-						value={draftName}
-						onChange={(event) => setDraftName(event.target.value)}
-						aria-label="New account name"
-						className="max-w-56"
-						// Focus the field the user just opened from the menu — the menu
-						// returns focus to its trigger otherwise, and the rename would
-						// start with a click already spent.
-						autoFocus
-					/>
-					<Button
-						type="submit"
-						variant="primary"
-						size="sm"
-						disabled={rename.isPending}
-					>
-						Save
-					</Button>
-					<Button
-						variant="secondary"
-						size="sm"
-						onClick={() => {
-							setDraftName(account.name);
-							setEditing(false);
-						}}
-					>
-						Cancel
-					</Button>
-				</form>
-			) : (
-				<div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-					{/* The swatch paints the *resolved* colour, so an account that has
-					    never been recoloured still shows what its badge looks like. */}
-					<AccountColorPicker
-						label={account.name}
-						value={account.color}
-						resolved={resolveAccountColor(account)}
-						pending={recolor.isPending}
-						onSubmit={(color) => recolor.mutate({ id: account.id, color })}
-					/>
-					<span className="font-semibold text-gousse-ink">{account.name}</span>
-					<span className="rounded-full border border-gousse-line px-2 py-0.5 text-gousse-muted text-xs">
-						{accountTypeLabel(account.type)}
-					</span>
-					<span className="text-gousse-muted text-xs tabular-nums">
-						{transactionCount} transaction{transactionCount === 1 ? "" : "s"}
-					</span>
+  return (
+    <li className="flex flex-col gap-3.5 rounded-2xl border border-gousse-line bg-gousse-panel p-4">
+      {editing ? (
+        <form onSubmit={handleRename} className="flex flex-wrap items-center gap-2">
+          <Input
+            value={draftName}
+            onChange={(event) => setDraftName(event.target.value)}
+            aria-label="New account name"
+            className="max-w-56"
+            // Focus the field the user just opened from the menu — the menu
+            // returns focus to its trigger otherwise, and the rename would
+            // start with a click already spent.
+            // oxlint-disable-next-line jsx-a11y/no-autofocus -- the field the user just opened from the menu, per the note above
+            autoFocus
+          />
+          <Button type="submit" variant="primary" size="sm" disabled={rename.isPending}>
+            Save
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              setDraftName(account.name);
+              setEditing(false);
+            }}
+          >
+            Cancel
+          </Button>
+        </form>
+      ) : (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          {/* The swatch paints the *resolved* colour, so an account that has
+              never been recoloured still shows what its badge looks like. */}
+          <AccountColorPicker
+            label={account.name}
+            value={account.color}
+            resolved={resolveAccountColor(account)}
+            pending={recolor.isPending}
+            onSubmit={(color) => recolor.mutate({ id: account.id, color })}
+          />
+          <span className="font-semibold text-gousse-ink">{account.name}</span>
+          <span className="rounded-full border border-gousse-line px-2 py-0.5 text-gousse-muted text-xs">
+            {accountTypeLabel(account.type)}
+          </span>
+          <span className="text-gousse-muted text-xs tabular-nums">
+            {transactionCount} transaction{transactionCount === 1 ? "" : "s"}
+          </span>
 
-					<span className="flex-1" />
+          <span className="flex-1" />
 
-					{/* Coverage over *elapsed* months, so a caught-up account never reads
-					    as behind in January. */}
-					<span className="text-gousse-muted text-xs tabular-nums">
-						{progress.imported}/{progress.importable} months
-					</span>
-					<AccountActionsMenu
-						name={account.name}
-						onRename={() => {
-							setDraftName(account.name);
-							setEditing(true);
-						}}
-						onDelete={handleDelete}
-						blocked={hasTransactions}
-						deleting={remove.isPending}
-					/>
-				</div>
-			)}
+          {/* Coverage over *elapsed* months, so a caught-up account never reads
+              as behind in January. */}
+          <span className="text-gousse-muted text-xs tabular-nums">
+            {progress.imported}/{progress.importable} months
+          </span>
+          <AccountActionsMenu
+            name={account.name}
+            onRename={() => {
+              setDraftName(account.name);
+              setEditing(true);
+            }}
+            onDelete={handleDelete}
+            blocked={hasTransactions}
+            deleting={remove.isPending}
+          />
+        </div>
+      )}
 
-			<AccountMonthStrip
-				accountId={account.id}
-				accountName={account.name}
-				year={year}
-				cells={cells}
-			/>
-		</li>
-	);
+      <AccountMonthStrip
+        accountId={account.id}
+        accountName={account.name}
+        year={year}
+        cells={cells}
+      />
+    </li>
+  );
 }

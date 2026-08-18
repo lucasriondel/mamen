@@ -23,41 +23,37 @@ import { useRecapExclusion } from "./use-recap-exclusion";
  * zero against a counterpart leg, while an exclusion has no counterpart and
  * simply leaves the arithmetic.
  */
-export function RecapExclusionSection({
-	transaction: txn,
-}: {
-	transaction: Transaction;
-}) {
-	const { setExcluded } = useRecapExclusion();
-	const isExcluded = txn.excludedFromRecap === true;
+export function RecapExclusionSection({ transaction: txn }: { transaction: Transaction }) {
+  const { setExcluded } = useRecapExclusion();
+  const isExcluded = txn.excludedFromRecap === true;
 
-	return (
-		<div className="flex flex-col gap-3 border-t border-gousse-line pt-6">
-			<h2 className="flex items-center gap-2 text-lg font-semibold text-gousse-ink">
-				<EyeOff size={18} aria-hidden className="text-gousse-muted" />
-				Recap
-			</h2>
+  return (
+    <div className="flex flex-col gap-3 border-t border-gousse-line pt-6">
+      <h2 className="flex items-center gap-2 text-lg font-semibold text-gousse-ink">
+        <EyeOff size={18} aria-hidden className="text-gousse-muted" />
+        Recap
+      </h2>
 
-			<p className="text-sm text-gousse-muted">
-				{isExcluded
-					? "This transaction does not count toward your spend totals. It stays in the list — only its money is out."
-					: "This transaction counts toward your spend totals. Exclude it if it isn't really spending — an untracked movement between your own accounts, a correction, noise."}
-			</p>
+      <p className="text-sm text-gousse-muted">
+        {isExcluded
+          ? "This transaction does not count toward your spend totals. It stays in the list — only its money is out."
+          : "This transaction counts toward your spend totals. Exclude it if it isn't really spending — an untracked movement between your own accounts, a correction, noise."}
+      </p>
 
-			<Button
-				variant={isExcluded ? "secondary" : "ghost"}
-				size="sm"
-				className="self-start"
-				disabled={setExcluded.isPending}
-				onClick={() =>
-					setExcluded.mutate({
-						transactionId: txn.id,
-						excluded: !isExcluded,
-					})
-				}
-			>
-				{isExcluded ? "Include in recap" : "Exclude from recap"}
-			</Button>
-		</div>
-	);
+      <Button
+        variant={isExcluded ? "secondary" : "ghost"}
+        size="sm"
+        className="self-start"
+        disabled={setExcluded.isPending}
+        onClick={() =>
+          setExcluded.mutate({
+            transactionId: txn.id,
+            excluded: !isExcluded,
+          })
+        }
+      >
+        {isExcluded ? "Include in recap" : "Exclude from recap"}
+      </Button>
+    </div>
+  );
 }

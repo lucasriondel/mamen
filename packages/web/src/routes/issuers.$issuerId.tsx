@@ -7,5 +7,5 @@ import { createFileRoute, Outlet } from "@tanstack/react-router";
  * the form beneath the detail view.
  */
 export const Route = createFileRoute("/issuers/$issuerId")({
-	component: Outlet,
+  component: Outlet,
 });

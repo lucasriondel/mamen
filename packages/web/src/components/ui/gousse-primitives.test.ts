@@ -28,17 +28,17 @@ const read = (path: string) => readFileSync(path, "utf8");
 const vendored = (name: string) => read(`src/components/ui/${name}.tsx`);
 
 const PRIMITIVES = [
-	"button",
-	"empty",
-	"textarea",
-	"checkbox",
-	"credential-tile",
-	"model-row",
-	"provider-mark",
-	"saved-flash",
-	"secret-field",
-	"setting-row",
-	"spinner",
+  "button",
+  "empty",
+  "textarea",
+  "checkbox",
+  "credential-tile",
+  "model-row",
+  "provider-mark",
+  "saved-flash",
+  "secret-field",
+  "setting-row",
+  "spinner",
 ];
 
 /**
@@ -55,40 +55,40 @@ const PACKAGE = "@lucasriondel/gousse-ui";
 
 /** Every `.ts`/`.tsx` source file under `src`, so nothing can hide. */
 function sourceFiles(): string[] {
-	return readdirSync("src", { recursive: true, encoding: "utf8" })
-		.filter((entry) => /\.tsx?$/.test(entry))
-		.map((entry) => `src/${entry}`);
+  return readdirSync("src", { recursive: true, encoding: "utf8" })
+    .filter((entry) => /\.tsx?$/.test(entry))
+    .map((entry) => `src/${entry}`);
 }
 
 describe("the vendored primitives", () => {
-	it("are owned source under the ui alias", () => {
-		const lengths = PRIMITIVES.map((name) => vendored(name).length);
+  it("are owned source under the ui alias", () => {
+    const lengths = PRIMITIVES.map((name) => vendored(name).length);
 
-		expect(lengths.every((length) => length > 0)).toBe(true);
-	});
+    expect(lengths.every((length) => length > 0)).toBe(true);
+  });
 
-	it("wrap nothing — the adapters are gone", () => {
-		for (const name of PRIMITIVES) {
-			expect(vendored(name)).not.toContain(PACKAGE);
-		}
-	});
+  it("wrap nothing — the adapters are gone", () => {
+    for (const name of PRIMITIVES) {
+      expect(vendored(name)).not.toContain(PACKAGE);
+    }
+  });
 
-	it("stay on the token utilities, never a hardcoded colour", () => {
-		for (const name of PRIMITIVES.filter((it) => it !== BRAND_MARKS)) {
-			const source = vendored(name).replace(/\/\*\*[\s\S]*?\*\//g, "");
+  it("stay on the token utilities, never a hardcoded colour", () => {
+    for (const name of PRIMITIVES.filter((entry) => entry !== BRAND_MARKS)) {
+      const source = vendored(name).replace(/\/\*\*[\s\S]*?\*\//g, "");
 
-			expect(source).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
-			expect(source).not.toMatch(/\b(?:rgb|hsl|oklch)\(/);
-		}
-	});
+      expect(source).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+      expect(source).not.toMatch(/\b(?:rgb|hsl|oklch)\(/);
+    }
+  });
 });
 
 describe("the npm package", () => {
-	it("is imported by no file in the app", () => {
-		const importers = sourceFiles().filter((path) =>
-			new RegExp(`from\\s+"${PACKAGE}"`).test(read(path)),
-		);
+  it("is imported by no file in the app", () => {
+    const importers = sourceFiles().filter((path) =>
+      new RegExp(`from\\s+"${PACKAGE}"`).test(read(path)),
+    );
 
-		expect(importers).toStrictEqual([]);
-	});
+    expect(importers).toStrictEqual([]);
+  });
 });

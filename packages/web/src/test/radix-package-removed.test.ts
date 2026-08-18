@@ -38,18 +38,18 @@ const read = (path: string) => readFileSync(path, "utf8");
 const PACKAGE = "radix-ui";
 
 type Manifest = {
-	dependencies?: Record<string, string>;
-	devDependencies?: Record<string, string>;
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
 };
 
 const web = JSON.parse(read("package.json")) as Manifest;
 
 const manifests: Array<[string, Manifest]> = [
-	["packages/web/package.json", web],
-	["package.json", JSON.parse(read("../../package.json"))],
-	["packages/api/package.json", JSON.parse(read("../api/package.json"))],
-	["packages/sdk/package.json", JSON.parse(read("../sdk/package.json"))],
-	["packages/shared/package.json", JSON.parse(read("../shared/package.json"))],
+  ["packages/web/package.json", web],
+  ["package.json", JSON.parse(read("../../package.json"))],
+  ["packages/api/package.json", JSON.parse(read("../api/package.json"))],
+  ["packages/sdk/package.json", JSON.parse(read("../sdk/package.json"))],
+  ["packages/shared/package.json", JSON.parse(read("../shared/package.json"))],
 ];
 
 /**
@@ -59,14 +59,14 @@ const manifests: Array<[string, Manifest]> = [
  * deploys from.
  */
 const PRUNED = new Set([
-	".claude",
-	".git",
-	".turbo",
-	"coverage",
-	"dist",
-	"graphify-out",
-	"logs",
-	"node_modules",
+  ".claude",
+  ".git",
+  ".turbo",
+  "coverage",
+  "dist",
+  "graphify-out",
+  "logs",
+  "node_modules",
 ]);
 
 /**
@@ -81,71 +81,71 @@ const LOCKFILE = "bun.lock";
  * and its sibling, which holds ADR 0004's prose to the same rule.
  */
 const SELF = new Set([
-	"packages/web/src/test/radix-package-removed.test.ts",
-	"packages/web/src/test/base-ui-adr.test.ts",
+  "packages/web/src/test/radix-package-removed.test.ts",
+  "packages/web/src/test/base-ui-adr.test.ts",
 ]);
 
 /** Every non-pruned file in the repo, as `[repo-relative path, contents]`. */
 function repoFiles(dir = "../..", prefix = ""): Array<[string, string]> {
-	const out: Array<[string, string]> = [];
+  const out: Array<[string, string]> = [];
 
-	for (const entry of readdirSync(dir)) {
-		if (PRUNED.has(entry)) continue;
+  for (const entry of readdirSync(dir)) {
+    if (PRUNED.has(entry)) continue;
 
-		const path = `${dir}/${entry}`;
-		const relative = prefix ? `${prefix}/${entry}` : entry;
+    const path = `${dir}/${entry}`;
+    const relative = prefix ? `${prefix}/${entry}` : entry;
 
-		if (statSync(path).isDirectory()) {
-			out.push(...repoFiles(path, relative));
-			continue;
-		}
-		if (relative === LOCKFILE || SELF.has(relative)) continue;
+    if (statSync(path).isDirectory()) {
+      out.push(...repoFiles(path, relative));
+      continue;
+    }
+    if (relative === LOCKFILE || SELF.has(relative)) continue;
 
-		out.push([relative, read(path)]);
-	}
+    out.push([relative, read(path)]);
+  }
 
-	return out;
+  return out;
 }
 
 describe("the npm dependency", () => {
-	it("is absent from every manifest in the workspace", () => {
-		for (const [path, manifest] of manifests) {
-			const declared = [
-				...Object.keys(manifest.dependencies ?? {}),
-				...Object.keys(manifest.devDependencies ?? {}),
-			].filter((name) => name.includes(PACKAGE));
+  it("is absent from every manifest in the workspace", () => {
+    for (const [path, manifest] of manifests) {
+      const declared = [
+        ...Object.keys(manifest.dependencies ?? {}),
+        ...Object.keys(manifest.devDependencies ?? {}),
+      ].filter((name) => name.includes(PACKAGE));
 
-			expect([path, declared]).toStrictEqual([path, []]);
-		}
-	});
+      expect([path, declared]).toStrictEqual([path, []]);
+    }
+  });
 
-	it("is absent from the lockfile, so no install resolves the umbrella", () => {
-		const lock = read(`../../${LOCKFILE}`);
+  it("is absent from the lockfile, so no install resolves the umbrella", () => {
+    const lock = read(`../../${LOCKFILE}`);
 
-		// A workspace's declared range, and the resolution it points at. Both are
-		// written with the quote flush against the name, which is what keeps
-		// `cmdk`'s `"@radix-ui/react-dialog"` entries out of the match.
-		expect(lock).not.toMatch(/"radix-ui": "/);
-		expect(lock).not.toContain('["radix-ui@');
-	});
+    // A workspace's declared range, and the resolution it points at. Both are
+    // written with the quote flush against the name, which is what keeps
+    // `cmdk`'s `"@radix-ui/react-dialog"` entries out of the match.
+    expect(lock).not.toMatch(/"radix-ui": "/);
+    expect(lock).not.toContain('["radix-ui@');
+  });
 
-	it("keeps cmdk, which is not Radix's and is still in use", () => {
-		expect(web.dependencies).toHaveProperty("cmdk");
-		expect(read("src/components/ui/command.tsx")).toContain('from "cmdk"');
-	});
+  it("keeps cmdk, which is not Radix's and is still in use", () => {
+    expect(web.dependencies).toHaveProperty("cmdk");
+    expect(read("src/components/ui/command.tsx")).toContain('from "cmdk"');
+  });
 });
 
 describe("every file in the repo", () => {
-	it("names the package nowhere outside prose", () => {
-		// Prose is exempt here and scanned in `base-ui-adr.test.ts`, which holds it
-		// to a tighter rule: exactly one document may name the retired package —
-		// ADR 0004, whose subject *is* its retirement. Nothing in `.md` installs
-		// or imports anything.
-		const offenders = repoFiles()
-			.filter(([path]) => !path.endsWith(".md"))
-			.filter(([, body]) => body.includes(PACKAGE))
-			.map(([path]) => path);
+  it("names the package nowhere outside prose", () => {
+    // Prose is exempt here and scanned in `base-ui-adr.test.ts`, which holds it
+    // to a tighter rule: exactly one document may name the retired package —
+    // ADR 0004, whose subject *is* its retirement. Nothing in `.md` installs
+    // or imports anything.
+    const offenders = repoFiles()
+      .filter(([path]) => !path.endsWith(".md"))
+      .filter(([, body]) => body.includes(PACKAGE))
+      .map(([path]) => path);
 
-		expect(offenders).toStrictEqual([]);
-	});
+    expect(offenders).toStrictEqual([]);
+  });
 });

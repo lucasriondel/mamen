@@ -13,9 +13,9 @@
  * other.
  */
 export function AlreadyImportedMark() {
-	return (
-		<span className="whitespace-nowrap rounded-full border border-gousse-medium/40 bg-gousse-medium/10 px-2 py-0.5 text-[11px] text-gousse-medium">
-			Already imported
-		</span>
-	);
+  return (
+    <span className="whitespace-nowrap rounded-full border border-gousse-medium/40 bg-gousse-medium/10 px-2 py-0.5 text-[11px] text-gousse-medium">
+      Already imported
+    </span>
+  );
 }

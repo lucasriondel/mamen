@@ -22,13 +22,13 @@ import { SecretsRepo } from "./repository";
  * through the status boolean and hands back the same `SecretStatus`.
  */
 export const SecretsLive = HttpApiBuilder.group(Api, "secrets", (handlers) =>
-	Effect.gen(function* () {
-		const repo = yield* SecretsRepo;
-		const tasks = yield* TaskProvider;
-		return handlers
-			.handle("list", () => repo.statusAll())
-			.handle("status", (_) => repo.status(_.path.name))
-			.handle("put", (_) => repo.put(_.path.name, _.payload.value))
-			.handle("clear", (_) => tasks.clearCredential(_.path.name));
-	}),
+  Effect.gen(function* () {
+    const repo = yield* SecretsRepo;
+    const tasks = yield* TaskProvider;
+    return handlers
+      .handle("list", () => repo.statusAll())
+      .handle("status", (_) => repo.status(_.path.name))
+      .handle("put", (_) => repo.put(_.path.name, _.payload.value))
+      .handle("clear", (_) => tasks.clearCredential(_.path.name));
+  }),
 ).pipe(Layer.provide(SecretsRepo.Default), Layer.provide(TaskProvider.Default));

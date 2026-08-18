@@ -3,13 +3,13 @@ import { MonthCell } from "./month-cell";
 import type { MonthCellSpec } from "./month-grid";
 
 export interface AccountMonthStripProps {
-	accountId: AccountId;
-	/** Names the group — the cells carry only their month. */
-	accountName: string;
-	/** The year the strip shows, part of the group's name. */
-	year: number;
-	/** The twelve cells, already derived — see `monthCells()`. */
-	cells: readonly MonthCellSpec[];
+  accountId: AccountId;
+  /** Names the group — the cells carry only their month. */
+  accountName: string;
+  /** The year the strip shows, part of the group's name. */
+  year: number;
+  /** The twelve cells, already derived — see `monthCells()`. */
+  cells: readonly MonthCellSpec[];
 }
 
 /**
@@ -29,28 +29,24 @@ export interface AccountMonthStripProps {
  * same list to count `3/7 months`, and deriving it twice is how the stat and the
  * strip would come to disagree.
  */
-export function AccountMonthStrip({
-	accountId,
-	accountName,
-	year,
-	cells,
-}: AccountMonthStripProps) {
-	return (
-		// biome-ignore lint/a11y/useSemanticElements: a `fieldset` is for form controls, and its legend cannot be a grid item — this is twelve links-into-the-app that need one shared name.
-		<div
-			role="group"
-			aria-label={`${accountName} — ${year}`}
-			className="grid grid-cols-6 gap-1 sm:grid-cols-12"
-		>
-			{cells.map((cell) => (
-				<MonthCell
-					key={cell.month}
-					accountId={accountId}
-					month={cell.month}
-					label={cell.label}
-					state={cell.state}
-				/>
-			))}
-		</div>
-	);
+export function AccountMonthStrip({ accountId, accountName, year, cells }: AccountMonthStripProps) {
+  return (
+    // biome-ignore lint/a11y/useSemanticElements: a `fieldset` is for form controls, and its legend cannot be a grid item — this is twelve links-into-the-app that need one shared name.
+    <div
+      // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- the same decision as the biome-ignore above, for the other linter
+      role="group"
+      aria-label={`${accountName} — ${year}`}
+      className="grid grid-cols-6 gap-1 sm:grid-cols-12"
+    >
+      {cells.map((cell) => (
+        <MonthCell
+          key={cell.month}
+          accountId={accountId}
+          month={cell.month}
+          label={cell.label}
+          state={cell.state}
+        />
+      ))}
+    </div>
+  );
 }

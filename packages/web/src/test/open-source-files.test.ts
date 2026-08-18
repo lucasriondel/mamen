@@ -31,9 +31,7 @@ const ROOT = "../..";
 const read = (path: string) => readFileSync(`${ROOT}/${path}`, "utf8");
 
 const README = read("README.md");
-const CONTRIBUTING = existsSync(`${ROOT}/CONTRIBUTING.md`)
-	? read("CONTRIBUTING.md")
-	: "";
+const CONTRIBUTING = existsSync(`${ROOT}/CONTRIBUTING.md`) ? read("CONTRIBUTING.md") : "";
 const SECURITY = existsSync(`${ROOT}/SECURITY.md`) ? read("SECURITY.md") : "";
 const LICENSE = existsSync(`${ROOT}/LICENSE`) ? read("LICENSE") : "";
 /** The runbook, at the repo root since issue #114 rather than under `docs/`. */
@@ -49,16 +47,14 @@ const rootScripts: Record<string, string> = rootManifest.scripts ?? {};
  * unmentioned — the exact rot these tests exist to catch.
  */
 const WORKSPACES = readdirSync(`${ROOT}/packages`, {
-	withFileTypes: true,
+  withFileTypes: true,
 })
-	.filter(
-		(entry) =>
-			entry.isDirectory() &&
-			existsSync(`${ROOT}/packages/${entry.name}/package.json`),
-	)
-	.map((entry) => entry.name);
+  .filter(
+    (entry) => entry.isDirectory() && existsSync(`${ROOT}/packages/${entry.name}/package.json`),
+  )
+  .map((entry) => entry.name);
 const packageNames = WORKSPACES.map(
-	(dir) => JSON.parse(read(`packages/${dir}/package.json`)).name as string,
+  (dir) => JSON.parse(read(`packages/${dir}/package.json`)).name as string,
 );
 
 /** `bun` subcommands that are the tool's own, not one of our scripts. */
@@ -66,14 +62,14 @@ const BUN_BUILTINS = new Set(["install", "add", "remove", "x", "create"]);
 
 /** Every fenced code block in a markdown document, as raw text. */
 function codeBlocks(markdown: string): string[] {
-	return [...markdown.matchAll(/```[\w]*\n([\s\S]*?)```/g)].map((m) => m[1]);
+  return [...markdown.matchAll(/```[\w]*\n([\s\S]*?)```/g)].map((m) => m[1]);
 }
 
 interface BunCommand {
-	/** Workspace name when the line carries `--filter`, else `null` (root). */
-	pkg: string | null;
-	script: string;
-	line: string;
+  /** Workspace name when the line carries `--filter`, else `null` (root). */
+  pkg: string | null;
+  script: string;
+  line: string;
 }
 
 /**
@@ -83,32 +79,32 @@ interface BunCommand {
  * define.
  */
 function bunCommands(markdown: string): BunCommand[] {
-	const out: BunCommand[] = [];
+  const out: BunCommand[] = [];
 
-	for (const block of codeBlocks(markdown)) {
-		for (const raw of block.split("\n")) {
-			const line = raw.trim();
-			if (!line.startsWith("bun ")) continue;
+  for (const block of codeBlocks(markdown)) {
+    for (const raw of block.split("\n")) {
+      const line = raw.trim();
+      if (!line.startsWith("bun ")) continue;
 
-			const tokens = line.split(/\s+/).slice(1);
-			if (BUN_BUILTINS.has(tokens[0])) continue;
+      const tokens = line.split(/\s+/).slice(1);
+      if (BUN_BUILTINS.has(tokens[0])) continue;
 
-			const rest = tokens[0] === "run" ? tokens.slice(1) : tokens;
-			const filterAt = rest.indexOf("--filter");
+      const rest = tokens[0] === "run" ? tokens.slice(1) : tokens;
+      const filterAt = rest.indexOf("--filter");
 
-			if (filterAt === -1) {
-				const script = rest.find((token) => !token.startsWith("-"));
-				if (script) out.push({ pkg: null, script, line });
-				continue;
-			}
+      if (filterAt === -1) {
+        const script = rest.find((token) => !token.startsWith("-"));
+        if (script) out.push({ pkg: null, script, line });
+        continue;
+      }
 
-			const after = rest.slice(filterAt + 2).filter((t) => !t.startsWith("-"));
-			const script = after.at(-1);
-			if (script) out.push({ pkg: rest[filterAt + 1], script, line });
-		}
-	}
+      const after = rest.slice(filterAt + 2).filter((t) => !t.startsWith("-"));
+      const script = after.at(-1);
+      if (script) out.push({ pkg: rest[filterAt + 1], script, line });
+    }
+  }
 
-	return out;
+  return out;
 }
 
 /**
@@ -116,28 +112,25 @@ function bunCommands(markdown: string): BunCommand[] {
  * links are not this repo's to keep alive; in-page anchors have no file.
  */
 function relativeLinks(markdown: string): string[] {
-	return [...markdown.matchAll(/\]\(([^)\s]+)\)/g)]
-		.map((m) => m[1])
-		.filter((href) => !/^(https?:|mailto:|#)/.test(href))
-		.map((href) => href.split("#")[0])
-		.filter(Boolean)
-		.map((href) => href.replace(/^\.\//, ""));
+  return [...markdown.matchAll(/\]\(([^)\s]+)\)/g)]
+    .map((m) => m[1])
+    .filter((href) => !/^(https?:|mailto:|#)/.test(href))
+    .map((href) => href.split("#")[0])
+    .filter(Boolean)
+    .map((href) => href.replace(/^\.\//, ""));
 }
 
 /** Environment variable names a document names, as `UPPER_SNAKE` words. */
-const envNames = (text: string) =>
-	new Set(text.match(/\b[A-Z][A-Z0-9]*_[A-Z0-9_]+\b/g) ?? []);
+const envNames = (text: string) => new Set(text.match(/\b[A-Z][A-Z0-9]*_[A-Z0-9_]+\b/g) ?? []);
 
 /** The env names `packages/api/src/config.ts` actually reads. */
 const apiConfigEnv = new Set(
-	[
-		...read("packages/api/src/config.ts").matchAll(/Config\.\w+\("(\w+)"\)/g),
-	].map((m) => m[1]),
+  [...read("packages/api/src/config.ts").matchAll(/Config\.\w+\("(\w+)"\)/g)].map((m) => m[1]),
 );
 
 /** The env names the web app documents for itself. */
 const webEnv = new Set(
-	[...read("packages/web/.env.example").matchAll(/^(\w+)=/gm)].map((m) => m[1]),
+  [...read("packages/web/.env.example").matchAll(/^(\w+)=/gm)].map((m) => m[1]),
 );
 
 /**
@@ -147,189 +140,174 @@ const webEnv = new Set(
  * `.env.example` is where it is documented, and `docker-compose.test.ts` holds
  * that file to the variables the compose file actually interpolates.
  */
-const composeEnv = new Set(
-	[...read(".env.example").matchAll(/^#?\s*(\w+)=/gm)].map((m) => m[1]),
-);
+const composeEnv = new Set([...read(".env.example").matchAll(/^#?\s*(\w+)=/gm)].map((m) => m[1]));
 
 /** The env names the operations docs already own (the `claude` CLI token). */
 const opsEnv = new Set(
-	[
-		...read("docs/operations/claude-cli-dependency.md").matchAll(
-			/\b([A-Z][A-Z0-9_]{3,})\b/g,
-		),
-	].map((m) => m[1]),
+  [...read("docs/operations/claude-cli-dependency.md").matchAll(/\b([A-Z][A-Z0-9_]{3,})\b/g)].map(
+    (m) => m[1],
+  ),
 );
 
 describe("README.md", () => {
-	it("is no longer the Vite starter template", () => {
-		expect(README).not.toContain("This template provides a minimal setup");
-		expect(README).not.toContain("Expanding the ESLint configuration");
-		expect(README.trimStart().startsWith("# mamen")).toBe(true);
-	});
+  it("is no longer the Vite starter template", () => {
+    expect(README).not.toContain("This template provides a minimal setup");
+    expect(README).not.toContain("Expanding the ESLint configuration");
+    expect(README.trimStart().startsWith("# mamen")).toBe(true);
+  });
 
-	it("names the linter the repo actually uses", () => {
-		// The template's whole body was ESLint configuration; this repo lints with
-		// Biome and has no ESLint config at all.
-		expect(rootManifest.devDependencies["@biomejs/biome"]).toBeDefined();
-		expect(README).toContain("Biome");
-		expect(README).not.toContain("ESLint");
-	});
+  it("names the linter the repo actually uses", () => {
+    // The template's whole body was ESLint configuration; this repo lints with
+    // Biome and has no ESLint config at all.
+    expect(rootManifest.devDependencies["@biomejs/biome"]).toBeDefined();
+    expect(README).toContain("Biome");
+    expect(README).not.toContain("ESLint");
+  });
 
-	it("lists every workspace package and invents none", () => {
-		for (const name of packageNames) expect(README).toContain(name);
+  it("lists every workspace package and invents none", () => {
+    for (const name of packageNames) expect(README).toContain(name);
 
-		const mentioned = new Set(README.match(/@mamen\/[a-z-]+/g) ?? []);
-		expect(
-			[...mentioned].filter((n) => !packageNames.includes(n)),
-		).toStrictEqual([]);
-	});
+    const mentioned = new Set(README.match(/@mamen\/[a-z-]+/g) ?? []);
+    expect([...mentioned].filter((n) => !packageNames.includes(n))).toStrictEqual([]);
+  });
 
-	it("only tells the reader to run scripts that exist", () => {
-		const commands = bunCommands(README);
-		expect(commands.length).toBeGreaterThan(0);
+  it("only tells the reader to run scripts that exist", () => {
+    const commands = bunCommands(README);
+    expect(commands.length).toBeGreaterThan(0);
 
-		for (const { pkg, script, line } of commands) {
-			const scripts = pkg
-				? JSON.parse(
-						read(
-							`packages/${WORKSPACES.find((dir) => JSON.parse(read(`packages/${dir}/package.json`)).name === pkg)}/package.json`,
-						),
-					).scripts
-				: rootScripts;
+    for (const { pkg, script, line } of commands) {
+      const scripts = pkg
+        ? JSON.parse(
+            read(
+              `packages/${WORKSPACES.find((dir) => JSON.parse(read(`packages/${dir}/package.json`)).name === pkg)}/package.json`,
+            ),
+          ).scripts
+        : rootScripts;
 
-			expect(Object.keys(scripts), line).toContain(script);
-		}
-	});
+      expect(Object.keys(scripts), line).toContain(script);
+    }
+  });
 
-	it("names the dev ports the code actually binds", () => {
-		// The ports have had a home in code since issue #137 — the registry's
-		// rows in `@mamen/shared/ports`, which `vite.config.ts` and the API's
-		// `PORT` default import. So this reads the constants rather than
-		// grepping a number back out of a config that no longer states one.
-		for (const row of portsOfKind("dev")) {
-			expect(README).toContain(`localhost:${row.port}`);
-		}
-	});
+  it("names the dev ports the code actually binds", () => {
+    // The ports have had a home in code since issue #137 — the registry's
+    // rows in `@mamen/shared/ports`, which `vite.config.ts` and the API's
+    // `PORT` default import. So this reads the constants rather than
+    // grepping a number back out of a config that no longer states one.
+    for (const row of portsOfKind("dev")) {
+      expect(README).toContain(`localhost:${row.port}`);
+    }
+  });
 
-	it("names the pinned Bun version, not some other one", () => {
-		const pinned = rootManifest.packageManager.split("@")[1];
-		expect(README).toContain(pinned);
-	});
+  it("names the pinned Bun version, not some other one", () => {
+    const pinned = rootManifest.packageManager.split("@")[1];
+    expect(README).toContain(pinned);
+  });
 
-	it("names no environment variable the code does not read", () => {
-		const known = new Set([
-			...apiConfigEnv,
-			...webEnv,
-			...composeEnv,
-			...opsEnv,
-		]);
-		const named = [...envNames(README)].filter((name) => !known.has(name));
+  it("names no environment variable the code does not read", () => {
+    const known = new Set([...apiConfigEnv, ...webEnv, ...composeEnv, ...opsEnv]);
+    const named = [...envNames(README)].filter((name) => !known.has(name));
 
-		expect(named).toStrictEqual([]);
-	});
+    expect(named).toStrictEqual([]);
+  });
 
-	it("does not tell a reader to put the claude token in the environment", () => {
-		// It used to, and correctly: the token was checked when
-		// `ClaudeCodeProdLive` was built, so an unset one took the whole API down at
-		// startup. Since issue #122 the token is a credential pasted in Settings
-		// with **no environment fallback**, so that instruction is now advice that
-		// silently does nothing — the worst kind of stale setup step. The server
-		// still provides the layer unconditionally; what changed is where it reads.
-		expect(read("packages/api/src/server.ts")).toContain(
-			"Layer.provide(ClaudeCodeProdLive)",
-		);
-		expect(README).not.toContain("CLAUDE_CODE_OAUTH_TOKEN");
-		expect(README).toMatch(/paste[^.]*Settings|Settings[^.]*paste/i);
-	});
+  it("does not tell a reader to put the claude token in the environment", () => {
+    // It used to, and correctly: the token was checked when
+    // `ClaudeCodeProdLive` was built, so an unset one took the whole API down at
+    // startup. Since issue #122 the token is a credential pasted in Settings
+    // with **no environment fallback**, so that instruction is now advice that
+    // silently does nothing — the worst kind of stale setup step. The server
+    // still provides the layer unconditionally; what changed is where it reads.
+    expect(read("packages/api/src/server.ts")).toContain("Layer.provide(ClaudeCodeProdLive)");
+    expect(README).not.toContain("CLAUDE_CODE_OAUTH_TOKEN");
+    expect(README).toMatch(/paste[^.]*Settings|Settings[^.]*paste/i);
+  });
 
-	it("names every navigation surface the app ships", () => {
-		const sidebar = read("packages/web/src/components/app-sidebar.tsx");
-		const nav = sidebar.slice(sidebar.indexOf("NAV_LINKS"));
-		const labels = [...nav.matchAll(/label:\s*"([^"]+)"/g)].map((m) => m[1]);
+  it("names every navigation surface the app ships", () => {
+    const sidebar = read("packages/web/src/components/app-sidebar.tsx");
+    const nav = sidebar.slice(sidebar.indexOf("NAV_LINKS"));
+    const labels = [...nav.matchAll(/label:\s*"([^"]+)"/g)].map((m) => m[1]);
 
-		expect(labels.length).toBeGreaterThan(0);
-		for (const label of labels) expect(README).toContain(label);
-	});
+    expect(labels.length).toBeGreaterThan(0);
+    for (const label of labels) expect(README).toContain(label);
+  });
 
-	it("points at the agent-facing docs", () => {
-		expect(README).toContain("CLAUDE.md");
-		expect(README).toContain("CONTEXT-MAP.md");
-	});
+  it("points at the agent-facing docs", () => {
+    expect(README).toContain("CLAUDE.md");
+    expect(README).toContain("CONTEXT-MAP.md");
+  });
 });
 
 describe("LICENSE", () => {
-	it("is MIT, held by the repository owner", () => {
-		expect(LICENSE).toContain("MIT License");
-		expect(LICENSE).toMatch(/Copyright \(c\) 2026 Lucas Riondel/);
-		expect(LICENSE).toContain(
-			'THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND',
-		);
-	});
+  it("is MIT, held by the repository owner", () => {
+    expect(LICENSE).toContain("MIT License");
+    expect(LICENSE).toMatch(/Copyright \(c\) 2026 Lucas Riondel/);
+    expect(LICENSE).toContain('THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND');
+  });
 
-	it("agrees with the licence the root manifest declares", () => {
-		expect(rootManifest.license).toBe("MIT");
-	});
+  it("agrees with the licence the root manifest declares", () => {
+    expect(rootManifest.license).toBe("MIT");
+  });
 });
 
 describe("CONTRIBUTING.md", () => {
-	it("covers the three checks, and each is a real root script", () => {
-		for (const script of ["typecheck", "test", "lint"]) {
-			expect(rootScripts[script]).toBeDefined();
-			expect(CONTRIBUTING).toContain(`bun run ${script}`);
-		}
-	});
+  it("covers the three checks, and each is a real root script", () => {
+    for (const script of ["typecheck", "test", "lint"]) {
+      expect(rootScripts[script]).toBeDefined();
+      expect(CONTRIBUTING).toContain(`bun run ${script}`);
+    }
+  });
 
-	it("only tells the reader to run scripts that exist", () => {
-		for (const { pkg, script, line } of bunCommands(CONTRIBUTING)) {
-			const scripts = pkg
-				? JSON.parse(
-						read(
-							`packages/${WORKSPACES.find((dir) => JSON.parse(read(`packages/${dir}/package.json`)).name === pkg)}/package.json`,
-						),
-					).scripts
-				: rootScripts;
+  it("only tells the reader to run scripts that exist", () => {
+    for (const { pkg, script, line } of bunCommands(CONTRIBUTING)) {
+      const scripts = pkg
+        ? JSON.parse(
+            read(
+              `packages/${WORKSPACES.find((dir) => JSON.parse(read(`packages/${dir}/package.json`)).name === pkg)}/package.json`,
+            ),
+          ).scripts
+        : rootScripts;
 
-			expect(Object.keys(scripts), line).toContain(script);
-		}
-	});
+      expect(Object.keys(scripts), line).toContain(script);
+    }
+  });
 
-	it("points at CLAUDE.md as the agent-facing version", () => {
-		expect(CONTRIBUTING).toContain("CLAUDE.md");
-	});
+  it("points at CLAUDE.md as the agent-facing version", () => {
+    expect(CONTRIBUTING).toContain("CLAUDE.md");
+  });
 });
 
 describe("SECURITY.md", () => {
-	it("gives a reporting address", () => {
-		expect(SECURITY).toMatch(/[\w.+-]+@[\w-]+\.[\w.]+/);
-	});
+  it("gives a reporting address", () => {
+    expect(SECURITY).toMatch(/[\w.+-]+@[\w-]+\.[\w.]+/);
+  });
 
-	it("says what an instance holds", () => {
-		expect(SECURITY.toLowerCase()).toContain("bank statement");
-		expect(SECURITY.toLowerCase()).toContain("transaction");
-	});
+  it("says what an instance holds", () => {
+    expect(SECURITY.toLowerCase()).toContain("bank statement");
+    expect(SECURITY.toLowerCase()).toContain("transaction");
+  });
 
-	it("does not promise a bounty or a security team", () => {
-		// Both are things this project does not have; the issue asks the file to be
-		// honest about that rather than borrow a big project's boilerplate.
-		expect(SECURITY).toMatch(/no bounty|not offer.{0,20}bounty/i);
-	});
+  it("does not promise a bounty or a security team", () => {
+    // Both are things this project does not have; the issue asks the file to be
+    // honest about that rather than borrow a big project's boilerplate.
+    expect(SECURITY).toMatch(/no bounty|not offer.{0,20}bounty/i);
+  });
 });
 
 describe("every relative link in the root documents", () => {
-	it("resolves to a file that exists", () => {
-		const broken: string[] = [];
+  it("resolves to a file that exists", () => {
+    const broken: string[] = [];
 
-		for (const [name, text] of [
-			["README.md", README],
-			["CONTRIBUTING.md", CONTRIBUTING],
-			["SECURITY.md", SECURITY],
-			["DEPLOY.md", DEPLOY],
-		] as const) {
-			for (const href of relativeLinks(text)) {
-				if (!existsSync(`${ROOT}/${href}`)) broken.push(`${name} -> ${href}`);
-			}
-		}
+    for (const [name, text] of [
+      ["README.md", README],
+      ["CONTRIBUTING.md", CONTRIBUTING],
+      ["SECURITY.md", SECURITY],
+      ["DEPLOY.md", DEPLOY],
+    ] as const) {
+      for (const href of relativeLinks(text)) {
+        if (!existsSync(`${ROOT}/${href}`)) broken.push(`${name} -> ${href}`);
+      }
+    }
 
-		expect(broken).toStrictEqual([]);
-	});
+    expect(broken).toStrictEqual([]);
+  });
 });

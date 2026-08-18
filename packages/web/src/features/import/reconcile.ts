@@ -17,16 +17,16 @@ const TOLERANCE = 0.005;
  * vs inflows) to line up with the statement's separate Débit / Crédit columns.
  */
 export type Reconciliation = {
-	/** True when both the debit and credit sides match within {@link TOLERANCE}. */
-	ok: boolean;
-	debitOk: boolean;
-	creditOk: boolean;
-	/** Summed magnitude of the extracted outflows (`amount < 0`). */
-	extractedDebit: number;
-	/** Summed extracted inflows (`amount > 0`). */
-	extractedCredit: number;
-	declaredDebit: number;
-	declaredCredit: number;
+  /** True when both the debit and credit sides match within {@link TOLERANCE}. */
+  ok: boolean;
+  debitOk: boolean;
+  creditOk: boolean;
+  /** Summed magnitude of the extracted outflows (`amount < 0`). */
+  extractedDebit: number;
+  /** Summed extracted inflows (`amount > 0`). */
+  extractedCredit: number;
+  declaredDebit: number;
+  declaredCredit: number;
 };
 
 /**
@@ -37,26 +37,26 @@ export type Reconciliation = {
  * the backstop). A clean extraction reconciles and shows no banner.
  */
 export function reconcile(
-	records: readonly Pick<ParsedTransaction, "amount">[],
-	declared: DeclaredTotals,
+  records: readonly Pick<ParsedTransaction, "amount">[],
+  declared: DeclaredTotals,
 ): Reconciliation {
-	let extractedDebit = 0;
-	let extractedCredit = 0;
-	for (const { amount } of records) {
-		if (amount < 0) extractedDebit += -amount;
-		else extractedCredit += amount;
-	}
+  let extractedDebit = 0;
+  let extractedCredit = 0;
+  for (const { amount } of records) {
+    if (amount < 0) extractedDebit += -amount;
+    else extractedCredit += amount;
+  }
 
-	const debitOk = Math.abs(extractedDebit - declared.debit) < TOLERANCE;
-	const creditOk = Math.abs(extractedCredit - declared.credit) < TOLERANCE;
+  const debitOk = Math.abs(extractedDebit - declared.debit) < TOLERANCE;
+  const creditOk = Math.abs(extractedCredit - declared.credit) < TOLERANCE;
 
-	return {
-		ok: debitOk && creditOk,
-		debitOk,
-		creditOk,
-		extractedDebit,
-		extractedCredit,
-		declaredDebit: declared.debit,
-		declaredCredit: declared.credit,
-	};
+  return {
+    ok: debitOk && creditOk,
+    debitOk,
+    creditOk,
+    extractedDebit,
+    extractedCredit,
+    declaredDebit: declared.debit,
+    declaredCredit: declared.credit,
+  };
 }

@@ -13,13 +13,10 @@ import type { IssuerMetrics } from "./issuer-sort";
  * A blank or whitespace-only term matches everything, so clearing the box
  * restores the full table. The input is not mutated.
  */
-export function filterIssuers(
-	metrics: readonly IssuerMetrics[],
-	query: string,
-): IssuerMetrics[] {
-	const needle = foldForSearch(query);
-	if (needle === "") return [...metrics];
-	return metrics.filter((m) => foldForSearch(m.issuer.name).includes(needle));
+export function filterIssuers(metrics: readonly IssuerMetrics[], query: string): IssuerMetrics[] {
+  const needle = foldForSearch(query);
+  if (needle === "") return [...metrics];
+  return metrics.filter((m) => foldForSearch(m.issuer.name).includes(needle));
 }
 
 /**
@@ -28,9 +25,9 @@ export function filterIssuers(
  * accented character into base + mark; the range erases the marks.
  */
 function foldForSearch(value: string): string {
-	return value
-		.trim()
-		.toLowerCase()
-		.normalize("NFD")
-		.replace(/[\u0300-\u036f]/g, "");
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
 }

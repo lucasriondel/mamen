@@ -17,11 +17,9 @@ import { Client, runQuery } from "../runtime";
  * is why it is its own tag and not folded into the collapse (issue #122).
  */
 export const importMutations = {
-	extractPdf: (file: File): Promise<ExtractPdfResult> => {
-		const payload = new FormData();
-		payload.append("file", file);
-		return runQuery(
-			Effect.flatMap(Client, (client) => client.import.extractPdf({ payload })),
-		);
-	},
+  extractPdf: (file: File): Promise<ExtractPdfResult> => {
+    const payload = new FormData();
+    payload.append("file", file);
+    return runQuery(Effect.flatMap(Client, (client) => client.import.extractPdf({ payload })));
+  },
 };

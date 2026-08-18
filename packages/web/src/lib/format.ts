@@ -7,57 +7,54 @@
  */
 
 const EUR = new Intl.NumberFormat("fr-FR", {
-	style: "currency",
-	currency: "EUR",
-	minimumFractionDigits: 2,
-	maximumFractionDigits: 2,
-	signDisplay: "exceptZero",
+  style: "currency",
+  currency: "EUR",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+  signDisplay: "exceptZero",
 });
 
 const EUR_NO_SIGN = new Intl.NumberFormat("fr-FR", {
-	style: "currency",
-	currency: "EUR",
-	minimumFractionDigits: 2,
-	maximumFractionDigits: 2,
-	signDisplay: "auto",
+  style: "currency",
+  currency: "EUR",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+  signDisplay: "auto",
 });
 
 const SHORT_DATE = new Intl.DateTimeFormat("en-GB", {
-	day: "2-digit",
-	month: "short",
-	year: "numeric",
+  day: "2-digit",
+  month: "short",
+  year: "numeric",
 });
 
 const MONTH = new Intl.DateTimeFormat("en-GB", {
-	month: "short",
-	year: "numeric",
+  month: "short",
+  year: "numeric",
 });
 
 /** Options for {@link formatCurrency}. */
 export interface FormatCurrencyOptions {
-	/**
-	 * Show an explicit `+` on positive amounts (default `true`). Zero never gets a
-	 * sign. Pass `false` for contexts where the sign is redundant.
-	 */
-	signDisplay?: boolean;
+  /**
+   * Show an explicit `+` on positive amounts (default `true`). Zero never gets a
+   * sign. Pass `false` for contexts where the sign is redundant.
+   */
+  signDisplay?: boolean;
 }
 
 /**
  * Format an amount (in euros) as a EUR string. Positive amounts get a leading
  * `+`, negatives a `-`, zero neither, and there are always two fraction digits.
  */
-export function formatCurrency(
-	amount: number,
-	options: FormatCurrencyOptions = {},
-): string {
-	const fmt = options.signDisplay === false ? EUR_NO_SIGN : EUR;
-	return fmt.format(amount);
+export function formatCurrency(amount: number, options: FormatCurrencyOptions = {}): string {
+  const fmt = options.signDisplay === false ? EUR_NO_SIGN : EUR;
+  return fmt.format(amount);
 }
 
 /** Format a `Date` or ISO date string as a short readable day (e.g. `15 Jan 2026`). */
 export function formatShortDate(date: Date | string): string {
-	const d = typeof date === "string" ? new Date(date) : date;
-	return SHORT_DATE.format(d);
+  const d = typeof date === "string" ? new Date(date) : date;
+  return SHORT_DATE.format(d);
 }
 
 /**
@@ -65,10 +62,10 @@ export function formatShortDate(date: Date | string): string {
  * raw input unchanged when it is not a valid `YYYY-MM`.
  */
 export function formatMonth(month: string): string {
-	const match = /^(\d{4})-(\d{2})$/.exec(month);
-	if (!match) return month;
-	const year = Number(match[1]);
-	const monthIndex = Number(match[2]) - 1;
-	if (monthIndex < 0 || monthIndex > 11) return month;
-	return MONTH.format(new Date(Date.UTC(year, monthIndex, 1)));
+  const match = /^(\d{4})-(\d{2})$/.exec(month);
+  if (!match) return month;
+  const year = Number(match[1]);
+  const monthIndex = Number(match[2]) - 1;
+  if (monthIndex < 0 || monthIndex > 11) return month;
+  return MONTH.format(new Date(Date.UTC(year, monthIndex, 1)));
 }

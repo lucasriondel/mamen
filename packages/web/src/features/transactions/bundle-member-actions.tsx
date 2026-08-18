@@ -1,26 +1,20 @@
-import type {
-	Category,
-	CategoryId,
-	Issuer,
-	IssuerId,
-	Transaction,
-} from "@mamen/shared/contract";
+import type { Category, CategoryId, Issuer, IssuerId, Transaction } from "@mamen/shared/contract";
 import { Button } from "@/components/ui/button";
 
 export type BundleMemberActionsProps = {
-	/** The member these controls act on (or act *from*). */
-	member: Transaction;
-	/** The **bundle parent** the shortcuts write onto — read for what it already carries. */
-	parent: Transaction;
-	/** The member's issuer, resolved by the caller (issue #62). */
-	issuer?: Issuer;
-	/** The member's **derived category**, resolved by the caller. */
-	category?: Category;
-	onCopyIssuer: (issuerId: IssuerId) => void;
-	onCopyCategory: (categoryId: CategoryId) => void;
-	onRemove: () => void;
-	/** True while any write on the bundle is in flight — every control waits. */
-	disabled: boolean;
+  /** The member these controls act on (or act *from*). */
+  member: Transaction;
+  /** The **bundle parent** the shortcuts write onto — read for what it already carries. */
+  parent: Transaction;
+  /** The member's issuer, resolved by the caller (issue #62). */
+  issuer?: Issuer;
+  /** The member's **derived category**, resolved by the caller. */
+  category?: Category;
+  onCopyIssuer: (issuerId: IssuerId) => void;
+  onCopyCategory: (categoryId: CategoryId) => void;
+  onRemove: () => void;
+  /** True while any write on the bundle is in flight — every control waits. */
+  disabled: boolean;
 };
 
 /**
@@ -58,61 +52,55 @@ export type BundleMemberActionsProps = {
  * each offer writes.
  */
 export function BundleMemberActions({
-	member,
-	parent,
-	issuer,
-	category,
-	onCopyIssuer,
-	onCopyCategory,
-	onRemove,
-	disabled,
+  member,
+  parent,
+  issuer,
+  category,
+  onCopyIssuer,
+  onCopyCategory,
+  onRemove,
+  disabled,
 }: BundleMemberActionsProps) {
-	const hasIssuer = member.issuerId != null;
-	const hasCategory = member.categoryId != null;
-	const sameIssuer = hasIssuer && parent.issuerId === member.issuerId;
-	const sameCategory = hasCategory && parent.categoryId === member.categoryId;
+  const hasIssuer = member.issuerId != null;
+  const hasCategory = member.categoryId != null;
+  const sameIssuer = hasIssuer && parent.issuerId === member.issuerId;
+  const sameCategory = hasCategory && parent.categoryId === member.categoryId;
 
-	return (
-		<>
-			{hasIssuer ? (
-				<Button
-					variant="secondary"
-					size="sm"
-					disabled={disabled || sameIssuer}
-					aria-label={`Use ${issuer?.name ?? member.rawIssuerString} as this bundle's issuer`}
-					title={
-						sameIssuer ? "This bundle already carries this issuer" : undefined
-					}
-					onClick={() => onCopyIssuer(member.issuerId as IssuerId)}
-				>
-					Use issuer
-				</Button>
-			) : null}
-			{hasCategory ? (
-				<Button
-					variant="secondary"
-					size="sm"
-					disabled={disabled || sameCategory}
-					aria-label={`Use ${category?.name ?? "this member's category"} as this bundle's category`}
-					title={
-						sameCategory
-							? "This bundle already carries this category"
-							: undefined
-					}
-					onClick={() => onCopyCategory(member.categoryId as CategoryId)}
-				>
-					Use category
-				</Button>
-			) : null}
-			<Button
-				variant="ghost"
-				size="sm"
-				disabled={disabled}
-				aria-label={`Remove ${member.rawIssuerString} from this bundle`}
-				onClick={onRemove}
-			>
-				Remove
-			</Button>
-		</>
-	);
+  return (
+    <>
+      {hasIssuer ? (
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={disabled || sameIssuer}
+          aria-label={`Use ${issuer?.name ?? member.rawIssuerString} as this bundle's issuer`}
+          title={sameIssuer ? "This bundle already carries this issuer" : undefined}
+          onClick={() => onCopyIssuer(member.issuerId as IssuerId)}
+        >
+          Use issuer
+        </Button>
+      ) : null}
+      {hasCategory ? (
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={disabled || sameCategory}
+          aria-label={`Use ${category?.name ?? "this member's category"} as this bundle's category`}
+          title={sameCategory ? "This bundle already carries this category" : undefined}
+          onClick={() => onCopyCategory(member.categoryId as CategoryId)}
+        >
+          Use category
+        </Button>
+      ) : null}
+      <Button
+        variant="ghost"
+        size="sm"
+        disabled={disabled}
+        aria-label={`Remove ${member.rawIssuerString} from this bundle`}
+        onClick={onRemove}
+      >
+        Remove
+      </Button>
+    </>
+  );
 }

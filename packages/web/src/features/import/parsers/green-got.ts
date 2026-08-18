@@ -6,13 +6,7 @@ import type { ParseContext, ParsedTransaction, StatementParser } from "./types";
  * these to be present (the file ships more, but these are the ones the parser
  * reads), which is specific enough to tell it apart from other banks.
  */
-const REQUIRED_HEADERS = [
-	"Statut",
-	"Date",
-	"Montant",
-	"Direction",
-	"Intitulé",
-] as const;
+const REQUIRED_HEADERS = ["Statut", "Date", "Montant", "Direction", "Intitulé"] as const;
 
 /** Only settled rows enter the ledger (pending/cancelled are skipped). */
 const COMPLETE = "COMPLETE";
@@ -29,30 +23,29 @@ const COMPLETE = "COMPLETE";
  * naturally, since each row derives its own `importMonth`.
  */
 export const greenGotParser: StatementParser = {
-	id: "green-got",
-	label: "Green-Got",
+  id: "green-got",
+  label: "Green-Got",
 
-	matches: (headers) =>
-		REQUIRED_HEADERS.every((required) => headers.includes(required)),
+  matches: (headers) => REQUIRED_HEADERS.every((required) => headers.includes(required)),
 
-	parse: (rows, ctx: ParseContext): ParsedTransaction[] => {
-		const records: ParsedTransaction[] = [];
-		for (const row of rows) {
-			if (row.Statut !== COMPLETE) continue;
+  parse: (rows, ctx: ParseContext): ParsedTransaction[] => {
+    const records: ParsedTransaction[] = [];
+    for (const row of rows) {
+      if (row.Statut !== COMPLETE) continue;
 
-			const date = new Date(row.Date);
-			const magnitude = Number.parseFloat(row.Montant);
-			const amount = row.Direction === "DEBIT" ? -magnitude : magnitude;
+      const date = new Date(row.Date);
+      const magnitude = Number.parseFloat(row.Montant);
+      const amount = row.Direction === "DEBIT" ? -magnitude : magnitude;
 
-			records.push({
-				accountId: ctx.accountId,
-				date,
-				amount,
-				rawIssuerString: row.Intitulé,
-				importMonth: importMonthKey(date),
-				importBatchId: ctx.importBatchId,
-			});
-		}
-		return records;
-	},
+      records.push({
+        accountId: ctx.accountId,
+        date,
+        amount,
+        rawIssuerString: row.Intitulé,
+        importMonth: importMonthKey(date),
+        importBatchId: ctx.importBatchId,
+      });
+    }
+    return records;
+  },
 };

@@ -45,30 +45,30 @@ export type InputProps = React.ComponentProps<"input">;
 
 /** A token-styled text input with focus-visible, disabled and invalid states. */
 export function Input({ className, type = "text", ...props }: InputProps) {
-	return (
-		<input
-			type={type}
-			className={cn(
-				FIELD_PILL,
-				"h-10 border border-gousse-line bg-gousse-bg px-4 py-2 text-sm text-gousse-ink",
-				"placeholder:text-gousse-muted",
-				"transition-[border-color,box-shadow] duration-150",
-				// `outline-none` removes the UA ring, so something has to replace it for
-				// *every* focus mode. `:focus-visible` doesn't match a pointer-focused
-				// colour/checkbox/file input, so the accent border stays on plain
-				// `:focus` — the cue the `INPUT_CLASS` this replaces already had — and
-				// the button's keyboard-only ring layers on top of it.
-				"outline-none focus:border-gousse-accent focus-visible:border-gousse-accent focus-visible:ring-2 focus-visible:ring-gousse-accent focus-visible:ring-offset-1 focus-visible:ring-offset-gousse-bg",
-				"disabled:cursor-not-allowed disabled:opacity-50",
-				// The compound `aria-invalid:focus*` borders are what make the invalid
-				// state visible while the field is focused — which is exactly when the
-				// user is looking at it. Without them the single-variant
-				// `aria-invalid:border-gousse-high` ties on specificity with
-				// `focus:border-gousse-accent` and the error border loses to stylesheet order.
-				"aria-invalid:border-gousse-high aria-invalid:focus:border-gousse-high aria-invalid:focus-visible:border-gousse-high aria-invalid:focus-visible:ring-gousse-high",
-				className,
-			)}
-			{...props}
-		/>
-	);
+  return (
+    <input
+      type={type}
+      className={cn(
+        FIELD_PILL,
+        "h-10 border border-gousse-line bg-gousse-bg px-4 py-2 text-sm text-gousse-ink",
+        "placeholder:text-gousse-muted",
+        "transition-[border-color,box-shadow] duration-150",
+        // `outline-none` removes the UA ring, so something has to replace it for
+        // *every* focus mode. `:focus-visible` doesn't match a pointer-focused
+        // colour/checkbox/file input, so the accent border stays on plain
+        // `:focus` — the cue the `INPUT_CLASS` this replaces already had — and
+        // the button's keyboard-only ring layers on top of it.
+        "outline-none focus:border-gousse-accent focus-visible:border-gousse-accent focus-visible:ring-2 focus-visible:ring-gousse-accent focus-visible:ring-offset-1 focus-visible:ring-offset-gousse-bg",
+        "disabled:cursor-not-allowed disabled:opacity-50",
+        // The compound `aria-invalid:focus*` borders are what make the invalid
+        // state visible while the field is focused — which is exactly when the
+        // user is looking at it. Without them the single-variant
+        // `aria-invalid:border-gousse-high` ties on specificity with
+        // `focus:border-gousse-accent` and the error border loses to stylesheet order.
+        "aria-invalid:border-gousse-high aria-invalid:focus:border-gousse-high aria-invalid:focus-visible:border-gousse-high aria-invalid:focus-visible:ring-gousse-high",
+        className,
+      )}
+      {...props}
+    />
+  );
 }

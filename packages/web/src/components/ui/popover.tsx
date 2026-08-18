@@ -40,9 +40,9 @@ export const PopoverTrigger = PopoverPrimitive.Trigger;
  * below its trigger must not end up beside it).
  */
 const RADIX_COLLISION_AVOIDANCE = {
-	side: "flip",
-	align: "shift",
-	fallbackAxisSide: "none",
+  side: "flip",
+  align: "shift",
+  fallbackAxisSide: "none",
 } as const;
 
 /**
@@ -88,70 +88,70 @@ const RADIX_COLLISION_AVOIDANCE = {
  * else, and that is the common case.
  */
 export function PopoverContent({
-	className,
-	align = "start",
-	sideOffset = 4,
-	side,
-	alignOffset,
-	anchor,
-	collisionBoundary,
-	collisionPadding = 0,
-	portalContainer,
-	children,
-	...props
+  className,
+  align = "start",
+  sideOffset = 4,
+  side,
+  alignOffset,
+  anchor,
+  collisionBoundary,
+  collisionPadding = 0,
+  portalContainer,
+  children,
+  ...props
 }: React.ComponentProps<typeof PopoverPrimitive.Popup> &
-	Pick<
-		React.ComponentProps<typeof PopoverPrimitive.Positioner>,
-		| "align"
-		| "side"
-		| "sideOffset"
-		| "alignOffset"
-		| "anchor"
-		| "collisionBoundary"
-		| "collisionPadding"
-	> & {
-		/** Render the portal here instead of `document.body` — see above. */
-		portalContainer?: HTMLElement | null;
-	}) {
-	return (
-		<PopoverPrimitive.Portal container={portalContainer ?? undefined}>
-			<PopoverPrimitive.Positioner
-				align={align}
-				side={side}
-				sideOffset={sideOffset}
-				alignOffset={alignOffset}
-				anchor={anchor}
-				positionMethod="fixed"
-				collisionBoundary={collisionBoundary}
-				collisionPadding={collisionPadding}
-				collisionAvoidance={RADIX_COLLISION_AVOIDANCE}
-				className="z-50"
-			>
-				<PopoverPrimitive.Popup
-					className={cn(
-						// A container, not a control: the box corner, never the kit's pill
-						// (issue #97). Pill-shaped rows inside it (`CommandItem`, the column
-						// menu) sit correctly against it — a pill has no corner of its own to
-						// disagree with the surface's.
-						"w-72 rounded-2xl border border-gousse-line bg-gousse-panel text-gousse-ink shadow-lg outline-none",
-						// Origin-aware entrance: scale in from the trigger, not the centre
-						// (emil-design-eng). Base UI sets `--transform-origin` per side on
-						// the positioner; custom properties inherit, so the popup reads it.
-						"origin-(--transform-origin)",
-						// Ungated, unlike the tooltip's. Base UI marks a keyboard-opened or
-						// Escape/programmatically-closed popover `data-instant`, but Radix's
-						// popover had no such split — it animated every open and every close,
-						// and a picker that closes on a pick closes programmatically, so
-						// honouring the signal would drop the fade from the commonest path.
-						"duration-150 data-[open]:animate-in data-[ending-style]:animate-out",
-						"data-[open]:fade-in-0 data-[ending-style]:fade-out-0 data-[open]:zoom-in-95 data-[ending-style]:zoom-out-95",
-						className,
-					)}
-					{...props}
-				>
-					{children}
-				</PopoverPrimitive.Popup>
-			</PopoverPrimitive.Positioner>
-		</PopoverPrimitive.Portal>
-	);
+  Pick<
+    React.ComponentProps<typeof PopoverPrimitive.Positioner>,
+    | "align"
+    | "side"
+    | "sideOffset"
+    | "alignOffset"
+    | "anchor"
+    | "collisionBoundary"
+    | "collisionPadding"
+  > & {
+    /** Render the portal here instead of `document.body` — see above. */
+    portalContainer?: HTMLElement | null;
+  }) {
+  return (
+    <PopoverPrimitive.Portal container={portalContainer ?? undefined}>
+      <PopoverPrimitive.Positioner
+        align={align}
+        side={side}
+        sideOffset={sideOffset}
+        alignOffset={alignOffset}
+        anchor={anchor}
+        positionMethod="fixed"
+        collisionBoundary={collisionBoundary}
+        collisionPadding={collisionPadding}
+        collisionAvoidance={RADIX_COLLISION_AVOIDANCE}
+        className="z-50"
+      >
+        <PopoverPrimitive.Popup
+          className={cn(
+            // A container, not a control: the box corner, never the kit's pill
+            // (issue #97). Pill-shaped rows inside it (`CommandItem`, the column
+            // menu) sit correctly against it — a pill has no corner of its own to
+            // disagree with the surface's.
+            "w-72 rounded-2xl border border-gousse-line bg-gousse-panel text-gousse-ink shadow-lg outline-none",
+            // Origin-aware entrance: scale in from the trigger, not the centre
+            // (emil-design-eng). Base UI sets `--transform-origin` per side on
+            // the positioner; custom properties inherit, so the popup reads it.
+            "origin-(--transform-origin)",
+            // Ungated, unlike the tooltip's. Base UI marks a keyboard-opened or
+            // Escape/programmatically-closed popover `data-instant`, but Radix's
+            // popover had no such split — it animated every open and every close,
+            // and a picker that closes on a pick closes programmatically, so
+            // honouring the signal would drop the fade from the commonest path.
+            "duration-150 data-[open]:animate-in data-[ending-style]:animate-out",
+            "data-[open]:fade-in-0 data-[ending-style]:fade-out-0 data-[open]:zoom-in-95 data-[ending-style]:zoom-out-95",
+            className,
+          )}
+          {...props}
+        >
+          {children}
+        </PopoverPrimitive.Popup>
+      </PopoverPrimitive.Positioner>
+    </PopoverPrimitive.Portal>
+  );
 }

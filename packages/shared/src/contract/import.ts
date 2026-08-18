@@ -1,10 +1,4 @@
-import {
-	HttpApiEndpoint,
-	HttpApiGroup,
-	HttpApiSchema,
-	Multipart,
-	OpenApi,
-} from "@effect/platform";
+import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema, Multipart, OpenApi } from "@effect/platform";
 import { Option, Schema } from "effect";
 import { AiProviderNotConfigured, InvalidFileType } from "./errors";
 
@@ -34,11 +28,11 @@ export const MAX_PDF_BYTES = 10 * 1024 * 1024;
  *   collapse into one string), the raw text a Matching Rule later matches on.
  */
 export class ExtractedTransaction extends Schema.Class<ExtractedTransaction>(
-	"ExtractedTransaction",
+  "ExtractedTransaction",
 )({
-	date: Schema.Date,
-	amount: Schema.Number,
-	rawIssuerString: Schema.String,
+  date: Schema.Date,
+  amount: Schema.Number,
+  rawIssuerString: Schema.String,
 }) {}
 
 /**
@@ -47,11 +41,9 @@ export class ExtractedTransaction extends Schema.Class<ExtractedTransaction>(
  * Both are positive magnitudes (debit = sum of outflows, credit = sum of
  * inflows), exactly as printed — never a signed net.
  */
-export class DeclaredTotals extends Schema.Class<DeclaredTotals>(
-	"DeclaredTotals",
-)({
-	debit: Schema.Number,
-	credit: Schema.Number,
+export class DeclaredTotals extends Schema.Class<DeclaredTotals>("DeclaredTotals")({
+  debit: Schema.Number,
+  credit: Schema.Number,
 }) {}
 
 /**
@@ -59,11 +51,9 @@ export class DeclaredTotals extends Schema.Class<DeclaredTotals>(
  * declared totals. No database write happened — these are candidates the user
  * reviews and commits from the web side (issue #45).
  */
-export class ExtractPdfResult extends Schema.Class<ExtractPdfResult>(
-	"ExtractPdfResult",
-)({
-	transactions: Schema.Array(ExtractedTransaction),
-	declaredTotals: DeclaredTotals,
+export class ExtractPdfResult extends Schema.Class<ExtractPdfResult>("ExtractPdfResult")({
+  transactions: Schema.Array(ExtractedTransaction),
+  declaredTotals: DeclaredTotals,
 }) {}
 
 /**
@@ -75,9 +65,9 @@ export class ExtractPdfResult extends Schema.Class<ExtractPdfResult>(
  * is in the upstream extraction step, not the request the client made.
  */
 export class ExtractionFailed extends Schema.TaggedError<ExtractionFailed>()(
-	"ExtractionFailed",
-	{},
-	HttpApiSchema.annotations({ status: 502 }),
+  "ExtractionFailed",
+  {},
+  HttpApiSchema.annotations({ status: 502 }),
 ) {}
 
 /**
@@ -88,11 +78,11 @@ export class ExtractionFailed extends Schema.TaggedError<ExtractionFailed>()(
  * derived client types this as `FormData`.
  */
 export const PdfUpload = HttpApiSchema.Multipart(
-	Schema.Struct({ file: Multipart.SingleFileSchema }),
-	{
-		maxFileSize: Option.some(MAX_PDF_BYTES),
-		maxParts: Option.some(1),
-	},
+  Schema.Struct({ file: Multipart.SingleFileSchema }),
+  {
+    maxFileSize: Option.some(MAX_PDF_BYTES),
+    maxParts: Option.some(1),
+  },
 );
 
 /**
@@ -109,12 +99,12 @@ export const PdfUpload = HttpApiSchema.Multipart(
  * precisely so it can be told apart from a retry-able one).
  */
 export class ImportGroup extends HttpApiGroup.make("import")
-	.add(
-		HttpApiEndpoint.post("extractPdf")`/import/extract-pdf`
-			.setPayload(PdfUpload)
-			.addSuccess(ExtractPdfResult)
-			.addError(InvalidFileType)
-			.addError(ExtractionFailed)
-			.addError(AiProviderNotConfigured),
-	)
-	.annotateContext(OpenApi.annotations({ title: "Import" })) {}
+  .add(
+    HttpApiEndpoint.post("extractPdf")`/import/extract-pdf`
+      .setPayload(PdfUpload)
+      .addSuccess(ExtractPdfResult)
+      .addError(InvalidFileType)
+      .addError(ExtractionFailed)
+      .addError(AiProviderNotConfigured),
+  )
+  .annotateContext(OpenApi.annotations({ title: "Import" })) {}

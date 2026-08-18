@@ -1,9 +1,4 @@
-import type {
-	Account,
-	Category,
-	Transaction,
-	TransactionId,
-} from "@mamen/shared/contract";
+import type { Account, Category, Transaction, TransactionId } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
 import { getRouteApi, Link } from "@tanstack/react-router";
 import { BackLink } from "@/components/back-link";
@@ -34,102 +29,86 @@ const CATEGORY_SCAN_LIMIT = 200;
  * small, wide list queries the grid uses, so they're already warm in the cache.
  */
 export function TransactionDetailPage() {
-	const { transactionId } = routeApi.useParams();
-	const id = Number(transactionId) as TransactionId;
+  const { transactionId } = routeApi.useParams();
+  const id = Number(transactionId) as TransactionId;
 
-	const txnQuery = useQuery(transactionQueries.getById(id));
-	const accountsQuery = useQuery(accountQueries.list());
-	const categoriesQuery = useQuery(
-		categoryQueries.list({ limit: CATEGORY_SCAN_LIMIT }),
-	);
-	// This row's issuer, asked for by its id — one issuer, not the issuer table
-	// (#62). Resolves after the row, so the skeleton holds until it lands rather
-	// than briefly showing the raw bank string in place of the name.
-	const { issuersById, isPending: issuerPending } = useIssuerLookup([
-		txnQuery.data?.issuerId,
-	]);
-	// A refunded row links its counterpart; fetch it too so the link can show the
-	// counterpart's date + amount rather than a bare id (disabled when unlinked).
-	const linkedRefundId = txnQuery.data?.linkedRefundId;
-	const linkedRefundQuery = useQuery({
-		...transactionQueries.getById(linkedRefundId as TransactionId),
-		enabled: linkedRefundId != null,
-	});
+  const txnQuery = useQuery(transactionQueries.getById(id));
+  const accountsQuery = useQuery(accountQueries.list());
+  const categoriesQuery = useQuery(categoryQueries.list({ limit: CATEGORY_SCAN_LIMIT }));
+  // This row's issuer, asked for by its id — one issuer, not the issuer table
+  // (#62). Resolves after the row, so the skeleton holds until it lands rather
+  // than briefly showing the raw bank string in place of the name.
+  const { issuersById, isPending: issuerPending } = useIssuerLookup([txnQuery.data?.issuerId]);
+  // A refunded row links its counterpart; fetch it too so the link can show the
+  // counterpart's date + amount rather than a bare id (disabled when unlinked).
+  const linkedRefundId = txnQuery.data?.linkedRefundId;
+  const linkedRefundQuery = useQuery({
+    ...transactionQueries.getById(linkedRefundId as TransactionId),
+    enabled: linkedRefundId != null,
+  });
 
-	if (txnQuery.isPending || issuerPending) {
-		// The wait is a page too (issue #129): the collapse flag outlives the
-		// navigation that got here, so the way back to the panel has to survive the
-		// read. The topbar is the settled page's, slot for slot — the counterparty,
-		// the date and the amount stand in as placeholders where each will land,
-		// so the row arriving fills the header rather than replacing it.
-		return (
-			<PageLayout
-				back={<BackLink to="/transactions">Transactions</BackLink>}
-				title={
-					<>
-						{/* `h-7`: one line of the title's `text-2xl`, which is what lands
-						    in its place. */}
-						<Skeleton as="span" className="block h-7 w-56" />
-						{/* Never an empty heading: until the row names it, the page is
-						    titled by what it is — the same stand-in the not-found state
-						    below settles on, for the same reason. The wait itself is
-						    announced by the skeleton's live region, not twice here. */}
-						<span className="sr-only">Transaction</span>
-					</>
-				}
-				description={<Skeleton as="span" className="block h-3.5 w-24" />}
-				actions={<Skeleton as="span" className="block h-7 w-24" />}
-				className="gap-8"
-			>
-				<TransactionDetailSkeleton />
-			</PageLayout>
-		);
-	}
+  if (txnQuery.isPending || issuerPending) {
+    // The wait is a page too (issue #129): the collapse flag outlives the
+    // navigation that got here, so the way back to the panel has to survive the
+    // read. The topbar is the settled page's, slot for slot — the counterparty,
+    // the date and the amount stand in as placeholders where each will land,
+    // so the row arriving fills the header rather than replacing it.
+    return (
+      <PageLayout
+        back={<BackLink to="/transactions">Transactions</BackLink>}
+        title={
+          <>
+            {/* `h-7`: one line of the title's `text-2xl`, which is what lands
+                in its place. */}
+            <Skeleton as="span" className="block h-7 w-56" />
+            {/* Never an empty heading: until the row names it, the page is
+                titled by what it is — the same stand-in the not-found state
+                below settles on, for the same reason. The wait itself is
+                announced by the skeleton's live region, not twice here. */}
+            <span className="sr-only">Transaction</span>
+          </>
+        }
+        description={<Skeleton as="span" className="block h-3.5 w-24" />}
+        actions={<Skeleton as="span" className="block h-7 w-24" />}
+        className="gap-8"
+      >
+        <TransactionDetailSkeleton />
+      </PageLayout>
+    );
+  }
 
-	const txn = txnQuery.data as Transaction | undefined;
-	if (txnQuery.isError || txn == null) {
-		// Still a page, so still a topbar: this state has no counterparty to name,
-		// but a user who arrived here with the sidebar collapsed needs the way back
-		// to it as much as on any other page (issue #129).
-		return (
-			<PageLayout
-				title="Transaction"
-				back={<BackLink to="/transactions">Transactions</BackLink>}
-			>
-				<Empty
-					title="Couldn't load this transaction"
-					description="It may have been deleted, or something went wrong. Head back to the grid."
-				>
-					<Link to="/transactions" className={cn(BUTTON_CLASS, "mt-2")}>
-						Back to transactions
-					</Link>
-				</Empty>
-			</PageLayout>
-		);
-	}
+  const txn = txnQuery.data as Transaction | undefined;
+  if (txnQuery.isError || txn == null) {
+    // Still a page, so still a topbar: this state has no counterparty to name,
+    // but a user who arrived here with the sidebar collapsed needs the way back
+    // to it as much as on any other page (issue #129).
+    return (
+      <PageLayout title="Transaction" back={<BackLink to="/transactions">Transactions</BackLink>}>
+        <Empty
+          title="Couldn't load this transaction"
+          description="It may have been deleted, or something went wrong. Head back to the grid."
+        >
+          <Link to="/transactions" className={cn(BUTTON_CLASS, "mt-2")}>
+            Back to transactions
+          </Link>
+        </Empty>
+      </PageLayout>
+    );
+  }
 
-	const accountsById = indexById(
-		(accountsQuery.data?.items ?? []) as readonly Account[],
-	);
-	const categories = (categoriesQuery.data?.items ?? []) as readonly Category[];
-	const categoriesById = indexById(categories);
-	const category =
-		txn.categoryId != null ? categoriesById.get(txn.categoryId) : undefined;
+  const accountsById = indexById((accountsQuery.data?.items ?? []) as readonly Account[]);
+  const categories = (categoriesQuery.data?.items ?? []) as readonly Category[];
+  const categoriesById = indexById(categories);
+  const category = txn.categoryId != null ? categoriesById.get(txn.categoryId) : undefined;
 
-	return (
-		<TransactionDetailContent
-			transaction={txn}
-			account={accountsById.get(txn.accountId)}
-			issuer={txn.issuerId != null ? issuersById.get(txn.issuerId) : undefined}
-			category={category}
-			categoryColor={
-				category != null
-					? resolveCategoryColor(categories, category)
-					: undefined
-			}
-			linkedRefund={
-				(linkedRefundQuery.data as Transaction | undefined) ?? undefined
-			}
-		/>
-	);
+  return (
+    <TransactionDetailContent
+      transaction={txn}
+      account={accountsById.get(txn.accountId)}
+      issuer={txn.issuerId != null ? issuersById.get(txn.issuerId) : undefined}
+      category={category}
+      categoryColor={category != null ? resolveCategoryColor(categories, category) : undefined}
+      linkedRefund={(linkedRefundQuery.data as Transaction | undefined) ?? undefined}
+    />
+  );
 }

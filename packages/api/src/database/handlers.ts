@@ -10,11 +10,11 @@ import { DatabaseRepo } from "./repository";
  * thin delegate; the success bodies (`DbOk` / `DbDump`) are set by the contract.
  */
 export const DatabaseLive = HttpApiBuilder.group(Api, "database", (handlers) =>
-	Effect.gen(function* () {
-		const repo = yield* DatabaseRepo;
-		return handlers
-			.handle("reset", () => repo.reset())
-			.handle("export", () => repo.exportAll())
-			.handle("import", (_) => repo.import(_.payload));
-	}),
+  Effect.gen(function* () {
+    const repo = yield* DatabaseRepo;
+    return handlers
+      .handle("reset", () => repo.reset())
+      .handle("export", () => repo.exportAll())
+      .handle("import", (_) => repo.import(_.payload));
+  }),
 ).pipe(Layer.provide(DatabaseRepo.Default));

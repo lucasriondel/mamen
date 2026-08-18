@@ -3,18 +3,18 @@
 // `../contract/` is the live definition of both shapes; these types mirror it.
 
 export type AppSettings = {
-	id: "app";
+  id: "app";
 };
 
 export type SettingKey =
-	| "currency_symbol"
-	| "date_format"
-	| "anomaly_threshold"
-	| "anomaly_settings"
-	| "displayPreferences";
+  | "currency_symbol"
+  | "date_format"
+  | "anomaly_threshold"
+  | "anomaly_settings"
+  | "displayPreferences";
 
 export type Setting = {
-	id?: number;
-	key: SettingKey;
-	value: string;
+  id?: number;
+  key: SettingKey;
+  value: string;
 };

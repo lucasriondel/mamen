@@ -29,7 +29,7 @@ import { Effect } from "effect";
  * change" is the question a row cannot answer about itself.
  */
 export default Effect.flatMap(SqlClient.SqlClient, (sql) =>
-	sql`CREATE TABLE IF NOT EXISTS ai_task_settings (
+  sql`CREATE TABLE IF NOT EXISTS ai_task_settings (
 			task TEXT PRIMARY KEY,
 			provider TEXT NOT NULL,
 			model TEXT NOT NULL,

@@ -13,10 +13,10 @@ import { Schema } from "effect";
  * stays whatever its members say.
  */
 export const AnomalyType = Schema.Literal(
-	"high-amount",
-	"new-issuer",
-	"potential-duplicate",
-	"non-negative-bundle",
+  "high-amount",
+  "new-issuer",
+  "potential-duplicate",
+  "non-negative-bundle",
 );
 export type AnomalyType = typeof AnomalyType.Type;
 
@@ -29,10 +29,10 @@ export type AnomalyType = typeof AnomalyType.Type;
  * stringifies it at the storage boundary.
  */
 export class AnomalyFlag extends Schema.Class<AnomalyFlag>("AnomalyFlag")({
-	type: AnomalyType,
-	reason: Schema.String,
-	detectedAt: Schema.String,
-	dismissed: Schema.Boolean,
-	dismissedAt: Schema.optional(Schema.String),
-	linkedTransactionId: Schema.optional(Schema.Number),
+  type: AnomalyType,
+  reason: Schema.String,
+  detectedAt: Schema.String,
+  dismissed: Schema.Boolean,
+  dismissedAt: Schema.optional(Schema.String),
+  linkedTransactionId: Schema.optional(Schema.Number),
 }) {}

@@ -37,104 +37,92 @@ export const DialogClose = DialogPrimitive.Close;
  * so the fixed layer is ours — as it was under Radix, and with the same classes.
  */
 function DialogOverlay({
-	className,
-	...props
+  className,
+  ...props
 }: React.ComponentProps<typeof DialogPrimitive.Backdrop>) {
-	return (
-		<DialogPrimitive.Backdrop
-			className={cn(
-				"fixed inset-0 z-50 bg-black/50",
-				"data-[open]:animate-in data-[ending-style]:animate-out data-[open]:fade-in-0 data-[ending-style]:fade-out-0",
-				className,
-			)}
-			{...props}
-		/>
-	);
+  return (
+    <DialogPrimitive.Backdrop
+      className={cn(
+        "fixed inset-0 z-50 bg-black/50",
+        "data-[open]:animate-in data-[ending-style]:animate-out data-[open]:fade-in-0 data-[ending-style]:fade-out-0",
+        className,
+      )}
+      {...props}
+    />
+  );
 }
 
 /** Centered panel with a built-in close affordance. */
 export function DialogContent({
-	className,
-	children,
-	...props
+  className,
+  children,
+  ...props
 }: React.ComponentProps<typeof DialogPrimitive.Popup>) {
-	return (
-		<DialogPrimitive.Portal>
-			<DialogOverlay />
-			{/* Base UI offers a `Viewport` to centre the popup in; the panel keeps
-			    centring itself instead, so the one element consumers hold a ref to
-			    (for the pickers that portal inside it) stays the panel itself. */}
-			<DialogPrimitive.Popup
-				className={cn(
-					"fixed left-1/2 top-1/2 z-50 grid w-full max-w-md -translate-x-1/2 -translate-y-1/2 gap-4 rounded-2xl border border-gousse-line bg-gousse-panel p-6 text-gousse-ink shadow-lg outline-none",
-					// A modal isn't anchored to a trigger, so it scales from centre
-					// (emil-design-eng: the transform-origin exception). Enter uses a
-					// gentle scale+fade under the ~300ms budget; exit is quicker.
-					"duration-200 data-[open]:animate-in data-[ending-style]:animate-out data-[ending-style]:duration-150",
-					"data-[open]:fade-in-0 data-[ending-style]:fade-out-0 data-[open]:zoom-in-95 data-[ending-style]:zoom-out-95",
-					className,
-				)}
-				{...props}
-			>
-				{children}
-				<DialogPrimitive.Close
-					className="absolute right-3 top-3 inline-flex size-9 items-center justify-center rounded-full text-gousse-muted outline-none transition-colors hover:bg-gousse-bg hover:text-gousse-ink focus-visible:ring-2 focus-visible:ring-gousse-accent"
-					aria-label="Close"
-				>
-					<X size={18} />
-				</DialogPrimitive.Close>
-			</DialogPrimitive.Popup>
-		</DialogPrimitive.Portal>
-	);
+  return (
+    <DialogPrimitive.Portal>
+      <DialogOverlay />
+      {/* Base UI offers a `Viewport` to centre the popup in; the panel keeps
+          centring itself instead, so the one element consumers hold a ref to
+          (for the pickers that portal inside it) stays the panel itself. */}
+      <DialogPrimitive.Popup
+        className={cn(
+          "fixed left-1/2 top-1/2 z-50 grid w-full max-w-md -translate-x-1/2 -translate-y-1/2 gap-4 rounded-2xl border border-gousse-line bg-gousse-panel p-6 text-gousse-ink shadow-lg outline-none",
+          // A modal isn't anchored to a trigger, so it scales from centre
+          // (emil-design-eng: the transform-origin exception). Enter uses a
+          // gentle scale+fade under the ~300ms budget; exit is quicker.
+          "duration-200 data-[open]:animate-in data-[ending-style]:animate-out data-[ending-style]:duration-150",
+          "data-[open]:fade-in-0 data-[ending-style]:fade-out-0 data-[open]:zoom-in-95 data-[ending-style]:zoom-out-95",
+          className,
+        )}
+        {...props}
+      >
+        {children}
+        <DialogPrimitive.Close
+          className="absolute right-3 top-3 inline-flex size-9 items-center justify-center rounded-full text-gousse-muted outline-none transition-colors hover:bg-gousse-bg hover:text-gousse-ink focus-visible:ring-2 focus-visible:ring-gousse-accent"
+          aria-label="Close"
+        >
+          <X size={18} />
+        </DialogPrimitive.Close>
+      </DialogPrimitive.Popup>
+    </DialogPrimitive.Portal>
+  );
 }
 
 /** Header block: title + optional description, stacked. */
-export function DialogHeader({
-	className,
-	...props
-}: React.ComponentProps<"div">) {
-	return <div className={cn("flex flex-col gap-1.5", className)} {...props} />;
+export function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
+  return <div className={cn("flex flex-col gap-1.5", className)} {...props} />;
 }
 
 /** Footer block: actions, right-aligned on wider screens. */
-export function DialogFooter({
-	className,
-	...props
-}: React.ComponentProps<"div">) {
-	return (
-		<div
-			className={cn(
-				"flex flex-col-reverse gap-2 sm:flex-row sm:justify-end",
-				className,
-			)}
-			{...props}
-		/>
-	);
+export function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      className={cn("flex flex-col-reverse gap-2 sm:flex-row sm:justify-end", className)}
+      {...props}
+    />
+  );
 }
 
 export function DialogTitle({
-	className,
-	...props
+  className,
+  ...props
 }: React.ComponentProps<typeof DialogPrimitive.Title>) {
-	return (
-		<DialogPrimitive.Title
-			className={cn(
-				"text-lg font-semibold text-balance text-gousse-ink",
-				className,
-			)}
-			{...props}
-		/>
-	);
+  return (
+    <DialogPrimitive.Title
+      className={cn("text-lg font-semibold text-balance text-gousse-ink", className)}
+      {...props}
+    />
+  );
 }
 
 export function DialogDescription({
-	className,
-	...props
+  className,
+  ...props
 }: React.ComponentProps<typeof DialogPrimitive.Description>) {
-	return (
-		<DialogPrimitive.Description
-			className={cn("text-sm text-gousse-muted", className)}
-			{...props}
-		/>
-	);
+  return (
+    <DialogPrimitive.Description
+      className={cn("text-sm text-gousse-muted", className)}
+      {...props}
+    />
+  );
 }

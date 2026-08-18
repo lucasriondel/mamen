@@ -1,12 +1,12 @@
 import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
-	ACCESS_APPLICATION,
-	isBehindAccess,
-	ROUTES,
-	type Route,
-	SITE_HOST,
-	siteUrl,
+  ACCESS_APPLICATION,
+  isBehindAccess,
+  ROUTES,
+  type Route,
+  SITE_HOST,
+  siteUrl,
 } from "./topology";
 
 /**
@@ -30,107 +30,103 @@ const DEPLOY = read(`${ROOT}/DEPLOY.md`);
 
 /** How the routing table writes one route. */
 const row = (route: Route) =>
-	`| \`${route.path}\` | \`${route.container}\` | ${
-		isBehindAccess(route.path) ? "Required" : "Public"
-	} | ${route.serves} |`;
+  `| \`${route.path}\` | \`${route.container}\` | ${
+    isBehindAccess(route.path) ? "Required" : "Public"
+  } | ${route.serves} |`;
 
 /**
  * The paths of the Access application's `Domains` row, as the document writes
  * them: `host/path`, comma-separated, in backticks.
  */
 const documentedAccessPaths = () => {
-	const cell = DEPLOY.match(/^\|\s*Domains\s*\|(.+?)\|\s*$/m)?.[1] ?? "";
+  const cell = DEPLOY.match(/^\|\s*Domains\s*\|(.+?)\|\s*$/m)?.[1] ?? "";
 
-	return [...cell.matchAll(/`([^`]+)`/g)]
-		.map((m) => (m[1] as string).trim())
-		.map((domain) => domain.slice(SITE_HOST.length));
+  return [...cell.matchAll(/`([^`]+)`/g)]
+    .map((m) => (m[1] as string).trim())
+    .map((domain) => domain.slice(SITE_HOST.length));
 };
 
 /** The env names `packages/api/src/config.ts` actually reads. */
 const apiConfigEnv = [
-	...read(`${ROOT}/packages/api/src/config.ts`).matchAll(
-		/Config\.\w+\("(\w+)"\)/g,
-	),
+  ...read(`${ROOT}/packages/api/src/config.ts`).matchAll(/Config\.\w+\("(\w+)"\)/g),
 ].map((m) => m[1] as string);
 
 describe("the routing table", () => {
-	it("has a row for every route, and none it invented", () => {
-		for (const route of ROUTES) expect(DEPLOY).toContain(row(route));
+  it("has a row for every route, and none it invented", () => {
+    for (const route of ROUTES) expect(DEPLOY).toContain(row(route));
 
-		const rows = [...DEPLOY.matchAll(/^\| `(\/[^`]*)` \| `([\w-]+)` \|/gm)];
-		expect(rows).toHaveLength(ROUTES.length);
-	});
+    const rows = [...DEPLOY.matchAll(/^\| `(\/[^`]*)` \| `([\w-]+)` \|/gm)];
+    expect(rows).toHaveLength(ROUTES.length);
+  });
 
-	it("names the image each container is built from", () => {
-		for (const dir of ["api", "web", "landing-page"]) {
-			expect(DEPLOY).toContain(`packages/${dir}/Dockerfile`);
-			expect(existsSync(`${ROOT}/packages/${dir}/Dockerfile`)).toBe(true);
-		}
-	});
+  it("names the image each container is built from", () => {
+    for (const dir of ["api", "web", "landing-page"]) {
+      expect(DEPLOY).toContain(`packages/${dir}/Dockerfile`);
+      expect(existsSync(`${ROOT}/packages/${dir}/Dockerfile`)).toBe(true);
+    }
+  });
 });
 
 describe("the Cloudflare Access section", () => {
-	it("declares exactly the paths the boundary covers", () => {
-		expect([...documentedAccessPaths()].sort()).toStrictEqual(
-			[...ACCESS_APPLICATION.paths].sort(),
-		);
-	});
+  it("declares exactly the paths the boundary covers", () => {
+    expect([...documentedAccessPaths()].sort()).toStrictEqual([...ACCESS_APPLICATION.paths].sort());
+  });
 
-	it("leaves the site root out of the application", () => {
-		// The one thing a reader could copy wrong and not notice until a stranger
-		// reports the landing page asking them to log in.
-		for (const path of documentedAccessPaths()) expect(path).not.toBe("/");
-	});
+  it("leaves the site root out of the application", () => {
+    // The one thing a reader could copy wrong and not notice until a stranger
+    // reports the landing page asking them to log in.
+    for (const path of documentedAccessPaths()) expect(path).not.toBe("/");
+  });
 
-	it("says what a logged-out visitor gets at each end of the boundary", () => {
-		expect(DEPLOY).toContain(siteUrl("/"));
-		expect(DEPLOY).toContain(siteUrl(ACCESS_APPLICATION.paths[0] as string));
-	});
+  it("says what a logged-out visitor gets at each end of the boundary", () => {
+    expect(DEPLOY).toContain(siteUrl("/"));
+    expect(DEPLOY).toContain(siteUrl(ACCESS_APPLICATION.paths[0] as string));
+  });
 });
 
 describe("the environment tables", () => {
-	it("name every variable the API reads, and the upstream web needs", () => {
-		for (const name of apiConfigEnv) expect(DEPLOY).toContain(name);
-		expect(DEPLOY).toContain("API_UPSTREAM");
-	});
+  it("name every variable the API reads, and the upstream web needs", () => {
+    for (const name of apiConfigEnv) expect(DEPLOY).toContain(name);
+    expect(DEPLOY).toContain("API_UPSTREAM");
+  });
 
-	it("no longer carries the claude token as deployment configuration", () => {
-		// Since issue #122 the Claude Code token is a credential pasted in the app,
-		// read from the encrypted store and from nowhere else. A row for it in a
-		// deploy's environment table is a secret an operator would keep rotating
-		// into a variable nothing reads — and would believe was live.
-		expect(DEPLOY).not.toContain("CLAUDE_CODE_OAUTH_TOKEN");
-	});
+  it("no longer carries the claude token as deployment configuration", () => {
+    // Since issue #122 the Claude Code token is a credential pasted in the app,
+    // read from the encrypted store and from nowhere else. A row for it in a
+    // deploy's environment table is a secret an operator would keep rotating
+    // into a variable nothing reads — and would believe was live.
+    expect(DEPLOY).not.toContain("CLAUDE_CODE_OAUTH_TOKEN");
+  });
 
-	it("documents the host as configuration, defaulting to this install's", () => {
-		expect(DEPLOY).toContain("SITE_HOST");
-		expect(DEPLOY).toContain(SITE_HOST);
-	});
+  it("documents the host as configuration, defaulting to this install's", () => {
+    expect(DEPLOY).toContain("SITE_HOST");
+    expect(DEPLOY).toContain(SITE_HOST);
+  });
 });
 
 describe("the security model", () => {
-	it("still forbids giving the API a domain of its own", () => {
-		// A domain publishes it through the reverse proxy, past Access, with
-		// `POST /api/database/reset` unauthenticated behind it.
-		expect(DEPLOY).toMatch(/no domain|never.{0,40}domain/i);
-		expect(DEPLOY).toContain("database/reset");
-	});
+  it("still forbids giving the API a domain of its own", () => {
+    // A domain publishes it through the reverse proxy, past Access, with
+    // `POST /api/database/reset` unauthenticated behind it.
+    expect(DEPLOY).toMatch(/no domain|never.{0,40}domain/i);
+    expect(DEPLOY).toContain("database/reset");
+  });
 });
 
 describe("the section on going public", () => {
-	it("makes the history check a step rather than an assumption", () => {
-		expect(DEPLOY).toContain("git log --all --full-history");
-		expect(DEPLOY).toContain("scripts/scrub-bank-statements.sh --verify");
-		expect(existsSync(`${ROOT}/scripts/scrub-bank-statements.sh`)).toBe(true);
-	});
+  it("makes the history check a step rather than an assumption", () => {
+    expect(DEPLOY).toContain("git log --all --full-history");
+    expect(DEPLOY).toContain("scripts/scrub-bank-statements.sh --verify");
+    expect(existsSync(`${ROOT}/scripts/scrub-bank-statements.sh`)).toBe(true);
+  });
 
-	it("sends a red history check somewhere that says what to do about it", () => {
-		// The check is a one-liner; the rewrite behind it is a coordinated
-		// force-push over every branch, and a checklist step that only says
-		// "expect: clean" leaves the reader nowhere to go when it is not.
-		const runbook = "docs/operations/bank-statement-scrub.md";
+  it("sends a red history check somewhere that says what to do about it", () => {
+    // The check is a one-liner; the rewrite behind it is a coordinated
+    // force-push over every branch, and a checklist step that only says
+    // "expect: clean" leaves the reader nowhere to go when it is not.
+    const runbook = "docs/operations/bank-statement-scrub.md";
 
-		expect(DEPLOY).toContain(`(${runbook})`);
-		expect(existsSync(`${ROOT}/${runbook}`)).toBe(true);
-	});
+    expect(DEPLOY).toContain(`(${runbook})`);
+    expect(existsSync(`${ROOT}/${runbook}`)).toBe(true);
+  });
 });

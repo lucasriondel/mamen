@@ -13,14 +13,12 @@ export const PARSERS: readonly StatementParser[] = [greenGotParser];
  * parser, or `null` when zero or more than one parser matches — the ambiguous
  * cases where the user must pick the format manually.
  */
-export function detectParser(
-	headers: readonly string[],
-): StatementParser | null {
-	const matches = PARSERS.filter((parser) => parser.matches(headers));
-	return matches.length === 1 ? matches[0] : null;
+export function detectParser(headers: readonly string[]): StatementParser | null {
+  const matches = PARSERS.filter((parser) => parser.matches(headers));
+  return matches.length === 1 ? matches[0] : null;
 }
 
 /** Look up a parser by its stable `id` (used by the manual format picker). */
 export function getParserById(id: string): StatementParser | undefined {
-	return PARSERS.find((parser) => parser.id === id);
+  return PARSERS.find((parser) => parser.id === id);
 }

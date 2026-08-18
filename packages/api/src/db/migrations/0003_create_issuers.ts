@@ -8,8 +8,8 @@ import { Effect } from "effect";
  * `defaultCategoryId` and `imageUrl`, no DB-level uniqueness on `name`.
  */
 export default Effect.flatMap(SqlClient.SqlClient, (sql) =>
-	Effect.all([
-		sql`
+  Effect.all([
+    sql`
 			CREATE TABLE IF NOT EXISTS issuers (
 				id INTEGER PRIMARY KEY AUTOINCREMENT,
 				name TEXT NOT NULL,
@@ -19,8 +19,8 @@ export default Effect.flatMap(SqlClient.SqlClient, (sql) =>
 				firstSeen TEXT NOT NULL
 			)
 		`,
-		sql`CREATE INDEX IF NOT EXISTS idx_issuers_name ON issuers(name)`,
-		sql`CREATE INDEX IF NOT EXISTS idx_issuers_defaultCategoryId ON issuers(defaultCategoryId)`,
-		sql`CREATE INDEX IF NOT EXISTS idx_issuers_firstSeen ON issuers(firstSeen)`,
-	]).pipe(Effect.asVoid),
+    sql`CREATE INDEX IF NOT EXISTS idx_issuers_name ON issuers(name)`,
+    sql`CREATE INDEX IF NOT EXISTS idx_issuers_defaultCategoryId ON issuers(defaultCategoryId)`,
+    sql`CREATE INDEX IF NOT EXISTS idx_issuers_firstSeen ON issuers(firstSeen)`,
+  ]).pipe(Effect.asVoid),
 );

@@ -6,12 +6,12 @@ import { EXCLUDED_LABEL, type ExcludedSummary } from "./spend-rows";
 import { toExcludedTransactionsSearch } from "./to-transactions-link";
 
 export interface ExcludedSummaryLineProps {
-	/** The excluded spend for the active period, as the server summed it. */
-	excluded: ExcludedSummary;
-	/** The active period, carried into the detail link. */
-	period: Period;
-	/** The active account selection, carried into the detail link. */
-	accountIds: readonly number[];
+  /** The excluded spend for the active period, as the server summed it. */
+  excluded: ExcludedSummary;
+  /** The active period, carried into the detail link. */
+  period: Period;
+  /** The active account selection, carried into the detail link. */
+  accountIds: readonly number[];
 }
 
 /**
@@ -34,29 +34,24 @@ export interface ExcludedSummaryLineProps {
  * Rendered only when something is actually held out; the caller hides it entirely
  * at `count === 0`.
  */
-export function ExcludedSummaryLine({
-	excluded,
-	period,
-	accountIds,
-}: ExcludedSummaryLineProps) {
-	const { total, count } = excluded;
-	return (
-		<Link
-			to="/transactions"
-			search={toExcludedTransactionsSearch(period, accountIds)}
-			className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-dashed border-gousse-line bg-gousse-panel px-5 py-3 transition-colors hover:border-gousse-accent/40 hover:bg-gousse-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gousse-accent"
-		>
-			<div className="flex min-w-0 flex-col">
-				<p className="text-sm font-medium text-gousse-ink">{EXCLUDED_LABEL}</p>
-				<p className="text-xs text-gousse-muted tabular-nums">
-					{count} {count === 1 ? "transaction" : "transactions"} · held out of
-					the total
-				</p>
-			</div>
-			<span className="flex shrink-0 items-center gap-1.5 font-medium tabular-nums text-gousse-muted">
-				{formatCurrency(total, { signDisplay: false })}
-				<ChevronRight size={14} aria-hidden="true" />
-			</span>
-		</Link>
-	);
+export function ExcludedSummaryLine({ excluded, period, accountIds }: ExcludedSummaryLineProps) {
+  const { total, count } = excluded;
+  return (
+    <Link
+      to="/transactions"
+      search={toExcludedTransactionsSearch(period, accountIds)}
+      className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-dashed border-gousse-line bg-gousse-panel px-5 py-3 transition-colors hover:border-gousse-accent/40 hover:bg-gousse-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gousse-accent"
+    >
+      <div className="flex min-w-0 flex-col">
+        <p className="text-sm font-medium text-gousse-ink">{EXCLUDED_LABEL}</p>
+        <p className="text-xs text-gousse-muted tabular-nums">
+          {count} {count === 1 ? "transaction" : "transactions"} · held out of the total
+        </p>
+      </div>
+      <span className="flex shrink-0 items-center gap-1.5 font-medium tabular-nums text-gousse-muted">
+        {formatCurrency(total, { signDisplay: false })}
+        <ChevronRight size={14} aria-hidden="true" />
+      </span>
+    </Link>
+  );
 }

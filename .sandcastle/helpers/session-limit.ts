@@ -38,8 +38,7 @@ export const STATE_FILE = "logs/session-limit.json";
  * `s` lets `.` cross the newline between the "exited with code 1:" line and the
  * message body; `i` because only the wording, not its casing, is guaranteed.
  */
-const RESET_PATTERN =
-  /hit your session limit.*?resets\s+(\d{1,2}):(\d{2})\s*(am|pm)\s*\(UTC\)/is;
+const RESET_PATTERN = /hit your session limit.*?resets\s+(\d{1,2}):(\d{2})\s*(am|pm)\s*\(UTC\)/is;
 
 /**
  * Matches the message alone, without a reset time.
@@ -116,10 +115,7 @@ function toUtcHour(hour12: number, meridiem: string): number {
  * between two absolute instants — an offset applied to both sides would cancel.
  * The configured timezone is for display only; see formatInZone().
  */
-export function parseSessionLimit(
-  err: unknown,
-  now: Date = new Date(),
-): SessionLimit | null {
+export function parseSessionLimit(err: unknown, now: Date = new Date()): SessionLimit | null {
   const text = errorText(err);
   const match = RESET_PATTERN.exec(text);
   if (!match) return null;
@@ -129,15 +125,7 @@ export function parseSessionLimit(
   const minute = Number(minuteRaw);
 
   const resetAt = new Date(
-    Date.UTC(
-      now.getUTCFullYear(),
-      now.getUTCMonth(),
-      now.getUTCDate(),
-      hour,
-      minute,
-      0,
-      0,
-    ),
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), hour, minute, 0, 0),
   );
 
   // Already gone by today's clock, so the message must mean tomorrow.

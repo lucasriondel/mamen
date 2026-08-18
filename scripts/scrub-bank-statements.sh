@@ -326,9 +326,21 @@ check_fixture_is_readable() {
 	fi
 
 	local required columns rows missing=""
+	# Only the array's own literals. A `sed` range from the declaration to the
+	# next `]` reads to the end of the *file* when a formatter puts the array on
+	# one line — the opening line is also the closing one, and a range never ends
+	# where it starts — collecting every quoted string after it as a required
+	# column. This stops at the first `]` on or after the declaration, so both
+	# shapes read the same.
 	required="$(
 		git show "HEAD:$PARSER" |
-			sed -n '/REQUIRED_HEADERS = \[/,/\]/p' |
+			awk '
+				/REQUIRED_HEADERS = \[/ { collecting = 1; sub(/.*REQUIRED_HEADERS = \[/, "") }
+				collecting {
+					if (index($0, "]")) { sub(/\].*/, ""); print; exit }
+					print
+				}
+			' |
 			grep -oE '"[^"]+"' | tr -d '"' || true
 	)"
 	columns="$(git show "HEAD:$FIXTURE" | sed -n '1p' | tr ',' '\n' | tr -d '"\r')"

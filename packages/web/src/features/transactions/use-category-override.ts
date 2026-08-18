@@ -5,6 +5,15 @@ import { transactionKeys, transactionMutations } from "@/lib/sdk";
 import { toErrorMessage } from "@/lib/sdk-error";
 
 /**
+ * Every write in this file fails the same way: the tagged error's own copy, as a
+ * toast. Module scope rather than inside the hook — it closes over nothing, so a
+ * copy per render would be one closure per render for one constant behaviour.
+ */
+const onError = (error: unknown) => {
+  toast.error(toErrorMessage(error));
+};
+
+/**
  * The **Category override** mutations behind the transaction category cell
  * picker (PRD #19, issue #23). An override is an *exception* to the issuer's
  * default on a single transaction — never a bulk lever (that is the issuer
@@ -26,38 +35,34 @@ import { toErrorMessage } from "@/lib/sdk-error";
  * raise a `sonner` toast.
  */
 export function useCategoryOverride() {
-	const queryClient = useQueryClient();
+  const queryClient = useQueryClient();
 
-	const invalidate = () => {
-		queryClient.invalidateQueries({ queryKey: transactionKeys.all });
-	};
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: transactionKeys.all });
+  };
 
-	const onError = (error: unknown) => {
-		toast.error(toErrorMessage(error));
-	};
+  const setOverride = useMutation({
+    mutationFn: ({
+      transactionId,
+      categoryId,
+    }: {
+      transactionId: TransactionId;
+      categoryId: CategoryId;
+    }) =>
+      transactionMutations.update(transactionId, {
+        categoryId,
+        manualCategory: true,
+      }),
+    onSuccess: invalidate,
+    onError,
+  });
 
-	const setOverride = useMutation({
-		mutationFn: ({
-			transactionId,
-			categoryId,
-		}: {
-			transactionId: TransactionId;
-			categoryId: CategoryId;
-		}) =>
-			transactionMutations.update(transactionId, {
-				categoryId,
-				manualCategory: true,
-			}),
-		onSuccess: invalidate,
-		onError,
-	});
+  const removeOverride = useMutation({
+    mutationFn: ({ transactionId }: { transactionId: TransactionId }) =>
+      transactionMutations.update(transactionId, { manualCategory: false }),
+    onSuccess: invalidate,
+    onError,
+  });
 
-	const removeOverride = useMutation({
-		mutationFn: ({ transactionId }: { transactionId: TransactionId }) =>
-			transactionMutations.update(transactionId, { manualCategory: false }),
-		onSuccess: invalidate,
-		onError,
-	});
-
-	return { setOverride, removeOverride };
+  return { setOverride, removeOverride };
 }

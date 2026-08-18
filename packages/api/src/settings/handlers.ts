@@ -10,11 +10,11 @@ import { SettingRepo } from "./repository";
  * codes / success bodies are set by the contract, not here.
  */
 export const SettingsLive = HttpApiBuilder.group(Api, "settings", (handlers) =>
-	Effect.gen(function* () {
-		const repo = yield* SettingRepo;
-		return handlers
-			.handle("list", (_) => repo.list(_.urlParams))
-			.handle("getByKey", (_) => repo.getByKey(_.path.key))
-			.handle("putByKey", (_) => repo.putByKey(_.payload));
-	}),
+  Effect.gen(function* () {
+    const repo = yield* SettingRepo;
+    return handlers
+      .handle("list", (_) => repo.list(_.urlParams))
+      .handle("getByKey", (_) => repo.getByKey(_.path.key))
+      .handle("putByKey", (_) => repo.putByKey(_.payload));
+  }),
 ).pipe(Layer.provide(SettingRepo.Default));

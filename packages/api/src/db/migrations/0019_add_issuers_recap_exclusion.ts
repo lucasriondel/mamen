@@ -19,7 +19,5 @@ import { Effect } from "effect";
  * issuer's whole non-overridden history at once, and its future imports with it.
  */
 export default Effect.flatMap(SqlClient.SqlClient, (sql) =>
-	sql`ALTER TABLE issuers ADD COLUMN excludedFromRecap INTEGER DEFAULT 0`.pipe(
-		Effect.asVoid,
-	),
+  sql`ALTER TABLE issuers ADD COLUMN excludedFromRecap INTEGER DEFAULT 0`.pipe(Effect.asVoid),
 );

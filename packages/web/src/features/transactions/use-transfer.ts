@@ -5,6 +5,15 @@ import { transactionKeys, transactionMutations } from "@/lib/sdk";
 import { toErrorMessage } from "@/lib/sdk-error";
 
 /**
+ * Every write in this file fails the same way: the tagged error's own copy, as a
+ * toast. Module scope rather than inside the hook — it closes over nothing, so a
+ * copy per render would be one closure per render for one constant behaviour.
+ */
+const onError = (error: unknown) => {
+  toast.error(toErrorMessage(error));
+};
+
+/**
  * The **Transfer** mutations behind every transfer surface (PRD #48, issue #91):
  * the detail page's Transfer block, the transactions table's suggestion panel
  * and the Transfers page. Dedicated endpoints — the "no leg already grouped" and
@@ -26,41 +35,36 @@ import { toErrorMessage } from "@/lib/sdk-error";
  * re-derive the candidate list the server owns.
  */
 export function useTransfer() {
-	const queryClient = useQueryClient();
+  const queryClient = useQueryClient();
 
-	const invalidate = () => {
-		queryClient.invalidateQueries({ queryKey: transactionKeys.all });
-	};
-	const onError = (error: unknown) => {
-		toast.error(toErrorMessage(error));
-	};
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: transactionKeys.all });
+  };
+  const link = useMutation({
+    mutationFn: (ids: ReadonlyArray<TransactionId>) => transactionMutations.linkTransfer(ids),
+    onSuccess: invalidate,
+    onError,
+  });
 
-	const link = useMutation({
-		mutationFn: (ids: ReadonlyArray<TransactionId>) =>
-			transactionMutations.linkTransfer(ids),
-		onSuccess: invalidate,
-		onError,
-	});
+  const unlink = useMutation({
+    mutationFn: (transferGroupId: TransactionId) =>
+      transactionMutations.unlinkTransfer(transferGroupId),
+    onSuccess: invalidate,
+    onError,
+  });
 
-	const unlink = useMutation({
-		mutationFn: (transferGroupId: TransactionId) =>
-			transactionMutations.unlinkTransfer(transferGroupId),
-		onSuccess: invalidate,
-		onError,
-	});
+  /**
+   * Refuse the pairs a panel displayed. Group-level: one call carries every
+   * pair that was on screen, so the action's blast radius is exactly what the
+   * user could see. Currently irreversible — there is no undismiss — which is
+   * why the surfaces say so rather than presenting it as a tidy-up.
+   */
+  const dismiss = useMutation({
+    mutationFn: (pairs: ReadonlyArray<TransferPair>) =>
+      transactionMutations.dismissTransferPairs(pairs),
+    onSuccess: invalidate,
+    onError,
+  });
 
-	/**
-	 * Refuse the pairs a panel displayed. Group-level: one call carries every
-	 * pair that was on screen, so the action's blast radius is exactly what the
-	 * user could see. Currently irreversible — there is no undismiss — which is
-	 * why the surfaces say so rather than presenting it as a tidy-up.
-	 */
-	const dismiss = useMutation({
-		mutationFn: (pairs: ReadonlyArray<TransferPair>) =>
-			transactionMutations.dismissTransferPairs(pairs),
-		onSuccess: invalidate,
-		onError,
-	});
-
-	return { link, unlink, dismiss };
+  return { link, unlink, dismiss };
 }

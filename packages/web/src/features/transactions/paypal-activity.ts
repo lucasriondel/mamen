@@ -19,7 +19,7 @@ const WINDOW_DAYS = 5;
  * warrants the same lookup.
  */
 export function isPaypalRawIssuer(rawIssuerString: string): boolean {
-	return rawIssuerString.toLowerCase().includes("paypal");
+  return rawIssuerString.toLowerCase().includes("paypal");
 }
 
 /**
@@ -28,10 +28,10 @@ export function isPaypalRawIssuer(rawIssuerString: string): boolean {
  * through UTC (`toISOString`) would shift it by one for anyone west of GMT.
  */
 export function toIsoDay(date: Date): string {
-	const year = String(date.getFullYear()).padStart(4, "0");
-	const month = String(date.getMonth() + 1).padStart(2, "0");
-	const day = String(date.getDate()).padStart(2, "0");
-	return `${year}-${month}-${day}`;
+  const year = String(date.getFullYear()).padStart(4, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 /**
@@ -39,9 +39,9 @@ export function toIsoDay(date: Date): string {
  * the {@link WINDOW_DAYS} days up to and including that date.
  */
 export function paypalActivityUrl(date: Date): string {
-	const start = new Date(date);
-	start.setDate(start.getDate() - WINDOW_DAYS);
-	return `https://www.paypal.com/myaccount/activities/?start_date=${toIsoDay(
-		start,
-	)}&end_date=${toIsoDay(date)}`;
+  const start = new Date(date);
+  start.setDate(start.getDate() - WINDOW_DAYS);
+  return `https://www.paypal.com/myaccount/activities/?start_date=${toIsoDay(
+    start,
+  )}&end_date=${toIsoDay(date)}`;
 }

@@ -8,6 +8,6 @@ import { validateImportSearch } from "@/features/import/search";
  * (issue #36); a plain visit has no params and starts the wizard empty.
  */
 export const Route = createFileRoute("/import")({
-	validateSearch: validateImportSearch,
-	component: ImportView,
+  validateSearch: validateImportSearch,
+  component: ImportView,
 });

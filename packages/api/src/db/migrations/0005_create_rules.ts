@@ -9,8 +9,8 @@ import { Effect } from "effect";
  * No DB-level foreign keys or uniqueness.
  */
 export default Effect.flatMap(SqlClient.SqlClient, (sql) =>
-	Effect.all([
-		sql`
+  Effect.all([
+    sql`
 			CREATE TABLE IF NOT EXISTS rules (
 				id INTEGER PRIMARY KEY AUTOINCREMENT,
 				issuerId INTEGER NOT NULL,
@@ -20,7 +20,7 @@ export default Effect.flatMap(SqlClient.SqlClient, (sql) =>
 				createdAt TEXT NOT NULL
 			)
 		`,
-		sql`CREATE INDEX IF NOT EXISTS idx_rules_issuerId ON rules(issuerId)`,
-		sql`CREATE INDEX IF NOT EXISTS idx_rules_pattern ON rules(pattern)`,
-	]).pipe(Effect.asVoid),
+    sql`CREATE INDEX IF NOT EXISTS idx_rules_issuerId ON rules(issuerId)`,
+    sql`CREATE INDEX IF NOT EXISTS idx_rules_pattern ON rules(pattern)`,
+  ]).pipe(Effect.asVoid),
 );

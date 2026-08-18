@@ -18,8 +18,8 @@ import { Effect } from "effect";
  * #69, and a `CASE` in a `WHERE` cannot use one (ADR 0008).
  */
 export default Effect.flatMap(SqlClient.SqlClient, (sql) =>
-	Effect.all([
-		sql`ALTER TABLE transactions ADD COLUMN excludedFromRecap INTEGER DEFAULT 0`,
-		sql`ALTER TABLE transactions ADD COLUMN manualExcluded INTEGER DEFAULT 0`,
-	]).pipe(Effect.asVoid),
+  Effect.all([
+    sql`ALTER TABLE transactions ADD COLUMN excludedFromRecap INTEGER DEFAULT 0`,
+    sql`ALTER TABLE transactions ADD COLUMN manualExcluded INTEGER DEFAULT 0`,
+  ]).pipe(Effect.asVoid),
 );

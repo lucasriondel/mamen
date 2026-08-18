@@ -28,40 +28,40 @@ const plugin = prerender();
 // Vite's own `IndexHtmlTransformHook` declares a plugin-context `this`, which a
 // test has no honest way to supply; the shape below is the part being called.
 const hook = plugin.transformIndexHtml as {
-	order?: "pre" | "post";
-	handler: (html: string, ctx: IndexHtmlTransformContext) => Promise<unknown>;
+  order?: "pre" | "post";
+  handler: (html: string, ctx: IndexHtmlTransformContext) => Promise<unknown>;
 };
 
 const ctx = {
-	path: "/index.html",
-	filename: entry,
+  path: "/index.html",
+  filename: entry,
 } as IndexHtmlTransformContext;
 
 describe("the prerender plugin", () => {
-	it("runs before Vite's own HTML pass, so asset URLs are still rewritten", () => {
-		expect(hook.order).toBe("pre");
-	});
+  it("runs before Vite's own HTML pass, so asset URLs are still rewritten", () => {
+    expect(hook.order).toBe("pre");
+  });
 
-	it("replaces the entry with the rendered page", async () => {
-		expect(await hook.handler(stub, ctx)).toBe(renderPage());
-	});
+  it("replaces the entry with the rendered page", async () => {
+    expect(await hook.handler(stub, ctx)).toBe(renderPage());
+  });
 
-	it("names itself, so a build log says what wrote the page", () => {
-		expect(plugin.name).toMatch(/prerender/);
-	});
+  it("names itself, so a build log says what wrote the page", () => {
+    expect(plugin.name).toMatch(/prerender/);
+  });
 });
 
 describe("index.html", () => {
-	it("is a stub, not a second copy of the page", () => {
-		// Whatever the page says, it says in `src/page.ts`. The entry exists
-		// because Vite resolves the build from an HTML file.
-		expect(stub).not.toMatch(/<h1\b/);
-		expect(stub).not.toMatch(/<link\b/);
-		expect(stub).not.toMatch(/<script\b/);
-		expect(stub.length).toBeLessThan(renderPage().length / 2);
-	});
+  it("is a stub, not a second copy of the page", () => {
+    // Whatever the page says, it says in `src/page.ts`. The entry exists
+    // because Vite resolves the build from an HTML file.
+    expect(stub).not.toMatch(/<h1\b/);
+    expect(stub).not.toMatch(/<link\b/);
+    expect(stub).not.toMatch(/<script\b/);
+    expect(stub.length).toBeLessThan(renderPage().length / 2);
+  });
 
-	it("points at the module that does own the page", () => {
-		expect(stub).toMatch(/src\/page\.ts/);
-	});
+  it("points at the module that does own the page", () => {
+    expect(stub).toMatch(/src\/page\.ts/);
+  });
 });

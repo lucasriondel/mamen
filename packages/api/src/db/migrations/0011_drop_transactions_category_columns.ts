@@ -16,9 +16,9 @@ import { Effect } from "effect";
  * is dropped first. `categoryOverride` has no index (mirrors 0008's rules drop).
  */
 export default Effect.flatMap(SqlClient.SqlClient, (sql) =>
-	Effect.all([
-		sql`DROP INDEX IF EXISTS idx_tx_subcategoryId`,
-		sql`ALTER TABLE transactions DROP COLUMN subcategoryId`,
-		sql`ALTER TABLE transactions DROP COLUMN categoryOverride`,
-	]).pipe(Effect.asVoid),
+  Effect.all([
+    sql`DROP INDEX IF EXISTS idx_tx_subcategoryId`,
+    sql`ALTER TABLE transactions DROP COLUMN subcategoryId`,
+    sql`ALTER TABLE transactions DROP COLUMN categoryOverride`,
+  ]).pipe(Effect.asVoid),
 );

@@ -7,16 +7,7 @@
 // live here so the entrypoints read as orchestration rather than formatting.
 
 import type { Completion } from "./close-issue.ts";
-import {
-  bold,
-  cyan,
-  dim,
-  green,
-  issueColor,
-  issueTag,
-  red,
-  yellow,
-} from "./colors.ts";
+import { bold, cyan, dim, green, issueColor, issueTag, red, yellow } from "./colors.ts";
 import type { PlannedIssue } from "./plan.ts";
 import type { createRtkTotals } from "./rtk-gain.ts";
 import type { CompletedEntry, RunSummary } from "./run-summary.ts";
@@ -29,9 +20,7 @@ export function logIterationHeader(iteration: number, max: number): void {
 
 /** Closing line for a cycle, carrying the whole iteration's wall-clock time. */
 export function logIterationDone(iteration: number, elapsedMs: number): void {
-  console.log(
-    bold(cyan(`Iteration ${iteration}`)) + ` ${durationTag(elapsedMs)}`,
-  );
+  console.log(bold(cyan(`Iteration ${iteration}`)) + ` ${durationTag(elapsedMs)}`);
 }
 
 /**
@@ -43,14 +32,10 @@ export function logIterationDone(iteration: number, elapsedMs: number): void {
  * already seen which color belongs to which issue.
  */
 export function logPlannedIssues(issues: PlannedIssue[]): void {
-  console.log(
-    green(`Planning complete. ${issues.length} issue(s) to work in parallel:`),
-  );
+  console.log(green(`Planning complete. ${issues.length} issue(s) to work in parallel:`));
   for (const issue of issues) {
     const tint = issueColor(issue.id);
-    console.log(
-      `  ${tint(bold(issue.id))}: ${issue.title} → ${tint(issue.branch)}`,
-    );
+    console.log(`  ${tint(bold(issue.id))}: ${issue.title} → ${tint(issue.branch)}`);
   }
 }
 
@@ -59,11 +44,7 @@ export function logPlannedIssues(issues: PlannedIssue[]): void {
  * resolveCompletion() has already worked out what actually finished the issue;
  * this surfaces that reasoning in the log so a no-commit close is never silent.
  */
-export function logNoCommitOutcome(
-  id: string,
-  branch: string,
-  completion: Completion,
-): void {
+export function logNoCommitOutcome(id: string, branch: string, completion: Completion): void {
   const tag = issueTag(id, branch);
   switch (completion.kind) {
     case "unmerged":
@@ -85,9 +66,7 @@ export function logNoCommitOutcome(
       break;
     case "empty":
       console.log(
-        yellow(
-          `  ⊘ ${tag} closed — branch carries no work; nothing was done on this issue.`,
-        ),
+        yellow(`  ⊘ ${tag} closed — branch carries no work; nothing was done on this issue.`),
       );
       break;
   }
@@ -110,9 +89,7 @@ export function logFailedPipelines(
       // "which issue" rather than competing with "how bad".
       const issue = issues[i]!;
       console.error(
-        red(`  ✗ `) +
-          issueTag(issue.id, issue.branch) +
-          red(` failed: ${outcome.reason}`),
+        red(`  ✗ `) + issueTag(issue.id, issue.branch) + red(` failed: ${outcome.reason}`),
       );
     }
   }
@@ -126,9 +103,7 @@ export function logFailedPipelines(
  * its outcome line above.
  */
 export function logCompletedBranches(issues: PlannedIssue[]): void {
-  console.log(
-    green(`\nExecution complete. ${issues.length} branch(es) with commits:`),
-  );
+  console.log(green(`\nExecution complete. ${issues.length} branch(es) with commits:`));
   for (const issue of issues) {
     console.log(`  ${issueColor(issue.id)(issue.branch)}`);
   }
@@ -188,21 +163,15 @@ export function logRunSummary(summary: RunSummary): void {
     return;
   }
 
-  console.log(
-    bold(green(`\nCompleted issues (${entries.length}):`)),
-  );
+  console.log(bold(green(`\nCompleted issues (${entries.length}):`)));
   for (const entry of entries) {
     const { mark, note } = completionMarker(entry);
     // The planner may hand back ids with or without a leading `#`; display them
     // uniformly so the list reads as one column.
-    const id = /^\d+$/.test(entry.issue.id.trim())
-      ? `#${entry.issue.id.trim()}`
-      : entry.issue.id;
+    const id = /^\d+$/.test(entry.issue.id.trim()) ? `#${entry.issue.id.trim()}` : entry.issue.id;
     // Tint by the raw id, not the display form: `#3` and `3` are the same
     // issue and must resolve to the same color as the lines printed earlier.
-    console.log(
-      `  ${mark} ${issueColor(entry.issue.id)(id)}  ${entry.issue.title}${note}`,
-    );
+    console.log(`  ${mark} ${issueColor(entry.issue.id)(id)}  ${entry.issue.title}${note}`);
     if (entry.url) console.log(dim(`      ${entry.url}`));
   }
 }

@@ -14,6 +14,6 @@ const routeApi = getRouteApi("/import");
  * pre-selects the wizard's target account.
  */
 export function ImportView() {
-	const { accountId } = routeApi.useSearch();
-	return <ImportWizard initialAccountId={accountId as AccountId | undefined} />;
+  const { accountId } = routeApi.useSearch();
+  return <ImportWizard initialAccountId={accountId as AccountId | undefined} />;
 }

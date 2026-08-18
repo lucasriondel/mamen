@@ -1,23 +1,23 @@
 import { EllipsisVertical, Pencil, Trash2 } from "lucide-react";
 import {
-	Menu,
-	MenuContent,
-	MenuGroup,
-	MenuGroupLabel,
-	MenuItem,
-	MenuSeparator,
-	MenuTrigger,
+  Menu,
+  MenuContent,
+  MenuGroup,
+  MenuGroupLabel,
+  MenuItem,
+  MenuSeparator,
+  MenuTrigger,
 } from "@/components/ui/menu";
 
 export interface AccountActionsMenuProps {
-	/** The account these actions belong to — names every item. */
-	name: string;
-	onRename: () => void;
-	onDelete: () => void;
-	/** The account still has transactions, so deleting it would orphan them. */
-	blocked: boolean;
-	/** A delete is in flight — the item stays rendered but won't fire twice. */
-	deleting: boolean;
+  /** The account these actions belong to — names every item. */
+  name: string;
+  onRename: () => void;
+  onDelete: () => void;
+  /** The account still has transactions, so deleting it would orphan them. */
+  blocked: boolean;
+  /** A delete is in flight — the item stays rendered but won't fire twice. */
+  deleting: boolean;
 }
 
 /**
@@ -39,57 +39,57 @@ export interface AccountActionsMenuProps {
  * names none of them.
  */
 export function AccountActionsMenu({
-	name,
-	onRename,
-	onDelete,
-	blocked,
-	deleting,
+  name,
+  onRename,
+  onDelete,
+  blocked,
+  deleting,
 }: AccountActionsMenuProps) {
-	return (
-		<Menu>
-			<MenuTrigger
-				render={
-					<button
-						type="button"
-						aria-label={`More actions for ${name}`}
-						title={`More actions for ${name}`}
-						className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full text-gousse-muted outline-none transition-colors hover:bg-gousse-line/60 hover:text-gousse-ink focus-visible:ring-2 focus-visible:ring-gousse-accent data-[popup-open]:bg-gousse-line/60 data-[popup-open]:text-gousse-ink"
-					>
-						<EllipsisVertical className="size-4" aria-hidden />
-					</button>
-				}
-			/>
-			<MenuContent>
-				<MenuGroup>
-					<MenuItem onClick={onRename}>
-						<Pencil className="size-3.5 text-gousse-muted" aria-hidden />
-						Rename {name}
-					</MenuItem>
-				</MenuGroup>
+  return (
+    <Menu>
+      <MenuTrigger
+        render={
+          <button
+            type="button"
+            aria-label={`More actions for ${name}`}
+            title={`More actions for ${name}`}
+            className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full text-gousse-muted outline-none transition-colors hover:bg-gousse-line/60 hover:text-gousse-ink focus-visible:ring-2 focus-visible:ring-gousse-accent data-[popup-open]:bg-gousse-line/60 data-[popup-open]:text-gousse-ink"
+          >
+            <EllipsisVertical className="size-4" aria-hidden />
+          </button>
+        }
+      />
+      <MenuContent>
+        <MenuGroup>
+          <MenuItem onClick={onRename}>
+            <Pencil className="size-3.5 text-gousse-muted" aria-hidden />
+            Rename {name}
+          </MenuItem>
+        </MenuGroup>
 
-				<MenuSeparator />
+        <MenuSeparator />
 
-				<MenuGroup>
-					<MenuGroupLabel>Danger zone</MenuGroupLabel>
-					<MenuItem
-						danger
-						disabled={blocked || deleting}
-						onClick={onDelete}
-						// Base UI closes the menu on select; a refused delete would close it
-						// on the reason it just showed. Disabled items don't fire anyway —
-						// this is the belt to that brace.
-						closeOnClick={!blocked}
-					>
-						<Trash2 className="size-3.5" aria-hidden />
-						Delete {name}
-					</MenuItem>
-					{blocked ? (
-						<p className="px-2.5 pt-0.5 pb-1 text-gousse-muted text-xs">
-							This account still has transactions — move or clear them first.
-						</p>
-					) : null}
-				</MenuGroup>
-			</MenuContent>
-		</Menu>
-	);
+        <MenuGroup>
+          <MenuGroupLabel>Danger zone</MenuGroupLabel>
+          <MenuItem
+            danger
+            disabled={blocked || deleting}
+            onClick={onDelete}
+            // Base UI closes the menu on select; a refused delete would close it
+            // on the reason it just showed. Disabled items don't fire anyway —
+            // this is the belt to that brace.
+            closeOnClick={!blocked}
+          >
+            <Trash2 className="size-3.5" aria-hidden />
+            Delete {name}
+          </MenuItem>
+          {blocked ? (
+            <p className="px-2.5 pt-0.5 pb-1 text-gousse-muted text-xs">
+              This account still has transactions — move or clear them first.
+            </p>
+          ) : null}
+        </MenuGroup>
+      </MenuContent>
+    </Menu>
+  );
 }

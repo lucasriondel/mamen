@@ -13,22 +13,22 @@ import { AiProvider, AiTask } from "./ai";
 
 /** A row addressed by id / name / slug / key is missing (get, update, delete). */
 export class NotFound extends Schema.TaggedError<NotFound>()(
-	"NotFound",
-	{
-		resource: Schema.String,
-		id: Schema.Union(Schema.String, Schema.Number),
-	},
-	HttpApiSchema.annotations({ status: 404 }),
+  "NotFound",
+  {
+    resource: Schema.String,
+    id: Schema.Union(Schema.String, Schema.Number),
+  },
+  HttpApiSchema.annotations({ status: 404 }),
 ) {}
 
 /** A uniqueness constraint was violated (e.g. duplicate settings key). */
 export class Conflict extends Schema.TaggedError<Conflict>()(
-	"Conflict",
-	{
-		resource: Schema.String,
-		message: Schema.String,
-	},
-	HttpApiSchema.annotations({ status: 409 }),
+  "Conflict",
+  {
+    resource: Schema.String,
+    message: Schema.String,
+  },
+  HttpApiSchema.annotations({ status: 409 }),
 ) {}
 
 /**
@@ -46,11 +46,11 @@ export class Conflict extends Schema.TaggedError<Conflict>()(
  * folders as assignable — see ADR 0003.
  */
 export class CategoryNotLeaf extends Schema.TaggedError<CategoryNotLeaf>()(
-	"CategoryNotLeaf",
-	{
-		categoryId: Schema.Number,
-	},
-	HttpApiSchema.annotations({ status: 422 }),
+  "CategoryNotLeaf",
+  {
+    categoryId: Schema.Number,
+  },
+  HttpApiSchema.annotations({ status: 422 }),
 ) {}
 
 /**
@@ -69,13 +69,13 @@ export class CategoryNotLeaf extends Schema.TaggedError<CategoryNotLeaf>()(
  * guarded-delete ergonomics ({@link CategoryInUse}).
  */
 export class CategoryHoldsMoney extends Schema.TaggedError<CategoryHoldsMoney>()(
-	"CategoryHoldsMoney",
-	{
-		categoryId: Schema.Number,
-		transactions: Schema.Number,
-		issuers: Schema.Number,
-	},
-	HttpApiSchema.annotations({ status: 422 }),
+  "CategoryHoldsMoney",
+  {
+    categoryId: Schema.Number,
+    transactions: Schema.Number,
+    issuers: Schema.Number,
+  },
+  HttpApiSchema.annotations({ status: 422 }),
 ) {}
 
 /**
@@ -91,12 +91,12 @@ export class CategoryHoldsMoney extends Schema.TaggedError<CategoryHoldsMoney>()
  * proposed parent that sits at or below it.
  */
 export class CategoryWouldCycle extends Schema.TaggedError<CategoryWouldCycle>()(
-	"CategoryWouldCycle",
-	{
-		categoryId: Schema.Number,
-		parentId: Schema.Number,
-	},
-	HttpApiSchema.annotations({ status: 422 }),
+  "CategoryWouldCycle",
+  {
+    categoryId: Schema.Number,
+    parentId: Schema.Number,
+  },
+  HttpApiSchema.annotations({ status: 422 }),
 ) {}
 
 /**
@@ -111,14 +111,14 @@ export class CategoryWouldCycle extends Schema.TaggedError<CategoryWouldCycle>()
  * through a different door. Mirrors the guarded delete already used for issuers.
  */
 export class CategoryInUse extends Schema.TaggedError<CategoryInUse>()(
-	"CategoryInUse",
-	{
-		categoryId: Schema.Number,
-		children: Schema.Number,
-		transactions: Schema.Number,
-		issuers: Schema.Number,
-	},
-	HttpApiSchema.annotations({ status: 409 }),
+  "CategoryInUse",
+  {
+    categoryId: Schema.Number,
+    children: Schema.Number,
+    transactions: Schema.Number,
+    issuers: Schema.Number,
+  },
+  HttpApiSchema.annotations({ status: 409 }),
 ) {}
 
 /**
@@ -156,18 +156,18 @@ export class CategoryInUse extends Schema.TaggedError<CategoryInUse>()(
  * is harmless to net out).
  */
 export class TransferInvalid extends Schema.TaggedError<TransferInvalid>()(
-	"TransferInvalid",
-	{
-		reason: Schema.Literal(
-			"too-few-legs",
-			"unbalanced",
-			"unknown-id",
-			"already-grouped",
-			"is-refund",
-			"is-bundled",
-		),
-	},
-	HttpApiSchema.annotations({ status: 422 }),
+  "TransferInvalid",
+  {
+    reason: Schema.Literal(
+      "too-few-legs",
+      "unbalanced",
+      "unknown-id",
+      "already-grouped",
+      "is-refund",
+      "is-bundled",
+    ),
+  },
+  HttpApiSchema.annotations({ status: 422 }),
 ) {}
 
 /**
@@ -238,29 +238,29 @@ export class TransferInvalid extends Schema.TaggedError<TransferInvalid>()(
  * side of the exclusivity, and no third type carries either reason.
  */
 export class BundleInvalid extends Schema.TaggedError<BundleInvalid>()(
-	"BundleInvalid",
-	{
-		reason: Schema.Literal(
-			"too-few-members",
-			"unknown-id",
-			"already-bundled",
-			"not-a-bundle",
-			"not-a-member",
-			"nested-bundle",
-			"is-transfer-leg",
-		),
-	},
-	HttpApiSchema.annotations({ status: 422 }),
+  "BundleInvalid",
+  {
+    reason: Schema.Literal(
+      "too-few-members",
+      "unknown-id",
+      "already-bundled",
+      "not-a-bundle",
+      "not-a-member",
+      "nested-bundle",
+      "is-transfer-leg",
+    ),
+  },
+  HttpApiSchema.annotations({ status: 422 }),
 ) {}
 
 /** An upload's MIME type is not in the image allow-list. */
 export class InvalidFileType extends Schema.TaggedError<InvalidFileType>()(
-	"InvalidFileType",
-	{
-		allowed: Schema.Array(Schema.String),
-		received: Schema.String,
-	},
-	HttpApiSchema.annotations({ status: 415 }),
+  "InvalidFileType",
+  {
+    allowed: Schema.Array(Schema.String),
+    received: Schema.String,
+  },
+  HttpApiSchema.annotations({ status: 415 }),
 ) {}
 
 /**
@@ -275,11 +275,11 @@ export class InvalidFileType extends Schema.TaggedError<InvalidFileType>()(
  * about waiting helps here; someone has to add configuration.
  */
 export class LogoSearchUnconfigured extends Schema.TaggedError<LogoSearchUnconfigured>()(
-	"LogoSearchUnconfigured",
-	{
-		missing: Schema.Array(Schema.String),
-	},
-	HttpApiSchema.annotations({ status: 501 }),
+  "LogoSearchUnconfigured",
+  {
+    missing: Schema.Array(Schema.String),
+  },
+  HttpApiSchema.annotations({ status: 501 }),
 ) {}
 
 /**
@@ -291,9 +291,9 @@ export class LogoSearchUnconfigured extends Schema.TaggedError<LogoSearchUnconfi
  * retry that cannot succeed and would not even cost anything to attempt.
  */
 export class LogoSearchQuotaExceeded extends Schema.TaggedError<LogoSearchQuotaExceeded>()(
-	"LogoSearchQuotaExceeded",
-	{},
-	HttpApiSchema.annotations({ status: 429 }),
+  "LogoSearchQuotaExceeded",
+  {},
+  HttpApiSchema.annotations({ status: 429 }),
 ) {}
 
 /**
@@ -304,11 +304,11 @@ export class LogoSearchQuotaExceeded extends Schema.TaggedError<LogoSearchQuotaE
  * `message` is diagnostic text, not a wire contract.
  */
 export class LogoSearchFailed extends Schema.TaggedError<LogoSearchFailed>()(
-	"LogoSearchFailed",
-	{
-		message: Schema.String,
-	},
-	HttpApiSchema.annotations({ status: 502 }),
+  "LogoSearchFailed",
+  {
+    message: Schema.String,
+  },
+  HttpApiSchema.annotations({ status: 502 }),
 ) {}
 
 /**
@@ -336,21 +336,21 @@ export class LogoSearchFailed extends Schema.TaggedError<LogoSearchFailed>()(
  * something this server will (or can) turn into an issuer image.
  */
 export class ImageFetchRefused extends Schema.TaggedError<ImageFetchRefused>()(
-	"ImageFetchRefused",
-	{
-		reason: Schema.Literal(
-			"invalid-url",
-			"not-https",
-			"private-address",
-			"unresolvable",
-			"too-many-redirects",
-			"too-large",
-			"timeout",
-			"unreachable",
-			"not-an-image",
-		),
-	},
-	HttpApiSchema.annotations({ status: 422 }),
+  "ImageFetchRefused",
+  {
+    reason: Schema.Literal(
+      "invalid-url",
+      "not-https",
+      "private-address",
+      "unresolvable",
+      "too-many-redirects",
+      "too-large",
+      "timeout",
+      "unreachable",
+      "not-an-image",
+    ),
+  },
+  HttpApiSchema.annotations({ status: 422 }),
 ) {}
 
 /**
@@ -371,11 +371,11 @@ export class ImageFetchRefused extends Schema.TaggedError<ImageFetchRefused>()(
  * server will store.
  */
 export class SecretRejected extends Schema.TaggedError<SecretRejected>()(
-	"SecretRejected",
-	{
-		reason: Schema.Literal("blank", "too-short"),
-	},
-	HttpApiSchema.annotations({ status: 422 }),
+  "SecretRejected",
+  {
+    reason: Schema.Literal("blank", "too-short"),
+  },
+  HttpApiSchema.annotations({ status: 422 }),
 ) {}
 
 /**
@@ -406,17 +406,13 @@ export class SecretRejected extends Schema.TaggedError<SecretRejected>()(
  * server will not store.
  */
 export class TaskProviderRejected extends Schema.TaggedError<TaskProviderRejected>()(
-	"TaskProviderRejected",
-	{
-		task: AiTask,
-		provider: AiProvider,
-		reason: Schema.Literal(
-			"model-not-served",
-			"no-credential",
-			"credential-in-use",
-		),
-	},
-	HttpApiSchema.annotations({ status: 422 }),
+  "TaskProviderRejected",
+  {
+    task: AiTask,
+    provider: AiProvider,
+    reason: Schema.Literal("model-not-served", "no-credential", "credential-in-use"),
+  },
+  HttpApiSchema.annotations({ status: 422 }),
 ) {}
 
 /**
@@ -443,24 +439,20 @@ export class TaskProviderRejected extends Schema.TaggedError<TaskProviderRejecte
  * otherwise return, so a client decoding by status alone still tells them apart.
  */
 export class AiProviderNotConfigured extends Schema.TaggedError<AiProviderNotConfigured>()(
-	"AiProviderNotConfigured",
-	{
-		task: AiTask,
-		provider: AiProvider,
-	},
-	HttpApiSchema.annotations({ status: 501 }),
+  "AiProviderNotConfigured",
+  {
+    task: AiTask,
+    provider: AiProvider,
+  },
+  HttpApiSchema.annotations({ status: 501 }),
 ) {}
 
 /**
  * Decodes a query-string boolean ("true" / "false") into a real boolean. Query
  * params are always strings, so boolean list filters (e.g. `isRefund`) use this.
  */
-export const BooleanFromString = Schema.transform(
-	Schema.Literal("true", "false"),
-	Schema.Boolean,
-	{
-		strict: true,
-		decode: (s) => s === "true",
-		encode: (b) => (b ? "true" : "false"),
-	},
-);
+export const BooleanFromString = Schema.transform(Schema.Literal("true", "false"), Schema.Boolean, {
+  strict: true,
+  decode: (s) => s === "true",
+  encode: (b) => (b ? "true" : "false"),
+});

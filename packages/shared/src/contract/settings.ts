@@ -1,9 +1,4 @@
-import {
-	HttpApiEndpoint,
-	HttpApiGroup,
-	HttpApiSchema,
-	OpenApi,
-} from "@effect/platform";
+import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema, OpenApi } from "@effect/platform";
 import { Schema } from "effect";
 import { NotFound } from "./errors";
 import { SettingId } from "./ids";
@@ -23,11 +18,11 @@ import { Paged, Pagination } from "./pagination";
  * never holds a key this union cannot decode.
  */
 export const SettingKey = Schema.Literal(
-	"currency_symbol",
-	"date_format",
-	"anomaly_threshold",
-	"anomaly_settings",
-	"displayPreferences",
+  "currency_symbol",
+  "date_format",
+  "anomaly_threshold",
+  "anomaly_settings",
+  "displayPreferences",
 );
 export type SettingKey = typeof SettingKey.Type;
 
@@ -38,9 +33,9 @@ export type SettingKey = typeof SettingKey.Type;
  * `AppSettings`).
  */
 export class Setting extends Schema.Class<Setting>("Setting")({
-	id: SettingId,
-	key: SettingKey,
-	value: Schema.String,
+  id: SettingId,
+  key: SettingKey,
+  value: Schema.String,
 }) {}
 
 /**
@@ -53,21 +48,15 @@ export class Setting extends Schema.Class<Setting>("Setting")({
  * `POST /settings/clear` (both client-only).
  */
 export class SettingsGroup extends HttpApiGroup.make("settings")
-	.add(
-		HttpApiEndpoint.get("list")`/settings`
-			.setUrlParams(Schema.Struct(Pagination))
-			.addSuccess(Paged(Setting)),
-	)
-	.add(
-		HttpApiEndpoint.get(
-			"getByKey",
-		)`/settings/by-key/${HttpApiSchema.param("key", SettingKey)}`
-			.addSuccess(Setting)
-			.addError(NotFound),
-	)
-	.add(
-		HttpApiEndpoint.put("putByKey")`/settings/by-key`
-			.setPayload(Setting)
-			.addSuccess(Setting),
-	)
-	.annotateContext(OpenApi.annotations({ title: "Settings" })) {}
+  .add(
+    HttpApiEndpoint.get("list")`/settings`
+      .setUrlParams(Schema.Struct(Pagination))
+      .addSuccess(Paged(Setting)),
+  )
+  .add(
+    HttpApiEndpoint.get("getByKey")`/settings/by-key/${HttpApiSchema.param("key", SettingKey)}`
+      .addSuccess(Setting)
+      .addError(NotFound),
+  )
+  .add(HttpApiEndpoint.put("putByKey")`/settings/by-key`.setPayload(Setting).addSuccess(Setting))
+  .annotateContext(OpenApi.annotations({ title: "Settings" })) {}

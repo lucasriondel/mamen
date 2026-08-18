@@ -9,8 +9,8 @@ import { Effect } from "effect";
  * pre-existing row is rule-eligible.
  */
 export default Effect.flatMap(SqlClient.SqlClient, (sql) =>
-	Effect.all([
-		sql`ALTER TABLE transactions ADD COLUMN manualIssuer INTEGER DEFAULT 0`,
-		sql`CREATE INDEX IF NOT EXISTS idx_tx_manualIssuer ON transactions(manualIssuer)`,
-	]).pipe(Effect.asVoid),
+  Effect.all([
+    sql`ALTER TABLE transactions ADD COLUMN manualIssuer INTEGER DEFAULT 0`,
+    sql`CREATE INDEX IF NOT EXISTS idx_tx_manualIssuer ON transactions(manualIssuer)`,
+  ]).pipe(Effect.asVoid),
 );

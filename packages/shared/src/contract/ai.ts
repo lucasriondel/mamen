@@ -30,12 +30,7 @@ import { Schema } from "effect";
  * to say whose key it wants; the same id is the name a stored credential lives
  * under and the value a task's provider column holds.
  */
-export const AiProvider = Schema.Literal(
-	"claude-code",
-	"anthropic",
-	"google",
-	"openai",
-);
+export const AiProvider = Schema.Literal("claude-code", "anthropic", "google", "openai");
 export type AiProvider = typeof AiProvider.Type;
 
 /**
@@ -45,10 +40,10 @@ export type AiProvider = typeof AiProvider.Type;
  * literal it mirrors.
  */
 export const AI_PROVIDERS = [
-	"claude-code",
-	"anthropic",
-	"google",
-	"openai",
+  "claude-code",
+  "anthropic",
+  "google",
+  "openai",
 ] as const satisfies ReadonlyArray<AiProvider>;
 
 /**
@@ -64,10 +59,10 @@ export const DEFAULT_AI_PROVIDER: AiProvider = "claude-code";
  * the wire value and a rename of the label must not be a migration.
  */
 export const AI_PROVIDER_LABELS: { readonly [P in AiProvider]: string } = {
-	"claude-code": "Claude Code",
-	anthropic: "Anthropic",
-	google: "Google",
-	openai: "OpenAI",
+  "claude-code": "Claude Code",
+  anthropic: "Anthropic",
+  google: "Google",
+  openai: "OpenAI",
 };
 
 /**
@@ -90,12 +85,12 @@ export const AI_PROVIDER_LABELS: { readonly [P in AiProvider]: string } = {
  * vendor's full catalogue is a menu nobody can choose from.
  */
 export const AI_PROVIDER_MODELS: {
-	readonly [P in AiProvider]: readonly [string, ...string[]];
+  readonly [P in AiProvider]: readonly [string, ...string[]];
 } = {
-	"claude-code": ["claude-haiku-4-5", "claude-sonnet-5", "claude-opus-5"],
-	anthropic: ["claude-haiku-4-5", "claude-sonnet-5", "claude-opus-5"],
-	google: ["gemini-2.5-flash", "gemini-2.5-pro"],
-	openai: ["gpt-5-mini", "gpt-5"],
+  "claude-code": ["claude-haiku-4-5", "claude-sonnet-5", "claude-opus-5"],
+  anthropic: ["claude-haiku-4-5", "claude-sonnet-5", "claude-opus-5"],
+  google: ["gemini-2.5-flash", "gemini-2.5-pro"],
+  openai: ["gpt-5-mini", "gpt-5"],
 };
 
 /**
@@ -108,9 +103,7 @@ export const AiTask = Schema.Literal("extract-pdf");
 export type AiTask = typeof AiTask.Type;
 
 /** The tasks in display order. Mirrors {@link AiTask}, held by a test. */
-export const AI_TASKS = [
-	"extract-pdf",
-] as const satisfies ReadonlyArray<AiTask>;
+export const AI_TASKS = ["extract-pdf"] as const satisfies ReadonlyArray<AiTask>;
 
 /**
  * Is this provider a **hosted vendor** — one that runs on someone else's
@@ -121,12 +114,10 @@ export const AI_TASKS = [
  * safe default for a predicate whose false answer means "nothing leaves this
  * machine".
  */
-export const isHostedProvider = (provider: AiProvider): boolean =>
-	provider !== "claude-code";
+export const isHostedProvider = (provider: AiProvider): boolean => provider !== "claude-code";
 
 /** This provider's default model — the cheap one at the head of its list. */
-export const defaultModelFor = (provider: AiProvider): string =>
-	AI_PROVIDER_MODELS[provider][0];
+export const defaultModelFor = (provider: AiProvider): string => AI_PROVIDER_MODELS[provider][0];
 
 /**
  * Does this provider serve this model? The save-time check behind "a task can
@@ -137,7 +128,5 @@ export const defaultModelFor = (provider: AiProvider): string =>
  * (`anthropic/claude-haiku-4-5`) is a model nobody serves rather than a second
  * name for one somebody does.
  */
-export const isModelOfProvider = (
-	provider: AiProvider,
-	model: string,
-): boolean => AI_PROVIDER_MODELS[provider].includes(model);
+export const isModelOfProvider = (provider: AiProvider, model: string): boolean =>
+  AI_PROVIDER_MODELS[provider].includes(model);

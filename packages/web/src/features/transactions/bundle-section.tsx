@@ -69,153 +69,127 @@ function noop() {}
  * Rendered only for `kind === "bundle"`: on a bank row there is no membership to
  * list and the date is the bank's.
  */
-export function BundleSection({
-	transaction: txn,
-}: {
-	transaction: Transaction;
-}) {
-	const { setBundleDate, removeFromBundle, dissolveBundle } = useBundle();
-	const { assignExisting } = useAssignIssuer();
-	const { setOverride } = useCategoryOverride();
+export function BundleSection({ transaction: txn }: { transaction: Transaction }) {
+  const { setBundleDate, removeFromBundle, dissolveBundle } = useBundle();
+  const { assignExisting } = useAssignIssuer();
+  const { setOverride } = useCategoryOverride();
 
-	// The members. Asking by `bundleId` is the only way `list` reaches a member at
-	// all (issue #68).
-	const membersQuery = useQuery(
-		transactionQueries.list({
-			bundleId: txn.id,
-			limit: MEMBER_SCAN_LIMIT,
-			orderBy: "date",
-			direction: MEMBER_ORDER,
-		}),
-	);
-	const members = (membersQuery.data?.items ?? []) as readonly Transaction[];
+  // The members. Asking by `bundleId` is the only way `list` reaches a member at
+  // all (issue #68).
+  const membersQuery = useQuery(
+    transactionQueries.list({
+      bundleId: txn.id,
+      limit: MEMBER_SCAN_LIMIT,
+      orderBy: "date",
+      direction: MEMBER_ORDER,
+    }),
+  );
+  const members = (membersQuery.data?.items ?? []) as readonly Transaction[];
 
-	// The issuers of the rows on screen, by their ids (#62) — never the issuer
-	// table, whose first page may not hold the one a member points at.
-	const {
-		issuersById,
-		isPending: issuersPending,
-		isError: issuersError,
-	} = useIssuerLookup(members.map((m) => m.issuerId));
-	const categoriesQuery = useQuery(
-		categoryQueries.list({ limit: CATEGORY_SCAN_LIMIT }),
-	);
-	// Memoised — the table rebuilds its column set on any lookup's identity, so a
-	// fresh map every render would rebuild it on every render.
-	const categoriesById = useMemo(
-		() => indexById((categoriesQuery.data?.items ?? []) as readonly Category[]),
-		[categoriesQuery.data],
-	);
-	// The accounts the table's Account column reads. A bundle's members are
-	// ordinary bank rows and may well span two accounts — the charge on one card,
-	// the payback into the current account — so the column earns its place here.
-	const accountsQuery = useQuery(accountQueries.list());
-	const accountsById = useMemo(
-		() => indexById((accountsQuery.data?.items ?? []) as readonly Account[]),
-		[accountsQuery.data],
-	);
+  // The issuers of the rows on screen, by their ids (#62) — never the issuer
+  // table, whose first page may not hold the one a member points at.
+  const {
+    issuersById,
+    isPending: issuersPending,
+    isError: issuersError,
+  } = useIssuerLookup(members.map((m) => m.issuerId));
+  const categoriesQuery = useQuery(categoryQueries.list({ limit: CATEGORY_SCAN_LIMIT }));
+  // Memoised — the table rebuilds its column set on any lookup's identity, so a
+  // fresh map every render would rebuild it on every render.
+  const categoriesById = useMemo(
+    () => indexById((categoriesQuery.data?.items ?? []) as readonly Category[]),
+    [categoriesQuery.data],
+  );
+  // The accounts the table's Account column reads. A bundle's members are
+  // ordinary bank rows and may well span two accounts — the charge on one card,
+  // the payback into the current account — so the column earns its place here.
+  const accountsQuery = useQuery(accountQueries.list());
+  const accountsById = useMemo(
+    () => indexById((accountsQuery.data?.items ?? []) as readonly Account[]),
+    [accountsQuery.data],
+  );
 
-	const pending =
-		assignExisting.isPending ||
-		setOverride.isPending ||
-		setBundleDate.isPending ||
-		removeFromBundle.isPending ||
-		dissolveBundle.isPending;
+  const pending =
+    assignExisting.isPending ||
+    setOverride.isPending ||
+    setBundleDate.isPending ||
+    removeFromBundle.isPending ||
+    dissolveBundle.isPending;
 
-	// The **Actions** column's contents, per member. Stable across renders: the
-	// table rebuilds its whole column set whenever this identity changes, and a
-	// fresh closure every render would do that on every keystroke elsewhere on the
-	// page. This component is the one that knows what each control writes.
-	const renderMemberActions = useCallback(
-		(member: Transaction) => (
-			<BundleMemberActions
-				member={member}
-				parent={txn}
-				issuer={
-					member.issuerId != null ? issuersById.get(member.issuerId) : undefined
-				}
-				category={
-					member.categoryId != null
-						? categoriesById.get(member.categoryId)
-						: undefined
-				}
-				disabled={pending}
-				onCopyIssuer={(issuerId) =>
-					assignExisting.mutate({ transactionId: txn.id, issuerId })
-				}
-				onCopyCategory={(categoryId) =>
-					setOverride.mutate({ transactionId: txn.id, categoryId })
-				}
-				onRemove={() => removeFromBundle.mutate({ transactionId: member.id })}
-			/>
-		),
-		[
-			txn,
-			issuersById,
-			categoriesById,
-			pending,
-			assignExisting,
-			setOverride,
-			removeFromBundle,
-		],
-	);
+  // The **Actions** column's contents, per member. Stable across renders: the
+  // table rebuilds its whole column set whenever this identity changes, and a
+  // fresh closure every render would do that on every keystroke elsewhere on the
+  // page. This component is the one that knows what each control writes.
+  const renderMemberActions = useCallback(
+    (member: Transaction) => (
+      <BundleMemberActions
+        member={member}
+        parent={txn}
+        issuer={member.issuerId != null ? issuersById.get(member.issuerId) : undefined}
+        category={member.categoryId != null ? categoriesById.get(member.categoryId) : undefined}
+        disabled={pending}
+        onCopyIssuer={(issuerId) => assignExisting.mutate({ transactionId: txn.id, issuerId })}
+        onCopyCategory={(categoryId) => setOverride.mutate({ transactionId: txn.id, categoryId })}
+        onRemove={() => removeFromBundle.mutate({ transactionId: member.id })}
+      />
+    ),
+    [txn, issuersById, categoriesById, pending, assignExisting, setOverride, removeFromBundle],
+  );
 
-	return (
-		<div className="flex flex-col gap-3 border-t border-gousse-line pt-6">
-			<h2 className="flex items-center gap-2 text-lg font-semibold text-gousse-ink">
-				<Layers size={18} aria-hidden className="text-gousse-muted" />
-				Bundle
-			</h2>
+  return (
+    <div className="flex flex-col gap-3 border-t border-gousse-line pt-6">
+      <h2 className="flex items-center gap-2 text-lg font-semibold text-gousse-ink">
+        <Layers size={18} aria-hidden className="text-gousse-muted" />
+        Bundle
+      </h2>
 
-			<p className="text-sm text-gousse-muted">
-				This row stands for the transactions below, totalling{" "}
-				<span className="font-medium tabular-nums text-gousse-ink">
-					{formatCurrency(txn.amount)}
-				</span>
-				. The total is always what they sum to, so it isn't editable — change
-				the members and it follows.
-			</p>
+      <p className="text-sm text-gousse-muted">
+        This row stands for the transactions below, totalling{" "}
+        <span className="font-medium tabular-nums text-gousse-ink">
+          {formatCurrency(txn.amount)}
+        </span>
+        . The total is always what they sum to, so it isn't editable — change the members and it
+        follows.
+      </p>
 
-			{membersQuery.isError || issuersError ? (
-				<p className="text-sm text-gousse-high italic">
-					Couldn't load this bundle's members. Retry in a moment.
-				</p>
-			) : /* Held until the issuer lookup lands too: it reads the ids of the
-			      rows, so it resolves a beat after them, and a member rendered
-			      before its issuer arrives is a member rendered as *unresolved*. */
-			membersQuery.isPending || issuersPending ? (
-				<TransactionsTableSkeleton rows={3} />
-			) : members.length === 0 ? (
-				<p className="text-sm text-gousse-muted italic">
-					This bundle has no members left.
-				</p>
-			) : (
-				<TransactionsTable
-					transactions={members}
-					accountsById={accountsById}
-					issuersById={issuersById}
-					categoriesById={categoriesById}
-					direction={MEMBER_ORDER}
-					// The order is fixed (see `MEMBER_ORDER`), so the Date header's
-					// toggle has nothing to do — it stays inert rather than re-querying
-					// the bundle to reorder a handful of rows.
-					onToggleSort={noop}
-					renderActions={renderMemberActions}
-				/>
-			)}
+      {membersQuery.isError || issuersError ? (
+        <p className="text-sm text-gousse-high italic">
+          Couldn't load this bundle's members. Retry in a moment.
+        </p>
+      ) : /* Held until the issuer lookup lands too: it reads the ids of the
+             rows, so it resolves a beat after them, and a member rendered
+             before its issuer arrives is a member rendered as *unresolved*. */
+      membersQuery.isPending || issuersPending ? (
+        <TransactionsTableSkeleton rows={3} />
+      ) : members.length === 0 ? (
+        <p className="text-sm text-gousse-muted italic">This bundle has no members left.</p>
+      ) : (
+        <TransactionsTable
+          transactions={members}
+          accountsById={accountsById}
+          issuersById={issuersById}
+          categoriesById={categoriesById}
+          direction={MEMBER_ORDER}
+          // The order is fixed (see `MEMBER_ORDER`), so the Date header's
+          // toggle has nothing to do — it stays inert rather than re-querying
+          // the bundle to reorder a handful of rows.
+          onToggleSort={noop}
+          renderActions={renderMemberActions}
+        />
+      )}
 
-			<BundleDateForm
-				date={txn.date}
-				manualDate={txn.manualDate === true}
-				disabled={pending}
-				onSave={(date) => setBundleDate.mutate({ transactionId: txn.id, date })}
-			/>
+      <BundleDateForm
+        date={txn.date}
+        manualDate={txn.manualDate === true}
+        disabled={pending}
+        onSave={(date) => setBundleDate.mutate({ transactionId: txn.id, date })}
+      />
 
-			<BundleDissolveBlock
-				disabled={pending}
-				isDissolving={dissolveBundle.isPending}
-				onDissolve={() => dissolveBundle.mutate({ bundleId: txn.id })}
-			/>
-		</div>
-	);
+      <BundleDissolveBlock
+        disabled={pending}
+        isDissolving={dissolveBundle.isPending}
+        onDissolve={() => dissolveBundle.mutate({ bundleId: txn.id })}
+      />
+    </div>
+  );
 }

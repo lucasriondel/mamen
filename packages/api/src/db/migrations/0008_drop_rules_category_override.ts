@@ -9,5 +9,5 @@ import { Effect } from "effect";
  * `issuerId`/`pattern`), so a plain `DROP COLUMN` (SQLite ≥ 3.35) suffices.
  */
 export default Effect.flatMap(SqlClient.SqlClient, (sql) =>
-	sql`ALTER TABLE rules DROP COLUMN categoryOverride`.pipe(Effect.asVoid),
+  sql`ALTER TABLE rules DROP COLUMN categoryOverride`.pipe(Effect.asVoid),
 );

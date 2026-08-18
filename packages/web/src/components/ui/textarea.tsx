@@ -31,19 +31,19 @@ import { cn } from "@/lib/utils";
  * Native `<textarea>` props pass straight through, `ref` included.
  */
 export function Textarea({ className, ...props }: ComponentProps<"textarea">) {
-	return (
-		<textarea
-			className={cn(
-				FIELD_CHROME,
-				FIELD_BOX,
-				"placeholder:text-gousse-muted",
-				"transition-[border-color,box-shadow] duration-150",
-				"focus-visible:border-gousse-accent focus-visible:ring-2 focus-visible:ring-gousse-accent focus-visible:ring-offset-1 focus-visible:ring-offset-gousse-bg",
-				"disabled:cursor-not-allowed disabled:opacity-50",
-				"aria-invalid:border-gousse-high aria-invalid:focus:border-gousse-high aria-invalid:focus-visible:border-gousse-high aria-invalid:focus-visible:ring-gousse-high",
-				className,
-			)}
-			{...props}
-		/>
-	);
+  return (
+    <textarea
+      className={cn(
+        FIELD_CHROME,
+        FIELD_BOX,
+        "placeholder:text-gousse-muted",
+        "transition-[border-color,box-shadow] duration-150",
+        "focus-visible:border-gousse-accent focus-visible:ring-2 focus-visible:ring-gousse-accent focus-visible:ring-offset-1 focus-visible:ring-offset-gousse-bg",
+        "disabled:cursor-not-allowed disabled:opacity-50",
+        "aria-invalid:border-gousse-high aria-invalid:focus:border-gousse-high aria-invalid:focus-visible:border-gousse-high aria-invalid:focus-visible:ring-gousse-high",
+        className,
+      )}
+      {...props}
+    />
+  );
 }

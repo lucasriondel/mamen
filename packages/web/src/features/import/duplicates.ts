@@ -7,12 +7,12 @@ import type { AccountId, TransactionKind } from "@mamen/shared/contract";
  * which side a row came from.
  */
 export type DuplicateCandidate = {
-	accountId: AccountId;
-	date: Date;
-	amount: number;
-	rawIssuerString: string;
-	/** Present on stored rows only; `"bundle"` marks a **bundle parent**. */
-	kind?: TransactionKind;
+  accountId: AccountId;
+  date: Date;
+  amount: number;
+  rawIssuerString: string;
+  /** Present on stored rows only; `"bundle"` marks a **bundle parent**. */
+  kind?: TransactionKind;
 };
 
 /**
@@ -27,7 +27,7 @@ export type DuplicateCandidate = {
  * extraction truncated one would collapse into each other.
  */
 export function normaliseIssuerString(raw: string): string {
-	return raw.trim().replace(/\s+/g, " ").toUpperCase();
+  return raw.trim().replace(/\s+/g, " ").toUpperCase();
 }
 
 /**
@@ -43,8 +43,8 @@ export function normaliseIssuerString(raw: string): string {
  * the same are the same amount, and a float `===` would call them different.
  */
 export function duplicateKey(row: DuplicateCandidate): string {
-	const cents = Math.round(row.amount * 100);
-	return `${row.accountId}|${row.date.getTime()}|${cents}|${normaliseIssuerString(row.rawIssuerString)}`;
+  const cents = Math.round(row.amount * 100);
+  return `${row.accountId}|${row.date.getTime()}|${cents}|${normaliseIssuerString(row.rawIssuerString)}`;
 }
 
 /**
@@ -63,21 +63,21 @@ export function duplicateKey(row: DuplicateCandidate): string {
  * rather than a bank row.
  */
 export function flagDuplicates(
-	records: readonly DuplicateCandidate[],
-	existing: readonly DuplicateCandidate[],
+  records: readonly DuplicateCandidate[],
+  existing: readonly DuplicateCandidate[],
 ): boolean[] {
-	const unclaimed = new Map<string, number>();
-	for (const row of existing) {
-		if (row.kind === "bundle") continue;
-		const key = duplicateKey(row);
-		unclaimed.set(key, (unclaimed.get(key) ?? 0) + 1);
-	}
+  const unclaimed = new Map<string, number>();
+  for (const row of existing) {
+    if (row.kind === "bundle") continue;
+    const key = duplicateKey(row);
+    unclaimed.set(key, (unclaimed.get(key) ?? 0) + 1);
+  }
 
-	return records.map((record) => {
-		const key = duplicateKey(record);
-		const left = unclaimed.get(key) ?? 0;
-		if (left === 0) return false;
-		unclaimed.set(key, left - 1);
-		return true;
-	});
+  return records.map((record) => {
+    const key = duplicateKey(record);
+    const left = unclaimed.get(key) ?? 0;
+    if (left === 0) return false;
+    unclaimed.set(key, left - 1);
+    return true;
+  });
 }

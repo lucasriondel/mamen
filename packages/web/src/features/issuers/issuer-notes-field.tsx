@@ -8,7 +8,7 @@ import { useIssuerMutations } from "./use-issuer-mutations";
 const NOTES_DEBOUNCE_MS = 600;
 
 interface IssuerNotesFieldProps {
-	issuer: Issuer;
+  issuer: Issuer;
 }
 
 /**
@@ -31,60 +31,60 @@ interface IssuerNotesFieldProps {
  * out from under the cursor.
  */
 export function IssuerNotesField({ issuer }: IssuerNotesFieldProps) {
-	const { setNotes } = useIssuerMutations();
-	const setNotesMutate = setNotes.mutate;
-	const [isFocused, setIsFocused] = useState(false);
-	const [draft, setDraft] = useState(issuer.notes ?? "");
-	// What the server is known to hold, so the debounce doesn't re-send a note
-	// the last keystroke already saved (and doesn't fire on mount).
-	const savedRef = useRef(issuer.notes ?? "");
+  const { setNotes } = useIssuerMutations();
+  const setNotesMutate = setNotes.mutate;
+  const [isFocused, setIsFocused] = useState(false);
+  const [draft, setDraft] = useState(issuer.notes ?? "");
+  // What the server is known to hold, so the debounce doesn't re-send a note
+  // the last keystroke already saved (and doesn't fire on mount).
+  const savedRef = useRef(issuer.notes ?? "");
 
-	if (!isFocused && draft !== (issuer.notes ?? "")) {
-		setDraft(issuer.notes ?? "");
-		savedRef.current = issuer.notes ?? "";
-	}
+  if (!isFocused && draft !== (issuer.notes ?? "")) {
+    setDraft(issuer.notes ?? "");
+    savedRef.current = issuer.notes ?? "";
+  }
 
-	const debouncedDraft = useDebouncedValue(draft, NOTES_DEBOUNCE_MS);
+  const debouncedDraft = useDebouncedValue(draft, NOTES_DEBOUNCE_MS);
 
-	useEffect(() => {
-		const trimmed = debouncedDraft.trim();
-		if (trimmed === savedRef.current) return;
-		savedRef.current = trimmed;
-		// Empty means *remove the note*, which absent-means-unchanged can't say.
-		setNotesMutate({
-			id: issuer.id,
-			notes: trimmed.length > 0 ? trimmed : null,
-		});
-	}, [debouncedDraft, issuer.id, setNotesMutate]);
+  useEffect(() => {
+    const trimmed = debouncedDraft.trim();
+    if (trimmed === savedRef.current) return;
+    savedRef.current = trimmed;
+    // Empty means *remove the note*, which absent-means-unchanged can't say.
+    setNotesMutate({
+      id: issuer.id,
+      notes: trimmed.length > 0 ? trimmed : null,
+    });
+  }, [debouncedDraft, issuer.id, setNotesMutate]);
 
-	const flush = () => {
-		setIsFocused(false);
-		// A blur must not lose the tail of what was typed: write anything the
-		// debounce hasn't sent yet.
-		const trimmed = draft.trim();
-		if (trimmed === savedRef.current) return;
-		savedRef.current = trimmed;
-		setNotesMutate({
-			id: issuer.id,
-			notes: trimmed.length > 0 ? trimmed : null,
-		});
-	};
+  const flush = () => {
+    setIsFocused(false);
+    // A blur must not lose the tail of what was typed: write anything the
+    // debounce hasn't sent yet.
+    const trimmed = draft.trim();
+    if (trimmed === savedRef.current) return;
+    savedRef.current = trimmed;
+    setNotesMutate({
+      id: issuer.id,
+      notes: trimmed.length > 0 ? trimmed : null,
+    });
+  };
 
-	return (
-		<div className="flex flex-col gap-1">
-			<label htmlFor="issuer-notes" className="text-sm text-gousse-muted">
-				Notes
-			</label>
-			<Textarea
-				id="issuer-notes"
-				value={draft}
-				onChange={(event) => setDraft(event.target.value)}
-				onFocus={() => setIsFocused(true)}
-				onBlur={flush}
-				rows={3}
-				placeholder="Anything worth remembering about this issuer…"
-				className="w-full resize-y"
-			/>
-		</div>
-	);
+  return (
+    <div className="flex flex-col gap-1">
+      <label htmlFor="issuer-notes" className="text-sm text-gousse-muted">
+        Notes
+      </label>
+      <Textarea
+        id="issuer-notes"
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        onFocus={() => setIsFocused(true)}
+        onBlur={flush}
+        rows={3}
+        placeholder="Anything worth remembering about this issuer…"
+        className="w-full resize-y"
+      />
+    </div>
+  );
 }

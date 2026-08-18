@@ -22,8 +22,8 @@ import { Effect } from "effect";
  * The singleton row itself survives, emptied down to its `id`.
  */
 export default Effect.flatMap(SqlClient.SqlClient, (sql) =>
-	Effect.all([
-		sql`DELETE FROM settings WHERE key IN ('llm_endpoint', 'llm_api_key', 'llm_model')`,
-		sql`ALTER TABLE appSettings DROP COLUMN llm`,
-	]).pipe(Effect.asVoid),
+  Effect.all([
+    sql`DELETE FROM settings WHERE key IN ('llm_endpoint', 'llm_api_key', 'llm_model')`,
+    sql`ALTER TABLE appSettings DROP COLUMN llm`,
+  ]).pipe(Effect.asVoid),
 );

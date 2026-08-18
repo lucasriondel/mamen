@@ -1,9 +1,9 @@
 import type {
-	Category,
-	Issuer,
-	RecapExcluded,
-	RecapSummary,
-	RecapTransfers,
+  Category,
+  Issuer,
+  RecapExcluded,
+  RecapSummary,
+  RecapTransfers,
 } from "@mamen/shared/contract";
 import { resolveCategoryColors } from "@/lib/category-tree";
 
@@ -17,33 +17,33 @@ import { resolveCategoryColors } from "@/lib/category-tree";
  * (issue #71); what this module adds is the bucket's visual identity.
  */
 export type SpendRow = {
-	/** Stable key for React lists and sort tiebreaks — the entity id, or `null`. */
-	id: number | null;
-	/** The bucket's display name (the issuer/category name, or an "Unassigned" label). */
-	name: string;
-	/** Total money spent in the bucket — a positive magnitude in euros. */
-	spent: number;
-	/** How many spending transactions fell in the bucket. */
-	count: number;
-	/** Issuer image URL (root-relative `/uploads/issuers/…`), for the by-issuer section. */
-	imageUrl?: string;
-	/**
-	 * The issuer's **issuer default category** id, for the by-issuer section — the
-	 * second rung of the **Avatar fallback chain** (issue #59). Carried as an *id*
-	 * rather than a resolved icon/colour pair, unlike the category rows below: the
-	 * avatar owns that resolution, so handing it a pre-resolved pair would put a
-	 * second copy of the chain here.
-	 */
-	defaultCategoryId?: number;
-	/** The category's **Icon name** (a Lucide id), for the by-category section. */
-	icon?: string;
-	/**
-	 * The category's **Resolved colour** — resolved here, where the whole tree is
-	 * in hand, because `color` may be null and mean *inherit* (ADR 0006). Carried
-	 * on the row so the section renders a colour it is handed rather than
-	 * re-deriving one from a lookup it does not have.
-	 */
-	color?: string;
+  /** Stable key for React lists and sort tiebreaks — the entity id, or `null`. */
+  id: number | null;
+  /** The bucket's display name (the issuer/category name, or an "Unassigned" label). */
+  name: string;
+  /** Total money spent in the bucket — a positive magnitude in euros. */
+  spent: number;
+  /** How many spending transactions fell in the bucket. */
+  count: number;
+  /** Issuer image URL (root-relative `/uploads/issuers/…`), for the by-issuer section. */
+  imageUrl?: string;
+  /**
+   * The issuer's **issuer default category** id, for the by-issuer section — the
+   * second rung of the **Avatar fallback chain** (issue #59). Carried as an *id*
+   * rather than a resolved icon/colour pair, unlike the category rows below: the
+   * avatar owns that resolution, so handing it a pre-resolved pair would put a
+   * second copy of the chain here.
+   */
+  defaultCategoryId?: number;
+  /** The category's **Icon name** (a Lucide id), for the by-category section. */
+  icon?: string;
+  /**
+   * The category's **Resolved colour** — resolved here, where the whole tree is
+   * in hand, because `color` may be null and mean *inherit* (ADR 0006). Carried
+   * on the row so the section renders a colour it is handed rather than
+   * re-deriving one from a lookup it does not have.
+   */
+  color?: string;
 };
 
 /**
@@ -56,12 +56,12 @@ export type TransferSummary = RecapTransfers;
 
 /** The two spend breakdowns the recap page shows, each already summed per bucket. */
 export type RecapSpend = {
-	byIssuer: SpendRow[];
-	byCategory: SpendRow[];
-	/** The internal-transfer legs netted out of the breakdowns, summarised. */
-	transfers: TransferSummary;
-	/** The spend held out of the breakdowns by an exclusion decision (issue #87). */
-	excluded: ExcludedSummary;
+  byIssuer: SpendRow[];
+  byCategory: SpendRow[];
+  /** The internal-transfer legs netted out of the breakdowns, summarised. */
+  transfers: TransferSummary;
+  /** The spend held out of the breakdowns by an exclusion decision (issue #87). */
+  excluded: ExcludedSummary;
 };
 
 /**
@@ -98,48 +98,47 @@ export const EXCLUDED_LABEL = "Excluded from recap";
  * unattributed spend is *named* rather than dropped.
  */
 export function toSpendRows(
-	summary: RecapSummary,
-	lookups: {
-		issuersById: ReadonlyMap<number, Issuer>;
-		categoriesById: ReadonlyMap<number, Category>;
-	},
+  summary: RecapSummary,
+  lookups: {
+    issuersById: ReadonlyMap<number, Issuer>;
+    categoriesById: ReadonlyMap<number, Category>;
+  },
 ): RecapSpend {
-	const { issuersById, categoriesById } = lookups;
+  const { issuersById, categoriesById } = lookups;
 
-	const byIssuer = summary.byIssuer.map((bucket): SpendRow => {
-		const issuer = bucket.id == null ? undefined : issuersById.get(bucket.id);
-		return {
-			id: bucket.id,
-			name: issuer?.name ?? UNASSIGNED_LABEL,
-			imageUrl: issuer?.imageUrl,
-			defaultCategoryId: issuer?.defaultCategoryId,
-			spent: bucket.spent,
-			count: bucket.count,
-		};
-	});
+  const byIssuer = summary.byIssuer.map((bucket): SpendRow => {
+    const issuer = bucket.id == null ? undefined : issuersById.get(bucket.id);
+    return {
+      id: bucket.id,
+      name: issuer?.name ?? UNASSIGNED_LABEL,
+      imageUrl: issuer?.imageUrl,
+      defaultCategoryId: issuer?.defaultCategoryId,
+      spent: bucket.spent,
+      count: bucket.count,
+    };
+  });
 
-	// The **Resolved colour** walk takes the whole tree, so resolve every category
-	// once up front rather than re-walking it per bucket.
-	const colorById = resolveCategoryColors([...categoriesById.values()]);
-	const byCategory = summary.byCategory.map((bucket): SpendRow => {
-		const category =
-			bucket.id == null ? undefined : categoriesById.get(bucket.id);
-		return {
-			id: bucket.id,
-			name: category?.name ?? UNASSIGNED_LABEL,
-			icon: category?.icon,
-			// Resolved against the whole tree, not read off the row: an inheriting
-			// leaf's colour lives on an ancestor (ADR 0006).
-			color: category === undefined ? undefined : colorById.get(category.id),
-			spent: bucket.spent,
-			count: bucket.count,
-		};
-	});
+  // The **Resolved colour** walk takes the whole tree, so resolve every category
+  // once up front rather than re-walking it per bucket.
+  const colorById = resolveCategoryColors([...categoriesById.values()]);
+  const byCategory = summary.byCategory.map((bucket): SpendRow => {
+    const category = bucket.id == null ? undefined : categoriesById.get(bucket.id);
+    return {
+      id: bucket.id,
+      name: category?.name ?? UNASSIGNED_LABEL,
+      icon: category?.icon,
+      // Resolved against the whole tree, not read off the row: an inheriting
+      // leaf's colour lives on an ancestor (ADR 0006).
+      color: category === undefined ? undefined : colorById.get(category.id),
+      spent: bucket.spent,
+      count: bucket.count,
+    };
+  });
 
-	return {
-		byIssuer,
-		byCategory,
-		transfers: summary.transfers,
-		excluded: summary.excluded,
-	};
+  return {
+    byIssuer,
+    byCategory,
+    transfers: summary.transfers,
+    excluded: summary.excluded,
+  };
 }

@@ -23,21 +23,18 @@ import { migrations } from "./migrations";
  */
 
 /** The migration set, or any subset of it, keyed as `db/migrations/index.ts` keys them. */
-type MigrationSet = Record<
-	string,
-	(typeof migrations)[keyof typeof migrations]
->;
+type MigrationSet = Record<string, (typeof migrations)[keyof typeof migrations]>;
 
 // The sqlite-node migrator layer requires FileSystem/Path/CommandExecutor (its
 // schema-dump path shells out to `sqlite3`). `NodeContext.layer` satisfies them
 // so the test layer is self-contained — usable in a plain `it.effect`, not just
 // under a server layer that happens to provide the Node platform.
 const nodeDatabaseTest = (set: MigrationSet) => {
-	const SqlTest = SqliteClient.layer({ filename: ":memory:" });
-	const MigratorTest = SqliteMigrator.layer({
-		loader: SqliteMigrator.fromRecord(set),
-	}).pipe(Layer.provide(SqlTest), Layer.provide(NodeContext.layer));
-	return Layer.merge(SqlTest, MigratorTest);
+  const SqlTest = SqliteClient.layer({ filename: ":memory:" });
+  const MigratorTest = SqliteMigrator.layer({
+    loader: SqliteMigrator.fromRecord(set),
+  }).pipe(Layer.provide(SqlTest), Layer.provide(NodeContext.layer));
+  return Layer.merge(SqlTest, MigratorTest);
 };
 
 // Bun path: `@effect/sql-sqlite-bun` statically imports `bun:sqlite`, which
@@ -45,30 +42,24 @@ const nodeDatabaseTest = (set: MigrationSet) => {
 // deferred behind `Layer.unwrapEffect` and only ever reached when running on
 // Bun. `BunContext.layer` plays the role `NodeContext.layer` does above.
 const bunDatabaseTest = (set: MigrationSet) =>
-	Layer.unwrapEffect(
-		Effect.promise(async () => {
-			const [
-				{ SqliteClient: BunSqlite, SqliteMigrator: BunMigrator },
-				{ BunContext },
-			] = await Promise.all([
-				import("@effect/sql-sqlite-bun"),
-				import("@effect/platform-bun"),
-			]);
-			const SqlTest = BunSqlite.layer({ filename: ":memory:" });
-			const MigratorTest = BunMigrator.layer({
-				loader: BunMigrator.fromRecord(set),
-			}).pipe(Layer.provide(SqlTest), Layer.provide(BunContext.layer));
-			return Layer.merge(SqlTest, MigratorTest);
-		}),
-	) as ReturnType<typeof nodeDatabaseTest>;
+  Layer.unwrapEffect(
+    Effect.promise(async () => {
+      const [{ SqliteClient: BunSqlite, SqliteMigrator: BunMigrator }, { BunContext }] =
+        await Promise.all([import("@effect/sql-sqlite-bun"), import("@effect/platform-bun")]);
+      const SqlTest = BunSqlite.layer({ filename: ":memory:" });
+      const MigratorTest = BunMigrator.layer({
+        loader: BunMigrator.fromRecord(set),
+      }).pipe(Layer.provide(SqlTest), Layer.provide(BunContext.layer));
+      return Layer.merge(SqlTest, MigratorTest);
+    }),
+  ) as ReturnType<typeof nodeDatabaseTest>;
 
 const isBun = typeof (globalThis as { Bun?: unknown }).Bun !== "undefined";
 
 const databaseTestWith = (set: MigrationSet) =>
-	isBun ? bunDatabaseTest(set) : nodeDatabaseTest(set);
+  isBun ? bunDatabaseTest(set) : nodeDatabaseTest(set);
 
-export const DatabaseTest: ReturnType<typeof nodeDatabaseTest> =
-	databaseTestWith(migrations);
+export const DatabaseTest: ReturnType<typeof nodeDatabaseTest> = databaseTestWith(migrations);
 
 /**
  * The same layer, migrated only **up to** the named migration — the state a real
@@ -81,8 +72,6 @@ export const DatabaseTest: ReturnType<typeof nodeDatabaseTest> =
  * which is the same order the migrator runs them in.
  */
 export const databaseTestBefore = (
-	key: keyof typeof migrations,
+  key: keyof typeof migrations,
 ): ReturnType<typeof nodeDatabaseTest> =>
-	databaseTestWith(
-		Object.fromEntries(Object.entries(migrations).filter(([k]) => k < key)),
-	);
+  databaseTestWith(Object.fromEntries(Object.entries(migrations).filter(([k]) => k < key)));

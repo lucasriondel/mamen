@@ -14,16 +14,11 @@ import { Client, runQuery } from "../runtime";
  * the caller persists the returned JSON itself rather than caching it.
  */
 export const databaseMutations = {
-	reset: () =>
-		runQuery(Effect.flatMap(Client, (client) => client.database.reset())),
+  reset: () => runQuery(Effect.flatMap(Client, (client) => client.database.reset())),
 
-	export: (): Promise<DbDump> =>
-		runQuery(Effect.flatMap(Client, (client) => client.database.export())),
+  export: (): Promise<DbDump> =>
+    runQuery(Effect.flatMap(Client, (client) => client.database.export())),
 
-	import: (dump: DbImport) =>
-		runQuery(
-			Effect.flatMap(Client, (client) =>
-				client.database.import({ payload: dump }),
-			),
-		),
+  import: (dump: DbImport) =>
+    runQuery(Effect.flatMap(Client, (client) => client.database.import({ payload: dump }))),
 };

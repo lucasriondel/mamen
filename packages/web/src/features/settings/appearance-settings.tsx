@@ -28,46 +28,46 @@ import { cn } from "@/lib/utils";
 
 /** The choices offered, in the order the control lists them. */
 const THEMES = [
-	{ id: "system", label: "System" },
-	{ id: "light", label: "Light" },
-	{ id: "dark", label: "Dark" },
+  { id: "system", label: "System" },
+  { id: "light", label: "Light" },
+  { id: "dark", label: "Dark" },
 ] as const;
 
 export function AppearanceSettings() {
-	const { theme, resolvedTheme, setTheme } = useTheme();
-	// The provider seeds its state from storage synchronously, so inside the app
-	// both of these are settled from the first paint. The fallbacks are the app's
-	// own `defaultTheme` and what `index.html` resolves it to, and only stand in
-	// when this is rendered outside a provider — the control then agrees with the
-	// unthemed page around it rather than contradicting it.
-	const choice = THEMES.some(({ id }) => id === theme) ? theme : "system";
+  const { theme, resolvedTheme, setTheme } = useTheme();
+  // The provider seeds its state from storage synchronously, so inside the app
+  // both of these are settled from the first paint. The fallbacks are the app's
+  // own `defaultTheme` and what `index.html` resolves it to, and only stand in
+  // when this is rendered outside a provider — the control then agrees with the
+  // unthemed page around it rather than contradicting it.
+  const choice = THEMES.some(({ id }) => id === theme) ? theme : "system";
 
-	return (
-		<section className="flex flex-col gap-3">
-			<h2 className="text-sm font-semibold text-gousse-ink">Appearance</h2>
-			<SettingsCard>
-				<SettingRow
-					leading={<ThemeGlyph dark={resolvedTheme === "dark"} />}
-					title="Theme"
-					description="Applies straight away, and is remembered in this browser. System follows your device."
-					control={
-						<Select
-							aria-label="Theme"
-							value={choice}
-							onChange={(event) => setTheme(event.target.value)}
-							className="w-40"
-						>
-							{THEMES.map(({ id, label }) => (
-								<option key={id} value={id}>
-									{label}
-								</option>
-							))}
-						</Select>
-					}
-				/>
-			</SettingsCard>
-		</section>
-	);
+  return (
+    <section className="flex flex-col gap-3">
+      <h2 className="text-sm font-semibold text-gousse-ink">Appearance</h2>
+      <SettingsCard>
+        <SettingRow
+          leading={<ThemeGlyph dark={resolvedTheme === "dark"} />}
+          title="Theme"
+          description="Applies straight away, and is remembered in this browser. System follows your device."
+          control={
+            <Select
+              aria-label="Theme"
+              value={choice}
+              onChange={(event) => setTheme(event.target.value)}
+              className="w-40"
+            >
+              {THEMES.map(({ id, label }) => (
+                <option key={id} value={id}>
+                  {label}
+                </option>
+              ))}
+            </Select>
+          }
+        />
+      </SettingsCard>
+    </section>
+  );
 }
 
 /**
@@ -80,18 +80,18 @@ export function AppearanceSettings() {
  * setting and the select carries its own label.
  */
 function ThemeGlyph({ dark }: { dark: boolean }) {
-	const shared =
-		"absolute transition-[opacity,transform,filter] duration-200 ease-[cubic-bezier(0.2,0,0,1)]";
-	const shown = "scale-100 opacity-100 blur-0";
-	const hidden = "scale-25 opacity-0 blur-[4px]";
+  const shared =
+    "absolute transition-[opacity,transform,filter] duration-200 ease-[cubic-bezier(0.2,0,0,1)]";
+  const shown = "scale-100 opacity-100 blur-0";
+  const hidden = "scale-25 opacity-0 blur-[4px]";
 
-	return (
-		<span
-			aria-hidden
-			className="relative inline-flex size-8 items-center justify-center rounded-full border border-gousse-line bg-gousse-bg text-gousse-muted"
-		>
-			<Sun size={16} className={cn(shared, dark ? hidden : shown)} />
-			<Moon size={16} className={cn(shared, dark ? shown : hidden)} />
-		</span>
-	);
+  return (
+    <span
+      aria-hidden
+      className="relative inline-flex size-8 items-center justify-center rounded-full border border-gousse-line bg-gousse-bg text-gousse-muted"
+    >
+      <Sun size={16} className={cn(shared, dark ? hidden : shown)} />
+      <Moon size={16} className={cn(shared, dark ? shown : hidden)} />
+    </span>
+  );
 }

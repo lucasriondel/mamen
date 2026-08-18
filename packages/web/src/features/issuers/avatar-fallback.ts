@@ -1,18 +1,15 @@
 import type { Category } from "@mamen/shared/contract";
-import {
-	NEUTRAL_CATEGORY_COLOR,
-	resolveCategoryColor,
-} from "@/lib/category-tree";
+import { NEUTRAL_CATEGORY_COLOR, resolveCategoryColor } from "@/lib/category-tree";
 import { isHexColor, readableInk } from "@/lib/color";
 
 /** The middle rung of the **Avatar fallback chain**, ready to paint. */
 export interface IssuerAvatarFallback {
-	/** The assigned category's **Icon name** — its own, never its folder's. */
-	icon: string;
-	/** The category's **Resolved colour**, as the chip's surface. */
-	color: string;
-	/** The ink the glyph is drawn in, chosen to contrast against `color`. */
-	ink: string;
+  /** The assigned category's **Icon name** — its own, never its folder's. */
+  icon: string;
+  /** The category's **Resolved colour**, as the chip's surface. */
+  color: string;
+  /** The ink the glyph is drawn in, chosen to contrast against `color`. */
+  ink: string;
 }
 
 /**
@@ -46,18 +43,18 @@ export interface IssuerAvatarFallback {
  *   the grey rung: the lookup finished, and there was nothing there.
  */
 export function issuerAvatarFallback(
-	categories: readonly Category[],
-	defaultCategoryId: number | null | undefined,
+  categories: readonly Category[],
+  defaultCategoryId: number | null | undefined,
 ): IssuerAvatarFallback | undefined {
-	if (defaultCategoryId == null) return undefined;
-	const category = categories.find((c) => c.id === defaultCategoryId);
-	if (category === undefined) return undefined;
+  if (defaultCategoryId == null) return undefined;
+  const category = categories.find((c) => c.id === defaultCategoryId);
+  if (category === undefined) return undefined;
 
-	const resolved = resolveCategoryColor(categories, category);
-	// The contract does not constrain the colour string, and a value CSS cannot
-	// parse would paint nothing while the ink was picked for a surface that never
-	// appeared. Normalise the surface so the pair stays consistent.
-	const color = isHexColor(resolved) ? resolved : NEUTRAL_CATEGORY_COLOR;
+  const resolved = resolveCategoryColor(categories, category);
+  // The contract does not constrain the colour string, and a value CSS cannot
+  // parse would paint nothing while the ink was picked for a surface that never
+  // appeared. Normalise the surface so the pair stays consistent.
+  const color = isHexColor(resolved) ? resolved : NEUTRAL_CATEGORY_COLOR;
 
-	return { icon: category.icon, color, ink: readableInk(color) };
+  return { icon: category.icon, color, ink: readableInk(color) };
 }

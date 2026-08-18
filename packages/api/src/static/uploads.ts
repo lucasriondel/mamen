@@ -1,9 +1,4 @@
-import {
-	HttpApiBuilder,
-	HttpRouter,
-	HttpServerResponse,
-	Path,
-} from "@effect/platform";
+import { HttpApiBuilder, HttpRouter, HttpServerResponse, Path } from "@effect/platform";
 import { Effect } from "effect";
 import { UploadsDir } from "../config";
 
@@ -25,34 +20,33 @@ import { UploadsDir } from "../config";
  * (the `HttpServerResponse.file` failure is mapped to a not-found response).
  */
 export const StaticUploadsLive = HttpApiBuilder.Router.use((router) =>
-	Effect.gen(function* () {
-		const path = yield* Path.Path;
-		// Default-backed config; a read failure is a misconfiguration defect.
-		const uploadsDir = yield* Effect.orDie(UploadsDir);
-		const root = path.resolve(uploadsDir);
+  Effect.gen(function* () {
+    const path = yield* Path.Path;
+    // Default-backed config; a read failure is a misconfiguration defect.
+    const uploadsDir = yield* Effect.orDie(UploadsDir);
+    const root = path.resolve(uploadsDir);
 
-		yield* router.get(
-			"/uploads/*",
-			Effect.gen(function* () {
-				const { params } = yield* HttpRouter.RouteContext;
-				const requested = params["*"] ?? "";
-				const resolved = path.resolve(root, requested);
+    yield* router.get(
+      "/uploads/*",
+      Effect.gen(function* () {
+        const { params } = yield* HttpRouter.RouteContext;
+        const requested = params["*"] ?? "";
+        const resolved = path.resolve(root, requested);
 
-				// Reject anything that resolves outside the uploads root: `..`
-				// sequences, absolute paths, symlink-style escapes. `resolved` must
-				// be `root` itself or sit strictly beneath it.
-				const escapes =
-					resolved !== root && !resolved.startsWith(`${root}${path.sep}`);
-				if (escapes) {
-					return yield* HttpServerResponse.empty({ status: 404 });
-				}
+        // Reject anything that resolves outside the uploads root: `..`
+        // sequences, absolute paths, symlink-style escapes. `resolved` must
+        // be `root` itself or sit strictly beneath it.
+        const escapes = resolved !== root && !resolved.startsWith(`${root}${path.sep}`);
+        if (escapes) {
+          return yield* HttpServerResponse.empty({ status: 404 });
+        }
 
-				return yield* HttpServerResponse.file(resolved).pipe(
-					// A missing / unreadable file is a 404, not a 500 — the platform
-					// error carries a disk path we must not leak.
-					Effect.catchAll(() => HttpServerResponse.empty({ status: 404 })),
-				);
-			}),
-		);
-	}),
+        return yield* HttpServerResponse.file(resolved).pipe(
+          // A missing / unreadable file is a 404, not a 500 — the platform
+          // error carries a disk path we must not leak.
+          Effect.catchAll(() => HttpServerResponse.empty({ status: 404 })),
+        );
+      }),
+    );
+  }),
 );

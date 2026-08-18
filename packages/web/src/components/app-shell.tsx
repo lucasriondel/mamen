@@ -30,46 +30,40 @@ import { useSidebarCollapsed } from "@/lib/use-sidebar-collapsed";
  * behind `prefers-reduced-motion`. Nothing here overrides either.
  */
 export function AppShell({ children }: { children: ReactNode }) {
-	const { collapsed, toggle } = useSidebarCollapsed();
-	const closeRef = useRef<HTMLButtonElement>(null);
-	const triggerRef = useRef<HTMLButtonElement>(null);
-	// Only a press hands focus on. A collapse restored from storage must not, or
-	// the page opens by stealing the first keystroke for a chrome control.
-	const handOnFocus = useRef(false);
+  const { collapsed, toggle } = useSidebarCollapsed();
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  // Only a press hands focus on. A collapse restored from storage must not, or
+  // the page opens by stealing the first keystroke for a chrome control.
+  const handOnFocus = useRef(false);
 
-	const handleToggle = useCallback(() => {
-		handOnFocus.current = true;
-		toggle();
-	}, [toggle]);
+  const handleToggle = useCallback(() => {
+    handOnFocus.current = true;
+    toggle();
+  }, [toggle]);
 
-	// The control that was pressed is gone by the next paint — the close button
-	// into an `inert` panel, the trigger unmounted — so focus would land back on
-	// the document body. Hand it to whichever control took over, which is the
-	// keyboard's version of the fade-in: one control, moved.
-	useEffect(() => {
-		if (!handOnFocus.current) return;
-		handOnFocus.current = false;
-		(collapsed ? triggerRef : closeRef).current?.focus();
-	}, [collapsed]);
+  // The control that was pressed is gone by the next paint — the close button
+  // into an `inert` panel, the trigger unmounted — so focus would land back on
+  // the document body. Hand it to whichever control took over, which is the
+  // keyboard's version of the fade-in: one control, moved.
+  useEffect(() => {
+    if (!handOnFocus.current) return;
+    handOnFocus.current = false;
+    (collapsed ? triggerRef : closeRef).current?.focus();
+  }, [collapsed]);
 
-	return (
-		<div className="flex h-screen w-full bg-gousse-bg text-gousse-ink">
-			<AppSidebar
-				collapsed={collapsed}
-				onToggle={handleToggle}
-				closeRef={closeRef}
-			/>
-			{/* `min-w-0` so a wide table inside `main` can't push the column past the
-			 * viewport and out-shout the reclaimed width. */}
-			<div className="flex min-w-0 flex-1 flex-col">
-				<main className="flex-1 overflow-auto p-8">
-					<SidebarCollapsedProvider
-						value={{ collapsed, toggle: handleToggle, triggerRef }}
-					>
-						{children}
-					</SidebarCollapsedProvider>
-				</main>
-			</div>
-		</div>
-	);
+  return (
+    <div className="flex h-screen w-full bg-gousse-bg text-gousse-ink">
+      <AppSidebar collapsed={collapsed} onToggle={handleToggle} closeRef={closeRef} />
+      {/* `min-w-0` so a wide table inside `main` can't push the column past the
+       * viewport and out-shout the reclaimed width. */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <main className="flex-1 overflow-auto p-8">
+          <SidebarCollapsedProvider value={{ collapsed, toggle: handleToggle, triggerRef }}>
+            {children}
+          </SidebarCollapsedProvider>
+        </main>
+      </div>
+    </div>
+  );
 }

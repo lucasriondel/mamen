@@ -15,21 +15,18 @@ import { cn } from "@/lib/utils";
  */
 
 /** Root list container. */
-export function Command({
-	className,
-	...props
-}: React.ComponentProps<typeof CommandPrimitive>) {
-	return (
-		<CommandPrimitive
-			className={cn(
-				// The palette fills a popover, so it takes the same box corner (issue
-				// #97) — a smaller one would show the surface's corner through it.
-				"flex h-full w-full flex-col overflow-hidden rounded-2xl bg-gousse-panel text-gousse-ink",
-				className,
-			)}
-			{...props}
-		/>
-	);
+export function Command({ className, ...props }: React.ComponentProps<typeof CommandPrimitive>) {
+  return (
+    <CommandPrimitive
+      className={cn(
+        // The palette fills a popover, so it takes the same box corner (issue
+        // #97) — a smaller one would show the surface's corner through it.
+        "flex h-full w-full flex-col overflow-hidden rounded-2xl bg-gousse-panel text-gousse-ink",
+        className,
+      )}
+      {...props}
+    />
+  );
 }
 
 /**
@@ -39,73 +36,62 @@ export function Command({
  * it even on a step with nothing to search.
  */
 export function CommandInput({
-	className,
-	wrapperClassName,
-	...props
+  className,
+  wrapperClassName,
+  ...props
 }: React.ComponentProps<typeof CommandPrimitive.Input> & {
-	wrapperClassName?: string;
+  wrapperClassName?: string;
 }) {
-	return (
-		<div
-			className={cn(
-				"flex items-center gap-2 border-b border-gousse-line px-3",
-				wrapperClassName,
-			)}
-		>
-			<Search size={16} className="shrink-0 text-gousse-muted" aria-hidden />
-			<CommandPrimitive.Input
-				className={cn(
-					"flex h-10 w-full bg-transparent py-3 text-sm text-gousse-ink outline-none placeholder:text-gousse-muted disabled:opacity-50",
-					className,
-				)}
-				{...props}
-			/>
-		</div>
-	);
+  return (
+    <div
+      className={cn("flex items-center gap-2 border-b border-gousse-line px-3", wrapperClassName)}
+    >
+      <Search size={16} className="shrink-0 text-gousse-muted" aria-hidden />
+      <CommandPrimitive.Input
+        className={cn(
+          "flex h-10 w-full bg-transparent py-3 text-sm text-gousse-ink outline-none placeholder:text-gousse-muted disabled:opacity-50",
+          className,
+        )}
+        {...props}
+      />
+    </div>
+  );
 }
 
 /** Scrollable results region. */
 export function CommandList({
-	className,
-	...props
+  className,
+  ...props
 }: React.ComponentProps<typeof CommandPrimitive.List>) {
-	return (
-		<CommandPrimitive.List
-			className={cn(
-				"max-h-64 overflow-y-auto overflow-x-hidden p-1",
-				className,
-			)}
-			{...props}
-		/>
-	);
+  return (
+    <CommandPrimitive.List
+      className={cn("max-h-64 overflow-y-auto overflow-x-hidden p-1", className)}
+      {...props}
+    />
+  );
 }
 
 /** Shown when the query matches nothing. */
-export function CommandEmpty(
-	props: React.ComponentProps<typeof CommandPrimitive.Empty>,
-) {
-	return (
-		<CommandPrimitive.Empty
-			className="py-6 text-center text-sm text-gousse-muted"
-			{...props}
-		/>
-	);
+export function CommandEmpty(props: React.ComponentProps<typeof CommandPrimitive.Empty>) {
+  return (
+    <CommandPrimitive.Empty className="py-6 text-center text-sm text-gousse-muted" {...props} />
+  );
 }
 
 /** A labelled group of items. */
 export function CommandGroup({
-	className,
-	...props
+  className,
+  ...props
 }: React.ComponentProps<typeof CommandPrimitive.Group>) {
-	return (
-		<CommandPrimitive.Group
-			className={cn(
-				"overflow-hidden p-1 text-gousse-ink [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-gousse-muted",
-				className,
-			)}
-			{...props}
-		/>
-	);
+  return (
+    <CommandPrimitive.Group
+      className={cn(
+        "overflow-hidden p-1 text-gousse-ink [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-gousse-muted",
+        className,
+      )}
+      {...props}
+    />
+  );
 }
 
 /**
@@ -118,29 +104,29 @@ export function CommandGroup({
  * `paddingLeft` per depth, which still wins.
  */
 export function CommandItem({
-	className,
-	...props
+  className,
+  ...props
 }: React.ComponentProps<typeof CommandPrimitive.Item>) {
-	return (
-		<CommandPrimitive.Item
-			className={cn(
-				"relative flex cursor-pointer select-none items-center gap-2 rounded-full px-3 py-2 text-sm text-gousse-ink outline-none data-[selected=true]:bg-gousse-bg data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50",
-				className,
-			)}
-			{...props}
-		/>
-	);
+  return (
+    <CommandPrimitive.Item
+      className={cn(
+        "relative flex cursor-pointer select-none items-center gap-2 rounded-full px-3 py-2 text-sm text-gousse-ink outline-none data-[selected=true]:bg-gousse-bg data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50",
+        className,
+      )}
+      {...props}
+    />
+  );
 }
 
 /** A thin rule between groups. */
 export function CommandSeparator({
-	className,
-	...props
+  className,
+  ...props
 }: React.ComponentProps<typeof CommandPrimitive.Separator>) {
-	return (
-		<CommandPrimitive.Separator
-			className={cn("-mx-1 my-1 h-px bg-gousse-line", className)}
-			{...props}
-		/>
-	);
+  return (
+    <CommandPrimitive.Separator
+      className={cn("-mx-1 my-1 h-px bg-gousse-line", className)}
+      {...props}
+    />
+  );
 }

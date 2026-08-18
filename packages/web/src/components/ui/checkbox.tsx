@@ -13,18 +13,15 @@ import { cn } from "@/lib/utils";
  * pass an `aria-label` describing the row, since a per-row box has no visible
  * label of its own. `className` extends/overrides via cn().
  */
-export function Checkbox({
-	className,
-	...props
-}: Omit<ComponentProps<"input">, "type">) {
-	return (
-		<input
-			type="checkbox"
-			className={cn(
-				"h-4 w-4 cursor-pointer rounded border-gousse-line text-gousse-accent focus:ring-gousse-accent",
-				className,
-			)}
-			{...props}
-		/>
-	);
+export function Checkbox({ className, ...props }: Omit<ComponentProps<"input">, "type">) {
+  return (
+    <input
+      type="checkbox"
+      className={cn(
+        "h-4 w-4 cursor-pointer rounded border-gousse-line text-gousse-accent focus:ring-gousse-accent",
+        className,
+      )}
+      {...props}
+    />
+  );
 }

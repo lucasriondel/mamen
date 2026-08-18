@@ -17,11 +17,11 @@ import { renderPage } from "./page";
  * source path no built site has.
  */
 export function prerender(): Plugin {
-	return {
-		name: "mamen:prerender-landing-page",
-		transformIndexHtml: {
-			order: "pre",
-			handler: () => renderPage(),
-		},
-	};
+  return {
+    name: "mamen:prerender-landing-page",
+    transformIndexHtml: {
+      order: "pre",
+      handler: () => renderPage(),
+    },
+  };
 }

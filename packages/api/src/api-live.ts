@@ -36,19 +36,19 @@ import { TransactionsLive } from "./transactions/handlers";
  * server composition, not pulled through the `HttpApi.Api` build here.
  */
 export const ApiLive = HttpApiBuilder.api(Api).pipe(
-	Layer.provide([
-		HealthLive,
-		AccountsLive,
-		CategoriesLive,
-		IssuersLive,
-		TransactionsLive,
-		RulesLive,
-		SubscriptionsLive,
-		SettingsLive,
-		SecretsLive,
-		AiTasksLive,
-		AppSettingsLive,
-		DatabaseLive,
-		ImportLive,
-	]),
+  Layer.provide([
+    HealthLive,
+    AccountsLive,
+    CategoriesLive,
+    IssuersLive,
+    TransactionsLive,
+    RulesLive,
+    SubscriptionsLive,
+    SettingsLive,
+    SecretsLive,
+    AiTasksLive,
+    AppSettingsLive,
+    DatabaseLive,
+    ImportLive,
+  ]),
 );

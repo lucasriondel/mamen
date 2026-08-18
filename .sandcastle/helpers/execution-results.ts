@@ -39,9 +39,7 @@ export function completedIssues(
   return settled
     .map((outcome, i) => ({ outcome, issue: issues[i]! }))
     .filter(
-      (entry) =>
-        entry.outcome.status === "fulfilled" &&
-        entry.outcome.value.commits.length > 0,
+      (entry) => entry.outcome.status === "fulfilled" && entry.outcome.value.commits.length > 0,
     )
     .map((entry) => entry.issue);
 }

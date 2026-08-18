@@ -1,11 +1,11 @@
 import { Button } from "@/components/ui/button";
 
 export type BundleDissolveBlockProps = {
-	/** True while any write on the bundle is in flight. */
-	disabled: boolean;
-	/** True while *this* write is in flight — what the button says it is doing. */
-	isDissolving: boolean;
-	onDissolve: () => void;
+  /** True while any write on the bundle is in flight. */
+  disabled: boolean;
+  /** True while *this* write is in flight — what the button says it is doing. */
+  isDissolving: boolean;
+  onDissolve: () => void;
 };
 
 /**
@@ -19,25 +19,25 @@ export type BundleDissolveBlockProps = {
  * goes. Nothing is confirmed twice, because nothing is lost.
  */
 export function BundleDissolveBlock({
-	disabled,
-	isDissolving,
-	onDissolve,
+  disabled,
+  isDissolving,
+  onDissolve,
 }: BundleDissolveBlockProps) {
-	return (
-		<div className="flex flex-col gap-2 border-t border-gousse-line pt-4">
-			<p className="text-sm text-gousse-muted">
-				Dissolving this bundle deletes this row and returns its members to the
-				list, exactly as they were.
-			</p>
-			<Button
-				variant="danger"
-				size="sm"
-				className="self-start"
-				disabled={disabled}
-				onClick={onDissolve}
-			>
-				{isDissolving ? "Dissolving…" : "Dissolve bundle"}
-			</Button>
-		</div>
-	);
+  return (
+    <div className="flex flex-col gap-2 border-t border-gousse-line pt-4">
+      <p className="text-sm text-gousse-muted">
+        Dissolving this bundle deletes this row and returns its members to the list, exactly as they
+        were.
+      </p>
+      <Button
+        variant="danger"
+        size="sm"
+        className="self-start"
+        disabled={disabled}
+        onClick={onDissolve}
+      >
+        {isDissolving ? "Dissolving…" : "Dissolve bundle"}
+      </Button>
+    </div>
+  );
 }

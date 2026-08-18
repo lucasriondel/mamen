@@ -14,6 +14,6 @@ import { validateRecapDetailSearch } from "@/features/recap/detail/search";
  * names. The view reads the params and owns its queries (no Router loader).
  */
 export const Route = createFileRoute("/recap-detail")({
-	validateSearch: validateRecapDetailSearch,
-	component: RecapDetailView,
+  validateSearch: validateRecapDetailSearch,
+  component: RecapDetailView,
 });

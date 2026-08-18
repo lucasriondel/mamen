@@ -9,14 +9,9 @@ import { AppSettingsRepo } from "./repository";
  * returns the stored `AppSettings`). Each handler is a thin delegate; status
  * codes / success bodies are set by the contract, not here.
  */
-export const AppSettingsLive = HttpApiBuilder.group(
-	Api,
-	"appSettings",
-	(handlers) =>
-		Effect.gen(function* () {
-			const repo = yield* AppSettingsRepo;
-			return handlers
-				.handle("get", () => repo.get())
-				.handle("put", (_) => repo.put(_.payload));
-		}),
+export const AppSettingsLive = HttpApiBuilder.group(Api, "appSettings", (handlers) =>
+  Effect.gen(function* () {
+    const repo = yield* AppSettingsRepo;
+    return handlers.handle("get", () => repo.get()).handle("put", (_) => repo.put(_.payload));
+  }),
 ).pipe(Layer.provide(AppSettingsRepo.Default));

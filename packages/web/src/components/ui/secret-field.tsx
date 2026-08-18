@@ -25,68 +25,68 @@ import { cn } from "@/lib/utils";
  * untouched tile shows one control rather than two.
  */
 export function SecretField({
-	value,
-	onChange,
-	onSubmit,
-	label,
-	placeholder,
-	submitLabel,
-	pending = false,
-	error,
-	layout = "row",
-	className,
+  value,
+  onChange,
+  onSubmit,
+  label,
+  placeholder,
+  submitLabel,
+  pending = false,
+  error,
+  layout = "row",
+  className,
 }: {
-	value: string;
-	onChange: (value: string) => void;
-	onSubmit: () => void;
-	/** Accessible name — there is no visible `<label>`, the row's title names it. */
-	label: string;
-	placeholder?: string;
-	submitLabel: string;
-	pending?: boolean;
-	error?: string | null;
-	layout?: "row" | "stacked";
-	className?: string;
+  value: string;
+  onChange: (value: string) => void;
+  onSubmit: () => void;
+  /** Accessible name — there is no visible `<label>`, the row's title names it. */
+  label: string;
+  placeholder?: string;
+  submitLabel: string;
+  pending?: boolean;
+  error?: string | null;
+  layout?: "row" | "stacked";
+  className?: string;
 }) {
-	const stacked = layout === "stacked";
-	const empty = value.trim().length === 0;
+  const stacked = layout === "stacked";
+  const empty = value.trim().length === 0;
 
-	return (
-		<div className={cn(stacked ? "w-full" : "mt-2 max-w-md", className)}>
-			<div className={cn("flex gap-2", stacked && "flex-col")}>
-				<Input
-					type="password"
-					value={value}
-					placeholder={placeholder}
-					aria-label={label}
-					autoComplete="off"
-					spellCheck={false}
-					disabled={pending}
-					onChange={(e) => onChange(e.target.value)}
-					onKeyDown={(e) => {
-						if (e.key === "Enter") {
-							e.preventDefault();
-							onSubmit();
-						}
-					}}
-					className="flex-1 font-mono"
-				/>
-				{stacked && empty ? null : (
-					<Button
-						variant="primary"
-						disabled={pending || empty}
-						onClick={onSubmit}
-						className={stacked ? "w-full justify-center" : undefined}
-					>
-						{submitLabel}
-					</Button>
-				)}
-			</div>
-			{error ? (
-				<p role="alert" className="mt-1 text-xs text-gousse-high">
-					{error}
-				</p>
-			) : null}
-		</div>
-	);
+  return (
+    <div className={cn(stacked ? "w-full" : "mt-2 max-w-md", className)}>
+      <div className={cn("flex gap-2", stacked && "flex-col")}>
+        <Input
+          type="password"
+          value={value}
+          placeholder={placeholder}
+          aria-label={label}
+          autoComplete="off"
+          spellCheck={false}
+          disabled={pending}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              onSubmit();
+            }
+          }}
+          className="flex-1 font-mono"
+        />
+        {stacked && empty ? null : (
+          <Button
+            variant="primary"
+            disabled={pending || empty}
+            onClick={onSubmit}
+            className={stacked ? "w-full justify-center" : undefined}
+          >
+            {submitLabel}
+          </Button>
+        )}
+      </div>
+      {error ? (
+        <p role="alert" className="mt-1 text-xs text-gousse-high">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
 }

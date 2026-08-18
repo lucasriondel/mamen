@@ -7,19 +7,19 @@ import { AnomalyFlag } from "@mamen/shared/contract";
  * the others.
  */
 export type BundleMemberFacts = {
-	id: number;
-	date: Date;
-	amount: number;
-	accountId: number;
-	importMonth: string;
+  id: number;
+  date: Date;
+  amount: number;
+  accountId: number;
+  importMonth: string;
 };
 
 /** The parent's own derived columns — everything a membership change moves. */
 export type BundleParentFacts = {
-	amount: number;
-	date: Date;
-	accountId: number;
-	importMonth: string;
+  amount: number;
+  date: Date;
+  accountId: number;
+  importMonth: string;
 };
 
 /**
@@ -29,8 +29,8 @@ export type BundleParentFacts = {
  * and is never derived from a member.
  */
 export type BundleParentDate = {
-	date: Date;
-	manualDate?: boolean;
+  date: Date;
+  manualDate?: boolean;
 };
 
 /**
@@ -62,27 +62,27 @@ export type BundleParentDate = {
  * a zero-amount parent dated today.
  */
 export const deriveBundleParent = <M extends BundleMemberFacts>(
-	members: ReadonlyArray<M>,
-	parent?: BundleParentDate,
+  members: ReadonlyArray<M>,
+  parent?: BundleParentDate,
 ): BundleParentFacts | undefined => {
-	const earliest = members.reduce<M | undefined>(
-		(a, b) =>
-			a === undefined ||
-			b.date.getTime() < a.date.getTime() ||
-			(b.date.getTime() === a.date.getTime() && b.id < a.id)
-				? b
-				: a,
-		undefined,
-	);
-	if (earliest === undefined) return undefined;
+  const earliest = members.reduce<M | undefined>(
+    (a, b) =>
+      a === undefined ||
+      b.date.getTime() < a.date.getTime() ||
+      (b.date.getTime() === a.date.getTime() && b.id < a.id)
+        ? b
+        : a,
+    undefined,
+  );
+  if (earliest === undefined) return undefined;
 
-	const cents = members.reduce((sum, m) => sum + Math.round(m.amount * 100), 0);
-	return {
-		amount: cents / 100,
-		date: parent?.manualDate === true ? parent.date : earliest.date,
-		accountId: earliest.accountId,
-		importMonth: earliest.importMonth,
-	};
+  const cents = members.reduce((sum, m) => sum + Math.round(m.amount * 100), 0);
+  return {
+    amount: cents / 100,
+    date: parent?.manualDate === true ? parent.date : earliest.date,
+    accountId: earliest.accountId,
+    importMonth: earliest.importMonth,
+  };
 };
 
 /** The anomaly a **bundle** raises about itself (issue #76). */
@@ -95,7 +95,7 @@ const NON_NEGATIVE_BUNDLE = "non-negative-bundle" as const;
  * standing flag below is deliberately never rewritten.
  */
 const NON_NEGATIVE_BUNDLE_REASON =
-	"This bundle's members sum to zero or more, so it is not a cost. A member may have been added by mistake, or a refund counted twice.";
+  "This bundle's members sum to zero or more, so it is not a cost. A member may have been added by mistake, or a refund counted twice.";
 
 /**
  * The **bundle parent**'s anomaly flags, re-derived from its amount (issue #76,
@@ -122,22 +122,21 @@ const NON_NEGATIVE_BUNDLE_REASON =
  * **clears** it: the flag tracks a live condition, not a history.
  */
 export const bundleAnomalyFlags = (
-	amount: number,
-	existing: ReadonlyArray<AnomalyFlag> | undefined,
-	detectedAt: Date,
+  amount: number,
+  existing: ReadonlyArray<AnomalyFlag> | undefined,
+  detectedAt: Date,
 ): ReadonlyArray<AnomalyFlag> => {
-	const flags = existing ?? [];
-	if (Math.round(amount * 100) < 0)
-		return flags.filter((f) => f.type !== NON_NEGATIVE_BUNDLE);
-	return flags.some((f) => f.type === NON_NEGATIVE_BUNDLE)
-		? flags
-		: [
-				...flags,
-				new AnomalyFlag({
-					type: NON_NEGATIVE_BUNDLE,
-					reason: NON_NEGATIVE_BUNDLE_REASON,
-					detectedAt: detectedAt.toISOString(),
-					dismissed: false,
-				}),
-			];
+  const flags = existing ?? [];
+  if (Math.round(amount * 100) < 0) return flags.filter((f) => f.type !== NON_NEGATIVE_BUNDLE);
+  return flags.some((f) => f.type === NON_NEGATIVE_BUNDLE)
+    ? flags
+    : [
+        ...flags,
+        new AnomalyFlag({
+          type: NON_NEGATIVE_BUNDLE,
+          reason: NON_NEGATIVE_BUNDLE_REASON,
+          detectedAt: detectedAt.toISOString(),
+          dismissed: false,
+        }),
+      ];
 };

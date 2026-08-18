@@ -12,15 +12,15 @@ import type { ParseContext, ParsedTransaction } from "./parsers/types";
  * so a statement spanning a month boundary still splits per month.
  */
 export function enrichExtracted(
-	transactions: readonly ExtractedTransaction[],
-	ctx: ParseContext,
+  transactions: readonly ExtractedTransaction[],
+  ctx: ParseContext,
 ): ParsedTransaction[] {
-	return transactions.map((tx) => ({
-		accountId: ctx.accountId,
-		date: tx.date,
-		amount: tx.amount,
-		rawIssuerString: tx.rawIssuerString,
-		importMonth: importMonthKey(tx.date),
-		importBatchId: ctx.importBatchId,
-	}));
+  return transactions.map((tx) => ({
+    accountId: ctx.accountId,
+    date: tx.date,
+    amount: tx.amount,
+    rawIssuerString: tx.rawIssuerString,
+    importMonth: importMonthKey(tx.date),
+    importBatchId: ctx.importBatchId,
+  }));
 }

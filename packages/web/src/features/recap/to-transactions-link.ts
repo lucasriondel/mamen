@@ -24,18 +24,15 @@ import { type Period, periodToFilter } from "./period";
  * narrowing it to one account would show a total the line never claimed and
  * dropping it would show every account's rows under a figure describing a few.
  */
-function toRecapScopedSearch(
-	period: Period,
-	accountIds: readonly number[],
-): TransactionsSearch {
-	const { startDate, endDate } = periodToFilter(period);
-	return {
-		// `all` yields no bounds at all — the unbounded window, which is the absent
-		// filter rather than a range covering everything.
-		...(startDate !== undefined ? { startDate: startDate.toISOString() } : {}),
-		...(endDate !== undefined ? { endDate: endDate.toISOString() } : {}),
-		...(accountIds.length > 0 ? { accountId: [...accountIds] } : {}),
-	};
+function toRecapScopedSearch(period: Period, accountIds: readonly number[]): TransactionsSearch {
+  const { startDate, endDate } = periodToFilter(period);
+  return {
+    // `all` yields no bounds at all — the unbounded window, which is the absent
+    // filter rather than a range covering everything.
+    ...(startDate !== undefined ? { startDate: startDate.toISOString() } : {}),
+    ...(endDate !== undefined ? { endDate: endDate.toISOString() } : {}),
+    ...(accountIds.length > 0 ? { accountId: [...accountIds] } : {}),
+  };
 }
 
 /**
@@ -49,14 +46,14 @@ function toRecapScopedSearch(
  * line did not count, and open on a bigger number than the one clicked.
  */
 export function toTransfersTransactionsSearch(
-	period: Period,
-	accountIds: readonly number[],
+  period: Period,
+  accountIds: readonly number[],
 ): TransactionsSearch {
-	return {
-		...toRecapScopedSearch(period, accountIds),
-		isTransferLeg: true,
-		excludedFromRecap: false,
-	};
+  return {
+    ...toRecapScopedSearch(period, accountIds),
+    isTransferLeg: true,
+    excludedFromRecap: false,
+  };
 }
 
 /**
@@ -67,11 +64,11 @@ export function toTransfersTransactionsSearch(
  * excluded transfer leg belongs to it and must be listed here.
  */
 export function toExcludedTransactionsSearch(
-	period: Period,
-	accountIds: readonly number[],
+  period: Period,
+  accountIds: readonly number[],
 ): TransactionsSearch {
-	return {
-		...toRecapScopedSearch(period, accountIds),
-		excludedFromRecap: true,
-	};
+  return {
+    ...toRecapScopedSearch(period, accountIds),
+    excludedFromRecap: true,
+  };
 }

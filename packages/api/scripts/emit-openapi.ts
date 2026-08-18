@@ -13,20 +13,20 @@ const out = new URL("../openapi.json", import.meta.url).pathname;
 // relative to the contract, instead of rewriting it. Wired into CI via the
 // `test` turbo task so a contract change without a re-emit breaks the build.
 if (process.argv.includes("--check")) {
-	const committed = await Bun.file(out)
-		.text()
-		.catch(() => null);
-	if (committed !== specJson) {
-		console.error(
-			committed === null
-				? `OpenAPI spec missing at ${out} — run \`bun run emit-openapi\`.`
-				: `OpenAPI spec at ${out} is out of sync with the contract.\n` +
-						"Run `bun run emit-openapi` and commit the result.",
-		);
-		process.exit(1);
-	}
-	console.log(`OpenAPI spec is in sync (${out}).`);
+  const committed = await Bun.file(out)
+    .text()
+    .catch(() => null);
+  if (committed !== specJson) {
+    console.error(
+      committed === null
+        ? `OpenAPI spec missing at ${out} — run \`bun run emit-openapi\`.`
+        : `OpenAPI spec at ${out} is out of sync with the contract.\n` +
+            "Run `bun run emit-openapi` and commit the result.",
+    );
+    process.exit(1);
+  }
+  console.log(`OpenAPI spec is in sync (${out}).`);
 } else {
-	await Bun.write(out, specJson);
-	console.log(`Wrote ${out}`);
+  await Bun.write(out, specJson);
+  console.log(`Wrote ${out}`);
 }

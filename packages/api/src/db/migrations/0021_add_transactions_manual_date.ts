@@ -17,7 +17,5 @@ import { Effect } from "effect";
  * and reads as the un-overridden default it is.
  */
 export default Effect.flatMap(SqlClient.SqlClient, (sql) =>
-	sql`ALTER TABLE transactions ADD COLUMN manualDate INTEGER DEFAULT 0`.pipe(
-		Effect.asVoid,
-	),
+  sql`ALTER TABLE transactions ADD COLUMN manualDate INTEGER DEFAULT 0`.pipe(Effect.asVoid),
 );

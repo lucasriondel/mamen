@@ -14,18 +14,15 @@ import { DatabaseTest } from "../test";
  * filter is served by, which is the whole claim.
  */
 describe("0023 transactions (accountId, date) index", () => {
-	it.effect("plans an account + month-range scan through the index", () =>
-		Effect.gen(function* () {
-			const sql = yield* SqlClient.SqlClient;
-			// The shape `buildConditions` emits for `?accountId=1&importMonth=2026-03`.
-			const plan = yield* sql<{
-				detail: string;
-			}>`EXPLAIN QUERY PLAN SELECT t.id FROM transactions t WHERE t.accountId = 1 AND t.date >= '2026-03-01' AND t.date < '2026-04-01'`;
+  it.effect("plans an account + month-range scan through the index", () =>
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      // The shape `buildConditions` emits for `?accountId=1&importMonth=2026-03`.
+      const plan = yield* sql<{
+        detail: string;
+      }>`EXPLAIN QUERY PLAN SELECT t.id FROM transactions t WHERE t.accountId = 1 AND t.date >= '2026-03-01' AND t.date < '2026-04-01'`;
 
-			assert.include(
-				plan.map((row) => row.detail).join("\n"),
-				"idx_tx_account_date",
-			);
-		}).pipe(Effect.provide(DatabaseTest)),
-	);
+      assert.include(plan.map((row) => row.detail).join("\n"), "idx_tx_account_date");
+    }).pipe(Effect.provide(DatabaseTest)),
+  );
 });

@@ -27,11 +27,7 @@ import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 import { checkConfigFreshness } from "../helpers/check-freshness.ts";
 import { closeCompletedIssue } from "../helpers/close-issue.ts";
 import { bold, dim, green, issueTag, red, yellow } from "../helpers/colors.ts";
-import {
-  completedIssues,
-  currentBranch,
-  mergePromptArgs,
-} from "../helpers/execution-results.ts";
+import { completedIssues, currentBranch, mergePromptArgs } from "../helpers/execution-results.ts";
 import {
   logCompletedBranches,
   logFailedPipelines,
@@ -46,12 +42,7 @@ import { notify } from "../helpers/notify.ts";
 import { planSchema } from "../helpers/plan.ts";
 import { createRtkTotals, readRtkGain } from "../helpers/rtk-gain.ts";
 import { createRunSummary, resolveRepoUrl } from "../helpers/run-summary.ts";
-import {
-  MAX_ITERATIONS,
-  MODEL,
-  copyToWorktree,
-  hooks,
-} from "../helpers/run-config.ts";
+import { MAX_ITERATIONS, MODEL, copyToWorktree, hooks } from "../helpers/run-config.ts";
 import {
   EXIT_CODE as SESSION_LIMIT_EXIT_CODE,
   isUnparseableSessionLimit,
@@ -167,9 +158,7 @@ try {
             console.log(
               green("  ✓ ") +
                 issueTag(issue.id, issue.branch) +
-                green(
-                  ` — implementer made ${implement.commits.length} commit(s).`,
-                ) +
+                green(` — implementer made ${implement.commits.length} commit(s).`) +
                 ` ${issueTimer.tag()}`,
             );
             return { issue, closed: false as const, commits: implement.commits };
@@ -187,17 +176,10 @@ try {
           console.log(
             yellow("  … ") +
               issueTag(issue.id, issue.branch) +
-              yellow(
-                " — implementer produced no new commits; resolving why and closing.",
-              ) +
+              yellow(" — implementer produced no new commits; resolving why and closing.") +
               ` ${issueTimer.tag()}`,
           );
-          const completion = await closeCompletedIssue(
-            sandbox,
-            issue.id,
-            issue.branch,
-            baseBranch,
-          );
+          const completion = await closeCompletedIssue(sandbox, issue.id, issue.branch, baseBranch);
           logNoCommitOutcome(issue.id, issue.branch, completion);
           runSummary.addClosed(issue, iteration, completion);
 
@@ -212,9 +194,7 @@ try {
       }),
     );
 
-    console.log(
-      `${dim("  Execute phase")} ${durationTag(executeTimer.elapsed())}`,
-    );
+    console.log(`${dim("  Execute phase")} ${durationTag(executeTimer.elapsed())}`);
 
     // A session limit kills every agent in flight at once, but allSettled
     // absorbs the rejections so the loop would otherwise carry on: skip the
@@ -276,9 +256,7 @@ try {
     logIterationDone(iteration, iterationTimer.elapsed());
   }
 
-  console.log(
-    bold(green("\nAll done.")) + ` ${durationTag(runTimer.elapsed())}`,
-  );
+  console.log(bold(green("\nAll done.")) + ` ${durationTag(runTimer.elapsed())}`);
   logRunSummary(runSummary);
   logRtkTotals(rtkTotals);
   await notify("implement", "ok");
@@ -297,10 +275,7 @@ try {
     );
     await writeSessionLimit(limit);
   } else {
-    console.error(
-      bold(red("\nRun failed:")) + ` ${durationTag(runTimer.elapsed())}`,
-      err,
-    );
+    console.error(bold(red("\nRun failed:")) + ` ${durationTag(runTimer.elapsed())}`, err);
     // Wording we recognise but a reset time we cannot read means the message has
     // changed shape. Surface it as its own line: relaunching blind is worse, and
     // filing it as an ordinary crash would hide a fixable gap in the pattern.

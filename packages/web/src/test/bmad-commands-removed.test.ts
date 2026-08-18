@@ -45,14 +45,14 @@ const MARKER = /bmad/i;
  * pruned: it is where the commands lived, so it is where a re-add would land.
  */
 const PRUNED = new Set([
-	".claude",
-	".git",
-	".turbo",
-	"coverage",
-	"dist",
-	"graphify-out",
-	"logs",
-	"node_modules",
+  ".claude",
+  ".git",
+  ".turbo",
+  "coverage",
+  "dist",
+  "graphify-out",
+  "logs",
+  "node_modules",
 ]);
 
 /**
@@ -68,64 +68,64 @@ const SELF = "packages/web/src/test/bmad-commands-removed.test.ts";
  * bytes out of a substring scan.
  */
 function textOf(path: string): string | null {
-	const buffer = readFileSync(path);
-	return buffer.includes(0) ? null : buffer.toString("utf8");
+  const buffer = readFileSync(path);
+  return buffer.includes(0) ? null : buffer.toString("utf8");
 }
 
 /** Every non-pruned text file in the repo, as `[repo-relative path, contents]`. */
 function repoFiles(dir = ROOT, prefix = ""): Array<[string, string]> {
-	const out: Array<[string, string]> = [];
+  const out: Array<[string, string]> = [];
 
-	for (const entry of readdirSync(dir)) {
-		if (PRUNED.has(entry)) continue;
+  for (const entry of readdirSync(dir)) {
+    if (PRUNED.has(entry)) continue;
 
-		const path = `${dir}/${entry}`;
-		const relative = prefix ? `${prefix}/${entry}` : entry;
+    const path = `${dir}/${entry}`;
+    const relative = prefix ? `${prefix}/${entry}` : entry;
 
-		if (statSync(path).isDirectory()) {
-			out.push(...repoFiles(path, relative));
-			continue;
-		}
-		if (relative === SELF) continue;
+    if (statSync(path).isDirectory()) {
+      out.push(...repoFiles(path, relative));
+      continue;
+    }
+    if (relative === SELF) continue;
 
-		const text = textOf(path);
-		if (text !== null) out.push([relative, text]);
-	}
+    const text = textOf(path);
+    if (text !== null) out.push([relative, text]);
+  }
 
-	return out;
+  return out;
 }
 
 describe("the orphaned BMAD commands", () => {
-	it("are gone from the working tree", () => {
-		expect(existsSync(`${ROOT}/${COMMANDS}`)).toBe(false);
-	});
+  it("are gone from the working tree", () => {
+    expect(existsSync(`${ROOT}/${COMMANDS}`)).toBe(false);
+  });
 
-	it("are tracked by no file, under `.cursor` or anywhere else", () => {
-		const tracked = execFileSync("git", ["ls-files"], {
-			cwd: ROOT,
-			encoding: "utf8",
-		})
-			.split("\n")
-			.filter((path) => path !== SELF)
-			.filter((path) => MARKER.test(path));
+  it("are tracked by no file, under `.cursor` or anywhere else", () => {
+    const tracked = execFileSync("git", ["ls-files"], {
+      cwd: ROOT,
+      encoding: "utf8",
+    })
+      .split("\n")
+      .filter((path) => path !== SELF)
+      .filter((path) => MARKER.test(path));
 
-		expect(tracked).toStrictEqual([]);
-	});
+    expect(tracked).toStrictEqual([]);
+  });
 });
 
 describe("the directories they invoked", () => {
-	it("are absent from the working tree", () => {
-		expect(existsSync(`${ROOT}/${MODULES}`)).toBe(false);
-		expect(existsSync(`${ROOT}/${OUTPUT}`)).toBe(false);
-	});
+  it("are absent from the working tree", () => {
+    expect(existsSync(`${ROOT}/${MODULES}`)).toBe(false);
+    expect(existsSync(`${ROOT}/${OUTPUT}`)).toBe(false);
+  });
 
-	it("are named by no remaining file in the repo", () => {
-		// Including the ignore lists. An exclusion for a path nothing writes is
-		// dead config, and dead config is how a deleted tool looks installed.
-		const offenders = repoFiles()
-			.filter(([, body]) => MARKER.test(body))
-			.map(([path]) => path);
+  it("are named by no remaining file in the repo", () => {
+    // Including the ignore lists. An exclusion for a path nothing writes is
+    // dead config, and dead config is how a deleted tool looks installed.
+    const offenders = repoFiles()
+      .filter(([, body]) => MARKER.test(body))
+      .map(([path]) => path);
 
-		expect(offenders).toStrictEqual([]);
-	});
+    expect(offenders).toStrictEqual([]);
+  });
 });

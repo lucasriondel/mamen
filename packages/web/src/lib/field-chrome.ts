@@ -9,7 +9,7 @@
  * it is shared rather than copied.
  */
 export const FIELD_CHROME =
-	"border border-gousse-line bg-gousse-panel px-4 py-1.5 text-sm text-gousse-ink focus:border-gousse-ink focus:outline-hidden";
+  "border border-gousse-line bg-gousse-panel px-4 py-1.5 text-sm text-gousse-ink focus:border-gousse-ink focus:outline-hidden";
 
 /**
  * Radius for single-line fields ({@link Input}, {@link Select}). Split out from

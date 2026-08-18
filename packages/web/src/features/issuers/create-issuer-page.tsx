@@ -32,93 +32,89 @@ import { useIssuerMutations } from "./use-issuer-mutations";
  * uniqueness.
  */
 export function CreateIssuerPage() {
-	const navigate = useNavigate();
-	const { create } = useIssuerMutations();
-	const [name, setName] = useState("");
-	const [categoryId, setCategoryId] = useState<CategoryId | null>(null);
-	const duplicateNoteId = useId();
+  const navigate = useNavigate();
+  const { create } = useIssuerMutations();
+  const [name, setName] = useState("");
+  const [categoryId, setCategoryId] = useState<CategoryId | null>(null);
+  const duplicateNoteId = useId();
 
-	// Loaded so the duplicate-name guard has something to check against; the guard
-	// only covers the names the client has in hand (the contract allows dupes).
-	const issuersQuery = useQuery(
-		issuerQueries.list({ orderBy: "name", limit: ISSUER_SCAN_LIMIT }),
-	);
-	const issuers = (issuersQuery.data?.items ?? []) as readonly Issuer[];
+  // Loaded so the duplicate-name guard has something to check against; the guard
+  // only covers the names the client has in hand (the contract allows dupes).
+  const issuersQuery = useQuery(issuerQueries.list({ orderBy: "name", limit: ISSUER_SCAN_LIMIT }));
+  const issuers = (issuersQuery.data?.items ?? []) as readonly Issuer[];
 
-	const trimmed = name.trim();
-	const isDuplicate = hasExactIssuerName(issuers, trimmed);
-	const canSubmit = trimmed.length > 0 && !isDuplicate && !create.isPending;
+  const trimmed = name.trim();
+  const isDuplicate = hasExactIssuerName(issuers, trimmed);
+  const canSubmit = trimmed.length > 0 && !isDuplicate && !create.isPending;
 
-	const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-		event.preventDefault();
-		if (!canSubmit) return;
-		create.mutate(
-			{
-				name: trimmed,
-				...(categoryId != null ? { defaultCategoryId: categoryId } : {}),
-			},
-			{
-				onSuccess: (issuer) => {
-					toast.success("Issuer created");
-					navigate({
-						to: "/issuers/$issuerId",
-						params: { issuerId: String(issuer.id) },
-					});
-				},
-			},
-		);
-	};
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!canSubmit) return;
+    create.mutate(
+      {
+        name: trimmed,
+        ...(categoryId != null ? { defaultCategoryId: categoryId } : {}),
+      },
+      {
+        onSuccess: (issuer) => {
+          toast.success("Issuer created");
+          navigate({
+            to: "/issuers/$issuerId",
+            params: { issuerId: String(issuer.id) },
+          });
+        },
+      },
+    );
+  };
 
-	return (
-		<PageLayout
-			title="Create issuer"
-			back={<BackLink to="/issuers">Issuers</BackLink>}
-			description="Give it a default category and future matching transactions will file themselves."
-			className="gap-8"
-		>
-			<form onSubmit={handleSubmit} className="flex max-w-md flex-col gap-6">
-				<label className="flex flex-col gap-1 text-sm text-gousse-muted">
-					Name
-					<Input
-						value={name}
-						onChange={(event) => setName(event.target.value)}
-						placeholder="e.g. Spotify"
-						aria-label="Issuer name"
-						// The duplicate-name guard already blocks Save and prints the note
-						// below; marking the field invalid is what paints it, now that the
-						// primitive has an `aria-invalid` state.
-						aria-invalid={isDuplicate}
-						// `aria-invalid` alone announces "invalid entry" and nothing else.
-						// The reason is on screen, but the `aria-label` above overrides this
-						// `<label>`'s text as the accessible name, so the note is otherwise
-						// unreachable — point at it explicitly (WCAG 3.3.1). Only while it
-						// renders: a dangling id describes nothing.
-						aria-describedby={isDuplicate ? duplicateNoteId : undefined}
-					/>
-					{isDuplicate ? (
-						<span id={duplicateNoteId} className="text-xs text-gousse-high">
-							An issuer with this name already exists.
-						</span>
-					) : null}
-				</label>
+  return (
+    <PageLayout
+      title="Create issuer"
+      back={<BackLink to="/issuers">Issuers</BackLink>}
+      description="Give it a default category and future matching transactions will file themselves."
+      className="gap-8"
+    >
+      <form onSubmit={handleSubmit} className="flex max-w-md flex-col gap-6">
+        <label className="flex flex-col gap-1 text-sm text-gousse-muted">
+          Name
+          <Input
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="e.g. Spotify"
+            aria-label="Issuer name"
+            // The duplicate-name guard already blocks Save and prints the note
+            // below; marking the field invalid is what paints it, now that the
+            // primitive has an `aria-invalid` state.
+            aria-invalid={isDuplicate}
+            // `aria-invalid` alone announces "invalid entry" and nothing else.
+            // The reason is on screen, but the `aria-label` above overrides this
+            // `<label>`'s text as the accessible name, so the note is otherwise
+            // unreachable — point at it explicitly (WCAG 3.3.1). Only while it
+            // renders: a dangling id describes nothing.
+            aria-describedby={isDuplicate ? duplicateNoteId : undefined}
+          />
+          {isDuplicate ? (
+            <span id={duplicateNoteId} className="text-xs text-gousse-high">
+              An issuer with this name already exists.
+            </span>
+          ) : null}
+        </label>
 
-				<div className="flex flex-col gap-1">
-					<span className="text-sm text-gousse-muted">
-						Default category (optional)
-					</span>
-					<CategoryLeafPicker
-						value={categoryId}
-						onChange={setCategoryId}
-						title="Set a default category"
-						selectedLabel="Selected category"
-						clearLabel="Remove category"
-					/>
-				</div>
+        <div className="flex flex-col gap-1">
+          <span className="text-sm text-gousse-muted">Default category (optional)</span>
+          <CategoryLeafPicker
+            value={categoryId}
+            onChange={setCategoryId}
+            title="Set a default category"
+            selectedLabel="Selected category"
+            clearLabel="Remove category"
+          />
+        </div>
 
-				<Button type="submit" disabled={!canSubmit} className="self-start">
-					Create issuer
-				</Button>
-			</form>
-		</PageLayout>
-	);
+        <Button type="submit" disabled={!canSubmit} className="self-start">
+          Create issuer
+        </Button>
+      </form>
+    </PageLayout>
+  );
 }

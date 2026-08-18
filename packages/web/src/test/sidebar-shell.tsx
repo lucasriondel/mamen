@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import {
-	type SidebarCollapsedContextValue,
-	SidebarCollapsedProvider,
+  type SidebarCollapsedContextValue,
+  SidebarCollapsedProvider,
 } from "@/lib/sidebar-collapsed-context";
 
 /**
@@ -21,14 +21,14 @@ import {
  * layout draws in which state is `page-layout.test.tsx`.
  */
 export function shell(
-	overrides: Partial<SidebarCollapsedContextValue> = {},
+  overrides: Partial<SidebarCollapsedContextValue> = {},
 ): SidebarCollapsedContextValue {
-	return {
-		collapsed: false,
-		toggle: () => {},
-		triggerRef: { current: null },
-		...overrides,
-	};
+  return {
+    collapsed: false,
+    toggle: () => {},
+    triggerRef: { current: null },
+    ...overrides,
+  };
 }
 
 /** The panel open — no trigger, the state a page test doesn't care about. */
@@ -38,11 +38,6 @@ export const OPEN_SHELL = shell();
 export const COLLAPSED_SHELL = shell({ collapsed: true });
 
 /** Wrap a page in the context `AppShell` puts around it in the app. */
-export function withShell(
-	ui: ReactNode,
-	value: SidebarCollapsedContextValue = OPEN_SHELL,
-) {
-	return (
-		<SidebarCollapsedProvider value={value}>{ui}</SidebarCollapsedProvider>
-	);
+export function withShell(ui: ReactNode, value: SidebarCollapsedContextValue = OPEN_SHELL) {
+  return <SidebarCollapsedProvider value={value}>{ui}</SidebarCollapsedProvider>;
 }
