@@ -140,6 +140,17 @@ const webEnv = new Set(
 	[...read("packages/web/.env.example").matchAll(/^(\w+)=/gm)].map((m) => m[1]),
 );
 
+/**
+ * The env names the self-hosting compose file reads (issue #140). Not the API's
+ * and not the SPA's: `WEB_PORT` is the published-port knob, consumed by
+ * `docker-compose.yml` and by nothing that runs inside a container. The root
+ * `.env.example` is where it is documented, and `docker-compose.test.ts` holds
+ * that file to the variables the compose file actually interpolates.
+ */
+const composeEnv = new Set(
+	[...read(".env.example").matchAll(/^#?\s*(\w+)=/gm)].map((m) => m[1]),
+);
+
 /** The env names the operations docs already own (the `claude` CLI token). */
 const opsEnv = new Set(
 	[
@@ -206,7 +217,12 @@ describe("README.md", () => {
 	});
 
 	it("names no environment variable the code does not read", () => {
-		const known = new Set([...apiConfigEnv, ...webEnv, ...opsEnv]);
+		const known = new Set([
+			...apiConfigEnv,
+			...webEnv,
+			...composeEnv,
+			...opsEnv,
+		]);
 		const named = [...envNames(README)].filter((name) => !known.has(name));
 
 		expect(named).toStrictEqual([]);
