@@ -1,0 +1,65 @@
+# mamen, self-hosted on one host: `docker compose up --build` (issue #140).
+#
+# Two services, and the split between them is the security model rather than a
+# packaging choice. `web` is an nginx serving the built SPA under `/app`, and it
+# proxies `/api` and `/uploads` to `api` over this compose network — that proxy
+# is the *only* path to the API. See DEPLOY.md, which describes the maintainer's
+# production deploy (Dokploy + Cloudflare Access); this file is the self-hosting
+# path and does not replace it.
+#
+# There is no `landing-page` service: that image serves the public site root of
+# the deployed site, and a self-hosted install is the app.
+#
+# Configuration lives in `.env` beside this file — copy `.env.example`.
+# `TOKEN_ENCRYPTION_KEY` is the one an operator must set and must keep stable.
+
+services:
+  api:
+    build:
+      # The repo root: the image installs from the root manifests and copies
+      # every workspace package `@mamen/api` resolves.
+      context: .
+      dockerfile: packages/api/Dockerfile
+    restart: unless-stopped
+    # No `ports:`, deliberately. The API has no authentication of its own —
+    # `POST /api/database/reset` included — so publishing it would put the whole
+    # database on the host. It is reachable as `api:5500` on this network and
+    # nowhere else; `web` below is what reaches it.
+    environment:
+      # Must match the port in `API_UPSTREAM` below.
+      PORT: "5500"
+      # Both optional, and blank-tolerant — unset and empty are the same fact to
+      # the API. Without a key, storing an AI credential fails and a stored one
+      # reads back as unreadable; without the logo.dev token, Logo search
+      # reports itself unconfigured and refuses.
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:-}
+      LOGODEV_TOKEN: ${LOGODEV_TOKEN:-}
+      # `DB_PATH` and `UPLOADS_DIR` are left at the image's defaults,
+      # `/data/mamen.db` and `/data/uploads`, which is what lets one mount cover
+      # both. Setting either outside `/data` loses it on the next recreate.
+    volumes:
+      # The whole persistent state: the sqlite file (WAL, so three files on
+      # disk) and the uploaded issuer images. Without it they live in the
+      # container's own layer, and `docker compose down` takes them with it.
+      - mamen-data:/data
+
+  web:
+    build:
+      context: .
+      dockerfile: packages/web/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      # Rendered into nginx.conf at container start by nginx's own envsubst
+      # entrypoint. `api` is the name docker's DNS answers for on this network.
+      API_UPSTREAM: "api:5500"
+      # VITE_API_URL is deliberately absent, and is a build-time variable
+      # anyway: the browser calls `/api` on this same origin, which is what
+      # keeps the API off the public network and CORS out of the picture.
+    ports:
+      # The only published port: the app, and through it the API.
+      - "${WEB_PORT:-8080}:80"
+
+volumes:
+  mamen-data:

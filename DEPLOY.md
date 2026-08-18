@@ -343,6 +343,35 @@ Four things distinguish a correct routing from a plausible one:
 | A stored provider credential shows as configured with no hint | `TOKEN_ENCRYPTION_KEY` changed or was lost — the blob is unreadable. Re-paste the credential. (A very short credential also shows no hint, and is readable.) |
 | Pasting a provider credential returns a `500` | `TOKEN_ENCRYPTION_KEY` unset, or not 64 hex characters. |
 
+## Self-hosting on one host (`docker compose`)
+
+Everything above is the maintainer's production deploy. `docker-compose.yml` at
+the repo root is a second, smaller path: from a clean clone,
+
+```sh
+cp .env.example .env    # fill in TOKEN_ENCRYPTION_KEY
+docker compose up --build
+```
+
+brings the app up at `http://localhost:8080/app/` (`WEB_PORT` moves it). It runs
+the same two images, the same way: `api` publishes no port, `web`'s nginx
+proxies `/api` and `/uploads` to it as `api:5500`, and a named volume
+`mamen-data` at `/data` holds the database and the uploaded images, so data
+survives `docker compose down` and a rebuild. `landing-page` is not part of it —
+a self-hosted install is the app, and the compose file serves `/` by redirecting
+into `/app/`.
+
+The one thing it does **not** carry over is the access boundary. There is no
+Cloudflare Access in front of it and the app has no authentication of its own,
+so whatever can reach the published port can read and write everything,
+`POST /api/database/reset` included. Publish it to a LAN, a VPN or a reverse
+proxy that authenticates — not to the internet.
+
+There is deliberately **no dev compose file**. Its only job would be to start a
+database, and there is no database server to start: sqlite is a file the API
+opens in-process and the migrator creates at boot. Local development is
+`bun dev`.
+
 ## Making the repository public
 
 The repository is private, and the flip is effectively irreversible: anything

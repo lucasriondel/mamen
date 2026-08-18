@@ -185,6 +185,21 @@ Access over `/app`, `/api` and `/uploads`, with the site root left public.
 [DEPLOY.md](DEPLOY.md) has the whole topology, the environment each container
 needs, and the path split it is all derived from.
 
+To run the app on one host instead, `docker-compose.yml` at the repo root builds
+the API and the web container and wires them together:
+
+```sh
+cp .env.example .env    # fill in TOKEN_ENCRYPTION_KEY
+docker compose up --build
+```
+
+The app comes up at <http://localhost:8080/app/> (`WEB_PORT` moves it), with the
+database and uploaded images on a named volume so they survive a
+`docker compose down`. The API publishes no port of its own — the web
+container's nginx is the only way to it. [`.env.example`](.env.example) lists
+what an operator can set. There is still **no authentication**: put it behind a
+VPN or an authenticating proxy, never straight on the internet.
+
 ## Documentation
 
 - [CONTRIBUTING.md](CONTRIBUTING.md) — how to get set up and what is worth sending
