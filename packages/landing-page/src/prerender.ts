@@ -8,7 +8,8 @@ import { renderPage } from "./page";
  * package's page lives in TypeScript (`src/page.ts`) so it can read
  * `APP_BASE_PATH` and be asserted by a test. The hook throws the stub away and
  * returns the rendered document in its place, in dev and in build alike, so
- * the page a developer sees on :5100 is the page the container serves.
+ * the page a developer sees on the dev server is the page the container
+ * serves.
  *
  * `order: "pre"` is load-bearing: Vite's own HTML pass runs *after* the pre
  * hooks and is what turns `/src/styles.css` into the hashed asset in `dist`.

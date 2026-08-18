@@ -1,7 +1,17 @@
+import { API_DEV_PORT, WEB_DEV_PORT } from "@mamen/shared/ports";
 import { Config } from "effect";
 
-/** Server config read from the environment, with sensible dev defaults. */
-export const Port = Config.integer("PORT").pipe(Config.withDefault(5500));
+/**
+ * Server config read from the environment, with sensible dev defaults.
+ *
+ * The two ports below are the registry's rows for mamen
+ * (`@mamen/shared/ports`), not literals: the web dev server proxies to one of
+ * them and the other is where its own requests come from, so a number changed
+ * in one place and not the other is a dev setup that half works.
+ */
+export const Port = Config.integer("PORT").pipe(
+	Config.withDefault(API_DEV_PORT),
+);
 
 /** Sqlite database file; defaults to `mamen.db` in the working directory. */
 export const DbPath = Config.string("DB_PATH").pipe(
@@ -57,6 +67,6 @@ export const TokenEncryptionKey = Config.option(
 
 /** Comma-separated allowed CORS origins; defaults to the Vite dev server. */
 export const CorsOrigins = Config.string("CORS_ORIGINS").pipe(
-	Config.withDefault("http://localhost:5070"),
+	Config.withDefault(`http://localhost:${WEB_DEV_PORT}`),
 	Config.map((raw) => raw.split(",").map((s) => s.trim())),
 );

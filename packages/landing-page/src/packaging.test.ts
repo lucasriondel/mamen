@@ -39,11 +39,15 @@ const locations = [...nginx.matchAll(/^\s*location\s+(.+?)\s*\{/gm)].map(
 );
 
 /**
- * The subpath the landing page reaches `@mamen/shared` through. It is the
- * import-free module (`src/app-base-path.ts`), not the package root, which
- * re-exports the contract and pulls `effect` in behind it.
+ * The subpaths the landing page reaches `@mamen/shared` through: the
+ * import-free deployment constants — the app's prefix, and the port registry's
+ * rows (issue #137) — never the package root, which re-exports the contract and
+ * pulls `effect` in behind it.
  */
-const SHARED_SUBPATH = "@mamen/shared/app-base-path";
+const SHARED_SUBPATHS = [
+	"@mamen/shared/app-base-path",
+	"@mamen/shared/ports",
+] as const;
 
 describe("the landing package's dependencies", () => {
 	it("shares nothing with the app but the constant", () => {
@@ -57,20 +61,24 @@ describe("the landing package's dependencies", () => {
 		expect(manifest.dependencies["@mamen/sdk"]).toBeUndefined();
 	});
 
-	it("reaches the constant through the module that imports nothing", () => {
-		expect(
-			sharedManifest.exports[SHARED_SUBPATH.replace("@mamen/shared", ".")],
-		).toBe("./src/app-base-path.ts");
-		// Import-free is what makes the subpath worth declaring: through the
-		// package root, `effect` and `@effect/platform` enter this build.
-		expect(read("../shared/src/app-base-path.ts")).not.toMatch(/^\s*import\b/m);
+	it("reaches its constants through the modules that import nothing", () => {
+		for (const subpath of SHARED_SUBPATHS) {
+			const target =
+				sharedManifest.exports[subpath.replace("@mamen/shared", ".")];
+			// The `.ts` extension is what makes the subpath loadable from
+			// `vite.config.ts`, which Node resolves without extension guessing.
+			expect(target).toMatch(/^\.\/src\/[\w-]+\.ts$/);
+			// Import-free is what makes the subpath worth declaring: through the
+			// package root, `effect` and `@effect/platform` enter this build.
+			expect(read(`../shared/${target.slice(2)}`)).not.toMatch(/^\s*import\b/m);
+		}
 
 		const specifiers = ["src/page.ts", "vite.config.ts"].flatMap((file) =>
 			[...read(file).matchAll(/from "(@mamen\/[^"]+)"/g)].map((m) => m[1]),
 		);
 		expect(specifiers).not.toStrictEqual([]);
 		for (const specifier of specifiers) {
-			expect(specifier).toBe(SHARED_SUBPATH);
+			expect(SHARED_SUBPATHS).toContain(specifier);
 		}
 	});
 });

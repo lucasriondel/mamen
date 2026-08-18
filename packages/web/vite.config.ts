@@ -1,5 +1,6 @@
 import path from "node:path";
 import { APP_BASE_PATH_SLASH } from "@mamen/shared";
+import { API_DEV_PORT, WEB_DEV_PORT } from "@mamen/shared/ports";
 import tailwindcss from "@tailwindcss/vite";
 import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react-swc";
@@ -30,11 +31,11 @@ export default defineConfig({
 		},
 	},
 	server: {
-		port: 5070,
+		port: WEB_DEV_PORT,
 		strictPort: true,
 		proxy: {
-			"/api": "http://localhost:5500",
-			"/uploads": "http://localhost:5500",
+			"/api": `http://localhost:${API_DEV_PORT}`,
+			"/uploads": `http://localhost:${API_DEV_PORT}`,
 		},
 	},
 });
