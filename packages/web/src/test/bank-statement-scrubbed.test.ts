@@ -52,6 +52,23 @@ const FIXTURE = "src/features/import/__fixtures__/green-got-sample.csv";
 const FIXTURE_FROM_ROOT = `packages/web/${FIXTURE}`;
 
 /**
+ * Every file in the repo that legitimately carries an account number, from the
+ * root. Two of them: the import fixture above, and the demo dataset (issue
+ * #139), whose transfer rows name the account the money moved to the way a
+ * statement does.
+ *
+ * The list is an allowance to carry IBANs, **not** an exemption from the scan:
+ * each of these files is held to the reserved prefix below, and every other file
+ * in the tree may carry none at all. That distinction is the lesson of the leak —
+ * the copy that mattered sat where a fixture belongs and was trusted for its
+ * location alone.
+ */
+const SYNTHETIC_DATA = [
+	FIXTURE_FROM_ROOT,
+	"packages/api/src/demo/dataset.ts",
+] as const;
+
+/**
  * A French IBAN: `FR`, two check digits, then 23 more characters. Written as a
  * pattern rather than a literal so this file carries no account number of its
  * own — including a synthetic one, which the scans below would then have to
@@ -173,10 +190,33 @@ describe("the Green-Got import fixture", () => {
 	});
 });
 
+describe("the repo's synthetic data files", () => {
+	it("all still exist, so the scan below is not exempting nothing", () => {
+		for (const path of SYNTHETIC_DATA) {
+			expect(existsSync(`${ROOT}/${path}`), path).toBe(true);
+		}
+	});
+
+	it("carry account numbers, and only ones that cannot be real", () => {
+		for (const path of SYNTHETIC_DATA) {
+			const ibans = frenchIbans(textOf(path) ?? "");
+
+			// Each is here *because* it carries account numbers; if one stops, the
+			// assertion below passes vacuously and stops meaning anything.
+			expect(ibans.length, path).toBeGreaterThan(0);
+			expect(
+				ibans.filter((iban) => !iban.startsWith(SYNTHETIC_IBAN_PREFIX)),
+				path,
+			).toStrictEqual([]);
+		}
+	});
+});
+
 describe("every text file in the repo", () => {
-	it("carries no account number outside the fixture", () => {
+	it("carries no account number outside the synthetic data files", () => {
+		const allowed = new Set<string>(SYNTHETIC_DATA);
 		const offenders = repoFiles()
-			.filter((path) => path !== FIXTURE_FROM_ROOT)
+			.filter((path) => !allowed.has(path))
 			.filter((path) => frenchIbans(textOf(path) ?? "").length > 0);
 
 		expect(offenders).toStrictEqual([]);

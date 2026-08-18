@@ -213,6 +213,20 @@ repeated per package.
   deliberate deletions and risk duplicating rows (`slug` has no unique
   constraint).
 
+- **Demo database** — a database filled with one invented household's six months
+  of banking by `bun run seed:demo <path>` (issue #139), so Transactions and
+  Recap can be looked at, screenshotted and demoed without anyone's real
+  statements. Its dataset is `packages/api/src/demo/dataset.ts` and it is
+  **entirely synthetic**: invented counterparties, amounts drawn from one seeded
+  PRNG, and account numbers from the reserved range that cannot be an account
+  that exists — the same rule the import fixtures follow. Dates are **pinned**,
+  never derived from now, because Recap buckets by period and a moving clock
+  would make two screenshots of the same command disagree. It is not a fixture
+  set: no test builds its rows into assertions about the app's behaviour, and
+  nothing in the running app knows it exists.
+  _Avoid_: sample data, test data (it is neither a sample of anything real nor
+  the input to a test).
+
 - **Issuer default category** — the Category an Issuer assigns to every
   transaction of its own that carries no **Category override**
   (`issuer.defaultCategoryId`). The bulk lever: changing it reclassifies the
