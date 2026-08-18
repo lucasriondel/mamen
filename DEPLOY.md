@@ -394,7 +394,12 @@ Before flipping, in order:
    any name; the `git log` is the criterion as issue #108 words it. If either is
    red, the rewrite in `scripts/scrub-bank-statements.sh` has not been run and
    force-pushed yet — a coordinated history rewrite on the default branch, not a
-   step to take in passing.
+   step to take in passing. Run it from
+   [docs/operations/bank-statement-scrub.md](docs/operations/bank-statement-scrub.md),
+   which is the whole operation in order, and do not flip until its last step
+   is green: a force-push leaves the old commits fetchable by SHA until GitHub
+   collects them, so the scrub wants to be finished and settled *before* the
+   repository is public, not after.
 
 2. **Re-run the working-tree guard**: `bun run --filter @mamen/web test`, which
    includes `bank-statement-scrubbed.test.ts` — no statement bytes anywhere in

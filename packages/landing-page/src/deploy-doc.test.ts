@@ -123,4 +123,14 @@ describe("the section on going public", () => {
 		expect(DEPLOY).toContain("scripts/scrub-bank-statements.sh --verify");
 		expect(existsSync(`${ROOT}/scripts/scrub-bank-statements.sh`)).toBe(true);
 	});
+
+	it("sends a red history check somewhere that says what to do about it", () => {
+		// The check is a one-liner; the rewrite behind it is a coordinated
+		// force-push over every branch, and a checklist step that only says
+		// "expect: clean" leaves the reader nowhere to go when it is not.
+		const runbook = "docs/operations/bank-statement-scrub.md";
+
+		expect(DEPLOY).toContain(`(${runbook})`);
+		expect(existsSync(`${ROOT}/${runbook}`)).toBe(true);
+	});
 });
