@@ -254,7 +254,13 @@ export function TransactionsSection({
     search.kind != null;
 
   return (
-    <>
+    // The section owns the rhythm between its own parts. Every caller used to
+    // be a `PageLayout` child, so a bare fragment inherited that layout's
+    // `gap-6` for free — until the issuer detail page put it inside a tab panel,
+    // which is not a flex column: the bundle bar sat flush under the filter bar
+    // and the pagination against the table. Spacing that belongs to the stack
+    // lives with the stack, not in whatever happens to wrap it.
+    <div className="flex flex-col gap-6">
       {children}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -296,7 +302,9 @@ export function TransactionsSection({
           }
         />
       ) : (
-        <>
+        // The rows and everything that frames them — the same rhythm as the
+        // stack above, so the branch does not flatten what its parent spaces.
+        <div className="flex flex-col gap-6">
           <BundleActionBar selected={selectedRows} onClear={() => setRowSelection({})} />
           <TransactionsPagination
             position="top"
@@ -324,8 +332,8 @@ export function TransactionsSection({
             total={total}
             onPageChange={onPageChange}
           />
-        </>
+        </div>
       )}
-    </>
+    </div>
   );
 }
