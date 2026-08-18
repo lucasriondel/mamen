@@ -1,5 +1,5 @@
-import { API_DEV_PORT } from "@mamen/shared/ports";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { API_DEV_PORT } from "@mamen/shared/ports";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 
