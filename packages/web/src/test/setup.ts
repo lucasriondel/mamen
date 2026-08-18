@@ -1,4 +1,5 @@
 import "@testing-library/jest-dom";
+import { installMatchMedia } from "./prefers-color-scheme";
 
 // jsdom ships neither `ResizeObserver` nor `Element.scrollIntoView`, both of
 // which cmdk touches while measuring and keeping the active item in view (PRD
@@ -59,24 +60,9 @@ if (!("revokeObjectURL" in URL)) {
 }
 
 // jsdom evaluates no media queries and ships no `matchMedia`, which `next-themes`
-// calls the moment its provider mounts — `enableSystem={false}` decides what it
-// does with the answer, not whether it asks. Anything rendering the theme
-// preference (issue #127) therefore needs one. It reports "not dark" and never
-// changes: the app pins the choice to light or dark itself, so no test here has
-// any use for the OS preference, and a stub that could fire would invite one.
-if (typeof window !== "undefined" && typeof window.matchMedia !== "function") {
-	Object.defineProperty(window, "matchMedia", {
-		configurable: true,
-		value: (query: string): MediaQueryList =>
-			({
-				media: query,
-				matches: false,
-				onchange: null,
-				addListener: () => {},
-				removeListener: () => {},
-				addEventListener: () => {},
-				removeEventListener: () => {},
-				dispatchEvent: () => false,
-			}) as unknown as MediaQueryList,
-	});
-}
+// calls the moment its provider mounts. Since issue #143 the answer decides the
+// scheme whenever nothing is stored, so the stub is settable rather than a
+// constant "no" — see `test/prefers-color-scheme.ts`. It is installed
+// unconditionally: a test that states the OS preference must not be at the mercy
+// of whatever a future jsdom decides `matchMedia` returns by default.
+installMatchMedia();

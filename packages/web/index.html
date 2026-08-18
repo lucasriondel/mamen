@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" href="/favicon.ico" sizes="any" />
@@ -8,7 +8,35 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0a0a0a" />
+    <!-- `--gousse-bg` per ramp. Keys off the OS, not off an explicit choice:
+         there is no media-less way to say it. -->
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f9f7f4" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0d0d0c" />
+    <!-- The colour scheme, before first paint (issue #143). next-themes applies
+         the stored choice an effect later, so this runs the same resolution
+         synchronously; `?theme=` forces and stores one, for automated capture.
+         Why, and the rest: "Colour scheme" in packages/web/CONTEXT.md. The
+         shipped text below is what src/test/color-scheme.test.ts runs. -->
+    <script>
+      (() => {
+        let stored = null;
+        try {
+          const forced = new URLSearchParams(location.search).get("theme");
+          if (forced === "light" || forced === "dark" || forced === "system") {
+            localStorage.setItem("theme", forced);
+          }
+          stored = localStorage.getItem("theme");
+        } catch {}
+        const scheme =
+          stored === "light" || stored === "dark"
+            ? stored
+            : matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light";
+        document.documentElement.classList.add(scheme);
+        document.documentElement.style.colorScheme = scheme;
+      })();
+    </script>
     <title>mamen</title>
   </head>
   <body>
