@@ -153,7 +153,8 @@ _Avoid_: partial update (that is the other thing).
 A plain value every deployed layer has to agree on, exported from the package
 root because more than one package reads it and none of them owns it —
 `APP_BASE_PATH` / `APP_BASE_PATH_SLASH` (`src/app-base-path.ts`), the prefix the
-SPA is served under. Not a domain type and not part of the **contract**: it
+SPA is served under, and the **port registry** rows (`src/ports.ts`). Not a
+domain type and not part of the **contract**: it
 describes where the app is *hosted*, not what it exchanges. Each such module
 stays import-free so a build config (`vite.config.ts`) can read it without
 pulling `effect` in behind it, and each documents the constraint that fixes its
@@ -164,6 +165,22 @@ the package root, so each gets its own `exports` entry
 prefix without `effect` entering a build whose whole output is one HTML file.
 _Avoid_: config, env var (nothing here is read from the environment; a value
 that varies per deployment does not belong in this package at all).
+
+**Port registry**:
+The numbers mamen binds on a developer's machine, as data (`src/ports.ts`,
+issue #137): the three dev servers `bun dev` starts, and the demo stack's
+published host ports, **reserved** before the compose file that will publish
+them exists. It is mamen's rows of a registry that lives outside this repo
+(`~/dev/PORTS.md`, one file for every app on the box) — which is why a row here
+is not a claim until it is appended there, and why the module names the
+conventions it allocated under (perso frontends in 5xxx, Docker host ports from
+5400 up, `strictPort` on anything Vite serves). A **reserved** row binds
+nothing yet; it exists so the next change picks a free number rather than the
+demo stack's. The two Vite configs, the API's `PORT` default and the README's
+table all read it, so a port cannot be moved in one place only.
+_Avoid_: listen port (the API's is configurable — `PORT` — and the registry
+records the *default*, which is what the dev proxy talks to), exposed port (a
+container's internal port is not a host allocation and takes no row).
 
 **Legacy domain type**:
 The plain TypeScript types under `src/types/`, exported from the package root

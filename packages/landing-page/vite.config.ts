@@ -1,3 +1,4 @@
+import { LANDING_PAGE_DEV_PORT } from "@mamen/shared/ports";
 import { defineConfig } from "vite";
 import { prerender } from "./src/prerender";
 
@@ -13,9 +14,10 @@ export default defineConfig({
 	base: "/",
 	plugins: [prerender()],
 	server: {
-		// Pinned, and strict: PORTS.md carries 5100 for this package, so a
-		// silent hop to the next free port would make that row a lie.
-		port: 5100,
+		// Pinned, and strict: the registry carries a row for this package
+		// (`@mamen/shared/ports`), so a silent hop to the next free port would
+		// make that row a lie — and would land on whatever the next row owns.
+		port: LANDING_PAGE_DEV_PORT,
 		strictPort: true,
 	},
 });

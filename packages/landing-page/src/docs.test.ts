@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
+import { LANDING_PAGE_DEV_PORT } from "@mamen/shared/ports";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -6,10 +7,10 @@ import { describe, expect, it } from "vitest";
  * decides them.
  *
  * The port is the one that matters most: it is pinned with `strictPort`
- * precisely so the number written down is the number bound, and the row that
- * records it (`~/dev/PORTS.md`, outside this repo) is not something a test here
- * can reach. What this repo *can* keep honest is its own README, and that is
- * the assertion below.
+ * precisely so the number written down is the number bound, and the machine's
+ * registry (`~/dev/PORTS.md`, outside this repo) is not something a test here
+ * can reach. What this repo *can* keep honest is its own copy of the row
+ * (`@mamen/shared/ports`) and its own README, which is the assertion below.
  *
  * Paths are cwd-relative — vitest runs from the package root.
  */
@@ -22,12 +23,12 @@ const CLAUDE = read("../../CLAUDE.md");
 const CONTEXT_MAP = read("../../CONTEXT-MAP.md");
 const DEPLOY = read("../../DEPLOY.md");
 
-const port = read("vite.config.ts").match(/port:\s*(\d+)/)?.[1];
-
 describe("the documented dev server", () => {
 	it("is on the port the config binds", () => {
-		expect(port).toBeDefined();
-		expect(README).toContain(`localhost:${port}`);
+		// The config binds the registry's constant (`vite-config.test.ts`
+		// asserts that), so holding the README to the same constant holds it to
+		// what a reader will actually find listening.
+		expect(README).toContain(`localhost:${LANDING_PAGE_DEV_PORT}`);
 	});
 
 	it("tees to the log file CLAUDE.md tells an agent to read", () => {

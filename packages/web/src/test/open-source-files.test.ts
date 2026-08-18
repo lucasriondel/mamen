@@ -1,4 +1,5 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { portsOfKind } from "@mamen/shared/ports";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -13,7 +14,7 @@ import { describe, expect, it } from "vitest";
  * nothing reads a README on the way to a green build.
  *
  * So the assertions are **derived** wherever a fact has a home in the code: the
- * dev ports come out of `vite.config.ts` and `packages/api/src/config.ts`, the
+ * dev ports come out of `@mamen/shared/ports`, the
  * commands out of the root `package.json` scripts, the package list out of the
  * workspace manifests, the nav surfaces out of `app-sidebar.tsx`. A hardcoded
  * copy of any of those would rot the same way the template text did — it would
@@ -190,17 +191,13 @@ describe("README.md", () => {
 	});
 
 	it("names the dev ports the code actually binds", () => {
-		const webPort = read("packages/web/vite.config.ts").match(
-			/port:\s*(\d+)/,
-		)?.[1];
-		const apiPort = read("packages/api/src/config.ts").match(
-			/Config\.integer\("PORT"\)[\s\S]*?withDefault\((\d+)\)/,
-		)?.[1];
-
-		expect(webPort).toBeDefined();
-		expect(apiPort).toBeDefined();
-		expect(README).toContain(`localhost:${webPort}`);
-		expect(README).toContain(`localhost:${apiPort}`);
+		// The ports have had a home in code since issue #137 — the registry's
+		// rows in `@mamen/shared/ports`, which `vite.config.ts` and the API's
+		// `PORT` default import. So this reads the constants rather than
+		// grepping a number back out of a config that no longer states one.
+		for (const row of portsOfKind("dev")) {
+			expect(README).toContain(`localhost:${row.port}`);
+		}
 	});
 
 	it("names the pinned Bun version, not some other one", () => {

@@ -125,7 +125,7 @@ That runs every dev server through Turborepo:
 - API — <http://localhost:5500>, with Scalar docs at
   <http://localhost:5500/docs> and the spec at
   <http://localhost:5500/api/openapi.json>
-- landing page — <http://localhost:5100>, the public page the deployed site
+- landing page — <http://localhost:5080>, the public page the deployed site
   serves at its root
 
 The app is served under `/app` in development and in production alike, so the
@@ -139,6 +139,28 @@ base category tree; delete the file to start over.
 Each dev server tees its output to a gitignored log at the repo root —
 `logs/web.log`, `logs/server.log` and `logs/landing-page.log`. Read those before
 starting a second instance.
+
+### Ports
+
+Every port mamen binds on the host, and the ones it has reserved for containers
+it does not run yet. The numbers live in `packages/shared/src/ports.ts`, which
+the Vite configs and the API's `PORT` default import — so this table and the
+running servers cannot disagree.
+
+| Port | Bound by | What answers there |
+| --- | --- | --- |
+| 5070 | web dev server | the SPA under its path prefix, proxying `/api` and `/uploads` |
+| 5080 | landing-page dev server | the public page the deployed site serves at its root |
+| 5500 | API | the HTTP API, its Scalar docs and the emitted OpenAPI spec |
+| 5400 | demo stack web container | the app over the seeded demo database, for screenshots |
+| 5401 | demo stack API container | the demo API directly; published only while debugging the stack |
+
+The Vite servers are pinned with `strictPort`, so a taken port fails to boot
+instead of quietly moving to the next one — which would be some other app's.
+The last two rows are reservations: nothing binds them yet, and the point of
+writing them down is that the demo stack has to come up while `bun dev` is
+already running. On a machine that keeps a port registry, mamen's rows go there
+too; this table is the copy the code is held to.
 
 ### Optional configuration
 
