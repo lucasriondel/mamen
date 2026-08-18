@@ -225,14 +225,49 @@ is the shape the original route note anticipated for the day a second settings
 area arrived (issue #127) — minus the layout route, which buys nothing while the
 second area is one row, and which the split above keeps cheap.
 
-The theme row is a `Select` over light/dark, not the flip-button it was in the
-sidebar footer: a toggle is labelled with the theme it would switch *to*, which
-answers the wrong question on a page whose other rows state what is in force.
-It writes through `next-themes` alone — `localStorage` plus the `.dark` class on
-`<html>` — so it has no `SavedFlash` and no disabled state; nothing crosses the
-network. `enableSystem={false}` in `routes/__root.tsx` is what makes the choice
-a strict pair, and `settings-view.test.tsx` reads that file so the two cannot
-drift.
+The theme row is a `Select` over System/Light/Dark, not the flip-button it was in
+the sidebar footer: a toggle is labelled with the theme it would switch *to*,
+which answers the wrong question on a page whose other rows state what is in
+force. It writes through `next-themes` alone — `localStorage` plus the scheme
+class on `<html>` — so it has no `SavedFlash` and no disabled state; nothing
+crosses the network. The row holds the **choice** (`system` included) while its
+glyph shows what that choice **resolved to**; those are different questions the
+moment one of the answers is "whatever the machine says".
+`enableSystem` + `defaultTheme="system"` in `routes/__root.tsx` are what make
+the third option resolve, and `settings-view.test.tsx` reads that file so the two
+cannot drift.
+
+**Colour scheme**:
+The app is light or dark; the light ramp is not a fallback but half the token
+contract (`styles/gousse/tokens.css` defines both, keyed off `.dark`). What
+decides, in order: `?theme=` on the URL, then `localStorage.theme`, then
+`prefers-color-scheme`. Nothing else — until issue #143 `index.html` shipped
+`class="dark"` on the root element, which outranked all three.
+
+**The resolution happens twice, deliberately.** `next-themes` applies the stored
+choice in an effect, which is one frame after the shell paints — a flash of the
+other scheme on every load, and the reason the hardcoded class was tolerable. So
+the same resolution is inlined as a synchronous `<script>` in `index.html`'s
+head, before the module script. Anything that changes what decides the scheme has
+to change both, and `test/color-scheme.test.ts` asserts the inline one by
+*running the shipped text* rather than a copy of it.
+
+**Forcing a scheme (automated capture)**: load any page with
+`?theme=light`, `?theme=dark` or `?theme=system`. The value is written to the key
+`next-themes` reads, so it survives the reload after it and outlives the param
+itself — which is what a capture pipeline that reloads between shots needs, and
+what a param the router does not carry through a navigation could not give it.
+An unknown value is ignored rather than applied. A param left in the address bar
+re-forces on every reload, so it outranks a choice made on the settings page in
+between — which is what a capture run wants, and why this is a URL switch rather
+than an affordance in the app.
+
+The tokens are the whole contract, so a component that paints itself from
+`--gousse-*` needs nothing scheme-specific. What does not follow: a **user-chosen
+colour used as ink** (a Category's colour on its name, an Account's on its badge)
+is checked against neither surface — a pale colour is weak on the light panel
+exactly as a dark one is on the dark panel. Prefer it as a fill with
+`readableInk()` on top (`lib/color.ts`), as the issuer avatar does.
 
 **AI settings**:
 See [CONTEXT-MAP.md](../../CONTEXT-MAP.md). Built in `features/ai-settings/`,

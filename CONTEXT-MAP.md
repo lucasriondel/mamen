@@ -406,16 +406,19 @@ repeated per package.
   credentials are half of it; which vendor runs a task is the other half), AI
   settings page (it is a section of the settings page, not a page).
 
-- **Theme preference** — light or dark, chosen on the **settings page** and
-  applied as the `.dark` class on `<html>` (issue #127). A strict pair: there is
-  no *System* option, because `next-themes` is mounted with `enableSystem` off
-  and a third state is a product decision, not a consequence of moving the
-  control. It lived in the sidebar footer until #127 — theme is a preference,
-  not a destination, and it was competing with the navigation on every page.
-  Stored in the browser, never on the server: a different browser is a different
-  choice.
-  _Avoid_: dark mode toggle (it is a preference with two values, and there is no
-  longer anything to toggle).
+- **Theme preference** — *System*, *Light* or *Dark*, chosen on the **settings
+  page** and applied as the scheme class on `<html>` (issues #127, #143).
+  **System is the default and is not a fourth colour**: it is the instruction to
+  ask `prefers-color-scheme`, which is what an app nobody has expressed an
+  opinion about should do. Until #143 the shell hardcoded `dark` on the root
+  element, so the light half of the token ramp was unreachable no matter what was
+  stored. It lived in the sidebar footer until #127 — theme is a preference, not
+  a destination, and it was competing with the navigation on every page. Stored
+  in the browser, never on the server: a different browser is a different choice.
+  `?theme=light|dark|system` forces and stores one, which is how automated
+  capture pins a scheme across reloads (see `packages/web/CONTEXT.md`).
+  _Avoid_: dark mode toggle (it is a preference with three values, and there is
+  no longer anything to toggle).
 
 - **Inherited colour** — a Category whose `color` is **null**, meaning *I never
   chose one*: the colour it paints is its nearest ancestor's, found by walking

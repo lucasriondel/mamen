@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * The **Appearance** section of the settings page (issue #127) — one row, the
- * light/dark theme, moved here from the sidebar footer.
+ * colour scheme, moved here from the sidebar footer.
  *
  * A `Select` rather than the flip-button the sidebar carried. A toggle is
  * labelled with the theme it would switch *to*, which reads fine as a control
@@ -14,44 +14,46 @@ import { cn } from "@/lib/utils";
  * is in force. It is also the shape the rows below it already take, which is
  * the whole point of moving the choice onto this page.
  *
- * Two options, no "System": `next-themes` is mounted with `enableSystem={false}`
- * (`routes/__root.tsx`), so a third option here would offer a theme the provider
- * does not resolve. Adding one is a product decision, not a consequence of this
- * move.
+ * Three options since issue #143, **System** first and default: the app used to
+ * be dark for everyone, so the row was a strict pair and its own default was a
+ * fiction. What the row now holds is the *choice* — `system` included — while
+ * the glyph beside it shows what that choice resolved to. Those are different
+ * questions the moment one of the answers is "whatever the machine says".
  *
  * Nothing is stored server-side and there is nothing to save: `setTheme` writes
- * `localStorage` and swaps the `.dark` class on `<html>` in the same tick, so
+ * `localStorage` and swaps the scheme class on `<html>` in the same tick, so
  * the row needs neither a `SavedFlash` nor a disabled state while a write is in
  * flight — unlike the AI rows beside it, which cross the network.
  */
 
-/** The themes offered, in the order the control lists them. */
+/** The choices offered, in the order the control lists them. */
 const THEMES = [
+	{ id: "system", label: "System" },
 	{ id: "light", label: "Light" },
 	{ id: "dark", label: "Dark" },
 ] as const;
 
 export function AppearanceSettings() {
-	const { resolvedTheme, setTheme } = useTheme();
-	// `enableSystem` is false and the provider seeds its state from storage
-	// synchronously, so inside the app this is the theme actually in force from
-	// the first paint. The fallback is the app's own `defaultTheme`, and only
-	// stands in when this is rendered outside a provider — the control then
-	// agrees with the unthemed page around it rather than contradicting it.
-	const theme = resolvedTheme === "light" ? "light" : "dark";
+	const { theme, resolvedTheme, setTheme } = useTheme();
+	// The provider seeds its state from storage synchronously, so inside the app
+	// both of these are settled from the first paint. The fallbacks are the app's
+	// own `defaultTheme` and what `index.html` resolves it to, and only stand in
+	// when this is rendered outside a provider — the control then agrees with the
+	// unthemed page around it rather than contradicting it.
+	const choice = THEMES.some(({ id }) => id === theme) ? theme : "system";
 
 	return (
 		<section className="flex flex-col gap-3">
 			<h2 className="text-sm font-semibold text-gousse-ink">Appearance</h2>
 			<SettingsCard>
 				<SettingRow
-					leading={<ThemeGlyph dark={theme === "dark"} />}
+					leading={<ThemeGlyph dark={resolvedTheme === "dark"} />}
 					title="Theme"
-					description="Applies straight away, and is remembered in this browser."
+					description="Applies straight away, and is remembered in this browser. System follows your device."
 					control={
 						<Select
 							aria-label="Theme"
-							value={theme}
+							value={choice}
 							onChange={(event) => setTheme(event.target.value)}
 							className="w-40"
 						>
@@ -69,7 +71,8 @@ export function AppearanceSettings() {
 }
 
 /**
- * The row's leading mark: sun and moon, cross-faded.
+ * The row's leading mark: sun and moon, cross-faded — showing the scheme
+ * **in force**, which under *System* is the one the device asked for.
  *
  * Kept from the sidebar toggle this replaces — both icons stay mounted and swap
  * with enter *and* exit animation, which is what a `{cond ? <Sun/> : <Moon/>}`

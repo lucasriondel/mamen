@@ -4,6 +4,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ThemeProvider } from "next-themes";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { setPrefersDark } from "@/test/prefers-color-scheme";
 import { COLLAPSED_SHELL, OPEN_SHELL, withShell } from "@/test/sidebar-shell";
 
 /**
@@ -20,8 +21,9 @@ import { COLLAPSED_SHELL, OPEN_SHELL, withShell } from "@/test/sidebar-shell";
  *
  * That wrapper is only honest while it matches the app's, so the last case here
  * reads `__root.tsx` and holds the two together — including `enableSystem`,
- * which is the whole of "no System option" (the ticket's scope note): with it on,
- * `next-themes` grows a third theme this page would then have to render.
+ * which is the whole of the **System** option (issue #143): with it off,
+ * `next-themes` resolves no `system` theme and the row would offer a choice that
+ * does nothing.
  *
  * The AI half is mocked at the SDK seam as it is in `ai-settings-view.test.tsx`
  * — this file asserts only that the section is still on the page and that both
@@ -69,15 +71,16 @@ const ROOT = readFileSync("src/routes/__root.tsx", "utf8");
 /**
  * The page under the theme provider the app mounts at its root.
  *
- * `attribute="class"` is what puts `.dark` on `<html>`, `defaultTheme` is what a
- * fresh install reads before anything is stored, and `enableSystem={false}` is
- * what keeps the choice a strict pair. The guard at the bottom of this file
- * refuses to let these drift from `__root.tsx`.
+ * `attribute="class"` is what puts `.dark` on `<html>`, `defaultTheme="system"`
+ * is what a fresh install reads before anything is stored, and `enableSystem` is
+ * what makes that third value resolve against the OS instead of naming a theme
+ * nobody defined. The guard at the bottom of this file refuses to let these
+ * drift from `__root.tsx`.
  */
 function renderSettings(shellValue = OPEN_SHELL) {
 	return render(
 		withShell(
-			<ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+			<ThemeProvider attribute="class" defaultTheme="system" enableSystem>
 				<SettingsView />
 			</ThemeProvider>,
 			shellValue,
@@ -96,13 +99,15 @@ const optionsOf = (select: HTMLElement) =>
 beforeEach(() => {
 	window.localStorage.clear();
 	document.documentElement.className = "";
+	setPrefersDark(false);
 });
 
 describe("the theme preference", () => {
-	it("offers light and dark, and nothing else", async () => {
+	it("offers the OS, light and dark, and nothing else", async () => {
 		renderSettings();
 
 		expect(optionsOf(await screen.findByLabelText("Theme"))).toStrictEqual([
+			"system",
 			"light",
 			"dark",
 		]);
@@ -116,14 +121,41 @@ describe("the theme preference", () => {
 		expect(await screen.findByLabelText("Theme")).toHaveValue("light");
 	});
 
-	it("falls back to the app's own default with nothing stored", async () => {
+	it("follows the OS with nothing stored", async () => {
+		// Issue #143's default: no stored choice is not "dark", it is "ask".
+		setPrefersDark(true);
+
 		renderSettings();
 
-		expect(await screen.findByLabelText("Theme")).toHaveValue("dark");
+		expect(await screen.findByLabelText("Theme")).toHaveValue("system");
+		await waitFor(() => expect(document.documentElement).toHaveClass("dark"));
+	});
+
+	it("resolves the same default to light on a light OS", async () => {
+		renderSettings();
+
+		expect(await screen.findByLabelText("Theme")).toHaveValue("system");
+		await waitFor(() => expect(document.documentElement).toHaveClass("light"));
+		expect(document.documentElement).not.toHaveClass("dark");
+	});
+
+	it("hands the page back to the OS when System is chosen again", async () => {
+		// The way out of an explicit choice. Without it, a user who once picked
+		// Light can never return to following their machine.
+		const user = userEvent.setup();
+		setPrefersDark(true);
+		window.localStorage.setItem("theme", "light");
+		renderSettings();
+
+		await user.selectOptions(await screen.findByLabelText("Theme"), "system");
+
+		await waitFor(() => expect(document.documentElement).toHaveClass("dark"));
+		expect(window.localStorage.getItem("theme")).toBe("system");
 	});
 
 	it("applies the choice to the document immediately", async () => {
 		const user = userEvent.setup();
+		window.localStorage.setItem("theme", "dark");
 		renderSettings();
 
 		await waitFor(() => expect(document.documentElement).toHaveClass("dark"));
@@ -190,12 +222,13 @@ describe("the theme preference", () => {
 		).toBeInTheDocument();
 	});
 
-	it("takes its provider config from the root, System included out", () => {
+	it("takes its provider config from the root, System included", () => {
 		// The wrapper above is a fiction if these ever part company — and the one
-		// that matters is `enableSystem`: turning it on adds a `system` theme, and
-		// the page's own option list would then be a lie about what is in force.
+		// that matters is `enableSystem`: switching it off drops the `system`
+		// theme, and the page's own option list would then offer a dead choice.
 		expect(ROOT).toContain('attribute="class"');
-		expect(ROOT).toContain('defaultTheme="dark"');
-		expect(ROOT).toContain("enableSystem={false}");
+		expect(ROOT).toContain('defaultTheme="system"');
+		expect(ROOT).toContain("enableSystem");
+		expect(ROOT).not.toContain("enableSystem={false}");
 	});
 });
