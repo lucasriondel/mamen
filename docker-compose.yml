@@ -58,8 +58,11 @@ services:
       # anyway: the browser calls `/api` on this same origin, which is what
       # keeps the API off the public network and CORS out of the picture.
     ports:
-      # The only published port: the app, and through it the API.
-      - "${WEB_PORT:-8080}:80"
+      # The only published port: the app, and through it the API. 5402 is this
+      # stack's row of the machine's port registry (`@mamen/shared/ports`,
+      # issue #142) — the next free Docker host port above the demo stack's two.
+      # Nothing authenticates it; see DEPLOY.md, "Self-hosting on one host".
+      - "${WEB_PORT:-5402}:80"
 
 volumes:
   mamen-data:

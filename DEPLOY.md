@@ -345,27 +345,50 @@ Four things distinguish a correct routing from a plausible one:
 
 ## Self-hosting on one host (`docker compose`)
 
-Everything above is the maintainer's production deploy. `docker-compose.yml` at
-the repo root is a second, smaller path: from a clean clone,
+Everything above is the maintainer's **production** deploy, and stays it: Dokploy
+on the VPS, Traefik routing the paths, Cloudflare Access over the app.
+`docker-compose.yml` at the repo root is a second, smaller path — for
+self-hosting an instance on one host, and for running a production build locally
+before it goes anywhere. From a clean clone,
 
 ```sh
 cp .env.example .env    # fill in TOKEN_ENCRYPTION_KEY
 docker compose up --build
 ```
 
-brings the app up at `http://localhost:8080/app/` (`WEB_PORT` moves it). It runs
-the same two images, the same way: `api` publishes no port, `web`'s nginx
-proxies `/api` and `/uploads` to it as `api:5500`, and a named volume
-`mamen-data` at `/data` holds the database and the uploaded images, so data
-survives `docker compose down` and a rebuild. `landing-page` is not part of it —
-a self-hosted install is the app, and the compose file serves `/` by redirecting
-into `/app/`.
+brings the app up at `http://localhost:5402/app/`. `WEB_PORT` moves it; 5402 is
+this stack's row in the port registry (`packages/shared/src/ports.ts`, and the
+**Ports** table in [README.md](README.md#ports)), so a machine that keeps one has
+the number written down. The stack runs the same two images the same way: `api`
+publishes no port at all, and `web`'s nginx proxies `/api` and `/uploads` to it
+as `api:5500`.
 
-The one thing it does **not** carry over is the access boundary. There is no
-Cloudflare Access in front of it and the app has no authentication of its own,
-so whatever can reach the published port can read and write everything,
-`POST /api/database/reset` included. Publish it to a LAN, a VPN or a reverse
-proxy that authenticates — not to the internet.
+**Nothing authenticates this stack.** There is no Traefik and no Cloudflare
+Access in front of it — in production those two are what put the app behind a
+login — and the app has no authentication of its own. Anyone who can reach the
+published port can read and write everything: every transaction, every uploaded
+image, and `POST /api/database/reset`, which empties the database. Publish it to
+a LAN, a VPN, or a reverse proxy that authenticates — never straight to the
+internet.
+
+Three more things worth stating rather than leaving to be inferred:
+
+- **The `mamen-data` volume at `/data` *is* the instance.** The sqlite database
+  and the uploaded issuer images both live under that one mount, which is what
+  lets them survive `docker compose down` and a rebuild — and what makes
+  `docker compose down -v`, or losing the volume any other way, the loss of
+  everything. [Volumes](#volumes) has the file set to copy; [The credential
+  encryption key](#the-credential-encryption-key) is why the key is backed up
+  somewhere else, since key and database together are plaintext.
+- **The landing page is not part of it.** There is no `landing-page` service:
+  that image serves the public site root of the deployed site, and a self-hosted
+  install is the app. `/` redirects into `/app/`.
+- **PDF import is the one feature that does not work out of the box.** The
+  Claude Code token it runs on is not an environment variable and so is not in
+  `.env` — it is pasted into the Settings page of the running app, where it is
+  stored encrypted. Until an operator does that, everything else works and PDF
+  import reports that no credential is stored. See
+  [The `claude` CLI dependency](#the-claude-cli-dependency).
 
 There is deliberately **no dev compose file**. Its only job would be to start a
 database, and there is no database server to start: sqlite is a file the API

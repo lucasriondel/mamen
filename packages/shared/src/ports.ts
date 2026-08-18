@@ -12,7 +12,8 @@
  * The registry's conventions, which the numbers below follow:
  *
  * - perso frontends live in the **5xxx** range;
- * - Docker host ports are allocated **bottom-up from 5400**;
+ * - Docker host ports are allocated **bottom-up from 5400**, with no gap — the
+ *   next stack takes the first free number, which is what makes it derivable;
  * - anything Vite serves is pinned with **`strictPort`**, so a taken port is a
  *   failure to boot rather than a silent hop to the next free one — a hop
  *   would make the registry's row a suggestion.
@@ -75,6 +76,19 @@ export const DEMO_STACK_WEB_PORT = 5400;
  */
 export const DEMO_STACK_API_PORT = 5401;
 
+/**
+ * The self-hosted Compose stack's web container (issue #140): the app itself,
+ * on one host, `docker compose up --build`. The **only** port that stack
+ * publishes — its api is reachable through the web container's nginx and
+ * nowhere else — so there is no second row for it.
+ *
+ * Nothing stands in front of this port: no Traefik, no Cloudflare Access, and
+ * the app has no authentication of its own. Whoever can reach it can use the
+ * whole database, which is why DEPLOY.md's Compose section says so before it
+ * says anything else.
+ */
+export const COMPOSE_STACK_WEB_PORT = 5402;
+
 /** The lowest host port a Docker row may take, by registry convention. */
 export const DOCKER_HOST_PORT_FLOOR = 5400;
 
@@ -115,6 +129,12 @@ export const PORTS: readonly PortRow[] = [
 		service: "demo stack API container",
 		kind: "docker",
 		serves: "the demo API directly; published only while debugging the stack",
+	},
+	{
+		port: COMPOSE_STACK_WEB_PORT,
+		service: "self-host compose stack",
+		kind: "docker",
+		serves: "the app and, proxied through it, the API — `WEB_PORT` moves it",
 	},
 ];
 

@@ -154,13 +154,15 @@ running servers cannot disagree.
 | 5500 | API | the HTTP API, its Scalar docs and the emitted OpenAPI spec |
 | 5400 | demo stack web container | the app over the seeded demo database, for screenshots |
 | 5401 | demo stack API container | the demo API directly; published only while debugging the stack |
+| 5402 | self-host compose stack | the app and, proxied through it, the API — `WEB_PORT` moves it |
 
 The Vite servers are pinned with `strictPort`, so a taken port fails to boot
 instead of quietly moving to the next one — which would be some other app's.
-The last two rows are reservations: nothing binds them yet, and the point of
-writing them down is that the demo stack has to come up while `bun dev` is
-already running. On a machine that keeps a port registry, mamen's rows go there
-too; this table is the copy the code is held to.
+The three container rows are allocated bottom-up from 5400; the demo stack's two
+are reservations, binding nothing yet, and the point of writing them down is
+that a stack has to come up while `bun dev` is already running. The last row is
+what [`docker compose up`](#deploying) publishes. On a machine that keeps a port
+registry, mamen's rows go there too; this table is the copy the code is held to.
 
 ### Optional configuration
 
@@ -215,12 +217,15 @@ cp .env.example .env    # fill in TOKEN_ENCRYPTION_KEY
 docker compose up --build
 ```
 
-The app comes up at <http://localhost:8080/app/> (`WEB_PORT` moves it), with the
-database and uploaded images on a named volume so they survive a
-`docker compose down`. The API publishes no port of its own — the web
-container's nginx is the only way to it. [`.env.example`](.env.example) lists
-what an operator can set. There is still **no authentication**: put it behind a
-VPN or an authenticating proxy, never straight on the internet.
+The app comes up at <http://localhost:5402/app/> (`WEB_PORT` moves it; 5402 is
+this stack's row in the [ports table](#ports)), with the database and uploaded
+images on a named volume so they survive a `docker compose down`. The API
+publishes no port of its own — the web container's nginx is the only way to it.
+[`.env.example`](.env.example) lists what an operator can set. There is still
+**no authentication**: no Traefik, no Cloudflare Access, nothing in front of the
+app at all, so put it behind a VPN or an authenticating proxy, never straight on
+the internet. [DEPLOY.md](DEPLOY.md#self-hosting-on-one-host-docker-compose) has
+the rest of the limits.
 
 ## Documentation
 

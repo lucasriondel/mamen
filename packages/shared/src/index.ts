@@ -8,6 +8,7 @@ export { APP_BASE_PATH, APP_BASE_PATH_SLASH } from "./app-base-path.ts";
 // path so a build config need not pull the contract in behind a number.
 export {
 	API_DEV_PORT,
+	COMPOSE_STACK_WEB_PORT,
 	DEMO_STACK_API_PORT,
 	DEMO_STACK_WEB_PORT,
 	DOCKER_HOST_PORT_FLOOR,

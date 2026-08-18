@@ -168,16 +168,19 @@ that varies per deployment does not belong in this package at all).
 
 **Port registry**:
 The numbers mamen binds on a developer's machine, as data (`src/ports.ts`,
-issue #137): the three dev servers `bun dev` starts, and the demo stack's
-published host ports, **reserved** before the compose file that will publish
-them exists. It is mamen's rows of a registry that lives outside this repo
-(`~/dev/PORTS.md`, one file for every app on the box) — which is why a row here
-is not a claim until it is appended there, and why the module names the
-conventions it allocated under (perso frontends in 5xxx, Docker host ports from
-5400 up, `strictPort` on anything Vite serves). A **reserved** row binds
-nothing yet; it exists so the next change picks a free number rather than the
-demo stack's. The two Vite configs, the API's `PORT` default and the README's
-table all read it, so a port cannot be moved in one place only.
+issue #137): the three dev servers `bun dev` starts, the demo stack's published
+host ports — **reserved** before the compose file that will publish them exists
+— and the self-host Compose stack's published web port (5402, issue #142), which
+`docker-compose.yml` defaults `WEB_PORT` to. It is mamen's rows of a registry
+that lives outside this repo (`~/dev/PORTS.md`, one file for every app on the
+box) — which is why a row here is not a claim until it is appended there, and
+why the module names the conventions it allocated under (perso frontends in
+5xxx, Docker host ports from 5400 up and with no gap, `strictPort` on anything
+Vite serves). A **reserved** row binds nothing yet; it exists so the next change
+picks a free number rather than the demo stack's. The two Vite configs, the
+API's `PORT` default, `docker-compose.yml` and the README's table all read it
+(the compose file by test, since YAML imports nothing), so a port cannot be
+moved in one place only.
 _Avoid_: listen port (the API's is configurable — `PORT` — and the registry
 records the *default*, which is what the dev proxy talks to), exposed port (a
 container's internal port is not a host allocation and takes no row).

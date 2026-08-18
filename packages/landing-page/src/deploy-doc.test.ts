@@ -28,6 +28,31 @@ const read = (path: string) => readFileSync(path, "utf8");
 const ROOT = "../..";
 const DEPLOY = read(`${ROOT}/DEPLOY.md`);
 
+/** One `##` section of the document, heading included, up to the next one. */
+const section = (title: string) =>
+	DEPLOY.split(/^## /m)
+		.map((part) => `## ${part}`)
+		.find((part) => part.startsWith(`## ${title}`)) ?? "";
+
+/**
+ * Markdown as a reader takes it: one space wherever the source wraps. A phrase
+ * this document is held to ("no Cloudflare Access") is a phrase whether or not
+ * an 80-column reflow happens to fall in the middle of it.
+ */
+const prose = (markdown: string) => markdown.replace(/\s+/g, " ");
+
+/** GitHub's in-document anchor for a heading, for the shapes this file uses. */
+const anchor = (heading: string) =>
+	heading
+		.toLowerCase()
+		.replace(/[^\w\s-]/g, "")
+		.trim()
+		.replace(/\s+/g, "-");
+
+/** Every heading a `](#…)` link in this document could resolve to. */
+const anchors = () =>
+	[...DEPLOY.matchAll(/^#{2,4} (.+)$/gm)].map((m) => anchor(m[1] as string));
+
 /** How the routing table writes one route. */
 const row = (route: Route) =>
 	`| \`${route.path}\` | \`${route.container}\` | ${
@@ -114,6 +139,88 @@ describe("the security model", () => {
 		// `POST /api/database/reset` unauthenticated behind it.
 		expect(DEPLOY).toMatch(/no domain|never.{0,40}domain/i);
 		expect(DEPLOY).toContain("database/reset");
+	});
+});
+
+describe("the Compose section", () => {
+	// Issue #142. The compose file (guarded in
+	// `packages/web/src/test/docker-compose.test.ts`) is correct and says almost
+	// nothing about itself: what an operator has to know before running it is
+	// prose, and this is where that prose is held to the facts. The one thing it
+	// could get badly wrong is the boundary — every other deploy in this
+	// document has Traefik and Cloudflare Access in front of it, and this one has
+	// nothing, so "unauthenticated" has to be stated rather than inferred from
+	// the absence of a section.
+	const COMPOSE = section("Self-hosting on one host");
+	const SAYS = prose(COMPOSE);
+
+	it("is a section of its own", () => {
+		expect(COMPOSE).not.toBe("");
+	});
+
+	it("is the self-host path, and leaves Dokploy as production", () => {
+		expect(SAYS).toMatch(/self-host/i);
+		expect(SAYS).toMatch(/Dokploy/);
+		expect(SAYS).toMatch(/production/i);
+	});
+
+	it("says plainly that nothing stands in front of it", () => {
+		// Both names, because an operator who knows this deployment knows the
+		// boundary by one or the other, and "no Cloudflare Access" alone reads as
+		// "the reverse proxy still gates it".
+		expect(SAYS).toMatch(/no Traefik/i);
+		expect(SAYS).toMatch(/no Cloudflare Access/i);
+		expect(SAYS).toMatch(/unauthenticated|no authentication/i);
+
+		// The paths that are behind Access in production are exactly what is open
+		// here — including the one that empties the database.
+		for (const path of ACCESS_APPLICATION.paths) {
+			expect(DEPLOY).toContain(path);
+		}
+	});
+
+	it("names the volume whose loss is the loss of everything", () => {
+		expect(SAYS).toContain("/data");
+		expect(SAYS).toMatch(/mamen-data/);
+	});
+
+	it("says the landing page is not part of the stack", () => {
+		expect(SAYS).toMatch(/landing.page/i);
+		expect(SAYS).toMatch(/not part of it|no `?landing-page`? service/i);
+	});
+
+	it("says the claude token is pasted in Settings, so PDF import waits on it", () => {
+		// The one feature that stays broken on a fresh install, and the one whose
+		// fix is not in `.env` — an operator looking for a variable finds none.
+		expect(SAYS).toMatch(/Settings/);
+		expect(SAYS).toMatch(/PDF import/i);
+		expect(SAYS).not.toContain("CLAUDE_CODE_OAUTH_TOKEN");
+	});
+
+	it("links to the sections carrying the detail instead of restating it", () => {
+		const links = [...COMPOSE.matchAll(/\]\(#([\w-]+)\)/g)].map(
+			(m) => m[1] as string,
+		);
+
+		expect(links).toContain(anchor("Volumes"));
+		expect(links).toContain(anchor("The credential encryption key"));
+		expect(links).toContain(anchor("The `claude` CLI dependency"));
+
+		// A link to a heading that has since been renamed is worse than no link:
+		// it scrolls nowhere and reads as "the detail is elsewhere".
+		for (const link of links) expect(anchors()).toContain(link);
+	});
+
+	it("is where the README's short version sends a reader on to", () => {
+		// The README paragraph cannot carry the volume, the token and the boundary
+		// and stay a README; the link is what makes that an omission rather than a
+		// gap. Checked here because this is where the anchors of this document are
+		// known — a renamed heading takes the link with it silently.
+		const link = read(`${ROOT}/README.md`).match(
+			/\]\(DEPLOY\.md#([\w-]+)\)/,
+		)?.[1] as string;
+
+		expect(link).toBe(anchor(COMPOSE.split("\n")[0].replace(/^## /, "")));
 	});
 });
 
