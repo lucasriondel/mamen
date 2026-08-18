@@ -57,7 +57,6 @@ const PRUNED = new Set([
 	".git",
 	".sandcastle",
 	".turbo",
-	"_bmad-output",
 	"coverage",
 	"dist",
 	"graphify-out",

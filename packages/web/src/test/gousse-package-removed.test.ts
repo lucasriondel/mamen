@@ -46,7 +46,6 @@ const PRUNED = new Set([
 	"graphify-out",
 	"logs",
 	"node_modules",
-	"_bmad-output",
 ]);
 
 /** Resolved dependency graphs — asserted separately, and megabytes each. */

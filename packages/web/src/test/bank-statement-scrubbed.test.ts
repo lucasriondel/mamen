@@ -82,7 +82,6 @@ const PRUNED = new Set([
 	"graphify-out",
 	"logs",
 	"node_modules",
-	"_bmad-output",
 ]);
 
 /** Every non-pruned file in the repo, as repo-relative paths. */

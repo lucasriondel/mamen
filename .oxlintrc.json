@@ -30,7 +30,6 @@
 		"**/*.gen.ts",
 		"**/*.gen.tsx",
 		"packages/api/openapi.json",
-		"_bmad-output",
 		"graphify-out"
 	]
 }
