@@ -27,4 +27,7 @@ What a fixture here owes:
 
 `src/test/bank-statement-scrubbed.test.ts` enforces the first two: it hashes
 every file in the repo against the digest of the statement that leaked, and it
-holds every French IBAN in the tree to the reserved prefix.
+holds every French IBAN in the tree to the reserved prefix. It also keeps the
+list of files allowed to carry an account number at all — this one, and
+`packages/api/src/demo/dataset.ts`, the **demo database**'s dataset, which owes
+exactly the same two things and for the same reasons.

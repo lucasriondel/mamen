@@ -17,6 +17,7 @@
     "lint:ox": "oxlint .",
     "format:ox:check": "oxfmt --check .",
     "typecheck": "turbo typecheck",
+    "seed:demo": "bun packages/api/scripts/seed-demo.ts",
     "sandcastle": "bun .sandcastle/main.ts",
     "sandcastle:implement": "bun .sandcastle/implement/index.ts",
     "sandcastle:implement-review": "bun .sandcastle/implement-review/index.ts"

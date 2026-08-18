@@ -140,6 +140,30 @@ Each dev server tees its output to a gitignored log at the repo root —
 `logs/web.log`, `logs/server.log` and `logs/landing-page.log`. Read those before
 starting a second instance.
 
+### Demo data
+
+A fresh database is an empty app. One command fills one with six months of an
+invented household's banking — three accounts, twenty-odd counterparties,
+recurring charges, an internal transfer, a bundle, a refund and rows still
+waiting to be curated:
+
+```sh
+bun run seed:demo packages/api/demo.db
+```
+
+It creates and migrates the file itself, and re-running it replaces the demo
+rather than duplicating it: every row carries a fixed id and a pinned date, so
+the database is the same database on every machine. Point the API at it with
+`DB_PATH=packages/api/demo.db` (the file is gitignored).
+
+The path is required, and a file named like the API's own database is refused
+unless you pass `--force` — seeding clears what it writes, and the default
+`mamen.db` is where your real statements live.
+
+**Every counterparty, amount and account number in it is invented**, and the
+account numbers are from a reserved range that cannot exist. See
+`packages/api/src/demo/dataset.ts`, which is the whole dataset.
+
 ### Ports
 
 Every port mamen binds on the host, and the ones it has reserved for containers

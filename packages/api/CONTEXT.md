@@ -129,6 +129,28 @@ landed without `bun run emit-openapi` fails the build instead of shipping a stal
 spec. The emit is pure and deterministic, which is what makes the committed file
 diffable.
 
+**Demo seed**:
+`src/demo/` plus `scripts/seed-demo.ts` (issue #139) — one household's six
+invented months, written into a database the caller names. Three parts, split by
+what each is answerable for: `dataset.ts` is the data (pure, no clock, one seeded
+PRNG, so the same rows with the same ids on every machine), `seed.ts` is the
+write (on the generic `SqlClient.SqlClient` tag like every **repository**, so the
+tests run it against `:memory:`), and `target.ts` is where it may write — the
+path is always explicit and a file named like the API's own database is refused
+without `--force`, because seeding **clears the tables it owns** before writing
+them. Re-running therefore replaces the demo instead of duplicating it, and the
+replacement is row-for-row the database the first run produced. `categories` is
+not one of the tables it owns: the tree is a **migration**'s one-shot work, so a
+slug the demo needs and the tree no longer has is a named refusal rather than a
+re-plant that would resurrect the user's deletions. What it seeds is the ordinary
+domain and not a private shape — a transfer group carries the smallest leg's id,
+a **bundle parent**'s amount comes from `deriveBundleParent`, an issuer's default
+is a childless leaf — and `seed.test.ts` re-derives the whole table against the
+seeded rules (the **Issuer invariant**) so the demo cannot change the moment
+someone opens the Rules page. Everything in it is synthetic, and
+`packages/web/src/test/bank-statement-scrubbed.test.ts` names `dataset.ts` as one
+of the two files in the repo allowed to carry an account number at all.
+
 **Transient temp dir**:
 The staging directory PDF import copies an upload into, opened scoped so it — and
 the PDF — are deleted on **every** exit path: success, failure, timeout,
