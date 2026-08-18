@@ -1,19 +1,19 @@
 import type { Category as ContractCategory } from "../contract";
 
 export type Category = {
-	id?: number;
-	name: string;
-	slug: string;
-	/** null = **inherited colour** — see the contract {@link ContractCategory}. */
-	color: string | null;
-	icon: string;
-	parentId: number | null;
-	sortOrder: number;
-	createdAt: Date;
+  id?: number;
+  name: string;
+  slug: string;
+  /** null = **inherited colour** — see the contract {@link ContractCategory}. */
+  color: string | null;
+  icon: string;
+  parentId: number | null;
+  sortOrder: number;
+  createdAt: Date;
 };
 
 export type CategoryWithSubcategories = Category & {
-	subcategories: Category[];
+  subcategories: Category[];
 };
 
 /**
@@ -24,10 +24,10 @@ export type CategoryWithSubcategories = Category & {
  * transactions/count endpoints and to mutations, which demand the brand.
  */
 export type CategoryTreeNode = ContractCategory & {
-	children: CategoryTreeNode[];
+  children: CategoryTreeNode[];
 };
 
 export type CategorySelection = {
-	categoryId: number;
-	subcategoryId?: number;
+  categoryId: number;
+  subcategoryId?: number;
 };

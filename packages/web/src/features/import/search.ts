@@ -9,24 +9,18 @@
 
 /** The decoded import search params. All optional — a bare `/import` is valid. */
 export interface ImportSearch {
-	/** Account (numeric id) to pre-select, from a grid cell handoff. */
-	accountId?: number;
+  /** Account (numeric id) to pre-select, from a grid cell handoff. */
+  accountId?: number;
 }
 
 /** Normalize raw URL search into {@link ImportSearch}, dropping bad values. */
-export function validateImportSearch(
-	search: Record<string, unknown>,
-): ImportSearch {
-	const result: ImportSearch = {};
+export function validateImportSearch(search: Record<string, unknown>): ImportSearch {
+  const result: ImportSearch = {};
 
-	const accountId = Number(search.accountId);
-	if (
-		search.accountId != null &&
-		search.accountId !== "" &&
-		Number.isFinite(accountId)
-	) {
-		result.accountId = accountId;
-	}
+  const accountId = Number(search.accountId);
+  if (search.accountId != null && search.accountId !== "" && Number.isFinite(accountId)) {
+    result.accountId = accountId;
+  }
 
-	return result;
+  return result;
 }

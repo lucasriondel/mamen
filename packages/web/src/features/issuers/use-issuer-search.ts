@@ -11,16 +11,16 @@ import { useDebouncedValue } from "@/lib/use-debounced-value";
 export const ISSUER_SEARCH_DEBOUNCE_MS = 150;
 
 export interface IssuerSearchOptions {
-	/** What the user has typed. A blank term asks for a page to browse. */
-	query: string;
-	/** False while the surface is closed — a shut picker costs no request. */
-	enabled: boolean;
-	/**
-	 * Issuers **already on screen** — offered whatever the search page holds.
-	 * The picker's own row issuer is the case this exists for: the caller has
-	 * the whole entity in hand, so nothing needs fetching to show it.
-	 */
-	pinned?: readonly Issuer[];
+  /** What the user has typed. A blank term asks for a page to browse. */
+  query: string;
+  /** False while the surface is closed — a shut picker costs no request. */
+  enabled: boolean;
+  /**
+   * Issuers **already on screen** — offered whatever the search page holds.
+   * The picker's own row issuer is the case this exists for: the caller has
+   * the whole entity in hand, so nothing needs fetching to show it.
+   */
+  pinned?: readonly Issuer[];
 }
 
 /**
@@ -48,32 +48,30 @@ export interface IssuerSearchOptions {
  * of the rule is a second answer to the question this hook exists to answer.
  */
 export function useIssuerSearch({
-	query,
-	enabled,
-	pinned = [],
+  query,
+  enabled,
+  pinned = [],
 }: IssuerSearchOptions): readonly Issuer[] {
-	const term = useDebouncedValue(query, ISSUER_SEARCH_DEBOUNCE_MS);
-	const search = useQuery({
-		...issuerQueries.searchByName(term),
-		enabled,
-		placeholderData: keepPreviousData,
-	});
+  const term = useDebouncedValue(query, ISSUER_SEARCH_DEBOUNCE_MS);
+  const search = useQuery({
+    ...issuerQueries.searchByName(term),
+    enabled,
+    placeholderData: keepPreviousData,
+  });
 
-	const matches = (search.data?.items ?? []) as readonly Issuer[];
-	const onScreen = new Set(pinned.map((issuer) => issuer.id));
-	// Pinned first, and never twice: a pinned issuer usually matches the search
-	// too, and the same issuer listed under two rows is two answers to one
-	// question. A pinned issuer is held to the query like any other — the row's
-	// own issuer is a candidate, not a fixture.
-	return [
-		...pinned.filter((issuer) => matchesQuery(issuer, query)),
-		...matches.filter(
-			(issuer) => !onScreen.has(issuer.id) && matchesQuery(issuer, query),
-		),
-	];
+  const matches = (search.data?.items ?? []) as readonly Issuer[];
+  const onScreen = new Set(pinned.map((issuer) => issuer.id));
+  // Pinned first, and never twice: a pinned issuer usually matches the search
+  // too, and the same issuer listed under two rows is two answers to one
+  // question. A pinned issuer is held to the query like any other — the row's
+  // own issuer is a candidate, not a fixture.
+  return [
+    ...pinned.filter((issuer) => matchesQuery(issuer, query)),
+    ...matches.filter((issuer) => !onScreen.has(issuer.id) && matchesQuery(issuer, query)),
+  ];
 }
 
 /** Case-insensitive substring match of an issuer name against the query. */
 function matchesQuery(issuer: Issuer, query: string): boolean {
-	return issuer.name.toLowerCase().includes(query.trim().toLowerCase());
+  return issuer.name.toLowerCase().includes(query.trim().toLowerCase());
 }

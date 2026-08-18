@@ -1,16 +1,6 @@
-import {
-	HttpApiEndpoint,
-	HttpApiGroup,
-	HttpApiSchema,
-	OpenApi,
-} from "@effect/platform";
+import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema, OpenApi } from "@effect/platform";
 import { Schema } from "effect";
-import {
-	CategoryHoldsMoney,
-	CategoryInUse,
-	CategoryWouldCycle,
-	NotFound,
-} from "./errors";
+import { CategoryHoldsMoney, CategoryInUse, CategoryWouldCycle, NotFound } from "./errors";
 import { CategoryId, numFromStr } from "./ids";
 import { Paged, Pagination } from "./pagination";
 
@@ -31,24 +21,24 @@ import { Paged, Pagination } from "./pagination";
  * renders a fallback glyph, so a bad value degrades instead of breaking.
  */
 export class Category extends Schema.Class<Category>("Category")({
-	id: CategoryId,
-	name: Schema.String,
-	slug: Schema.String,
-	color: Schema.NullOr(Schema.String), // null = inherit from the nearest ancestor
-	icon: Schema.String,
-	parentId: Schema.NullOr(CategoryId), // null = root
-	sortOrder: Schema.Number,
-	createdAt: Schema.Date,
+  id: CategoryId,
+  name: Schema.String,
+  slug: Schema.String,
+  color: Schema.NullOr(Schema.String), // null = inherit from the nearest ancestor
+  icon: Schema.String,
+  parentId: Schema.NullOr(CategoryId), // null = root
+  sortOrder: Schema.Number,
+  createdAt: Schema.Date,
 }) {}
 
 /** Create payload — the server assigns `id` and `createdAt`. */
 export const CategoryCreate = Schema.Struct({
-	name: Category.fields.name,
-	slug: Category.fields.slug,
-	color: Category.fields.color,
-	icon: Category.fields.icon,
-	parentId: Category.fields.parentId,
-	sortOrder: Category.fields.sortOrder,
+  name: Category.fields.name,
+  slug: Category.fields.slug,
+  color: Category.fields.color,
+  icon: Category.fields.icon,
+  parentId: Category.fields.parentId,
+  sortOrder: Category.fields.sortOrder,
 });
 export type CategoryCreate = typeof CategoryCreate.Type;
 
@@ -58,7 +48,7 @@ export type CategoryUpdate = typeof CategoryUpdate.Type;
 
 /** Bulk-create payload — `{ records }`, one row created per element (201). */
 export const CategoryBulkCreate = Schema.Struct({
-	records: Schema.Array(CategoryCreate),
+  records: Schema.Array(CategoryCreate),
 });
 export type CategoryBulkCreate = typeof CategoryBulkCreate.Type;
 
@@ -70,11 +60,11 @@ export type CategoryBulkCreate = typeof CategoryBulkCreate.Type;
  * rather than derived server-side. See {@link CategoriesGroup}'s `spill`.
  */
 export const CategorySpill = Schema.Struct({
-	name: Category.fields.name,
-	slug: Category.fields.slug,
-	color: Category.fields.color,
-	icon: Category.fields.icon,
-	sortOrder: Category.fields.sortOrder,
+  name: Category.fields.name,
+  slug: Category.fields.slug,
+  color: Category.fields.color,
+  icon: Category.fields.icon,
+  sortOrder: Category.fields.sortOrder,
 });
 export type CategorySpill = typeof CategorySpill.Type;
 
@@ -85,8 +75,8 @@ export type CategorySpill = typeof CategorySpill.Type;
  * `sortOrder` (else natural/insertion order). Spread alongside `Pagination`.
  */
 export const CategoryListFilters = {
-	parentId: Schema.optional(numFromStr(CategoryId)),
-	orderBy: Schema.optional(Schema.Literal("sortOrder")),
+  parentId: Schema.optional(numFromStr(CategoryId)),
+  orderBy: Schema.optional(Schema.Literal("sortOrder")),
 } as const;
 
 /**
@@ -117,61 +107,55 @@ export const CategoryListFilters = {
  * (all client-only).
  */
 export class CategoriesGroup extends HttpApiGroup.make("categories")
-	.add(
-		HttpApiEndpoint.get("list")`/categories`
-			.setUrlParams(Schema.Struct({ ...Pagination, ...CategoryListFilters }))
-			.addSuccess(Paged(Category)),
-	)
-	.add(
-		HttpApiEndpoint.get(
-			"getById",
-		)`/categories/${HttpApiSchema.param("id", numFromStr(CategoryId))}`
-			.addSuccess(Category)
-			.addError(NotFound),
-	)
-	.add(
-		HttpApiEndpoint.get(
-			"getBySlug",
-		)`/categories/by-slug/${HttpApiSchema.param("slug", Schema.String)}`
-			.addSuccess(Category)
-			.addError(NotFound),
-	)
-	.add(
-		HttpApiEndpoint.post("create")`/categories`
-			.setPayload(CategoryCreate)
-			.addSuccess(Category, { status: 201 })
-			.addError(CategoryHoldsMoney),
-	)
-	.add(
-		HttpApiEndpoint.post("bulkCreate")`/categories/bulk-add`
-			.setPayload(CategoryBulkCreate)
-			.addSuccess(Schema.Array(Category), { status: 201 })
-			.addError(CategoryHoldsMoney),
-	)
-	.add(
-		HttpApiEndpoint.put(
-			"update",
-		)`/categories/${HttpApiSchema.param("id", numFromStr(CategoryId))}`
-			.setPayload(CategoryUpdate)
-			.addSuccess(Category)
-			.addError(NotFound)
-			.addError(CategoryHoldsMoney)
-			.addError(CategoryWouldCycle),
-	)
-	.add(
-		HttpApiEndpoint.post(
-			"spill",
-		)`/categories/${HttpApiSchema.param("id", numFromStr(CategoryId))}/spill`
-			.setPayload(CategorySpill)
-			.addSuccess(Category, { status: 201 })
-			.addError(NotFound),
-	)
-	.add(
-		HttpApiEndpoint.del(
-			"remove",
-		)`/categories/${HttpApiSchema.param("id", numFromStr(CategoryId))}`
-			.addSuccess(HttpApiSchema.NoContent)
-			.addError(NotFound)
-			.addError(CategoryInUse),
-	)
-	.annotateContext(OpenApi.annotations({ title: "Categories" })) {}
+  .add(
+    HttpApiEndpoint.get("list")`/categories`
+      .setUrlParams(Schema.Struct({ ...Pagination, ...CategoryListFilters }))
+      .addSuccess(Paged(Category)),
+  )
+  .add(
+    HttpApiEndpoint.get("getById")`/categories/${HttpApiSchema.param("id", numFromStr(CategoryId))}`
+      .addSuccess(Category)
+      .addError(NotFound),
+  )
+  .add(
+    HttpApiEndpoint.get(
+      "getBySlug",
+    )`/categories/by-slug/${HttpApiSchema.param("slug", Schema.String)}`
+      .addSuccess(Category)
+      .addError(NotFound),
+  )
+  .add(
+    HttpApiEndpoint.post("create")`/categories`
+      .setPayload(CategoryCreate)
+      .addSuccess(Category, { status: 201 })
+      .addError(CategoryHoldsMoney),
+  )
+  .add(
+    HttpApiEndpoint.post("bulkCreate")`/categories/bulk-add`
+      .setPayload(CategoryBulkCreate)
+      .addSuccess(Schema.Array(Category), { status: 201 })
+      .addError(CategoryHoldsMoney),
+  )
+  .add(
+    HttpApiEndpoint.put("update")`/categories/${HttpApiSchema.param("id", numFromStr(CategoryId))}`
+      .setPayload(CategoryUpdate)
+      .addSuccess(Category)
+      .addError(NotFound)
+      .addError(CategoryHoldsMoney)
+      .addError(CategoryWouldCycle),
+  )
+  .add(
+    HttpApiEndpoint.post(
+      "spill",
+    )`/categories/${HttpApiSchema.param("id", numFromStr(CategoryId))}/spill`
+      .setPayload(CategorySpill)
+      .addSuccess(Category, { status: 201 })
+      .addError(NotFound),
+  )
+  .add(
+    HttpApiEndpoint.del("remove")`/categories/${HttpApiSchema.param("id", numFromStr(CategoryId))}`
+      .addSuccess(HttpApiSchema.NoContent)
+      .addError(NotFound)
+      .addError(CategoryInUse),
+  )
+  .annotateContext(OpenApi.annotations({ title: "Categories" })) {}

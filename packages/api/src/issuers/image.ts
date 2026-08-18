@@ -1,10 +1,6 @@
 import type { Multipart } from "@effect/platform";
 import { FileSystem, Path } from "@effect/platform";
-import {
-	ImageFetchRefused,
-	InvalidFileType,
-	type IssuerId,
-} from "@mamen/shared/contract";
+import { ImageFetchRefused, InvalidFileType, type IssuerId } from "@mamen/shared/contract";
 import { Clock, Effect } from "effect";
 import { UploadsDir } from "../config";
 import { IMAGE_EXT, normaliseIssuerImage } from "./image-normalise";
@@ -20,12 +16,7 @@ import { IMAGE_EXT, normaliseIssuerImage } from "./image-normalise";
  * input format's own extension is never used and no MIME→extension map is
  * needed.
  */
-const ALLOWED_MIME_TYPES = [
-	"image/jpeg",
-	"image/png",
-	"image/webp",
-	"image/gif",
-];
+const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 
 /** The stored `imageUrl` for an issuer filename — always root-relative. */
 const imageUrlFor = (filename: string) => `/uploads/issuers/${filename}`;
@@ -54,27 +45,27 @@ const imageUrlFor = (filename: string) => `/uploads/issuers/${filename}`;
  * is an infrastructure defect (dies → 500), not client-facing.
  */
 export const persistIssuerImage = (
-	id: typeof IssuerId.Type,
-	file: Multipart.PersistedFile,
-	previousImageUrl: string | undefined,
+  id: typeof IssuerId.Type,
+  file: Multipart.PersistedFile,
+  previousImageUrl: string | undefined,
 ): Effect.Effect<string, InvalidFileType, FileSystem.FileSystem | Path.Path> =>
-	Effect.gen(function* () {
-		const invalidFileType = new InvalidFileType({
-			allowed: ALLOWED_MIME_TYPES,
-			received: file.contentType,
-		});
-		if (!ALLOWED_MIME_TYPES.includes(file.contentType)) {
-			return yield* Effect.fail(invalidFileType);
-		}
+  Effect.gen(function* () {
+    const invalidFileType = new InvalidFileType({
+      allowed: ALLOWED_MIME_TYPES,
+      received: file.contentType,
+    });
+    if (!ALLOWED_MIME_TYPES.includes(file.contentType)) {
+      return yield* Effect.fail(invalidFileType);
+    }
 
-		// Decode + re-encode before touching the uploads dir, so a body that
-		// isn't really an image leaves nothing behind.
-		const normalised = yield* normaliseIssuerImage(file.path).pipe(
-			Effect.mapError(() => invalidFileType),
-		);
+    // Decode + re-encode before touching the uploads dir, so a body that
+    // isn't really an image leaves nothing behind.
+    const normalised = yield* normaliseIssuerImage(file.path).pipe(
+      Effect.mapError(() => invalidFileType),
+    );
 
-		return yield* storeNormalisedImage(id, normalised, previousImageUrl);
-	});
+    return yield* storeNormalisedImage(id, normalised, previousImageUrl);
+  });
 
 /**
  * Persist an already-downloaded image as a **Normalised issuer image** and
@@ -102,22 +93,18 @@ export const persistIssuerImage = (
  * live to be one.
  */
 export const persistIssuerImageFromBytes = (
-	id: typeof IssuerId.Type,
-	bytes: Uint8Array,
-	previousImageUrl: string | undefined,
-): Effect.Effect<
-	string,
-	ImageFetchRefused,
-	FileSystem.FileSystem | Path.Path
-> =>
-	Effect.gen(function* () {
-		// Decode + re-encode before touching the uploads dir, so a body that
-		// isn't really an image leaves nothing behind.
-		const normalised = yield* normaliseIssuerImage(bytes).pipe(
-			Effect.mapError(() => new ImageFetchRefused({ reason: "not-an-image" })),
-		);
-		return yield* storeNormalisedImage(id, normalised, previousImageUrl);
-	});
+  id: typeof IssuerId.Type,
+  bytes: Uint8Array,
+  previousImageUrl: string | undefined,
+): Effect.Effect<string, ImageFetchRefused, FileSystem.FileSystem | Path.Path> =>
+  Effect.gen(function* () {
+    // Decode + re-encode before touching the uploads dir, so a body that
+    // isn't really an image leaves nothing behind.
+    const normalised = yield* normaliseIssuerImage(bytes).pipe(
+      Effect.mapError(() => new ImageFetchRefused({ reason: "not-an-image" })),
+    );
+    return yield* storeNormalisedImage(id, normalised, previousImageUrl);
+  });
 
 /**
  * Write normalised bytes to `uploads/issuers/issuer-{id}-{ts}.webp` (creating
@@ -134,38 +121,38 @@ export const persistIssuerImageFromBytes = (
  * to the one domain error they can actually explain.
  */
 const storeNormalisedImage = (
-	id: typeof IssuerId.Type,
-	normalised: Uint8Array,
-	previousImageUrl: string | undefined,
+  id: typeof IssuerId.Type,
+  normalised: Uint8Array,
+  previousImageUrl: string | undefined,
 ): Effect.Effect<string, never, FileSystem.FileSystem | Path.Path> =>
-	Effect.gen(function* () {
-		const fs = yield* FileSystem.FileSystem;
-		const path = yield* Path.Path;
-		// The config is default-backed, so a read failure is a misconfiguration
-		// defect (dies → 500), never a client-facing error.
-		const uploadsDir = yield* Effect.orDie(UploadsDir);
+  Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    // The config is default-backed, so a read failure is a misconfiguration
+    // defect (dies → 500), never a client-facing error.
+    const uploadsDir = yield* Effect.orDie(UploadsDir);
 
-		const issuersDir = path.join(uploadsDir, "issuers");
-		yield* fs.makeDirectory(issuersDir, { recursive: true }).pipe(Effect.orDie);
+    const issuersDir = path.join(uploadsDir, "issuers");
+    yield* fs.makeDirectory(issuersDir, { recursive: true }).pipe(Effect.orDie);
 
-		const now = yield* Clock.currentTimeMillis;
-		const filename = `issuer-${id}-${now}.${IMAGE_EXT}`;
-		const dest = path.join(issuersDir, filename);
+    const now = yield* Clock.currentTimeMillis;
+    const filename = `issuer-${id}-${now}.${IMAGE_EXT}`;
+    const dest = path.join(issuersDir, filename);
 
-		// The normalised bytes are what lands on disk — the source (a temp upload
-		// or a downloaded body) is never moved or copied, so nothing keeps the
-		// original.
-		yield* fs.writeFile(dest, normalised).pipe(Effect.orDie);
+    // The normalised bytes are what lands on disk — the source (a temp upload
+    // or a downloaded body) is never moved or copied, so nothing keeps the
+    // original.
+    yield* fs.writeFile(dest, normalised).pipe(Effect.orDie);
 
-		// Delete the previous image if the stored path resolves under this dir.
-		// Best-effort: a missing/foreign file is ignored (matches the old unlink
-		// that swallowed errors), and any other FS error dies.
-		if (previousImageUrl !== undefined) {
-			yield* deletePreviousImage(fs, path, uploadsDir, previousImageUrl);
-		}
+    // Delete the previous image if the stored path resolves under this dir.
+    // Best-effort: a missing/foreign file is ignored (matches the old unlink
+    // that swallowed errors), and any other FS error dies.
+    if (previousImageUrl !== undefined) {
+      yield* deletePreviousImage(fs, path, uploadsDir, previousImageUrl);
+    }
 
-		return imageUrlFor(filename);
-	});
+    return imageUrlFor(filename);
+  });
 
 /**
  * Remove an issuer image given its stored root-relative `imageUrl`, resolving
@@ -174,14 +161,14 @@ const storeNormalisedImage = (
  * Used by `deleteImage` and to clean up the previous file on re-upload.
  */
 export const deleteIssuerImage = (
-	imageUrl: string,
+  imageUrl: string,
 ): Effect.Effect<void, never, FileSystem.FileSystem | Path.Path> =>
-	Effect.gen(function* () {
-		const fs = yield* FileSystem.FileSystem;
-		const path = yield* Path.Path;
-		const uploadsDir = yield* Effect.orDie(UploadsDir);
-		yield* deletePreviousImage(fs, path, uploadsDir, imageUrl);
-	});
+  Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    const uploadsDir = yield* Effect.orDie(UploadsDir);
+    yield* deletePreviousImage(fs, path, uploadsDir, imageUrl);
+  });
 
 /**
  * Shared unlink: strip the leading `/uploads/` from the stored URL, join under
@@ -189,12 +176,12 @@ export const deleteIssuerImage = (
  * no-op when the file is already gone; any other error dies.
  */
 const deletePreviousImage = (
-	fs: FileSystem.FileSystem,
-	path: Path.Path,
-	uploadsDir: string,
-	imageUrl: string,
+  fs: FileSystem.FileSystem,
+  path: Path.Path,
+  uploadsDir: string,
+  imageUrl: string,
 ) => {
-	const relative = imageUrl.replace(/^\/uploads\//, "");
-	const target = path.join(uploadsDir, relative);
-	return fs.remove(target).pipe(Effect.catchAll(() => Effect.void));
+  const relative = imageUrl.replace(/^\/uploads\//, "");
+  const target = path.join(uploadsDir, relative);
+  return fs.remove(target).pipe(Effect.catchAll(() => Effect.void));
 };

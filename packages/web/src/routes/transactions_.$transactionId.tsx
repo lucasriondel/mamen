@@ -9,5 +9,5 @@ import { TransactionDetailPage } from "@/features/transactions/transaction-detai
  * not-found state.
  */
 export const Route = createFileRoute("/transactions_/$transactionId")({
-	component: TransactionDetailPage,
+  component: TransactionDetailPage,
 });

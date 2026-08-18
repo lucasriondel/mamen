@@ -10,10 +10,7 @@ import type { Issuer } from "@mamen/shared/contract";
  * uniqueness (migration `0003` uses a non-unique index), so this only guards the
  * names the client has in hand. It never blocks the server.
  */
-export function hasExactIssuerName(
-	issuers: readonly Issuer[],
-	name: string,
-): boolean {
-	const trimmed = name.trim().toLowerCase();
-	return issuers.some((issuer) => issuer.name.trim().toLowerCase() === trimmed);
+export function hasExactIssuerName(issuers: readonly Issuer[], name: string): boolean {
+  const trimmed = name.trim().toLowerCase();
+  return issuers.some((issuer) => issuer.name.trim().toLowerCase() === trimmed);
 }

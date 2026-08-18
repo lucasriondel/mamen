@@ -6,11 +6,11 @@ import { indexById } from "@/lib/utils";
 
 /** What {@link useIssuerLookup} hands back: the map, plus the read's state. */
 export type IssuerLookup = {
-	/** The issuers asked for, indexed by id — the map a row resolves through. */
-	issuersById: ReadonlyMap<number, Issuer>;
-	/** True while the ids on screen are still being resolved. */
-	isPending: boolean;
-	isError: boolean;
+  /** The issuers asked for, indexed by id — the map a row resolves through. */
+  issuersById: ReadonlyMap<number, Issuer>;
+  /** True while the ids on screen are still being resolved. */
+  isPending: boolean;
+  isError: boolean;
 };
 
 /**
@@ -34,26 +34,24 @@ export type IssuerLookup = {
  * than flashing a page of rows as unresolved — which is the very state this
  * exists to prevent.
  */
-export function useIssuerLookup(
-	issuerIds: Iterable<IssuerId | null | undefined>,
-): IssuerLookup {
-	const ids: IssuerId[] = [];
-	for (const id of issuerIds) {
-		if (id != null) ids.push(id);
-	}
+export function useIssuerLookup(issuerIds: Iterable<IssuerId | null | undefined>): IssuerLookup {
+  const ids: IssuerId[] = [];
+  for (const id of issuerIds) {
+    if (id != null) ids.push(id);
+  }
 
-	// A fresh-but-equal id array hits the same cache entry: `byIds` normalises the
-	// set into the query key, which react-query hashes structurally.
-	const query = useQuery(issuerQueries.byIds(ids));
+  // A fresh-but-equal id array hits the same cache entry: `byIds` normalises the
+  // set into the query key, which react-query hashes structurally.
+  const query = useQuery(issuerQueries.byIds(ids));
 
-	const issuersById = useMemo(
-		() => indexById((query.data?.items ?? []) as readonly Issuer[]),
-		[query.data],
-	);
+  const issuersById = useMemo(
+    () => indexById((query.data?.items ?? []) as readonly Issuer[]),
+    [query.data],
+  );
 
-	return {
-		issuersById,
-		isPending: query.isPending,
-		isError: query.isError,
-	};
+  return {
+    issuersById,
+    isPending: query.isPending,
+    isError: query.isError,
+  };
 }

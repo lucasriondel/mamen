@@ -14,14 +14,14 @@ export type IssuerSortKey = "name" | "count" | "value";
 export type SortDirection = "asc" | "desc";
 
 export type IssuerSort = {
-	key: IssuerSortKey;
-	direction: SortDirection;
+  key: IssuerSortKey;
+  direction: SortDirection;
 };
 
 /** The grid loads alphabetical, A→Z, matching the server's `orderBy=name`. */
 export const DEFAULT_ISSUER_SORT: IssuerSort = {
-	key: "name",
-	direction: "asc",
+  key: "name",
+  direction: "asc",
 };
 
 /**
@@ -30,26 +30,23 @@ export const DEFAULT_ISSUER_SORT: IssuerSort = {
  * (issue #41). Re-selecting the active key toggles from here.
  */
 export const DEFAULT_DIRECTION: Record<IssuerSortKey, SortDirection> = {
-	name: "asc",
-	count: "desc",
-	value: "desc",
+  name: "asc",
+  count: "desc",
+  value: "desc",
 };
 
 /**
  * The sort produced by clicking a key's control (issue #41): selecting a new key
  * adopts that key's default direction; clicking the already-active key flips it.
  */
-export function nextIssuerSort(
-	current: IssuerSort,
-	key: IssuerSortKey,
-): IssuerSort {
-	if (current.key === key) {
-		return {
-			key,
-			direction: current.direction === "asc" ? "desc" : "asc",
-		};
-	}
-	return { key, direction: DEFAULT_DIRECTION[key] };
+export function nextIssuerSort(current: IssuerSort, key: IssuerSortKey): IssuerSort {
+  if (current.key === key) {
+    return {
+      key,
+      direction: current.direction === "asc" ? "desc" : "asc",
+    };
+  }
+  return { key, direction: DEFAULT_DIRECTION[key] };
 }
 
 /**
@@ -58,13 +55,13 @@ export function nextIssuerSort(
  * `net` is unused by the sort but travels alongside so callers derive it once.
  */
 export type IssuerMetrics = {
-	issuer: Issuer;
-	/** Total number of transactions for the issuer. */
-	count: number;
-	/** Signed net flow (debits negative) — what the card displays. */
-	net: number;
-	/** Total money moved: the sum of the transactions' absolute amounts. */
-	value: number;
+  issuer: Issuer;
+  /** Total number of transactions for the issuer. */
+  count: number;
+  /** Signed net flow (debits negative) — what the card displays. */
+  net: number;
+  /** Total money moved: the sum of the transactions' absolute amounts. */
+  value: number;
 };
 
 /** The `amount` field the metrics read — the only part of a transaction they need. */
@@ -78,17 +75,23 @@ export type AmountBearing = { amount: number };
  * derivation is unit-testable rather than buried in the view's render.
  */
 export function issuerMetrics(
-	issuer: Issuer,
-	transactions: readonly AmountBearing[],
-	count: number,
+  issuer: Issuer,
+  transactions: readonly AmountBearing[],
+  count: number,
 ): IssuerMetrics {
-	return {
-		issuer,
-		count,
-		net: transactions.reduce((sum, txn) => sum + txn.amount, 0),
-		value: transactions.reduce((sum, txn) => sum + Math.abs(txn.amount), 0),
-	};
+  return {
+    issuer,
+    count,
+    net: transactions.reduce((sum, txn) => sum + txn.amount, 0),
+    value: transactions.reduce((sum, txn) => sum + Math.abs(txn.amount), 0),
+  };
 }
+
+/** The A→Z tiebreaker every key falls back to — locale-aware, case-insensitive. */
+const byName = (a: IssuerMetrics, b: IssuerMetrics) =>
+  a.issuer.name.localeCompare(b.issuer.name, undefined, {
+    sensitivity: "base",
+  });
 
 /**
  * Order issuers by the chosen key + direction (issue #41). Returns a new array;
@@ -96,29 +99,21 @@ export function issuerMetrics(
  * compare; the numeric keys break ties by name (A→Z) so the order is stable and
  * doesn't jitter between equal-count / equal-value issuers.
  */
-export function sortIssuers(
-	metrics: readonly IssuerMetrics[],
-	sort: IssuerSort,
-): IssuerMetrics[] {
-	const byName = (a: IssuerMetrics, b: IssuerMetrics) =>
-		a.issuer.name.localeCompare(b.issuer.name, undefined, {
-			sensitivity: "base",
-		});
+export function sortIssuers(metrics: readonly IssuerMetrics[], sort: IssuerSort): IssuerMetrics[] {
+  const sign = sort.direction === "desc" ? -1 : 1;
 
-	const sign = sort.direction === "desc" ? -1 : 1;
+  // Direction flips only the primary key; the name tiebreaker stays A→Z so
+  // equal-count / equal-value issuers keep a stable, readable order either way.
+  const compare = (a: IssuerMetrics, b: IssuerMetrics): number => {
+    switch (sort.key) {
+      case "name":
+        return sign * byName(a, b);
+      case "count":
+        return sign * (a.count - b.count) || byName(a, b);
+      case "value":
+        return sign * (a.value - b.value) || byName(a, b);
+    }
+  };
 
-	// Direction flips only the primary key; the name tiebreaker stays A→Z so
-	// equal-count / equal-value issuers keep a stable, readable order either way.
-	const compare = (a: IssuerMetrics, b: IssuerMetrics): number => {
-		switch (sort.key) {
-			case "name":
-				return sign * byName(a, b);
-			case "count":
-				return sign * (a.count - b.count) || byName(a, b);
-			case "value":
-				return sign * (a.value - b.value) || byName(a, b);
-		}
-	};
-
-	return [...metrics].sort(compare);
+  return [...metrics].sort(compare);
 }

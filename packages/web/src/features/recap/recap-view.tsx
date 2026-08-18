@@ -19,7 +19,7 @@ const routeApi = getRouteApi("/recap");
 
 /** Sum a section's rows into its period total (a positive magnitude). */
 function sumSpent(rows: readonly SpendRow[]): number {
-	return rows.reduce((total, row) => total + row.spent, 0);
+  return rows.reduce((total, row) => total + row.spent, 0);
 }
 
 /**
@@ -33,128 +33,107 @@ function sumSpent(rows: readonly SpendRow[]): number {
  * just sort and render. A read failure shows an inline `Empty`.
  */
 export function RecapView() {
-	const search = routeApi.useSearch();
-	const navigate = routeApi.useNavigate();
+  const search = routeApi.useSearch();
+  const navigate = routeApi.useNavigate();
 
-	// `today` drives the current-month/year default; read once per render.
-	const period = toPeriod(search, new Date());
-	const sort = toSpendSort(search);
-	const accountIds = search.accountIds ?? [];
+  // `today` drives the current-month/year default; read once per render.
+  const period = toPeriod(search, new Date());
+  const sort = toSpendSort(search);
+  const accountIds = search.accountIds ?? [];
 
-	const { spend, accounts, months, years, isPending, isError } = useRecapSpend(
-		period,
-		accountIds,
-	);
+  const { spend, accounts, months, years, isPending, isError } = useRecapSpend(period, accountIds);
 
-	const byIssuer = useMemo(
-		() => sortSpendRows(spend.byIssuer, sort),
-		[spend.byIssuer, sort],
-	);
-	const byCategory = useMemo(
-		() => sortSpendRows(spend.byCategory, sort),
-		[spend.byCategory, sort],
-	);
+  const byIssuer = useMemo(() => sortSpendRows(spend.byIssuer, sort), [spend.byIssuer, sort]);
+  const byCategory = useMemo(() => sortSpendRows(spend.byCategory, sort), [spend.byCategory, sort]);
 
-	const setPeriod = (next: Period) => {
-		navigate({
-			search: (prev: RecapSearch) => ({
-				...prev,
-				period: next.kind,
-				month: next.kind === "month" ? next.month : undefined,
-				year: next.kind === "year" ? next.year : undefined,
-			}),
-		});
-	};
+  const setPeriod = (next: Period) => {
+    navigate({
+      search: (prev: RecapSearch) => ({
+        ...prev,
+        period: next.kind,
+        month: next.kind === "month" ? next.month : undefined,
+        year: next.kind === "year" ? next.year : undefined,
+      }),
+    });
+  };
 
-	const setAccounts = (ids: number[]) => {
-		navigate({
-			search: (prev: RecapSearch) => ({
-				...prev,
-				accountIds: ids.length > 0 ? ids : undefined,
-			}),
-		});
-	};
+  const setAccounts = (ids: number[]) => {
+    navigate({
+      search: (prev: RecapSearch) => ({
+        ...prev,
+        accountIds: ids.length > 0 ? ids : undefined,
+      }),
+    });
+  };
 
-	const setSort = (next: SpendSort) => {
-		navigate({
-			search: (prev: RecapSearch) => ({
-				...prev,
-				sort: next.key,
-				direction: next.direction,
-			}),
-			replace: true,
-		});
-	};
+  const setSort = (next: SpendSort) => {
+    navigate({
+      search: (prev: RecapSearch) => ({
+        ...prev,
+        sort: next.key,
+        direction: next.direction,
+      }),
+      replace: true,
+    });
+  };
 
-	return (
-		<PageLayout
-			title="Recap"
-			description="Where your money went, by issuer and by category."
-		>
-			<div className="flex flex-wrap items-center gap-3">
-				<PeriodSelector
-					period={period}
-					months={months}
-					years={years}
-					onChange={setPeriod}
-				/>
-				<AccountMultiSelect
-					accounts={accounts}
-					selected={accountIds}
-					onChange={setAccounts}
-				/>
-			</div>
+  return (
+    <PageLayout title="Recap" description="Where your money went, by issuer and by category.">
+      <div className="flex flex-wrap items-center gap-3">
+        <PeriodSelector period={period} months={months} years={years} onChange={setPeriod} />
+        <AccountMultiSelect accounts={accounts} selected={accountIds} onChange={setAccounts} />
+      </div>
 
-			{isError ? (
-				<Empty
-					title="Couldn't load your recap"
-					description="Something went wrong reading your spending. Try again in a moment."
-				/>
-			) : isPending ? (
-				<RecapSkeleton />
-			) : (
-				<>
-					{/* Both lines open their own rows in the transactions list (issue #87). */}
-					{spend.transfers.count > 0 ? (
-						<TransferSummaryLine
-							transfers={spend.transfers}
-							period={period}
-							accountIds={accountIds}
-						/>
-					) : null}
-					{spend.excluded.count > 0 ? (
-						<ExcludedSummaryLine
-							excluded={spend.excluded}
-							period={period}
-							accountIds={accountIds}
-						/>
-					) : null}
-					<div className="grid gap-6 lg:grid-cols-2">
-						<SpendSection
-							title="By issuer"
-							sortLabel="Sort issuers"
-							axis="issuer"
-							rows={byIssuer}
-							total={sumSpent(byIssuer)}
-							sort={sort}
-							onSortChange={setSort}
-							period={period}
-							accountIds={accountIds}
-						/>
-						<SpendSection
-							title="By category"
-							sortLabel="Sort categories"
-							axis="category"
-							rows={byCategory}
-							total={sumSpent(byCategory)}
-							sort={sort}
-							onSortChange={setSort}
-							period={period}
-							accountIds={accountIds}
-						/>
-					</div>
-				</>
-			)}
-		</PageLayout>
-	);
+      {isError ? (
+        <Empty
+          title="Couldn't load your recap"
+          description="Something went wrong reading your spending. Try again in a moment."
+        />
+      ) : isPending ? (
+        <RecapSkeleton />
+      ) : (
+        <>
+          {/* Both lines open their own rows in the transactions list (issue #87). */}
+          {spend.transfers.count > 0 ? (
+            <TransferSummaryLine
+              transfers={spend.transfers}
+              period={period}
+              accountIds={accountIds}
+            />
+          ) : null}
+          {spend.excluded.count > 0 ? (
+            <ExcludedSummaryLine
+              excluded={spend.excluded}
+              period={period}
+              accountIds={accountIds}
+            />
+          ) : null}
+          <div className="grid gap-6 lg:grid-cols-2">
+            <SpendSection
+              title="By issuer"
+              sortLabel="Sort issuers"
+              axis="issuer"
+              rows={byIssuer}
+              total={sumSpent(byIssuer)}
+              sort={sort}
+              onSortChange={setSort}
+              period={period}
+              accountIds={accountIds}
+            />
+            <SpendSection
+              title="By category"
+              sortLabel="Sort categories"
+              axis="category"
+              rows={byCategory}
+              total={sumSpent(byCategory)}
+              sort={sort}
+              onSortChange={setSort}
+              period={period}
+              accountIds={accountIds}
+            />
+          </div>
+        </>
+      )}
+    </PageLayout>
+  );
 }

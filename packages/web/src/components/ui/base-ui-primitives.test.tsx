@@ -5,20 +5,15 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { Button } from "./button";
 import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogHeader,
-	DialogTitle,
-	DialogTrigger,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
 } from "./dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "./popover";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "./tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./tooltip";
 
 /**
  * The primitives mamen renders on **Base UI**, asserted at the boundary a test
@@ -71,56 +66,56 @@ import {
 
 /** The one tooltip shape the app uses: a trigger and a portalled label. */
 function TooltipFixture({
-	defaultOpen,
-	trigger,
+  defaultOpen,
+  trigger,
 }: {
-	defaultOpen?: boolean;
-	trigger?: React.ReactElement<Record<string, unknown>>;
+  defaultOpen?: boolean;
+  trigger?: React.ReactElement<Record<string, unknown>>;
 }) {
-	return (
-		<TooltipProvider>
-			<Tooltip defaultOpen={defaultOpen}>
-				<TooltipTrigger render={trigger}>Note</TooltipTrigger>
-				<TooltipContent>The full note</TooltipContent>
-			</Tooltip>
-		</TooltipProvider>
-	);
+  return (
+    <TooltipProvider>
+      <Tooltip defaultOpen={defaultOpen}>
+        <TooltipTrigger render={trigger}>Note</TooltipTrigger>
+        <TooltipContent>The full note</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
 }
 
 describe("the Base UI tooltip", () => {
-	it("renders its trigger as a real button, so a keyboard can reach it", () => {
-		const markup = renderToStaticMarkup(<TooltipFixture />);
+  it("renders its trigger as a real button, so a keyboard can reach it", () => {
+    const markup = renderToStaticMarkup(<TooltipFixture />);
 
-		expect(markup).toMatch(/^<button [^>]*type="button"/);
-	});
+    expect(markup).toMatch(/^<button [^>]*type="button"/);
+  });
 
-	it("stamps the trigger with the id it wires the popup to", () => {
-		const markup = renderToStaticMarkup(<TooltipFixture />);
+  it("stamps the trigger with the id it wires the popup to", () => {
+    const markup = renderToStaticMarkup(<TooltipFixture />);
 
-		expect(markup).toMatch(/^<button [^>]*id="[^"]+"/);
-	});
+    expect(markup).toMatch(/^<button [^>]*id="[^"]+"/);
+  });
 
-	it("moves that wiring onto the element a caller renders in its place", () => {
-		const markup = renderToStaticMarkup(
-			<TooltipFixture trigger={<span className="cell">Cell</span>} />,
-		);
+  it("moves that wiring onto the element a caller renders in its place", () => {
+    const markup = renderToStaticMarkup(
+      <TooltipFixture trigger={<span className="cell">Cell</span>} />,
+    );
 
-		expect(markup).toMatch(/^<span [^>]*class="cell"/);
-		expect(markup).toMatch(/^<span [^>]*id="[^"]+"/);
-		expect(markup).not.toContain("<button");
-	});
+    expect(markup).toMatch(/^<span [^>]*class="cell"/);
+    expect(markup).toMatch(/^<span [^>]*id="[^"]+"/);
+    expect(markup).not.toContain("<button");
+  });
 
-	it("keeps the portalled label out of the trigger's markup while closed", () => {
-		const markup = renderToStaticMarkup(<TooltipFixture />);
+  it("keeps the portalled label out of the trigger's markup while closed", () => {
+    const markup = renderToStaticMarkup(<TooltipFixture />);
 
-		expect(markup).not.toContain("The full note");
-	});
+    expect(markup).not.toContain("The full note");
+  });
 
-	it("keeps it out even when open — the popup is client-only", () => {
-		const markup = renderToStaticMarkup(<TooltipFixture defaultOpen />);
+  it("keeps it out even when open — the popup is client-only", () => {
+    const markup = renderToStaticMarkup(<TooltipFixture defaultOpen />);
 
-		expect(markup).not.toContain("The full note");
-	});
+    expect(markup).not.toContain("The full note");
+  });
 });
 
 /**
@@ -129,16 +124,16 @@ describe("the Base UI tooltip", () => {
  * The trigger is exercised separately because the primitive still exports one.
  */
 function DialogFixture({ open }: { open?: boolean }) {
-	return (
-		<Dialog open={open}>
-			<DialogContent>
-				<DialogHeader>
-					<DialogTitle>Edit issuer</DialogTitle>
-					<DialogDescription>Rename it, or move it.</DialogDescription>
-				</DialogHeader>
-			</DialogContent>
-		</Dialog>
-	);
+  return (
+    <Dialog open={open}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit issuer</DialogTitle>
+          <DialogDescription>Rename it, or move it.</DialogDescription>
+        </DialogHeader>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 /**
@@ -150,18 +145,18 @@ function DialogFixture({ open }: { open?: boolean }) {
  * button.
  */
 function TriggeredDialogFixture() {
-	return (
-		<Dialog>
-			<DialogTrigger>Edit issuer</DialogTrigger>
-			<DialogContent>
-				<DialogHeader>
-					<DialogTitle>Edit issuer</DialogTitle>
-					<DialogDescription>Rename it, or move it.</DialogDescription>
-				</DialogHeader>
-				<input aria-label="Name" />
-			</DialogContent>
-		</Dialog>
-	);
+  return (
+    <Dialog>
+      <DialogTrigger>Edit issuer</DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit issuer</DialogTitle>
+          <DialogDescription>Rename it, or move it.</DialogDescription>
+        </DialogHeader>
+        <input aria-label="Name" />
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 /**
@@ -193,144 +188,138 @@ function TriggeredDialogFixture() {
  * entrance plays — jsdom runs no animations and has no layout.
  */
 describe("the Base UI dialog", () => {
-	it("costs the server render nothing while closed", () => {
-		expect(renderToStaticMarkup(<DialogFixture open={false} />)).toBe("");
-	});
+  it("costs the server render nothing while closed", () => {
+    expect(renderToStaticMarkup(<DialogFixture open={false} />)).toBe("");
+  });
 
-	it("costs it nothing when open either — the panel is portalled client-side", () => {
-		const markup = renderToStaticMarkup(<DialogFixture open />);
+  it("costs it nothing when open either — the panel is portalled client-side", () => {
+    const markup = renderToStaticMarkup(<DialogFixture open />);
 
-		expect(markup).not.toContain("Edit issuer");
-		expect(markup).not.toContain("Rename it, or move it.");
-	});
+    expect(markup).not.toContain("Edit issuer");
+    expect(markup).not.toContain("Rename it, or move it.");
+  });
 
-	it("renders its trigger as a real button, so a keyboard can reach it", () => {
-		const markup = renderToStaticMarkup(
-			<Dialog>
-				<DialogTrigger>Edit</DialogTrigger>
-				<DialogContent>
-					<DialogTitle>Edit issuer</DialogTitle>
-				</DialogContent>
-			</Dialog>,
-		);
+  it("renders its trigger as a real button, so a keyboard can reach it", () => {
+    const markup = renderToStaticMarkup(
+      <Dialog>
+        <DialogTrigger>Edit</DialogTrigger>
+        <DialogContent>
+          <DialogTitle>Edit issuer</DialogTitle>
+        </DialogContent>
+      </Dialog>,
+    );
 
-		expect(markup).toMatch(/^<button [^>]*type="button"/);
-	});
+    expect(markup).toMatch(/^<button [^>]*type="button"/);
+  });
 
-	it("mounts a panel labelled by its title and described by its copy", () => {
-		render(<DialogFixture open />);
+  it("mounts a panel labelled by its title and described by its copy", () => {
+    render(<DialogFixture open />);
 
-		const panel = screen.getByRole("dialog", { name: "Edit issuer" });
-		expect(panel.getAttribute("aria-describedby")).toBe(
-			screen.getByText("Rename it, or move it.").id,
-		);
-	});
+    const panel = screen.getByRole("dialog", { name: "Edit issuer" });
+    expect(panel.getAttribute("aria-describedby")).toBe(
+      screen.getByText("Rename it, or move it.").id,
+    );
+  });
 
-	it("stamps the panel and the backdrop with the state its animation reads", () => {
-		render(<DialogFixture open />);
+  it("stamps the panel and the backdrop with the state its animation reads", () => {
+    render(<DialogFixture open />);
 
-		const panel = screen.getByRole("dialog");
-		const backdrop = document.querySelector<HTMLElement>(
-			"[class*='bg-black/']",
-		);
+    const panel = screen.getByRole("dialog");
+    const backdrop = document.querySelector<HTMLElement>("[class*='bg-black/']");
 
-		expect(panel.hasAttribute("data-open")).toBe(true);
-		expect(backdrop?.hasAttribute("data-open")).toBe(true);
-		// The other half of that pair: a rule still written against Radix's
-		// `data-state` would match nothing, and nothing else here would notice.
-		expect(panel.className).not.toContain("data-[state=");
-		expect(backdrop?.className).not.toContain("data-[state=");
-	});
+    expect(panel.hasAttribute("data-open")).toBe(true);
+    expect(backdrop?.hasAttribute("data-open")).toBe(true);
+    // The other half of that pair: a rule still written against Radix's
+    // `data-state` would match nothing, and nothing else here would notice.
+    expect(panel.className).not.toContain("data-[state=");
+    expect(backdrop?.className).not.toContain("data-[state=");
+  });
 
-	it("takes the panel back out of the document when it closes", () => {
-		const { rerender } = render(<DialogFixture open />);
-		expect(screen.getByRole("dialog")).toBeTruthy();
+  it("takes the panel back out of the document when it closes", () => {
+    const { rerender } = render(<DialogFixture open />);
+    expect(screen.getByRole("dialog")).toBeTruthy();
 
-		rerender(<DialogFixture open={false} />);
+    rerender(<DialogFixture open={false} />);
 
-		expect(screen.queryByRole("dialog")).toBeNull();
-	});
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
 
-	it("sends focus into the panel, and back to the opener on Escape", async () => {
-		const user = userEvent.setup();
-		render(<TriggeredDialogFixture />);
-		const trigger = screen.getByRole("button", { name: "Edit issuer" });
+  it("sends focus into the panel, and back to the opener on Escape", async () => {
+    const user = userEvent.setup();
+    render(<TriggeredDialogFixture />);
+    const trigger = screen.getByRole("button", { name: "Edit issuer" });
 
-		await user.click(trigger);
-		const panel = await screen.findByRole("dialog");
-		expect(panel.contains(document.activeElement)).toBe(true);
+    await user.click(trigger);
+    const panel = await screen.findByRole("dialog");
+    expect(panel.contains(document.activeElement)).toBe(true);
 
-		await user.keyboard("{Escape}");
+    await user.keyboard("{Escape}");
 
-		await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-		// Not merely "focus left the panel": a dismissed dialog that drops focus on
-		// the body strands the keyboard at the top of the document.
-		expect(document.activeElement).toBe(trigger);
-	});
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    // Not merely "focus left the panel": a dismissed dialog that drops focus on
+    // the body strands the keyboard at the top of the document.
+    expect(document.activeElement).toBe(trigger);
+  });
 
-	it("dismisses on a click on the backdrop", async () => {
-		const user = userEvent.setup();
-		render(<TriggeredDialogFixture />);
-		await user.click(screen.getByRole("button", { name: "Edit issuer" }));
-		await screen.findByRole("dialog");
+  it("dismisses on a click on the backdrop", async () => {
+    const user = userEvent.setup();
+    render(<TriggeredDialogFixture />);
+    await user.click(screen.getByRole("button", { name: "Edit issuer" }));
+    await screen.findByRole("dialog");
 
-		const backdrop = document.querySelector<HTMLElement>(
-			"[class*='bg-black/']",
-		);
-		await user.click(backdrop as HTMLElement);
+    const backdrop = document.querySelector<HTMLElement>("[class*='bg-black/']");
+    await user.click(backdrop as HTMLElement);
 
-		await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-	});
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
 });
 
 /** The shape all twelve popovers share: a trigger and a portalled panel. */
 function PopoverFixture({
-	defaultOpen,
-	trigger,
+  defaultOpen,
+  trigger,
 }: {
-	defaultOpen?: boolean;
-	trigger?: React.ReactElement<Record<string, unknown>>;
+  defaultOpen?: boolean;
+  trigger?: React.ReactElement<Record<string, unknown>>;
 }) {
-	return (
-		<Popover defaultOpen={defaultOpen}>
-			<PopoverTrigger render={trigger}>Columns</PopoverTrigger>
-			<PopoverContent>The panel</PopoverContent>
-		</Popover>
-	);
+  return (
+    <Popover defaultOpen={defaultOpen}>
+      <PopoverTrigger render={trigger}>Columns</PopoverTrigger>
+      <PopoverContent>The panel</PopoverContent>
+    </Popover>
+  );
 }
 
 describe("the Base UI popover", () => {
-	it("renders its trigger as a real button, so a keyboard can reach it", () => {
-		const markup = renderToStaticMarkup(<PopoverFixture />);
+  it("renders its trigger as a real button, so a keyboard can reach it", () => {
+    const markup = renderToStaticMarkup(<PopoverFixture />);
 
-		expect(markup).toMatch(/^<button [^>]*type="button"/);
-	});
+    expect(markup).toMatch(/^<button [^>]*type="button"/);
+  });
 
-	it("substitutes the element a caller renders in its place, chassis intact", () => {
-		const markup = renderToStaticMarkup(
-			<PopoverFixture
-				trigger={<Button variant="secondary" size="sm" className="toolbar" />}
-			/>,
-		);
+  it("substitutes the element a caller renders in its place, chassis intact", () => {
+    const markup = renderToStaticMarkup(
+      <PopoverFixture trigger={<Button variant="secondary" size="sm" className="toolbar" />} />,
+    );
 
-		// The caller's own classes survive alongside Base UI's own attributes,
-		// rather than the trigger replacing the element or the element the trigger.
-		expect(markup).toMatch(/^<button [^>]*class="[^"]*toolbar/);
-		expect(markup).toMatch(/^<button [^>]*id="[^"]+"/);
-		expect(markup).toContain("Columns");
-	});
+    // The caller's own classes survive alongside Base UI's own attributes,
+    // rather than the trigger replacing the element or the element the trigger.
+    expect(markup).toMatch(/^<button [^>]*class="[^"]*toolbar/);
+    expect(markup).toMatch(/^<button [^>]*id="[^"]+"/);
+    expect(markup).toContain("Columns");
+  });
 
-	it("keeps the portalled panel out of the markup while closed", () => {
-		const markup = renderToStaticMarkup(<PopoverFixture />);
+  it("keeps the portalled panel out of the markup while closed", () => {
+    const markup = renderToStaticMarkup(<PopoverFixture />);
 
-		expect(markup).not.toContain("The panel");
-	});
+    expect(markup).not.toContain("The panel");
+  });
 
-	it("keeps it out even when open — the panel is client-only", () => {
-		const markup = renderToStaticMarkup(<PopoverFixture defaultOpen />);
+  it("keeps it out even when open — the panel is client-only", () => {
+    const markup = renderToStaticMarkup(<PopoverFixture defaultOpen />);
 
-		expect(markup).not.toContain("The panel");
-	});
+    expect(markup).not.toContain("The panel");
+  });
 });
 
 /**
@@ -346,32 +335,32 @@ describe("the Base UI popover", () => {
  * keyed off it, and Radix spelled the same state `data-state="open"`.
  */
 describe("the Base UI popover, once mounted", () => {
-	it("wires the trigger to the popover it opens", () => {
-		render(<PopoverFixture />);
+  it("wires the trigger to the popover it opens", () => {
+    render(<PopoverFixture />);
 
-		const trigger = screen.getByRole("button", { name: "Columns" });
-		expect(trigger).toHaveAttribute("aria-haspopup", "dialog");
-		expect(trigger).toHaveAttribute("aria-expanded", "false");
-	});
+    const trigger = screen.getByRole("button", { name: "Columns" });
+    expect(trigger).toHaveAttribute("aria-haspopup", "dialog");
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+  });
 
-	it("leaves the panel unrendered while closed", () => {
-		render(<PopoverFixture />);
+  it("leaves the panel unrendered while closed", () => {
+    render(<PopoverFixture />);
 
-		expect(screen.queryByText("The panel")).not.toBeInTheDocument();
-		expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-	});
+    expect(screen.queryByText("The panel")).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
 
-	it("opens onto a dialog the animations can key off", () => {
-		render(<PopoverFixture defaultOpen />);
+  it("opens onto a dialog the animations can key off", () => {
+    render(<PopoverFixture defaultOpen />);
 
-		const panel = screen.getByRole("dialog");
-		expect(panel).toHaveTextContent("The panel");
-		expect(panel).toHaveAttribute("data-open");
-		expect(screen.getByRole("button", { name: "Columns" })).toHaveAttribute(
-			"aria-expanded",
-			"true",
-		);
-	});
+    const panel = screen.getByRole("dialog");
+    expect(panel).toHaveTextContent("The panel");
+    expect(panel).toHaveAttribute("data-open");
+    expect(screen.getByRole("button", { name: "Columns" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+  });
 });
 
 /**
@@ -391,11 +380,9 @@ describe("the Base UI popover, once mounted", () => {
 const read = (path: string) => readFileSync(path, "utf8");
 
 describe("the three converted primitives", () => {
-	it("are each rendered on Base UI", () => {
-		for (const name of ["tooltip", "dialog", "popover"]) {
-			expect(read(`src/components/ui/${name}.tsx`)).toContain(
-				"@base-ui-components/react",
-			);
-		}
-	});
+  it("are each rendered on Base UI", () => {
+    for (const name of ["tooltip", "dialog", "popover"]) {
+      expect(read(`src/components/ui/${name}.tsx`)).toContain("@base-ui-components/react");
+    }
+  });
 });

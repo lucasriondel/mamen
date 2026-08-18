@@ -1,7 +1,4 @@
-import type {
-	DeclaredTotals,
-	ExtractedTransaction,
-} from "@mamen/shared/contract";
+import type { DeclaredTotals, ExtractedTransaction } from "@mamen/shared/contract";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/format";
@@ -14,12 +11,12 @@ import type { WizardAction } from "./wizard-reducer";
 
 /** A `Date` as the `YYYY-MM-DD` value an `<input type="date">` expects (UTC). */
 function toDateInputValue(date: Date): string {
-	return Number.isNaN(date.getTime()) ? "" : date.toISOString().slice(0, 10);
+  return Number.isNaN(date.getTime()) ? "" : date.toISOString().slice(0, 10);
 }
 
 /** Parse a date-input `YYYY-MM-DD` back into a UTC `Date` (matches extraction). */
 function fromDateInputValue(value: string): Date {
-	return new Date(`${value}T00:00:00.000Z`);
+  return new Date(`${value}T00:00:00.000Z`);
 }
 
 /**
@@ -38,166 +35,164 @@ function fromDateInputValue(value: string): Date {
  * serves the table and the bar's count.
  */
 export function PdfValidationStep({
-	records,
-	extracted,
-	declaredTotals,
-	file,
-	onBack,
-	dispatch,
+  records,
+  extracted,
+  declaredTotals,
+  file,
+  onBack,
+  dispatch,
 }: {
-	records: readonly ParsedTransaction[];
-	extracted: readonly ExtractedTransaction[];
-	declaredTotals: DeclaredTotals;
-	file: File;
-	onBack: () => void;
-	dispatch: (action: WizardAction) => void;
+  records: readonly ParsedTransaction[];
+  extracted: readonly ExtractedTransaction[];
+  declaredTotals: DeclaredTotals;
+  file: File;
+  onBack: () => void;
+  dispatch: (action: WizardAction) => void;
 }) {
-	const recon = reconcile(records, declaredTotals);
-	const duplicates = useDuplicateFlags(records);
+  const recon = reconcile(records, declaredTotals);
+  const duplicates = useDuplicateFlags(records);
 
-	return (
-		<div className="flex flex-col gap-6">
-			{recon.ok ? null : <ReconciliationBanner recon={recon} />}
+  return (
+    <div className="flex flex-col gap-6">
+      {recon.ok ? null : <ReconciliationBanner recon={recon} />}
 
-			<div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
-				<PdfPane file={file} />
-				<ExtractedRows
-					extracted={extracted}
-					duplicateFlags={duplicates.flags}
-					dispatch={dispatch}
-				/>
-			</div>
+      <div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
+        <PdfPane file={file} />
+        <ExtractedRows
+          extracted={extracted}
+          duplicateFlags={duplicates.flags}
+          dispatch={dispatch}
+        />
+      </div>
 
-			<CommitBar
-				records={records}
-				duplicateCount={duplicates.count}
-				onBack={onBack}
-			/>
-		</div>
-	);
+      <CommitBar records={records} duplicateCount={duplicates.count} onBack={onBack} />
+    </div>
+  );
 }
 
 /** The source PDF in the browser's native viewer, via a revocable blob URL. */
 function PdfPane({ file }: { file: File }) {
-	const [url, setUrl] = useState<string | null>(null);
+  const [url, setUrl] = useState<string | null>(null);
 
-	useEffect(() => {
-		const objectUrl = URL.createObjectURL(file);
-		setUrl(objectUrl);
-		return () => URL.revokeObjectURL(objectUrl);
-	}, [file]);
+  useEffect(() => {
+    const objectUrl = URL.createObjectURL(file);
+    setUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [file]);
 
-	return (
-		<iframe
-			title="PDF statement"
-			src={url ?? undefined}
-			className="h-[85vh] w-full rounded-2xl border border-gousse-line bg-gousse-panel"
-		/>
-	);
+  return (
+    // The src is a blob of the file the user just picked, rendered by the
+    // browser's own PDF viewer — and every sandbox value strict enough to
+    // satisfy the rule stops that viewer running.
+    // oxlint-disable-next-line react/iframe-missing-sandbox
+    <iframe
+      title="PDF statement"
+      src={url ?? undefined}
+      className="h-[85vh] w-full rounded-2xl border border-gousse-line bg-gousse-panel"
+    />
+  );
 }
 
 /** The editable extracted-rows table: edit in place, delete a row, add a row. */
 function ExtractedRows({
-	extracted,
-	duplicateFlags,
-	dispatch,
+  extracted,
+  duplicateFlags,
+  dispatch,
 }: {
-	extracted: readonly ExtractedTransaction[];
-	/** Positional with `extracted`: does this row look already imported? */
-	duplicateFlags: readonly boolean[];
-	dispatch: (action: WizardAction) => void;
+  extracted: readonly ExtractedTransaction[];
+  /** Positional with `extracted`: does this row look already imported? */
+  duplicateFlags: readonly boolean[];
+  dispatch: (action: WizardAction) => void;
 }) {
-	return (
-		<div className="flex flex-col gap-3 overflow-hidden rounded-2xl border border-gousse-line">
-			<div className="max-h-[85vh] overflow-y-auto">
-				<table className="w-full text-sm">
-					<thead className="sticky top-0 bg-gousse-panel text-gousse-muted">
-						<tr>
-							<th className="px-2 py-2 text-left font-medium">Date</th>
-							<th className="px-2 py-2 text-left font-medium">Raw issuer</th>
-							<th className="px-2 py-2 text-right font-medium">Amount</th>
-							<th className="px-2 py-2" />
-						</tr>
-					</thead>
-					<tbody>
-						{extracted.map((tx, index) => (
-							// biome-ignore lint/suspicious/noArrayIndexKey: rows are edited in place by index; there is no stable id
-							<tr key={index} className="border-gousse-line border-t">
-								<td className="px-2 py-1">
-									<input
-										type="date"
-										aria-label={`Date, row ${index + 1}`}
-										value={toDateInputValue(tx.date)}
-										onChange={(event) =>
-											dispatch({
-												type: "edit-extracted",
-												index,
-												patch: { date: fromDateInputValue(event.target.value) },
-											})
-										}
-										className="w-full rounded-full border border-gousse-line bg-gousse-bg px-3 py-1 text-gousse-ink"
-									/>
-								</td>
-								<td className="px-2 py-1">
-									<div className="flex flex-col items-start gap-1">
-										<input
-											type="text"
-											aria-label={`Raw issuer, row ${index + 1}`}
-											value={tx.rawIssuerString}
-											onChange={(event) =>
-												dispatch({
-													type: "edit-extracted",
-													index,
-													patch: { rawIssuerString: event.target.value },
-												})
-											}
-											className="w-full rounded-full border border-gousse-line bg-gousse-bg px-3 py-1 text-gousse-ink"
-										/>
-										{duplicateFlags[index] ? <AlreadyImportedMark /> : null}
-									</div>
-								</td>
-								<td className="px-2 py-1">
-									<AmountInput
-										label={`Amount, row ${index + 1}`}
-										value={tx.amount}
-										onChange={(amount) =>
-											dispatch({
-												type: "edit-extracted",
-												index,
-												patch: { amount },
-											})
-										}
-									/>
-								</td>
-								<td className="px-2 py-1 text-right">
-									<Button
-										variant="ghost"
-										size="icon"
-										aria-label={`Delete row ${index + 1}`}
-										onClick={() =>
-											dispatch({ type: "delete-extracted", index })
-										}
-									>
-										✕
-									</Button>
-								</td>
-							</tr>
-						))}
-					</tbody>
-				</table>
-			</div>
+  return (
+    <div className="flex flex-col gap-3 overflow-hidden rounded-2xl border border-gousse-line">
+      <div className="max-h-[85vh] overflow-y-auto">
+        <table className="w-full text-sm">
+          <thead className="sticky top-0 bg-gousse-panel text-gousse-muted">
+            <tr>
+              <th className="px-2 py-2 text-left font-medium">Date</th>
+              <th className="px-2 py-2 text-left font-medium">Raw issuer</th>
+              <th className="px-2 py-2 text-right font-medium">Amount</th>
+              {/* The row-actions column: named for assistive tech rather than
+                  left blank, the same way the table columns elsewhere are. */}
+              <th className="px-2 py-2">
+                <span className="sr-only">Actions</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {extracted.map((tx, index) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: rows are edited in place by index; there is no stable id
+              <tr key={index} className="border-gousse-line border-t">
+                <td className="px-2 py-1">
+                  <input
+                    type="date"
+                    aria-label={`Date, row ${index + 1}`}
+                    value={toDateInputValue(tx.date)}
+                    onChange={(event) =>
+                      dispatch({
+                        type: "edit-extracted",
+                        index,
+                        patch: { date: fromDateInputValue(event.target.value) },
+                      })
+                    }
+                    className="w-full rounded-full border border-gousse-line bg-gousse-bg px-3 py-1 text-gousse-ink"
+                  />
+                </td>
+                <td className="px-2 py-1">
+                  <div className="flex flex-col items-start gap-1">
+                    <input
+                      type="text"
+                      aria-label={`Raw issuer, row ${index + 1}`}
+                      value={tx.rawIssuerString}
+                      onChange={(event) =>
+                        dispatch({
+                          type: "edit-extracted",
+                          index,
+                          patch: { rawIssuerString: event.target.value },
+                        })
+                      }
+                      className="w-full rounded-full border border-gousse-line bg-gousse-bg px-3 py-1 text-gousse-ink"
+                    />
+                    {duplicateFlags[index] ? <AlreadyImportedMark /> : null}
+                  </div>
+                </td>
+                <td className="px-2 py-1">
+                  <AmountInput
+                    label={`Amount, row ${index + 1}`}
+                    value={tx.amount}
+                    onChange={(amount) =>
+                      dispatch({
+                        type: "edit-extracted",
+                        index,
+                        patch: { amount },
+                      })
+                    }
+                  />
+                </td>
+                <td className="px-2 py-1 text-right">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Delete row ${index + 1}`}
+                    onClick={() => dispatch({ type: "delete-extracted", index })}
+                  >
+                    ✕
+                  </Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
-			<div className="px-2 pb-2">
-				<Button
-					variant="secondary"
-					size="sm"
-					onClick={() => dispatch({ type: "add-extracted" })}
-				>
-					Add row
-				</Button>
-			</div>
-		</div>
-	);
+      <div className="px-2 pb-2">
+        <Button variant="secondary" size="sm" onClick={() => dispatch({ type: "add-extracted" })}>
+          Add row
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -208,32 +203,32 @@ function ExtractedRows({
  * draft is dropped and the field reflects the committed number.
  */
 function AmountInput({
-	label,
-	value,
-	onChange,
+  label,
+  value,
+  onChange,
 }: {
-	label: string;
-	value: number;
-	onChange: (amount: number) => void;
+  label: string;
+  value: number;
+  onChange: (amount: number) => void;
 }) {
-	const [draft, setDraft] = useState<string | null>(null);
+  const [draft, setDraft] = useState<string | null>(null);
 
-	return (
-		<input
-			type="text"
-			inputMode="decimal"
-			aria-label={label}
-			value={draft ?? String(value)}
-			onChange={(event) => {
-				const next = event.target.value;
-				setDraft(next);
-				const n = Number.parseFloat(next);
-				if (Number.isFinite(n)) onChange(n);
-			}}
-			onBlur={() => setDraft(null)}
-			className="w-24 rounded-full border border-gousse-line bg-gousse-bg px-3 py-1 text-center text-gousse-ink tabular-nums"
-		/>
-	);
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      aria-label={label}
+      value={draft ?? String(value)}
+      onChange={(event) => {
+        const next = event.target.value;
+        setDraft(next);
+        const n = Number.parseFloat(next);
+        if (Number.isFinite(n)) onChange(n);
+      }}
+      onBlur={() => setDraft(null)}
+      className="w-24 rounded-full border border-gousse-line bg-gousse-bg px-3 py-1 text-center text-gousse-ink tabular-nums"
+    />
+  );
 }
 
 /**
@@ -241,45 +236,40 @@ function AmountInput({
  * to the declared totals. It points at where to look (a probable dropped row or
  * a summary line read as an operation) but never blocks commit.
  */
-function ReconciliationBanner({
-	recon,
-}: {
-	recon: ReturnType<typeof reconcile>;
-}) {
-	return (
-		<div
-			role="alert"
-			className="flex flex-col gap-2 rounded-2xl border border-gousse-high bg-gousse-panel p-4 text-sm"
-		>
-			<p className="font-medium text-gousse-high">
-				Reconciliation mismatch — the extracted rows don't match the statement's
-				declared totals.
-			</p>
-			<p className="text-gousse-muted">
-				A row may have been dropped, or a balance/summary line read as an
-				operation. Review the rows against the PDF — you can still commit.
-			</p>
-			<dl className="grid grid-cols-3 gap-x-4 gap-y-1 pt-1 text-gousse-ink">
-				<dt className="text-gousse-muted" />
-				<dt className="text-right text-gousse-muted">Extracted</dt>
-				<dt className="text-right text-gousse-muted">Declared</dt>
+function ReconciliationBanner({ recon }: { recon: ReturnType<typeof reconcile> }) {
+  return (
+    <div
+      role="alert"
+      className="flex flex-col gap-2 rounded-2xl border border-gousse-high bg-gousse-panel p-4 text-sm"
+    >
+      <p className="font-medium text-gousse-high">
+        Reconciliation mismatch — the extracted rows don't match the statement's declared totals.
+      </p>
+      <p className="text-gousse-muted">
+        A row may have been dropped, or a balance/summary line read as an operation. Review the rows
+        against the PDF — you can still commit.
+      </p>
+      <dl className="grid grid-cols-3 gap-x-4 gap-y-1 pt-1 text-gousse-ink">
+        <dt className="text-gousse-muted" />
+        <dt className="text-right text-gousse-muted">Extracted</dt>
+        <dt className="text-right text-gousse-muted">Declared</dt>
 
-				<dd className={recon.debitOk ? "" : "text-gousse-high"}>Debits</dd>
-				<dd className="text-right tabular-nums">
-					{formatCurrency(recon.extractedDebit, { signDisplay: false })}
-				</dd>
-				<dd className="text-right tabular-nums">
-					{formatCurrency(recon.declaredDebit, { signDisplay: false })}
-				</dd>
+        <dd className={recon.debitOk ? "" : "text-gousse-high"}>Debits</dd>
+        <dd className="text-right tabular-nums">
+          {formatCurrency(recon.extractedDebit, { signDisplay: false })}
+        </dd>
+        <dd className="text-right tabular-nums">
+          {formatCurrency(recon.declaredDebit, { signDisplay: false })}
+        </dd>
 
-				<dd className={recon.creditOk ? "" : "text-gousse-high"}>Credits</dd>
-				<dd className="text-right tabular-nums">
-					{formatCurrency(recon.extractedCredit, { signDisplay: false })}
-				</dd>
-				<dd className="text-right tabular-nums">
-					{formatCurrency(recon.declaredCredit, { signDisplay: false })}
-				</dd>
-			</dl>
-		</div>
-	);
+        <dd className={recon.creditOk ? "" : "text-gousse-high"}>Credits</dd>
+        <dd className="text-right tabular-nums">
+          {formatCurrency(recon.extractedCredit, { signDisplay: false })}
+        </dd>
+        <dd className="text-right tabular-nums">
+          {formatCurrency(recon.declaredCredit, { signDisplay: false })}
+        </dd>
+      </dl>
+    </div>
+  );
 }

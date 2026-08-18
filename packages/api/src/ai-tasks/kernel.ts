@@ -1,13 +1,13 @@
 import {
-	AI_TASKS,
-	type AiProvider,
-	type AiTask,
-	AiTaskSetting,
-	DEFAULT_AI_PROVIDER,
-	defaultModelFor,
-	isHostedProvider,
-	isModelOfProvider,
-	type TaskProviderRejected,
+  AI_TASKS,
+  type AiProvider,
+  type AiTask,
+  AiTaskSetting,
+  DEFAULT_AI_PROVIDER,
+  defaultModelFor,
+  isHostedProvider,
+  isModelOfProvider,
+  type TaskProviderRejected,
 } from "@mamen/shared/contract";
 
 /**
@@ -34,8 +34,8 @@ import {
 
 /** What one task runs on. */
 export interface AiTaskChoice {
-	readonly provider: AiProvider;
-	readonly model: string;
+  readonly provider: AiProvider;
+  readonly model: string;
 }
 
 /** Every task's choice — total over the catalogue, so there is no absent case. */
@@ -43,9 +43,9 @@ export type AiTaskChoices = { readonly [T in AiTask]: AiTaskChoice };
 
 /** One task's half-edit; either half may be omitted (see {@link applyChange}). */
 export interface AiTaskChange {
-	readonly task: AiTask;
-	readonly provider?: AiProvider | undefined;
-	readonly model?: string | undefined;
+  readonly task: AiTask;
+  readonly provider?: AiProvider | undefined;
+  readonly model?: string | undefined;
 }
 
 /**
@@ -56,9 +56,9 @@ export interface AiTaskChange {
  * build the error from this, one line above.
  */
 export interface AiTaskRejection {
-	readonly task: AiTask;
-	readonly provider: AiProvider;
-	readonly reason: TaskProviderRejected["reason"];
+  readonly task: AiTask;
+  readonly provider: AiProvider;
+  readonly reason: TaskProviderRejected["reason"];
 }
 
 /**
@@ -68,8 +68,8 @@ export interface AiTaskRejection {
  * same one, and moving it is one edit.
  */
 export const DEFAULT_AI_CHOICE: AiTaskChoice = {
-	provider: DEFAULT_AI_PROVIDER,
-	model: defaultModelFor(DEFAULT_AI_PROVIDER),
+  provider: DEFAULT_AI_PROVIDER,
+  model: defaultModelFor(DEFAULT_AI_PROVIDER),
 };
 
 /**
@@ -86,15 +86,11 @@ export const DEFAULT_AI_CHOICE: AiTaskChoice = {
  * front-door way into the same impossible pairing, which is why a model-only
  * edit is checked exactly as a two-field save is.
  */
-export const applyChange = (
-	change: AiTaskChange,
-	current: AiTaskChoice,
-): AiTaskChoice => {
-	const provider = change.provider ?? current.provider;
-	const model =
-		change.model ??
-		(provider === current.provider ? current.model : defaultModelFor(provider));
-	return { provider, model };
+export const applyChange = (change: AiTaskChange, current: AiTaskChoice): AiTaskChoice => {
+  const provider = change.provider ?? current.provider;
+  const model =
+    change.model ?? (provider === current.provider ? current.model : defaultModelFor(provider));
+  return { provider, model };
 };
 
 /**
@@ -108,23 +104,21 @@ export const applyChange = (
  * including the save that switches away from it.
  */
 const reasonFor = (
-	choice: AiTaskChoice,
-	configured: ReadonlySet<AiProvider>,
+  choice: AiTaskChoice,
+  configured: ReadonlySet<AiProvider>,
 ): "model-not-served" | "no-credential" | null => {
-	if (!isModelOfProvider(choice.provider, choice.model)) {
-		return "model-not-served";
-	}
-	if (isHostedProvider(choice.provider) && !configured.has(choice.provider)) {
-		return "no-credential";
-	}
-	return null;
+  if (!isModelOfProvider(choice.provider, choice.model)) {
+    return "model-not-served";
+  }
+  if (isHostedProvider(choice.provider) && !configured.has(choice.provider)) {
+    return "no-credential";
+  }
+  return null;
 };
 
 /** Can this task run, as it currently stands? */
-const runnable = (
-	choice: AiTaskChoice,
-	configured: ReadonlySet<AiProvider>,
-): boolean => reasonFor(choice, configured) === null;
+const runnable = (choice: AiTaskChoice, configured: ReadonlySet<AiProvider>): boolean =>
+  reasonFor(choice, configured) === null;
 
 /**
  * The **resolver's** decision: what does this task run on, or why can it not?
@@ -137,13 +131,13 @@ const runnable = (
  * resolver checks the one task about to spend a request.
  */
 export const rejectTask = (
-	task: AiTask,
-	current: AiTaskChoices,
-	configured: ReadonlySet<AiProvider>,
+  task: AiTask,
+  current: AiTaskChoices,
+  configured: ReadonlySet<AiProvider>,
 ): AiTaskRejection | null => {
-	const choice = current[task];
-	const reason = reasonFor(choice, configured);
-	return reason === null ? null : { task, provider: choice.provider, reason };
+  const choice = current[task];
+  const reason = reasonFor(choice, configured);
+  return reason === null ? null : { task, provider: choice.provider, reason };
 };
 
 /**
@@ -152,17 +146,15 @@ export const rejectTask = (
  * is "what runs each task", and "the default, because nobody has chosen" is an
  * answer to it.
  */
-export const toSettings = (
-	current: AiTaskChoices,
-): ReadonlyArray<AiTaskSetting> =>
-	AI_TASKS.map(
-		(task) =>
-			new AiTaskSetting({
-				task,
-				provider: current[task].provider,
-				model: current[task].model,
-			}),
-	);
+export const toSettings = (current: AiTaskChoices): ReadonlyArray<AiTaskSetting> =>
+  AI_TASKS.map(
+    (task) =>
+      new AiTaskSetting({
+        task,
+        provider: current[task].provider,
+        model: current[task].model,
+      }),
+  );
 
 /**
  * The **patch door's** decision. `null` means every entry lands somewhere
@@ -176,18 +168,18 @@ export const toSettings = (
  * it is caught.
  */
 export const rejectPatch = (
-	changes: ReadonlyArray<AiTaskChange>,
-	current: AiTaskChoices,
-	configured: ReadonlySet<AiProvider>,
+  changes: ReadonlyArray<AiTaskChange>,
+  current: AiTaskChoices,
+  configured: ReadonlySet<AiProvider>,
 ): AiTaskRejection | null => {
-	for (const change of changes) {
-		const choice = applyChange(change, current[change.task]);
-		const reason = reasonFor(choice, configured);
-		if (reason !== null) {
-			return { task: change.task, provider: choice.provider, reason };
-		}
-	}
-	return null;
+  for (const change of changes) {
+    const choice = applyChange(change, current[change.task]);
+    const reason = reasonFor(choice, configured);
+    if (reason !== null) {
+      return { task: change.task, provider: choice.provider, reason };
+    }
+  }
+  return null;
 };
 
 /**
@@ -205,22 +197,18 @@ export const rejectPatch = (
  *   produce — or the rule is not a rule.
  */
 export const rejectClear = (
-	provider: AiProvider,
-	current: AiTaskChoices,
-	configured: ReadonlySet<AiProvider>,
+  provider: AiProvider,
+  current: AiTaskChoices,
+  configured: ReadonlySet<AiProvider>,
 ): AiTaskRejection | null => {
-	const after = new Set(
-		[...configured].filter((candidate) => candidate !== provider),
-	);
-	// Over the settings themselves rather than over `AI_TASKS`: the two sets are
-	// the same (the store answers for every task in the catalogue), and reading
-	// the argument keeps this a function of its inputs alone.
-	for (const [task, choice] of Object.entries(current) as ReadonlyArray<
-		[AiTask, AiTaskChoice]
-	>) {
-		if (runnable(choice, configured) && !runnable(choice, after)) {
-			return { task, provider, reason: "credential-in-use" };
-		}
-	}
-	return null;
+  const after = new Set([...configured].filter((candidate) => candidate !== provider));
+  // Over the settings themselves rather than over `AI_TASKS`: the two sets are
+  // the same (the store answers for every task in the catalogue), and reading
+  // the argument keeps this a function of its inputs alone.
+  for (const [task, choice] of Object.entries(current) as ReadonlyArray<[AiTask, AiTaskChoice]>) {
+    if (runnable(choice, configured) && !runnable(choice, after)) {
+      return { task, provider, reason: "credential-in-use" };
+    }
+  }
+  return null;
 };

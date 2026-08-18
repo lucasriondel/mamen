@@ -15,21 +15,19 @@ import { useIssuerMutations } from "./use-issuer-mutations";
  * (`CategoryNotLeaf`) and surface as a toast anyway.
  */
 export function IssuerDefaultCategoryPicker({ issuer }: { issuer: Issuer }) {
-	const { setDefaultCategory } = useIssuerMutations();
+  const { setDefaultCategory } = useIssuerMutations();
 
-	return (
-		<div className="flex flex-col gap-1">
-			<span className="text-sm text-gousse-muted">Default category</span>
-			<CategoryLeafPicker
-				value={issuer.defaultCategoryId}
-				onChange={(categoryId) =>
-					setDefaultCategory.mutate({ id: issuer.id, categoryId })
-				}
-				disabled={setDefaultCategory.isPending}
-				title="Set this issuer's default category"
-				selectedLabel="Current default"
-				clearLabel="Remove default category"
-			/>
-		</div>
-	);
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-sm text-gousse-muted">Default category</span>
+      <CategoryLeafPicker
+        value={issuer.defaultCategoryId}
+        onChange={(categoryId) => setDefaultCategory.mutate({ id: issuer.id, categoryId })}
+        disabled={setDefaultCategory.isPending}
+        title="Set this issuer's default category"
+        selectedLabel="Current default"
+        clearLabel="Remove default category"
+      />
+    </div>
+  );
 }

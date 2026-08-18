@@ -16,5 +16,5 @@ import { Effect } from "effect";
  * 3.35) suffices; the tally itself is discarded, nothing read it.
  */
 export default Effect.flatMap(SqlClient.SqlClient, (sql) =>
-	sql`ALTER TABLE rules DROP COLUMN matchCount`.pipe(Effect.asVoid),
+  sql`ALTER TABLE rules DROP COLUMN matchCount`.pipe(Effect.asVoid),
 );

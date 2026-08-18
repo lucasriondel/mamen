@@ -3,15 +3,15 @@ import { ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface BackLinkProps {
-	/**
-	 * Where to go when there is no history to pop — a direct load, a bookmark, or
-	 * a link opened in a new tab. Also the link's `href`, so the control still
-	 * middle-clicks and right-click-copies like the navigation it looks like.
-	 */
-	to: string;
-	/** The label beside the arrow, e.g. "Transactions". */
-	children: React.ReactNode;
-	className?: string;
+  /**
+   * Where to go when there is no history to pop — a direct load, a bookmark, or
+   * a link opened in a new tab. Also the link's `href`, so the control still
+   * middle-clicks and right-click-copies like the navigation it looks like.
+   */
+  to: string;
+  /** The label beside the arrow, e.g. "Transactions". */
+  children: React.ReactNode;
+  className?: string;
 }
 
 /**
@@ -28,47 +28,47 @@ export interface BackLinkProps {
  * control is never a dead end.
  */
 export function BackLink({ to, children, className }: BackLinkProps) {
-	const router = useRouter();
-	const canGoBack = useCanGoBack();
+  const router = useRouter();
+  const canGoBack = useCanGoBack();
 
-	const classes = cn(
-		"flex items-center gap-1 self-start text-sm text-gousse-muted transition-colors hover:text-gousse-ink",
-		className,
-	);
+  const classes = cn(
+    "flex items-center gap-1 self-start text-sm text-gousse-muted transition-colors hover:text-gousse-ink",
+    className,
+  );
 
-	if (!canGoBack) {
-		return (
-			<Link to={to} className={classes}>
-				<ArrowLeft size={16} aria-hidden />
-				{children}
-			</Link>
-		);
-	}
+  if (!canGoBack) {
+    return (
+      <Link to={to} className={classes}>
+        <ArrowLeft size={16} aria-hidden />
+        {children}
+      </Link>
+    );
+  }
 
-	return (
-		// Rendered as an anchor with a real `href` so it keeps a link's semantics
-		// and modifier-click behaviour; the plain-click path is intercepted to pop
-		// history instead of pushing a new entry.
-		<a
-			href={to}
-			className={classes}
-			onClick={(event) => {
-				if (
-					event.defaultPrevented ||
-					event.button !== 0 ||
-					event.metaKey ||
-					event.ctrlKey ||
-					event.shiftKey ||
-					event.altKey
-				) {
-					return;
-				}
-				event.preventDefault();
-				router.history.back();
-			}}
-		>
-			<ArrowLeft size={16} aria-hidden />
-			{children}
-		</a>
-	);
+  return (
+    // Rendered as an anchor with a real `href` so it keeps a link's semantics
+    // and modifier-click behaviour; the plain-click path is intercepted to pop
+    // history instead of pushing a new entry.
+    <a
+      href={to}
+      className={classes}
+      onClick={(event) => {
+        if (
+          event.defaultPrevented ||
+          event.button !== 0 ||
+          event.metaKey ||
+          event.ctrlKey ||
+          event.shiftKey ||
+          event.altKey
+        ) {
+          return;
+        }
+        event.preventDefault();
+        router.history.back();
+      }}
+    >
+      <ArrowLeft size={16} aria-hidden />
+      {children}
+    </a>
+  );
 }

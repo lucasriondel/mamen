@@ -25,9 +25,7 @@ import { cn } from "@/lib/utils";
  * so membership is the whole validity test, done once at module load rather than
  * per render.
  */
-const KNOWN_ICON_NAMES: ReadonlySet<string> = new Set<string>(
-	Object.keys(dynamicIconImports),
-);
+const KNOWN_ICON_NAMES: ReadonlySet<string> = new Set<string>(Object.keys(dynamicIconImports));
 
 /**
  * Every id the registry knows, sorted — the picker's candidate list (issue #58).
@@ -35,12 +33,12 @@ const KNOWN_ICON_NAMES: ReadonlySet<string> = new Set<string>(
  * filter re-runs on every character typed.
  */
 export const ICON_NAMES: readonly IconName[] = Object.keys(dynamicIconImports)
-	.sort()
-	.map((name) => name as IconName);
+  .sort()
+  .map((name) => name as IconName);
 
 /** Is this string an id the registry can resolve? */
 export function isIconName(name: string): name is IconName {
-	return KNOWN_ICON_NAMES.has(name);
+  return KNOWN_ICON_NAMES.has(name);
 }
 
 /**
@@ -61,26 +59,26 @@ const unresolvable = new Set<IconName>();
 const inFlight = new Map<IconName, Promise<void>>();
 
 function load(name: IconName): Promise<void> {
-	const existing = inFlight.get(name);
-	if (existing !== undefined) return existing;
-	const promise = dynamicIconImports[name]()
-		.then((module) => {
-			resolved.set(name, module.default);
-		})
-		.catch(() => {
-			unresolvable.add(name);
-		})
-		.finally(() => {
-			inFlight.delete(name);
-		});
-	inFlight.set(name, promise);
-	return promise;
+  const existing = inFlight.get(name);
+  if (existing !== undefined) return existing;
+  const promise = dynamicIconImports[name]()
+    .then((module) => {
+      resolved.set(name, module.default);
+    })
+    .catch(() => {
+      unresolvable.add(name);
+    })
+    .finally(() => {
+      inFlight.delete(name);
+    });
+  inFlight.set(name, promise);
+  return promise;
 }
 
 type Resolution =
-	| { status: "loading" }
-	| { status: "ready"; Icon: LucideIcon }
-	| { status: "unresolvable" };
+  | { status: "loading" }
+  | { status: "ready"; Icon: LucideIcon }
+  | { status: "unresolvable" };
 
 /**
  * What we can draw for this name *right now*. Read from the module caches rather
@@ -88,20 +86,20 @@ type Resolution =
  * render can trust them, and a name already fetched paints on its first render.
  */
 function resolutionOf(name: string): Resolution {
-	if (!isIconName(name)) return { status: "unresolvable" };
-	const Icon = resolved.get(name);
-	if (Icon !== undefined) return { status: "ready", Icon };
-	if (unresolvable.has(name)) return { status: "unresolvable" };
-	return { status: "loading" };
+  if (!isIconName(name)) return { status: "unresolvable" };
+  const Icon = resolved.get(name);
+  if (Icon !== undefined) return { status: "ready", Icon };
+  if (unresolvable.has(name)) return { status: "unresolvable" };
+  return { status: "loading" };
 }
 
 export interface CategoryIconProps {
-	/** The category's **Icon name** — any string; an unresolvable one degrades. */
-	name: string;
-	/** The category's **Resolved colour**; omitted → `currentColor`. */
-	color?: string;
-	size?: number;
-	className?: string;
+  /** The category's **Icon name** — any string; an unresolvable one degrades. */
+  name: string;
+  /** The category's **Resolved colour**; omitted → `currentColor`. */
+  color?: string;
+  size?: number;
+  className?: string;
 }
 
 /**
@@ -120,44 +118,35 @@ export interface CategoryIconProps {
  * empty placeholder: reserving the box keeps the row from reflowing, and showing
  * *no* glyph for a tick beats flashing the wrong one.
  */
-export function CategoryIcon({
-	name,
-	color,
-	size = 16,
-	className,
-}: CategoryIconProps) {
-	const resolution = resolutionOf(name);
-	const [, rerender] = useReducer((n: number) => n + 1, 0);
+export function CategoryIcon({ name, color, size = 16, className }: CategoryIconProps) {
+  const resolution = resolutionOf(name);
+  const [, rerender] = useReducer((n: number) => n + 1, 0);
 
-	useEffect(() => {
-		if (!isIconName(name) || resolution.status !== "loading") return;
-		let live = true;
-		void load(name).then(() => {
-			if (live) rerender();
-		});
-		return () => {
-			live = false;
-		};
-	}, [name, resolution.status]);
+  useEffect(() => {
+    if (!isIconName(name) || resolution.status !== "loading") return;
+    let live = true;
+    void load(name).then(() => {
+      if (live) rerender();
+    });
+    return () => {
+      live = false;
+    };
+  }, [name, resolution.status]);
 
-	const shared = {
-		size,
-		color,
-		className: cn("shrink-0", className),
-		"aria-hidden": true,
-	} as const;
+  const shared = {
+    size,
+    color,
+    className: cn("shrink-0", className),
+    "aria-hidden": true,
+  } as const;
 
-	if (resolution.status === "unresolvable") {
-		return <Shapes {...shared} data-category-icon="fallback" />;
-	}
-	if (resolution.status === "loading") {
-		return (
-			<span
-				aria-hidden
-				className="inline-block shrink-0"
-				style={{ width: size, height: size }}
-			/>
-		);
-	}
-	return <resolution.Icon {...shared} data-category-icon={name} />;
+  if (resolution.status === "unresolvable") {
+    return <Shapes {...shared} data-category-icon="fallback" />;
+  }
+  if (resolution.status === "loading") {
+    return (
+      <span aria-hidden className="inline-block shrink-0" style={{ width: size, height: size }} />
+    );
+  }
+  return <resolution.Icon {...shared} data-category-icon={name} />;
 }

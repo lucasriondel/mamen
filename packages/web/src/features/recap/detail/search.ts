@@ -1,8 +1,8 @@
 import { UNASSIGNED_FILTER } from "@mamen/shared/contract";
 import {
-	type TransactionsSearch,
-	toIdList,
-	validateTransactionsSearch,
+  type TransactionsSearch,
+  toIdList,
+  validateTransactionsSearch,
 } from "@/features/transactions/search";
 import type { PeriodKind } from "../period";
 import type { RecapSearch } from "../search";
@@ -33,12 +33,12 @@ import type { RecapSearch } from "../search";
  * bucket.
  */
 export type RecapDetailSearch = TransactionsSearch &
-	Pick<RecapSearch, "period" | "month" | "year" | "accountIds"> & {
-		/** Which recap breakdown this page drills into. */
-		by?: RecapDetailAxis;
-		/** The bucket: an entity id, or `"none"` for the Unassigned bucket. */
-		bucket?: number | typeof UNASSIGNED_FILTER;
-	};
+  Pick<RecapSearch, "period" | "month" | "year" | "accountIds"> & {
+    /** Which recap breakdown this page drills into. */
+    by?: RecapDetailAxis;
+    /** The bucket: an entity id, or `"none"` for the Unassigned bucket. */
+    bucket?: number | typeof UNASSIGNED_FILTER;
+  };
 
 /** The two recap breakdowns a detail page can drill into. */
 export type RecapDetailAxis = "issuer" | "category";
@@ -54,9 +54,9 @@ export type RecapDetailAxis = "issuer" | "category";
  * target should not mean rewriting them.
  */
 export type RecapDetailTarget = {
-	kind: "bucket";
-	axis: RecapDetailAxis;
-	bucket: number | null;
+  kind: "bucket";
+  axis: RecapDetailAxis;
+  bucket: number | null;
 };
 
 const AXES: ReadonlyArray<RecapDetailAxis> = ["issuer", "category"];
@@ -74,51 +74,37 @@ const PERIOD_KINDS: ReadonlyArray<PeriodKind> = ["month", "year", "all"];
  * actually uses them, exactly as the recap's own validator does, so the URL never
  * carries a stale month once you switch to year/all.
  */
-export function validateRecapDetailSearch(
-	search: Record<string, unknown>,
-): RecapDetailSearch {
-	const result: RecapDetailSearch = validateTransactionsSearch(search);
+export function validateRecapDetailSearch(search: Record<string, unknown>): RecapDetailSearch {
+  const result: RecapDetailSearch = validateTransactionsSearch(search);
 
-	if (AXES.includes(search.by as RecapDetailAxis)) {
-		result.by = search.by as RecapDetailAxis;
-	}
+  if (AXES.includes(search.by as RecapDetailAxis)) {
+    result.by = search.by as RecapDetailAxis;
+  }
 
-	if (search.bucket === UNASSIGNED_FILTER) {
-		result.bucket = UNASSIGNED_FILTER;
-	} else {
-		const bucket = Number(search.bucket);
-		if (
-			search.bucket != null &&
-			search.bucket !== "" &&
-			Number.isFinite(bucket)
-		) {
-			result.bucket = bucket;
-		}
-	}
+  if (search.bucket === UNASSIGNED_FILTER) {
+    result.bucket = UNASSIGNED_FILTER;
+  } else {
+    const bucket = Number(search.bucket);
+    if (search.bucket != null && search.bucket !== "" && Number.isFinite(bucket)) {
+      result.bucket = bucket;
+    }
+  }
 
-	const period = PERIOD_KINDS.includes(search.period as PeriodKind)
-		? (search.period as PeriodKind)
-		: undefined;
-	if (period != null) result.period = period;
-	if (
-		period === "month" &&
-		typeof search.month === "string" &&
-		search.month !== ""
-	) {
-		result.month = search.month;
-	}
-	if (
-		period === "year" &&
-		typeof search.year === "string" &&
-		search.year !== ""
-	) {
-		result.year = search.year;
-	}
+  const period = PERIOD_KINDS.includes(search.period as PeriodKind)
+    ? (search.period as PeriodKind)
+    : undefined;
+  if (period != null) result.period = period;
+  if (period === "month" && typeof search.month === "string" && search.month !== "") {
+    result.month = search.month;
+  }
+  if (period === "year" && typeof search.year === "string" && search.year !== "") {
+    result.year = search.year;
+  }
 
-	const accountIds = toIdList(search.accountIds);
-	if (accountIds.length > 0) result.accountIds = accountIds;
+  const accountIds = toIdList(search.accountIds);
+  if (accountIds.length > 0) result.accountIds = accountIds;
 
-	return result;
+  return result;
 }
 
 /**
@@ -132,13 +118,11 @@ export function validateRecapDetailSearch(
  * matching the `null` bucket id the recap summary itself reports for unattributed
  * spend.
  */
-export function toDetailTarget(
-	search: RecapDetailSearch,
-): RecapDetailTarget | undefined {
-	if (search.by === undefined || search.bucket === undefined) return undefined;
-	return {
-		kind: "bucket",
-		axis: search.by,
-		bucket: search.bucket === UNASSIGNED_FILTER ? null : search.bucket,
-	};
+export function toDetailTarget(search: RecapDetailSearch): RecapDetailTarget | undefined {
+  if (search.by === undefined || search.bucket === undefined) return undefined;
+  return {
+    kind: "bucket",
+    axis: search.by,
+    bucket: search.bucket === UNASSIGNED_FILTER ? null : search.bucket,
+  };
 }

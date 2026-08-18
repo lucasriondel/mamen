@@ -6,6 +6,15 @@ import { categoryHoldsMoney, toErrorMessage } from "@/lib/sdk-error";
 import { slugify } from "@/lib/utils";
 
 /**
+ * Every write in this file fails the same way: the tagged error's own copy, as a
+ * toast. Module scope rather than inside the hook — it closes over nothing, so a
+ * copy per render would be one closure per render for one constant behaviour.
+ */
+const onError = (error: unknown) => {
+  toast.error(toErrorMessage(error));
+};
+
+/**
  * A new category **inherits** its colour: `null`, not a colour of its own (ADR
  * 0006 / issue #55). This replaces a hardcoded `#94a3b8`, which was a live bug —
  * every user-created category came out grey regardless of the folder it was
@@ -38,141 +47,125 @@ const NEW_CATEGORY_ICON = "tag";
  * break. The re-parent cycle guard (`CategoryWouldCycle`) surfaces the same way.
  */
 export function useCategoryMutations() {
-	const queryClient = useQueryClient();
+  const queryClient = useQueryClient();
 
-	const invalidate = () =>
-		queryClient.invalidateQueries({ queryKey: categoryKeys.all });
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: categoryKeys.all });
 
-	const onError = (error: unknown) => {
-		toast.error(toErrorMessage(error));
-	};
+  // **Create** a category, optionally under a parent (`parentId: null` = a new
+  // root). One gesture, no folder-vs-leaf variant: the node is born a leaf and
+  // becomes a folder iff something is later nested beneath it (ADR 0003 / issue
+  // #32). Nesting under an existing leaf is a **Kind flip**; if that leaf still
+  // holds money the API refuses (`CategoryHoldsMoney`) and the view answers with
+  // the spill dialog, so the toast is suppressed for that one case to avoid
+  // double-signalling.
+  const create = useMutation({
+    mutationFn: ({
+      name,
+      parentId,
+      icon = NEW_CATEGORY_ICON,
+      color = NEW_COLOR,
+    }: {
+      name: string;
+      parentId: CategoryId | null;
+      /** An **Icon name** chosen up front; omitted, the node gets the default. */
+      icon?: string;
+      /**
+       * A colour chosen up front (issue #130): the create dialog offers the same
+       * merged appearance editor the rows do, so a category can be born with one.
+       * Omitted — and by default — it is `null` and the node **inherits**.
+       */
+      color?: string | null;
+    }): Promise<Category> =>
+      categoryMutations.create({
+        name,
+        slug: slugify(name),
+        color,
+        icon,
+        parentId,
+        sortOrder: 0,
+      }),
+    onSuccess: invalidate,
+    onError: (error) => {
+      if (!categoryHoldsMoney(error)) onError(error);
+    },
+  });
 
-	// **Create** a category, optionally under a parent (`parentId: null` = a new
-	// root). One gesture, no folder-vs-leaf variant: the node is born a leaf and
-	// becomes a folder iff something is later nested beneath it (ADR 0003 / issue
-	// #32). Nesting under an existing leaf is a **Kind flip**; if that leaf still
-	// holds money the API refuses (`CategoryHoldsMoney`) and the view answers with
-	// the spill dialog, so the toast is suppressed for that one case to avoid
-	// double-signalling.
-	const create = useMutation({
-		mutationFn: ({
-			name,
-			parentId,
-			icon = NEW_CATEGORY_ICON,
-			color = NEW_COLOR,
-		}: {
-			name: string;
-			parentId: CategoryId | null;
-			/** An **Icon name** chosen up front; omitted, the node gets the default. */
-			icon?: string;
-			/**
-			 * A colour chosen up front (issue #130): the create dialog offers the same
-			 * merged appearance editor the rows do, so a category can be born with one.
-			 * Omitted — and by default — it is `null` and the node **inherits**.
-			 */
-			color?: string | null;
-		}): Promise<Category> =>
-			categoryMutations.create({
-				name,
-				slug: slugify(name),
-				color,
-				icon,
-				parentId,
-				sortOrder: 0,
-			}),
-		onSuccess: invalidate,
-		onError: (error) => {
-			if (!categoryHoldsMoney(error)) onError(error);
-		},
-	});
+  // Rename any node without losing history — only the display name changes.
+  const rename = useMutation({
+    mutationFn: ({ id, name }: { id: CategoryId; name: string }) =>
+      categoryMutations.update(id, { name }),
+    onSuccess: invalidate,
+    onError,
+  });
 
-	// Rename any node without losing history — only the display name changes.
-	const rename = useMutation({
-		mutationFn: ({ id, name }: { id: CategoryId; name: string }) =>
-			categoryMutations.update(id, { name }),
-		onSuccess: invalidate,
-		onError,
-	});
+  // Set a node's **appearance** — its **Icon name** (the Lucide id the grid
+  // chose) and its colour, in **one** patch (ADR 0006 / issues #58, #130). They
+  // were two single-field mutations behind two popovers; the editor is one
+  // control now, so a visit that changes both is one request rather than two
+  // racing invalidations of the same tree.
+  //
+  // Still a narrow patch, and narrower than the editor: the caller sends only the
+  // half that actually moved, so this rides the same update endpoint as rename
+  // and move without ever restating a field it wasn't asked about. One gesture
+  // does not have to mean one rewrite of both columns — someone renaming the
+  // category cannot be clobbered by someone restyling it, and a Save that changed
+  // nothing is no write at all.
+  //
+  // `color: null` is the whole point of the colour half: it stores a *reference*
+  // to the nearest coloured ancestor rather than a colour, so the node resumes
+  // inheriting and a later folder recolour reaches it again. Invalidating
+  // refetches the tree, which is what repaints every descendant that never opted
+  // out — the propagation is a re-resolve, not a cascade of writes.
+  const setAppearance = useMutation({
+    mutationFn: ({
+      id,
+      ...patch
+    }: {
+      id: CategoryId;
+      /** Omitted = unchanged; the editor sends what moved and nothing else. */
+      icon?: string;
+      color?: string | null;
+    }) => categoryMutations.update(id, patch),
+    onSuccess: invalidate,
+    onError,
+  });
 
-	// Set a node's **appearance** — its **Icon name** (the Lucide id the grid
-	// chose) and its colour, in **one** patch (ADR 0006 / issues #58, #130). They
-	// were two single-field mutations behind two popovers; the editor is one
-	// control now, so a visit that changes both is one request rather than two
-	// racing invalidations of the same tree.
-	//
-	// Still a narrow patch, and narrower than the editor: the caller sends only the
-	// half that actually moved, so this rides the same update endpoint as rename
-	// and move without ever restating a field it wasn't asked about. One gesture
-	// does not have to mean one rewrite of both columns — someone renaming the
-	// category cannot be clobbered by someone restyling it, and a Save that changed
-	// nothing is no write at all.
-	//
-	// `color: null` is the whole point of the colour half: it stores a *reference*
-	// to the nearest coloured ancestor rather than a colour, so the node resumes
-	// inheriting and a later folder recolour reaches it again. Invalidating
-	// refetches the tree, which is what repaints every descendant that never opted
-	// out — the propagation is a re-resolve, not a cascade of writes.
-	const setAppearance = useMutation({
-		mutationFn: ({
-			id,
-			...patch
-		}: {
-			id: CategoryId;
-			/** Omitted = unchanged; the editor sends what moved and nothing else. */
-			icon?: string;
-			color?: string | null;
-		}) => categoryMutations.update(id, patch),
-		onSuccess: invalidate,
-		onError,
-	});
+  // Move any node to a different parent (`parentId: null` promotes it to a
+  // root); its id is unchanged, so its transactions and its whole subtree follow
+  // for free. Any node is a legal parent now (ADR 0003); the API refuses a move
+  // that would form a cycle (`CategoryWouldCycle`) or strand money under a
+  // money-holding target (`CategoryHoldsMoney`), both surfaced as a toast.
+  const move = useMutation({
+    mutationFn: ({ id, parentId }: { id: CategoryId; parentId: CategoryId | null }) =>
+      categoryMutations.update(id, { parentId }),
+    onSuccess: invalidate,
+    onError,
+  });
 
-	// Move any node to a different parent (`parentId: null` promotes it to a
-	// root); its id is unchanged, so its transactions and its whole subtree follow
-	// for free. Any node is a legal parent now (ADR 0003); the API refuses a move
-	// that would form a cycle (`CategoryWouldCycle`) or strand money under a
-	// money-holding target (`CategoryHoldsMoney`), both surfaced as a toast.
-	const move = useMutation({
-		mutationFn: ({
-			id,
-			parentId,
-		}: {
-			id: CategoryId;
-			parentId: CategoryId | null;
-		}) => categoryMutations.update(id, { parentId }),
-		onSuccess: invalidate,
-		onError,
-	});
+  // **Spill** (issue #30): the answer to a refused Kind flip. Create a new child
+  // leaf under the money-holding node and move its money into it atomically
+  // (server-side), so the node becomes a folder and nothing is stranded. The
+  // user always names the destination — never auto-named.
+  const spill = useMutation({
+    mutationFn: ({ id, name }: { id: CategoryId; name: string }): Promise<Category> =>
+      categoryMutations.spill(id, {
+        name,
+        slug: slugify(name),
+        color: NEW_COLOR,
+        icon: NEW_CATEGORY_ICON,
+        sortOrder: 0,
+      }),
+    onSuccess: invalidate,
+    onError,
+  });
 
-	// **Spill** (issue #30): the answer to a refused Kind flip. Create a new child
-	// leaf under the money-holding node and move its money into it atomically
-	// (server-side), so the node becomes a folder and nothing is stranded. The
-	// user always names the destination — never auto-named.
-	const spill = useMutation({
-		mutationFn: ({
-			id,
-			name,
-		}: {
-			id: CategoryId;
-			name: string;
-		}): Promise<Category> =>
-			categoryMutations.spill(id, {
-				name,
-				slug: slugify(name),
-				color: NEW_COLOR,
-				icon: NEW_CATEGORY_ICON,
-				sortOrder: 0,
-			}),
-		onSuccess: invalidate,
-		onError,
-	});
+  // The guarded delete: the API refuses (`CategoryInUse`) while anything depends
+  // on the category, and the toast names the dependents.
+  const remove = useMutation({
+    mutationFn: (id: CategoryId) => categoryMutations.remove(id),
+    onSuccess: invalidate,
+    onError,
+  });
 
-	// The guarded delete: the API refuses (`CategoryInUse`) while anything depends
-	// on the category, and the toast names the dependents.
-	const remove = useMutation({
-		mutationFn: (id: CategoryId) => categoryMutations.remove(id),
-		onSuccess: invalidate,
-		onError,
-	});
-
-	return { create, rename, setAppearance, move, spill, remove };
+  return { create, rename, setAppearance, move, spill, remove };
 }

@@ -7,13 +7,9 @@ import { PageLayout } from "@/components/page-layout";
 import { Empty } from "@/components/ui/empty";
 import { resolveCategoryColors } from "@/lib/category-tree";
 import { categoryQueries, issuerQueries, transactionQueries } from "@/lib/sdk";
+import { NO_ITEMS } from "@/lib/utils";
 import { filterIssuers } from "./issuer-filter";
-import {
-	type IssuerMetrics,
-	type IssuerSort,
-	issuerMetrics,
-	sortIssuers,
-} from "./issuer-sort";
+import { type IssuerMetrics, type IssuerSort, issuerMetrics, sortIssuers } from "./issuer-sort";
 import { IssuersFilterInput } from "./issuers-filter-input";
 import { IssuersTable } from "./issuers-table";
 import { IssuersTableSkeleton } from "./issuers-table-skeleton";
@@ -57,134 +53,127 @@ const CATEGORY_SCAN_LIMIT = 200;
  * Per the PRD, a read failure shows an inline error state.
  */
 export function IssuersView() {
-	const search = routeApi.useSearch();
-	const navigate = routeApi.useNavigate();
-	const sort = toIssuerSort(search);
-	const query = search.q ?? "";
+  const search = routeApi.useSearch();
+  const navigate = routeApi.useNavigate();
+  const sort = toIssuerSort(search);
+  const query = search.q ?? "";
 
-	// Always fetch the issuers alphabetically; the client re-sorts to the chosen
-	// key/direction so switching sorts never triggers a list refetch.
-	const issuersQuery = useQuery(
-		issuerQueries.list({ orderBy: "name", limit: ISSUER_SCAN_LIMIT }),
-	);
-	const issuers = (issuersQuery.data?.items ?? []) as readonly Issuer[];
+  // Always fetch the issuers alphabetically; the client re-sorts to the chosen
+  // key/direction so switching sorts never triggers a list refetch.
+  const issuersQuery = useQuery(issuerQueries.list({ orderBy: "name", limit: ISSUER_SCAN_LIMIT }));
+  const issuers = (issuersQuery.data?.items ?? NO_ITEMS) as readonly Issuer[];
 
-	// The category tree, read once for the whole table: a row shows its issuer's
-	// **issuer default category**, and an inheriting leaf's colour lives on an
-	// ancestor, so the colours must be resolved against the full tree, not per row.
-	const categoriesQuery = useQuery(
-		categoryQueries.list({ limit: CATEGORY_SCAN_LIMIT }),
-	);
-	const categories = (categoriesQuery.data?.items ?? []) as readonly Category[];
+  // The category tree, read once for the whole table: a row shows its issuer's
+  // **issuer default category**, and an inheriting leaf's colour lives on an
+  // ancestor, so the colours must be resolved against the full tree, not per row.
+  const categoriesQuery = useQuery(categoryQueries.list({ limit: CATEGORY_SCAN_LIMIT }));
+  const categories = (categoriesQuery.data?.items ?? NO_ITEMS) as readonly Category[];
 
-	const categoriesById = useMemo(
-		() => new Map(categories.map((category) => [category.id, category])),
-		[categories],
-	);
-	const categoryColorById = useMemo(
-		() => resolveCategoryColors(categories),
-		[categories],
-	);
+  const categoriesById = useMemo(
+    () => new Map(categories.map((category) => [category.id, category])),
+    [categories],
+  );
+  const categoryColorById = useMemo(() => resolveCategoryColors(categories), [categories]);
 
-	const txnQueries = useQueries({
-		queries: issuers.map((issuer) => ({
-			...transactionQueries.list({
-				issuerId: issuer.id,
-				limit: ISSUER_TXN_SCAN_LIMIT,
-			}),
-		})),
-	});
+  const txnQueries = useQueries({
+    queries: issuers.map((issuer) => ({
+      ...transactionQueries.list({
+        issuerId: issuer.id,
+        limit: ISSUER_TXN_SCAN_LIMIT,
+      }),
+    })),
+  });
 
-	// Filter before sorting: both are pure passes over the same in-memory list,
-	// and narrowing first means the sort only orders what will be shown.
-	const rows = useMemo<IssuerMetrics[]>(
-		() =>
-			sortIssuers(
-				filterIssuers(
-					issuers.map((issuer, i) => {
-						const q = txnQueries[i];
-						const items = (q?.data?.items ?? []) as readonly Transaction[];
-						return issuerMetrics(issuer, items, q?.data?.total ?? 0);
-					}),
-					query,
-				),
-				sort,
-			),
-		[issuers, txnQueries, sort, query],
-	);
+  // Filter before sorting: both are pure passes over the same in-memory list,
+  // and narrowing first means the sort only orders what will be shown.
+  const rows = useMemo<IssuerMetrics[]>(
+    () =>
+      sortIssuers(
+        filterIssuers(
+          issuers.map((issuer, i) => {
+            const q = txnQueries[i];
+            const items = (q?.data?.items ?? []) as readonly Transaction[];
+            return issuerMetrics(issuer, items, q?.data?.total ?? 0);
+          }),
+          query,
+        ),
+        sort,
+      ),
+    [issuers, txnQueries, sort, query],
+  );
 
-	const onSortChange = (next: IssuerSort) =>
-		navigate({
-			search: (prev: IssuersSearch) => ({
-				...prev,
-				sort: next.key,
-				direction: next.direction,
-			}),
-			replace: true,
-		});
+  const onSortChange = (next: IssuerSort) =>
+    navigate({
+      search: (prev: IssuersSearch) => ({
+        ...prev,
+        sort: next.key,
+        direction: next.direction,
+      }),
+      replace: true,
+    });
 
-	const onQueryChange = (next: string | undefined) =>
-		navigate({
-			search: (prev: IssuersSearch) => ({ ...prev, q: next }),
-			replace: true,
-		});
+  const onQueryChange = (next: string | undefined) =>
+    navigate({
+      search: (prev: IssuersSearch) => ({ ...prev, q: next }),
+      replace: true,
+    });
 
-	return (
-		<PageLayout
-			title="Issuers"
-			description="The places your money comes from and goes to."
-			actions={
-				<>
-					{issuers.length > 0 ? (
-						<IssuersFilterInput value={search.q} onChange={onQueryChange} />
-					) : null}
-					<Link
-						to="/issuers/new"
-						className="flex items-center gap-1.5 rounded-full bg-gousse-accent px-4 py-1.5 text-sm font-medium text-gousse-bg"
-					>
-						<Plus size={16} aria-hidden />
-						Create issuer
-					</Link>
-				</>
-			}
-		>
-			{issuersQuery.isError ? (
-				<Empty
-					title="Couldn't load issuers"
-					description="Something went wrong reading your issuers. Try again in a moment."
-				/>
-			) : issuersQuery.isPending ? (
-				<IssuersTableSkeleton />
-			) : issuers.length === 0 ? (
-				<Empty
-					title="No issuers yet"
-					description="Create one here to pre-seed its default category, or resolve a transaction's counterparty to mint one on the fly."
-				>
-					<Link
-						to="/issuers/new"
-						className="mt-2 flex items-center gap-1.5 rounded-full bg-gousse-accent px-4 py-1.5 text-sm font-medium text-gousse-bg"
-					>
-						<Plus size={16} aria-hidden />
-						Create your first issuer
-					</Link>
-				</Empty>
-			) : rows.length === 0 ? (
-				// Issuers exist but none match the filter — a distinct state from the
-				// empty account above, so the copy points at the filter, not at
-				// creating an issuer.
-				<Empty
-					title="No matching issuers"
-					description={`No issuer's name matches “${query}”. Try a shorter term.`}
-				/>
-			) : (
-				<IssuersTable
-					metrics={rows}
-					sort={sort}
-					onSortChange={onSortChange}
-					categoriesById={categoriesById}
-					categoryColorById={categoryColorById}
-				/>
-			)}
-		</PageLayout>
-	);
+  return (
+    <PageLayout
+      title="Issuers"
+      description="The places your money comes from and goes to."
+      actions={
+        <>
+          {issuers.length > 0 ? (
+            <IssuersFilterInput value={search.q} onChange={onQueryChange} />
+          ) : null}
+          <Link
+            to="/issuers/new"
+            className="flex items-center gap-1.5 rounded-full bg-gousse-accent px-4 py-1.5 text-sm font-medium text-gousse-bg"
+          >
+            <Plus size={16} aria-hidden />
+            Create issuer
+          </Link>
+        </>
+      }
+    >
+      {issuersQuery.isError ? (
+        <Empty
+          title="Couldn't load issuers"
+          description="Something went wrong reading your issuers. Try again in a moment."
+        />
+      ) : issuersQuery.isPending ? (
+        <IssuersTableSkeleton />
+      ) : issuers.length === 0 ? (
+        <Empty
+          title="No issuers yet"
+          description="Create one here to pre-seed its default category, or resolve a transaction's counterparty to mint one on the fly."
+        >
+          <Link
+            to="/issuers/new"
+            className="mt-2 flex items-center gap-1.5 rounded-full bg-gousse-accent px-4 py-1.5 text-sm font-medium text-gousse-bg"
+          >
+            <Plus size={16} aria-hidden />
+            Create your first issuer
+          </Link>
+        </Empty>
+      ) : rows.length === 0 ? (
+        // Issuers exist but none match the filter — a distinct state from the
+        // empty account above, so the copy points at the filter, not at
+        // creating an issuer.
+        <Empty
+          title="No matching issuers"
+          description={`No issuer's name matches “${query}”. Try a shorter term.`}
+        />
+      ) : (
+        <IssuersTable
+          metrics={rows}
+          sort={sort}
+          onSortChange={onSortChange}
+          categoriesById={categoriesById}
+          categoryColorById={categoryColorById}
+        />
+      )}
+    </PageLayout>
+  );
 }

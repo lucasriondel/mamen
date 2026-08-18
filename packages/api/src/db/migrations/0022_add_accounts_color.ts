@@ -21,5 +21,5 @@ import { Effect } from "effect";
  * No index — colour is display-only, never a filter or join key.
  */
 export default Effect.flatMap(SqlClient.SqlClient, (sql) =>
-	sql`ALTER TABLE accounts ADD COLUMN color TEXT`.pipe(Effect.asVoid),
+  sql`ALTER TABLE accounts ADD COLUMN color TEXT`.pipe(Effect.asVoid),
 );

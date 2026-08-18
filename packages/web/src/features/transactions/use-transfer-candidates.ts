@@ -1,8 +1,8 @@
 import type {
-	Transaction,
-	TransactionId,
-	TransferCandidate,
-	TransferPair,
+  Transaction,
+  TransactionId,
+  TransferCandidate,
+  TransferPair,
 } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
@@ -10,14 +10,14 @@ import { transactionQueries } from "@/lib/sdk";
 
 /** One candidate counterpart of a row: the other leg, and how far apart they are. */
 export type SuggestedCounterpart = {
-	transaction: Transaction;
-	daysApart: number;
+  transaction: Transaction;
+  daysApart: number;
 };
 
 /** A row's outstanding transfer suggestion — the row plus its counterparts. */
 export type TransferSuggestion = {
-	transaction: Transaction;
-	counterparts: readonly SuggestedCounterpart[];
+  transaction: Transaction;
+  counterparts: readonly SuggestedCounterpart[];
 };
 
 /**
@@ -27,8 +27,8 @@ export type TransferSuggestion = {
  * in the other would look like two different facts.
  */
 export function dayGapLabel(daysApart: number): string {
-	if (daysApart === 0) return "same day";
-	return daysApart === 1 ? "1 day apart" : `${daysApart} days apart`;
+  if (daysApart === 0) return "same day";
+  return daysApart === 1 ? "1 day apart" : `${daysApart} days apart`;
 }
 
 /**
@@ -39,7 +39,7 @@ export function dayGapLabel(daysApart: number): string {
  * applied. Stating it once means both directions rank identically.
  */
 const byProximity = (a: SuggestedCounterpart, b: SuggestedCounterpart) =>
-	a.daysApart - b.daysApart || a.transaction.id - b.transaction.id;
+  a.daysApart - b.daysApart || a.transaction.id - b.transaction.id;
 
 /**
  * Index the grouped candidate payload **both ways** (issue #91).
@@ -56,36 +56,36 @@ const byProximity = (a: SuggestedCounterpart, b: SuggestedCounterpart) =>
  * bring back the duplicate-pair problem the sign orientation exists to solve.
  */
 export function indexCandidates(
-	candidates: readonly TransferCandidate[],
+  candidates: readonly TransferCandidate[],
 ): ReadonlyMap<number, TransferSuggestion> {
-	const byId = new Map<
-		number,
-		{ transaction: Transaction; counterparts: SuggestedCounterpart[] }
-	>();
-	const entryFor = (transaction: Transaction) => {
-		const existing = byId.get(transaction.id);
-		if (existing !== undefined) return existing;
-		const fresh = { transaction, counterparts: [] as SuggestedCounterpart[] };
-		byId.set(transaction.id, fresh);
-		return fresh;
-	};
+  const byId = new Map<
+    number,
+    { transaction: Transaction; counterparts: SuggestedCounterpart[] }
+  >();
+  const entryFor = (transaction: Transaction) => {
+    const existing = byId.get(transaction.id);
+    if (existing !== undefined) return existing;
+    const fresh = { transaction, counterparts: [] as SuggestedCounterpart[] };
+    byId.set(transaction.id, fresh);
+    return fresh;
+  };
 
-	for (const candidate of candidates) {
-		const leg = entryFor(candidate.leg);
-		for (const counterpart of candidate.counterparts) {
-			leg.counterparts.push({
-				transaction: counterpart.transaction,
-				daysApart: counterpart.daysApart,
-			});
-			entryFor(counterpart.transaction).counterparts.push({
-				transaction: candidate.leg,
-				daysApart: counterpart.daysApart,
-			});
-		}
-	}
+  for (const candidate of candidates) {
+    const leg = entryFor(candidate.leg);
+    for (const counterpart of candidate.counterparts) {
+      leg.counterparts.push({
+        transaction: counterpart.transaction,
+        daysApart: counterpart.daysApart,
+      });
+      entryFor(counterpart.transaction).counterparts.push({
+        transaction: candidate.leg,
+        daysApart: counterpart.daysApart,
+      });
+    }
+  }
 
-	for (const entry of byId.values()) entry.counterparts.sort(byProximity);
-	return byId;
+  for (const entry of byId.values()) entry.counterparts.sort(byProximity);
+  return byId;
 }
 
 /**
@@ -96,11 +96,11 @@ export function indexCandidates(
  * rows of the same sign, so exactly one of the two is the debit.
  */
 export function toTransferPair(a: Transaction, b: Transaction): TransferPair {
-	const [debit, credit] = a.amount < 0 ? [a, b] : [b, a];
-	return {
-		debitId: debit.id as TransactionId,
-		creditId: credit.id as TransactionId,
-	};
+  const [debit, credit] = a.amount < 0 ? [a, b] : [b, a];
+  return {
+    debitId: debit.id as TransactionId,
+    creditId: credit.id as TransactionId,
+  };
 }
 
 /**
@@ -121,20 +121,15 @@ export function toTransferPair(a: Transaction, b: Transaction): TransferPair {
  * read the same here, which is the point: the client never re-derives who
  * qualifies.
  */
-export function useTransferSuggestionIndex(): ReadonlyMap<
-	number,
-	TransferSuggestion
-> {
-	const query = useQuery(transactionQueries.transferCandidates());
-	return useMemo(
-		() => indexCandidates((query.data ?? []) as readonly TransferCandidate[]),
-		[query.data],
-	);
+export function useTransferSuggestionIndex(): ReadonlyMap<number, TransferSuggestion> {
+  const query = useQuery(transactionQueries.transferCandidates());
+  return useMemo(
+    () => indexCandidates((query.data ?? []) as readonly TransferCandidate[]),
+    [query.data],
+  );
 }
 
 /** One row's outstanding suggestion, or `undefined` when it has none. */
-export function useTransferSuggestion(
-	transaction: Transaction,
-): TransferSuggestion | undefined {
-	return useTransferSuggestionIndex().get(transaction.id);
+export function useTransferSuggestion(transaction: Transaction): TransferSuggestion | undefined {
+  return useTransferSuggestionIndex().get(transaction.id);
 }

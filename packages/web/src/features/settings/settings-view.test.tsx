@@ -32,35 +32,35 @@ import { COLLAPSED_SHELL, OPEN_SHELL, withShell } from "@/test/sidebar-shell";
  */
 
 vi.mock("@mamen/sdk", async (importOriginal) => {
-	const actual = await importOriginal<typeof import("@mamen/sdk")>();
-	return {
-		...actual,
-		secretQueries: {
-			list: () => ({
-				queryKey: ["secrets", "list"],
-				queryFn: async (): Promise<SecretStatus[]> => [
-					{ name: "claude-code", configured: false, hint: null },
-					{ name: "anthropic", configured: false, hint: null },
-					{ name: "google", configured: false, hint: null },
-					{ name: "openai", configured: false, hint: null },
-				],
-			}),
-		},
-		secretMutations: { put: vi.fn(), clear: vi.fn() },
-		aiTaskQueries: {
-			list: () => ({
-				queryKey: ["ai-tasks", "list"],
-				queryFn: async (): Promise<AiTaskSetting[]> => [
-					{
-						task: "extract-pdf",
-						provider: "claude-code",
-						model: "claude-haiku-4-5",
-					},
-				],
-			}),
-		},
-		aiTaskMutations: { patch: vi.fn() },
-	};
+  const actual = await importOriginal<typeof import("@mamen/sdk")>();
+  return {
+    ...actual,
+    secretQueries: {
+      list: () => ({
+        queryKey: ["secrets", "list"],
+        queryFn: async (): Promise<SecretStatus[]> => [
+          { name: "claude-code", configured: false, hint: null },
+          { name: "anthropic", configured: false, hint: null },
+          { name: "google", configured: false, hint: null },
+          { name: "openai", configured: false, hint: null },
+        ],
+      }),
+    },
+    secretMutations: { put: vi.fn(), clear: vi.fn() },
+    aiTaskQueries: {
+      list: () => ({
+        queryKey: ["ai-tasks", "list"],
+        queryFn: async (): Promise<AiTaskSetting[]> => [
+          {
+            task: "extract-pdf",
+            provider: "claude-code",
+            model: "claude-haiku-4-5",
+          },
+        ],
+      }),
+    },
+    aiTaskMutations: { patch: vi.fn() },
+  };
 });
 
 // Imported after the mock, like every other view test here.
@@ -78,157 +78,148 @@ const ROOT = readFileSync("src/routes/__root.tsx", "utf8");
  * drift from `__root.tsx`.
  */
 function renderSettings(shellValue = OPEN_SHELL) {
-	return render(
-		withShell(
-			<ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-				<SettingsView />
-			</ThemeProvider>,
-			shellValue,
-		),
-	);
+  return render(
+    withShell(
+      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+        <SettingsView />
+      </ThemeProvider>,
+      shellValue,
+    ),
+  );
 }
 
 /** The theme preference's control — the row's own select. */
 const themeControl = () => screen.getByLabelText("Theme");
 
 const optionsOf = (select: HTMLElement) =>
-	within(select)
-		.getAllByRole("option")
-		.map((option) => (option as HTMLOptionElement).value);
+  within(select)
+    .getAllByRole("option")
+    .map((option) => (option as HTMLOptionElement).value);
 
 beforeEach(() => {
-	window.localStorage.clear();
-	document.documentElement.className = "";
-	setPrefersDark(false);
+  window.localStorage.clear();
+  document.documentElement.className = "";
+  setPrefersDark(false);
 });
 
+// …and the theme row sits in the same card the task rows do. Comparing the
+// two cards' classes is what "presented consistently" means here: a
+// hand-rolled panel beside `SettingsCard` would render close enough to
+// fool a screenshot and drift the day gousse restyles the card.
+/** The settings card a labelled control sits in, so a row can be read in place. */
+const card = (label: string) => screen.getByLabelText(label).closest("div.divide-y");
+
 describe("the theme preference", () => {
-	it("offers the OS, light and dark, and nothing else", async () => {
-		renderSettings();
+  it("offers the OS, light and dark, and nothing else", async () => {
+    renderSettings();
 
-		expect(optionsOf(await screen.findByLabelText("Theme"))).toStrictEqual([
-			"system",
-			"light",
-			"dark",
-		]);
-	});
+    expect(optionsOf(await screen.findByLabelText("Theme"))).toStrictEqual([
+      "system",
+      "light",
+      "dark",
+    ]);
+  });
 
-	it("shows the theme in force", async () => {
-		window.localStorage.setItem("theme", "light");
+  it("shows the theme in force", async () => {
+    window.localStorage.setItem("theme", "light");
 
-		renderSettings();
+    renderSettings();
 
-		expect(await screen.findByLabelText("Theme")).toHaveValue("light");
-	});
+    expect(await screen.findByLabelText("Theme")).toHaveValue("light");
+  });
 
-	it("follows the OS with nothing stored", async () => {
-		// Issue #143's default: no stored choice is not "dark", it is "ask".
-		setPrefersDark(true);
+  it("follows the OS with nothing stored", async () => {
+    // Issue #143's default: no stored choice is not "dark", it is "ask".
+    setPrefersDark(true);
 
-		renderSettings();
+    renderSettings();
 
-		expect(await screen.findByLabelText("Theme")).toHaveValue("system");
-		await waitFor(() => expect(document.documentElement).toHaveClass("dark"));
-	});
+    expect(await screen.findByLabelText("Theme")).toHaveValue("system");
+    await waitFor(() => expect(document.documentElement).toHaveClass("dark"));
+  });
 
-	it("resolves the same default to light on a light OS", async () => {
-		renderSettings();
+  it("resolves the same default to light on a light OS", async () => {
+    renderSettings();
 
-		expect(await screen.findByLabelText("Theme")).toHaveValue("system");
-		await waitFor(() => expect(document.documentElement).toHaveClass("light"));
-		expect(document.documentElement).not.toHaveClass("dark");
-	});
+    expect(await screen.findByLabelText("Theme")).toHaveValue("system");
+    await waitFor(() => expect(document.documentElement).toHaveClass("light"));
+    expect(document.documentElement).not.toHaveClass("dark");
+  });
 
-	it("hands the page back to the OS when System is chosen again", async () => {
-		// The way out of an explicit choice. Without it, a user who once picked
-		// Light can never return to following their machine.
-		const user = userEvent.setup();
-		setPrefersDark(true);
-		window.localStorage.setItem("theme", "light");
-		renderSettings();
+  it("hands the page back to the OS when System is chosen again", async () => {
+    // The way out of an explicit choice. Without it, a user who once picked
+    // Light can never return to following their machine.
+    const user = userEvent.setup();
+    setPrefersDark(true);
+    window.localStorage.setItem("theme", "light");
+    renderSettings();
 
-		await user.selectOptions(await screen.findByLabelText("Theme"), "system");
+    await user.selectOptions(await screen.findByLabelText("Theme"), "system");
 
-		await waitFor(() => expect(document.documentElement).toHaveClass("dark"));
-		expect(window.localStorage.getItem("theme")).toBe("system");
-	});
+    await waitFor(() => expect(document.documentElement).toHaveClass("dark"));
+    expect(window.localStorage.getItem("theme")).toBe("system");
+  });
 
-	it("applies the choice to the document immediately", async () => {
-		const user = userEvent.setup();
-		window.localStorage.setItem("theme", "dark");
-		renderSettings();
+  it("applies the choice to the document immediately", async () => {
+    const user = userEvent.setup();
+    window.localStorage.setItem("theme", "dark");
+    renderSettings();
 
-		await waitFor(() => expect(document.documentElement).toHaveClass("dark"));
-		await user.selectOptions(themeControl(), "light");
+    await waitFor(() => expect(document.documentElement).toHaveClass("dark"));
+    await user.selectOptions(themeControl(), "light");
 
-		// The `.dark` class is what every `--gousse-*` dark override keys off, so
-		// this is the whole of "the theme changed" — no reload, no toast, no save
-		// button in between.
-		await waitFor(() =>
-			expect(document.documentElement).not.toHaveClass("dark"),
-		);
-		expect(document.documentElement).toHaveClass("light");
-	});
+    // The `.dark` class is what every `--gousse-*` dark override keys off, so
+    // this is the whole of "the theme changed" — no reload, no toast, no save
+    // button in between.
+    await waitFor(() => expect(document.documentElement).not.toHaveClass("dark"));
+    expect(document.documentElement).toHaveClass("light");
+  });
 
-	it("remembers the choice across a reload", async () => {
-		const user = userEvent.setup();
-		const { unmount } = renderSettings();
+  it("remembers the choice across a reload", async () => {
+    const user = userEvent.setup();
+    const { unmount } = renderSettings();
 
-		await user.selectOptions(await screen.findByLabelText("Theme"), "light");
-		await waitFor(() =>
-			expect(window.localStorage.getItem("theme")).toBe("light"),
-		);
+    await user.selectOptions(await screen.findByLabelText("Theme"), "light");
+    await waitFor(() => expect(window.localStorage.getItem("theme")).toBe("light"));
 
-		// A reload is a fresh provider over the same storage: the page comes back
-		// on the stored choice, not on the app default.
-		unmount();
-		document.documentElement.className = "";
-		renderSettings();
+    // A reload is a fresh provider over the same storage: the page comes back
+    // on the stored choice, not on the app default.
+    unmount();
+    document.documentElement.className = "";
+    renderSettings();
 
-		expect(await screen.findByLabelText("Theme")).toHaveValue("light");
-		await waitFor(() => expect(document.documentElement).toHaveClass("light"));
-	});
+    expect(await screen.findByLabelText("Theme")).toHaveValue("light");
+    await waitFor(() => expect(document.documentElement).toHaveClass("light"));
+  });
 
-	it("is a setting row on the settings page, drawn like the AI ones", async () => {
-		renderSettings();
+  it("is a setting row on the settings page, drawn like the AI ones", async () => {
+    renderSettings();
 
-		// Both halves are on the one page…
-		expect(await screen.findByText("Theme")).toBeInTheDocument();
-		expect(screen.getByText("PDF statement extraction")).toBeInTheDocument();
+    // Both halves are on the one page…
+    expect(await screen.findByText("Theme")).toBeInTheDocument();
+    expect(screen.getByText("PDF statement extraction")).toBeInTheDocument();
 
-		// …and the theme row sits in the same card the task rows do. Comparing the
-		// two cards' classes is what "presented consistently" means here: a
-		// hand-rolled panel beside `SettingsCard` would render close enough to
-		// fool a screenshot and drift the day gousse restyles the card.
-		const card = (label: string) =>
-			screen.getByLabelText(label).closest("div.divide-y");
-		expect(card("Theme")).not.toBeNull();
-		expect(card("Theme")?.className).toBe(
-			card("PDF statement extraction provider")?.className,
-		);
-	});
+    expect(card("Theme")).not.toBeNull();
+    expect(card("Theme")?.className).toBe(card("PDF statement extraction provider")?.className);
+  });
 
-	it("renders its title through the shared layout, trigger and all", async () => {
-		renderSettings(COLLAPSED_SHELL);
+  it("renders its title through the shared layout, trigger and all", async () => {
+    renderSettings(COLLAPSED_SHELL);
 
-		// `/settings` hand-rolled its own title row and so offered no way back to a
-		// collapsed sidebar — the one page whose whole subject is preferences was
-		// a dead end for the preference the sidebar itself carries (issue #129).
-		expect(
-			await screen.findByRole("heading", { level: 1, name: "Settings" }),
-		).toBeInTheDocument();
-		expect(
-			screen.getByRole("button", { name: "Open sidebar" }),
-		).toBeInTheDocument();
-	});
+    // `/settings` hand-rolled its own title row and so offered no way back to a
+    // collapsed sidebar — the one page whose whole subject is preferences was
+    // a dead end for the preference the sidebar itself carries (issue #129).
+    expect(await screen.findByRole("heading", { level: 1, name: "Settings" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open sidebar" })).toBeInTheDocument();
+  });
 
-	it("takes its provider config from the root, System included", () => {
-		// The wrapper above is a fiction if these ever part company — and the one
-		// that matters is `enableSystem`: switching it off drops the `system`
-		// theme, and the page's own option list would then offer a dead choice.
-		expect(ROOT).toContain('attribute="class"');
-		expect(ROOT).toContain('defaultTheme="system"');
-		expect(ROOT).toContain("enableSystem");
-		expect(ROOT).not.toContain("enableSystem={false}");
-	});
+  it("takes its provider config from the root, System included", () => {
+    // The wrapper above is a fiction if these ever part company — and the one
+    // that matters is `enableSystem`: switching it off drops the `system`
+    // theme, and the page's own option list would then offer a dead choice.
+    expect(ROOT).toContain('attribute="class"');
+    expect(ROOT).toContain('defaultTheme="system"');
+    expect(ROOT).toContain("enableSystem");
+    expect(ROOT).not.toContain("enableSystem={false}");
+  });
 });

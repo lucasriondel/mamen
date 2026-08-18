@@ -43,21 +43,16 @@ const HEX = /^[0-9a-fA-F]+$/;
  * everything under the wrong material.
  */
 export const keyFromHex = (hex: string): Option.Option<EncryptionKey> =>
-	hex.length === KEY_BYTES * 2 && HEX.test(hex)
-		? Option.some(Buffer.from(hex, "hex") as EncryptionKey)
-		: Option.none();
+  hex.length === KEY_BYTES * 2 && HEX.test(hex)
+    ? Option.some(Buffer.from(hex, "hex") as EncryptionKey)
+    : Option.none();
 
 /** Encrypt `plaintext` under `key`, as one base64 `iv ‖ tag ‖ ciphertext` blob. */
 export const encrypt = (plaintext: string, key: EncryptionKey): string => {
-	const iv = randomBytes(IV_BYTES);
-	const cipher = createCipheriv("aes-256-gcm", key, iv);
-	const ciphertext = Buffer.concat([
-		cipher.update(plaintext, "utf8"),
-		cipher.final(),
-	]);
-	return Buffer.concat([iv, cipher.getAuthTag(), ciphertext]).toString(
-		"base64",
-	);
+  const iv = randomBytes(IV_BYTES);
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  const ciphertext = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
+  return Buffer.concat([iv, cipher.getAuthTag(), ciphertext]).toString("base64");
 };
 
 /**
@@ -66,30 +61,23 @@ export const encrypt = (plaintext: string, key: EncryptionKey): string => {
  * — deliberately without distinguishing them: the caller reports *unreadable*,
  * and a taxonomy here would only invite an error message that quoted the input.
  */
-export const decrypt = (
-	blob: string,
-	key: EncryptionKey,
-): Option.Option<string> => {
-	// `Buffer.from(_, "base64")` never throws — it drops what it cannot read — so
-	// the length check below is what rejects a non-blob, not a parse failure.
-	const bytes = Buffer.from(blob, "base64");
-	if (bytes.length <= IV_BYTES + TAG_BYTES) return Option.none();
+export const decrypt = (blob: string, key: EncryptionKey): Option.Option<string> => {
+  // `Buffer.from(_, "base64")` never throws — it drops what it cannot read — so
+  // the length check below is what rejects a non-blob, not a parse failure.
+  const bytes = Buffer.from(blob, "base64");
+  if (bytes.length <= IV_BYTES + TAG_BYTES) return Option.none();
 
-	try {
-		const decipher = createDecipheriv(
-			"aes-256-gcm",
-			key,
-			bytes.subarray(0, IV_BYTES),
-		);
-		decipher.setAuthTag(bytes.subarray(IV_BYTES, IV_BYTES + TAG_BYTES));
-		return Option.some(
-			Buffer.concat([
-				decipher.update(bytes.subarray(IV_BYTES + TAG_BYTES)),
-				// Throws when the tag does not verify — the whole point of GCM.
-				decipher.final(),
-			]).toString("utf8"),
-		);
-	} catch {
-		return Option.none();
-	}
+  try {
+    const decipher = createDecipheriv("aes-256-gcm", key, bytes.subarray(0, IV_BYTES));
+    decipher.setAuthTag(bytes.subarray(IV_BYTES, IV_BYTES + TAG_BYTES));
+    return Option.some(
+      Buffer.concat([
+        decipher.update(bytes.subarray(IV_BYTES + TAG_BYTES)),
+        // Throws when the tag does not verify — the whole point of GCM.
+        decipher.final(),
+      ]).toString("utf8"),
+    );
+  } catch {
+    return Option.none();
+  }
 };

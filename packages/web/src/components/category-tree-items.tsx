@@ -3,9 +3,9 @@ import { Check } from "lucide-react";
 import { CategoryIcon } from "@/components/category-icon";
 import { CommandItem } from "@/components/ui/command";
 import {
-	NEUTRAL_CATEGORY_COLOR,
-	type PickerNode,
-	resolveCategoryColors,
+  NEUTRAL_CATEGORY_COLOR,
+  type PickerNode,
+  resolveCategoryColors,
 } from "@/lib/category-tree";
 
 /**
@@ -22,65 +22,65 @@ import {
  * categories page; this component only ever selects a leaf.
  */
 export function CategoryTreeItems({
-	categories,
-	nodes,
-	selectedId,
-	onSelect,
-	disabled,
-	selectedLabel,
+  categories,
+  nodes,
+  selectedId,
+  onSelect,
+  disabled,
+  selectedLabel,
 }: {
-	/**
-	 * The whole flat list `nodes` was derived from. Needed because a **Resolved
-	 * colour** is a walk up `parentId`, not a field — an inheriting leaf's colour
-	 * lives on an ancestor that may not be among the filtered `nodes` at all.
-	 */
-	categories: readonly Category[];
-	nodes: PickerNode[];
-	/** The currently-assigned leaf, marked with a check. */
-	selectedId?: Category["id"] | null;
-	onSelect: (id: Category["id"]) => void;
-	disabled?: boolean;
-	/** aria-label for the current-selection check (e.g. "Current category"). */
-	selectedLabel: string;
+  /**
+   * The whole flat list `nodes` was derived from. Needed because a **Resolved
+   * colour** is a walk up `parentId`, not a field — an inheriting leaf's colour
+   * lives on an ancestor that may not be among the filtered `nodes` at all.
+   */
+  categories: readonly Category[];
+  nodes: PickerNode[];
+  /** The currently-assigned leaf, marked with a check. */
+  selectedId?: Category["id"] | null;
+  onSelect: (id: Category["id"]) => void;
+  disabled?: boolean;
+  /** aria-label for the current-selection check (e.g. "Current category"). */
+  selectedLabel: string;
 }) {
-	// Resolved for the whole list in one pass, not per row: the picker re-renders
-	// on every keystroke, and a per-row walk would re-index the tree each time.
-	const colorById = resolveCategoryColors(categories);
-	return nodes.map(({ category, depth, isLeaf }) => {
-		// Indent by depth so the tree reads; leaves and headings align per level.
-		const indent = { paddingLeft: `${8 + depth * 14}px` };
-		const color = colorById.get(category.id) ?? NEUTRAL_CATEGORY_COLOR;
-		if (!isLeaf) {
-			return (
-				<div
-					key={`folder-${category.id}`}
-					role="presentation"
-					className="flex items-center gap-2 px-2 py-1.5 text-xs font-medium text-gousse-muted"
-					style={indent}
-				>
-					<CategoryIcon name={category.icon} color={color} size={14} />
-					<span className="truncate">{category.name}</span>
-				</div>
-			);
-		}
-		return (
-			<CommandItem
-				key={category.id}
-				value={`category-${category.id}`}
-				onSelect={() => onSelect(category.id)}
-				disabled={disabled}
-				style={indent}
-			>
-				<CategoryIcon name={category.icon} color={color} size={14} />
-				<span className="truncate">{category.name}</span>
-				{category.id === selectedId ? (
-					<Check
-						size={14}
-						className="ml-auto shrink-0 text-gousse-accent"
-						aria-label={selectedLabel}
-					/>
-				) : null}
-			</CommandItem>
-		);
-	});
+  // Resolved for the whole list in one pass, not per row: the picker re-renders
+  // on every keystroke, and a per-row walk would re-index the tree each time.
+  const colorById = resolveCategoryColors(categories);
+  return nodes.map(({ category, depth, isLeaf }) => {
+    // Indent by depth so the tree reads; leaves and headings align per level.
+    const indent = { paddingLeft: `${8 + depth * 14}px` };
+    const color = colorById.get(category.id) ?? NEUTRAL_CATEGORY_COLOR;
+    if (!isLeaf) {
+      return (
+        <div
+          key={`folder-${category.id}`}
+          role="presentation"
+          className="flex items-center gap-2 px-2 py-1.5 text-xs font-medium text-gousse-muted"
+          style={indent}
+        >
+          <CategoryIcon name={category.icon} color={color} size={14} />
+          <span className="truncate">{category.name}</span>
+        </div>
+      );
+    }
+    return (
+      <CommandItem
+        key={category.id}
+        value={`category-${category.id}`}
+        onSelect={() => onSelect(category.id)}
+        disabled={disabled}
+        style={indent}
+      >
+        <CategoryIcon name={category.icon} color={color} size={14} />
+        <span className="truncate">{category.name}</span>
+        {category.id === selectedId ? (
+          <Check
+            size={14}
+            className="ml-auto shrink-0 text-gousse-accent"
+            aria-label={selectedLabel}
+          />
+        ) : null}
+      </CommandItem>
+    );
+  });
 }

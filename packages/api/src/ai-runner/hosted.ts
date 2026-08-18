@@ -23,6 +23,6 @@ import { Context } from "effect";
  * sees.
  */
 export class HostedTransport extends Context.Tag("api/HostedTransport")<
-	HostedTransport,
-	HostedGenerate
+  HostedTransport,
+  HostedGenerate
 >() {}

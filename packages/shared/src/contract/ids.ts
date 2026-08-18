@@ -33,6 +33,5 @@ export type SettingId = typeof SettingId.Type;
  * branded-id list filters in query position. A non-numeric string fails
  * schema decode → `HttpApiDecodeError (400)` automatically.
  */
-export const numFromStr = <B extends string>(
-	id: Schema.brand<typeof Schema.Int, B>,
-) => Schema.NumberFromString.pipe(Schema.compose(id));
+export const numFromStr = <B extends string>(id: Schema.brand<typeof Schema.Int, B>) =>
+  Schema.NumberFromString.pipe(Schema.compose(id));

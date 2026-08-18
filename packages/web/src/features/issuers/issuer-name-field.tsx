@@ -7,7 +7,7 @@ import { useIssuerMutations } from "./use-issuer-mutations";
 const RENAME_DEBOUNCE_MS = 500;
 
 interface IssuerNameFieldProps {
-	issuer: Issuer;
+  issuer: Issuer;
 }
 
 /**
@@ -24,97 +24,96 @@ interface IssuerNameFieldProps {
  * out from under the cursor.
  */
 export function IssuerNameField({ issuer }: IssuerNameFieldProps) {
-	const { rename } = useIssuerMutations();
-	const renameMutate = rename.mutate;
-	const [isEditing, setIsEditing] = useState(false);
-	const [draft, setDraft] = useState(issuer.name);
-	const inputRef = useRef<HTMLInputElement>(null);
-	// What the server is known to hold, so the debounce doesn't re-send a name
-	// the last keystroke already saved (and doesn't fire at all on open/close).
-	const savedRef = useRef(issuer.name);
+  const { rename } = useIssuerMutations();
+  const renameMutate = rename.mutate;
+  const [isEditing, setIsEditing] = useState(false);
+  const [draft, setDraft] = useState(issuer.name);
+  const inputRef = useRef<HTMLInputElement>(null);
+  // What the server is known to hold, so the debounce doesn't re-send a name
+  // the last keystroke already saved (and doesn't fire at all on open/close).
+  const savedRef = useRef(issuer.name);
 
-	if (!isEditing && draft !== issuer.name) {
-		setDraft(issuer.name);
-		savedRef.current = issuer.name;
-	}
+  if (!isEditing && draft !== issuer.name) {
+    setDraft(issuer.name);
+    savedRef.current = issuer.name;
+  }
 
-	const debouncedDraft = useDebouncedValue(draft, RENAME_DEBOUNCE_MS);
+  const debouncedDraft = useDebouncedValue(draft, RENAME_DEBOUNCE_MS);
 
-	useEffect(() => {
-		const trimmed = debouncedDraft.trim();
-		// An empty field is a half-typed name, not a request to clear it — the
-		// heading keeps the last saved value until something valid is typed.
-		if (trimmed.length === 0 || trimmed === savedRef.current) return;
-		savedRef.current = trimmed;
-		renameMutate({ id: issuer.id, patch: { name: trimmed } });
-	}, [debouncedDraft, issuer.id, renameMutate]);
+  useEffect(() => {
+    const trimmed = debouncedDraft.trim();
+    // An empty field is a half-typed name, not a request to clear it — the
+    // heading keeps the last saved value until something valid is typed.
+    if (trimmed.length === 0 || trimmed === savedRef.current) return;
+    savedRef.current = trimmed;
+    renameMutate({ id: issuer.id, patch: { name: trimmed } });
+  }, [debouncedDraft, issuer.id, renameMutate]);
 
-	// Focus + select on mount rather than after `setIsEditing`: the input doesn't
-	// exist yet at click time, and a ref callback fires exactly when it does.
-	// `useCallback` is load-bearing — an inline callback is a new function every
-	// render, so React would detach and re-attach the ref on each keystroke and
-	// re-select the whole value, making every character replace the last.
-	const focusOnMount = useCallback((node: HTMLInputElement | null) => {
-		inputRef.current = node;
-		node?.focus();
-		node?.select();
-	}, []);
+  // Focus + select on mount rather than after `setIsEditing`: the input doesn't
+  // exist yet at click time, and a ref callback fires exactly when it does.
+  // `useCallback` is load-bearing — an inline callback is a new function every
+  // render, so React would detach and re-attach the ref on each keystroke and
+  // re-select the whole value, making every character replace the last.
+  const focusOnMount = useCallback((node: HTMLInputElement | null) => {
+    inputRef.current = node;
+    node?.focus();
+    node?.select();
+  }, []);
 
-	const stopEditing = () => {
-		setIsEditing(false);
-		// A blur must not lose the tail of what was typed: flush anything the
-		// debounce hasn't written yet.
-		const trimmed = draft.trim();
-		if (trimmed.length === 0) {
-			setDraft(savedRef.current);
-			return;
-		}
-		if (trimmed === savedRef.current) return;
-		savedRef.current = trimmed;
-		renameMutate({ id: issuer.id, patch: { name: trimmed } });
-	};
+  const stopEditing = () => {
+    setIsEditing(false);
+    // A blur must not lose the tail of what was typed: flush anything the
+    // debounce hasn't written yet.
+    const trimmed = draft.trim();
+    if (trimmed.length === 0) {
+      setDraft(savedRef.current);
+      return;
+    }
+    if (trimmed === savedRef.current) return;
+    savedRef.current = trimmed;
+    renameMutate({ id: issuer.id, patch: { name: trimmed } });
+  };
 
-	const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-		if (event.key === "Enter") {
-			event.preventDefault();
-			inputRef.current?.blur();
-			return;
-		}
-		if (event.key === "Escape") {
-			event.preventDefault();
-			setDraft(savedRef.current);
-			setIsEditing(false);
-		}
-	};
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      inputRef.current?.blur();
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setDraft(savedRef.current);
+      setIsEditing(false);
+    }
+  };
 
-	// No `text-balance`: it would split a long name evenly over two lines, which is
-	// exactly what the single-line heading wants to avoid. `truncate` keeps the
-	// name on one line and ellipsises only when it genuinely can't fit.
-	const HEADING_CLASS =
-		"w-full min-w-0 truncate text-2xl font-semibold text-gousse-ink";
+  // No `text-balance`: it would split a long name evenly over two lines, which is
+  // exactly what the single-line heading wants to avoid. `truncate` keeps the
+  // name on one line and ellipsises only when it genuinely can't fit.
+  const HEADING_CLASS = "w-full min-w-0 truncate text-2xl font-semibold text-gousse-ink";
 
-	if (isEditing) {
-		return (
-			<input
-				ref={focusOnMount}
-				value={draft}
-				onChange={(event) => setDraft(event.target.value)}
-				onBlur={stopEditing}
-				onKeyDown={handleKeyDown}
-				aria-label="Issuer name"
-				className={`${HEADING_CLASS} -mx-3 rounded-full border border-gousse-line bg-gousse-bg px-3 outline-none focus:border-gousse-accent`}
-			/>
-		);
-	}
+  if (isEditing) {
+    return (
+      <input
+        ref={focusOnMount}
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={stopEditing}
+        onKeyDown={handleKeyDown}
+        aria-label="Issuer name"
+        className={`${HEADING_CLASS} -mx-3 rounded-full border border-gousse-line bg-gousse-bg px-3 outline-none focus:border-gousse-accent`}
+      />
+    );
+  }
 
-	return (
-		<button
-			type="button"
-			onClick={() => setIsEditing(true)}
-			title="Rename issuer"
-			className={`${HEADING_CLASS} -mx-3 rounded-full border border-transparent px-3 text-left transition-colors hover:border-gousse-line`}
-		>
-			{issuer.name}
-		</button>
-	);
+  return (
+    <button
+      type="button"
+      onClick={() => setIsEditing(true)}
+      title="Rename issuer"
+      className={`${HEADING_CLASS} -mx-3 rounded-full border border-transparent px-3 text-left transition-colors hover:border-gousse-line`}
+    >
+      {issuer.name}
+    </button>
+  );
 }

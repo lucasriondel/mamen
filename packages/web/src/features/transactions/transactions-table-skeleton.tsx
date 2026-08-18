@@ -1,11 +1,11 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 
 /**
@@ -20,28 +20,28 @@ import {
  * an identity.
  */
 const COLUMNS = [
-	// The selection checkbox (issue #68) — a 16px square in both rows and header.
-	{ id: "select", head: "w-4", cell: "w-4" },
-	// The bundle expand chevron (issue #73) — narrow, and empty on most rows.
-	{ id: "expand", head: "w-4", cell: "w-4" },
-	{ id: "date", head: "w-10", cell: "w-16" },
-	{ id: "account", head: "w-14", cell: "w-20" },
-	{ id: "issuer", head: "w-12", cell: "w-24" },
-	{ id: "rawIssuer", head: "w-20", cell: "w-full" },
-	{ id: "category", head: "w-16", cell: "w-24" },
-	{ id: "amount", head: "w-14", cell: "w-16 ml-auto" },
-	{ id: "notes", head: "w-12", cell: "w-8" },
+  // The selection checkbox (issue #68) — a 16px square in both rows and header.
+  { id: "select", head: "w-4", cell: "w-4" },
+  // The bundle expand chevron (issue #73) — narrow, and empty on most rows.
+  { id: "expand", head: "w-4", cell: "w-4" },
+  { id: "date", head: "w-10", cell: "w-16" },
+  { id: "account", head: "w-14", cell: "w-20" },
+  { id: "issuer", head: "w-12", cell: "w-24" },
+  { id: "rawIssuer", head: "w-20", cell: "w-full" },
+  { id: "category", head: "w-16", cell: "w-24" },
+  { id: "amount", head: "w-14", cell: "w-16 ml-auto" },
+  { id: "notes", head: "w-12", cell: "w-8" },
 ] as const;
 
 export interface TransactionsTableSkeletonProps {
-	/** How many placeholder rows to draw. Defaults to a page-ish 8. */
-	rows?: number;
-	/**
-	 * Set `false` when this table is nested inside a page-level skeleton screen
-	 * (the issuer detail page): that screen already announces the wait, and a
-	 * second announcement would have a screen reader report it twice.
-	 */
-	announce?: boolean;
+  /** How many placeholder rows to draw. Defaults to a page-ish 8. */
+  rows?: number;
+  /**
+   * Set `false` when this table is nested inside a page-level skeleton screen
+   * (the issuer detail page): that screen already announces the wait, and a
+   * second announcement would have a screen reader report it twice.
+   */
+  announce?: boolean;
 }
 
 /**
@@ -50,34 +50,32 @@ export interface TransactionsTableSkeletonProps {
  * states share their column rhythm and border treatment.
  */
 export function TransactionsTableSkeleton({
-	rows = 8,
-	announce = true,
+  rows = 8,
+  announce = true,
 }: TransactionsTableSkeletonProps) {
-	return (
-		<Table aria-busy="true">
-			{announce ? (
-				<caption className="sr-only">Loading transactions…</caption>
-			) : null}
-			<TableHeader>
-				<TableRow>
-					{COLUMNS.map((column) => (
-						<TableHead key={column.id}>
-							<Skeleton className={`h-3.5 ${column.head}`} />
-						</TableHead>
-					))}
-				</TableRow>
-			</TableHeader>
-			<TableBody>
-				{Array.from({ length: rows }, (_, index) => index).map((index) => (
-					<TableRow key={index}>
-						{COLUMNS.map((column) => (
-							<TableCell key={column.id}>
-								<Skeleton className={`h-4 ${column.cell}`} />
-							</TableCell>
-						))}
-					</TableRow>
-				))}
-			</TableBody>
-		</Table>
-	);
+  return (
+    <Table aria-busy="true">
+      {announce ? <caption className="sr-only">Loading transactions…</caption> : null}
+      <TableHeader>
+        <TableRow>
+          {COLUMNS.map((column) => (
+            <TableHead key={column.id}>
+              <Skeleton className={`h-3.5 ${column.head}`} />
+            </TableHead>
+          ))}
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {Array.from({ length: rows }, (_, index) => index).map((index) => (
+          <TableRow key={index}>
+            {COLUMNS.map((column) => (
+              <TableCell key={column.id}>
+                <Skeleton className={`h-4 ${column.cell}`} />
+              </TableCell>
+            ))}
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
 }

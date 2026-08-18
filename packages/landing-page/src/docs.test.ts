@@ -24,33 +24,33 @@ const CONTEXT_MAP = read("../../CONTEXT-MAP.md");
 const DEPLOY = read("../../DEPLOY.md");
 
 describe("the documented dev server", () => {
-	it("is on the port the config binds", () => {
-		// The config binds the registry's constant (`vite-config.test.ts`
-		// asserts that), so holding the README to the same constant holds it to
-		// what a reader will actually find listening.
-		expect(README).toContain(`localhost:${LANDING_PAGE_DEV_PORT}`);
-	});
+  it("is on the port the config binds", () => {
+    // The config binds the registry's constant (`vite-config.test.ts`
+    // asserts that), so holding the README to the same constant holds it to
+    // what a reader will actually find listening.
+    expect(README).toContain(`localhost:${LANDING_PAGE_DEV_PORT}`);
+  });
 
-	it("tees to the log file CLAUDE.md tells an agent to read", () => {
-		// The dev script writes it; CLAUDE.md is where an agent looks for it
-		// before starting a second server on an already-bound port.
-		const log = manifest.scripts.dev.match(/logs\/[\w.-]+\.log/)?.[0];
-		expect(log).toBeDefined();
-		expect(CLAUDE).toContain(log);
-	});
+  it("tees to the log file CLAUDE.md tells an agent to read", () => {
+    // The dev script writes it; CLAUDE.md is where an agent looks for it
+    // before starting a second server on an already-bound port.
+    const log = manifest.scripts.dev.match(/logs\/[\w.-]+\.log/)?.[0];
+    expect(log).toBeDefined();
+    expect(CLAUDE).toContain(log);
+  });
 });
 
 describe("the package's own docs", () => {
-	it("is on the context map, and the glossary it points at exists", () => {
-		expect(CONTEXT_MAP).toContain("packages/landing-page/CONTEXT.md");
-		expect(existsSync("CONTEXT.md")).toBe(true);
-	});
+  it("is on the context map, and the glossary it points at exists", () => {
+    expect(CONTEXT_MAP).toContain("packages/landing-page/CONTEXT.md");
+    expect(existsSync("CONTEXT.md")).toBe(true);
+  });
 
-	it("is deployable from what the operations doc says", () => {
-		// The routing is the whole delivery here: an image nobody knows how to
-		// point a domain at serves nothing. The runbook moved to the repo root
-		// with issue #114 — it is one of the files a visitor reads.
-		expect(DEPLOY).toContain("packages/landing-page/Dockerfile");
-		expect(DEPLOY).toMatch(/landing-page/);
-	});
+  it("is deployable from what the operations doc says", () => {
+    // The routing is the whole delivery here: an image nobody knows how to
+    // point a domain at serves nothing. The runbook moved to the repo root
+    // with issue #114 — it is one of the files a visitor reads.
+    expect(DEPLOY).toContain("packages/landing-page/Dockerfile");
+    expect(DEPLOY).toMatch(/landing-page/);
+  });
 });

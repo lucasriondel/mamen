@@ -12,18 +12,17 @@ import { Input } from "@/components/ui/input";
  * saving would then write a date nobody typed.
  */
 const toDateInputValue = (date: Date) => date.toISOString().slice(0, 10);
-const fromDateInputValue = (value: string) =>
-	new Date(`${value}T00:00:00.000Z`);
+const fromDateInputValue = (value: string) => new Date(`${value}T00:00:00.000Z`);
 
 export type BundleDateFormProps = {
-	/** The parent's stored date — the value the field is a draft over. */
-	date: Date;
-	/** Whether that date is the user's own, which is what the copy below says. */
-	manualDate: boolean;
-	/** True while any write on the bundle is in flight. */
-	disabled: boolean;
-	/** Save the drafted date. `manualDate` is the mutation's to add, not this form's. */
-	onSave: (date: Date) => void;
+  /** The parent's stored date — the value the field is a draft over. */
+  date: Date;
+  /** Whether that date is the user's own, which is what the copy below says. */
+  manualDate: boolean;
+  /** True while any write on the bundle is in flight. */
+  disabled: boolean;
+  /** Save the drafted date. `manualDate` is the mutation's to add, not this form's. */
+  onSave: (date: Date) => void;
 };
 
 /**
@@ -42,52 +41,47 @@ export type BundleDateFormProps = {
  * the write's whole effect is the `manualDate` flag riding with it, and pinning
  * a date the user never touched is not something they asked for.
  */
-export function BundleDateForm({
-	date,
-	manualDate,
-	disabled,
-	onSave,
-}: BundleDateFormProps) {
-	const storedDate = toDateInputValue(date);
-	const [draftDate, setDraftDate] = useState(storedDate);
-	const [seededFrom, setSeededFrom] = useState(storedDate);
-	if (seededFrom !== storedDate) {
-		setSeededFrom(storedDate);
-		setDraftDate(storedDate);
-	}
+export function BundleDateForm({ date, manualDate, disabled, onSave }: BundleDateFormProps) {
+  const storedDate = toDateInputValue(date);
+  const [draftDate, setDraftDate] = useState(storedDate);
+  const [seededFrom, setSeededFrom] = useState(storedDate);
+  if (seededFrom !== storedDate) {
+    setSeededFrom(storedDate);
+    setDraftDate(storedDate);
+  }
 
-	const unchanged = draftDate === "" || draftDate === storedDate;
+  const unchanged = draftDate === "" || draftDate === storedDate;
 
-	return (
-		<>
-			<form
-				className="flex flex-wrap items-end gap-2"
-				onSubmit={(event) => {
-					event.preventDefault();
-					if (disabled || unchanged) return;
-					onSave(fromDateInputValue(draftDate));
-				}}
-			>
-				<label className="flex flex-col gap-1 text-gousse-muted text-xs">
-					Bundle date
-					<Input
-						type="date"
-						aria-label="Bundle date"
-						className="h-9 w-44 bg-gousse-bg"
-						value={draftDate}
-						onChange={(event) => setDraftDate(event.target.value)}
-					/>
-				</label>
-				<Button type="submit" size="sm" disabled={disabled || unchanged}>
-					Save date
-				</Button>
-			</form>
+  return (
+    <>
+      <form
+        className="flex flex-wrap items-end gap-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (disabled || unchanged) return;
+          onSave(fromDateInputValue(draftDate));
+        }}
+      >
+        <label className="flex flex-col gap-1 text-gousse-muted text-xs">
+          Bundle date
+          <Input
+            type="date"
+            aria-label="Bundle date"
+            className="h-9 w-44 bg-gousse-bg"
+            value={draftDate}
+            onChange={(event) => setDraftDate(event.target.value)}
+          />
+        </label>
+        <Button type="submit" size="sm" disabled={disabled || unchanged}>
+          Save date
+        </Button>
+      </form>
 
-			<p className="text-xs text-gousse-muted">
-				{manualDate
-					? "This date was set by hand, and stays put when members are added or removed."
-					: "This date follows its earliest member. Set one here to pin it instead."}
-			</p>
-		</>
-	);
+      <p className="text-xs text-gousse-muted">
+        {manualDate
+          ? "This date was set by hand, and stays put when members are added or removed."
+          : "This date follows its earliest member. Set one here to pin it instead."}
+      </p>
+    </>
+  );
 }

@@ -18,6 +18,4 @@ const TAIL = 3;
  * the way.
  */
 export const maskSecret = (value: string): string | null =>
-	value.length < SECRET_HINT_MIN_LENGTH
-		? null
-		: `${value.slice(0, HEAD)}…${value.slice(-TAIL)}`;
+  value.length < SECRET_HINT_MIN_LENGTH ? null : `${value.slice(0, HEAD)}…${value.slice(-TAIL)}`;

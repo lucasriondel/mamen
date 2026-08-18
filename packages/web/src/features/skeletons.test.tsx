@@ -15,46 +15,40 @@ import { TransfersListSkeleton } from "./transfers/transfers-list-skeleton";
 
 /** Every loading shape in the app, with the props its call-sites pass. */
 const SKELETONS: ReadonlyArray<[string, () => React.ReactElement]> = [
-	["AccountsListSkeleton", () => <AccountsListSkeleton />],
-	["CategoriesTreeSkeleton", () => <CategoriesTreeSkeleton />],
-	["IssuerDetailSkeleton", () => <IssuerDetailSkeleton />],
-	["IssuersTableSkeleton", () => <IssuersTableSkeleton />],
-	["RecapSkeleton", () => <RecapSkeleton />],
-	["RuleFormSkeleton", () => <RuleFormSkeleton />],
-	[
-		"RulePreviewSkeleton",
-		() => <RulePreviewSkeleton label="Loading preview…" />,
-	],
-	["RulesListSkeleton", () => <RulesListSkeleton />],
-	["TransactionDetailSkeleton", () => <TransactionDetailSkeleton />],
-	["TransactionsTableSkeleton", () => <TransactionsTableSkeleton />],
-	[
-		"TransferLegsSkeleton",
-		() => <TransferLegsSkeleton label="Loading legs…" />,
-	],
-	["TransfersListSkeleton", () => <TransfersListSkeleton />],
+  ["AccountsListSkeleton", () => <AccountsListSkeleton />],
+  ["CategoriesTreeSkeleton", () => <CategoriesTreeSkeleton />],
+  ["IssuerDetailSkeleton", () => <IssuerDetailSkeleton />],
+  ["IssuersTableSkeleton", () => <IssuersTableSkeleton />],
+  ["RecapSkeleton", () => <RecapSkeleton />],
+  ["RuleFormSkeleton", () => <RuleFormSkeleton />],
+  ["RulePreviewSkeleton", () => <RulePreviewSkeleton label="Loading preview…" />],
+  ["RulesListSkeleton", () => <RulesListSkeleton />],
+  ["TransactionDetailSkeleton", () => <TransactionDetailSkeleton />],
+  ["TransactionsTableSkeleton", () => <TransactionsTableSkeleton />],
+  ["TransferLegsSkeleton", () => <TransferLegsSkeleton label="Loading legs…" />],
+  ["TransfersListSkeleton", () => <TransfersListSkeleton />],
 ];
 
 describe.each(SKELETONS)("%s", (_name, renderSkeleton) => {
-	let consoleError: ReturnType<typeof vi.spyOn>;
+  let consoleError: ReturnType<typeof vi.spyOn>;
 
-	beforeEach(() => {
-		consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
-	});
+  beforeEach(() => {
+    consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+  });
 
-	afterEach(() => {
-		consoleError.mockRestore();
-	});
+  afterEach(() => {
+    consoleError.mockRestore();
+  });
 
-	it("renders its placeholders without a React key warning", () => {
-		render(renderSkeleton());
+  it("renders its placeholders without a React key warning", () => {
+    render(renderSkeleton());
 
-		const warnings = consoleError.mock.calls
-			.map((call) => String(call[0]))
-			.filter((message) => message.includes("same key"));
+    const warnings = consoleError.mock.calls
+      .map((call) => String(call[0]))
+      .filter((message) => message.includes("same key"));
 
-		expect(warnings).toEqual([]);
-	});
+    expect(warnings).toEqual([]);
+  });
 });
 
 /**
@@ -64,9 +58,9 @@ describe.each(SKELETONS)("%s", (_name, renderSkeleton) => {
  * already shipped.
  */
 const SOURCES = import.meta.glob("./**/*-skeleton.tsx", {
-	query: "?raw",
-	import: "default",
-	eager: true,
+  query: "?raw",
+  import: "default",
+  eager: true,
 }) as Record<string, string>;
 
 const KEY_EXPRESSION = /key=\{([^}]*)\}/g;
@@ -83,21 +77,23 @@ const KEY_EXPRESSION = /key=\{([^}]*)\}/g;
  * A bare `id` is deliberately *not* accepted: it would let any value pass by
  * renaming the binding, which is presentation wearing an identity's name. An
  * id has to be a field on the entry being rendered.
+ *
+ * A qualified index (`monthIndex`) counts as one: a skeleton with a list inside
+ * a list cannot call both bindings `index`, and the suffix is what says the
+ * value is still a position rather than a width that happens to be bound.
  */
-const IDENTITY_KEY = /^(index|[A-Za-z]+\.id)$/;
+const IDENTITY_KEY = /^([A-Za-z]*[Ii]ndex|[A-Za-z]+\.id)$/;
 
 describe("skeleton keys", () => {
-	it("covers every skeleton module in the app", () => {
-		expect(Object.keys(SOURCES)).toHaveLength(SKELETONS.length);
-	});
+  it("covers every skeleton module in the app", () => {
+    expect(Object.keys(SOURCES)).toHaveLength(SKELETONS.length);
+  });
 
-	it.each(Object.entries(SOURCES))("%s keys on identity", (_path, source) => {
-		const expressions = [...source.matchAll(KEY_EXPRESSION)].map(
-			(match) => match[1],
-		);
+  it.each(Object.entries(SOURCES))("%s keys on identity", (_path, source) => {
+    const expressions = [...source.matchAll(KEY_EXPRESSION)].map((match) => match[1]);
 
-		for (const expression of expressions) {
-			expect(expression).toMatch(IDENTITY_KEY);
-		}
-	});
+    for (const expression of expressions) {
+      expect(expression).toMatch(IDENTITY_KEY);
+    }
+  });
 });

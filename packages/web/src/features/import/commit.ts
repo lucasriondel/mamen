@@ -3,16 +3,14 @@ import { transactionMutations } from "@/lib/sdk";
 import type { ParsedTransaction } from "./parsers/types";
 
 /** The sorted set of distinct `importMonth`s present in a parsed batch. */
-export function distinctMonths(
-	records: readonly ParsedTransaction[],
-): string[] {
-	return [...new Set(records.map((r) => r.importMonth))].sort();
+export function distinctMonths(records: readonly ParsedTransaction[]): string[] {
+  return [...new Set(records.map((r) => r.importMonth))].sort();
 }
 
 /** The result of a commit — what to report in the success toast. */
 export type CommitResult = {
-	months: string[];
-	count: number;
+  months: string[];
+  count: number;
 };
 
 /**
@@ -35,16 +33,14 @@ export type CommitResult = {
  *   written. Recoverable through that same bulk delete — and strictly better
  *   than the failure mode it replaces, a month wiped with nothing reinserted.
  */
-export async function commitImport(
-	records: readonly ParsedTransaction[],
-): Promise<CommitResult> {
-	const importedAt = new Date();
-	const toCreate: TransactionCreate[] = records.map((r) => ({
-		...r,
-		importedAt,
-	}));
+export async function commitImport(records: readonly ParsedTransaction[]): Promise<CommitResult> {
+  const importedAt = new Date();
+  const toCreate: TransactionCreate[] = records.map((r) => ({
+    ...r,
+    importedAt,
+  }));
 
-	await transactionMutations.bulkCreate(toCreate);
+  await transactionMutations.bulkCreate(toCreate);
 
-	return { months: distinctMonths(records), count: records.length };
+  return { months: distinctMonths(records), count: records.length };
 }

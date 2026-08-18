@@ -1,11 +1,5 @@
 import { SqlClient } from "@effect/sql";
-import {
-	Account,
-	AppSettings,
-	Category,
-	type DbImport,
-	Setting,
-} from "@mamen/shared/contract";
+import { Account, AppSettings, Category, type DbImport, Setting } from "@mamen/shared/contract";
 import { Effect, Schema } from "effect";
 import { orDieSql } from "../db/errors";
 import { IssuerFromRow } from "../issuers/repository";
@@ -22,14 +16,14 @@ import { TransactionFromRow } from "../transactions/repository";
  * the old export/import and keeps the load deterministic.
  */
 const TABLES = [
-	"accounts",
-	"categories",
-	"issuers",
-	"rules",
-	"transactions",
-	"subscriptions",
-	"settings",
-	"appSettings",
+  "accounts",
+  "categories",
+  "issuers",
+  "rules",
+  "transactions",
+  "subscriptions",
+  "settings",
+  "appSettings",
 ] as const;
 
 /**
@@ -62,116 +56,104 @@ const toAppSettingsRow = Schema.encodeSync(AppSettings);
  *   is still wiped (faithful — import is a replace, not a merge). A `SqlError`
  *   isn't client-actionable → dies as a 500 ({@link orDieSql}).
  */
-export class DatabaseRepo extends Effect.Service<DatabaseRepo>()(
-	"api/DatabaseRepo",
-	{
-		effect: Effect.gen(function* () {
-			const sql = yield* SqlClient.SqlClient;
+export class DatabaseRepo extends Effect.Service<DatabaseRepo>()("api/DatabaseRepo", {
+  effect: Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
 
-			// Each read decodes rows through the resource's row schema/transform, so
-			// the dump holds fully-decoded wire entities (dates as `Date`, optionals
-			// folded, JSON parsed) — the same shapes every list endpoint returns.
-			const readAll = <A, I>(table: string, schema: Schema.Schema<A, I>) =>
-				sql`SELECT * FROM ${sql(table)}`.pipe(
-					Effect.flatMap(Schema.decodeUnknown(Schema.Array(schema))),
-				);
+    // Each read decodes rows through the resource's row schema/transform, so
+    // the dump holds fully-decoded wire entities (dates as `Date`, optionals
+    // folded, JSON parsed) — the same shapes every list endpoint returns.
+    const readAll = <A, I>(table: string, schema: Schema.Schema<A, I>) =>
+      sql`SELECT * FROM ${sql(table)}`.pipe(
+        Effect.flatMap(Schema.decodeUnknown(Schema.Array(schema))),
+      );
 
-			const exportAll = () =>
-				Effect.all({
-					accounts: readAll("accounts", Account),
-					transactions: readAll("transactions", TransactionFromRow),
-					issuers: readAll("issuers", IssuerFromRow),
-					rules: readAll("rules", RuleFromRow),
-					categories: readAll("categories", Category),
-					subscriptions: readAll("subscriptions", SubscriptionFromRow),
-					settings: readAll("settings", Setting),
-					appSettings: readAll("appSettings", AppSettings),
-				}).pipe(orDieSql);
+    const exportAll = () =>
+      Effect.all({
+        accounts: readAll("accounts", Account),
+        transactions: readAll("transactions", TransactionFromRow),
+        issuers: readAll("issuers", IssuerFromRow),
+        rules: readAll("rules", RuleFromRow),
+        categories: readAll("categories", Category),
+        subscriptions: readAll("subscriptions", SubscriptionFromRow),
+        settings: readAll("settings", Setting),
+        appSettings: readAll("appSettings", AppSettings),
+      }).pipe(orDieSql);
 
-			// Wipe every table. Used by `reset` directly and by `import` (inside its
-			// transaction) as the "clear" half of clear-then-load.
-			const clearAll = Effect.forEach(
-				TABLES,
-				(table) => sql`DELETE FROM ${sql(table)}`,
-				{ discard: true },
-			);
+    // Wipe every table. Used by `reset` directly and by `import` (inside its
+    // transaction) as the "clear" half of clear-then-load.
+    const clearAll = Effect.forEach(TABLES, (table) => sql`DELETE FROM ${sql(table)}`, {
+      discard: true,
+    });
 
-			const reset = () =>
-				clearAll.pipe(Effect.as({ ok: true as const }), orDieSql);
+    const reset = () => clearAll.pipe(Effect.as({ ok: true as const }), orDieSql);
 
-			// Insert one row with its id preserved (`sql.insert` includes the id
-			// column). Empty batches run no statement.
-			const insertRows = (
-				table: string,
-				rows: ReadonlyArray<Record<string, unknown>>,
-			): Effect.Effect<void, never, never> =>
-				Effect.forEach(
-					rows,
-					(row) => sql`INSERT INTO ${sql(table)} ${sql.insert(row)}`,
-					{ discard: true },
-				).pipe(orDieSql);
+    // Insert one row with its id preserved (`sql.insert` includes the id
+    // column). Empty batches run no statement.
+    const insertRows = (
+      table: string,
+      rows: ReadonlyArray<Record<string, unknown>>,
+    ): Effect.Effect<void, never, never> =>
+      Effect.forEach(rows, (row) => sql`INSERT INTO ${sql(table)} ${sql.insert(row)}`, {
+        discard: true,
+      }).pipe(orDieSql);
 
-			const importDump = (dump: DbImport) => {
-				// The load plan in dependency order: parents before children (see
-				// TABLES). Each entity is folded back to its stored row (id preserved)
-				// before insert. An absent table contributes no rows but is still wiped
-				// by `clearAll`. `appSettings` is a 0- or 1-element array (the singleton).
-				// `.map((x) => enc(x))`, not `.map(enc)`: `Schema.encodeSync`'s second
-				// parameter is `ParseOptions`, so passing it straight to `.map` would
-				// forward the element index into it.
-				const plan: ReadonlyArray<{
-					table: string;
-					rows: ReadonlyArray<Record<string, unknown>>;
-				}> = [
-					{
-						table: "accounts",
-						rows: (dump.accounts ?? []).map((x) => toAccountRow(x)),
-					},
-					{
-						table: "categories",
-						rows: (dump.categories ?? []).map((x) => toCategoryRow(x)),
-					},
-					{
-						table: "issuers",
-						rows: (dump.issuers ?? []).map((x) => toIssuerRow(x)),
-					},
-					{ table: "rules", rows: (dump.rules ?? []).map((x) => toRuleRow(x)) },
-					{
-						table: "transactions",
-						rows: (dump.transactions ?? []).map((x) => toTransactionRow(x)),
-					},
-					{
-						table: "subscriptions",
-						rows: (dump.subscriptions ?? []).map((x) => toSubscriptionRow(x)),
-					},
-					{
-						table: "settings",
-						rows: (dump.settings ?? []).map((x) => toSettingRow(x)),
-					},
-					{
-						table: "appSettings",
-						rows: (dump.appSettings ?? []).map((x) => toAppSettingsRow(x)),
-					},
-				];
+    const importDump = (dump: DbImport) => {
+      // The load plan in dependency order: parents before children (see
+      // TABLES). Each entity is folded back to its stored row (id preserved)
+      // before insert. An absent table contributes no rows but is still wiped
+      // by `clearAll`. `appSettings` is a 0- or 1-element array (the singleton).
+      // `.map((x) => enc(x))`, not `.map(enc)`: `Schema.encodeSync`'s second
+      // parameter is `ParseOptions`, so passing it straight to `.map` would
+      // forward the element index into it.
+      const plan: ReadonlyArray<{
+        table: string;
+        rows: ReadonlyArray<Record<string, unknown>>;
+      }> = [
+        {
+          table: "accounts",
+          rows: (dump.accounts ?? []).map((x) => toAccountRow(x)),
+        },
+        {
+          table: "categories",
+          rows: (dump.categories ?? []).map((x) => toCategoryRow(x)),
+        },
+        {
+          table: "issuers",
+          rows: (dump.issuers ?? []).map((x) => toIssuerRow(x)),
+        },
+        { table: "rules", rows: (dump.rules ?? []).map((x) => toRuleRow(x)) },
+        {
+          table: "transactions",
+          rows: (dump.transactions ?? []).map((x) => toTransactionRow(x)),
+        },
+        {
+          table: "subscriptions",
+          rows: (dump.subscriptions ?? []).map((x) => toSubscriptionRow(x)),
+        },
+        {
+          table: "settings",
+          rows: (dump.settings ?? []).map((x) => toSettingRow(x)),
+        },
+        {
+          table: "appSettings",
+          rows: (dump.appSettings ?? []).map((x) => toAppSettingsRow(x)),
+        },
+      ];
 
-				return sql
-					.withTransaction(
-						clearAll.pipe(
-							Effect.andThen(
-								Effect.forEach(
-									plan,
-									({ table, rows }) => insertRows(table, rows),
-									{
-										discard: true,
-									},
-								),
-							),
-						),
-					)
-					.pipe(Effect.as({ ok: true as const }), orDieSql);
-			};
+      return sql
+        .withTransaction(
+          clearAll.pipe(
+            Effect.andThen(
+              Effect.forEach(plan, ({ table, rows }) => insertRows(table, rows), {
+                discard: true,
+              }),
+            ),
+          ),
+        )
+        .pipe(Effect.as({ ok: true as const }), orDieSql);
+    };
 
-			return { exportAll, reset, import: importDump } as const;
-		}),
-	},
-) {}
+    return { exportAll, reset, import: importDump } as const;
+  }),
+}) {}

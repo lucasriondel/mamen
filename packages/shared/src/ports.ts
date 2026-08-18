@@ -30,21 +30,21 @@
 
 /** What kind of thing binds a port, which is also what decides its range. */
 export type PortKind =
-	/** A dev server on the host — `bun dev` starts it. */
-	| "dev"
-	/** A container's published host port, allocated from 5400 up. */
-	| "docker";
+  /** A dev server on the host — `bun dev` starts it. */
+  | "dev"
+  /** A container's published host port, allocated from 5400 up. */
+  | "docker";
 
 /** One row of the registry, as it applies to mamen. */
 export type PortRow = {
-	/** The number bound on the host. */
-	readonly port: number;
-	/** What binds it. */
-	readonly service: string;
-	/** Which range it is allocated from. */
-	readonly kind: PortKind;
-	/** What answers there, in the words the docs' table uses. */
-	readonly serves: string;
+  /** The number bound on the host. */
+  readonly port: number;
+  /** What binds it. */
+  readonly service: string;
+  /** Which range it is allocated from. */
+  readonly kind: PortKind;
+  /** What answers there, in the words the docs' table uses. */
+  readonly serves: string;
 };
 
 /** The SPA's Vite dev server. */
@@ -86,38 +86,38 @@ export const PORT_TAKEN_ELSEWHERE = 5100;
  * then what a container publishes.
  */
 export const PORTS: readonly PortRow[] = [
-	{
-		port: WEB_DEV_PORT,
-		service: "web dev server",
-		kind: "dev",
-		serves: "the SPA under its path prefix, proxying `/api` and `/uploads`",
-	},
-	{
-		port: LANDING_PAGE_DEV_PORT,
-		service: "landing-page dev server",
-		kind: "dev",
-		serves: "the public page the deployed site serves at its root",
-	},
-	{
-		port: API_DEV_PORT,
-		service: "API",
-		kind: "dev",
-		serves: "the HTTP API, its Scalar docs and the emitted OpenAPI spec",
-	},
-	{
-		port: DEMO_STACK_WEB_PORT,
-		service: "demo stack web container",
-		kind: "docker",
-		serves: "the app over the seeded demo database, for screenshots",
-	},
-	{
-		port: DEMO_STACK_API_PORT,
-		service: "demo stack API container",
-		kind: "docker",
-		serves: "the demo API directly; published only while debugging the stack",
-	},
+  {
+    port: WEB_DEV_PORT,
+    service: "web dev server",
+    kind: "dev",
+    serves: "the SPA under its path prefix, proxying `/api` and `/uploads`",
+  },
+  {
+    port: LANDING_PAGE_DEV_PORT,
+    service: "landing-page dev server",
+    kind: "dev",
+    serves: "the public page the deployed site serves at its root",
+  },
+  {
+    port: API_DEV_PORT,
+    service: "API",
+    kind: "dev",
+    serves: "the HTTP API, its Scalar docs and the emitted OpenAPI spec",
+  },
+  {
+    port: DEMO_STACK_WEB_PORT,
+    service: "demo stack web container",
+    kind: "docker",
+    serves: "the app over the seeded demo database, for screenshots",
+  },
+  {
+    port: DEMO_STACK_API_PORT,
+    service: "demo stack API container",
+    kind: "docker",
+    serves: "the demo API directly; published only while debugging the stack",
+  },
 ];
 
 /** The rows of one kind, for a doc table or a range assertion. */
 export const portsOfKind = (kind: PortKind): readonly PortRow[] =>
-	PORTS.filter((row) => row.kind === kind);
+  PORTS.filter((row) => row.kind === kind);

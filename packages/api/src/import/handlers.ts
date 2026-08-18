@@ -20,5 +20,5 @@ import { extractPdf } from "./extract";
  * handlers use for `FileSystem`/`Path`.
  */
 export const ImportLive = HttpApiBuilder.group(Api, "import", (handlers) =>
-	handlers.handle("extractPdf", (_) => extractPdf(_.payload.file)),
+  handlers.handle("extractPdf", (_) => extractPdf(_.payload.file)),
 ).pipe(Layer.provide(AiRunner.Default));

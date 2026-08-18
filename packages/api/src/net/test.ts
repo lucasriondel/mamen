@@ -21,12 +21,12 @@ export type Route = (url: string) => Response | Promise<Response>;
  * function directly.
  */
 export const routeTable =
-	(routes: Record<string, Route>): Route =>
-	(url) => {
-		const route = routes[url];
-		if (route === undefined) throw new Error(`ECONNREFUSED ${url}`);
-		return route(url);
-	};
+  (routes: Record<string, Route>): Route =>
+  (url) => {
+    const route = routes[url];
+    if (route === undefined) throw new Error(`ECONNREFUSED ${url}`);
+    return route(url);
+  };
 
 /**
  * A fake network. Records what was asked of both halves, so a test can assert
@@ -37,48 +37,48 @@ export const routeTable =
  * saying how it should answer has found a bug, not a default.
  */
 export const stubOutbound = (
-	opts: {
-		readonly addresses?: Record<string, ReadonlyArray<string>>;
-		readonly respond?: Route;
-	} = {},
+  opts: {
+    readonly addresses?: Record<string, ReadonlyArray<string>>;
+    readonly respond?: Route;
+  } = {},
 ) => {
-	const lookups: string[] = [];
-	const fetched: string[] = [];
-	const inits: RequestInit[] = [];
-	const signals: AbortSignal[] = [];
+  const lookups: string[] = [];
+  const fetched: string[] = [];
+  const inits: RequestInit[] = [];
+  const signals: AbortSignal[] = [];
 
-	const ops: OutboundOps = {
-		lookup: (hostname) => {
-			lookups.push(hostname);
-			const addresses = opts.addresses?.[hostname];
-			return addresses === undefined
-				? Promise.reject(new Error(`ENOTFOUND ${hostname}`))
-				: Promise.resolve(addresses);
-		},
-		fetch: (url, init) => {
-			fetched.push(url);
-			inits.push(init);
-			if (init.signal) signals.push(init.signal);
-			if (opts.respond === undefined) {
-				return Promise.reject(new Error(`ECONNREFUSED ${url}`));
-			}
-			// `try`, so a `respond` that throws reads as a transport failure
-			// rather than a defect — that is what a refused connection is.
-			try {
-				return Promise.resolve(opts.respond(url));
-			} catch (cause) {
-				return Promise.reject(cause);
-			}
-		},
-	};
+  const ops: OutboundOps = {
+    lookup: (hostname) => {
+      lookups.push(hostname);
+      const addresses = opts.addresses?.[hostname];
+      return addresses === undefined
+        ? Promise.reject(new Error(`ENOTFOUND ${hostname}`))
+        : Promise.resolve(addresses);
+    },
+    fetch: (url, init) => {
+      fetched.push(url);
+      inits.push(init);
+      if (init.signal) signals.push(init.signal);
+      if (opts.respond === undefined) {
+        return Promise.reject(new Error(`ECONNREFUSED ${url}`));
+      }
+      // `try`, so a `respond` that throws reads as a transport failure
+      // rather than a defect — that is what a refused connection is.
+      try {
+        return Promise.resolve(opts.respond(url));
+      } catch (cause) {
+        return Promise.reject(cause);
+      }
+    },
+  };
 
-	return {
-		layer: Layer.succeed(Outbound, ops),
-		lookups,
-		fetched,
-		inits,
-		signals,
-	};
+  return {
+    layer: Layer.succeed(Outbound, ops),
+    lookups,
+    fetched,
+    inits,
+    signals,
+  };
 };
 
 /**

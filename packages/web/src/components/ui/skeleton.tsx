@@ -23,41 +23,34 @@ import { cn } from "@/lib/utils";
  * through `className`, as the round avatars already did.
  */
 export interface SkeletonProps extends React.ComponentPropsWithoutRef<"div"> {
-	/**
-	 * The element to draw the block as. `span` for a block standing in inside
-	 * text-level content — a page title's `h1`, its description `p` — where a
-	 * `div` is invalid nesting and React says so. Sizing still comes from
-	 * `className`, so such a block passes `block` with its height and width.
-	 */
-	as?: "div" | "span";
+  /**
+   * The element to draw the block as. `span` for a block standing in inside
+   * text-level content — a page title's `h1`, its description `p` — where a
+   * `div` is invalid nesting and React says so. Sizing still comes from
+   * `className`, so such a block passes `block` with its height and width.
+   */
+  as?: "div" | "span";
 }
 
-export function Skeleton({
-	as: Block = "div",
-	className,
-	...props
-}: SkeletonProps) {
-	return (
-		<Block
-			aria-hidden
-			className={cn(
-				"motion-safe:animate-pulse rounded-full bg-gousse-line",
-				className,
-			)}
-			{...props}
-		/>
-	);
+export function Skeleton({ as: Block = "div", className, ...props }: SkeletonProps) {
+  return (
+    <Block
+      aria-hidden
+      className={cn("motion-safe:animate-pulse rounded-full bg-gousse-line", className)}
+      {...props}
+    />
+  );
 }
 
 export interface SkeletonScreenProps {
-	/**
-	 * What is loading, phrased for a screen reader ("Loading transactions…").
-	 * Rendered visually hidden — sighted users read the skeleton itself.
-	 */
-	label: string;
-	/** The skeleton blocks making up this screen. */
-	children: React.ReactNode;
-	className?: string;
+  /**
+   * What is loading, phrased for a screen reader ("Loading transactions…").
+   * Rendered visually hidden — sighted users read the skeleton itself.
+   */
+  label: string;
+  /** The skeleton blocks making up this screen. */
+  children: React.ReactNode;
+  className?: string;
 }
 
 /**
@@ -71,15 +64,11 @@ export interface SkeletonScreenProps {
  * its live folder totals. `display` comes from `className`, so a flex/grid
  * screen lays out exactly as the settled view does.
  */
-export function SkeletonScreen({
-	label,
-	children,
-	className,
-}: SkeletonScreenProps) {
-	return (
-		<output aria-busy="true" className={className}>
-			<span className="sr-only">{label}</span>
-			{children}
-		</output>
-	);
+export function SkeletonScreen({ label, children, className }: SkeletonScreenProps) {
+  return (
+    <output aria-busy="true" className={className}>
+      <span className="sr-only">{label}</span>
+      {children}
+    </output>
+  );
 }

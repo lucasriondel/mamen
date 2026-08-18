@@ -20,52 +20,45 @@ import { migrations } from "./index";
  */
 
 const countCategories = Effect.gen(function* () {
-	const sql = yield* SqlClient.SqlClient;
-	const rows = yield* sql`SELECT COUNT(*) AS count FROM categories`;
-	return (rows[0] as { count: number }).count;
+  const sql = yield* SqlClient.SqlClient;
+  const rows = yield* sql`SELECT COUNT(*) AS count FROM categories`;
+  return (rows[0] as { count: number }).count;
 });
 
 // Node path: one SqlClient, two migrator layers over it. Effect memoizes the
 // shared `SqlTest` reference, so both migrators run against the same connection.
 const NodeReMigrated = (() => {
-	const SqlTest = SqliteClient.layer({ filename: ":memory:" });
-	const migrator = () =>
-		SqliteMigrator.layer({
-			loader: SqliteMigrator.fromRecord(migrations),
-		}).pipe(Layer.provide(SqlTest), Layer.provide(NodeContext.layer));
-	return Layer.mergeAll(SqlTest, migrator(), migrator());
+  const SqlTest = SqliteClient.layer({ filename: ":memory:" });
+  const migrator = () =>
+    SqliteMigrator.layer({
+      loader: SqliteMigrator.fromRecord(migrations),
+    }).pipe(Layer.provide(SqlTest), Layer.provide(NodeContext.layer));
+  return Layer.mergeAll(SqlTest, migrator(), migrator());
 })();
 
 const BunReMigrated = Layer.unwrapEffect(
-	Effect.promise(async () => {
-		const [
-			{ SqliteClient: BunSqlite, SqliteMigrator: BunMigrator },
-			{ BunContext },
-		] = await Promise.all([
-			import("@effect/sql-sqlite-bun"),
-			import("@effect/platform-bun"),
-		]);
-		const SqlTest = BunSqlite.layer({ filename: ":memory:" });
-		const migrator = () =>
-			BunMigrator.layer({
-				loader: BunMigrator.fromRecord(migrations),
-			}).pipe(Layer.provide(SqlTest), Layer.provide(BunContext.layer));
-		return Layer.mergeAll(SqlTest, migrator(), migrator());
-	}),
+  Effect.promise(async () => {
+    const [{ SqliteClient: BunSqlite, SqliteMigrator: BunMigrator }, { BunContext }] =
+      await Promise.all([import("@effect/sql-sqlite-bun"), import("@effect/platform-bun")]);
+    const SqlTest = BunSqlite.layer({ filename: ":memory:" });
+    const migrator = () =>
+      BunMigrator.layer({
+        loader: BunMigrator.fromRecord(migrations),
+      }).pipe(Layer.provide(SqlTest), Layer.provide(BunContext.layer));
+    return Layer.mergeAll(SqlTest, migrator(), migrator());
+  }),
 ) as typeof NodeReMigrated;
 
 const isBun = typeof (globalThis as { Bun?: unknown }).Bun !== "undefined";
-const ReMigrated: typeof NodeReMigrated = isBun
-	? BunReMigrated
-	: NodeReMigrated;
+const ReMigrated: typeof NodeReMigrated = isBun ? BunReMigrated : NodeReMigrated;
 
 describe("seed migration idempotency", () => {
-	it.effect("running the migration set twice does not duplicate the tree", () =>
-		Effect.gen(function* () {
-			// The layer above has already built (and thus migrated) twice over one
-			// connection; the count reflects a single application of the seed.
-			const count = yield* countCategories;
-			assert.strictEqual(count, 27); // 6 folders + 21 leaves, seeded once
-		}).pipe(Effect.provide(ReMigrated)),
-	);
+  it.effect("running the migration set twice does not duplicate the tree", () =>
+    Effect.gen(function* () {
+      // The layer above has already built (and thus migrated) twice over one
+      // connection; the count reflects a single application of the seed.
+      const count = yield* countCategories;
+      assert.strictEqual(count, 27); // 6 folders + 21 leaves, seeded once
+    }).pipe(Effect.provide(ReMigrated)),
+  );
 });

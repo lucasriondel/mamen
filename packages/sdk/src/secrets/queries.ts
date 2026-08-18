@@ -11,9 +11,9 @@ import { Client, runQuery } from "../runtime";
  * list has exactly one shape.
  */
 export const secretKeys = {
-	all: ["secrets"] as const,
-	list: () => [...secretKeys.all, "list"] as const,
-	byName: (name: SecretName) => [...secretKeys.all, "by-name", name] as const,
+  all: ["secrets"] as const,
+  list: () => [...secretKeys.all, "list"] as const,
+  byName: (name: SecretName) => [...secretKeys.all, "by-name", name] as const,
 };
 
 /**
@@ -22,27 +22,25 @@ export const secretKeys = {
  * anywhere: the outward surface is `SecretStatus` and nothing else (ADR 0011).
  */
 export const secretQueries = {
-	list: () =>
-		queryOptions({
-			queryKey: secretKeys.list(),
-			queryFn: ({ signal }) =>
-				runQuery(
-					Effect.flatMap(Client, (client) => client.secrets.list()),
-					signal,
-				),
-		}),
+  list: () =>
+    queryOptions({
+      queryKey: secretKeys.list(),
+      queryFn: ({ signal }) =>
+        runQuery(
+          Effect.flatMap(Client, (client) => client.secrets.list()),
+          signal,
+        ),
+    }),
 
-	status: (name: SecretName) =>
-		queryOptions({
-			queryKey: secretKeys.byName(name),
-			queryFn: ({ signal }) =>
-				runQuery(
-					Effect.flatMap(Client, (client) =>
-						client.secrets.status({ path: { name } }),
-					),
-					signal,
-				),
-		}),
+  status: (name: SecretName) =>
+    queryOptions({
+      queryKey: secretKeys.byName(name),
+      queryFn: ({ signal }) =>
+        runQuery(
+          Effect.flatMap(Client, (client) => client.secrets.status({ path: { name } })),
+          signal,
+        ),
+    }),
 };
 
 /**
@@ -58,17 +56,13 @@ export const secretQueries = {
  * `TaskProviderRejected` when a task is running on that provider today.
  */
 export const secretMutations = {
-	put: (name: SecretName, value: string) =>
-		runQuery(
-			Effect.flatMap(Client, (client) =>
-				client.secrets.put({ path: { name }, payload: { value } }),
-			),
-		),
+  put: (name: SecretName, value: string) =>
+    runQuery(
+      Effect.flatMap(Client, (client) =>
+        client.secrets.put({ path: { name }, payload: { value } }),
+      ),
+    ),
 
-	clear: (name: SecretName) =>
-		runQuery(
-			Effect.flatMap(Client, (client) =>
-				client.secrets.clear({ path: { name } }),
-			),
-		),
+  clear: (name: SecretName) =>
+    runQuery(Effect.flatMap(Client, (client) => client.secrets.clear({ path: { name } }))),
 };

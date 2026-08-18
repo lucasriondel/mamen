@@ -9,7 +9,7 @@ import type { RecapDetailTarget } from "./search";
  * #129) — the three are one sentence, built in one place.
  */
 export function targetLabel(target: RecapDetailTarget): string {
-	return target.axis === "issuer" ? "Issuer" : "Category";
+  return target.axis === "issuer" ? "Issuer" : "Category";
 }
 
 /**
@@ -18,14 +18,14 @@ export function targetLabel(target: RecapDetailTarget): string {
  * period and accounts are what make it *this* recap row's drill-down.
  */
 export function periodLabel(period: Period): string {
-	switch (period.kind) {
-		case "month":
-			return formatMonth(period.month);
-		case "year":
-			return period.year;
-		case "all":
-			return "All time";
-	}
+  switch (period.kind) {
+    case "month":
+      return formatMonth(period.month);
+    case "year":
+      return period.year;
+    case "all":
+      return "All time";
+  }
 }
 
 /**
@@ -35,13 +35,10 @@ export function periodLabel(period: Period): string {
  * cover is skipped rather than rendered as a number: it can only come from a
  * hand-edited URL, and the rows it selects are none.
  */
-export function accountsLabel(
-	accountIds: readonly number[],
-	accounts: readonly Account[],
-): string {
-	if (accountIds.length === 0) return "All accounts";
-	const names = accountIds
-		.map((id) => accounts.find((a) => a.id === id)?.name)
-		.filter((name): name is string => name !== undefined);
-	return names.length === 0 ? "All accounts" : names.join(", ");
+export function accountsLabel(accountIds: readonly number[], accounts: readonly Account[]): string {
+  if (accountIds.length === 0) return "All accounts";
+  const names = accountIds
+    .map((id) => accounts.find((a) => a.id === id)?.name)
+    .filter((name): name is string => name !== undefined);
+  return names.length === 0 ? "All accounts" : names.join(", ");
 }

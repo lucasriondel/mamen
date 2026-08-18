@@ -23,6 +23,9 @@ const styles: Record<Outcome, { title: string; sound: string; verb: string }> = 
   paused: { title: "Sandcastle ⏸", sound: "Submarine", verb: "paused" },
 };
 
+// Escape double quotes so the AppleScript string literal stays valid.
+const esc = (s: string) => s.replace(/"/g, '\\"');
+
 /**
  * Display a macOS notification via osascript.
  *
@@ -30,19 +33,13 @@ const styles: Record<Outcome, { title: string; sound: string; verb: string }> = 
  * @param outcome  How the run ended; picks the title, emoji, and sound.
  * @param detail   Extra text appended to the notification body.
  */
-export async function notify(
-  flow: string,
-  outcome: Outcome,
-  detail = "",
-): Promise<void> {
+export async function notify(flow: string, outcome: Outcome, detail = ""): Promise<void> {
   // macOS only. On Linux/CI there is no osascript — skip silently.
   if (process.platform !== "darwin") return;
 
   const { title, sound, verb } = styles[outcome];
   const body = `${flow} ${verb}${detail ? ` ${detail}` : ""}`;
 
-  // Escape double quotes so the AppleScript string literal stays valid.
-  const esc = (s: string) => s.replace(/"/g, '\\"');
   const script = `display notification "${esc(body)}" with title "${esc(
     title,
   )}" sound name "${sound}"`;

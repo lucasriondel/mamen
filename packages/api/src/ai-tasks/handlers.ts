@@ -11,11 +11,11 @@ import { TaskProvider } from "./task-provider";
  * rule without a second copy of it.
  */
 export const AiTasksLive = HttpApiBuilder.group(Api, "aiTasks", (handlers) =>
-	Effect.gen(function* () {
-		const provider = yield* TaskProvider;
-		return handlers
-			.handle("list", () => provider.settings())
-			.handle("patch", (_) => provider.patch(_.payload.tasks))
-			.handle("resolve", (_) => provider.resolve(_.path.task));
-	}),
+  Effect.gen(function* () {
+    const provider = yield* TaskProvider;
+    return handlers
+      .handle("list", () => provider.settings())
+      .handle("patch", (_) => provider.patch(_.payload.tasks))
+      .handle("resolve", (_) => provider.resolve(_.path.task));
+  }),
 ).pipe(Layer.provide(TaskProvider.Default));

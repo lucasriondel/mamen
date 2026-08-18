@@ -15,7 +15,7 @@
  * question about the viewer rather than about a stored row.
  */
 export function monthKey(date: Date): string {
-	const year = date.getUTCFullYear();
-	const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-	return `${year}-${month}`;
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  return `${year}-${month}`;
 }

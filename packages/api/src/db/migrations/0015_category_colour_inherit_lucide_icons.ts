@@ -58,52 +58,50 @@ const OLD_HARDCODED_GREY = "#94a3b8";
  * PascalCase React export). Covers all 27 seeded rows (6 folders + 21 leaves)
  * plus `🏷️`, the default every category created through the UI carried.
  */
-const ICON_TRANSLATION: ReadonlyArray<
-	readonly [emoji: string, lucide: string]
-> = [
-	// Food
-	["🍔", "utensils-crossed"],
-	["🛒", "shopping-cart"],
-	["🍽️", "utensils"],
-	["☕", "coffee"],
-	// Home
-	["🏠", "house"],
-	["🔑", "key-round"],
-	["⚡", "zap"],
-	["🛡️", "shield"],
-	["📶", "wifi"],
-	// Transport
-	["🚗", "car"],
-	["⛽", "fuel"],
-	["🚆", "train-front"],
-	["🔧", "wrench"],
-	// Life
-	["💫", "sparkles"],
-	["🩺", "stethoscope"],
-	["🐾", "paw-print"],
-	["🛍️", "shopping-bag"],
-	["🔁", "repeat"],
-	["🎁", "gift"],
-	// Leisure
-	["🎉", "party-popper"],
-	["🎫", "ticket"],
-	["✈️", "plane"],
-	// Income & Other
-	["💰", "piggy-bank"],
-	["💵", "banknote"],
-	["🧾", "receipt"],
-	["🔄", "arrow-left-right"],
-	["❓", "circle-help"],
-	// The old new-category default.
-	["🏷️", "tag"],
+const ICON_TRANSLATION: ReadonlyArray<readonly [emoji: string, lucide: string]> = [
+  // Food
+  ["🍔", "utensils-crossed"],
+  ["🛒", "shopping-cart"],
+  ["🍽️", "utensils"],
+  ["☕", "coffee"],
+  // Home
+  ["🏠", "house"],
+  ["🔑", "key-round"],
+  ["⚡", "zap"],
+  ["🛡️", "shield"],
+  ["📶", "wifi"],
+  // Transport
+  ["🚗", "car"],
+  ["⛽", "fuel"],
+  ["🚆", "train-front"],
+  ["🔧", "wrench"],
+  // Life
+  ["💫", "sparkles"],
+  ["🩺", "stethoscope"],
+  ["🐾", "paw-print"],
+  ["🛍️", "shopping-bag"],
+  ["🔁", "repeat"],
+  ["🎁", "gift"],
+  // Leisure
+  ["🎉", "party-popper"],
+  ["🎫", "ticket"],
+  ["✈️", "plane"],
+  // Income & Other
+  ["💰", "piggy-bank"],
+  ["💵", "banknote"],
+  ["🧾", "receipt"],
+  ["🔄", "arrow-left-right"],
+  ["❓", "circle-help"],
+  // The old new-category default.
+  ["🏷️", "tag"],
 ];
 
 export default Effect.flatMap(SqlClient.SqlClient, (sql) =>
-	Effect.gen(function* () {
-		// 1. Rebuild the table with a nullable `color`, carrying every row over —
-		//    the colour of a row that only ever held a copy becoming NULL on the
-		//    way — then restore the indexes the drop took with it.
-		yield* sql`
+  Effect.gen(function* () {
+    // 1. Rebuild the table with a nullable `color`, carrying every row over —
+    //    the colour of a row that only ever held a copy becoming NULL on the
+    //    way — then restore the indexes the drop took with it.
+    yield* sql`
 			CREATE TABLE categories_new (
 				id INTEGER PRIMARY KEY AUTOINCREMENT,
 				name TEXT NOT NULL,
@@ -115,12 +113,12 @@ export default Effect.flatMap(SqlClient.SqlClient, (sql) =>
 				createdAt TEXT NOT NULL
 			)
 		`;
-		// The copy is also where a copied colour becomes an inherited one, so the
-		// predicate reads the *old* table: both the row and its parent are still
-		// pristine there. Doing it as an UPDATE afterwards would let a parent
-		// already nulled by the same statement change what its child compares
-		// against, making the result depend on row order.
-		yield* sql`
+    // The copy is also where a copied colour becomes an inherited one, so the
+    // predicate reads the *old* table: both the row and its parent are still
+    // pristine there. Doing it as an UPDATE afterwards would let a parent
+    // already nulled by the same statement change what its child compares
+    // against, making the result depend on row order.
+    yield* sql`
 			INSERT INTO categories_new (id, name, slug, color, icon, parentId, sortOrder, createdAt)
 			SELECT
 				id, name, slug,
@@ -132,15 +130,15 @@ export default Effect.flatMap(SqlClient.SqlClient, (sql) =>
 				icon, parentId, sortOrder, createdAt
 			FROM categories c
 		`;
-		yield* sql`DROP TABLE categories`;
-		yield* sql`ALTER TABLE categories_new RENAME TO categories`;
-		yield* sql`CREATE INDEX IF NOT EXISTS idx_categories_parentId ON categories(parentId)`;
-		yield* sql`CREATE INDEX IF NOT EXISTS idx_categories_slug ON categories(slug)`;
-		yield* sql`CREATE INDEX IF NOT EXISTS idx_categories_sortOrder ON categories(sortOrder)`;
+    yield* sql`DROP TABLE categories`;
+    yield* sql`ALTER TABLE categories_new RENAME TO categories`;
+    yield* sql`CREATE INDEX IF NOT EXISTS idx_categories_parentId ON categories(parentId)`;
+    yield* sql`CREATE INDEX IF NOT EXISTS idx_categories_slug ON categories(slug)`;
+    yield* sql`CREATE INDEX IF NOT EXISTS idx_categories_sortOrder ON categories(sortOrder)`;
 
-		// 2. Reinterpret the icon column: emoji in, Lucide id out.
-		for (const [emoji, lucide] of ICON_TRANSLATION) {
-			yield* sql`UPDATE categories SET icon = ${lucide} WHERE icon = ${emoji}`;
-		}
-	}),
+    // 2. Reinterpret the icon column: emoji in, Lucide id out.
+    for (const [emoji, lucide] of ICON_TRANSLATION) {
+      yield* sql`UPDATE categories SET icon = ${lucide} WHERE icon = ${emoji}`;
+    }
+  }),
 );

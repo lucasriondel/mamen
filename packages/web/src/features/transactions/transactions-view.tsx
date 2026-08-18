@@ -29,54 +29,50 @@ const EMPTY_SCOPE = {};
  * lifting the toggle into the topbar is neither.
  */
 export function TransactionsView() {
-	const search = routeApi.useSearch();
-	const navigate = routeApi.useNavigate();
+  const search = routeApi.useSearch();
+  const navigate = routeApi.useNavigate();
 
-	const {
-		columnVisibility,
-		setColumnVisibility,
-		reset: showAllColumns,
-	} = useColumnVisibility();
+  const { columnVisibility, setColumnVisibility, reset: showAllColumns } = useColumnVisibility();
 
-	const applyFilters = (patch: TransactionFilterValues) => {
-		navigate({ search: (prev) => ({ ...prev, ...patch, page: 1 }) });
-	};
+  const applyFilters = (patch: TransactionFilterValues) => {
+    navigate({ search: (prev) => ({ ...prev, ...patch, page: 1 }) });
+  };
 
-	const toggleSort = () => {
-		navigate({
-			search: (prev) => ({
-				...prev,
-				direction: prev.direction === "asc" ? "desc" : "asc",
-				page: 1,
-			}),
-		});
-	};
+  const toggleSort = () => {
+    navigate({
+      search: (prev) => ({
+        ...prev,
+        direction: prev.direction === "asc" ? "desc" : "asc",
+        page: 1,
+      }),
+    });
+  };
 
-	const goToPage = (page: number) => {
-		navigate({ search: (prev) => ({ ...prev, page }) });
-	};
+  const goToPage = (page: number) => {
+    navigate({ search: (prev) => ({ ...prev, page }) });
+  };
 
-	return (
-		<PageLayout title="Transactions">
-			<TransactionsSection
-				scope={EMPTY_SCOPE}
-				search={search}
-				onFiltersChange={applyFilters}
-				onToggleSort={toggleSort}
-				onPageChange={goToPage}
-				emptyDescription="Import a bank statement to see your transactions here."
-				columnVisibility={columnVisibility}
-				onColumnVisibilityChange={setColumnVisibility}
-				actions={
-					<ColumnsToggle
-						columnVisibility={columnVisibility}
-						onToggle={(columnId, visible) =>
-							setColumnVisibility((prev) => ({ ...prev, [columnId]: visible }))
-						}
-						onReset={showAllColumns}
-					/>
-				}
-			/>
-		</PageLayout>
-	);
+  return (
+    <PageLayout title="Transactions">
+      <TransactionsSection
+        scope={EMPTY_SCOPE}
+        search={search}
+        onFiltersChange={applyFilters}
+        onToggleSort={toggleSort}
+        onPageChange={goToPage}
+        emptyDescription="Import a bank statement to see your transactions here."
+        columnVisibility={columnVisibility}
+        onColumnVisibilityChange={setColumnVisibility}
+        actions={
+          <ColumnsToggle
+            columnVisibility={columnVisibility}
+            onToggle={(columnId, visible) =>
+              setColumnVisibility((prev) => ({ ...prev, [columnId]: visible }))
+            }
+            onReset={showAllColumns}
+          />
+        }
+      />
+    </PageLayout>
+  );
 }

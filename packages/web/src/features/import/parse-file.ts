@@ -2,8 +2,8 @@ import Papa from "papaparse";
 
 /** A CSV parsed once into its header list + header-keyed rows. */
 export type ParsedCsv = {
-	headers: string[];
-	rows: Record<string, string>[];
+  headers: string[];
+  rows: Record<string, string>[];
 };
 
 /**
@@ -12,13 +12,12 @@ export type ParsedCsv = {
  * functions that never touch I/O. Rejects on a fatal papaparse error.
  */
 export function parseCsvFile(file: File): Promise<ParsedCsv> {
-	return new Promise((resolve, reject) => {
-		Papa.parse<Record<string, string>>(file, {
-			header: true,
-			skipEmptyLines: true,
-			complete: (result) =>
-				resolve({ headers: result.meta.fields ?? [], rows: result.data }),
-			error: (error: unknown) => reject(error),
-		});
-	});
+  return new Promise((resolve, reject) => {
+    Papa.parse<Record<string, string>>(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (result) => resolve({ headers: result.meta.fields ?? [], rows: result.data }),
+      error: (error: unknown) => reject(error),
+    });
+  });
 }

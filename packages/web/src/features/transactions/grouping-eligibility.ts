@@ -29,13 +29,13 @@ import type { Transaction } from "@mamen/shared/contract";
  * disables can never drift from what the server would refuse.
  */
 export function isTransferEligible(txn: Transaction): boolean {
-	return (
-		txn.transferGroupId == null &&
-		!txn.isRefund &&
-		txn.linkedRefundId == null &&
-		txn.bundleId == null &&
-		txn.kind !== "bundle"
-	);
+  return (
+    txn.transferGroupId == null &&
+    !txn.isRefund &&
+    txn.linkedRefundId == null &&
+    txn.bundleId == null &&
+    txn.kind !== "bundle"
+  );
 }
 
 /**
@@ -46,13 +46,13 @@ export function isTransferEligible(txn: Transaction): boolean {
  * where it is decided.
  */
 export function isBundleEligible(txn: Transaction): boolean {
-	return txn.transferGroupId == null;
+  return txn.transferGroupId == null;
 }
 
 /** Why a row can't join a bundle — the copy both bundling surfaces state. */
 export const BUNDLE_REFUSED_REASON =
-	"A transfer leg can't be bundled: its transfer already nets it out of your recap.";
+  "A transfer leg can't be bundled: its transfer already nets it out of your recap.";
 
 /** Why a row can't be a transfer leg because of a bundle. */
 export const TRANSFER_REFUSED_BUNDLE_REASON =
-	"A bundled transaction can't be part of a transfer — it is already counted through the bundle that stands for it.";
+  "A bundled transaction can't be part of a transfer — it is already counted through the bundle that stands for it.";

@@ -32,16 +32,16 @@ import { Effect } from "effect";
  * delete cascade looks rows up by.
  */
 export default Effect.flatMap(SqlClient.SqlClient, (sql) =>
-	Effect.all(
-		[
-			sql`CREATE TABLE IF NOT EXISTS transfer_dismissals (
+  Effect.all(
+    [
+      sql`CREATE TABLE IF NOT EXISTS transfer_dismissals (
 					debitId INTEGER NOT NULL,
 					creditId INTEGER NOT NULL,
 					dismissedAt TEXT NOT NULL,
 					PRIMARY KEY (debitId, creditId)
 				)`,
-			sql`CREATE INDEX IF NOT EXISTS idx_transfer_dismissals_creditId ON transfer_dismissals(creditId)`,
-		],
-		{ discard: true },
-	).pipe(Effect.asVoid),
+      sql`CREATE INDEX IF NOT EXISTS idx_transfer_dismissals_creditId ON transfer_dismissals(creditId)`,
+    ],
+    { discard: true },
+  ).pipe(Effect.asVoid),
 );

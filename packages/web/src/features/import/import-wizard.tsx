@@ -12,11 +12,7 @@ import type { ParsedTransaction } from "./parsers/types";
 import { PdfValidationStep } from "./pdf-validation-step";
 import { PreviewStep } from "./preview-step";
 import { UploadStep } from "./upload-step";
-import {
-	makeInitialWizardState,
-	type WizardPrefill,
-	wizardReducer,
-} from "./wizard-reducer";
+import { makeInitialWizardState, type WizardPrefill, wizardReducer } from "./wizard-reducer";
 
 /**
  * Assemble the wizard's prefill from a grid handoff: the account chosen on the
@@ -25,21 +21,21 @@ import {
  * `/import` visit starts clean.
  */
 function readPrefill(initialAccountId?: AccountId): WizardPrefill | undefined {
-	const handoff = takeHandoff();
-	if (initialAccountId === undefined && handoff === null) return undefined;
-	return {
-		accountId: initialAccountId ?? null,
-		...(handoff
-			? {
-					file: {
-						fileName: handoff.fileName,
-						headers: handoff.headers,
-						rows: handoff.rows,
-						detectedParserId: detectParser(handoff.headers)?.id ?? null,
-					},
-				}
-			: {}),
-	};
+  const handoff = takeHandoff();
+  if (initialAccountId === undefined && handoff === null) return undefined;
+  return {
+    accountId: initialAccountId ?? null,
+    ...(handoff
+      ? {
+          file: {
+            fileName: handoff.fileName,
+            headers: handoff.headers,
+            rows: handoff.rows,
+            detectedParserId: detectParser(handoff.headers)?.id ?? null,
+          },
+        }
+      : {}),
+  };
 }
 
 /**
@@ -50,108 +46,105 @@ function readPrefill(initialAccountId?: AccountId): WizardPrefill | undefined {
  * source of truth.
  */
 export function ImportWizard({
-	initialAccountId,
+  initialAccountId,
 }: {
-	/** Account to pre-select, from a grid cell's `/import?accountId=…` handoff. */
-	initialAccountId?: AccountId;
+  /** Account to pre-select, from a grid cell's `/import?accountId=…` handoff. */
+  initialAccountId?: AccountId;
 }) {
-	const [state, dispatch] = useReducer(
-		wizardReducer,
-		initialAccountId,
-		(accountId) => makeInitialWizardState(readPrefill(accountId)),
-	);
-	const accountsQuery = useQuery(accountQueries.list());
-	const accounts = (accountsQuery.data?.items ?? []) as readonly Account[];
-	const reducedMotion = useReducedMotion() ?? false;
+  const [state, dispatch] = useReducer(wizardReducer, initialAccountId, (accountId) =>
+    makeInitialWizardState(readPrefill(accountId)),
+  );
+  const accountsQuery = useQuery(accountQueries.list());
+  const accounts = (accountsQuery.data?.items ?? []) as readonly Account[];
+  const reducedMotion = useReducedMotion() ?? false;
 
-	const records = useMemo<ParsedTransaction[]>(() => {
-		if (state.accountId === null) return [];
-		const ctx = {
-			accountId: state.accountId,
-			importBatchId: state.importBatchId,
-		};
-		// PDF path: the extracted candidates rejoin the shared commit rail once
-		// enriched with account/batch/month — no parser (the file has no headers).
-		if (state.source === "pdf") {
-			return state.extracted ? enrichExtracted(state.extracted, ctx) : [];
-		}
-		const parser = state.parserId ? getParserById(state.parserId) : undefined;
-		if (!parser) return [];
-		return parser.parse(state.rows, ctx);
-	}, [
-		state.source,
-		state.extracted,
-		state.parserId,
-		state.accountId,
-		state.rows,
-		state.importBatchId,
-	]);
+  const records = useMemo<ParsedTransaction[]>(() => {
+    if (state.accountId === null) return [];
+    const ctx = {
+      accountId: state.accountId,
+      importBatchId: state.importBatchId,
+    };
+    // PDF path: the extracted candidates rejoin the shared commit rail once
+    // enriched with account/batch/month — no parser (the file has no headers).
+    if (state.source === "pdf") {
+      return state.extracted ? enrichExtracted(state.extracted, ctx) : [];
+    }
+    const parser = state.parserId ? getParserById(state.parserId) : undefined;
+    if (!parser) return [];
+    return parser.parse(state.rows, ctx);
+  }, [
+    state.source,
+    state.extracted,
+    state.parserId,
+    state.accountId,
+    state.rows,
+    state.importBatchId,
+  ]);
 
-	const sourceLabel =
-		state.source === "pdf"
-			? "PDF extraction"
-			: state.parserId
-				? (getParserById(state.parserId)?.label ?? state.parserId)
-				: "—";
+  const sourceLabel =
+    state.source === "pdf"
+      ? "PDF extraction"
+      : state.parserId
+        ? (getParserById(state.parserId)?.label ?? state.parserId)
+        : "—";
 
-	const accountName =
-		accounts.find((account) => account.id === state.accountId)?.name ?? "—";
+  const accountName = accounts.find((account) => account.id === state.accountId)?.name ?? "—";
 
-	// The PDF validation step is a side-by-side (PDF beside editable rows) and
-	// needs the full width to show the statement clearly; every other step is a
-	// single narrow column and reads better capped. Widen only for that step.
-	let wide = false;
+  // The PDF validation step is a side-by-side (PDF beside editable rows) and
+  // needs the full width to show the statement clearly; every other step is a
+  // single narrow column and reads better capped. Widen only for that step.
+  let wide = false;
 
-	let stepContent: ReactNode = null;
-	if (state.step === "upload") {
-		stepContent = <UploadStep state={state} dispatch={dispatch} />;
-	} else if (
-		state.accountId !== null &&
-		state.source === "pdf" &&
-		state.file !== null &&
-		state.extracted !== null &&
-		state.declaredTotals !== null
-	) {
-		// PDF path: the side-by-side validation view (PDF beside editable rows).
-		wide = true;
-		stepContent = (
-			<PdfValidationStep
-				records={records}
-				extracted={state.extracted}
-				declaredTotals={state.declaredTotals}
-				file={state.file}
-				onBack={() => dispatch({ type: "back-to-upload" })}
-				dispatch={dispatch}
-			/>
-		);
-	} else if (state.accountId !== null && state.parserId !== null) {
-		stepContent = (
-			<PreviewStep
-				records={records}
-				skippedRows={state.skippedRows}
-				accountName={accountName}
-				parserLabel={sourceLabel}
-				onBack={() => dispatch({ type: "back-to-upload" })}
-				dispatch={dispatch}
-			/>
-		);
-	}
+  let stepContent: ReactNode = null;
+  if (state.step === "upload") {
+    stepContent = <UploadStep state={state} dispatch={dispatch} />;
+  } else if (
+    state.accountId !== null &&
+    state.source === "pdf" &&
+    state.file !== null &&
+    state.extracted !== null &&
+    state.declaredTotals !== null
+  ) {
+    // PDF path: the side-by-side validation view (PDF beside editable rows).
+    wide = true;
+    stepContent = (
+      <PdfValidationStep
+        records={records}
+        extracted={state.extracted}
+        declaredTotals={state.declaredTotals}
+        file={state.file}
+        onBack={() => dispatch({ type: "back-to-upload" })}
+        dispatch={dispatch}
+      />
+    );
+  } else if (state.accountId !== null && state.parserId !== null) {
+    stepContent = (
+      <PreviewStep
+        records={records}
+        skippedRows={state.skippedRows}
+        accountName={accountName}
+        parserLabel={sourceLabel}
+        onBack={() => dispatch({ type: "back-to-upload" })}
+        dispatch={dispatch}
+      />
+    );
+  }
 
-	return (
-		<PageLayout
-			title="Import"
-			description={
-				state.step === "upload"
-					? "Drop a CSV or PDF statement, pick its account, and preview before committing."
-					: "Review what will be written — committing adds these rows to the account."
-			}
-			className={`mx-auto ${wide ? "w-full" : "max-w-3xl"}`}
-		>
-			<AnimatePresence mode="wait" initial={false}>
-				<motion.div key={state.step} {...stepPresence(reducedMotion)}>
-					{stepContent}
-				</motion.div>
-			</AnimatePresence>
-		</PageLayout>
-	);
+  return (
+    <PageLayout
+      title="Import"
+      description={
+        state.step === "upload"
+          ? "Drop a CSV or PDF statement, pick its account, and preview before committing."
+          : "Review what will be written — committing adds these rows to the account."
+      }
+      className={`mx-auto ${wide ? "w-full" : "max-w-3xl"}`}
+    >
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div key={state.step} {...stepPresence(reducedMotion)}>
+          {stepContent}
+        </motion.div>
+      </AnimatePresence>
+    </PageLayout>
+  );
 }

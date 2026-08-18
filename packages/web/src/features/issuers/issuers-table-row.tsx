@@ -8,10 +8,10 @@ import { IssuerAvatar } from "./issuer-avatar";
 import type { IssuerMetrics } from "./issuer-sort";
 
 export interface IssuersTableRowProps extends IssuerMetrics {
-	/** The issuer's **issuer default category**, resolved by the caller. */
-	category?: Category;
-	/** That category's **Resolved colour**, resolved against the whole tree. */
-	categoryColor?: string;
+  /** The issuer's **issuer default category**, resolved by the caller. */
+  category?: Category;
+  /** That category's **Resolved colour**, resolved against the whole tree. */
+  categoryColor?: string;
 }
 
 /**
@@ -28,50 +28,48 @@ export interface IssuersTableRowProps extends IssuerMetrics {
  * hit area across the row, so clicking anywhere still navigates.
  */
 export function IssuersTableRow({
-	issuer,
-	count,
-	net,
-	category,
-	categoryColor,
+  issuer,
+  count,
+  net,
+  category,
+  categoryColor,
 }: IssuersTableRowProps) {
-	return (
-		<TableRow className="group relative">
-			<TableCell>
-				<div className="flex items-center gap-3">
-					<IssuerAvatar
-						imageUrl={issuer.imageUrl}
-						defaultCategoryId={issuer.defaultCategoryId}
-						size="sm"
-					/>
-					<Link
-						to="/issuers/$issuerId"
-						params={{ issuerId: String(issuer.id) }}
-						className="font-medium text-gousse-ink outline-none after:absolute after:inset-0 after:rounded-xl group-hover:text-gousse-accent focus-visible:after:ring-2 focus-visible:after:ring-gousse-accent"
-					>
-						{issuer.name}
-					</Link>
-				</div>
-			</TableCell>
-			<TableCell>
-				{/* The issuer's *default* category — the chain's second rung. Shown
-				    read-only here; it's edited on the issuer's own page. */}
-				<CategoryCell category={category} color={categoryColor} />
-			</TableCell>
-			<TableCell className="text-right tabular-nums text-gousse-muted">
-				{count}
-			</TableCell>
-			{/* The signed net, coloured by direction. The row is *ranked* by
-			    `value` (the absolute money moved), which the Net header sorts by —
-			    a separate column for it only repeated this figure unsigned. */}
-			<TableCell
-				className={cn(
-					"text-right font-medium tabular-nums",
-					net < 0 && "text-gousse-high",
-					net > 0 && "text-gousse-low",
-				)}
-			>
-				{formatCurrency(net)}
-			</TableCell>
-		</TableRow>
-	);
+  return (
+    <TableRow className="group relative">
+      <TableCell>
+        <div className="flex items-center gap-3">
+          <IssuerAvatar
+            imageUrl={issuer.imageUrl}
+            defaultCategoryId={issuer.defaultCategoryId}
+            size="sm"
+          />
+          <Link
+            to="/issuers/$issuerId"
+            params={{ issuerId: String(issuer.id) }}
+            className="font-medium text-gousse-ink outline-none after:absolute after:inset-0 after:rounded-xl group-hover:text-gousse-accent focus-visible:after:ring-2 focus-visible:after:ring-gousse-accent"
+          >
+            {issuer.name}
+          </Link>
+        </div>
+      </TableCell>
+      <TableCell>
+        {/* The issuer's *default* category — the chain's second rung. Shown
+            read-only here; it's edited on the issuer's own page. */}
+        <CategoryCell category={category} color={categoryColor} />
+      </TableCell>
+      <TableCell className="text-right tabular-nums text-gousse-muted">{count}</TableCell>
+      {/* The signed net, coloured by direction. The row is *ranked* by
+          `value` (the absolute money moved), which the Net header sorts by —
+          a separate column for it only repeated this figure unsigned. */}
+      <TableCell
+        className={cn(
+          "text-right font-medium tabular-nums",
+          net < 0 && "text-gousse-high",
+          net > 0 && "text-gousse-low",
+        )}
+      >
+        {formatCurrency(net)}
+      </TableCell>
+    </TableRow>
+  );
 }

@@ -8,8 +8,8 @@ import { Effect } from "effect";
  * numbered migration file.
  */
 export default Effect.flatMap(SqlClient.SqlClient, (sql) =>
-	Effect.all([
-		sql`
+  Effect.all([
+    sql`
 			CREATE TABLE IF NOT EXISTS accounts (
 				id INTEGER PRIMARY KEY AUTOINCREMENT,
 				name TEXT NOT NULL,
@@ -18,8 +18,8 @@ export default Effect.flatMap(SqlClient.SqlClient, (sql) =>
 				updatedAt TEXT NOT NULL
 			)
 		`,
-		sql`CREATE INDEX IF NOT EXISTS idx_accounts_name ON accounts(name)`,
-		sql`CREATE INDEX IF NOT EXISTS idx_accounts_type ON accounts(type)`,
-		sql`CREATE INDEX IF NOT EXISTS idx_accounts_createdAt ON accounts(createdAt)`,
-	]).pipe(Effect.asVoid),
+    sql`CREATE INDEX IF NOT EXISTS idx_accounts_name ON accounts(name)`,
+    sql`CREATE INDEX IF NOT EXISTS idx_accounts_type ON accounts(type)`,
+    sql`CREATE INDEX IF NOT EXISTS idx_accounts_createdAt ON accounts(createdAt)`,
+  ]).pipe(Effect.asVoid),
 );

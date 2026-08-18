@@ -17,33 +17,33 @@ import { DatabaseTest } from "../test";
  *   claims a secret is configured while holding nothing.
  */
 describe("0027 encrypted_secrets", () => {
-	it.effect("keys a secret by name — a second write replaces the first", () =>
-		Effect.gen(function* () {
-			const sql = yield* SqlClient.SqlClient;
-			yield* sql`INSERT OR REPLACE INTO encrypted_secrets (name, ciphertext, updatedAt) VALUES ('anthropic', 'first', '2026-08-16T00:00:00.000Z')`;
-			yield* sql`INSERT OR REPLACE INTO encrypted_secrets (name, ciphertext, updatedAt) VALUES ('anthropic', 'second', '2026-08-16T00:01:00.000Z')`;
+  it.effect("keys a secret by name — a second write replaces the first", () =>
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      yield* sql`INSERT OR REPLACE INTO encrypted_secrets (name, ciphertext, updatedAt) VALUES ('anthropic', 'first', '2026-08-16T00:00:00.000Z')`;
+      yield* sql`INSERT OR REPLACE INTO encrypted_secrets (name, ciphertext, updatedAt) VALUES ('anthropic', 'second', '2026-08-16T00:01:00.000Z')`;
 
-			const rows = yield* sql<{
-				name: string;
-				ciphertext: string;
-			}>`SELECT name, ciphertext FROM encrypted_secrets`;
+      const rows = yield* sql<{
+        name: string;
+        ciphertext: string;
+      }>`SELECT name, ciphertext FROM encrypted_secrets`;
 
-			assert.deepStrictEqual(
-				rows.map((row) => [row.name, row.ciphertext]),
-				[["anthropic", "second"]],
-			);
-		}).pipe(Effect.provide(DatabaseTest)),
-	);
+      assert.deepStrictEqual(
+        rows.map((row) => [row.name, row.ciphertext]),
+        [["anthropic", "second"]],
+      );
+    }).pipe(Effect.provide(DatabaseTest)),
+  );
 
-	it.effect("refuses a row with no ciphertext", () =>
-		Effect.gen(function* () {
-			const sql = yield* SqlClient.SqlClient;
-			const error =
-				yield* sql`INSERT INTO encrypted_secrets (name, ciphertext, updatedAt) VALUES ('anthropic', NULL, '2026-08-16T00:00:00.000Z')`.pipe(
-					Effect.flip,
-				);
+  it.effect("refuses a row with no ciphertext", () =>
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      const error =
+        yield* sql`INSERT INTO encrypted_secrets (name, ciphertext, updatedAt) VALUES ('anthropic', NULL, '2026-08-16T00:00:00.000Z')`.pipe(
+          Effect.flip,
+        );
 
-			assert.include(String(error.cause ?? error.message), "NOT NULL");
-		}).pipe(Effect.provide(DatabaseTest)),
-	);
+      assert.include(String(error.cause ?? error.message), "NOT NULL");
+    }).pipe(Effect.provide(DatabaseTest)),
+  );
 });

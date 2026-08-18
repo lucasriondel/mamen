@@ -1,9 +1,4 @@
-import {
-	HttpApiEndpoint,
-	HttpApiGroup,
-	HttpApiSchema,
-	OpenApi,
-} from "@effect/platform";
+import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema, OpenApi } from "@effect/platform";
 import { Schema } from "effect";
 import { NotFound } from "./errors";
 import { AccountId, IssuerId, numFromStr, RuleId } from "./ids";
@@ -31,35 +26,35 @@ export type RuleSign = typeof RuleSign.Type;
  * speak, i.e. the fields that actually live in a row.
  */
 export class Rule extends Schema.Class<Rule>("Rule")({
-	id: RuleId,
-	issuerId: IssuerId,
-	pattern: Schema.String,
-	/**
-	 * The optional **Value matcher** (issue #42, ADR 0004): a positive amount
-	 * magnitude. When present the rule matches a row only if `pattern` matches the
-	 * raw issuer string **and** the row's amount magnitude equals `matchValue` to
-	 * the cent — so one issuer-string can fork by amount. Absent ⇒ a plain regex
-	 * rule, byte-identical to the pre-#42 behaviour. Sign-agnostic: stored and
-	 * compared as a magnitude, so a `6.99` rule matches a `-6.99` debit.
-	 */
-	matchValue: Schema.optional(Schema.Number.pipe(Schema.positive())),
-	/**
-	 * The optional **Account matcher** (issue #90, ADR 0009): when present the
-	 * rule matches a row only if the row lives in that account — so the same raw
-	 * issuer string can route to a different issuer per account. **One** account,
-	 * never a set: a row lives in exactly one account, so N rules cover N accounts
-	 * and never compete for a row. No FK; deleting the account deletes the rule.
-	 */
-	matchAccountId: Schema.optional(AccountId),
-	/**
-	 * The optional **Sign matcher** (issue #90, ADR 0009): when present the rule
-	 * matches only money-in (`positive`) or only money-out (`negative`) rows, so a
-	 * purchase and its refund can carry different issuers. A zero amount matches
-	 * neither ({@link RuleSign}). Independent of {@link Rule.matchValue}, which
-	 * stays a sign-agnostic magnitude (ADR 0004).
-	 */
-	matchSign: Schema.optional(RuleSign),
-	createdAt: Schema.Date,
+  id: RuleId,
+  issuerId: IssuerId,
+  pattern: Schema.String,
+  /**
+   * The optional **Value matcher** (issue #42, ADR 0004): a positive amount
+   * magnitude. When present the rule matches a row only if `pattern` matches the
+   * raw issuer string **and** the row's amount magnitude equals `matchValue` to
+   * the cent — so one issuer-string can fork by amount. Absent ⇒ a plain regex
+   * rule, byte-identical to the pre-#42 behaviour. Sign-agnostic: stored and
+   * compared as a magnitude, so a `6.99` rule matches a `-6.99` debit.
+   */
+  matchValue: Schema.optional(Schema.Number.pipe(Schema.positive())),
+  /**
+   * The optional **Account matcher** (issue #90, ADR 0009): when present the
+   * rule matches a row only if the row lives in that account — so the same raw
+   * issuer string can route to a different issuer per account. **One** account,
+   * never a set: a row lives in exactly one account, so N rules cover N accounts
+   * and never compete for a row. No FK; deleting the account deletes the rule.
+   */
+  matchAccountId: Schema.optional(AccountId),
+  /**
+   * The optional **Sign matcher** (issue #90, ADR 0009): when present the rule
+   * matches only money-in (`positive`) or only money-out (`negative`) rows, so a
+   * purchase and its refund can carry different issuers. A zero amount matches
+   * neither ({@link RuleSign}). Independent of {@link Rule.matchValue}, which
+   * stays a sign-agnostic magnitude (ADR 0004).
+   */
+  matchSign: Schema.optional(RuleSign),
+  createdAt: Schema.Date,
 }) {}
 
 /**
@@ -75,16 +70,16 @@ export class Rule extends Schema.Class<Rule>("Rule")({
  * Read-only: no write payload carries it.
  */
 export class RuleView extends Rule.extend<RuleView>("RuleView")({
-	ownedCount: Schema.Number,
+  ownedCount: Schema.Number,
 }) {}
 
 /** Create payload — the server assigns `id` and `createdAt`. */
 export const RuleCreate = Schema.Struct({
-	issuerId: Rule.fields.issuerId,
-	pattern: Rule.fields.pattern,
-	matchValue: Rule.fields.matchValue,
-	matchAccountId: Rule.fields.matchAccountId,
-	matchSign: Rule.fields.matchSign,
+  issuerId: Rule.fields.issuerId,
+  pattern: Rule.fields.pattern,
+  matchValue: Rule.fields.matchValue,
+  matchAccountId: Rule.fields.matchAccountId,
+  matchSign: Rule.fields.matchSign,
 });
 export type RuleCreate = typeof RuleCreate.Type;
 
@@ -98,13 +93,11 @@ export type RuleCreate = typeof RuleCreate.Type;
  * the caller never mentioned, which is data loss in a PUT.
  */
 export const RuleUpdate = Schema.Struct({
-	issuerId: Schema.optional(Rule.fields.issuerId),
-	pattern: Schema.optional(Rule.fields.pattern),
-	matchValue: Schema.optional(
-		Schema.NullOr(Schema.Number.pipe(Schema.positive())),
-	),
-	matchAccountId: Schema.optional(Schema.NullOr(AccountId)),
-	matchSign: Schema.optional(Schema.NullOr(RuleSign)),
+  issuerId: Schema.optional(Rule.fields.issuerId),
+  pattern: Schema.optional(Rule.fields.pattern),
+  matchValue: Schema.optional(Schema.NullOr(Schema.Number.pipe(Schema.positive()))),
+  matchAccountId: Schema.optional(Schema.NullOr(AccountId)),
+  matchSign: Schema.optional(Schema.NullOr(RuleSign)),
 });
 export type RuleUpdate = typeof RuleUpdate.Type;
 
@@ -120,25 +113,21 @@ export type RuleUpdate = typeof RuleUpdate.Type;
  * helper: the patch semantics are the point, and they read at a glance here.
  */
 export const mergeRuleUpdate = (current: Rule, changes: RuleUpdate): Rule => {
-	const matchValue =
-		changes.matchValue === undefined
-			? current.matchValue
-			: (changes.matchValue ?? undefined);
-	const matchAccountId =
-		changes.matchAccountId === undefined
-			? current.matchAccountId
-			: (changes.matchAccountId ?? undefined);
-	const matchSign =
-		changes.matchSign === undefined
-			? current.matchSign
-			: (changes.matchSign ?? undefined);
-	return new Rule({
-		...current,
-		...changes,
-		matchValue,
-		matchAccountId,
-		matchSign,
-	});
+  const matchValue =
+    changes.matchValue === undefined ? current.matchValue : (changes.matchValue ?? undefined);
+  const matchAccountId =
+    changes.matchAccountId === undefined
+      ? current.matchAccountId
+      : (changes.matchAccountId ?? undefined);
+  const matchSign =
+    changes.matchSign === undefined ? current.matchSign : (changes.matchSign ?? undefined);
+  return new Rule({
+    ...current,
+    ...changes,
+    matchValue,
+    matchAccountId,
+    matchSign,
+  });
 };
 
 /**
@@ -147,7 +136,7 @@ export const mergeRuleUpdate = (current: Rule, changes: RuleUpdate): Rule => {
  * `list` spreads it alongside `Pagination`; `count` takes it alone (no paging).
  */
 export const RuleListFilters = {
-	issuerId: Schema.optional(numFromStr(IssuerId)),
+  issuerId: Schema.optional(numFromStr(IssuerId)),
 } as const;
 
 /** `count` success body — the full filtered row count. */
@@ -164,12 +153,12 @@ export const RuleCount = Schema.Struct({ count: Schema.Number });
  * whole rule set (PRD #8 stories 7–11).
  */
 export const RulePreviewInput = Schema.Struct({
-	ruleId: Schema.optional(RuleId),
-	issuerId: Rule.fields.issuerId,
-	pattern: Rule.fields.pattern,
-	matchValue: Rule.fields.matchValue,
-	matchAccountId: Rule.fields.matchAccountId,
-	matchSign: Rule.fields.matchSign,
+  ruleId: Schema.optional(RuleId),
+  issuerId: Rule.fields.issuerId,
+  pattern: Rule.fields.pattern,
+  matchValue: Rule.fields.matchValue,
+  matchAccountId: Rule.fields.matchAccountId,
+  matchSign: Rule.fields.matchSign,
 });
 export type RulePreviewInput = typeof RulePreviewInput.Type;
 
@@ -189,10 +178,10 @@ export type RulePreviewInput = typeof RulePreviewInput.Type;
  * preview is advisory — a concurrent import/edit can't cause a stale write.
  */
 export const RulePreviewResult = Schema.Struct({
-	willMatch: Schema.Array(Transaction),
-	willReassign: Schema.Array(Transaction),
-	manualCollisions: Schema.Array(Transaction),
-	skipped: Schema.Boolean,
+  willMatch: Schema.Array(Transaction),
+  willReassign: Schema.Array(Transaction),
+  manualCollisions: Schema.Array(Transaction),
+  skipped: Schema.Boolean,
 });
 export type RulePreviewResult = typeof RulePreviewResult.Type;
 
@@ -209,8 +198,8 @@ export type RulePreviewResult = typeof RulePreviewResult.Type;
  * state, so a concurrent edit can't cause a stale write.
  */
 export const RuleDeletePreviewResult = Schema.Struct({
-	willReassign: Schema.Array(Transaction),
-	willUnmatch: Schema.Array(Transaction),
+  willReassign: Schema.Array(Transaction),
+  willUnmatch: Schema.Array(Transaction),
 });
 export type RuleDeletePreviewResult = typeof RuleDeletePreviewResult.Type;
 
@@ -226,67 +215,61 @@ export type RuleDeletePreviewResult = typeof RuleDeletePreviewResult.Type;
  * writes alike and a freshly-saved rule already reports the rows it just claimed.
  */
 export class RulesGroup extends HttpApiGroup.make("rules")
-	.add(
-		HttpApiEndpoint.get("list")`/rules`
-			.setUrlParams(Schema.Struct({ ...Pagination, ...RuleListFilters }))
-			.addSuccess(Paged(RuleView)),
-	)
-	.add(
-		HttpApiEndpoint.get("count")`/rules/count`
-			.setUrlParams(Schema.Struct(RuleListFilters))
-			.addSuccess(RuleCount),
-	)
-	.add(
-		HttpApiEndpoint.get(
-			"getById",
-		)`/rules/${HttpApiSchema.param("id", numFromStr(RuleId))}`
-			.addSuccess(RuleView)
-			.addError(NotFound),
-	)
-	.add(
-		HttpApiEndpoint.get(
-			"getByIssuerPattern",
-		)`/rules/by-issuer-pattern/${HttpApiSchema.param("issuerId", numFromStr(IssuerId))}/${HttpApiSchema.param("pattern", Schema.String)}`
-			.addSuccess(RuleView)
-			.addError(NotFound),
-	)
-	.add(
-		// Dry-run for a create/update — returns the three affected-transaction
-		// lists for the scoped pattern without writing. `NotFound` when `ruleId`
-		// names a rule that doesn't exist (an update preview of a missing rule).
-		HttpApiEndpoint.post("preview")`/rules/preview`
-			.setPayload(RulePreviewInput)
-			.addSuccess(RulePreviewResult)
-			.addError(NotFound),
-	)
-	.add(
-		// Dry-run for a delete — returns the rows that will change issuer or become
-		// unmatched if this rule is removed, re-homed against the remaining rules.
-		// `NotFound` when `id` names a rule that doesn't exist.
-		HttpApiEndpoint.get(
-			"previewDelete",
-		)`/rules/${HttpApiSchema.param("id", numFromStr(RuleId))}/delete-preview`
-			.addSuccess(RuleDeletePreviewResult)
-			.addError(NotFound),
-	)
-	.add(
-		HttpApiEndpoint.post("create")`/rules`
-			.setPayload(RuleCreate)
-			.addSuccess(RuleView, { status: 201 }),
-	)
-	.add(
-		HttpApiEndpoint.put(
-			"update",
-		)`/rules/${HttpApiSchema.param("id", numFromStr(RuleId))}`
-			.setPayload(RuleUpdate)
-			.addSuccess(RuleView)
-			.addError(NotFound),
-	)
-	.add(
-		HttpApiEndpoint.del(
-			"remove",
-		)`/rules/${HttpApiSchema.param("id", numFromStr(RuleId))}`
-			.addSuccess(HttpApiSchema.NoContent)
-			.addError(NotFound),
-	)
-	.annotateContext(OpenApi.annotations({ title: "Rules" })) {}
+  .add(
+    HttpApiEndpoint.get("list")`/rules`
+      .setUrlParams(Schema.Struct({ ...Pagination, ...RuleListFilters }))
+      .addSuccess(Paged(RuleView)),
+  )
+  .add(
+    HttpApiEndpoint.get("count")`/rules/count`
+      .setUrlParams(Schema.Struct(RuleListFilters))
+      .addSuccess(RuleCount),
+  )
+  .add(
+    HttpApiEndpoint.get("getById")`/rules/${HttpApiSchema.param("id", numFromStr(RuleId))}`
+      .addSuccess(RuleView)
+      .addError(NotFound),
+  )
+  .add(
+    HttpApiEndpoint.get(
+      "getByIssuerPattern",
+    )`/rules/by-issuer-pattern/${HttpApiSchema.param("issuerId", numFromStr(IssuerId))}/${HttpApiSchema.param("pattern", Schema.String)}`
+      .addSuccess(RuleView)
+      .addError(NotFound),
+  )
+  .add(
+    // Dry-run for a create/update — returns the three affected-transaction
+    // lists for the scoped pattern without writing. `NotFound` when `ruleId`
+    // names a rule that doesn't exist (an update preview of a missing rule).
+    HttpApiEndpoint.post("preview")`/rules/preview`
+      .setPayload(RulePreviewInput)
+      .addSuccess(RulePreviewResult)
+      .addError(NotFound),
+  )
+  .add(
+    // Dry-run for a delete — returns the rows that will change issuer or become
+    // unmatched if this rule is removed, re-homed against the remaining rules.
+    // `NotFound` when `id` names a rule that doesn't exist.
+    HttpApiEndpoint.get(
+      "previewDelete",
+    )`/rules/${HttpApiSchema.param("id", numFromStr(RuleId))}/delete-preview`
+      .addSuccess(RuleDeletePreviewResult)
+      .addError(NotFound),
+  )
+  .add(
+    HttpApiEndpoint.post("create")`/rules`
+      .setPayload(RuleCreate)
+      .addSuccess(RuleView, { status: 201 }),
+  )
+  .add(
+    HttpApiEndpoint.put("update")`/rules/${HttpApiSchema.param("id", numFromStr(RuleId))}`
+      .setPayload(RuleUpdate)
+      .addSuccess(RuleView)
+      .addError(NotFound),
+  )
+  .add(
+    HttpApiEndpoint.del("remove")`/rules/${HttpApiSchema.param("id", numFromStr(RuleId))}`
+      .addSuccess(HttpApiSchema.NoContent)
+      .addError(NotFound),
+  )
+  .annotateContext(OpenApi.annotations({ title: "Rules" })) {}

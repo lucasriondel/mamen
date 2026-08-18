@@ -12,26 +12,26 @@ const count = vi.fn();
 const bundleImpact = vi.fn();
 
 vi.mock("@mamen/sdk", async (importOriginal) => {
-	const actual = await importOriginal<typeof import("@mamen/sdk")>();
-	return {
-		...actual,
-		transactionQueries: {
-			...actual.transactionQueries,
-			count: (params: unknown) => ({
-				queryKey: ["transactions", "count", params],
-				queryFn: async () => count(params),
-			}),
-			bundleImpact: (params: unknown) => ({
-				queryKey: ["transactions", "bundle-impact", params],
-				queryFn: async () => bundleImpact(params),
-			}),
-		},
-	};
+  const actual = await importOriginal<typeof import("@mamen/sdk")>();
+  return {
+    ...actual,
+    transactionQueries: {
+      ...actual.transactionQueries,
+      count: (params: unknown) => ({
+        queryKey: ["transactions", "count", params],
+        queryFn: async () => count(params),
+      }),
+      bundleImpact: (params: unknown) => ({
+        queryKey: ["transactions", "bundle-impact", params],
+        queryFn: async () => bundleImpact(params),
+      }),
+    },
+  };
 });
 
 const mutate = vi.fn();
 vi.mock("./use-import-commit", () => ({
-	useImportCommit: () => ({ mutate, isPending: false }),
+  useImportCommit: () => ({ mutate, isPending: false }),
 }));
 
 const { CommitBar } = await import("./commit-bar");
@@ -39,111 +39,105 @@ const { CommitBar } = await import("./commit-bar");
 const ACCOUNT_ID = 7 as AccountId;
 
 function record(overrides: Partial<ParsedTransaction> = {}): ParsedTransaction {
-	return {
-		accountId: ACCOUNT_ID,
-		date: new Date("2026-01-15T10:00:00Z"),
-		amount: -10,
-		rawIssuerString: "SHOP",
-		importMonth: "2026-01",
-		importBatchId: "batch-1",
-		...overrides,
-	};
+  return {
+    accountId: ACCOUNT_ID,
+    date: new Date("2026-01-15T10:00:00Z"),
+    amount: -10,
+    rawIssuerString: "SHOP",
+    importMonth: "2026-01",
+    importBatchId: "batch-1",
+    ...overrides,
+  };
 }
 
 beforeEach(() => {
-	count.mockReset().mockResolvedValue({ count: 4, total: -40 });
-	bundleImpact.mockReset().mockResolvedValue({ count: 2 });
-	mutate.mockReset();
+  count.mockReset().mockResolvedValue({ count: 4, total: -40 });
+  bundleImpact.mockReset().mockResolvedValue({ count: 2 });
+  mutate.mockReset();
 });
 
 describe("CommitBar", () => {
-	it("commits the parsed records", async () => {
-		const records = [record(), record({ importMonth: "2026-02" })];
-		render(<CommitBar records={records} duplicateCount={0} onBack={vi.fn()} />);
+  it("commits the parsed records", async () => {
+    const records = [record(), record({ importMonth: "2026-02" })];
+    render(<CommitBar records={records} duplicateCount={0} onBack={vi.fn()} />);
 
-		(await screen.findByRole("button", { name: /commit import/i })).click();
+    (await screen.findByRole("button", { name: /commit import/i })).click();
 
-		expect(mutate).toHaveBeenCalledWith({ records });
-	});
+    expect(mutate).toHaveBeenCalledWith({ records });
+  });
 
-	// A warning about a loss that can no longer happen is worse than none: it
-	// teaches the user to fear an import that is now safe.
-	it("warns about neither replacement nor dissolution", async () => {
-		render(
-			<CommitBar
-				records={[record(), record({ importMonth: "2026-02" })]}
-				duplicateCount={0}
-				onBack={vi.fn()}
-			/>,
-		);
+  // A warning about a loss that can no longer happen is worse than none: it
+  // teaches the user to fear an import that is now safe.
+  it("warns about neither replacement nor dissolution", async () => {
+    render(
+      <CommitBar
+        records={[record(), record({ importMonth: "2026-02" })]}
+        duplicateCount={0}
+        onBack={vi.fn()}
+      />,
+    );
 
-		await screen.findByRole("button", { name: /commit import/i });
-		// The stubs would answer 4 rows and 2 bundles — nothing on screen says so.
-		await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
-		expect(screen.queryByText(/replace/i)).toBeNull();
-		expect(screen.queryByText(/bundle/i)).toBeNull();
-	});
+    await screen.findByRole("button", { name: /commit import/i });
+    // The stubs would answer 4 rows and 2 bundles — nothing on screen says so.
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+    expect(screen.queryByText(/replace/i)).toBeNull();
+    expect(screen.queryByText(/bundle/i)).toBeNull();
+  });
 
-	// Not merely unrendered — unasked. The notices were the only reason the
-	// preview knew which account it was writing into. The duplicate count is a
-	// prop: the preview reads it (the same number marks its rows), the bar states
-	// it.
-	it("asks the server nothing", async () => {
-		render(
-			<CommitBar records={[record()]} duplicateCount={0} onBack={vi.fn()} />,
-		);
+  // Not merely unrendered — unasked. The notices were the only reason the
+  // preview knew which account it was writing into. The duplicate count is a
+  // prop: the preview reads it (the same number marks its rows), the bar states
+  // it.
+  it("asks the server nothing", async () => {
+    render(<CommitBar records={[record()]} duplicateCount={0} onBack={vi.fn()} />);
 
-		await screen.findByRole("button", { name: /commit import/i });
-		expect(count).not.toHaveBeenCalled();
-		expect(bundleImpact).not.toHaveBeenCalled();
-	});
+    await screen.findByRole("button", { name: /commit import/i });
+    expect(count).not.toHaveBeenCalled();
+    expect(bundleImpact).not.toHaveBeenCalled();
+  });
 
-	// The slot the replacement notice left (issue #89): how many previewed rows
-	// look already imported — stated as advice, and saying in as many words that
-	// they will be imported anyway.
-	it("reports how many previewed rows look already imported", async () => {
-		render(
-			<CommitBar
-				records={[record(), record({ rawIssuerString: "SHOP B" })]}
-				duplicateCount={2}
-				onBack={vi.fn()}
-			/>,
-		);
+  // The slot the replacement notice left (issue #89): how many previewed rows
+  // look already imported — stated as advice, and saying in as many words that
+  // they will be imported anyway.
+  it("reports how many previewed rows look already imported", async () => {
+    render(
+      <CommitBar
+        records={[record(), record({ rawIssuerString: "SHOP B" })]}
+        duplicateCount={2}
+        onBack={vi.fn()}
+      />,
+    );
 
-		const notice = await screen.findByRole("status");
-		expect(notice).toHaveTextContent(
-			"2 of these rows look already imported. They will be imported again unless you remove them.",
-		);
-	});
+    const notice = await screen.findByRole("status");
+    expect(notice).toHaveTextContent(
+      "2 of these rows look already imported. They will be imported again unless you remove them.",
+    );
+  });
 
-	it("singularises the notice for one flagged row", async () => {
-		render(
-			<CommitBar records={[record()]} duplicateCount={1} onBack={vi.fn()} />,
-		);
+  it("singularises the notice for one flagged row", async () => {
+    render(<CommitBar records={[record()]} duplicateCount={1} onBack={vi.fn()} />);
 
-		expect(await screen.findByRole("status")).toHaveTextContent(
-			"1 of these rows looks already imported. It will be imported again unless you remove it.",
-		);
-	});
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "1 of these rows looks already imported. It will be imported again unless you remove it.",
+    );
+  });
 
-	// Every row skipped on the preview (epic #85) leaves nothing to write. The
-	// button refuses rather than posting an empty batch and reporting an import
-	// that wrote no rows.
-	it("refuses to commit when no row is left to write", async () => {
-		render(<CommitBar records={[]} duplicateCount={0} onBack={vi.fn()} />);
+  // Every row skipped on the preview (epic #85) leaves nothing to write. The
+  // button refuses rather than posting an empty batch and reporting an import
+  // that wrote no rows.
+  it("refuses to commit when no row is left to write", async () => {
+    render(<CommitBar records={[]} duplicateCount={0} onBack={vi.fn()} />);
 
-		const button = await screen.findByRole("button", { name: "Commit import" });
-		expect(button).toBeDisabled();
-		button.click();
-		expect(mutate).not.toHaveBeenCalled();
-	});
+    const button = await screen.findByRole("button", { name: "Commit import" });
+    expect(button).toBeDisabled();
+    button.click();
+    expect(mutate).not.toHaveBeenCalled();
+  });
 
-	it("says nothing when no row looks already imported", async () => {
-		render(
-			<CommitBar records={[record()]} duplicateCount={0} onBack={vi.fn()} />,
-		);
+  it("says nothing when no row looks already imported", async () => {
+    render(<CommitBar records={[record()]} duplicateCount={0} onBack={vi.fn()} />);
 
-		await screen.findByRole("button", { name: /commit import/i });
-		expect(screen.queryByRole("status")).toBeNull();
-	});
+    await screen.findByRole("button", { name: /commit import/i });
+    expect(screen.queryByRole("status")).toBeNull();
+  });
 });

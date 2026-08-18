@@ -4,16 +4,16 @@ import { defineConfig } from "vitest/config";
 // The SDK's runtime is exercised through the server integration tests in
 // @mamen/api; unit coverage here is added as the export surface grows.
 export default defineConfig({
-	test: {
-		environment: "node",
-		globals: false,
-		fakeTimers: { toFake: undefined },
-		// No unit tests yet — the runtime is covered via @mamen/api's
-		// integration tests. Don't fail the suite on an empty package.
-		passWithNoTests: true,
-		coverage: {
-			provider: "v8",
-			include: ["src/**"],
-		},
-	},
+  test: {
+    environment: "node",
+    globals: false,
+    fakeTimers: { toFake: undefined },
+    // No unit tests yet — the runtime is covered via @mamen/api's
+    // integration tests. Don't fail the suite on an empty package.
+    passWithNoTests: true,
+    coverage: {
+      provider: "v8",
+      include: ["src/**"],
+    },
+  },
 });

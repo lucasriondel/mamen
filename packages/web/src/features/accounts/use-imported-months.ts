@@ -13,17 +13,17 @@ const IMPORT_SCAN_LIMIT = 1000;
 
 /** The set key for one (account, month) cell — `"<accountId>:<YYYY-MM>"`. */
 export function importedKey(accountId: AccountId, month: string): string {
-	return `${accountId}:${month}`;
+  return `${accountId}:${month}`;
 }
 
 /** What {@link useImportedMonths} returns. */
 export type ImportedMonths = {
-	/** Keys (`importedKey`) of every (account, month) pair that already has rows. */
-	pairs: ReadonlySet<string>;
-	/** The distinct `YYYY-MM` months seen, for the year selector. */
-	months: ReadonlySet<string>;
-	isPending: boolean;
-	isError: boolean;
+  /** Keys (`importedKey`) of every (account, month) pair that already has rows. */
+  pairs: ReadonlySet<string>;
+  /** The distinct `YYYY-MM` months seen, for the year selector. */
+  months: ReadonlySet<string>;
+  isPending: boolean;
+  isError: boolean;
 };
 
 /**
@@ -32,23 +32,21 @@ export type ImportedMonths = {
  * vs available) and its year selector.
  */
 export function useImportedMonths(): ImportedMonths {
-	const query = useQuery(
-		transactionQueries.list({ limit: IMPORT_SCAN_LIMIT, offset: 0 }),
-	);
+  const query = useQuery(transactionQueries.list({ limit: IMPORT_SCAN_LIMIT, offset: 0 }));
 
-	return useMemo(() => {
-		const items = (query.data?.items ?? []) as readonly Transaction[];
-		const pairs = new Set<string>();
-		const months = new Set<string>();
-		for (const tx of items) {
-			pairs.add(importedKey(tx.accountId, tx.importMonth));
-			months.add(tx.importMonth);
-		}
-		return {
-			pairs,
-			months,
-			isPending: query.isPending,
-			isError: query.isError,
-		};
-	}, [query.data, query.isPending, query.isError]);
+  return useMemo(() => {
+    const items = (query.data?.items ?? []) as readonly Transaction[];
+    const pairs = new Set<string>();
+    const months = new Set<string>();
+    for (const tx of items) {
+      pairs.add(importedKey(tx.accountId, tx.importMonth));
+      months.add(tx.importMonth);
+    }
+    return {
+      pairs,
+      months,
+      isPending: query.isPending,
+      isError: query.isError,
+    };
+  }, [query.data, query.isPending, query.isError]);
 }

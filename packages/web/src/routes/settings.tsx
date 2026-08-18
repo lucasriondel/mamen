@@ -16,5 +16,5 @@ import { SettingsView } from "@/features/settings/settings-view";
  * `next-themes` provider `__root.tsx` mounts.
  */
 export const Route = createFileRoute("/settings")({
-	component: SettingsView,
+  component: SettingsView,
 });

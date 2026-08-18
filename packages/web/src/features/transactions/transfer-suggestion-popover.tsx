@@ -1,26 +1,18 @@
-import type {
-	Account,
-	Transaction,
-	TransactionId,
-} from "@mamen/shared/contract";
+import type { Account, Transaction, TransactionId } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeftRight } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { formatCurrency, formatShortDate } from "@/lib/format";
 import { accountQueries } from "@/lib/sdk";
 import { cn, indexById } from "@/lib/utils";
 import { useTransfer } from "./use-transfer";
 import {
-	dayGapLabel,
-	type SuggestedCounterpart,
-	toTransferPair,
-	useTransferSuggestion,
+  dayGapLabel,
+  type SuggestedCounterpart,
+  toTransferPair,
+  useTransferSuggestion,
 } from "./use-transfer-candidates";
 
 /**
@@ -34,53 +26,49 @@ import {
  * belongs to at most one **transfer group**, so "confirm all" is incoherent.
  */
 function CounterpartRow({
-	counterpart,
-	accountsById,
-	onConfirm,
-	disabled,
+  counterpart,
+  accountsById,
+  onConfirm,
+  disabled,
 }: {
-	counterpart: SuggestedCounterpart;
-	accountsById: ReadonlyMap<number, Account>;
-	onConfirm: () => void;
-	disabled: boolean;
+  counterpart: SuggestedCounterpart;
+  accountsById: ReadonlyMap<number, Account>;
+  onConfirm: () => void;
+  disabled: boolean;
 }) {
-	const leg = counterpart.transaction;
-	return (
-		<li className="flex flex-col gap-1.5 rounded-xl border border-gousse-line px-3 py-2">
-			<div className="flex items-baseline justify-between gap-2">
-				<span
-					className={cn(
-						"font-medium tabular-nums",
-						leg.amount < 0 && "text-gousse-high",
-						leg.amount > 0 && "text-gousse-low",
-					)}
-				>
-					{formatCurrency(leg.amount)}
-				</span>
-				<span className="text-gousse-muted text-xs">
-					{dayGapLabel(counterpart.daysApart)}
-				</span>
-			</div>
-			<span className="text-gousse-muted text-xs">
-				{formatShortDate(leg.date)} ·{" "}
-				{accountsById.get(leg.accountId)?.name ?? `Account #${leg.accountId}`}
-			</span>
-			{/* The bank's own label, verbatim and monospaced like the table's Raw
-			    issuer column: it is evidence, so it is never normalised here. */}
-			<span className="break-words font-mono text-gousse-muted text-xs">
-				{leg.rawIssuerString}
-			</span>
-			<Button
-				variant="secondary"
-				size="sm"
-				className="self-start"
-				disabled={disabled}
-				onClick={onConfirm}
-			>
-				Link as transfer
-			</Button>
-		</li>
-	);
+  const leg = counterpart.transaction;
+  return (
+    <li className="flex flex-col gap-1.5 rounded-xl border border-gousse-line px-3 py-2">
+      <div className="flex items-baseline justify-between gap-2">
+        <span
+          className={cn(
+            "font-medium tabular-nums",
+            leg.amount < 0 && "text-gousse-high",
+            leg.amount > 0 && "text-gousse-low",
+          )}
+        >
+          {formatCurrency(leg.amount)}
+        </span>
+        <span className="text-gousse-muted text-xs">{dayGapLabel(counterpart.daysApart)}</span>
+      </div>
+      <span className="text-gousse-muted text-xs">
+        {formatShortDate(leg.date)} ·{" "}
+        {accountsById.get(leg.accountId)?.name ?? `Account #${leg.accountId}`}
+      </span>
+      {/* The bank's own label, verbatim and monospaced like the table's Raw
+          issuer column: it is evidence, so it is never normalised here. */}
+      <span className="break-words font-mono text-gousse-muted text-xs">{leg.rawIssuerString}</span>
+      <Button
+        variant="secondary"
+        size="sm"
+        className="self-start"
+        disabled={disabled}
+        onClick={onConfirm}
+      >
+        Link as transfer
+      </Button>
+    </li>
+  );
 }
 
 /**
@@ -111,96 +99,91 @@ function CounterpartRow({
  * instead of leaving a settled question on screen while the refetch lands.
  */
 export function TransferSuggestionPanel({
-	transaction,
-	counterparts,
+  transaction,
+  counterparts,
 }: {
-	transaction: Transaction;
-	counterparts: readonly SuggestedCounterpart[];
+  transaction: Transaction;
+  counterparts: readonly SuggestedCounterpart[];
 }) {
-	const [open, setOpen] = useState(false);
-	const { link, dismiss } = useTransfer();
-	const accountsQuery = useQuery(accountQueries.list());
-	const accountsById = useMemo(
-		() => indexById((accountsQuery.data?.items ?? []) as readonly Account[]),
-		[accountsQuery.data],
-	);
+  const [open, setOpen] = useState(false);
+  const { link, dismiss } = useTransfer();
+  const accountsQuery = useQuery(accountQueries.list());
+  const accountsById = useMemo(
+    () => indexById((accountsQuery.data?.items ?? []) as readonly Account[]),
+    [accountsQuery.data],
+  );
 
-	const count = counterparts.length;
-	const busy = link.isPending || dismiss.isPending;
+  const count = counterparts.length;
+  const busy = link.isPending || dismiss.isPending;
 
-	return (
-		<Popover open={open} onOpenChange={setOpen}>
-			<PopoverTrigger
-				render={
-					<button
-						type="button"
-						aria-label={`${count} possible transfer ${count === 1 ? "match" : "matches"} for ${transaction.rawIssuerString}`}
-						className="inline-flex items-center gap-1 rounded-full bg-gousse-accent/10 px-2 py-0.5 text-gousse-accent text-xs outline-none transition-colors hover:bg-gousse-accent/20 focus-visible:ring-2 focus-visible:ring-gousse-accent"
-					>
-						<ArrowLeftRight size={12} aria-hidden />
-						{count}
-					</button>
-				}
-			/>
-			<PopoverContent className="w-80 p-3">
-				<div className="flex flex-col gap-3">
-					<div>
-						<p className="font-medium text-gousse-ink text-sm">
-							Possible transfer
-						</p>
-						<p className="mt-0.5 text-gousse-muted text-xs">
-							{count === 1
-								? "This row matches one transaction in another account."
-								: `This row matches ${count} transactions in other accounts.`}{" "}
-							Linking a pair nets it out of your recap.
-						</p>
-					</div>
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        render={
+          <button
+            type="button"
+            aria-label={`${count} possible transfer ${count === 1 ? "match" : "matches"} for ${transaction.rawIssuerString}`}
+            className="inline-flex items-center gap-1 rounded-full bg-gousse-accent/10 px-2 py-0.5 text-gousse-accent text-xs outline-none transition-colors hover:bg-gousse-accent/20 focus-visible:ring-2 focus-visible:ring-gousse-accent"
+          >
+            <ArrowLeftRight size={12} aria-hidden />
+            {count}
+          </button>
+        }
+      />
+      <PopoverContent className="w-80 p-3">
+        <div className="flex flex-col gap-3">
+          <div>
+            <p className="font-medium text-gousse-ink text-sm">Possible transfer</p>
+            <p className="mt-0.5 text-gousse-muted text-xs">
+              {count === 1
+                ? "This row matches one transaction in another account."
+                : `This row matches ${count} transactions in other accounts.`}{" "}
+              Linking a pair nets it out of your recap.
+            </p>
+          </div>
 
-					<ul className="flex flex-col gap-2">
-						{counterparts.map((counterpart) => (
-							<CounterpartRow
-								key={counterpart.transaction.id}
-								counterpart={counterpart}
-								accountsById={accountsById}
-								disabled={busy}
-								onConfirm={() => {
-									setOpen(false);
-									link.mutate([
-										transaction.id,
-										counterpart.transaction.id,
-									] as TransactionId[]);
-								}}
-							/>
-						))}
-					</ul>
+          <ul className="flex flex-col gap-2">
+            {counterparts.map((counterpart) => (
+              <CounterpartRow
+                key={counterpart.transaction.id}
+                counterpart={counterpart}
+                accountsById={accountsById}
+                disabled={busy}
+                onConfirm={() => {
+                  setOpen(false);
+                  link.mutate([transaction.id, counterpart.transaction.id] as TransactionId[]);
+                }}
+              />
+            ))}
+          </ul>
 
-					<div className="flex flex-col gap-1 border-t border-gousse-line pt-3">
-						<Button
-							variant="secondary"
-							size="sm"
-							className="self-start"
-							disabled={busy}
-							onClick={() => {
-								setOpen(false);
-								dismiss.mutate(
-									counterparts.map((counterpart) =>
-										toTransferPair(transaction, counterpart.transaction),
-									),
-								);
-							}}
-						>
-							{count === 1 ? "Not a transfer" : `Not a transfer (${count})`}
-						</Button>
-						<p className="text-gousse-muted text-xs">
-							{count === 1
-								? "Clears this suggestion for good — there's no undo yet."
-								: `Clears all ${count} suggestions above for good — there's no undo yet.`}
-						</p>
-					</div>
-				</div>
-			</PopoverContent>
-		</Popover>
-	);
+          <div className="flex flex-col gap-1 border-t border-gousse-line pt-3">
+            <Button
+              variant="secondary"
+              size="sm"
+              className="self-start"
+              disabled={busy}
+              onClick={() => {
+                setOpen(false);
+                dismiss.mutate(
+                  counterparts.map((counterpart) =>
+                    toTransferPair(transaction, counterpart.transaction),
+                  ),
+                );
+              }}
+            >
+              {count === 1 ? "Not a transfer" : `Not a transfer (${count})`}
+            </Button>
+            <p className="text-gousse-muted text-xs">
+              {count === 1
+                ? "Clears this suggestion for good — there's no undo yet."
+                : `Clears all ${count} suggestions above for good — there's no undo yet.`}
+            </p>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 /**
@@ -210,19 +193,12 @@ export function TransferSuggestionPanel({
  * (already grouped, a refund, bundled) simply has no entry, so an indicator is
  * never offered where the confirm action would be refused.
  */
-export function TransferSuggestionCell({
-	transaction,
-}: {
-	transaction: Transaction;
-}) {
-	const suggestion = useTransferSuggestion(transaction);
-	if (suggestion === undefined || suggestion.counterparts.length === 0) {
-		return null;
-	}
-	return (
-		<TransferSuggestionPanel
-			transaction={transaction}
-			counterparts={suggestion.counterparts}
-		/>
-	);
+export function TransferSuggestionCell({ transaction }: { transaction: Transaction }) {
+  const suggestion = useTransferSuggestion(transaction);
+  if (suggestion === undefined || suggestion.counterparts.length === 0) {
+    return null;
+  }
+  return (
+    <TransferSuggestionPanel transaction={transaction} counterparts={suggestion.counterparts} />
+  );
 }

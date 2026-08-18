@@ -39,14 +39,14 @@ const REST = { opacity: 1, y: 0 };
  * `opacity` and `y` (translateY = transform), plus the timing `transition`.
  */
 export interface EntranceProps {
-	initial: { opacity: number; y: number } | false;
-	animate: { opacity: number; y: number };
-	transition: Transition;
+  initial: { opacity: number; y: number } | false;
+  animate: { opacity: number; y: number };
+  transition: Transition;
 }
 
 /** Presence props (adds `exit`) for elements swapped under `AnimatePresence`. */
 export interface PresenceProps extends EntranceProps {
-	exit: { opacity: number; y: number };
+  exit: { opacity: number; y: number };
 }
 
 /**
@@ -55,8 +55,8 @@ export interface PresenceProps extends EntranceProps {
  * ({@link MAX_STAGGER_INDEX}) and collapses to `0` under reduced motion.
  */
 export function staggerDelay(index: number, reducedMotion: boolean): number {
-	if (reducedMotion || index <= 0) return 0;
-	return Math.min(index, MAX_STAGGER_INDEX) * STAGGER_STEP_S;
+  if (reducedMotion || index <= 0) return 0;
+  return Math.min(index, MAX_STAGGER_INDEX) * STAGGER_STEP_S;
 }
 
 /**
@@ -64,26 +64,23 @@ export function staggerDelay(index: number, reducedMotion: boolean): number {
  * the card renders directly in its resting state (`initial: false`, zero
  * duration) so nothing moves.
  */
-export function cardEntrance(
-	index: number,
-	reducedMotion: boolean,
-): EntranceProps {
-	if (reducedMotion) {
-		return {
-			initial: false,
-			animate: REST,
-			transition: { duration: 0 },
-		};
-	}
-	return {
-		initial: { opacity: 0, y: 8 },
-		animate: REST,
-		transition: {
-			duration: DURATION_S,
-			ease: EASE_OUT,
-			delay: staggerDelay(index, false),
-		},
-	};
+export function cardEntrance(index: number, reducedMotion: boolean): EntranceProps {
+  if (reducedMotion) {
+    return {
+      initial: false,
+      animate: REST,
+      transition: { duration: 0 },
+    };
+  }
+  return {
+    initial: { opacity: 0, y: 8 },
+    animate: REST,
+    transition: {
+      duration: DURATION_S,
+      ease: EASE_OUT,
+      delay: staggerDelay(index, false),
+    },
+  };
 }
 
 /**
@@ -92,18 +89,18 @@ export function cardEntrance(
  * swap is instant (`initial: false`, zero duration).
  */
 export function stepPresence(reducedMotion: boolean): PresenceProps {
-	if (reducedMotion) {
-		return {
-			initial: false,
-			animate: REST,
-			exit: { opacity: 0, y: 0 },
-			transition: { duration: 0 },
-		};
-	}
-	return {
-		initial: { opacity: 0, y: 8 },
-		animate: REST,
-		exit: { opacity: 0, y: -8 },
-		transition: { duration: DURATION_S, ease: EASE_OUT },
-	};
+  if (reducedMotion) {
+    return {
+      initial: false,
+      animate: REST,
+      exit: { opacity: 0, y: 0 },
+      transition: { duration: 0 },
+    };
+  }
+  return {
+    initial: { opacity: 0, y: 8 },
+    animate: REST,
+    exit: { opacity: 0, y: -8 },
+    transition: { duration: DURATION_S, ease: EASE_OUT },
+  };
 }

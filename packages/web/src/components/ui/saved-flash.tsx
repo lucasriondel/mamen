@@ -17,55 +17,49 @@ import { cn } from "@/lib/utils";
  * for — the user is about to walk away believing the value stuck.
  */
 export function SavedFlash({
-	saving,
-	saved,
-	error,
-	className,
-	savingLabel = "Saving…",
-	savedLabel = "Saved",
+  saving,
+  saved,
+  error,
+  className,
+  savingLabel = "Saving…",
+  savedLabel = "Saved",
 }: {
-	saving?: boolean;
-	saved?: boolean;
-	error?: string | null;
-	className?: string;
-	savingLabel?: string;
-	savedLabel?: string;
+  saving?: boolean;
+  saved?: boolean;
+  error?: string | null;
+  className?: string;
+  savingLabel?: string;
+  savedLabel?: string;
 }) {
-	if (saving) {
-		return (
-			<span
-				aria-live="polite"
-				className={cn(
-					"flex items-center gap-1 text-xs text-gousse-muted",
-					className,
-				)}
-			>
-				<Spinner size={12} /> {savingLabel}
-			</span>
-		);
-	}
+  if (saving) {
+    return (
+      <span
+        aria-live="polite"
+        className={cn("flex items-center gap-1 text-xs text-gousse-muted", className)}
+      >
+        <Spinner size={12} /> {savingLabel}
+      </span>
+    );
+  }
 
-	if (error) {
-		return (
-			<span role="alert" className={cn("text-xs text-gousse-high", className)}>
-				{error}
-			</span>
-		);
-	}
+  if (error) {
+    return (
+      <span role="alert" className={cn("text-xs text-gousse-high", className)}>
+        {error}
+      </span>
+    );
+  }
 
-	if (saved) {
-		return (
-			<span
-				aria-live="polite"
-				className={cn(
-					"flex items-center gap-1 text-xs font-medium text-gousse-low",
-					className,
-				)}
-			>
-				<Check size={13} strokeWidth={3} aria-hidden /> {savedLabel}
-			</span>
-		);
-	}
+  if (saved) {
+    return (
+      <span
+        aria-live="polite"
+        className={cn("flex items-center gap-1 text-xs font-medium text-gousse-low", className)}
+      >
+        <Check size={13} strokeWidth={3} aria-hidden /> {savedLabel}
+      </span>
+    );
+  }
 
-	return null;
+  return null;
 }

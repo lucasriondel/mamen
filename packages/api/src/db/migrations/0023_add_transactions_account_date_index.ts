@@ -20,7 +20,7 @@ import { Effect } from "effect";
  * replacing the month it writes into.
  */
 export default Effect.flatMap(SqlClient.SqlClient, (sql) =>
-	sql`CREATE INDEX IF NOT EXISTS idx_tx_account_date ON transactions(accountId, date)`.pipe(
-		Effect.asVoid,
-	),
+  sql`CREATE INDEX IF NOT EXISTS idx_tx_account_date ON transactions(accountId, date)`.pipe(
+    Effect.asVoid,
+  ),
 );

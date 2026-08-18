@@ -9,6 +9,6 @@ import { TransactionsView } from "@/features/transactions/transactions-view";
  * these params and owns its queries (no Router loader).
  */
 export const Route = createFileRoute("/transactions")({
-	validateSearch: validateTransactionsSearch,
-	component: TransactionsView,
+  validateSearch: validateTransactionsSearch,
+  component: TransactionsView,
 });

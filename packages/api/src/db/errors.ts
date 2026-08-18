@@ -13,7 +13,7 @@ import { Effect } from "effect";
  * "UNIQUE constraint failed".
  */
 const isUniqueViolation = (error: SqlError): boolean =>
-	/unique constraint failed/i.test(String(error.cause ?? error.message ?? ""));
+  /unique constraint failed/i.test(String(error.cause ?? error.message ?? ""));
 
 /**
  * Wrap a write that can hit a UNIQUE constraint: maps the violation to
@@ -23,22 +23,20 @@ const isUniqueViolation = (error: SqlError): boolean =>
  * pattern the map's SqlError boundary rule refers to.
  */
 export const conflictOrDie =
-	(resource: string) =>
-	<A, R>(
-		effect: Effect.Effect<A, SqlError, R>,
-	): Effect.Effect<A, Conflict, R> =>
-		effect.pipe(
-			Effect.catchTag("SqlError", (error) =>
-				isUniqueViolation(error)
-					? Effect.fail(
-							new Conflict({
-								resource,
-								message: "A record with these values already exists.",
-							}),
-						)
-					: Effect.die(error),
-			),
-		);
+  (resource: string) =>
+  <A, R>(effect: Effect.Effect<A, SqlError, R>): Effect.Effect<A, Conflict, R> =>
+    effect.pipe(
+      Effect.catchTag("SqlError", (error) =>
+        isUniqueViolation(error)
+          ? Effect.fail(
+              new Conflict({
+                resource,
+                message: "A record with these values already exists.",
+              }),
+            )
+          : Effect.die(error),
+      ),
+    );
 
 /**
  * Turn an infrastructure failure into an untyped defect (500). Used for writes
@@ -47,6 +45,5 @@ export const conflictOrDie =
  * both die rather than leak. Only the typed domain errors (`NotFound`) reach the
  * wire. This is a thin alias for `Effect.orDie` named for the boundary intent.
  */
-export const orDieSql: <A, E, R>(
-	effect: Effect.Effect<A, E, R>,
-) => Effect.Effect<A, never, R> = Effect.orDie;
+export const orDieSql: <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, never, R> =
+  Effect.orDie;

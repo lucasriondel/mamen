@@ -27,58 +27,49 @@ const DIRECTORY = "graphify-out";
 /** A file the tool writes, used to check the rule reaches inside the directory. */
 const AN_OUTPUT_FILE = `${DIRECTORY}/graph.json`;
 
-const git = (...args: string[]) =>
-	execFileSync("git", args, { cwd: ROOT, encoding: "utf8" });
+const git = (...args: string[]) => execFileSync("git", args, { cwd: ROOT, encoding: "utf8" });
 
 /** `git check-ignore` exits 0 when a path is excluded, 1 when it is not. */
 function isIgnored(path: string): boolean {
-	try {
-		execFileSync("git", ["check-ignore", "-q", "--", path], { cwd: ROOT });
-		return true;
-	} catch {
-		return false;
-	}
+  try {
+    execFileSync("git", ["check-ignore", "-q", "--", path], { cwd: ROOT });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 describe("the generated graph output", () => {
-	it("is tracked by no file at all", () => {
-		const tracked = git("ls-files", "--", DIRECTORY)
-			.split("\n")
-			.filter(Boolean);
+  it("is tracked by no file at all", () => {
+    const tracked = git("ls-files", "--", DIRECTORY).split("\n").filter(Boolean);
 
-		expect(tracked).toStrictEqual([]);
-	});
+    expect(tracked).toStrictEqual([]);
+  });
 
-	it("is ignored, both as a directory and file by file", () => {
-		// The trailing slash is what makes this hold on a checkout where the tool
-		// has never run. The rule in `.gitignore` is directory-only, and
-		// `git check-ignore` infers directory-ness from disk — so a bare
-		// `graphify-out` reads as a file, and the answer would depend on whether
-		// the local machine happens to have generated the output yet.
-		expect(isIgnored(`${DIRECTORY}/`)).toBe(true);
-		expect(isIgnored(AN_OUTPUT_FILE)).toBe(true);
-		expect(isIgnored(`${DIRECTORY}/cache/anything.json`)).toBe(true);
-	});
+  it("is ignored, both as a directory and file by file", () => {
+    // The trailing slash is what makes this hold on a checkout where the tool
+    // has never run. The rule in `.gitignore` is directory-only, and
+    // `git check-ignore` infers directory-ness from disk — so a bare
+    // `graphify-out` reads as a file, and the answer would depend on whether
+    // the local machine happens to have generated the output yet.
+    expect(isIgnored(`${DIRECTORY}/`)).toBe(true);
+    expect(isIgnored(AN_OUTPUT_FILE)).toBe(true);
+    expect(isIgnored(`${DIRECTORY}/cache/anything.json`)).toBe(true);
+  });
 
-	it("never dirties the working tree, however the tool leaves it", () => {
-		// `--untracked-files=all` is what makes this mean something: without it a
-		// wholly untracked directory reports as one entry, so an unignored
-		// `graphify-out/` could pass while every file inside it is unignored too.
-		//
-		// Only the untracked entries are read. Index state is not the subject — a
-		// staged deletion under this path is what *untracking* it looks like while
-		// the change is in flight, and a staged re-*addition* is already the first
-		// test's, which reads the index.
-		const untracked = git(
-			"status",
-			"--porcelain",
-			"--untracked-files=all",
-			"--",
-			DIRECTORY,
-		)
-			.split("\n")
-			.filter((line) => line.startsWith("??"));
+  it("never dirties the working tree, however the tool leaves it", () => {
+    // `--untracked-files=all` is what makes this mean something: without it a
+    // wholly untracked directory reports as one entry, so an unignored
+    // `graphify-out/` could pass while every file inside it is unignored too.
+    //
+    // Only the untracked entries are read. Index state is not the subject — a
+    // staged deletion under this path is what *untracking* it looks like while
+    // the change is in flight, and a staged re-*addition* is already the first
+    // test's, which reads the index.
+    const untracked = git("status", "--porcelain", "--untracked-files=all", "--", DIRECTORY)
+      .split("\n")
+      .filter((line) => line.startsWith("??"));
 
-		expect(untracked).toStrictEqual([]);
-	});
+    expect(untracked).toStrictEqual([]);
+  });
 });

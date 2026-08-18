@@ -1,9 +1,4 @@
-import {
-	HttpApiEndpoint,
-	HttpApiGroup,
-	HttpApiSchema,
-	OpenApi,
-} from "@effect/platform";
+import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema, OpenApi } from "@effect/platform";
 import { Schema } from "effect";
 import { AiProvider, AiTask } from "./ai";
 import { TaskProviderRejected } from "./errors";
@@ -29,13 +24,11 @@ import { TaskProviderRejected } from "./errors";
  * runs on something (`claude-code` and its cheap default) and that is what the
  * picker has to render.
  */
-export class AiTaskSetting extends Schema.Class<AiTaskSetting>("AiTaskSetting")(
-	{
-		task: AiTask,
-		provider: AiProvider,
-		model: Schema.String,
-	},
-) {}
+export class AiTaskSetting extends Schema.Class<AiTaskSetting>("AiTaskSetting")({
+  task: AiTask,
+  provider: AiProvider,
+  model: Schema.String,
+}) {}
 
 /** Every task's choice, in catalogue order. */
 export const AiTaskSettings = Schema.Array(AiTaskSetting);
@@ -52,9 +45,9 @@ export const AiTaskSettings = Schema.Array(AiTaskSetting);
  *   checked exactly as a two-field save is.
  */
 export class AiTaskChange extends Schema.Class<AiTaskChange>("AiTaskChange")({
-	task: AiTask,
-	provider: Schema.optional(AiProvider),
-	model: Schema.optional(Schema.String),
+  task: AiTask,
+  provider: Schema.optional(AiProvider),
+  model: Schema.optional(Schema.String),
 }) {}
 
 /**
@@ -67,7 +60,7 @@ export class AiTaskChange extends Schema.Class<AiTaskChange>("AiTaskChange")({
  * existed — must not make every unrelated save fail.
  */
 export class AiTaskPatch extends Schema.Class<AiTaskPatch>("AiTaskPatch")({
-	tasks: Schema.Array(AiTaskChange),
+  tasks: Schema.Array(AiTaskChange),
 }) {}
 
 /**
@@ -82,12 +75,10 @@ export class AiTaskPatch extends Schema.Class<AiTaskPatch>("AiTaskPatch")({
  * through the status boolean — which is what leaves the single-decryptor rule
  * (ADR 0011) untouched by this whole feature.
  */
-export class ResolvedAiTask extends Schema.Class<ResolvedAiTask>(
-	"ResolvedAiTask",
-)({
-	task: AiTask,
-	provider: AiProvider,
-	model: Schema.String,
+export class ResolvedAiTask extends Schema.Class<ResolvedAiTask>("ResolvedAiTask")({
+  task: AiTask,
+  provider: AiProvider,
+  model: Schema.String,
 }) {}
 
 /**
@@ -101,18 +92,16 @@ export class ResolvedAiTask extends Schema.Class<ResolvedAiTask>(
  * task.
  */
 export class AiTasksGroup extends HttpApiGroup.make("aiTasks")
-	.add(HttpApiEndpoint.get("list")`/ai/tasks`.addSuccess(AiTaskSettings))
-	.add(
-		HttpApiEndpoint.patch("patch")`/ai/tasks`
-			.setPayload(AiTaskPatch)
-			.addSuccess(AiTaskSettings)
-			.addError(TaskProviderRejected),
-	)
-	.add(
-		HttpApiEndpoint.get(
-			"resolve",
-		)`/ai/tasks/${HttpApiSchema.param("task", AiTask)}/resolution`
-			.addSuccess(ResolvedAiTask)
-			.addError(TaskProviderRejected),
-	)
-	.annotateContext(OpenApi.annotations({ title: "AI tasks" })) {}
+  .add(HttpApiEndpoint.get("list")`/ai/tasks`.addSuccess(AiTaskSettings))
+  .add(
+    HttpApiEndpoint.patch("patch")`/ai/tasks`
+      .setPayload(AiTaskPatch)
+      .addSuccess(AiTaskSettings)
+      .addError(TaskProviderRejected),
+  )
+  .add(
+    HttpApiEndpoint.get("resolve")`/ai/tasks/${HttpApiSchema.param("task", AiTask)}/resolution`
+      .addSuccess(ResolvedAiTask)
+      .addError(TaskProviderRejected),
+  )
+  .annotateContext(OpenApi.annotations({ title: "AI tasks" })) {}

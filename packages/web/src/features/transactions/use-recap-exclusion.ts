@@ -21,27 +21,27 @@ import { toErrorMessage } from "@/lib/sdk-error";
  * every recap total re-read.
  */
 export function useRecapExclusion() {
-	const queryClient = useQueryClient();
+  const queryClient = useQueryClient();
 
-	const setExcluded = useMutation({
-		mutationFn: ({
-			transactionId,
-			excluded,
-		}: {
-			transactionId: TransactionId;
-			excluded: boolean;
-		}) =>
-			transactionMutations.update(transactionId, {
-				excludedFromRecap: excluded,
-				manualExcluded: true,
-			}),
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: transactionKeys.all });
-		},
-		onError: (error: unknown) => {
-			toast.error(toErrorMessage(error));
-		},
-	});
+  const setExcluded = useMutation({
+    mutationFn: ({
+      transactionId,
+      excluded,
+    }: {
+      transactionId: TransactionId;
+      excluded: boolean;
+    }) =>
+      transactionMutations.update(transactionId, {
+        excludedFromRecap: excluded,
+        manualExcluded: true,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: transactionKeys.all });
+    },
+    onError: (error: unknown) => {
+      toast.error(toErrorMessage(error));
+    },
+  });
 
-	return { setExcluded };
+  return { setExcluded };
 }

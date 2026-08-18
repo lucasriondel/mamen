@@ -1,31 +1,31 @@
 {
-	"name": "@mamen/sdk",
-	"version": "0.0.0",
-	"private": true,
-	"type": "module",
-	"main": "./src/index.ts",
-	"types": "./src/index.ts",
-	"exports": {
-		".": "./src/index.ts",
-		"./*": "./src/*"
-	},
-	"scripts": {
-		"build": "tsc",
-		"typecheck": "tsc --noEmit",
-		"test": "vitest run",
-		"test:watch": "vitest"
-	},
-	"dependencies": {
-		"@effect/platform": "0.96.2",
-		"@mamen/shared": "workspace:*",
-		"effect": "3.21.4"
-	},
-	"devDependencies": {
-		"@effect/vitest": "0.29.0",
-		"@vitest/coverage-v8": "3.2.4",
-		"vitest": "3.2.4"
-	},
-	"peerDependencies": {
-		"@tanstack/react-query": "^5.0.0"
-	}
+  "name": "@mamen/sdk",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@effect/platform": "0.96.2",
+    "@mamen/shared": "workspace:*",
+    "effect": "3.21.4"
+  },
+  "devDependencies": {
+    "@effect/vitest": "0.29.0",
+    "@vitest/coverage-v8": "3.2.4",
+    "vitest": "3.2.4"
+  },
+  "peerDependencies": {
+    "@tanstack/react-query": "^5.0.0"
+  }
 }

@@ -18,17 +18,17 @@ import { AI_PROVIDER_LABELS } from "@mamen/shared/contract";
 
 /** Narrow an unknown thrown value to its SDK error `_tag`, when it has one. */
 function tagOf(error: unknown): string | undefined {
-	if (typeof error === "object" && error !== null && "_tag" in error) {
-		const tag = (error as { _tag: unknown })._tag;
-		return typeof tag === "string" ? tag : undefined;
-	}
-	return undefined;
+  if (typeof error === "object" && error !== null && "_tag" in error) {
+    const tag = (error as { _tag: unknown })._tag;
+    return typeof tag === "string" ? tag : undefined;
+  }
+  return undefined;
 }
 
 /** Join a list into prose: "a", "a and b", "a, b and c". Empty → "". */
 function joinClauses(parts: readonly string[]): string {
-	if (parts.length <= 1) return parts[0] ?? "";
-	return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+  if (parts.length <= 1) return parts[0] ?? "";
+  return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
 }
 
 /**
@@ -37,28 +37,24 @@ function joinClauses(parts: readonly string[]): string {
  * issuer defaults — so the user knows exactly what to re-assign before deleting.
  */
 function categoryInUseMessage(error: unknown): string {
-	const e = error as {
-		children?: number;
-		transactions?: number;
-		issuers?: number;
-	};
-	const parts: string[] = [];
-	if (e.children) {
-		parts.push(
-			`${e.children} categor${e.children === 1 ? "y" : "ies"} inside it`,
-		);
-	}
-	if (e.transactions) {
-		parts.push(
-			`${e.transactions} transaction${e.transactions === 1 ? "" : "s"}`,
-		);
-	}
-	if (e.issuers) {
-		parts.push(`${e.issuers} issuer${e.issuers === 1 ? "" : "s"}`);
-	}
-	return parts.length === 0
-		? "This category is still in use, so it can't be deleted yet."
-		: `Can't delete — still used by ${joinClauses(parts)}. Re-assign first, then delete.`;
+  const e = error as {
+    children?: number;
+    transactions?: number;
+    issuers?: number;
+  };
+  const parts: string[] = [];
+  if (e.children) {
+    parts.push(`${e.children} categor${e.children === 1 ? "y" : "ies"} inside it`);
+  }
+  if (e.transactions) {
+    parts.push(`${e.transactions} transaction${e.transactions === 1 ? "" : "s"}`);
+  }
+  if (e.issuers) {
+    parts.push(`${e.issuers} issuer${e.issuers === 1 ? "" : "s"}`);
+  }
+  return parts.length === 0
+    ? "This category is still in use, so it can't be deleted yet."
+    : `Can't delete — still used by ${joinClauses(parts)}. Re-assign first, then delete.`;
 }
 
 /**
@@ -69,19 +65,17 @@ function categoryInUseMessage(error: unknown): string {
  * this error, so the toast is the explanation, not the only recourse.)
  */
 function categoryHoldsMoneyMessage(error: unknown): string {
-	const e = error as { transactions?: number; issuers?: number };
-	const parts: string[] = [];
-	if (e.transactions) {
-		parts.push(
-			`${e.transactions} transaction${e.transactions === 1 ? "" : "s"}`,
-		);
-	}
-	if (e.issuers) {
-		parts.push(`${e.issuers} issuer default${e.issuers === 1 ? "" : "s"}`);
-	}
-	return parts.length === 0
-		? "This category holds money, so it can't take a child yet. Spill it into a new category first."
-		: `This category holds ${joinClauses(parts)}. Spill them into a new category so nothing is stranded.`;
+  const e = error as { transactions?: number; issuers?: number };
+  const parts: string[] = [];
+  if (e.transactions) {
+    parts.push(`${e.transactions} transaction${e.transactions === 1 ? "" : "s"}`);
+  }
+  if (e.issuers) {
+    parts.push(`${e.issuers} issuer default${e.issuers === 1 ? "" : "s"}`);
+  }
+  return parts.length === 0
+    ? "This category holds money, so it can't take a child yet. Spill it into a new category first."
+    : `This category holds ${joinClauses(parts)}. Spill them into a new category so nothing is stranded.`;
 }
 
 /**
@@ -91,11 +85,11 @@ function categoryHoldsMoneyMessage(error: unknown): string {
  * re-implementing the `_tag` narrowing.
  */
 export function categoryHoldsMoney(
-	error: unknown,
+  error: unknown,
 ): { transactions: number; issuers: number } | null {
-	if (tagOf(error) !== "CategoryHoldsMoney") return null;
-	const e = error as { transactions?: number; issuers?: number };
-	return { transactions: e.transactions ?? 0, issuers: e.issuers ?? 0 };
+  if (tagOf(error) !== "CategoryHoldsMoney") return null;
+  const e = error as { transactions?: number; issuers?: number };
+  return { transactions: e.transactions ?? 0, issuers: e.issuers ?? 0 };
 }
 
 /**
@@ -104,36 +98,36 @@ export function categoryHoldsMoney(
  * so the user always gets *some* explanation, never a raw stack.
  */
 export function toErrorMessage(error: unknown): string {
-	switch (tagOf(error)) {
-		case "NotFound":
-			return "That item no longer exists — it may have been deleted already.";
-		case "Conflict":
-			return "That name is already taken. Pick a different one.";
-		case "InvalidFileType":
-			return "That file type isn't supported.";
-		case "ExtractionFailed":
-			return "Couldn't read that PDF statement. Please try again.";
-		case "CategoryInUse":
-			return categoryInUseMessage(error);
-		case "CategoryHoldsMoney":
-			return categoryHoldsMoneyMessage(error);
-		case "CategoryWouldCycle":
-			return "A category can't be moved under itself or one of its own sub-categories.";
-		case "CategoryNotLeaf":
-			return "Pick a category, not a folder.";
-		case "ImageFetchRefused":
-			return imageFetchRefusedMessage(error);
-		case "TransferInvalid":
-			return transferInvalidMessage(error);
-		case "SecretRejected":
-			return secretRejectedMessage(error);
-		case "TaskProviderRejected":
-			return taskProviderRejectedMessage(error);
-		case "AiProviderNotConfigured":
-			return aiProviderNotConfiguredMessage(error);
-		default:
-			return "Something went wrong. Please try again.";
-	}
+  switch (tagOf(error)) {
+    case "NotFound":
+      return "That item no longer exists — it may have been deleted already.";
+    case "Conflict":
+      return "That name is already taken. Pick a different one.";
+    case "InvalidFileType":
+      return "That file type isn't supported.";
+    case "ExtractionFailed":
+      return "Couldn't read that PDF statement. Please try again.";
+    case "CategoryInUse":
+      return categoryInUseMessage(error);
+    case "CategoryHoldsMoney":
+      return categoryHoldsMoneyMessage(error);
+    case "CategoryWouldCycle":
+      return "A category can't be moved under itself or one of its own sub-categories.";
+    case "CategoryNotLeaf":
+      return "Pick a category, not a folder.";
+    case "ImageFetchRefused":
+      return imageFetchRefusedMessage(error);
+    case "TransferInvalid":
+      return transferInvalidMessage(error);
+    case "SecretRejected":
+      return secretRejectedMessage(error);
+    case "TaskProviderRejected":
+      return taskProviderRejectedMessage(error);
+    case "AiProviderNotConfigured":
+      return aiProviderNotConfiguredMessage(error);
+    default:
+      return "Something went wrong. Please try again.";
+  }
 }
 
 /**
@@ -148,13 +142,11 @@ export function toErrorMessage(error: unknown): string {
  * way.
  */
 export function aiProviderNotConfiguredMessage(error: unknown): string {
-	const provider = (error as { provider?: AiProvider }).provider;
-	const label =
-		provider === undefined
-			? "That AI provider"
-			: (AI_PROVIDER_LABELS[provider] ?? provider);
+  const provider = (error as { provider?: AiProvider }).provider;
+  const label =
+    provider === undefined ? "That AI provider" : (AI_PROVIDER_LABELS[provider] ?? provider);
 
-	return `${label} has no credential stored, so nothing could run. Paste one in Settings, then try again.`;
+  return `${label} has no credential stored, so nothing could run. Paste one in Settings, then try again.`;
 }
 
 /**
@@ -165,8 +157,8 @@ export function aiProviderNotConfiguredMessage(error: unknown): string {
  * branches on rather than only renders.
  */
 export function aiProviderNotConfigured(error: unknown): AiProvider | null {
-	if (tagOf(error) !== "AiProviderNotConfigured") return null;
-	return (error as { provider?: AiProvider }).provider ?? null;
+  if (tagOf(error) !== "AiProviderNotConfigured") return null;
+  return (error as { provider?: AiProvider }).provider ?? null;
 }
 
 /**
@@ -179,14 +171,14 @@ export function aiProviderNotConfigured(error: unknown): AiProvider | null {
  * put a credential in the DOM, in a screenshot and in a pasted bug report.
  */
 export function secretRejectedMessage(error: unknown): string {
-	switch ((error as { reason?: string }).reason) {
-		case "blank":
-			return "There's nothing to save — paste a credential first.";
-		case "too-short":
-			return "That's too short to be a credential. Check the whole value was pasted.";
-		default:
-			return "That value can't be stored as a credential.";
-	}
+  switch ((error as { reason?: string }).reason) {
+    case "blank":
+      return "There's nothing to save — paste a credential first.";
+    case "too-short":
+      return "That's too short to be a credential. Check the whole value was pasted.";
+    default:
+      return "That value can't be stored as a credential.";
+  }
 }
 
 /**
@@ -201,22 +193,20 @@ export function secretRejectedMessage(error: unknown): string {
  * without leaving the sentence, and mamen has one AI task.
  */
 export function taskProviderRejectedMessage(error: unknown): string {
-	const e = error as { provider?: AiProvider; reason?: string };
-	const provider =
-		e.provider === undefined
-			? "That provider"
-			: (AI_PROVIDER_LABELS[e.provider] ?? e.provider);
+  const e = error as { provider?: AiProvider; reason?: string };
+  const provider =
+    e.provider === undefined ? "That provider" : (AI_PROVIDER_LABELS[e.provider] ?? e.provider);
 
-	switch (e.reason) {
-		case "no-credential":
-			return `${provider} has no credential stored yet. Paste one above, then pick it here.`;
-		case "model-not-served":
-			return `${provider} doesn't serve that model. Pick one of its own.`;
-		case "credential-in-use":
-			return "An AI task is still using it. Point that task at another provider first, then clear the key.";
-		default:
-			return `${provider} can't run that task as configured.`;
-	}
+  switch (e.reason) {
+    case "no-credential":
+      return `${provider} has no credential stored yet. Paste one above, then pick it here.`;
+    case "model-not-served":
+      return `${provider} doesn't serve that model. Pick one of its own.`;
+    case "credential-in-use":
+      return "An AI task is still using it. Point that task at another provider first, then clear the key.";
+    default:
+      return `${provider} can't run that task as configured.`;
+  }
 }
 
 /**
@@ -225,21 +215,21 @@ export function taskProviderRejectedMessage(error: unknown): string {
  * form one internal transfer so the user knows what to change before retrying.
  */
 function transferInvalidMessage(error: unknown): string {
-	const reason = (error as { reason?: string }).reason;
-	switch (reason) {
-		case "too-few-legs":
-			return "A transfer needs at least two transactions.";
-		case "unbalanced":
-			return "Those amounts don't cancel out — a transfer's legs must sum to zero.";
-		case "unknown-id":
-			return "One of those transactions no longer exists.";
-		case "already-grouped":
-			return "One of those transactions is already part of another transfer.";
-		case "is-refund":
-			return "A refund can't be grouped as a transfer.";
-		default:
-			return "Those transactions can't be grouped as a transfer.";
-	}
+  const reason = (error as { reason?: string }).reason;
+  switch (reason) {
+    case "too-few-legs":
+      return "A transfer needs at least two transactions.";
+    case "unbalanced":
+      return "Those amounts don't cancel out — a transfer's legs must sum to zero.";
+    case "unknown-id":
+      return "One of those transactions no longer exists.";
+    case "already-grouped":
+      return "One of those transactions is already part of another transfer.";
+    case "is-refund":
+      return "A refund can't be grouped as a transfer.";
+    default:
+      return "Those transactions can't be grouped as a transfer.";
+  }
 }
 
 /**
@@ -264,14 +254,14 @@ function transferInvalidMessage(error: unknown): string {
  * wording — from the user's seat it's the same "extraction didn't complete".
  */
 export function pdfExtractionErrorMessage(error: unknown): string {
-	switch (tagOf(error)) {
-		case "InvalidFileType":
-			return "That file isn't a supported PDF. Upload a PDF bank statement under 10 MB, or import a CSV export instead.";
-		case "AiProviderNotConfigured":
-			return aiProviderNotConfiguredMessage(error);
-		default:
-			return "We couldn't extract transactions from that PDF. Try dropping it again, or import a CSV export from your bank instead.";
-	}
+  switch (tagOf(error)) {
+    case "InvalidFileType":
+      return "That file isn't a supported PDF. Upload a PDF bank statement under 10 MB, or import a CSV export instead.";
+    case "AiProviderNotConfigured":
+      return aiProviderNotConfiguredMessage(error);
+    default:
+      return "We couldn't extract transactions from that PDF. Try dropping it again, or import a CSV export from your bank instead.";
+  }
 }
 
 /**
@@ -286,16 +276,16 @@ export function pdfExtractionErrorMessage(error: unknown): string {
  * another — because that is what the popover leaves the user holding.
  */
 export function imageFetchRefusedMessage(error: unknown): string {
-	switch ((error as { reason?: string }).reason) {
-		case "too-large":
-			return "That image is too big to store. Pick another result.";
-		case "timeout":
-			return "That image's host didn't answer in time. Pick another result.";
-		case "not-an-image":
-			return "That file isn't an image we can read. Pick another result.";
-		default:
-			return "That image couldn't be fetched. Pick another result.";
-	}
+  switch ((error as { reason?: string }).reason) {
+    case "too-large":
+      return "That image is too big to store. Pick another result.";
+    case "timeout":
+      return "That image's host didn't answer in time. Pick another result.";
+    case "not-an-image":
+      return "That file isn't an image we can read. Pick another result.";
+    default:
+      return "That image couldn't be fetched. Pick another result.";
+  }
 }
 
 /**
@@ -312,19 +302,19 @@ export function imageFetchRefusedMessage(error: unknown): string {
  *   A retry may well work, so this is the one state that offers one.
  */
 export type LogoSearchFailure =
-	| { kind: "unconfigured"; missing: readonly string[] }
-	| { kind: "quota" }
-	| { kind: "failed" };
+  | { kind: "unconfigured"; missing: readonly string[] }
+  | { kind: "quota" }
+  | { kind: "failed" };
 
 export function logoSearchFailure(error: unknown): LogoSearchFailure {
-	switch (tagOf(error)) {
-		case "LogoSearchUnconfigured": {
-			const missing = (error as { missing?: readonly string[] }).missing;
-			return { kind: "unconfigured", missing: missing ?? [] };
-		}
-		case "LogoSearchQuotaExceeded":
-			return { kind: "quota" };
-		default:
-			return { kind: "failed" };
-	}
+  switch (tagOf(error)) {
+    case "LogoSearchUnconfigured": {
+      const missing = (error as { missing?: readonly string[] }).missing;
+      return { kind: "unconfigured", missing: missing ?? [] };
+    }
+    case "LogoSearchQuotaExceeded":
+      return { kind: "quota" };
+    default:
+      return { kind: "failed" };
+  }
 }

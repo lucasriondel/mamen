@@ -17,14 +17,14 @@ import { Transaction } from "./transactions";
  * uniformly "array per table".
  */
 export const DbDump = Schema.Struct({
-	accounts: Schema.Array(Account),
-	transactions: Schema.Array(Transaction),
-	issuers: Schema.Array(Issuer),
-	rules: Schema.Array(Rule),
-	categories: Schema.Array(Category),
-	subscriptions: Schema.Array(Subscription),
-	settings: Schema.Array(Setting),
-	appSettings: Schema.Array(AppSettings),
+  accounts: Schema.Array(Account),
+  transactions: Schema.Array(Transaction),
+  issuers: Schema.Array(Issuer),
+  rules: Schema.Array(Rule),
+  categories: Schema.Array(Category),
+  subscriptions: Schema.Array(Subscription),
+  settings: Schema.Array(Setting),
+  appSettings: Schema.Array(AppSettings),
 });
 export type DbDump = typeof DbDump.Type;
 
@@ -42,7 +42,7 @@ export type DbImport = typeof DbImport.Type;
  * destructive whole-DB op has no resource to return.
  */
 export class DbOk extends Schema.Class<DbOk>("DbOk")({
-	ok: Schema.Literal(true),
+  ok: Schema.Literal(true),
 }) {}
 
 /**
@@ -59,11 +59,7 @@ export class DbOk extends Schema.Class<DbOk>("DbOk")({
  *   `appSettings = appSettings[0]`). Ids are preserved so the round-trip is exact.
  */
 export class DatabaseGroup extends HttpApiGroup.make("database")
-	.add(HttpApiEndpoint.post("reset")`/database/reset`.addSuccess(DbOk))
-	.add(HttpApiEndpoint.post("export")`/database/export`.addSuccess(DbDump))
-	.add(
-		HttpApiEndpoint.post("import")`/database/import`
-			.setPayload(DbImport)
-			.addSuccess(DbOk),
-	)
-	.annotateContext(OpenApi.annotations({ title: "Database" })) {}
+  .add(HttpApiEndpoint.post("reset")`/database/reset`.addSuccess(DbOk))
+  .add(HttpApiEndpoint.post("export")`/database/export`.addSuccess(DbDump))
+  .add(HttpApiEndpoint.post("import")`/database/import`.setPayload(DbImport).addSuccess(DbOk))
+  .annotateContext(OpenApi.annotations({ title: "Database" })) {}

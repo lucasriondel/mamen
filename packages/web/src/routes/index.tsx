@@ -5,7 +5,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
  * before rendering (PRD: "open on the transactions view").
  */
 export const Route = createFileRoute("/")({
-	beforeLoad: () => {
-		throw redirect({ to: "/transactions" });
-	},
+  beforeLoad: () => {
+    throw redirect({ to: "/transactions" });
+  },
 });

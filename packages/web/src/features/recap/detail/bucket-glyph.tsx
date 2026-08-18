@@ -14,28 +14,22 @@ import type { BucketIdentity } from "./use-bucket-identity";
  * puts *in* it.
  */
 export function BucketGlyph({
-	axis,
-	identity,
+  axis,
+  identity,
 }: {
-	axis: RecapDetailAxis;
-	identity: BucketIdentity;
+  axis: RecapDetailAxis;
+  identity: BucketIdentity;
 }) {
-	if (axis === "category") {
-		if (identity.icon === undefined) return null;
-		return (
-			<CategoryIcon name={identity.icon} color={identity.color} size={22} />
-		);
-	}
-	if (
-		identity.imageUrl === undefined &&
-		identity.defaultCategoryId === undefined
-	)
-		return null;
-	return (
-		<IssuerAvatar
-			imageUrl={identity.imageUrl}
-			defaultCategoryId={identity.defaultCategoryId}
-			size="sm"
-		/>
-	);
+  if (axis === "category") {
+    if (identity.icon === undefined) return null;
+    return <CategoryIcon name={identity.icon} color={identity.color} size={22} />;
+  }
+  if (identity.imageUrl === undefined && identity.defaultCategoryId === undefined) return null;
+  return (
+    <IssuerAvatar
+      imageUrl={identity.imageUrl}
+      defaultCategoryId={identity.defaultCategoryId}
+      size="sm"
+    />
+  );
 }

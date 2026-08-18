@@ -1,25 +1,14 @@
-import {
-	HttpApiEndpoint,
-	HttpApiGroup,
-	HttpApiSchema,
-	OpenApi,
-} from "@effect/platform";
+import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema, OpenApi } from "@effect/platform";
 import { Schema } from "effect";
 import { AnomalyFlag } from "./anomaly";
 import {
-	BooleanFromString,
-	BundleInvalid,
-	CategoryNotLeaf,
-	NotFound,
-	TransferInvalid,
+  BooleanFromString,
+  BundleInvalid,
+  CategoryNotLeaf,
+  NotFound,
+  TransferInvalid,
 } from "./errors";
-import {
-	AccountId,
-	CategoryId,
-	IssuerId,
-	numFromStr,
-	TransactionId,
-} from "./ids";
+import { AccountId, CategoryId, IssuerId, numFromStr, TransactionId } from "./ids";
 import { Paged, Pagination } from "./pagination";
 
 /**
@@ -58,102 +47,100 @@ export type TransactionKind = typeof TransactionKind.Type;
 
 /** Transaction entity — the wire shape returned by every transactions endpoint. */
 export class Transaction extends Schema.Class<Transaction>("Transaction")({
-	id: TransactionId,
-	accountId: AccountId,
-	date: Schema.Date,
-	amount: Schema.Number,
-	rawIssuerString: Schema.String,
-	issuerId: Schema.optional(IssuerId),
-	categoryId: Schema.optional(CategoryId),
-	manualCategory: Schema.optional(Schema.Boolean),
-	manualIssuer: Schema.optional(Schema.Boolean),
-	isRefund: Schema.optional(Schema.Boolean),
-	linkedRefundId: Schema.optional(TransactionId),
-	/**
-	 * Transfer-group membership (Internal transfers, PRD #48). Optional; absent
-	 * means the row belongs to no internal transfer. When set, it is the group's
-	 * id — the smallest transaction id among the legs — so every leg of one
-	 * transfer carries the same value (the anchor leg's own id equals it). A
-	 * `TransactionId`-branded value because the id *is* one of the legs' ids.
-	 * Stored flat and FK-free, mirroring `linkedRefundId`; the link/unlink logic
-	 * lands in a later slice — this only persists and reads the membership.
-	 */
-	transferGroupId: Schema.optional(TransactionId),
-	/**
-	 * What this row **is** (issue #68) — see {@link TransactionKind}. Optional
-	 * like every other added field: **absent means `bank`**, so a row written
-	 * before bundles existed (or by a caller that doesn't know about them) reads
-	 * as the real bank row it is. Only `kind === "bundle"` ever means anything, so
-	 * no surface has to distinguish absent from `"bank"`.
-	 */
-	kind: Schema.optional(TransactionKind),
-	/**
-	 * **Bundle** membership (issue #68). Absent means the row belongs to no
-	 * bundle; when set it is the id of the **bundle parent** that stands for this
-	 * row — a `TransactionId` because the parent *is* a transaction. Stored flat
-	 * and FK-free, mirroring `transferGroupId`/`linkedRefundId`, but pointing at a
-	 * distinct row rather than at one of the members: a bundle nets to a non-zero
-	 * amount, so unlike a transfer group it needs a row to *hold* that amount.
-	 *
-	 * A member never carries `kind: "bundle"`, and a parent never carries a
-	 * `bundleId` — the two fields are the two halves of one relationship.
-	 */
-	bundleId: Schema.optional(TransactionId),
-	/**
-	 * Marks this row's `date` as the **user's**, not a derived default (issue
-	 * #72) — `manualDate` stands to `date` exactly as `manualCategory` stands to
-	 * `categoryId` and `manualExcluded` to `excludedFromRecap`.
-	 *
-	 * Only a **bundle parent** has a derivable date at all: it defaults to its
-	 * earliest member's, because the cost belongs to when the money was spent
-	 * rather than to when the last person settled up. That default is a starting
-	 * point, not a constraint — a weekend away can be dated the Friday even when
-	 * a member lands weeks later — so an overridden date is flagged here and
-	 * every later membership change recomputes *around* it (#74). On a bank row
-	 * the date is the bank's and nothing derives it, so the flag is simply absent.
-	 *
-	 * The amount deliberately has no counterpart flag: a bundle's cost is what
-	 * its members sum to, and an editable total could drift from the very bank
-	 * rows the app exists to reconcile against.
-	 */
-	manualDate: Schema.optional(Schema.Boolean),
-	anomalyFlags: Schema.optional(Schema.Array(AnomalyFlag)),
-	isDuplicateExcluded: Schema.optional(Schema.Boolean),
-	duplicateNote: Schema.optional(Schema.String),
-	/**
-	 * **Excluded from recap** (issue #67, ADR 0008) — the row does not count
-	 * toward spend totals: an internal movement the **transfer group** feature
-	 * never caught, a correction, a row the user has decided is noise. Optional;
-	 * absent means the row counts. Excluded rows stay fully visible in the list —
-	 * exclusion is about arithmetic, not visibility.
-	 *
-	 * Distinct from `isDuplicateExcluded`, which claims *this row is a duplicate
-	 * of another* (a provenance fact) rather than *this row is not spending*.
-	 */
-	excludedFromRecap: Schema.optional(Schema.Boolean),
-	/**
-	 * Marks this row's `excludedFromRecap` as a **deliberate** decision, so it
-	 * wins over the default its issuer will carry once issuer-level exclusion
-	 * lands (#69) — `manualExcluded` stands to `excludedFromRecap` exactly as
-	 * `manualCategory` stands to `categoryId` (ADR 0008). Set in *both*
-	 * directions: forcing a row out of the recap and forcing one back in are both
-	 * decisions an issuer default must not clobber. Introduced with the flag it
-	 * qualifies so no later migration has to invent the distinction retroactively.
-	 */
-	manualExcluded: Schema.optional(Schema.Boolean),
-	/**
-	 * Free-text note the user records against a single transaction (issue #38).
-	 * Optional; absent means no note. Capped at 1000 chars at the contract
-	 * boundary, so an over-long note fails decode (400) rather than reaching the
-	 * DB — the one constrained string on the entity. Searching it is #40's job,
-	 * not carried here as a filter.
-	 */
-	notes: Schema.optional(
-		Schema.String.pipe(Schema.maxLength(NOTES_MAX_LENGTH)),
-	),
-	importedAt: Schema.Date,
-	importMonth: Schema.String, // "YYYY-MM"
-	importBatchId: Schema.optional(Schema.String),
+  id: TransactionId,
+  accountId: AccountId,
+  date: Schema.Date,
+  amount: Schema.Number,
+  rawIssuerString: Schema.String,
+  issuerId: Schema.optional(IssuerId),
+  categoryId: Schema.optional(CategoryId),
+  manualCategory: Schema.optional(Schema.Boolean),
+  manualIssuer: Schema.optional(Schema.Boolean),
+  isRefund: Schema.optional(Schema.Boolean),
+  linkedRefundId: Schema.optional(TransactionId),
+  /**
+   * Transfer-group membership (Internal transfers, PRD #48). Optional; absent
+   * means the row belongs to no internal transfer. When set, it is the group's
+   * id — the smallest transaction id among the legs — so every leg of one
+   * transfer carries the same value (the anchor leg's own id equals it). A
+   * `TransactionId`-branded value because the id *is* one of the legs' ids.
+   * Stored flat and FK-free, mirroring `linkedRefundId`; the link/unlink logic
+   * lands in a later slice — this only persists and reads the membership.
+   */
+  transferGroupId: Schema.optional(TransactionId),
+  /**
+   * What this row **is** (issue #68) — see {@link TransactionKind}. Optional
+   * like every other added field: **absent means `bank`**, so a row written
+   * before bundles existed (or by a caller that doesn't know about them) reads
+   * as the real bank row it is. Only `kind === "bundle"` ever means anything, so
+   * no surface has to distinguish absent from `"bank"`.
+   */
+  kind: Schema.optional(TransactionKind),
+  /**
+   * **Bundle** membership (issue #68). Absent means the row belongs to no
+   * bundle; when set it is the id of the **bundle parent** that stands for this
+   * row — a `TransactionId` because the parent *is* a transaction. Stored flat
+   * and FK-free, mirroring `transferGroupId`/`linkedRefundId`, but pointing at a
+   * distinct row rather than at one of the members: a bundle nets to a non-zero
+   * amount, so unlike a transfer group it needs a row to *hold* that amount.
+   *
+   * A member never carries `kind: "bundle"`, and a parent never carries a
+   * `bundleId` — the two fields are the two halves of one relationship.
+   */
+  bundleId: Schema.optional(TransactionId),
+  /**
+   * Marks this row's `date` as the **user's**, not a derived default (issue
+   * #72) — `manualDate` stands to `date` exactly as `manualCategory` stands to
+   * `categoryId` and `manualExcluded` to `excludedFromRecap`.
+   *
+   * Only a **bundle parent** has a derivable date at all: it defaults to its
+   * earliest member's, because the cost belongs to when the money was spent
+   * rather than to when the last person settled up. That default is a starting
+   * point, not a constraint — a weekend away can be dated the Friday even when
+   * a member lands weeks later — so an overridden date is flagged here and
+   * every later membership change recomputes *around* it (#74). On a bank row
+   * the date is the bank's and nothing derives it, so the flag is simply absent.
+   *
+   * The amount deliberately has no counterpart flag: a bundle's cost is what
+   * its members sum to, and an editable total could drift from the very bank
+   * rows the app exists to reconcile against.
+   */
+  manualDate: Schema.optional(Schema.Boolean),
+  anomalyFlags: Schema.optional(Schema.Array(AnomalyFlag)),
+  isDuplicateExcluded: Schema.optional(Schema.Boolean),
+  duplicateNote: Schema.optional(Schema.String),
+  /**
+   * **Excluded from recap** (issue #67, ADR 0008) — the row does not count
+   * toward spend totals: an internal movement the **transfer group** feature
+   * never caught, a correction, a row the user has decided is noise. Optional;
+   * absent means the row counts. Excluded rows stay fully visible in the list —
+   * exclusion is about arithmetic, not visibility.
+   *
+   * Distinct from `isDuplicateExcluded`, which claims *this row is a duplicate
+   * of another* (a provenance fact) rather than *this row is not spending*.
+   */
+  excludedFromRecap: Schema.optional(Schema.Boolean),
+  /**
+   * Marks this row's `excludedFromRecap` as a **deliberate** decision, so it
+   * wins over the default its issuer will carry once issuer-level exclusion
+   * lands (#69) — `manualExcluded` stands to `excludedFromRecap` exactly as
+   * `manualCategory` stands to `categoryId` (ADR 0008). Set in *both*
+   * directions: forcing a row out of the recap and forcing one back in are both
+   * decisions an issuer default must not clobber. Introduced with the flag it
+   * qualifies so no later migration has to invent the distinction retroactively.
+   */
+  manualExcluded: Schema.optional(Schema.Boolean),
+  /**
+   * Free-text note the user records against a single transaction (issue #38).
+   * Optional; absent means no note. Capped at 1000 chars at the contract
+   * boundary, so an over-long note fails decode (400) rather than reaching the
+   * DB — the one constrained string on the entity. Searching it is #40's job,
+   * not carried here as a filter.
+   */
+  notes: Schema.optional(Schema.String.pipe(Schema.maxLength(NOTES_MAX_LENGTH))),
+  importedAt: Schema.Date,
+  importMonth: Schema.String, // "YYYY-MM"
+  importBatchId: Schema.optional(Schema.String),
 }) {}
 
 /**
@@ -162,34 +149,34 @@ export class Transaction extends Schema.Class<Transaction>("Transaction")({
  * kept here rather than server-stamped; contract §5 permits either).
  */
 export const TransactionCreate = Schema.Struct({
-	accountId: Transaction.fields.accountId,
-	date: Transaction.fields.date,
-	amount: Transaction.fields.amount,
-	rawIssuerString: Transaction.fields.rawIssuerString,
-	issuerId: Transaction.fields.issuerId,
-	categoryId: Transaction.fields.categoryId,
-	manualCategory: Transaction.fields.manualCategory,
-	manualIssuer: Transaction.fields.manualIssuer,
-	isRefund: Transaction.fields.isRefund,
-	linkedRefundId: Transaction.fields.linkedRefundId,
-	transferGroupId: Transaction.fields.transferGroupId,
-	// Accepted for a faithful round-trip (a DB restore replays whole rows), but
-	// never stated by an ordinary caller: the only writer of a `bundle` row is
-	// `createBundle`, which builds the parent itself.
-	kind: Transaction.fields.kind,
-	bundleId: Transaction.fields.bundleId,
-	// Written through `update` when a bundle parent's date is overridden (#72);
-	// on a create it is only ever a faithful round-trip of a stored row.
-	manualDate: Transaction.fields.manualDate,
-	anomalyFlags: Transaction.fields.anomalyFlags,
-	isDuplicateExcluded: Transaction.fields.isDuplicateExcluded,
-	duplicateNote: Transaction.fields.duplicateNote,
-	excludedFromRecap: Transaction.fields.excludedFromRecap,
-	manualExcluded: Transaction.fields.manualExcluded,
-	notes: Transaction.fields.notes,
-	importedAt: Transaction.fields.importedAt,
-	importMonth: Transaction.fields.importMonth,
-	importBatchId: Transaction.fields.importBatchId,
+  accountId: Transaction.fields.accountId,
+  date: Transaction.fields.date,
+  amount: Transaction.fields.amount,
+  rawIssuerString: Transaction.fields.rawIssuerString,
+  issuerId: Transaction.fields.issuerId,
+  categoryId: Transaction.fields.categoryId,
+  manualCategory: Transaction.fields.manualCategory,
+  manualIssuer: Transaction.fields.manualIssuer,
+  isRefund: Transaction.fields.isRefund,
+  linkedRefundId: Transaction.fields.linkedRefundId,
+  transferGroupId: Transaction.fields.transferGroupId,
+  // Accepted for a faithful round-trip (a DB restore replays whole rows), but
+  // never stated by an ordinary caller: the only writer of a `bundle` row is
+  // `createBundle`, which builds the parent itself.
+  kind: Transaction.fields.kind,
+  bundleId: Transaction.fields.bundleId,
+  // Written through `update` when a bundle parent's date is overridden (#72);
+  // on a create it is only ever a faithful round-trip of a stored row.
+  manualDate: Transaction.fields.manualDate,
+  anomalyFlags: Transaction.fields.anomalyFlags,
+  isDuplicateExcluded: Transaction.fields.isDuplicateExcluded,
+  duplicateNote: Transaction.fields.duplicateNote,
+  excludedFromRecap: Transaction.fields.excludedFromRecap,
+  manualExcluded: Transaction.fields.manualExcluded,
+  notes: Transaction.fields.notes,
+  importedAt: Transaction.fields.importedAt,
+  importMonth: Transaction.fields.importMonth,
+  importBatchId: Transaction.fields.importBatchId,
 });
 export type TransactionCreate = typeof TransactionCreate.Type;
 
@@ -223,9 +210,9 @@ export const UNASSIGNED_FILTER = "none" as const;
  * The filter matches the **derived** category, not the stored column (ADR 0002).
  */
 export const CategoryIdFilter = Schema.Union(
-	Schema.Literal(UNASSIGNED_FILTER),
-	numFromStr(CategoryId),
-	Schema.Array(numFromStr(CategoryId)),
+  Schema.Literal(UNASSIGNED_FILTER),
+  numFromStr(CategoryId),
+  Schema.Array(numFromStr(CategoryId)),
 );
 
 /**
@@ -234,10 +221,7 @@ export const CategoryIdFilter = Schema.Union(
  * no page ever asks about several at once. `none` narrows to the rows no issuer
  * has been matched to — the recap's *Unassigned* by-issuer bucket (issue #86).
  */
-export const IssuerIdFilter = Schema.Union(
-	Schema.Literal(UNASSIGNED_FILTER),
-	numFromStr(IssuerId),
-);
+export const IssuerIdFilter = Schema.Union(Schema.Literal(UNASSIGNED_FILTER), numFromStr(IssuerId));
 
 /**
  * The `accountId` filter — one account id, or a repeated set of them. The recap
@@ -251,8 +235,8 @@ export const IssuerIdFilter = Schema.Union(
  * Absent means every account.
  */
 export const AccountIdFilter = Schema.Union(
-	numFromStr(AccountId),
-	Schema.Array(numFromStr(AccountId)),
+  numFromStr(AccountId),
+  Schema.Array(numFromStr(AccountId)),
 );
 
 /**
@@ -268,90 +252,90 @@ export const AccountIdFilter = Schema.Union(
  * id filters also accept {@link UNASSIGNED_FILTER} for the rows that have none.
  */
 export const TransactionFilters = {
-	accountId: Schema.optional(AccountIdFilter),
-	issuerId: Schema.optional(IssuerIdFilter),
-	categoryId: Schema.optional(CategoryIdFilter),
-	linkedRefundId: Schema.optional(numFromStr(TransactionId)),
-	// Transfer-group membership (PRD #48): returns only the legs of one internal
-	// transfer, so the detail page can list a group's other legs and the table
-	// can badge legs without client-side scanning. Mirrors `linkedRefundId`.
-	transferGroupId: Schema.optional(numFromStr(TransactionId)),
-	// **Is a transfer leg** — the bulk counterpart of `transferGroupId` above:
-	// that one names ONE group, this one asks the yes/no question about every row
-	// ("is this money moving between the user's own accounts?"). `true` returns
-	// only legs, `false` only non-legs, absent both. It is what lets the recap's
-	// *Internal transfers* line open the rows it summed, which `transferGroupId`
-	// could not express — a line spans many groups.
-	//
-	// Matched against the same `isTransferLeg` fragment `countsTowardRecap` is
-	// built from, never a second copy of `transferGroupId IS NOT NULL`: the recap
-	// nets a set of rows out of the totals and this filter lists that same set, so
-	// the two coming to mean different things is the ADR 0002 drift on a third
-	// field. Unlike `bundleId`, asking for legs does not invert a default —
-	// `list` has never hidden them.
-	isTransferLeg: Schema.optional(BooleanFromString),
-	// **Bundle** membership (issue #68) — returns the members of one bundle, so a
-	// parent can list what it stands for. It is also the ONLY way to reach a
-	// member through `list`: absent, the list hides every bundled row, because the
-	// parent already accounts for it and showing both double-counts (in the rows
-	// and in the signed `total` beneath them). Mirrors `transferGroupId`.
-	bundleId: Schema.optional(numFromStr(TransactionId)),
-	// The row's **kind** (issue #74) — `bundle` lists the **bundle parents** and
-	// nothing else, which is how the detail page offers the bundles a row may
-	// join. Orthogonal to `bundleId`: that one asks "whose members?", this one
-	// asks "which rows are parents?". Absent returns every kind.
-	kind: Schema.optional(TransactionKind),
-	// The **month filter** (issue #87) — a `"YYYY-MM"` key matched against the
-	// month the transaction's own **`date`** falls in, NOT against the
-	// `importMonth` column of the same name. The two diverge whenever a date moves
-	// after import (a **bundle parent** dated by hand, a date corrected across a
-	// month boundary), and the row then answered for a month its date contradicted
-	// while the month it belonged to did not list it. The recap made the same
-	// correction at issue #71; `importMonth` is provenance, and provenance only.
-	//
-	// The name is kept **deliberately** so bookmarked and shared URLs keep
-	// working: a naming inconsistency traded for not breaking them. The one place
-	// the param still means the column is `bundleImpact` below — it asks about a
-	// *statement*, not about a month of spending.
-	importMonth: Schema.optional(Schema.String), // "YYYY-MM"
-	importBatchId: Schema.optional(Schema.String),
-	startDate: Schema.optional(Schema.Date), // inclusive lower bound on `date`
-	endDate: Schema.optional(Schema.Date), // inclusive upper bound on `date`
-	isRefund: Schema.optional(BooleanFromString),
-	isDuplicateExcluded: Schema.optional(BooleanFromString),
-	// Recap exclusion (issue #67): `true` returns only the rows held out of spend
-	// totals, `false` only those that count, absent both. Matched against the same
-	// expression the projection reads (ADR 0008) — the guard against the ADR 0002
-	// drift, where a filter on the stored column silently dropped every row
-	// excluded by inheritance once #69 makes exclusion derivable through the issuer.
-	//
-	// "Held out" means the recap's `isRecapExcluded` — the derived
-	// `excludedFromRecap` flag **OR** `isDuplicateExcluded` — not the flag alone.
-	// The two are one question to the user ("why isn't this in my total?") and the
-	// recap's *Excluded from recap* line already sums both, so a filter matching
-	// only the flag opened that line onto fewer rows than it counted. Widened when
-	// the line became a link into `list`. The consequence on the `false` side is
-	// deliberate too: "counted" now also drops duplicate-excluded rows, which is
-	// what `countsTowardRecap` has always meant by it.
-	//
-	// `isDuplicateExcluded` above stays reachable on its own for the narrower
-	// question — this is the union, that is one of its halves.
-	excludedFromRecap: Schema.optional(BooleanFromString),
-	// A free-text substring (case-insensitive) matched against the raw issuer
-	// string, the assigned issuer's name, the notes, and the amount as displayed
-	// (2 decimals, unsigned) — the union, so one box searches every human-readable
-	// field of a row. AND-combined with the rest, like every sibling filter (#40).
-	search: Schema.optional(Schema.String),
-	// Curation state: `true` returns only rows nothing has been reviewed on —
-	// no issuer, no *derived* category, no note. Derived, not stored: a row
-	// categorised through its issuer counts as curated, exactly like the tint the
-	// table paints those rows with. `false` returns only the complement (rows
-	// with at least one of the three), absent returns both.
-	// A row **excluded from recap** — by either route — is exempt from the whole
-	// question (issue #70): curating it moves no total, so neither value returns
-	// it. Unlike `excludedFromRecap` the two halves are therefore NOT exhaustive;
-	// absent is how you ask for the whole table.
-	uncurated: Schema.optional(BooleanFromString),
+  accountId: Schema.optional(AccountIdFilter),
+  issuerId: Schema.optional(IssuerIdFilter),
+  categoryId: Schema.optional(CategoryIdFilter),
+  linkedRefundId: Schema.optional(numFromStr(TransactionId)),
+  // Transfer-group membership (PRD #48): returns only the legs of one internal
+  // transfer, so the detail page can list a group's other legs and the table
+  // can badge legs without client-side scanning. Mirrors `linkedRefundId`.
+  transferGroupId: Schema.optional(numFromStr(TransactionId)),
+  // **Is a transfer leg** — the bulk counterpart of `transferGroupId` above:
+  // that one names ONE group, this one asks the yes/no question about every row
+  // ("is this money moving between the user's own accounts?"). `true` returns
+  // only legs, `false` only non-legs, absent both. It is what lets the recap's
+  // *Internal transfers* line open the rows it summed, which `transferGroupId`
+  // could not express — a line spans many groups.
+  //
+  // Matched against the same `isTransferLeg` fragment `countsTowardRecap` is
+  // built from, never a second copy of `transferGroupId IS NOT NULL`: the recap
+  // nets a set of rows out of the totals and this filter lists that same set, so
+  // the two coming to mean different things is the ADR 0002 drift on a third
+  // field. Unlike `bundleId`, asking for legs does not invert a default —
+  // `list` has never hidden them.
+  isTransferLeg: Schema.optional(BooleanFromString),
+  // **Bundle** membership (issue #68) — returns the members of one bundle, so a
+  // parent can list what it stands for. It is also the ONLY way to reach a
+  // member through `list`: absent, the list hides every bundled row, because the
+  // parent already accounts for it and showing both double-counts (in the rows
+  // and in the signed `total` beneath them). Mirrors `transferGroupId`.
+  bundleId: Schema.optional(numFromStr(TransactionId)),
+  // The row's **kind** (issue #74) — `bundle` lists the **bundle parents** and
+  // nothing else, which is how the detail page offers the bundles a row may
+  // join. Orthogonal to `bundleId`: that one asks "whose members?", this one
+  // asks "which rows are parents?". Absent returns every kind.
+  kind: Schema.optional(TransactionKind),
+  // The **month filter** (issue #87) — a `"YYYY-MM"` key matched against the
+  // month the transaction's own **`date`** falls in, NOT against the
+  // `importMonth` column of the same name. The two diverge whenever a date moves
+  // after import (a **bundle parent** dated by hand, a date corrected across a
+  // month boundary), and the row then answered for a month its date contradicted
+  // while the month it belonged to did not list it. The recap made the same
+  // correction at issue #71; `importMonth` is provenance, and provenance only.
+  //
+  // The name is kept **deliberately** so bookmarked and shared URLs keep
+  // working: a naming inconsistency traded for not breaking them. The one place
+  // the param still means the column is `bundleImpact` below — it asks about a
+  // *statement*, not about a month of spending.
+  importMonth: Schema.optional(Schema.String), // "YYYY-MM"
+  importBatchId: Schema.optional(Schema.String),
+  startDate: Schema.optional(Schema.Date), // inclusive lower bound on `date`
+  endDate: Schema.optional(Schema.Date), // inclusive upper bound on `date`
+  isRefund: Schema.optional(BooleanFromString),
+  isDuplicateExcluded: Schema.optional(BooleanFromString),
+  // Recap exclusion (issue #67): `true` returns only the rows held out of spend
+  // totals, `false` only those that count, absent both. Matched against the same
+  // expression the projection reads (ADR 0008) — the guard against the ADR 0002
+  // drift, where a filter on the stored column silently dropped every row
+  // excluded by inheritance once #69 makes exclusion derivable through the issuer.
+  //
+  // "Held out" means the recap's `isRecapExcluded` — the derived
+  // `excludedFromRecap` flag **OR** `isDuplicateExcluded` — not the flag alone.
+  // The two are one question to the user ("why isn't this in my total?") and the
+  // recap's *Excluded from recap* line already sums both, so a filter matching
+  // only the flag opened that line onto fewer rows than it counted. Widened when
+  // the line became a link into `list`. The consequence on the `false` side is
+  // deliberate too: "counted" now also drops duplicate-excluded rows, which is
+  // what `countsTowardRecap` has always meant by it.
+  //
+  // `isDuplicateExcluded` above stays reachable on its own for the narrower
+  // question — this is the union, that is one of its halves.
+  excludedFromRecap: Schema.optional(BooleanFromString),
+  // A free-text substring (case-insensitive) matched against the raw issuer
+  // string, the assigned issuer's name, the notes, and the amount as displayed
+  // (2 decimals, unsigned) — the union, so one box searches every human-readable
+  // field of a row. AND-combined with the rest, like every sibling filter (#40).
+  search: Schema.optional(Schema.String),
+  // Curation state: `true` returns only rows nothing has been reviewed on —
+  // no issuer, no *derived* category, no note. Derived, not stored: a row
+  // categorised through its issuer counts as curated, exactly like the tint the
+  // table paints those rows with. `false` returns only the complement (rows
+  // with at least one of the three), absent returns both.
+  // A row **excluded from recap** — by either route — is exempt from the whole
+  // question (issue #70): curating it moves no total, so neither value returns
+  // it. Unlike `excludedFromRecap` the two halves are therefore NOT exhaustive;
+  // absent is how you ask for the whole table.
+  uncurated: Schema.optional(BooleanFromString),
 } as const;
 
 /**
@@ -370,9 +354,9 @@ export const TransactionFilters = {
  * at.
  */
 export const RecapFilters = {
-	accountId: Schema.optional(AccountIdFilter),
-	startDate: Schema.optional(Schema.Date), // inclusive lower bound on `date`
-	endDate: Schema.optional(Schema.Date), // inclusive upper bound on `date`
+  accountId: Schema.optional(AccountIdFilter),
+  startDate: Schema.optional(Schema.Date), // inclusive lower bound on `date`
+  endDate: Schema.optional(Schema.Date), // inclusive upper bound on `date`
 } as const;
 
 /**
@@ -384,9 +368,9 @@ export const RecapFilters = {
  * period of small amounts does not accumulate float dust.
  */
 export const RecapIssuerBucket = Schema.Struct({
-	id: Schema.NullOr(IssuerId),
-	spent: Schema.Number,
-	count: Schema.Number,
+  id: Schema.NullOr(IssuerId),
+  spent: Schema.Number,
+  count: Schema.Number,
 });
 
 /**
@@ -395,9 +379,9 @@ export const RecapIssuerBucket = Schema.Struct({
  * under Unassigned. `id` is `null` for the uncategorised bucket.
  */
 export const RecapCategoryBucket = Schema.Struct({
-	id: Schema.NullOr(CategoryId),
-	spent: Schema.Number,
-	count: Schema.Number,
+  id: Schema.NullOr(CategoryId),
+  spent: Schema.Number,
+  count: Schema.Number,
 });
 
 /**
@@ -407,8 +391,8 @@ export const RecapCategoryBucket = Schema.Struct({
  * ~0 nor a doubled 60. `count` is every leg in the period, both sides.
  */
 export const RecapTransfers = Schema.Struct({
-	total: Schema.Number,
-	count: Schema.Number,
+  total: Schema.Number,
+  count: Schema.Number,
 });
 
 /**
@@ -437,8 +421,8 @@ export const RecapTransfers = Schema.Struct({
  * twice.
  */
 export const RecapExcluded = Schema.Struct({
-	total: Schema.Number,
-	count: Schema.Number,
+  total: Schema.Number,
+  count: Schema.Number,
 });
 
 /**
@@ -454,10 +438,10 @@ export const RecapExcluded = Schema.Struct({
  * identity it resolves nowhere else.
  */
 export const RecapSummary = Schema.Struct({
-	byIssuer: Schema.Array(RecapIssuerBucket),
-	byCategory: Schema.Array(RecapCategoryBucket),
-	transfers: RecapTransfers,
-	excluded: RecapExcluded,
+  byIssuer: Schema.Array(RecapIssuerBucket),
+  byCategory: Schema.Array(RecapCategoryBucket),
+  transfers: RecapTransfers,
+  excluded: RecapExcluded,
 });
 export type RecapSummary = typeof RecapSummary.Type;
 export type RecapIssuerBucket = typeof RecapIssuerBucket.Type;
@@ -475,7 +459,7 @@ export type RecapExcluded = typeof RecapExcluded.Type;
  * its money counts.
  */
 export const RecapPeriods = Schema.Struct({
-	months: Schema.Array(Schema.String),
+  months: Schema.Array(Schema.String),
 });
 
 /**
@@ -495,8 +479,8 @@ export const RecapPeriods = Schema.Struct({
  * `bundleId` is the filter — that page's `items` *are* the members.
  */
 export const PagedTransactions = Schema.Struct({
-	...Paged(Transaction).fields,
-	bundleMembers: Schema.Array(Transaction),
+  ...Paged(Transaction).fields,
+  bundleMembers: Schema.Array(Transaction),
 });
 export type PagedTransactions = typeof PagedTransactions.Type;
 
@@ -507,10 +491,10 @@ export type PagedTransactions = typeof PagedTransactions.Type;
  * filter set — has no meaningful ordering.
  */
 export const TransactionListOrder = {
-	orderBy: Schema.optional(Schema.Literal("date")),
-	direction: Schema.optionalWith(Schema.Literal("asc", "desc"), {
-		default: () => "desc" as const,
-	}),
+  orderBy: Schema.optional(Schema.Literal("date")),
+  direction: Schema.optionalWith(Schema.Literal("asc", "desc"), {
+    default: () => "desc" as const,
+  }),
 } as const;
 
 /**
@@ -521,13 +505,13 @@ export const TransactionListOrder = {
  * refunded purchase nets to zero, an income category totals positive.
  */
 export const TransactionCount = Schema.Struct({
-	count: Schema.Number,
-	total: Schema.Number,
+  count: Schema.Number,
+  total: Schema.Number,
 });
 
 /** Bulk-create payload — `{ records }`, one row created per element (201, ids generated). */
 export const TransactionBulkCreate = Schema.Struct({
-	records: Schema.Array(TransactionCreate),
+  records: Schema.Array(TransactionCreate),
 });
 export type TransactionBulkCreate = typeof TransactionBulkCreate.Type;
 
@@ -537,7 +521,7 @@ export type TransactionBulkCreate = typeof TransactionBulkCreate.Type;
  * `{ count }` per taxonomy §5, not the rows (the client already holds them).
  */
 export const TransactionBulkPut = Schema.Struct({
-	records: Schema.Array(Transaction),
+  records: Schema.Array(Transaction),
 });
 export type TransactionBulkPut = typeof TransactionBulkPut.Type;
 
@@ -547,7 +531,7 @@ export type TransactionBulkPut = typeof TransactionBulkPut.Type;
  * taxonomy §5 flags bulk-get's POST-as-read exception).
  */
 export const TransactionBulkIds = Schema.Struct({
-	ids: Schema.Array(TransactionId),
+  ids: Schema.Array(TransactionId),
 });
 export type TransactionBulkIds = typeof TransactionBulkIds.Type;
 
@@ -568,7 +552,7 @@ export const TransactionAffected = Schema.Struct({ count: Schema.Number });
  * single-row update cannot express.
  */
 export const TransferLink = Schema.Struct({
-	ids: Schema.Array(TransactionId),
+  ids: Schema.Array(TransactionId),
 });
 export type TransferLink = typeof TransferLink.Type;
 
@@ -578,7 +562,7 @@ export type TransferLink = typeof TransferLink.Type;
  * of the group reverts them to normal transactions (they count as spend again).
  */
 export const TransferUnlink = Schema.Struct({
-	transferGroupId: TransactionId,
+  transferGroupId: TransactionId,
 });
 export type TransferUnlink = typeof TransferUnlink.Type;
 
@@ -598,8 +582,8 @@ export type TransferUnlink = typeof TransferUnlink.Type;
  * uncurated like any other row, and every existing edit surface can set them.
  */
 export const BundleCreate = Schema.Struct({
-	ids: Schema.Array(TransactionId),
-	label: Schema.String.pipe(Schema.minLength(1)),
+  ids: Schema.Array(TransactionId),
+  label: Schema.String.pipe(Schema.minLength(1)),
 });
 export type BundleCreate = typeof BundleCreate.Type;
 
@@ -616,8 +600,8 @@ export type BundleCreate = typeof BundleCreate.Type;
  * a parent. On success the parent's amount and default date are recomputed.
  */
 export const BundleMemberAdd = Schema.Struct({
-	bundleId: TransactionId,
-	transactionId: TransactionId,
+  bundleId: TransactionId,
+  transactionId: TransactionId,
 });
 export type BundleMemberAdd = typeof BundleMemberAdd.Type;
 
@@ -629,7 +613,7 @@ export type BundleMemberAdd = typeof BundleMemberAdd.Type;
  * it left is recomputed, and **dissolved** if fewer than two members remain.
  */
 export const BundleMemberRemove = Schema.Struct({
-	transactionId: TransactionId,
+  transactionId: TransactionId,
 });
 export type BundleMemberRemove = typeof BundleMemberRemove.Type;
 
@@ -640,7 +624,7 @@ export type BundleMemberRemove = typeof BundleMemberRemove.Type;
  * (or one that is not a parent) releases nothing and is not an error.
  */
 export const BundleDissolve = Schema.Struct({
-	bundleId: TransactionId,
+  bundleId: TransactionId,
 });
 export type BundleDissolve = typeof BundleDissolve.Type;
 
@@ -650,11 +634,9 @@ export type BundleDissolve = typeof BundleDissolve.Type;
  * that ranks one candidate above another ("same day" beats "4 days apart") and
  * the reason the list is ordered the way it is.
  */
-export class TransferCounterpart extends Schema.Class<TransferCounterpart>(
-	"TransferCounterpart",
-)({
-	transaction: Transaction,
-	daysApart: Schema.Number,
+export class TransferCounterpart extends Schema.Class<TransferCounterpart>("TransferCounterpart")({
+  transaction: Transaction,
+  daysApart: Schema.Number,
 }) {}
 
 /**
@@ -675,11 +657,9 @@ export class TransferCounterpart extends Schema.Class<TransferCounterpart>(
  * construction; confirming a pair calls `link-transfer`, which re-validates it,
  * and a **dismissed pair** ({@link TransferDismiss}) is never offered again.
  */
-export class TransferCandidate extends Schema.Class<TransferCandidate>(
-	"TransferCandidate",
-)({
-	leg: Transaction,
-	counterparts: Schema.Array(TransferCounterpart),
+export class TransferCandidate extends Schema.Class<TransferCandidate>("TransferCandidate")({
+  leg: Transaction,
+  counterparts: Schema.Array(TransferCounterpart),
 }) {}
 
 /**
@@ -689,8 +669,8 @@ export class TransferCandidate extends Schema.Class<TransferCandidate>(
  * id is which side.
  */
 export const TransferPair = Schema.Struct({
-	debitId: TransactionId,
-	creditId: TransactionId,
+  debitId: TransactionId,
+  creditId: TransactionId,
 });
 export type TransferPair = typeof TransferPair.Type;
 
@@ -711,7 +691,7 @@ export type TransferPair = typeof TransferPair.Type;
  * the number of pairs **newly** stored.
  */
 export const TransferDismiss = Schema.Struct({
-	pairs: Schema.Array(TransferPair),
+  pairs: Schema.Array(TransferPair),
 });
 export type TransferDismiss = typeof TransferDismiss.Type;
 
@@ -727,8 +707,8 @@ export type TransferDismiss = typeof TransferDismiss.Type;
  * right key and a row dated outside it is still part of that statement.
  */
 export const TransactionByAccountMonth = Schema.Struct({
-	accountId: numFromStr(AccountId),
-	importMonth: Schema.String,
+  accountId: numFromStr(AccountId),
+  importMonth: Schema.String,
 });
 
 /**
@@ -769,242 +749,232 @@ export const BundleImpact = Schema.Struct({ count: Schema.Number });
  * total with no error on screen.
  */
 export class TransactionsGroup extends HttpApiGroup.make("transactions")
-	.add(
-		HttpApiEndpoint.get("list")`/transactions`
-			.setUrlParams(
-				Schema.Struct({
-					...Pagination,
-					...TransactionFilters,
-					...TransactionListOrder,
-				}),
-			)
-			.addSuccess(PagedTransactions),
-	)
-	.add(
-		HttpApiEndpoint.get("count")`/transactions/count`
-			.setUrlParams(Schema.Struct(TransactionFilters))
-			.addSuccess(TransactionCount),
-	)
-	// Every DETECTED (not yet confirmed) internal transfer across the whole
-	// dataset (PRD #48) — read once and shared by the Transfers page, the
-	// transactions table's row indicator and the detail page (issue #91). One SQL
-	// self-join pairs each ungrouped, non-refund debit with its ungrouped,
-	// non-refund credit of equal magnitude (to the cent), a different account, and
-	// a date within `TRANSFER_DATE_WINDOW_DAYS`, then groups the pairs under their
-	// debit leg. Oriented by sign (`leg` = debit) so each real pair is returned
-	// exactly once, never both ways. **Dismissed pairs are excluded** — that is
-	// what makes a refusal permanent rather than a per-session filter. Legs
-	// ordered by their closest counterpart, counterparts closest-date first. A
-	// literal sub-path, declared before the `:id` route so it is never shadowed.
-	.add(
-		HttpApiEndpoint.get(
-			"transferCandidates",
-		)`/transactions/transfer-candidates`.addSuccess(
-			Schema.Array(TransferCandidate),
-		),
-	)
-	// The **recap** (issue #71): spend for one period and account selection,
-	// aggregated by issuer and by category over the WHOLE filtered set — no page,
-	// no row cap, no `truncated` caveat. Which rows count is the server's single
-	// `countsTowardRecap` predicate (not a transfer leg, not excluded, not
-	// duplicate-excluded, not a bundle member), defined once beside the
-	// derived-category and derived-exclusion expressions, so the recap and the
-	// list can never disagree about what "counts toward spend" means. Another
-	// literal sub-path, declared before the `:id` route.
-	.add(
-		HttpApiEndpoint.get("recap")`/transactions/recap`
-			.setUrlParams(Schema.Struct(RecapFilters))
-			.addSuccess(RecapSummary),
-	)
-	// The months the recap can be asked about — the period picker's options,
-	// derived from the transaction `date` exactly as the period bounds are.
-	.add(
-		HttpApiEndpoint.get("recapPeriods")`/transactions/recap-periods`.addSuccess(
-			RecapPeriods,
-		),
-	)
-	// The pre-flight of deleting a statement's rows (issue #77): how many
-	// **bundles** hold a row of that account + month, asked before the rows go so
-	// the bundling is never destroyed silently. A read, so `GET` — and another
-	// literal sub-path, declared before the `:id` route.
-	.add(
-		HttpApiEndpoint.get("bundleImpact")`/transactions/bundle-impact`
-			.setUrlParams(TransactionByAccountMonth)
-			.addSuccess(BundleImpact),
-	)
-	.add(
-		HttpApiEndpoint.get(
-			"getById",
-		)`/transactions/${HttpApiSchema.param("id", numFromStr(TransactionId))}`
-			.addSuccess(Transaction)
-			.addError(NotFound),
-	)
-	// Suggest the counterpart legs of an internal transfer for one row (PRD
-	// #48): the server scans the DB for rows with the opposite sign, an equal
-	// magnitude to the cent, a different account, no existing transfer group, no
-	// refund involvement, and a date within `TRANSFER_DATE_WINDOW_DAYS` of this
-	// row's — run in SQL so it sees the whole dataset (not just a loaded page).
-	// 404s an unknown id; an **ineligible** row (already grouped, or a refund)
-	// yields an empty array — there is nothing to suggest, which is not an error.
-	// Nearest-date first, and **dismissed pairs** are excluded here exactly as
-	// they are from `transferCandidates`: a refusal is about the pairing, not
-	// about which endpoint asked.
-	//
-	// No web caller since issue #91 — every surface reads the grouped
-	// `transferCandidates` instead, so the three of them cannot disagree. Kept as
-	// the single-row form of the same question, and kept honest about dismissals
-	// so it stays safe to pick up.
-	.add(
-		HttpApiEndpoint.get(
-			"transferSuggestions",
-		)`/transactions/${HttpApiSchema.param("id", numFromStr(TransactionId))}/transfer-suggestions`
-			.addSuccess(Schema.Array(Transaction))
-			.addError(NotFound),
-	)
-	.add(
-		HttpApiEndpoint.post("create")`/transactions`
-			.setPayload(TransactionCreate)
-			.addSuccess(Transaction, { status: 201 })
-			.addError(CategoryNotLeaf),
-	)
-	.add(
-		HttpApiEndpoint.post("bulkCreate")`/transactions/bulk`
-			.setPayload(TransactionBulkCreate)
-			.addSuccess(Schema.Array(Transaction), { status: 201 })
-			.addError(CategoryNotLeaf),
-	)
-	.add(
-		HttpApiEndpoint.put(
-			"update",
-		)`/transactions/${HttpApiSchema.param("id", numFromStr(TransactionId))}`
-			.setPayload(TransactionUpdate)
-			.addSuccess(Transaction)
-			.addError(NotFound)
-			.addError(CategoryNotLeaf),
-	)
-	.add(
-		HttpApiEndpoint.put("bulkPut")`/transactions/bulk-put`
-			.setPayload(TransactionBulkPut)
-			.addSuccess(TransactionAffected),
-	)
-	.add(
-		HttpApiEndpoint.del(
-			"remove",
-		)`/transactions/${HttpApiSchema.param("id", numFromStr(TransactionId))}`
-			.addSuccess(HttpApiSchema.NoContent)
-			.addError(NotFound),
-	)
-	// The Matching Rule preview's per-row "remove manual issuer" action
-	// (PRD #8 story 10): clears the row's manual issuer, then re-derives it
-	// against the current rule set — it becomes unmatched (or claimed by an
-	// existing rule) and, crucially, rule-eligible again. Returns the updated row.
-	.add(
-		HttpApiEndpoint.post(
-			"removeManualIssuer",
-		)`/transactions/${HttpApiSchema.param("id", numFromStr(TransactionId))}/remove-manual-issuer`
-			.addSuccess(Transaction)
-			.addError(NotFound),
-	)
-	// `bulkDelete` / `bulkGet` stay POST — the id list rides in the body.
-	.add(
-		HttpApiEndpoint.post("bulkDelete")`/transactions/bulk-delete`
-			.setPayload(TransactionBulkIds)
-			.addSuccess(TransactionAffected),
-	)
-	.add(
-		HttpApiEndpoint.post("bulkGet")`/transactions/bulk-get`
-			.setPayload(TransactionBulkIds)
-			.addSuccess(Schema.Array(Transaction)),
-	)
-	// Drop a whole **import batch** — the one targeted delete left, and the one
-	// undo an import has. There is deliberately no delete-an-account-month route
-	// (issue #88): it existed only for the import commit, which now deletes
-	// nothing, and keeping it would leave the data loss it caused one caller away.
-	.add(
-		HttpApiEndpoint.del(
-			"deleteByImportBatch",
-		)`/transactions/by-import-batch/${HttpApiSchema.param("batchId", Schema.String)}`.addSuccess(
-			TransactionAffected,
-		),
-	)
-	// Link/unlink internal transfers (PRD #48), the atomic multi-row operations
-	// the generic single-row `update` cannot express. `linkTransfer` validates
-	// the set server-side and fails `TransferInvalid` (422) — a dedicated error,
-	// not an overloaded `NotFound` — on any of: <2 legs, a non-zero cent sum, an
-	// unknown id, a leg already grouped, a refund leg, or a leg that is bundled
-	// (`is-bundled`, either bundle role — the transfer side of the exclusivity,
-	// issue #75). Both return the count of legs stamped/cleared.
-	.add(
-		HttpApiEndpoint.post("linkTransfer")`/transactions/link-transfer`
-			.setPayload(TransferLink)
-			.addSuccess(TransactionAffected)
-			.addError(TransferInvalid),
-	)
-	.add(
-		HttpApiEndpoint.post("unlinkTransfer")`/transactions/unlink-transfer`
-			.setPayload(TransferUnlink)
-			.addSuccess(TransactionAffected),
-	)
-	// Refuse a set of detected pairs (issue #91) → `{ count }` newly stored. The
-	// only *write* the suggestion path has that is not a link: detection is
-	// recomputed on every read, so the sole thing worth persisting is the user's
-	// refusal. A dismissed pair drops out of `transferCandidates` for good.
-	//
-	// A POST rather than a DELETE: it *creates* **dismissed pair** rows. Nothing
-	// is validated beyond the ids being ids — a pair naming a row that has since
-	// gone simply never matches anything, and an unknown id is not worth a 422 for
-	// an action whose whole job is to make suggestions go away.
-	.add(
-		HttpApiEndpoint.post(
-			"dismissTransferPairs",
-		)`/transactions/dismiss-transfer-pairs`
-			.setPayload(TransferDismiss)
-			.addSuccess(TransactionAffected),
-	)
-	// Create a **bundle** from a set of rows (issue #68) — the other atomic
-	// multi-row operation. Unlike `link-transfer` it *creates* a row: the
-	// **bundle parent** it returns (201, like every other create) is the whole
-	// point, since a bundle nets to a non-zero amount that needs somewhere to
-	// live. Fails `BundleInvalid` (422) — its own error, not `TransferInvalid`:
-	// none of the transfer's balance rules apply — on <2 distinct members, an
-	// unknown id, a row already bundled, a row that is itself a parent, or a row
-	// that is a transfer leg (`is-transfer-leg`, the bundling side of the same
-	// exclusivity — the two directions keep their own error type by the decision
-	// on issue #81, recorded on `BundleInvalid`).
-	.add(
-		HttpApiEndpoint.post("createBundle")`/transactions/bundle`
-			.setPayload(BundleCreate)
-			.addSuccess(Transaction, { status: 201 })
-			.addError(BundleInvalid),
-	)
-	// Membership is mutable (issue #74): a bundle is not finished at creation, so
-	// a row can join one, leave one, and the whole bundle can be dissolved. All
-	// three recompute the parent through the ONE derivation routine — the single
-	// point where a bundle's number could go stale — and a bundle left with fewer
-	// than two members is dissolved rather than kept as a parent standing for a
-	// single transaction.
-	//
-	// `add-member` returns the **recomputed parent** (the row whose number moved);
-	// `remove-member` returns the **released row**, now ordinary again. Both fail
-	// `BundleInvalid` (422). `dissolve` returns the count of members released and
-	// is idempotent, like `unlink-transfer`.
-	.add(
-		HttpApiEndpoint.post("addBundleMember")`/transactions/bundle/add-member`
-			.setPayload(BundleMemberAdd)
-			.addSuccess(Transaction)
-			.addError(BundleInvalid),
-	)
-	.add(
-		HttpApiEndpoint.post(
-			"removeBundleMember",
-		)`/transactions/bundle/remove-member`
-			.setPayload(BundleMemberRemove)
-			.addSuccess(Transaction)
-			.addError(BundleInvalid),
-	)
-	.add(
-		HttpApiEndpoint.post("dissolveBundle")`/transactions/bundle/dissolve`
-			.setPayload(BundleDissolve)
-			.addSuccess(TransactionAffected),
-	)
-	.annotateContext(OpenApi.annotations({ title: "Transactions" })) {}
+  .add(
+    HttpApiEndpoint.get("list")`/transactions`
+      .setUrlParams(
+        Schema.Struct({
+          ...Pagination,
+          ...TransactionFilters,
+          ...TransactionListOrder,
+        }),
+      )
+      .addSuccess(PagedTransactions),
+  )
+  .add(
+    HttpApiEndpoint.get("count")`/transactions/count`
+      .setUrlParams(Schema.Struct(TransactionFilters))
+      .addSuccess(TransactionCount),
+  )
+  // Every DETECTED (not yet confirmed) internal transfer across the whole
+  // dataset (PRD #48) — read once and shared by the Transfers page, the
+  // transactions table's row indicator and the detail page (issue #91). One SQL
+  // self-join pairs each ungrouped, non-refund debit with its ungrouped,
+  // non-refund credit of equal magnitude (to the cent), a different account, and
+  // a date within `TRANSFER_DATE_WINDOW_DAYS`, then groups the pairs under their
+  // debit leg. Oriented by sign (`leg` = debit) so each real pair is returned
+  // exactly once, never both ways. **Dismissed pairs are excluded** — that is
+  // what makes a refusal permanent rather than a per-session filter. Legs
+  // ordered by their closest counterpart, counterparts closest-date first. A
+  // literal sub-path, declared before the `:id` route so it is never shadowed.
+  .add(
+    HttpApiEndpoint.get("transferCandidates")`/transactions/transfer-candidates`.addSuccess(
+      Schema.Array(TransferCandidate),
+    ),
+  )
+  // The **recap** (issue #71): spend for one period and account selection,
+  // aggregated by issuer and by category over the WHOLE filtered set — no page,
+  // no row cap, no `truncated` caveat. Which rows count is the server's single
+  // `countsTowardRecap` predicate (not a transfer leg, not excluded, not
+  // duplicate-excluded, not a bundle member), defined once beside the
+  // derived-category and derived-exclusion expressions, so the recap and the
+  // list can never disagree about what "counts toward spend" means. Another
+  // literal sub-path, declared before the `:id` route.
+  .add(
+    HttpApiEndpoint.get("recap")`/transactions/recap`
+      .setUrlParams(Schema.Struct(RecapFilters))
+      .addSuccess(RecapSummary),
+  )
+  // The months the recap can be asked about — the period picker's options,
+  // derived from the transaction `date` exactly as the period bounds are.
+  .add(HttpApiEndpoint.get("recapPeriods")`/transactions/recap-periods`.addSuccess(RecapPeriods))
+  // The pre-flight of deleting a statement's rows (issue #77): how many
+  // **bundles** hold a row of that account + month, asked before the rows go so
+  // the bundling is never destroyed silently. A read, so `GET` — and another
+  // literal sub-path, declared before the `:id` route.
+  .add(
+    HttpApiEndpoint.get("bundleImpact")`/transactions/bundle-impact`
+      .setUrlParams(TransactionByAccountMonth)
+      .addSuccess(BundleImpact),
+  )
+  .add(
+    HttpApiEndpoint.get(
+      "getById",
+    )`/transactions/${HttpApiSchema.param("id", numFromStr(TransactionId))}`
+      .addSuccess(Transaction)
+      .addError(NotFound),
+  )
+  // Suggest the counterpart legs of an internal transfer for one row (PRD
+  // #48): the server scans the DB for rows with the opposite sign, an equal
+  // magnitude to the cent, a different account, no existing transfer group, no
+  // refund involvement, and a date within `TRANSFER_DATE_WINDOW_DAYS` of this
+  // row's — run in SQL so it sees the whole dataset (not just a loaded page).
+  // 404s an unknown id; an **ineligible** row (already grouped, or a refund)
+  // yields an empty array — there is nothing to suggest, which is not an error.
+  // Nearest-date first, and **dismissed pairs** are excluded here exactly as
+  // they are from `transferCandidates`: a refusal is about the pairing, not
+  // about which endpoint asked.
+  //
+  // No web caller since issue #91 — every surface reads the grouped
+  // `transferCandidates` instead, so the three of them cannot disagree. Kept as
+  // the single-row form of the same question, and kept honest about dismissals
+  // so it stays safe to pick up.
+  .add(
+    HttpApiEndpoint.get(
+      "transferSuggestions",
+    )`/transactions/${HttpApiSchema.param("id", numFromStr(TransactionId))}/transfer-suggestions`
+      .addSuccess(Schema.Array(Transaction))
+      .addError(NotFound),
+  )
+  .add(
+    HttpApiEndpoint.post("create")`/transactions`
+      .setPayload(TransactionCreate)
+      .addSuccess(Transaction, { status: 201 })
+      .addError(CategoryNotLeaf),
+  )
+  .add(
+    HttpApiEndpoint.post("bulkCreate")`/transactions/bulk`
+      .setPayload(TransactionBulkCreate)
+      .addSuccess(Schema.Array(Transaction), { status: 201 })
+      .addError(CategoryNotLeaf),
+  )
+  .add(
+    HttpApiEndpoint.put(
+      "update",
+    )`/transactions/${HttpApiSchema.param("id", numFromStr(TransactionId))}`
+      .setPayload(TransactionUpdate)
+      .addSuccess(Transaction)
+      .addError(NotFound)
+      .addError(CategoryNotLeaf),
+  )
+  .add(
+    HttpApiEndpoint.put("bulkPut")`/transactions/bulk-put`
+      .setPayload(TransactionBulkPut)
+      .addSuccess(TransactionAffected),
+  )
+  .add(
+    HttpApiEndpoint.del(
+      "remove",
+    )`/transactions/${HttpApiSchema.param("id", numFromStr(TransactionId))}`
+      .addSuccess(HttpApiSchema.NoContent)
+      .addError(NotFound),
+  )
+  // The Matching Rule preview's per-row "remove manual issuer" action
+  // (PRD #8 story 10): clears the row's manual issuer, then re-derives it
+  // against the current rule set — it becomes unmatched (or claimed by an
+  // existing rule) and, crucially, rule-eligible again. Returns the updated row.
+  .add(
+    HttpApiEndpoint.post(
+      "removeManualIssuer",
+    )`/transactions/${HttpApiSchema.param("id", numFromStr(TransactionId))}/remove-manual-issuer`
+      .addSuccess(Transaction)
+      .addError(NotFound),
+  )
+  // `bulkDelete` / `bulkGet` stay POST — the id list rides in the body.
+  .add(
+    HttpApiEndpoint.post("bulkDelete")`/transactions/bulk-delete`
+      .setPayload(TransactionBulkIds)
+      .addSuccess(TransactionAffected),
+  )
+  .add(
+    HttpApiEndpoint.post("bulkGet")`/transactions/bulk-get`
+      .setPayload(TransactionBulkIds)
+      .addSuccess(Schema.Array(Transaction)),
+  )
+  // Drop a whole **import batch** — the one targeted delete left, and the one
+  // undo an import has. There is deliberately no delete-an-account-month route
+  // (issue #88): it existed only for the import commit, which now deletes
+  // nothing, and keeping it would leave the data loss it caused one caller away.
+  .add(
+    HttpApiEndpoint.del(
+      "deleteByImportBatch",
+    )`/transactions/by-import-batch/${HttpApiSchema.param("batchId", Schema.String)}`.addSuccess(
+      TransactionAffected,
+    ),
+  )
+  // Link/unlink internal transfers (PRD #48), the atomic multi-row operations
+  // the generic single-row `update` cannot express. `linkTransfer` validates
+  // the set server-side and fails `TransferInvalid` (422) — a dedicated error,
+  // not an overloaded `NotFound` — on any of: <2 legs, a non-zero cent sum, an
+  // unknown id, a leg already grouped, a refund leg, or a leg that is bundled
+  // (`is-bundled`, either bundle role — the transfer side of the exclusivity,
+  // issue #75). Both return the count of legs stamped/cleared.
+  .add(
+    HttpApiEndpoint.post("linkTransfer")`/transactions/link-transfer`
+      .setPayload(TransferLink)
+      .addSuccess(TransactionAffected)
+      .addError(TransferInvalid),
+  )
+  .add(
+    HttpApiEndpoint.post("unlinkTransfer")`/transactions/unlink-transfer`
+      .setPayload(TransferUnlink)
+      .addSuccess(TransactionAffected),
+  )
+  // Refuse a set of detected pairs (issue #91) → `{ count }` newly stored. The
+  // only *write* the suggestion path has that is not a link: detection is
+  // recomputed on every read, so the sole thing worth persisting is the user's
+  // refusal. A dismissed pair drops out of `transferCandidates` for good.
+  //
+  // A POST rather than a DELETE: it *creates* **dismissed pair** rows. Nothing
+  // is validated beyond the ids being ids — a pair naming a row that has since
+  // gone simply never matches anything, and an unknown id is not worth a 422 for
+  // an action whose whole job is to make suggestions go away.
+  .add(
+    HttpApiEndpoint.post("dismissTransferPairs")`/transactions/dismiss-transfer-pairs`
+      .setPayload(TransferDismiss)
+      .addSuccess(TransactionAffected),
+  )
+  // Create a **bundle** from a set of rows (issue #68) — the other atomic
+  // multi-row operation. Unlike `link-transfer` it *creates* a row: the
+  // **bundle parent** it returns (201, like every other create) is the whole
+  // point, since a bundle nets to a non-zero amount that needs somewhere to
+  // live. Fails `BundleInvalid` (422) — its own error, not `TransferInvalid`:
+  // none of the transfer's balance rules apply — on <2 distinct members, an
+  // unknown id, a row already bundled, a row that is itself a parent, or a row
+  // that is a transfer leg (`is-transfer-leg`, the bundling side of the same
+  // exclusivity — the two directions keep their own error type by the decision
+  // on issue #81, recorded on `BundleInvalid`).
+  .add(
+    HttpApiEndpoint.post("createBundle")`/transactions/bundle`
+      .setPayload(BundleCreate)
+      .addSuccess(Transaction, { status: 201 })
+      .addError(BundleInvalid),
+  )
+  // Membership is mutable (issue #74): a bundle is not finished at creation, so
+  // a row can join one, leave one, and the whole bundle can be dissolved. All
+  // three recompute the parent through the ONE derivation routine — the single
+  // point where a bundle's number could go stale — and a bundle left with fewer
+  // than two members is dissolved rather than kept as a parent standing for a
+  // single transaction.
+  //
+  // `add-member` returns the **recomputed parent** (the row whose number moved);
+  // `remove-member` returns the **released row**, now ordinary again. Both fail
+  // `BundleInvalid` (422). `dissolve` returns the count of members released and
+  // is idempotent, like `unlink-transfer`.
+  .add(
+    HttpApiEndpoint.post("addBundleMember")`/transactions/bundle/add-member`
+      .setPayload(BundleMemberAdd)
+      .addSuccess(Transaction)
+      .addError(BundleInvalid),
+  )
+  .add(
+    HttpApiEndpoint.post("removeBundleMember")`/transactions/bundle/remove-member`
+      .setPayload(BundleMemberRemove)
+      .addSuccess(Transaction)
+      .addError(BundleInvalid),
+  )
+  .add(
+    HttpApiEndpoint.post("dissolveBundle")`/transactions/bundle/dissolve`
+      .setPayload(BundleDissolve)
+      .addSuccess(TransactionAffected),
+  )
+  .annotateContext(OpenApi.annotations({ title: "Transactions" })) {}

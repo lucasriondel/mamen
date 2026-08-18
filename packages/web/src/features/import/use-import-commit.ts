@@ -9,9 +9,9 @@ import type { ParsedTransaction } from "./parsers/types";
 
 /** Success-toast copy: how many rows landed across which month(s). */
 function successMessage(result: CommitResult): string {
-	const months = result.months.map(formatMonth).join(", ");
-	const rows = `${result.count} transaction${result.count === 1 ? "" : "s"}`;
-	return `Imported ${rows} (${months}).`;
+  const months = result.months.map(formatMonth).join(", ");
+  const rows = `${result.count} transaction${result.count === 1 ? "" : "s"}`;
+  return `Imported ${rows} (${months}).`;
 }
 
 /**
@@ -27,24 +27,23 @@ function successMessage(result: CommitResult): string {
  * delete there is nothing left for the commit to scope.
  */
 export function useImportCommit() {
-	const queryClient = useQueryClient();
-	const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
-	return useMutation({
-		mutationFn: ({ records }: { records: readonly ParsedTransaction[] }) =>
-			commitImport(records),
-		onSuccess: (result) => {
-			queryClient.invalidateQueries({ queryKey: transactionKeys.all });
-			queryClient.invalidateQueries({ queryKey: accountKeys.all });
-			// A rule's `ownedCount` is derived from the live table (issue #63), and
-			// the rows an import lands are claimed by whichever rules match them at
-			// import time.
-			queryClient.invalidateQueries({ queryKey: ruleKeys.all });
-			toast.success(successMessage(result));
-			navigate({ to: "/transactions" });
-		},
-		onError: (error) => {
-			toast.error(toErrorMessage(error));
-		},
-	});
+  return useMutation({
+    mutationFn: ({ records }: { records: readonly ParsedTransaction[] }) => commitImport(records),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: transactionKeys.all });
+      queryClient.invalidateQueries({ queryKey: accountKeys.all });
+      // A rule's `ownedCount` is derived from the live table (issue #63), and
+      // the rows an import lands are claimed by whichever rules match them at
+      // import time.
+      queryClient.invalidateQueries({ queryKey: ruleKeys.all });
+      toast.success(successMessage(result));
+      navigate({ to: "/transactions" });
+    },
+    onError: (error) => {
+      toast.error(toErrorMessage(error));
+    },
+  });
 }

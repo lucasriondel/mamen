@@ -11,5 +11,5 @@ import { Effect } from "effect";
  * No index: it is neither filtered nor ordered in SQL (the match runs in JS).
  */
 export default Effect.flatMap(SqlClient.SqlClient, (sql) =>
-	sql`ALTER TABLE rules ADD COLUMN matchValue REAL`.pipe(Effect.asVoid),
+  sql`ALTER TABLE rules ADD COLUMN matchValue REAL`.pipe(Effect.asVoid),
 );

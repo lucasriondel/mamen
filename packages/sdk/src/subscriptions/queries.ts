@@ -1,10 +1,10 @@
 import type {
-	IssuerId,
-	SubscriptionCreate,
-	SubscriptionFrequency,
-	SubscriptionId,
-	SubscriptionStatus,
-	SubscriptionUpdate,
+  IssuerId,
+  SubscriptionCreate,
+  SubscriptionFrequency,
+  SubscriptionId,
+  SubscriptionStatus,
+  SubscriptionUpdate,
 } from "@mamen/shared/contract";
 import { PaginationDefaults } from "@mamen/shared/contract";
 import { queryOptions } from "@tanstack/react-query";
@@ -16,73 +16,62 @@ import { Client, runQuery } from "../runtime";
  * (AND-combined), mirroring the contract.
  */
 export type SubscriptionListParams = {
-	limit?: number;
-	offset?: number;
-	issuerId?: IssuerId;
-	status?: SubscriptionStatus;
+  limit?: number;
+  offset?: number;
+  issuerId?: IssuerId;
+  status?: SubscriptionStatus;
 };
 
 /** Query-key factory for the subscriptions resource. */
 export const subscriptionKeys = {
-	all: ["subscriptions"] as const,
-	lists: () => [...subscriptionKeys.all, "list"] as const,
-	list: (params: SubscriptionListParams) =>
-		[...subscriptionKeys.lists(), params] as const,
-	firstByIssuer: (issuerId: IssuerId) =>
-		[...subscriptionKeys.all, "first-by-issuer", issuerId] as const,
-	byIssuerFrequency: (issuerId: IssuerId, frequency: SubscriptionFrequency) =>
-		[
-			...subscriptionKeys.all,
-			"by-issuer-frequency",
-			issuerId,
-			frequency,
-		] as const,
+  all: ["subscriptions"] as const,
+  lists: () => [...subscriptionKeys.all, "list"] as const,
+  list: (params: SubscriptionListParams) => [...subscriptionKeys.lists(), params] as const,
+  firstByIssuer: (issuerId: IssuerId) =>
+    [...subscriptionKeys.all, "first-by-issuer", issuerId] as const,
+  byIssuerFrequency: (issuerId: IssuerId, frequency: SubscriptionFrequency) =>
+    [...subscriptionKeys.all, "by-issuer-frequency", issuerId, frequency] as const,
 };
 
 /** tanstack-query read options for the subscriptions resource. */
 export const subscriptionQueries = {
-	list: (params: SubscriptionListParams = {}) => {
-		const urlParams = { ...PaginationDefaults, ...params };
-		return queryOptions({
-			queryKey: subscriptionKeys.list(urlParams),
-			queryFn: ({ signal }) =>
-				runQuery(
-					Effect.flatMap(Client, (client) =>
-						client.subscriptions.list({ urlParams }),
-					),
-					signal,
-				),
-		});
-	},
+  list: (params: SubscriptionListParams = {}) => {
+    const urlParams = { ...PaginationDefaults, ...params };
+    return queryOptions({
+      queryKey: subscriptionKeys.list(urlParams),
+      queryFn: ({ signal }) =>
+        runQuery(
+          Effect.flatMap(Client, (client) => client.subscriptions.list({ urlParams })),
+          signal,
+        ),
+    });
+  },
 
-	getFirstByIssuer: (issuerId: IssuerId) =>
-		queryOptions({
-			queryKey: subscriptionKeys.firstByIssuer(issuerId),
-			queryFn: ({ signal }) =>
-				runQuery(
-					Effect.flatMap(Client, (client) =>
-						client.subscriptions.getFirstByIssuer({ path: { issuerId } }),
-					),
-					signal,
-				),
-		}),
+  getFirstByIssuer: (issuerId: IssuerId) =>
+    queryOptions({
+      queryKey: subscriptionKeys.firstByIssuer(issuerId),
+      queryFn: ({ signal }) =>
+        runQuery(
+          Effect.flatMap(Client, (client) =>
+            client.subscriptions.getFirstByIssuer({ path: { issuerId } }),
+          ),
+          signal,
+        ),
+    }),
 
-	getByIssuerFrequency: (
-		issuerId: IssuerId,
-		frequency: SubscriptionFrequency,
-	) =>
-		queryOptions({
-			queryKey: subscriptionKeys.byIssuerFrequency(issuerId, frequency),
-			queryFn: ({ signal }) =>
-				runQuery(
-					Effect.flatMap(Client, (client) =>
-						client.subscriptions.getByIssuerFrequency({
-							path: { issuerId, frequency },
-						}),
-					),
-					signal,
-				),
-		}),
+  getByIssuerFrequency: (issuerId: IssuerId, frequency: SubscriptionFrequency) =>
+    queryOptions({
+      queryKey: subscriptionKeys.byIssuerFrequency(issuerId, frequency),
+      queryFn: ({ signal }) =>
+        runQuery(
+          Effect.flatMap(Client, (client) =>
+            client.subscriptions.getByIssuerFrequency({
+              path: { issuerId, frequency },
+            }),
+          ),
+          signal,
+        ),
+    }),
 };
 
 /**
@@ -92,17 +81,11 @@ export const subscriptionQueries = {
  * `subscriptionKeys.all` after a write.
  */
 export const subscriptionMutations = {
-	create: (payload: SubscriptionCreate) =>
-		runQuery(
-			Effect.flatMap(Client, (client) =>
-				client.subscriptions.create({ payload }),
-			),
-		),
+  create: (payload: SubscriptionCreate) =>
+    runQuery(Effect.flatMap(Client, (client) => client.subscriptions.create({ payload }))),
 
-	update: (id: SubscriptionId, payload: SubscriptionUpdate) =>
-		runQuery(
-			Effect.flatMap(Client, (client) =>
-				client.subscriptions.update({ path: { id }, payload }),
-			),
-		),
+  update: (id: SubscriptionId, payload: SubscriptionUpdate) =>
+    runQuery(
+      Effect.flatMap(Client, (client) => client.subscriptions.update({ path: { id }, payload })),
+    ),
 };

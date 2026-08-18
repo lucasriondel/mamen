@@ -14,7 +14,7 @@ import { NotFound } from "./errors";
  * carries nothing beyond its own identity.
  */
 export class AppSettings extends Schema.Class<AppSettings>("AppSettings")({
-	id: Schema.Literal("app"),
+  id: Schema.Literal("app"),
 }) {}
 
 /**
@@ -24,14 +24,6 @@ export class AppSettings extends Schema.Class<AppSettings>("AppSettings")({
  * no error. Dropped vs today: `POST /app-settings/clear` (client-only).
  */
 export class AppSettingsGroup extends HttpApiGroup.make("appSettings")
-	.add(
-		HttpApiEndpoint.get("get")`/app-settings`
-			.addSuccess(AppSettings)
-			.addError(NotFound),
-	)
-	.add(
-		HttpApiEndpoint.put("put")`/app-settings`
-			.setPayload(AppSettings)
-			.addSuccess(AppSettings),
-	)
-	.annotateContext(OpenApi.annotations({ title: "App-settings" })) {}
+  .add(HttpApiEndpoint.get("get")`/app-settings`.addSuccess(AppSettings).addError(NotFound))
+  .add(HttpApiEndpoint.put("put")`/app-settings`.setPayload(AppSettings).addSuccess(AppSettings))
+  .annotateContext(OpenApi.annotations({ title: "App-settings" })) {}

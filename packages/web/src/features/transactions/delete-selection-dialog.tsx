@@ -1,27 +1,27 @@
 import type { Transaction, TransactionId } from "@mamen/shared/contract";
 import { Button } from "@/components/ui/button";
 import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { useBulkDelete } from "./use-bulk-delete";
 
 export type DeleteSelectionDialogProps = {
-	/**
-	 * The rows the selection action bar is about to delete — the rows themselves,
-	 * not just their ids: the dialog counts the **bundle parents** among them to
-	 * say what deleting them does, and the selection is page-scoped so they are
-	 * already on screen.
-	 */
-	selected: ReadonlyArray<Transaction>;
-	open: boolean;
-	onOpenChange: (open: boolean) => void;
-	/** The rows are gone — the bar drops the selection that named them. */
-	onDeleted: () => void;
+  /**
+   * The rows the selection action bar is about to delete — the rows themselves,
+   * not just their ids: the dialog counts the **bundle parents** among them to
+   * say what deleting them does, and the selection is page-scoped so they are
+   * already on screen.
+   */
+  selected: ReadonlyArray<Transaction>;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** The rows are gone — the bar drops the selection that named them. */
+  onDeleted: () => void;
 };
 
 /**
@@ -45,65 +45,61 @@ export type DeleteSelectionDialogProps = {
  * bundled; nothing here has to account for one.
  */
 export function DeleteSelectionDialog({
-	selected,
-	open,
-	onOpenChange,
-	onDeleted,
+  selected,
+  open,
+  onOpenChange,
+  onDeleted,
 }: DeleteSelectionDialogProps) {
-	const { bulkDelete } = useBulkDelete();
+  const { bulkDelete } = useBulkDelete();
 
-	const count = selected.length;
-	const bundles = selected.filter((txn) => txn.kind === "bundle").length;
-	const rows = `${count} transaction${count === 1 ? "" : "s"}`;
+  const count = selected.length;
+  const bundles = selected.filter((txn) => txn.kind === "bundle").length;
+  const rows = `${count} transaction${count === 1 ? "" : "s"}`;
 
-	const confirm = () => {
-		bulkDelete.mutate(
-			{ ids: selected.map((txn) => txn.id as TransactionId) },
-			{
-				onSuccess: () => {
-					onOpenChange(false);
-					onDeleted();
-				},
-			},
-		);
-	};
+  const confirm = () => {
+    bulkDelete.mutate(
+      { ids: selected.map((txn) => txn.id as TransactionId) },
+      {
+        onSuccess: () => {
+          onOpenChange(false);
+          onDeleted();
+        },
+      },
+    );
+  };
 
-	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent>
-				<DialogHeader>
-					<DialogTitle>Delete {rows}?</DialogTitle>
-					<DialogDescription>
-						This can't be undone — deleted transactions are gone for good, and
-						re-importing them creates new rows rather than these ones.
-					</DialogDescription>
-				</DialogHeader>
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Delete {rows}?</DialogTitle>
+          <DialogDescription>
+            This can't be undone — deleted transactions are gone for good, and re-importing them
+            creates new rows rather than these ones.
+          </DialogDescription>
+        </DialogHeader>
 
-				{bundles > 0 && (
-					<p className="text-sm text-gousse-high">
-						{bundles} of them {bundles === 1 ? "is a bundle" : "are bundles"}:
-						deleting a bundle ungroups it rather than deleting the transactions
-						it stands for — those stay in the list.
-					</p>
-				)}
+        {bundles > 0 && (
+          <p className="text-sm text-gousse-high">
+            {bundles} of them {bundles === 1 ? "is a bundle" : "are bundles"}: deleting a bundle
+            ungroups it rather than deleting the transactions it stands for — those stay in the
+            list.
+          </p>
+        )}
 
-				<DialogFooter>
-					<Button
-						variant="ghost"
-						onClick={() => onOpenChange(false)}
-						disabled={bulkDelete.isPending}
-					>
-						Cancel
-					</Button>
-					<Button
-						variant="danger"
-						onClick={confirm}
-						disabled={bulkDelete.isPending}
-					>
-						Delete {rows}
-					</Button>
-				</DialogFooter>
-			</DialogContent>
-		</Dialog>
-	);
+        <DialogFooter>
+          <Button
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            disabled={bulkDelete.isPending}
+          >
+            Cancel
+          </Button>
+          <Button variant="danger" onClick={confirm} disabled={bulkDelete.isPending}>
+            Delete {rows}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }

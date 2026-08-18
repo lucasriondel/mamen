@@ -3,22 +3,14 @@ import { useNavigate } from "@tanstack/react-router";
 import { ExternalLink, Hand, SquarePen, Wand, X } from "lucide-react";
 import { useState } from "react";
 import {
-	Command,
-	CommandGroup,
-	CommandInput,
-	CommandItem,
-	CommandList,
+  Command,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
 } from "@/components/ui/command";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "@/components/ui/popover";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useIssuerSearch } from "@/features/issuers/use-issuer-search";
 import { IssuerSearchList } from "./issuer-search-list";
 import { IssuerCell } from "./transaction-cells";
@@ -28,10 +20,10 @@ import { useAssignIssuer } from "./use-assign-issuer";
 type Mode = "actions" | "search";
 
 export interface IssuerPickerProps {
-	/** The transaction being curated — the assignment is written to this row only. */
-	transaction: Transaction;
-	/** The row's resolved issuer (looked up from `transaction.issuerId`). */
-	issuer: Issuer;
+  /** The transaction being curated — the assignment is written to this row only. */
+  transaction: Transaction;
+  /** The row's resolved issuer (looked up from `transaction.issuerId`). */
+  issuer: Issuer;
 }
 
 /**
@@ -65,162 +57,146 @@ export interface IssuerPickerProps {
  * shape as the category picker's "Remove override".
  */
 export function IssuerPicker({ transaction, issuer }: IssuerPickerProps) {
-	const [open, setOpen] = useState(false);
-	const [mode, setMode] = useState<Mode>("actions");
-	const [query, setQuery] = useState("");
-	const navigate = useNavigate();
-	const { assignExisting, removeManualIssuer } = useAssignIssuer();
+  const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<Mode>("actions");
+  const [query, setQuery] = useState("");
+  const navigate = useNavigate();
+  const { assignExisting, removeManualIssuer } = useAssignIssuer();
 
-	// Only search once the search step is actually reached — the actions step
-	// never shows issuers, so opening the popover alone needn't ask for any.
-	// The row's own issuer is pinned: it is on screen already, so it is offered
-	// (with its check) whatever the matching page holds.
-	const issuers = useIssuerSearch({
-		query,
-		enabled: open && mode === "search",
-		pinned: [issuer],
-	});
+  // Only search once the search step is actually reached — the actions step
+  // never shows issuers, so opening the popover alone needn't ask for any.
+  // The row's own issuer is pinned: it is on screen already, so it is offered
+  // (with its check) whatever the matching page holds.
+  const issuers = useIssuerSearch({
+    query,
+    enabled: open && mode === "search",
+    pinned: [issuer],
+  });
 
-	const isManual = transaction.manualIssuer === true;
-	const pending = assignExisting.isPending || removeManualIssuer.isPending;
+  const isManual = transaction.manualIssuer === true;
+  const pending = assignExisting.isPending || removeManualIssuer.isPending;
 
-	const handleOpenChange = (next: boolean) => {
-		setOpen(next);
-		// Reopen on the actions step, never mid-search.
-		if (next) {
-			setQuery("");
-			setMode("actions");
-		}
-	};
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next);
+    // Reopen on the actions step, never mid-search.
+    if (next) {
+      setQuery("");
+      setMode("actions");
+    }
+  };
 
-	/** Re-assign this transaction to another issuer (a sticky hand pick). */
-	const pick = (issuerId: Issuer["id"]) => {
-		if (pending) return;
-		assignExisting.mutate(
-			{ transactionId: transaction.id, issuerId },
-			{ onSuccess: () => setOpen(false) },
-		);
-	};
+  /** Re-assign this transaction to another issuer (a sticky hand pick). */
+  const pick = (issuerId: Issuer["id"]) => {
+    if (pending) return;
+    assignExisting.mutate(
+      { transactionId: transaction.id, issuerId },
+      { onSuccess: () => setOpen(false) },
+    );
+  };
 
-	/**
-	 * Drop the hand pick, letting the rules re-derive this row's issuer. Offered
-	 * only on a manual row: on a rule-matched row it would be a no-op (the server
-	 * re-derives to the same issuer), so the action stays hidden there.
-	 */
-	const removeManual = () => {
-		if (pending) return;
-		removeManualIssuer.mutate(
-			{ transactionId: transaction.id },
-			{ onSuccess: () => setOpen(false) },
-		);
-	};
+  /**
+   * Drop the hand pick, letting the rules re-derive this row's issuer. Offered
+   * only on a manual row: on a rule-matched row it would be a no-op (the server
+   * re-derives to the same issuer), so the action stays hidden there.
+   */
+  const removeManual = () => {
+    if (pending) return;
+    removeManualIssuer.mutate(
+      { transactionId: transaction.id },
+      { onSuccess: () => setOpen(false) },
+    );
+  };
 
-	const goToIssuer = () => {
-		setOpen(false);
-		navigate({
-			to: "/issuers/$issuerId",
-			params: { issuerId: String(issuer.id) },
-		});
-	};
+  const goToIssuer = () => {
+    setOpen(false);
+    navigate({
+      to: "/issuers/$issuerId",
+      params: { issuerId: String(issuer.id) },
+    });
+  };
 
-	return (
-		<Popover open={open} onOpenChange={handleOpenChange}>
-			<IssuerNoteTooltip note={issuer.notes}>
-				<PopoverTrigger
-					render={
-						<button
-							type="button"
-							className="block rounded-full text-left outline-none focus-visible:ring-2 focus-visible:ring-gousse-accent"
-							// Only the browser-native hint when there is no note — with one,
-							// the tooltip is the hover surface and a `title` would
-							// double up on it.
-							title={
-								issuer.notes == null
-									? "Change the issuer for this transaction"
-									: undefined
-							}
-						>
-							<IssuerCell
-								rawIssuerString={transaction.rawIssuerString}
-								issuer={issuer}
-								isManual={isManual}
-							/>
-						</button>
-					}
-				/>
-			</IssuerNoteTooltip>
-			<PopoverContent className="p-0">
-				<Command shouldFilter={false} label="Change the issuer">
-					{mode === "search" ? (
-						<IssuerSearchList
-							issuers={issuers}
-							query={query}
-							onQueryChange={setQuery}
-							currentIssuerId={issuer.id}
-							onPick={pick}
-							onBack={() => setMode("actions")}
-							disabled={pending}
-						/>
-					) : (
-						<>
-							<ProvenanceLine isManual={isManual} />
-							{/* cmdk drives arrow-key nav and Enter from its input, so the
-							    step needs one even though there is nothing to search here:
-							    without it focus stays on the popover container and the menu
-							    is mouse-only. Hidden visually, not from assistive tech —
-							    it is the element that owns the active-item announcement. */}
-							<CommandInput
-								value=""
-								onValueChange={() => {}}
-								readOnly
-								className="sr-only"
-								wrapperClassName="sr-only"
-								aria-label="Issuer actions"
-							/>
-							<CommandList>
-								<CommandGroup>
-									<CommandItem value="__go_to_issuer__" onSelect={goToIssuer}>
-										<ExternalLink
-											size={16}
-											className="shrink-0 text-gousse-muted"
-											aria-hidden
-										/>
-										<span className="truncate">Go to {issuer.name}</span>
-									</CommandItem>
-									<CommandItem
-										value="__set_another_issuer__"
-										onSelect={() => setMode("search")}
-										disabled={pending}
-									>
-										<SquarePen
-											size={16}
-											className="shrink-0 text-gousse-muted"
-											aria-hidden
-										/>
-										<span className="truncate">Set another issuer</span>
-									</CommandItem>
-									{isManual ? (
-										<CommandItem
-											value="__remove_manual_issuer__"
-											onSelect={removeManual}
-											disabled={pending}
-										>
-											<X
-												size={16}
-												className="shrink-0 text-gousse-muted"
-												aria-hidden
-											/>
-											<span className="truncate">Remove manual issuer</span>
-										</CommandItem>
-									) : null}
-								</CommandGroup>
-							</CommandList>
-						</>
-					)}
-				</Command>
-			</PopoverContent>
-		</Popover>
-	);
+  return (
+    <Popover open={open} onOpenChange={handleOpenChange}>
+      <IssuerNoteTooltip note={issuer.notes}>
+        <PopoverTrigger
+          render={
+            <button
+              type="button"
+              className="block rounded-full text-left outline-none focus-visible:ring-2 focus-visible:ring-gousse-accent"
+              // Only the browser-native hint when there is no note — with one,
+              // the tooltip is the hover surface and a `title` would
+              // double up on it.
+              title={issuer.notes == null ? "Change the issuer for this transaction" : undefined}
+            >
+              <IssuerCell
+                rawIssuerString={transaction.rawIssuerString}
+                issuer={issuer}
+                isManual={isManual}
+              />
+            </button>
+          }
+        />
+      </IssuerNoteTooltip>
+      <PopoverContent className="p-0">
+        <Command shouldFilter={false} label="Change the issuer">
+          {mode === "search" ? (
+            <IssuerSearchList
+              issuers={issuers}
+              query={query}
+              onQueryChange={setQuery}
+              currentIssuerId={issuer.id}
+              onPick={pick}
+              onBack={() => setMode("actions")}
+              disabled={pending}
+            />
+          ) : (
+            <>
+              <ProvenanceLine isManual={isManual} />
+              {/* cmdk drives arrow-key nav and Enter from its input, so the
+                  step needs one even though there is nothing to search here:
+                  without it focus stays on the popover container and the menu
+                  is mouse-only. Hidden visually, not from assistive tech —
+                  it is the element that owns the active-item announcement. */}
+              <CommandInput
+                value=""
+                onValueChange={() => {}}
+                readOnly
+                className="sr-only"
+                wrapperClassName="sr-only"
+                aria-label="Issuer actions"
+              />
+              <CommandList>
+                <CommandGroup>
+                  <CommandItem value="__go_to_issuer__" onSelect={goToIssuer}>
+                    <ExternalLink size={16} className="shrink-0 text-gousse-muted" aria-hidden />
+                    <span className="truncate">Go to {issuer.name}</span>
+                  </CommandItem>
+                  <CommandItem
+                    value="__set_another_issuer__"
+                    onSelect={() => setMode("search")}
+                    disabled={pending}
+                  >
+                    <SquarePen size={16} className="shrink-0 text-gousse-muted" aria-hidden />
+                    <span className="truncate">Set another issuer</span>
+                  </CommandItem>
+                  {isManual ? (
+                    <CommandItem
+                      value="__remove_manual_issuer__"
+                      onSelect={removeManual}
+                      disabled={pending}
+                    >
+                      <X size={16} className="shrink-0 text-gousse-muted" aria-hidden />
+                      <span className="truncate">Remove manual issuer</span>
+                    </CommandItem>
+                  ) : null}
+                </CommandGroup>
+              </CommandList>
+            </>
+          )}
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 /**
@@ -238,27 +214,27 @@ export function IssuerPicker({ transaction, issuer }: IssuerPickerProps) {
  * the author typed.
  */
 function IssuerNoteTooltip({
-	note,
-	children,
+  note,
+  children,
 }: {
-	note: string | undefined;
-	/**
-	 * The cell to hang the tooltip on. A single element rather than any node,
-	 * because Base UI's `render` substitutes the trigger *for* it (issue #99) —
-	 * where Radix's `asChild` took a child to merge into.
-	 */
-	children: React.ReactElement<Record<string, unknown>>;
+  note: string | undefined;
+  /**
+   * The cell to hang the tooltip on. A single element rather than any node,
+   * because Base UI's `render` substitutes the trigger *for* it (issue #99) —
+   * where Radix's `asChild` took a child to merge into.
+   */
+  children: React.ReactElement<Record<string, unknown>>;
 }) {
-	if (note == null || note.trim().length === 0) return <>{children}</>;
+  if (note == null || note.trim().length === 0) return <>{children}</>;
 
-	return (
-		<Tooltip>
-			<TooltipTrigger render={children} />
-			<TooltipContent className="max-w-72 whitespace-pre-wrap text-left leading-relaxed">
-				{note}
-			</TooltipContent>
-		</Tooltip>
-	);
+  return (
+    <Tooltip>
+      <TooltipTrigger render={children} />
+      <TooltipContent className="max-w-72 whitespace-pre-wrap text-left leading-relaxed">
+        {note}
+      </TooltipContent>
+    </Tooltip>
+  );
 }
 
 /**
@@ -266,15 +242,13 @@ function IssuerNoteTooltip({
  * match. Coarse by construction — the matched rule id is not persisted.
  */
 function ProvenanceLine({ isManual }: { isManual: boolean }) {
-	const Icon = isManual ? Hand : Wand;
-	return (
-		<p className="flex items-center gap-1.5 border-gousse-line border-b px-3 py-2 text-gousse-muted text-xs">
-			<Icon size={13} className="shrink-0" aria-hidden />
-			<span>
-				{isManual
-					? "Set manually on this transaction"
-					: "Matched automatically by a rule"}
-			</span>
-		</p>
-	);
+  const Icon = isManual ? Hand : Wand;
+  return (
+    <p className="flex items-center gap-1.5 border-gousse-line border-b px-3 py-2 text-gousse-muted text-xs">
+      <Icon size={13} className="shrink-0" aria-hidden />
+      <span>
+        {isManual ? "Set manually on this transaction" : "Matched automatically by a rule"}
+      </span>
+    </p>
+  );
 }

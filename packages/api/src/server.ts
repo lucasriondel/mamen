@@ -1,9 +1,4 @@
-import {
-	HttpApiBuilder,
-	HttpApiScalar,
-	HttpMiddleware,
-	HttpServer,
-} from "@effect/platform";
+import { HttpApiBuilder, HttpApiScalar, HttpMiddleware, HttpServer } from "@effect/platform";
 import { BunHttpServer } from "@effect/platform-bun";
 import { Effect, Layer } from "effect";
 import { ClaudeCodeProdLive } from "./ai-runner/claude";
@@ -15,19 +10,17 @@ import { StaticUploadsLive } from "./static/uploads";
 
 /** CORS layer with allowed origins resolved from config at build time. */
 const CorsLive = Layer.unwrapEffect(
-	Effect.map(CorsOrigins, (allowedOrigins) =>
-		HttpApiBuilder.middlewareCors({
-			allowedOrigins,
-			allowedMethods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
-			credentials: true,
-		}),
-	),
+  Effect.map(CorsOrigins, (allowedOrigins) =>
+    HttpApiBuilder.middlewareCors({
+      allowedOrigins,
+      allowedMethods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+      credentials: true,
+    }),
+  ),
 );
 
 /** Bun HTTP server layer with the port resolved from config at build time. */
-const BunServerLive = Layer.unwrapEffect(
-	Effect.map(Port, (port) => BunHttpServer.layer({ port })),
-);
+const BunServerLive = Layer.unwrapEffect(Effect.map(Port, (port) => BunHttpServer.layer({ port })));
 
 /**
  * The full HTTP server layer: request logging, Scalar docs at `/docs`,
@@ -44,16 +37,14 @@ const BunServerLive = Layer.unwrapEffect(
  * guards testable.
  */
 export const ServerLive = HttpApiBuilder.serve(HttpMiddleware.logger).pipe(
-	Layer.provide(HttpApiScalar.layer({ path: "/docs" })),
-	Layer.provide(
-		HttpApiBuilder.middlewareOpenApi({ path: "/api/openapi.json" }),
-	),
-	Layer.provide(StaticUploadsLive),
-	Layer.provide(CorsLive),
-	Layer.provide(ApiLive),
-	Layer.provide(ClaudeCodeProdLive),
-	Layer.provide(OutboundLive),
-	Layer.provide(DatabaseLive),
-	HttpServer.withLogAddress,
-	Layer.provide(BunServerLive),
+  Layer.provide(HttpApiScalar.layer({ path: "/docs" })),
+  Layer.provide(HttpApiBuilder.middlewareOpenApi({ path: "/api/openapi.json" })),
+  Layer.provide(StaticUploadsLive),
+  Layer.provide(CorsLive),
+  Layer.provide(ApiLive),
+  Layer.provide(ClaudeCodeProdLive),
+  Layer.provide(OutboundLive),
+  Layer.provide(DatabaseLive),
+  HttpServer.withLogAddress,
+  Layer.provide(BunServerLive),
 );

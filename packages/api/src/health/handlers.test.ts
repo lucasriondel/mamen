@@ -12,26 +12,26 @@ import { OutboundStub } from "../net/test";
 // the derived client's requests hit the live server, no URL plumbing. Uses the
 // assembled `ApiLive` (every group) over the `:memory:` test DB.
 const HttpLive = HttpApiBuilder.serve().pipe(
-	Layer.provide(ApiLive),
-	Layer.provide(ClaudeCodeStub),
-	Layer.provide(OutboundStub),
-	Layer.provide(DatabaseTest),
-	Layer.provideMerge(NodeHttpServer.layerTest),
+  Layer.provide(ApiLive),
+  Layer.provide(ClaudeCodeStub),
+  Layer.provide(OutboundStub),
+  Layer.provide(DatabaseTest),
+  Layer.provideMerge(NodeHttpServer.layerTest),
 );
 
 describe("health", () => {
-	it.effect("GET /api/health round-trips through the derived client", () =>
-		Effect.gen(function* () {
-			const client = yield* HttpApiClient.make(Api);
-			const result = yield* client.health.check();
-			assert.deepStrictEqual(result, new Health({ status: "ok" }));
-		}).pipe(Effect.provide(HttpLive)),
-	);
+  it.effect("GET /api/health round-trips through the derived client", () =>
+    Effect.gen(function* () {
+      const client = yield* HttpApiClient.make(Api);
+      const result = yield* client.health.check();
+      assert.deepStrictEqual(result, new Health({ status: "ok" }));
+    }).pipe(Effect.provide(HttpLive)),
+  );
 
-	it("is present in the generated OpenAPI spec", () => {
-		const spec = OpenApi.fromApi(Api) as {
-			paths: Record<string, unknown>;
-		};
-		assert.ok(spec.paths["/api/health"], "spec exposes /api/health");
-	});
+  it("is present in the generated OpenAPI spec", () => {
+    const spec = OpenApi.fromApi(Api) as {
+      paths: Record<string, unknown>;
+    };
+    assert.ok(spec.paths["/api/health"], "spec exposes /api/health");
+  });
 });

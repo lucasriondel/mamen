@@ -64,8 +64,12 @@ bun run test
 bun run lint
 ```
 
-`bun run lint:fix` applies what Biome can fix on its own. Formatting is Biome's
-too — tabs, 80 columns — so don't hand-format around it.
+`bun run lint:fix` applies what Biome can fix on its own.
+
+**The formatter is oxfmt, not Biome.** The repo's `.ts`/`.tsx` is formatted by
+oxfmt's defaults (spaces, 100 columns); `biome.json` still says tabs/80, so
+`biome format` and `bun run lint`'s formatting complaints are wrong about every
+file and are expected to be. Run `bunx oxfmt .` and don't hand-format around it.
 
 A few things worth knowing before the first red run:
 
@@ -75,24 +79,36 @@ A few things worth knowing before the first red run:
   running `bun run --filter @mamen/api emit-openapi` and committing the result.
 - Tests never need the `claude` CLI or a real token — the API's suite provides a
   fake executor. Only the running server needs them.
-- `bun run lint` is currently red on pre-existing errors in files nobody has got
-  to. Compare the count before and after your change rather than expecting zero,
-  and leave every file you touch clean.
+- `bun run lint` is red, and part of that is expected. Biome's *formatting*
+  complaints are now wrong about every file (see above) and its linter is red on
+  pre-existing errors in files nobody has got to. Compare the count before and
+  after your change rather than expecting zero, and leave every file you touch
+  clean.
 
-### The oxc toolchain, for now
+### The oxc toolchain
 
 `.oxlintrc.json` and `.oxfmtrc.json` configure [oxlint](https://oxc.rs) and
-oxfmt, which are being evaluated as Biome's replacement:
+oxfmt, which are replacing Biome:
 
 ```sh
 bun run lint:ox
 bun run format:ox:check
 ```
 
-Both are **reports, not gates** — neither runs in CI, neither writes to a file,
-and both are red today by design: oxlint sees rules Biome does not have, and
-oxfmt's defaults (spaces) disagree with the tabs the repo is formatted in. Until
-that changes, `bun run lint` is the check your change has to keep green.
+Both are **green and held there by the suite** — `oxc-clean.test.ts` runs each
+one over the repo and fails on anything either reports, so a finding reaches you
+through `bun run test` whether or not you ran the tools yourself. Neither script
+writes: reformat with `bunx oxfmt .`.
+
+Neither runs in CI yet, and the CI `lint` step is still Biome's — which is red on
+formatting until the cutover. That is the next ticket's, not something to work
+around here.
+
+Two rules are narrowed in `.oxlintrc.json`, each with the reason beside it. If
+you need a third, the bar is that the rule is wrong about *this* codebase, and
+the comment is part of the change: a guard fails on a narrowing with no reason.
+A single deliberate exception is an `// oxlint-disable-next-line <rule> -- why`
+at the site instead.
 
 ## Sending a change
 

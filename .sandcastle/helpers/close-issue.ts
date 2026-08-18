@@ -61,26 +61,20 @@ export async function resolveCompletion(
   base: string,
 ): Promise<Completion> {
   // Commits on the branch that haven't landed on base yet.
-  const unmerged = await sandbox.exec(
-    `git log ${base}..${branch} --reverse --format='%H%x1f%s'`,
-  );
-  const unmergedCommits =
-    unmerged.exitCode === 0 ? parseCommits(unmerged.stdout) : [];
+  const unmerged = await sandbox.exec(`git log ${base}..${branch} --reverse --format='%H%x1f%s'`);
+  const unmergedCommits = unmerged.exitCode === 0 ? parseCommits(unmerged.stdout) : [];
   if (unmergedCommits.length > 0) {
     return { kind: "unmerged", commits: unmergedCommits };
   }
 
   // No unmerged commits. If the branch is fully merged into base, the work is
   // already on base — cite the branch's own post-fork commits as the record.
-  const isAncestor = await sandbox.exec(
-    `git merge-base --is-ancestor ${branch} ${base}`,
-  );
+  const isAncestor = await sandbox.exec(`git merge-base --is-ancestor ${branch} ${base}`);
   if (isAncestor.exitCode === 0) {
     const merged = await sandbox.exec(
       `git log $(git merge-base ${base} ${branch})..${branch} --reverse --format='%H%x1f%s'`,
     );
-    const mergedCommits =
-      merged.exitCode === 0 ? parseCommits(merged.stdout) : [];
+    const mergedCommits = merged.exitCode === 0 ? parseCommits(merged.stdout) : [];
     if (mergedCommits.length > 0) {
       return { kind: "merged", commits: mergedCommits };
     }
@@ -91,9 +85,7 @@ export async function resolveCompletion(
 
 /** Format a commit list as a markdown bullet list for the close comment. */
 function commitList(commits: BranchCommit[]): string {
-  return commits
-    .map((c) => `- ${c.sha.slice(0, 12)} ${c.subject}`)
-    .join("\n");
+  return commits.map((c) => `- ${c.sha.slice(0, 12)} ${c.subject}`).join("\n");
 }
 
 /** Build the close comment body for a resolved completion. */
@@ -131,9 +123,7 @@ export async function closeCompletedIssue(
     stdin: completionComment(completion),
   });
   if (result.exitCode !== 0) {
-    console.error(
-      red(`  ✗ failed to close issue ${id}: ${result.stderr || result.stdout}`),
-    );
+    console.error(red(`  ✗ failed to close issue ${id}: ${result.stderr || result.stdout}`));
   }
 
   return completion;

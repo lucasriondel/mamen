@@ -19,7 +19,7 @@ const read = (path: string) => readFileSync(path, "utf8");
 const vendored = (name: string) => read(`src/styles/gousse/${name}.css`);
 
 const componentsJson = JSON.parse(read("components.json")) as {
-	registries?: Record<string, string>;
+  registries?: Record<string, string>;
 };
 const indexCss = read("src/index.css");
 
@@ -27,68 +27,64 @@ const REGISTRY = "https://lucasriondel.github.io/gousse-ui";
 const SHEETS = ["tokens", "theme", "effects"];
 
 describe("the @gousse registry namespace", () => {
-	it("is declared in components.json, pointing at the published registry", () => {
-		expect(componentsJson.registries?.["@gousse"]).toBe(
-			`${REGISTRY}/r/{name}.json`,
-		);
-	});
+  it("is declared in components.json, pointing at the published registry", () => {
+    expect(componentsJson.registries?.["@gousse"]).toBe(`${REGISTRY}/r/{name}.json`);
+  });
 });
 
 describe("the vendored stylesheets", () => {
-	it("are owned source under src/styles/gousse", () => {
-		const lengths = SHEETS.map((name) => vendored(name).length);
+  it("are owned source under src/styles/gousse", () => {
+    const lengths = SHEETS.map((name) => vendored(name).length);
 
-		expect(lengths.every((length) => length > 0)).toBe(true);
-	});
+    expect(lengths.every((length) => length > 0)).toBe(true);
+  });
 
-	it("keeps the token contract as rgb channel triples", () => {
-		const tokens = vendored("tokens");
+  it("keeps the token contract as rgb channel triples", () => {
+    const tokens = vendored("tokens");
 
-		expect(tokens).toMatch(/:root\s*\{/);
-		expect(tokens).toMatch(/--gousse-bg:\s*\d+ \d+ \d+;/);
-		expect(tokens).toMatch(/\.dark\s*\{/);
-	});
+    expect(tokens).toMatch(/:root\s*\{/);
+    expect(tokens).toMatch(/--gousse-bg:\s*\d+ \d+ \d+;/);
+    expect(tokens).toMatch(/\.dark\s*\{/);
+  });
 
-	it("leaves the class-based dark variant to theme.css alone", () => {
-		expect(vendored("theme")).toContain("@custom-variant dark");
-		expect(indexCss).not.toContain("@custom-variant");
-	});
+  it("leaves the class-based dark variant to theme.css alone", () => {
+    expect(vendored("theme")).toContain("@custom-variant dark");
+    expect(indexCss).not.toContain("@custom-variant");
+  });
 
-	it("maps the tokens onto the gousse-* utility namespace", () => {
-		expect(vendored("theme")).toContain(
-			"--color-gousse-bg: rgb(var(--gousse-bg));",
-		);
-	});
+  it("maps the tokens onto the gousse-* utility namespace", () => {
+    expect(vendored("theme")).toContain("--color-gousse-bg: rgb(var(--gousse-bg));");
+  });
 });
 
 describe("the global stylesheet", () => {
-	it("imports the vendored copies, in order, after tailwind", () => {
-		const order = [
-			'@import "tailwindcss";',
-			'@import "./styles/gousse/tokens.css";',
-			'@import "./styles/gousse/theme.css";',
-			'@import "./styles/gousse/effects.css";',
-		].map((line) => indexCss.indexOf(line));
+  it("imports the vendored copies, in order, after tailwind", () => {
+    const order = [
+      '@import "tailwindcss";',
+      '@import "./styles/gousse/tokens.css";',
+      '@import "./styles/gousse/theme.css";',
+      '@import "./styles/gousse/effects.css";',
+    ].map((line) => indexCss.indexOf(line));
 
-		expect(order).not.toContain(-1);
-		expect(order).toStrictEqual([...order].sort((a, b) => a - b));
-	});
+    expect(order).not.toContain(-1);
+    expect(order).toStrictEqual([...order].sort((a, b) => a - b));
+  });
 
-	it("imports no stylesheet from the npm package any more", () => {
-		expect(indexCss).not.toMatch(/@import\s+"@lucasriondel\/gousse-ui/);
-	});
+  it("imports no stylesheet from the npm package any more", () => {
+    expect(indexCss).not.toMatch(/@import\s+"@lucasriondel\/gousse-ui/);
+  });
 
-	it("no longer scans the package dist, now that the primitives are vendored", () => {
-		// The `@source` existed only so Tailwind would generate the utilities
-		// baked into the package's compiled JS (issue #92 kept it for exactly as
-		// long as the primitives lived there). They are src now, which Tailwind
-		// scans by default, so the sole effect left would be emitting CSS for
-		// components the app does not render.
-		expect(indexCss).not.toMatch(/@source[^;]*@lucasriondel\/gousse-ui/);
-	});
+  it("no longer scans the package dist, now that the primitives are vendored", () => {
+    // The `@source` existed only so Tailwind would generate the utilities
+    // baked into the package's compiled JS (issue #92 kept it for exactly as
+    // long as the primitives lived there). They are src now, which Tailwind
+    // scans by default, so the sole effect left would be emitting CSS for
+    // components the app does not render.
+    expect(indexCss).not.toMatch(/@source[^;]*@lucasriondel\/gousse-ui/);
+  });
 
-	it("keeps mamen's accent override on both ramps", () => {
-		expect(indexCss).toMatch(/:root\s*\{[^}]*--gousse-accent:\s*37 99 235;/);
-		expect(indexCss).toMatch(/\.dark\s*\{[^}]*--gousse-accent:\s*96 165 250;/);
-	});
+  it("keeps mamen's accent override on both ramps", () => {
+    expect(indexCss).toMatch(/:root\s*\{[^}]*--gousse-accent:\s*37 99 235;/);
+    expect(indexCss).toMatch(/\.dark\s*\{[^}]*--gousse-accent:\s*96 165 250;/);
+  });
 });

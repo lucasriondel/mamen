@@ -1,16 +1,16 @@
 import { SqlClient, SqlSchema } from "@effect/sql";
 import type { Fragment } from "@effect/sql/Statement";
 import {
-	type IssuerId,
-	NotFound,
-	Paged,
-	Subscription,
-	type SubscriptionCreate,
-	SubscriptionFrequency,
-	SubscriptionId,
-	SubscriptionStatus,
-	type SubscriptionUpdate,
-	TransactionId,
+  type IssuerId,
+  NotFound,
+  Paged,
+  Subscription,
+  type SubscriptionCreate,
+  SubscriptionFrequency,
+  SubscriptionId,
+  SubscriptionStatus,
+  type SubscriptionUpdate,
+  TransactionId,
 } from "@mamen/shared/contract";
 import { Effect, Option, Schema } from "effect";
 import { orDieSql } from "../db/errors";
@@ -22,19 +22,19 @@ import { orDieSql } from "../db/errors";
  * blob into the `TransactionId` array so handlers only ever see the wire entity.
  */
 const SubscriptionRow = Schema.Struct({
-	id: Schema.Number,
-	issuerId: Schema.Number,
-	issuerName: Schema.String,
-	typicalAmount: Schema.Number,
-	frequency: SubscriptionFrequency,
-	intervalDays: Schema.Number,
-	lastChargeDate: Schema.String,
-	firstChargeDate: Schema.String,
-	chargeCount: Schema.Number,
-	status: SubscriptionStatus,
-	transactionIds: Schema.String,
-	detectedAt: Schema.String,
-	updatedAt: Schema.String,
+  id: Schema.Number,
+  issuerId: Schema.Number,
+  issuerName: Schema.String,
+  typicalAmount: Schema.Number,
+  frequency: SubscriptionFrequency,
+  intervalDays: Schema.Number,
+  lastChargeDate: Schema.String,
+  firstChargeDate: Schema.String,
+  chargeCount: Schema.Number,
+  status: SubscriptionStatus,
+  transactionIds: Schema.String,
+  detectedAt: Schema.String,
+  updatedAt: Schema.String,
 });
 
 /**
@@ -55,46 +55,42 @@ const TransactionIdsJson = Schema.parseJson(Schema.Array(TransactionId));
  * and the storage inverse (`encode`) is verified directly rather than left dead,
  * since the write path builds its row with the hand-written `toWriteFields` below.
  */
-export const SubscriptionFromRow = Schema.transform(
-	SubscriptionRow,
-	Subscription,
-	{
-		strict: true,
-		decode: (row) => ({
-			id: row.id,
-			issuerId: row.issuerId,
-			issuerName: row.issuerName,
-			typicalAmount: row.typicalAmount,
-			frequency: row.frequency,
-			intervalDays: row.intervalDays,
-			lastChargeDate: row.lastChargeDate,
-			firstChargeDate: row.firstChargeDate,
-			chargeCount: row.chargeCount,
-			status: row.status,
-			transactionIds: Schema.decodeSync(TransactionIdsJson)(row.transactionIds),
-			detectedAt: row.detectedAt,
-			updatedAt: row.updatedAt,
-		}),
-		encode: (s) => ({
-			id: s.id,
-			issuerId: s.issuerId,
-			issuerName: s.issuerName,
-			typicalAmount: s.typicalAmount,
-			frequency: s.frequency,
-			intervalDays: s.intervalDays,
-			lastChargeDate: s.lastChargeDate,
-			firstChargeDate: s.firstChargeDate,
-			chargeCount: s.chargeCount,
-			status: s.status,
-			// `s` is the entity's *encoded* shape, so `transactionIds` is already a
-			// plain `number[]` — JSON-stringify it directly (the codec's encode wants
-			// the branded Type side).
-			transactionIds: JSON.stringify(s.transactionIds),
-			detectedAt: s.detectedAt,
-			updatedAt: s.updatedAt,
-		}),
-	},
-);
+export const SubscriptionFromRow = Schema.transform(SubscriptionRow, Subscription, {
+  strict: true,
+  decode: (row) => ({
+    id: row.id,
+    issuerId: row.issuerId,
+    issuerName: row.issuerName,
+    typicalAmount: row.typicalAmount,
+    frequency: row.frequency,
+    intervalDays: row.intervalDays,
+    lastChargeDate: row.lastChargeDate,
+    firstChargeDate: row.firstChargeDate,
+    chargeCount: row.chargeCount,
+    status: row.status,
+    transactionIds: Schema.decodeSync(TransactionIdsJson)(row.transactionIds),
+    detectedAt: row.detectedAt,
+    updatedAt: row.updatedAt,
+  }),
+  encode: (s) => ({
+    id: s.id,
+    issuerId: s.issuerId,
+    issuerName: s.issuerName,
+    typicalAmount: s.typicalAmount,
+    frequency: s.frequency,
+    intervalDays: s.intervalDays,
+    lastChargeDate: s.lastChargeDate,
+    firstChargeDate: s.firstChargeDate,
+    chargeCount: s.chargeCount,
+    status: s.status,
+    // `s` is the entity's *encoded* shape, so `transactionIds` is already a
+    // plain `number[]` — JSON-stringify it directly (the codec's encode wants
+    // the branded Type side).
+    transactionIds: JSON.stringify(s.transactionIds),
+    detectedAt: s.detectedAt,
+    updatedAt: s.updatedAt,
+  }),
+});
 
 const PagedSubscription = Paged(Subscription);
 
@@ -103,33 +99,43 @@ const CountResult = Schema.Struct({ count: Schema.Number });
 
 /** The `list` filter, decoded from the query string (both optional, composable). */
 type ListFilter = {
-	limit: number;
-	offset: number;
-	issuerId?: typeof IssuerId.Type;
-	status?: SubscriptionStatus;
+  limit: number;
+  offset: number;
+  issuerId?: typeof IssuerId.Type;
+  status?: SubscriptionStatus;
 };
 
 /** The composable filter set alone (shared by `list`'s items + total counts). */
 type Filters = {
-	issuerId?: typeof IssuerId.Type;
-	status?: SubscriptionStatus;
+  issuerId?: typeof IssuerId.Type;
+  status?: SubscriptionStatus;
 };
 
 /** A plain write row (the shape bound into INSERT/UPDATE), `transactionIds` as JSON. */
 type WriteRow = {
-	issuerId: number;
-	issuerName: string;
-	typicalAmount: number;
-	frequency: string;
-	intervalDays: number;
-	lastChargeDate: string;
-	firstChargeDate: string;
-	chargeCount: number;
-	status: string;
-	transactionIds: string;
-	detectedAt: string;
-	updatedAt: string;
+  issuerId: number;
+  issuerName: string;
+  typicalAmount: number;
+  frequency: string;
+  intervalDays: number;
+  lastChargeDate: string;
+  firstChargeDate: string;
+  chargeCount: number;
+  status: string;
+  transactionIds: string;
+  detectedAt: string;
+  updatedAt: string;
 };
+
+/** Unwrap a lookup's `Option`, 404-ing when absent (the key goes on the error). */
+const requireOne = (
+  found: Option.Option<Subscription>,
+  key: string | number,
+): Effect.Effect<Subscription, NotFound> =>
+  Option.match(found, {
+    onNone: () => Effect.fail(new NotFound({ resource: "subscription", id: key })),
+    onSome: Effect.succeed,
+  });
 
 /**
  * The subscriptions repository, on `@effect/sql`. Depends only on the generic
@@ -140,183 +146,159 @@ type WriteRow = {
  * `issuerId?` + `status?` filters compose with `AND` (contract §2.7), replacing
  * the old either/or precedence.
  */
-export class SubscriptionRepo extends Effect.Service<SubscriptionRepo>()(
-	"api/SubscriptionRepo",
-	{
-		effect: Effect.gen(function* () {
-			const sql = yield* SqlClient.SqlClient;
+export class SubscriptionRepo extends Effect.Service<SubscriptionRepo>()("api/SubscriptionRepo", {
+  effect: Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
 
-			// Each present filter contributes one predicate; absent ones contribute
-			// nothing. `list` items + total share this WHERE (the old `issuerId >
-			// status` precedence is gone — both compose with AND now).
-			const buildConditions = (f: Filters): Array<Fragment> => {
-				const conditions: Array<Fragment> = [];
-				if (f.issuerId !== undefined)
-					conditions.push(sql`issuerId = ${f.issuerId}`);
-				if (f.status !== undefined) conditions.push(sql`status = ${f.status}`);
-				return conditions;
-			};
+    // Each present filter contributes one predicate; absent ones contribute
+    // nothing. `list` items + total share this WHERE (the old `issuerId >
+    // status` precedence is gone — both compose with AND now).
+    const buildConditions = (f: Filters): Array<Fragment> => {
+      const conditions: Array<Fragment> = [];
+      if (f.issuerId !== undefined) conditions.push(sql`issuerId = ${f.issuerId}`);
+      if (f.status !== undefined) conditions.push(sql`status = ${f.status}`);
+      return conditions;
+    };
 
-			// `sql.and` renders "()" for an empty list, not a valid WHERE body — fall
-			// back to an empty fragment (no WHERE) when unfiltered.
-			const whereClause = (f: Filters) => {
-				const conditions = buildConditions(f);
-				return conditions.length === 0
-					? sql``
-					: sql`WHERE ${sql.and(conditions)}`;
-			};
+    // `sql.and` renders "()" for an empty list, not a valid WHERE body — fall
+    // back to an empty fragment (no WHERE) when unfiltered.
+    const whereClause = (f: Filters) => {
+      const conditions = buildConditions(f);
+      return conditions.length === 0 ? sql`` : sql`WHERE ${sql.and(conditions)}`;
+    };
 
-			// `Request: Schema.Any` skips a redundant re-decode: filters are already
-			// decoded + branded at the HTTP boundary (`SubscriptionListFilters`), and
-			// the params bind through the `sql` fragments, not the Request schema. A
-			// `Schema.Struct` Request can't co-exist with the dynamic where-fragment
-			// interpolation.
-			const listQuery = SqlSchema.findAll({
-				Request: Schema.Any as Schema.Schema<ListFilter>,
-				Result: SubscriptionFromRow,
-				execute: (f) =>
-					sql`SELECT * FROM subscriptions ${whereClause(f)} ORDER BY id LIMIT ${f.limit} OFFSET ${f.offset}`,
-			});
+    // `Request: Schema.Any` skips a redundant re-decode: filters are already
+    // decoded + branded at the HTTP boundary (`SubscriptionListFilters`), and
+    // the params bind through the `sql` fragments, not the Request schema. A
+    // `Schema.Struct` Request can't co-exist with the dynamic where-fragment
+    // interpolation.
+    const listQuery = SqlSchema.findAll({
+      Request: Schema.Any as Schema.Schema<ListFilter>,
+      Result: SubscriptionFromRow,
+      execute: (f) =>
+        sql`SELECT * FROM subscriptions ${whereClause(f)} ORDER BY id LIMIT ${f.limit} OFFSET ${f.offset}`,
+    });
 
-			const countQuery = SqlSchema.single({
-				Request: Schema.Any as Schema.Schema<Filters>,
-				Result: CountResult,
-				execute: (f) =>
-					sql`SELECT COUNT(*) AS count FROM subscriptions ${whereClause(f)}`,
-			});
+    const countQuery = SqlSchema.single({
+      Request: Schema.Any as Schema.Schema<Filters>,
+      Result: CountResult,
+      execute: (f) => sql`SELECT COUNT(*) AS count FROM subscriptions ${whereClause(f)}`,
+    });
 
-			const byIdQuery = SqlSchema.findOne({
-				Request: SubscriptionId,
-				Result: SubscriptionFromRow,
-				execute: (id) => sql`SELECT * FROM subscriptions WHERE id = ${id}`,
-			});
+    const byIdQuery = SqlSchema.findOne({
+      Request: SubscriptionId,
+      Result: SubscriptionFromRow,
+      execute: (id) => sql`SELECT * FROM subscriptions WHERE id = ${id}`,
+    });
 
-			// First match for an issuer. `ORDER BY id LIMIT 1` makes "first"
-			// deterministic (the old adapter's bare `LIMIT 1` relied on insertion order).
-			const firstByIssuerQuery = SqlSchema.findOne({
-				Request: Schema.Number,
-				Result: SubscriptionFromRow,
-				execute: (issuerId) =>
-					sql`SELECT * FROM subscriptions WHERE issuerId = ${issuerId} ORDER BY id LIMIT 1`,
-			});
+    // First match for an issuer. `ORDER BY id LIMIT 1` makes "first"
+    // deterministic (the old adapter's bare `LIMIT 1` relied on insertion order).
+    const firstByIssuerQuery = SqlSchema.findOne({
+      Request: Schema.Number,
+      Result: SubscriptionFromRow,
+      execute: (issuerId) =>
+        sql`SELECT * FROM subscriptions WHERE issuerId = ${issuerId} ORDER BY id LIMIT 1`,
+    });
 
-			const byIssuerFrequencyQuery = SqlSchema.findOne({
-				Request: Schema.Struct({
-					issuerId: Schema.Number,
-					frequency: Schema.String,
-				}),
-				Result: SubscriptionFromRow,
-				execute: ({ issuerId, frequency }) =>
-					sql`SELECT * FROM subscriptions WHERE issuerId = ${issuerId} AND frequency = ${frequency} ORDER BY id LIMIT 1`,
-			});
+    const byIssuerFrequencyQuery = SqlSchema.findOne({
+      Request: Schema.Struct({
+        issuerId: Schema.Number,
+        frequency: Schema.String,
+      }),
+      Result: SubscriptionFromRow,
+      execute: ({ issuerId, frequency }) =>
+        sql`SELECT * FROM subscriptions WHERE issuerId = ${issuerId} AND frequency = ${frequency} ORDER BY id LIMIT 1`,
+    });
 
-			// Writes bind a plain `WriteRow`. `Request: Schema.Any` because the row is
-			// already a plain object (built in `create`/`update`), not something to
-			// decode; only the `Result` decode (RETURNING → entity) matters here.
-			const insertQuery = SqlSchema.single({
-				Request: Schema.Any as Schema.Schema<WriteRow>,
-				Result: SubscriptionFromRow,
-				execute: (row) =>
-					sql`INSERT INTO subscriptions ${sql.insert(row)} RETURNING *`,
-			});
+    // Writes bind a plain `WriteRow`. `Request: Schema.Any` because the row is
+    // already a plain object (built in `create`/`update`), not something to
+    // decode; only the `Result` decode (RETURNING → entity) matters here.
+    const insertQuery = SqlSchema.single({
+      Request: Schema.Any as Schema.Schema<WriteRow>,
+      Result: SubscriptionFromRow,
+      execute: (row) => sql`INSERT INTO subscriptions ${sql.insert(row)} RETURNING *`,
+    });
 
-			const updateQuery = SqlSchema.single({
-				Request: Schema.Any as Schema.Schema<
-					WriteRow & { id: typeof SubscriptionId.Type }
-				>,
-				Result: SubscriptionFromRow,
-				execute: (row) =>
-					sql`UPDATE subscriptions SET ${sql.update(row, ["id"])} WHERE id = ${row.id} RETURNING *`,
-			});
+    const updateQuery = SqlSchema.single({
+      Request: Schema.Any as Schema.Schema<WriteRow & { id: typeof SubscriptionId.Type }>,
+      Result: SubscriptionFromRow,
+      execute: (row) =>
+        sql`UPDATE subscriptions SET ${sql.update(row, ["id"])} WHERE id = ${row.id} RETURNING *`,
+    });
 
-			/** Unwrap a lookup's `Option`, 404-ing when absent (the key goes on the error). */
-			const requireOne = (
-				found: Option.Option<Subscription>,
-				key: string | number,
-			): Effect.Effect<Subscription, NotFound> =>
-				Option.match(found, {
-					onNone: () =>
-						Effect.fail(new NotFound({ resource: "subscription", id: key })),
-					onSome: Effect.succeed,
-				});
+    // Fold the entity fields into the JSON-string write row. A `SubscriptionCreate`
+    // payload and a full merged `Subscription` both satisfy the input type; the
+    // server assigns only `id`, so every other column is caller-provided
+    // (faithful — the old adapter accepted all fields, dates included).
+    const toWriteFields = (s: SubscriptionCreate): WriteRow => ({
+      issuerId: s.issuerId,
+      issuerName: s.issuerName,
+      typicalAmount: s.typicalAmount,
+      frequency: s.frequency,
+      intervalDays: s.intervalDays,
+      lastChargeDate: s.lastChargeDate,
+      firstChargeDate: s.firstChargeDate,
+      chargeCount: s.chargeCount,
+      status: s.status,
+      transactionIds: Schema.encodeSync(TransactionIdsJson)(s.transactionIds),
+      detectedAt: s.detectedAt,
+      updatedAt: s.updatedAt,
+    });
 
-			// Fold the entity fields into the JSON-string write row. A `SubscriptionCreate`
-			// payload and a full merged `Subscription` both satisfy the input type; the
-			// server assigns only `id`, so every other column is caller-provided
-			// (faithful — the old adapter accepted all fields, dates included).
-			const toWriteFields = (s: SubscriptionCreate): WriteRow => ({
-				issuerId: s.issuerId,
-				issuerName: s.issuerName,
-				typicalAmount: s.typicalAmount,
-				frequency: s.frequency,
-				intervalDays: s.intervalDays,
-				lastChargeDate: s.lastChargeDate,
-				firstChargeDate: s.firstChargeDate,
-				chargeCount: s.chargeCount,
-				status: s.status,
-				transactionIds: Schema.encodeSync(TransactionIdsJson)(s.transactionIds),
-				detectedAt: s.detectedAt,
-				updatedAt: s.updatedAt,
-			});
+    const list = (filter: ListFilter) =>
+      Effect.all({
+        items: listQuery(filter),
+        total: countQuery({
+          issuerId: filter.issuerId,
+          status: filter.status,
+        }).pipe(Effect.map((r) => r.count)),
+      }).pipe(
+        Effect.map((paged) => PagedSubscription.make(paged)),
+        orDieSql,
+      );
 
-			const list = (filter: ListFilter) =>
-				Effect.all({
-					items: listQuery(filter),
-					total: countQuery({
-						issuerId: filter.issuerId,
-						status: filter.status,
-					}).pipe(Effect.map((r) => r.count)),
-				}).pipe(
-					Effect.map((paged) => PagedSubscription.make(paged)),
-					orDieSql,
-				);
+    const getById = (id: typeof SubscriptionId.Type) =>
+      byIdQuery(id).pipe(
+        orDieSql,
+        Effect.flatMap((found) => requireOne(found, id)),
+      );
 
-			const getById = (id: typeof SubscriptionId.Type) =>
-				byIdQuery(id).pipe(
-					orDieSql,
-					Effect.flatMap((found) => requireOne(found, id)),
-				);
+    const getFirstByIssuer = (issuerId: typeof IssuerId.Type) =>
+      firstByIssuerQuery(issuerId).pipe(
+        orDieSql,
+        Effect.flatMap((found) => requireOne(found, issuerId)),
+      );
 
-			const getFirstByIssuer = (issuerId: typeof IssuerId.Type) =>
-				firstByIssuerQuery(issuerId).pipe(
-					orDieSql,
-					Effect.flatMap((found) => requireOne(found, issuerId)),
-				);
+    const getByIssuerFrequency = (
+      issuerId: typeof IssuerId.Type,
+      frequency: SubscriptionFrequency,
+    ) =>
+      byIssuerFrequencyQuery({ issuerId, frequency }).pipe(
+        orDieSql,
+        // Keyed by issuer + frequency; the frequency is the caller-facing
+        // discriminator, so it goes on the 404 (the issuer is known).
+        Effect.flatMap((found) => requireOne(found, frequency)),
+      );
 
-			const getByIssuerFrequency = (
-				issuerId: typeof IssuerId.Type,
-				frequency: SubscriptionFrequency,
-			) =>
-				byIssuerFrequencyQuery({ issuerId, frequency }).pipe(
-					orDieSql,
-					// Keyed by issuer + frequency; the frequency is the caller-facing
-					// discriminator, so it goes on the 404 (the issuer is known).
-					Effect.flatMap((found) => requireOne(found, frequency)),
-				);
+    const create = (payload: SubscriptionCreate) =>
+      insertQuery(toWriteFields(payload)).pipe(orDieSql);
 
-			const create = (payload: SubscriptionCreate) =>
-				insertQuery(toWriteFields(payload)).pipe(orDieSql);
+    const update = (id: typeof SubscriptionId.Type, changes: SubscriptionUpdate) =>
+      getById(id).pipe(
+        // getById already 404s if missing; the write then always hits a row.
+        // Merge current + changes into a full entity, then re-write every column.
+        Effect.flatMap((current) => {
+          const merged = new Subscription({ ...current, ...changes });
+          return updateQuery({ id, ...toWriteFields(merged) }).pipe(orDieSql);
+        }),
+      );
 
-			const update = (
-				id: typeof SubscriptionId.Type,
-				changes: SubscriptionUpdate,
-			) =>
-				getById(id).pipe(
-					// getById already 404s if missing; the write then always hits a row.
-					// Merge current + changes into a full entity, then re-write every column.
-					Effect.flatMap((current) => {
-						const merged = new Subscription({ ...current, ...changes });
-						return updateQuery({ id, ...toWriteFields(merged) }).pipe(orDieSql);
-					}),
-				);
-
-			return {
-				list,
-				getFirstByIssuer,
-				getByIssuerFrequency,
-				create,
-				update,
-			} as const;
-		}),
-	},
-) {}
+    return {
+      list,
+      getFirstByIssuer,
+      getByIssuerFrequency,
+      create,
+      update,
+    } as const;
+  }),
+}) {}

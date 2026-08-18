@@ -1,9 +1,4 @@
-import {
-	HttpApiEndpoint,
-	HttpApiGroup,
-	HttpApiSchema,
-	OpenApi,
-} from "@effect/platform";
+import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema, OpenApi } from "@effect/platform";
 import { Schema } from "effect";
 import { AiProvider } from "./ai";
 import { SecretRejected, TaskProviderRejected } from "./errors";
@@ -61,9 +56,9 @@ export const SECRET_HINT_MIN_LENGTH = 20;
  *   the operator to re-paste instead of implying nothing was ever stored.
  */
 export class SecretStatus extends Schema.Class<SecretStatus>("SecretStatus")({
-	name: SecretName,
-	configured: Schema.Boolean,
-	hint: Schema.NullOr(Schema.String),
+  name: SecretName,
+  configured: Schema.Boolean,
+  hint: Schema.NullOr(Schema.String),
 }) {}
 
 /**
@@ -73,7 +68,7 @@ export class SecretStatus extends Schema.Class<SecretStatus>("SecretStatus")({
  * ({@link SecretRejected}, which carries a reason code and no value).
  */
 export class SecretValue extends Schema.Class<SecretValue>("SecretValue")({
-	value: Schema.String,
+  value: Schema.String,
 }) {}
 
 /**
@@ -107,27 +102,21 @@ export const SecretStatuses = Schema.Array(SecretStatus);
  * credential nobody is using clears whether or not it was ever there.
  */
 export class SecretsGroup extends HttpApiGroup.make("secrets")
-	.add(HttpApiEndpoint.get("list")`/secrets`.addSuccess(SecretStatuses))
-	.add(
-		HttpApiEndpoint.get(
-			"status",
-		)`/secrets/${HttpApiSchema.param("name", SecretName)}`.addSuccess(
-			SecretStatus,
-		),
-	)
-	.add(
-		HttpApiEndpoint.put(
-			"put",
-		)`/secrets/${HttpApiSchema.param("name", SecretName)}`
-			.setPayload(SecretValue)
-			.addSuccess(SecretStatus)
-			.addError(SecretRejected),
-	)
-	.add(
-		HttpApiEndpoint.del(
-			"clear",
-		)`/secrets/${HttpApiSchema.param("name", SecretName)}`
-			.addSuccess(SecretStatus)
-			.addError(TaskProviderRejected),
-	)
-	.annotateContext(OpenApi.annotations({ title: "Secrets" })) {}
+  .add(HttpApiEndpoint.get("list")`/secrets`.addSuccess(SecretStatuses))
+  .add(
+    HttpApiEndpoint.get("status")`/secrets/${HttpApiSchema.param("name", SecretName)}`.addSuccess(
+      SecretStatus,
+    ),
+  )
+  .add(
+    HttpApiEndpoint.put("put")`/secrets/${HttpApiSchema.param("name", SecretName)}`
+      .setPayload(SecretValue)
+      .addSuccess(SecretStatus)
+      .addError(SecretRejected),
+  )
+  .add(
+    HttpApiEndpoint.del("clear")`/secrets/${HttpApiSchema.param("name", SecretName)}`
+      .addSuccess(SecretStatus)
+      .addError(TaskProviderRejected),
+  )
+  .annotateContext(OpenApi.annotations({ title: "Secrets" })) {}

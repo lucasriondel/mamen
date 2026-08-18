@@ -21,9 +21,9 @@ import { Effect } from "effect";
  * FK-free grouping id.
  */
 export default Effect.flatMap(SqlClient.SqlClient, (sql) =>
-	Effect.all([
-		sql`ALTER TABLE transactions ADD COLUMN kind TEXT DEFAULT 'bank'`,
-		sql`ALTER TABLE transactions ADD COLUMN bundleId INTEGER`,
-		sql`CREATE INDEX IF NOT EXISTS idx_tx_bundleId ON transactions(bundleId)`,
-	]).pipe(Effect.asVoid),
+  Effect.all([
+    sql`ALTER TABLE transactions ADD COLUMN kind TEXT DEFAULT 'bank'`,
+    sql`ALTER TABLE transactions ADD COLUMN bundleId INTEGER`,
+    sql`CREATE INDEX IF NOT EXISTS idx_tx_bundleId ON transactions(bundleId)`,
+  ]).pipe(Effect.asVoid),
 );

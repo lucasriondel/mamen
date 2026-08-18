@@ -11,12 +11,12 @@ const STORAGE_KEY = "mamen:transactions:column-visibility";
  * a table that can't be read.
  */
 export const TOGGLEABLE_COLUMNS = [
-	{ id: "account", label: "Account" },
-	{ id: "issuer", label: "Issuer" },
-	{ id: "rawIssuer", label: "Raw issuer" },
-	{ id: "category", label: "Category" },
-	{ id: "excluded", label: "Excluded" },
-	{ id: "notes", label: "Notes" },
+  { id: "account", label: "Account" },
+  { id: "issuer", label: "Issuer" },
+  { id: "rawIssuer", label: "Raw issuer" },
+  { id: "category", label: "Category" },
+  { id: "excluded", label: "Excluded" },
+  { id: "notes", label: "Notes" },
 ] as const;
 
 /** A column id the toggle menu can hide. */
@@ -31,43 +31,43 @@ const TOGGLEABLE_IDS = new Set<string>(TOGGLEABLE_COLUMNS.map((c) => c.id));
  * toggle menu no longer offers a way to bring back.
  */
 function readStored(): VisibilityState {
-	if (typeof window === "undefined") return {};
-	try {
-		const raw = window.localStorage.getItem(STORAGE_KEY);
-		if (raw == null) return {};
-		const parsed: unknown = JSON.parse(raw);
-		if (parsed == null || typeof parsed !== "object") return {};
-		const result: VisibilityState = {};
-		for (const [id, visible] of Object.entries(parsed)) {
-			if (TOGGLEABLE_IDS.has(id) && typeof visible === "boolean") {
-				result[id] = visible;
-			}
-		}
-		return result;
-	} catch {
-		// Unparseable/unavailable storage (private mode, corrupted value) is not
-		// worth failing the view over — fall back to "everything visible".
-		return {};
-	}
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (raw == null) return {};
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed == null || typeof parsed !== "object") return {};
+    const result: VisibilityState = {};
+    for (const [id, visible] of Object.entries(parsed)) {
+      if (TOGGLEABLE_IDS.has(id) && typeof visible === "boolean") {
+        result[id] = visible;
+      }
+    }
+    return result;
+  } catch {
+    // Unparseable/unavailable storage (private mode, corrupted value) is not
+    // worth failing the view over — fall back to "everything visible".
+    return {};
+  }
 }
 
 function writeStored(state: VisibilityState): void {
-	try {
-		window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-	} catch {
-		// Storage full or blocked — the preference just doesn't survive a reload.
-	}
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // Storage full or blocked — the preference just doesn't survive a reload.
+  }
 }
 
 export interface UseColumnVisibilityResult {
-	/** The TanStack `columnVisibility` state to hand to `useReactTable`. */
-	columnVisibility: VisibilityState;
-	/** `onColumnVisibilityChange` handler; also persists the new state. */
-	setColumnVisibility: (
-		updater: VisibilityState | ((old: VisibilityState) => VisibilityState),
-	) => void;
-	/** Show every toggleable column again. */
-	reset: () => void;
+  /** The TanStack `columnVisibility` state to hand to `useReactTable`. */
+  columnVisibility: VisibilityState;
+  /** `onColumnVisibilityChange` handler; also persists the new state. */
+  setColumnVisibility: (
+    updater: VisibilityState | ((old: VisibilityState) => VisibilityState),
+  ) => void;
+  /** Show every toggleable column again. */
+  reset: () => void;
 }
 
 /**
@@ -79,31 +79,24 @@ export interface UseColumnVisibilityResult {
  * shouldn't impose the sender's layout on the recipient.
  */
 export function useColumnVisibility(): UseColumnVisibilityResult {
-	const [columnVisibility, setState] = useState<VisibilityState>(readStored);
+  const [columnVisibility, setState] = useState<VisibilityState>(readStored);
 
-	// Persist as an effect rather than from inside the `setState` updater. React
-	// treats updaters as pure and may run one twice (StrictMode) or on a render it
-	// then discards — writing storage there can persist a preference the committed
-	// UI never adopted, leaving the table and the next page load disagreeing.
-	useEffect(() => {
-		writeStored(columnVisibility);
-	}, [columnVisibility]);
+  // Persist as an effect rather than from inside the `setState` updater. React
+  // treats updaters as pure and may run one twice (StrictMode) or on a render it
+  // then discards — writing storage there can persist a preference the committed
+  // UI never adopted, leaving the table and the next page load disagreeing.
+  useEffect(() => {
+    writeStored(columnVisibility);
+  }, [columnVisibility]);
 
-	const setColumnVisibility = useCallback(
-		(
-			updater: VisibilityState | ((old: VisibilityState) => VisibilityState),
-		) => {
-			setState((old) =>
-				typeof updater === "function" ? updater(old) : updater,
-			);
-		},
-		[],
-	);
+  const setColumnVisibility = useCallback(
+    (updater: VisibilityState | ((old: VisibilityState) => VisibilityState)) => {
+      setState((old) => (typeof updater === "function" ? updater(old) : updater));
+    },
+    [],
+  );
 
-	const reset = useCallback(
-		() => setColumnVisibility({}),
-		[setColumnVisibility],
-	);
+  const reset = useCallback(() => setColumnVisibility({}), [setColumnVisibility]);
 
-	return { columnVisibility, setColumnVisibility, reset };
+  return { columnVisibility, setColumnVisibility, reset };
 }

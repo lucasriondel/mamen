@@ -57,9 +57,7 @@ interface Options {
 /** Print usage and exit non-zero. */
 function usage(problem: string): never {
   console.error(`${red("✗")} ${problem}`);
-  console.error(
-    `\nUsage: bun .sandcastle/run.ts <${Object.keys(FLOWS).join("|")}> [options]`,
-  );
+  console.error(`\nUsage: bun .sandcastle/run.ts <${Object.keys(FLOWS).join("|")}> [options]`);
   console.error(`
 Options:
   --no-relaunch        Stop when the session limit is reached instead of
@@ -182,6 +180,7 @@ async function runFlow(flow: Flow): Promise<number> {
  * Returns false if interrupted.
  */
 async function waitUntil(resetAt: Date, timeZone: string): Promise<boolean> {
+  // oxlint-disable-next-line no-unmodified-loop-condition -- `interrupted` is set by the SIGINT handler above, which the awaits in this body yield to
   while (!interrupted) {
     const remaining = resetAt.getTime() - Date.now();
     if (remaining <= 0) return true;
@@ -208,9 +207,7 @@ async function waitUntil(resetAt: Date, timeZone: string): Promise<boolean> {
 /** Header separating one attempt's logs from the previous attempt's. */
 function logAttempt(attempt: number): void {
   if (attempt === 1) return;
-  console.log(
-    bold(cyan(`\n── attempt ${attempt} — resumed after session limit ──\n`)),
-  );
+  console.log(bold(cyan(`\n── attempt ${attempt} — resumed after session limit ──\n`)));
 }
 
 // ---------------------------------------------------------------------------

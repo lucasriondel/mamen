@@ -1,10 +1,10 @@
 import { FileSystem, type Multipart, Path } from "@effect/platform";
 import {
-	AiProviderNotConfigured,
-	ExtractionFailed,
-	type ExtractPdfResult,
-	InvalidFileType,
-	type TaskProviderRejected,
+  AiProviderNotConfigured,
+  ExtractionFailed,
+  type ExtractPdfResult,
+  InvalidFileType,
+  type TaskProviderRejected,
 } from "@mamen/shared/contract";
 import type { TaskRunError } from "ai-task-runner-effect";
 import { ClaudeCode, type ClaudeCodeService } from "claude-code-effect";
@@ -47,26 +47,26 @@ const TASK = "extract-pdf" as const;
  * default rather than a list that has to be kept exhaustive.
  */
 const notConfigured = (
-	error: TaskRunError<TaskProviderRejected>,
+  error: TaskRunError<TaskProviderRejected>,
 ): AiProviderNotConfigured | null => {
-	switch (error._tag) {
-		case "ClaudeTokenMissingError":
-			return new AiProviderNotConfigured({
-				task: TASK,
-				provider: "claude-code",
-			});
-		case "TaskNotRunnableError":
-			return new AiProviderNotConfigured({
-				task: TASK,
-				provider: error.provider,
-			});
-		case "TaskProviderRejected":
-			return error.reason === "no-credential"
-				? new AiProviderNotConfigured({ task: TASK, provider: error.provider })
-				: null;
-		default:
-			return null;
-	}
+  switch (error._tag) {
+    case "ClaudeTokenMissingError":
+      return new AiProviderNotConfigured({
+        task: TASK,
+        provider: "claude-code",
+      });
+    case "TaskNotRunnableError":
+      return new AiProviderNotConfigured({
+        task: TASK,
+        provider: error.provider,
+      });
+    case "TaskProviderRejected":
+      return error.reason === "no-credential"
+        ? new AiProviderNotConfigured({ task: TASK, provider: error.provider })
+        : null;
+    default:
+      return null;
+  }
 };
 
 /**
@@ -83,15 +83,15 @@ const notConfigured = (
  * is what it means.
  */
 const allowRead =
-	(dir: string) =>
-	(claude: ClaudeCodeService): ClaudeCodeService => ({
-		...claude,
-		generateObject: (output, options) =>
-			claude.generateObject(output, {
-				...options,
-				addDirs: [...(options.addDirs ?? []), dir],
-			}),
-	});
+  (dir: string) =>
+  (claude: ClaudeCodeService): ClaudeCodeService => ({
+    ...claude,
+    generateObject: (output, options) =>
+      claude.generateObject(output, {
+        ...options,
+        addDirs: [...(options.addDirs ?? []), dir],
+      }),
+  });
 
 /**
  * Extract candidate transactions from an uploaded PDF bank statement, without
@@ -126,54 +126,50 @@ const allowRead =
  * (die → 500), never client-facing — the error channel stays the domain errors.
  */
 export const extractPdf = (
-	file: Multipart.PersistedFile,
+  file: Multipart.PersistedFile,
 ): Effect.Effect<
-	ExtractPdfResult,
-	InvalidFileType | ExtractionFailed | AiProviderNotConfigured,
-	FileSystem.FileSystem | Path.Path | ClaudeCode | AiRunner
+  ExtractPdfResult,
+  InvalidFileType | ExtractionFailed | AiProviderNotConfigured,
+  FileSystem.FileSystem | Path.Path | ClaudeCode | AiRunner
 > =>
-	Effect.gen(function* () {
-		if (file.contentType !== PDF_MIME) {
-			return yield* Effect.fail(
-				new InvalidFileType({
-					allowed: [PDF_MIME],
-					received: file.contentType,
-				}),
-			);
-		}
+  Effect.gen(function* () {
+    if (file.contentType !== PDF_MIME) {
+      return yield* Effect.fail(
+        new InvalidFileType({
+          allowed: [PDF_MIME],
+          received: file.contentType,
+        }),
+      );
+    }
 
-		const fs = yield* FileSystem.FileSystem;
-		const path = yield* Path.Path;
+    const fs = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
 
-		// The temp dir is scoped: its removal rides the enclosing `Effect.scoped`
-		// finalizer, firing on success, failure, and interrupt (timeout). The PDF
-		// never outlives the request.
-		const dir = yield* fs
-			.makeTempDirectoryScoped({ prefix: "mamen-pdf-" })
-			.pipe(Effect.orDie);
-		const pdfPath = path.join(dir, "statement.pdf");
-		yield* fs.copyFile(file.path, pdfPath).pipe(Effect.orDie);
+    // The temp dir is scoped: its removal rides the enclosing `Effect.scoped`
+    // finalizer, firing on success, failure, and interrupt (timeout). The PDF
+    // never outlives the request.
+    const dir = yield* fs.makeTempDirectoryScoped({ prefix: "mamen-pdf-" }).pipe(Effect.orDie);
+    const pdfPath = path.join(dir, "statement.pdf");
+    yield* fs.copyFile(file.path, pdfPath).pipe(Effect.orDie);
 
-		// Read back out of the staged copy rather than off the upload, so both
-		// transports are handed the *same* file: the one inside the scoped dir that
-		// the finalizer deletes. Read here rather than in the task's hosted column
-		// because a prompt builder is a pure function; a statement is small enough
-		// that the CLI branch paying for the read is not worth a second input shape.
-		const pdfBytes = yield* fs.readFile(pdfPath).pipe(Effect.orDie);
+    // Read back out of the staged copy rather than off the upload, so both
+    // transports are handed the *same* file: the one inside the scoped dir that
+    // the finalizer deletes. Read here rather than in the task's hosted column
+    // because a prompt builder is a pure function; a statement is small enough
+    // that the CLI branch paying for the read is not worth a second input shape.
+    const pdfBytes = yield* fs.readFile(pdfPath).pipe(Effect.orDie);
 
-		const runner = yield* AiRunner;
-		const { output } = yield* runner.run(TASK, { pdfPath, pdfBytes }).pipe(
-			Effect.updateService(ClaudeCode, allowRead(dir)),
-			// One client-visible failure, or the one client-actionable one; either
-			// way the real tag is kept server-side and logged the same.
-			Effect.catchAll((error) =>
-				Effect.logError(`PDF extraction failed (${error._tag})`, error).pipe(
-					Effect.zipRight(
-						Effect.fail(notConfigured(error) ?? new ExtractionFailed()),
-					),
-				),
-			),
-		);
+    const runner = yield* AiRunner;
+    const { output } = yield* runner.run(TASK, { pdfPath, pdfBytes }).pipe(
+      Effect.updateService(ClaudeCode, allowRead(dir)),
+      // One client-visible failure, or the one client-actionable one; either
+      // way the real tag is kept server-side and logged the same.
+      Effect.catchAll((error) =>
+        Effect.logError(`PDF extraction failed (${error._tag})`, error).pipe(
+          Effect.zipRight(Effect.fail(notConfigured(error) ?? new ExtractionFailed())),
+        ),
+      ),
+    );
 
-		return output;
-	}).pipe(Effect.scoped);
+    return output;
+  }).pipe(Effect.scoped);

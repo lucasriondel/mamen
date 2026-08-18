@@ -19,41 +19,39 @@ import { router } from "./router";
  */
 
 describe("the app router", () => {
-	it("resolves client-side routes under the prefix", () => {
-		expect(router.basepath).toBe(APP_BASE_PATH);
-		expect(router.buildLocation({ to: "/accounts" }).href).toBe(
-			`${APP_BASE_PATH}/accounts`,
-		);
-	});
+  it("resolves client-side routes under the prefix", () => {
+    expect(router.basepath).toBe(APP_BASE_PATH);
+    expect(router.buildLocation({ to: "/accounts" }).href).toBe(`${APP_BASE_PATH}/accounts`);
+  });
 
-	it("prefixes a deep link, params and search alike", () => {
-		const location = router.buildLocation({
-			to: "/transactions/$transactionId",
-			params: { transactionId: 42 },
-			search: { from: "recap" },
-		});
-		expect(location.href).toBe(`${APP_BASE_PATH}/transactions/42?from=recap`);
-	});
+  it("prefixes a deep link, params and search alike", () => {
+    const location = router.buildLocation({
+      to: "/transactions/$transactionId",
+      params: { transactionId: 42 },
+      search: { from: "recap" },
+    });
+    expect(location.href).toBe(`${APP_BASE_PATH}/transactions/42?from=recap`);
+  });
 
-	it("does not prefix the API, which stays at the root", () => {
-		// The SDK builds its own same-origin `/api` URLs and never goes through
-		// the router; this is here because a `basepath` that leaked into fetch
-		// would be invisible until a request 404'd in the browser.
-		expect(`${APP_BASE_PATH}/accounts`).not.toContain("/api");
-	});
+  it("does not prefix the API, which stays at the root", () => {
+    // The SDK builds its own same-origin `/api` URLs and never goes through
+    // the router; this is here because a `basepath` that leaked into fetch
+    // would be invisible until a request 404'd in the browser.
+    expect(`${APP_BASE_PATH}/accounts`).not.toContain("/api");
+  });
 
-	it("reads the prefix from the shared constant, not a local literal", () => {
-		const source = readFileSync("src/router.ts", "utf8");
-		expect(source).toMatch(/APP_BASE_PATH\b/);
-		expect(source).not.toContain(`"${APP_BASE_PATH}"`);
-	});
+  it("reads the prefix from the shared constant, not a local literal", () => {
+    const source = readFileSync("src/router.ts", "utf8");
+    expect(source).toMatch(/APP_BASE_PATH\b/);
+    expect(source).not.toContain(`"${APP_BASE_PATH}"`);
+  });
 
-	it("is the router `main.tsx` mounts", () => {
-		// Building it here rather than in the entrypoint is what makes the
-		// assertions above possible; a second `createRouter` in `main.tsx` would
-		// be the one that actually ships.
-		const main = readFileSync("src/main.tsx", "utf8");
-		expect(main).toMatch(/from "\.\/router"/);
-		expect(main).not.toMatch(/\bcreateRouter\b/);
-	});
+  it("is the router `main.tsx` mounts", () => {
+    // Building it here rather than in the entrypoint is what makes the
+    // assertions above possible; a second `createRouter` in `main.tsx` would
+    // be the one that actually ships.
+    const main = readFileSync("src/main.tsx", "utf8");
+    expect(main).toMatch(/from "\.\/router"/);
+    expect(main).not.toMatch(/\bcreateRouter\b/);
+  });
 });

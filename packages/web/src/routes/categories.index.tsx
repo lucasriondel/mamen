@@ -6,5 +6,5 @@ import { CategoriesView } from "@/features/categories/categories-view";
  * link to its transactions page (issue #25).
  */
 export const Route = createFileRoute("/categories/")({
-	component: CategoriesView,
+  component: CategoriesView,
 });

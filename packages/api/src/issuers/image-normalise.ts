@@ -19,7 +19,7 @@ export const IMAGE_EXT = "webp";
  * Internal — each call site maps it to its own client-facing error.
  */
 export class ImageDecodeFailed extends Data.TaggedError("ImageDecodeFailed")<{
-	readonly cause: unknown;
+  readonly cause: unknown;
 }> {}
 
 /**
@@ -47,17 +47,17 @@ export class ImageDecodeFailed extends Data.TaggedError("ImageDecodeFailed")<{
  * the download path), which is where a pre-decode guard has to live to be one.
  */
 export const normaliseIssuerImage = (
-	input: string | Uint8Array,
+  input: string | Uint8Array,
 ): Effect.Effect<Uint8Array, ImageDecodeFailed> =>
-	Effect.tryPromise({
-		try: () =>
-			sharp(input)
-				.rotate()
-				.resize(IMAGE_SIZE, IMAGE_SIZE, {
-					fit: "cover",
-					position: "centre",
-				})
-				.webp()
-				.toBuffer(),
-		catch: (cause) => new ImageDecodeFailed({ cause }),
-	});
+  Effect.tryPromise({
+    try: () =>
+      sharp(input)
+        .rotate()
+        .resize(IMAGE_SIZE, IMAGE_SIZE, {
+          fit: "cover",
+          position: "centre",
+        })
+        .webp()
+        .toBuffer(),
+    catch: (cause) => new ImageDecodeFailed({ cause }),
+  });

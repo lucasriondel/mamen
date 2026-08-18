@@ -13,16 +13,16 @@ import type { Account } from "@mamen/shared/contract";
  * invite reading a shared colour as a shared meaning.
  */
 const AUTO_PALETTE = [
-	"#2563eb", // blue
-	"#16a34a", // green
-	"#ea580c", // orange
-	"#9333ea", // purple
-	"#0891b2", // cyan
-	"#ca8a04", // amber
-	"#dc2626", // red
-	"#4f46e5", // indigo
-	"#0d9488", // teal
-	"#db2777", // pink
+  "#2563eb", // blue
+  "#16a34a", // green
+  "#ea580c", // orange
+  "#9333ea", // purple
+  "#0891b2", // cyan
+  "#ca8a04", // amber
+  "#dc2626", // red
+  "#4f46e5", // indigo
+  "#0d9488", // teal
+  "#db2777", // pink
 ] as const;
 
 /**
@@ -36,7 +36,7 @@ const AUTO_PALETTE = [
  * negative index would return `undefined` and paint nothing.
  */
 export function autoAccountColor(id: number): string {
-	return AUTO_PALETTE[Math.abs(id) % AUTO_PALETTE.length];
+  return AUTO_PALETTE[Math.abs(id) % AUTO_PALETTE.length];
 }
 
 /**
@@ -49,11 +49,7 @@ export function autoAccountColor(id: number): string {
  * treated as absent — the picker cannot produce one, but a hand-edited database
  * row could, and painting `background: ""` would render an invisible badge.
  */
-export function resolveAccountColor(
-	account: Pick<Account, "id" | "color">,
-): string {
-	const stored = account.color?.trim();
-	return stored != null && stored.length > 0
-		? stored
-		: autoAccountColor(account.id);
+export function resolveAccountColor(account: Pick<Account, "id" | "color">): string {
+  const stored = account.color?.trim();
+  return stored != null && stored.length > 0 ? stored : autoAccountColor(account.id);
 }

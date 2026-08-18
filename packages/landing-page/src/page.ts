@@ -22,13 +22,13 @@ import { APP_BASE_PATH_SLASH } from "@mamen/shared/app-base-path";
 const TITLE = "mamen — personal finance for one person's accounts";
 
 const DESCRIPTION =
-	"mamen is a self-hosted, single-user personal-finance app. Import your bank " +
-	"statements, curate the rows into issuers and categories, and read back " +
-	"where the money went.";
+  "mamen is a self-hosted, single-user personal-finance app. Import your bank " +
+  "statements, curate the rows into issuers and categories, and read back " +
+  "where the money went.";
 
 /** The finished HTML document, as the build writes it. */
 export function renderPage(): string {
-	return `<!doctype html>
+  return `<!doctype html>
 <html lang="en">
 	<head>
 		<meta charset="UTF-8" />

@@ -21,29 +21,23 @@ import { slugify } from "@/lib/utils";
  * categories key family so the new leaf shows in the picker.
  */
 export function useCreateCategoryLeaf() {
-	const queryClient = useQueryClient();
+  const queryClient = useQueryClient();
 
-	return useMutation({
-		mutationFn: ({
-			name,
-			parentId,
-		}: {
-			name: string;
-			parentId: CategoryId;
-		}): Promise<Category> =>
-			categoryMutations.create({
-				name,
-				slug: slugify(name),
-				color: null,
-				icon: "tag",
-				parentId,
-				sortOrder: 0,
-			}),
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: categoryKeys.all });
-		},
-		onError: (error: unknown) => {
-			toast.error(toErrorMessage(error));
-		},
-	});
+  return useMutation({
+    mutationFn: ({ name, parentId }: { name: string; parentId: CategoryId }): Promise<Category> =>
+      categoryMutations.create({
+        name,
+        slug: slugify(name),
+        color: null,
+        icon: "tag",
+        parentId,
+        sortOrder: 0,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: categoryKeys.all });
+    },
+    onError: (error: unknown) => {
+      toast.error(toErrorMessage(error));
+    },
+  });
 }

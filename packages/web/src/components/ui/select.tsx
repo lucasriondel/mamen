@@ -21,25 +21,25 @@ import { cn } from "@/lib/utils";
 export type SelectProps = React.ComponentProps<"select">;
 
 export function Select({ className, children, ...props }: SelectProps) {
-	return (
-		<div className="relative">
-			<select
-				className={cn(
-					FIELD_PILL,
-					"h-9 w-full appearance-none border border-gousse-line bg-gousse-panel py-1.5 pr-9 pl-4 text-sm text-gousse-ink",
-					"outline-none focus:border-gousse-accent focus-visible:ring-2 focus-visible:ring-gousse-accent focus-visible:ring-offset-1 focus-visible:ring-offset-gousse-bg",
-					"disabled:cursor-not-allowed disabled:opacity-50",
-					className,
-				)}
-				{...props}
-			>
-				{children}
-			</select>
-			<ChevronDown
-				size={14}
-				className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-gousse-muted"
-				aria-hidden
-			/>
-		</div>
-	);
+  return (
+    <div className="relative">
+      <select
+        className={cn(
+          FIELD_PILL,
+          "h-9 w-full appearance-none border border-gousse-line bg-gousse-panel py-1.5 pr-9 pl-4 text-sm text-gousse-ink",
+          "outline-none focus:border-gousse-accent focus-visible:ring-2 focus-visible:ring-gousse-accent focus-visible:ring-offset-1 focus-visible:ring-offset-gousse-bg",
+          "disabled:cursor-not-allowed disabled:opacity-50",
+          className,
+        )}
+        {...props}
+      >
+        {children}
+      </select>
+      <ChevronDown
+        size={14}
+        className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-gousse-muted"
+        aria-hidden
+      />
+    </div>
+  );
 }

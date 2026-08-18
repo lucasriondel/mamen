@@ -13,15 +13,15 @@ import { cn } from "@/lib/utils";
  * checks `transferGroupId`); its legs are netted out of the recap.
  */
 export function TransferBadge() {
-	return (
-		<span
-			className="inline-flex items-center gap-1 rounded-full bg-gousse-bg px-2 py-0.5 text-gousse-muted text-xs"
-			title="Part of an internal transfer — excluded from your recap spend"
-		>
-			<ArrowLeftRight size={12} aria-hidden />
-			Transfer
-		</span>
-	);
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-full bg-gousse-bg px-2 py-0.5 text-gousse-muted text-xs"
+      title="Part of an internal transfer — excluded from your recap spend"
+    >
+      <ArrowLeftRight size={12} aria-hidden />
+      Transfer
+    </span>
+  );
 }
 
 /**
@@ -40,14 +40,14 @@ export function TransferBadge() {
  * unmarked rows keep a common left edge and the column still scans as one.
  */
 function OverrideMarker() {
-	return (
-		<span
-			className="grid size-4 shrink-0 place-items-center rounded-md bg-gousse-accent/15 text-gousse-accent"
-			aria-hidden
-		>
-			<Pin size={10} className="fill-current" />
-		</span>
-	);
+  return (
+    <span
+      className="grid size-4 shrink-0 place-items-center rounded-md bg-gousse-accent/15 text-gousse-accent"
+      aria-hidden
+    >
+      <Pin size={10} className="fill-current" />
+    </span>
+  );
 }
 
 /**
@@ -56,17 +56,17 @@ function OverrideMarker() {
  * (`high`), credits (positive) green (`low`). Zero stays neutral (`ink`).
  */
 export function AmountCell({ amount }: { amount: number }) {
-	return (
-		<span
-			className={cn(
-				"block text-right font-medium tabular-nums",
-				amount < 0 && "text-gousse-high",
-				amount > 0 && "text-gousse-low",
-			)}
-		>
-			{formatCurrency(amount)}
-		</span>
-	);
+  return (
+    <span
+      className={cn(
+        "block text-right font-medium tabular-nums",
+        amount < 0 && "text-gousse-high",
+        amount > 0 && "text-gousse-low",
+      )}
+    >
+      {formatCurrency(amount)}
+    </span>
+  );
 }
 
 /**
@@ -84,54 +84,48 @@ export function AmountCell({ amount }: { amount: number }) {
  * Issuers + Assignment slice; this cell only renders the read states.
  */
 export function IssuerCell({
-	rawIssuerString,
-	issuer,
-	isManual = false,
+  rawIssuerString,
+  issuer,
+  isManual = false,
 }: {
-	rawIssuerString: string;
-	issuer?: Issuer;
-	isManual?: boolean;
+  rawIssuerString: string;
+  issuer?: Issuer;
+  isManual?: boolean;
 }) {
-	if (issuer) {
-		if (isManual) {
-			return (
-				<span
-					className="flex items-center gap-2"
-					title="Issuer set manually on this transaction"
-					data-manual="true"
-				>
-					<IssuerAvatar
-						imageUrl={issuer.imageUrl}
-						defaultCategoryId={issuer.defaultCategoryId}
-					/>
-					<span className="flex items-center gap-1.5 font-medium text-gousse-ink">
-						<span>{issuer.name}</span>
-						<OverrideMarker />
-					</span>
-				</span>
-			);
-		}
-		return (
-			<span className="flex items-center gap-2">
-				<IssuerAvatar
-					imageUrl={issuer.imageUrl}
-					defaultCategoryId={issuer.defaultCategoryId}
-				/>
-				<span className="text-gousse-ink">{issuer.name}</span>
-			</span>
-		);
-	}
+  if (issuer) {
+    if (isManual) {
+      return (
+        <span
+          className="flex items-center gap-2"
+          title="Issuer set manually on this transaction"
+          data-manual="true"
+        >
+          <IssuerAvatar imageUrl={issuer.imageUrl} defaultCategoryId={issuer.defaultCategoryId} />
+          <span className="flex items-center gap-1.5 font-medium text-gousse-ink">
+            <span>{issuer.name}</span>
+            <OverrideMarker />
+          </span>
+        </span>
+      );
+    }
+    return (
+      <span className="flex items-center gap-2">
+        <IssuerAvatar imageUrl={issuer.imageUrl} defaultCategoryId={issuer.defaultCategoryId} />
+        <span className="text-gousse-ink">{issuer.name}</span>
+      </span>
+    );
+  }
 
-	return (
-		<span
-			className="flex items-center gap-1.5 text-gousse-muted italic"
-			title="Needs an issuer"
-			data-unresolved="true"
-		>
-			<CircleHelp size={14} className="shrink-0" aria-hidden />
-			<span className="truncate">{rawIssuerString}</span>
-		</span>
-	);
+  return (
+    <span
+      className="flex items-center gap-1.5 text-gousse-muted italic"
+      title="Needs an issuer"
+      data-unresolved="true"
+    >
+      <CircleHelp size={14} className="shrink-0" aria-hidden />
+      <span className="truncate">{rawIssuerString}</span>
+    </span>
+  );
 }
 
 /**
@@ -161,51 +155,43 @@ export function IssuerCell({
  * in {@link CategoryPicker}.
  */
 export function CategoryCell({
-	category,
-	isOverride = false,
-	color = NEUTRAL_CATEGORY_COLOR,
+  category,
+  isOverride = false,
+  color = NEUTRAL_CATEGORY_COLOR,
 }: {
-	category?: Category;
-	isOverride?: boolean;
-	/** The category's **Resolved colour** — resolved by the caller against the tree. */
-	color?: string;
+  category?: Category;
+  isOverride?: boolean;
+  /** The category's **Resolved colour** — resolved by the caller against the tree. */
+  color?: string;
 }) {
-	if (category) {
-		if (isOverride) {
-			return (
-				<span
-					className="flex items-center gap-1.5 font-medium"
-					style={{ color }}
-					title="Category override — set on this transaction only"
-					data-override="true"
-				>
-					<CategoryIcon name={category.icon} size={14} />
-					<span>{category.name}</span>
-					<OverrideMarker />
-				</span>
-			);
-		}
-		return (
-			<span
-				className="flex items-center gap-1.5"
-				style={{ color }}
-				data-inherited="true"
-			>
-				<CategoryIcon name={category.icon} size={14} />
-				<span>{category.name}</span>
-			</span>
-		);
-	}
+  if (category) {
+    if (isOverride) {
+      return (
+        <span
+          className="flex items-center gap-1.5 font-medium"
+          style={{ color }}
+          title="Category override — set on this transaction only"
+          data-override="true"
+        >
+          <CategoryIcon name={category.icon} size={14} />
+          <span>{category.name}</span>
+          <OverrideMarker />
+        </span>
+      );
+    }
+    return (
+      <span className="flex items-center gap-1.5" style={{ color }} data-inherited="true">
+        <CategoryIcon name={category.icon} size={14} />
+        <span>{category.name}</span>
+      </span>
+    );
+  }
 
-	return (
-		<span
-			className="text-gousse-muted italic"
-			title="No category yet"
-			data-unassigned="true"
-		>
-			Unassigned
-		</span>
-	);
+  return (
+    <span className="text-gousse-muted italic" title="No category yet" data-unassigned="true">
+      Unassigned
+    </span>
+  );
 }
 
 /**
@@ -222,26 +208,23 @@ export function CategoryCell({
  * {@link NotesPicker}.
  */
 export function NotesCell({ notes }: { notes?: string }) {
-	const trimmed = notes?.trim();
-	if (trimmed) {
-		return (
-			<span
-				className="block max-w-[16rem] truncate text-gousse-ink"
-				title={trimmed}
-			>
-				{trimmed}
-			</span>
-		);
-	}
+  const trimmed = notes?.trim();
+  if (trimmed) {
+    return (
+      <span className="block max-w-[16rem] truncate text-gousse-ink" title={trimmed}>
+        {trimmed}
+      </span>
+    );
+  }
 
-	return (
-		<span
-			className="flex items-center gap-1.5 text-gousse-muted italic"
-			title="Add a note"
-			data-empty="true"
-		>
-			<StickyNote size={14} className="shrink-0" aria-hidden />
-			<span>Add note</span>
-		</span>
-	);
+  return (
+    <span
+      className="flex items-center gap-1.5 text-gousse-muted italic"
+      title="Add a note"
+      data-empty="true"
+    >
+      <StickyNote size={14} className="shrink-0" aria-hidden />
+      <span>Add note</span>
+    </span>
+  );
 }

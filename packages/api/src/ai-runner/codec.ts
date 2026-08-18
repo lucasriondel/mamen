@@ -38,20 +38,20 @@ const DEFS_PREFIX = "#/$defs/";
  * A no-op when the root already carries a `type`.
  */
 export const hoistRootRef = (root: JSONSchema.JsonSchema7Root): unknown => {
-	const node = root as unknown as Record<string, unknown>;
-	const ref = node.$ref;
-	if (typeof ref !== "string" || "type" in node) {
-		return root;
-	}
+  const node = root as unknown as Record<string, unknown>;
+  const ref = node.$ref;
+  if (typeof ref !== "string" || "type" in node) {
+    return root;
+  }
 
-	const defs = node.$defs as Record<string, unknown> | undefined;
-	const body = defs?.[ref.slice(DEFS_PREFIX.length)];
-	if (typeof body !== "object" || body === null) {
-		return root;
-	}
+  const defs = node.$defs as Record<string, unknown> | undefined;
+  const body = defs?.[ref.slice(DEFS_PREFIX.length)];
+  if (typeof body !== "object" || body === null) {
+    return root;
+  }
 
-	const { $ref: _hoisted, ...rest } = node;
-	return { ...rest, ...(body as Record<string, unknown>) };
+  const { $ref: _hoisted, ...rest } = node;
+  return { ...rest, ...(body as Record<string, unknown>) };
 };
 
 /**
@@ -63,13 +63,11 @@ export const hoistRootRef = (root: JSONSchema.JsonSchema7Root): unknown => {
  * on the hosted one — and it is logged from there. A `ParseError` prints as
  * nothing useful; the formatted array is a list of paths and messages.
  */
-export const effectSchemaCodec = <A, I>(
-	schema: Schema.Schema<A, I>,
-): ObjectCodec<A> => ({
-	jsonSchema: hoistRootRef(JSONSchema.make(schema)),
-	decode: (payload) =>
-		Effect.mapError(
-			Schema.decodeUnknown(schema)(payload),
-			ParseResult.ArrayFormatter.formatErrorSync,
-		),
+export const effectSchemaCodec = <A, I>(schema: Schema.Schema<A, I>): ObjectCodec<A> => ({
+  jsonSchema: hoistRootRef(JSONSchema.make(schema)),
+  decode: (payload) =>
+    Effect.mapError(
+      Schema.decodeUnknown(schema)(payload),
+      ParseResult.ArrayFormatter.formatErrorSync,
+    ),
 });

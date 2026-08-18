@@ -6,5 +6,5 @@ import { createFileRoute, Outlet } from "@tanstack/react-router";
  * route only hosts the shared `<Outlet />` so the two render in the same slot.
  */
 export const Route = createFileRoute("/categories")({
-	component: Outlet,
+  component: Outlet,
 });

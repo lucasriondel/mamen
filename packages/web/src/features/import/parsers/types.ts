@@ -12,8 +12,8 @@ export type ParsedTransaction = Omit<TransactionCreate, "importedAt">;
  * statement belongs to and the id grouping every row of one import together.
  */
 export type ParseContext = {
-	accountId: AccountId;
-	importBatchId: string;
+  accountId: AccountId;
+  importBatchId: string;
 };
 
 /**
@@ -22,15 +22,12 @@ export type ParseContext = {
  * fingerprint. `parse` is a pure row→record function: no file I/O, no network.
  */
 export type StatementParser = {
-	/** Stable identifier used by the manual format picker and tests. */
-	id: string;
-	/** Human label for the format (e.g. shown in the picker). */
-	label: string;
-	/** Header fingerprint — `true` when this parser recognizes the file. */
-	matches: (headers: readonly string[]) => boolean;
-	/** Turn raw CSV rows (header-keyed objects) into records for the account. */
-	parse: (
-		rows: ReadonlyArray<Record<string, string>>,
-		ctx: ParseContext,
-	) => ParsedTransaction[];
+  /** Stable identifier used by the manual format picker and tests. */
+  id: string;
+  /** Human label for the format (e.g. shown in the picker). */
+  label: string;
+  /** Header fingerprint — `true` when this parser recognizes the file. */
+  matches: (headers: readonly string[]) => boolean;
+  /** Turn raw CSV rows (header-keyed objects) into records for the account. */
+  parse: (rows: ReadonlyArray<Record<string, string>>, ctx: ParseContext) => ParsedTransaction[];
 };

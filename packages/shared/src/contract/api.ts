@@ -20,25 +20,25 @@ import { TransactionsGroup } from "./transactions";
  * are ported.
  */
 export class Api extends HttpApi.make("mamen")
-	.add(HealthGroup)
-	.add(AccountsGroup)
-	.add(CategoriesGroup)
-	.add(IssuersGroup)
-	.add(TransactionsGroup)
-	.add(RulesGroup)
-	.add(SubscriptionsGroup)
-	.add(SettingsGroup)
-	.add(SecretsGroup)
-	.add(AiTasksGroup)
-	.add(AppSettingsGroup)
-	.add(DatabaseGroup)
-	.add(ImportGroup)
-	.addError(HttpApiError.InternalServerError)
-	.prefix("/api")
-	.annotateContext(
-		OpenApi.annotations({
-			title: "Mamen API",
-			version: "0.0.0",
-			description: "Personal finance API (Effect HttpApi).",
-		}),
-	) {}
+  .add(HealthGroup)
+  .add(AccountsGroup)
+  .add(CategoriesGroup)
+  .add(IssuersGroup)
+  .add(TransactionsGroup)
+  .add(RulesGroup)
+  .add(SubscriptionsGroup)
+  .add(SettingsGroup)
+  .add(SecretsGroup)
+  .add(AiTasksGroup)
+  .add(AppSettingsGroup)
+  .add(DatabaseGroup)
+  .add(ImportGroup)
+  .addError(HttpApiError.InternalServerError)
+  .prefix("/api")
+  .annotateContext(
+    OpenApi.annotations({
+      title: "Mamen API",
+      version: "0.0.0",
+      description: "Personal finance API (Effect HttpApi).",
+    }),
+  ) {}

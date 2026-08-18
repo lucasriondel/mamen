@@ -19,11 +19,11 @@ import { Effect } from "effect";
  * index on either: neither is filtered nor ordered in SQL — the match runs in JS.
  */
 export default Effect.flatMap(SqlClient.SqlClient, (sql) =>
-	Effect.all(
-		[
-			sql`ALTER TABLE rules ADD COLUMN matchAccountId INTEGER`,
-			sql`ALTER TABLE rules ADD COLUMN matchSign TEXT`,
-		],
-		{ discard: true },
-	).pipe(Effect.asVoid),
+  Effect.all(
+    [
+      sql`ALTER TABLE rules ADD COLUMN matchAccountId INTEGER`,
+      sql`ALTER TABLE rules ADD COLUMN matchSign TEXT`,
+    ],
+    { discard: true },
+  ).pipe(Effect.asVoid),
 );

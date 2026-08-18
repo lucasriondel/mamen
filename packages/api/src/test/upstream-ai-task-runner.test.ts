@@ -40,19 +40,18 @@ const DOC = read(`${UPSTREAM}/${PACKAGE_NAME}-document-parts.md`);
  * document naming it is how the two stay a pair. Read eagerly so a document
  * that names nothing fails here rather than as eight confusing assertions.
  */
-const PATCH_NAME =
-	DOC.match(new RegExp(`\`(${PACKAGE_NAME}-[\\d.]+\\.patch)\``))?.[1] ?? "";
+const PATCH_NAME = DOC.match(new RegExp(`\`(${PACKAGE_NAME}-[\\d.]+\\.patch)\``))?.[1] ?? "";
 const PATCH = read(`${UPSTREAM}/${PATCH_NAME}`);
 
 /** Every path the patch touches, from its own headers. */
 const patchedFiles = [...PATCH.matchAll(/^diff --git a\/(\S+) b\/\S+$/gm)].map(
-	(m) => m[1] as string,
+  (m) => m[1] as string,
 );
 
 /** The paths the document's file table names, in backticks in the first cell. */
-const documentedFiles = [
-	...DOC.matchAll(/^\|\s*`([^`]+)`\s*\|[^|]*\|\s*$/gm),
-].map((m) => m[1] as string);
+const documentedFiles = [...DOC.matchAll(/^\|\s*`([^`]+)`\s*\|[^|]*\|\s*$/gm)].map(
+  (m) => m[1] as string,
+);
 
 /** The version the patch's `package.json` hunk publishes. */
 const patchedVersion = PATCH.match(/^\+\s*"version": "([^"]+)"/m)?.[1] ?? "";
@@ -64,18 +63,17 @@ const addedTests = [...PATCH.matchAll(/^\+\s*test\(/gm)].length;
 const addedTestFiles = patchedFiles.filter((f) => f.endsWith(".test.ts"));
 
 const apiManifest = JSON.parse(read(`${ROOT}/packages/api/package.json`)) as {
-	dependencies?: Record<string, string>;
-	devDependencies?: Record<string, string>;
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
 };
 const apiRange =
-	apiManifest.dependencies?.[PACKAGE_NAME] ??
-	apiManifest.devDependencies?.[PACKAGE_NAME];
+  apiManifest.dependencies?.[PACKAGE_NAME] ?? apiManifest.devDependencies?.[PACKAGE_NAME];
 
 /** The `major.minor.patch` a version or range floor carries, as a sort key. */
 const versionKey = (version: string) => {
-	const [, major, minor, patch] = version.match(/(\d+)\.(\d+)\.(\d+)/) ?? [];
+  const [, major, minor, patch] = version.match(/(\d+)\.(\d+)\.(\d+)/) ?? [];
 
-	return [Number(major), Number(minor), Number(patch)];
+  return [Number(major), Number(minor), Number(patch)];
 };
 
 /**
@@ -88,71 +86,67 @@ const versionKey = (version: string) => {
  * only this patch could have produced, which is step 4 of "To land it".
  */
 const apiDependsOnPatchedVersion = (() => {
-	if (!apiRange) return false;
+  if (!apiRange) return false;
 
-	const declared = versionKey(apiRange);
-	const patched = versionKey(patchedVersion);
+  const declared = versionKey(apiRange);
+  const patched = versionKey(patchedVersion);
 
-	if (declared.some(Number.isNaN) || patched.some(Number.isNaN)) return false;
+  if (declared.some(Number.isNaN) || patched.some(Number.isNaN)) return false;
 
-	const differing = patched.findIndex((part, i) => declared[i] !== part);
+  const differing = patched.findIndex((part, i) => declared[i] !== part);
 
-	return (
-		differing === -1 || (declared[differing] as number) > patched[differing]
-	);
+  return differing === -1 || (declared[differing] as number) > patched[differing];
 })();
 
 describe("the patch is the artifact the document describes", () => {
-	it("names a patch that exists beside it", () => {
-		expect(PATCH_NAME).not.toBe("");
-		expect(existsSync(`${UPSTREAM}/${PATCH_NAME}`)).toBe(true);
-	});
+  it("names a patch that exists beside it", () => {
+    expect(PATCH_NAME).not.toBe("");
+    expect(existsSync(`${UPSTREAM}/${PATCH_NAME}`)).toBe(true);
+  });
 
-	it("touches at least the module, the barrel and the manifest", () => {
-		expect(patchedFiles).toContain("src/prompt.ts");
-		expect(patchedFiles).toContain("index.ts");
-		expect(patchedFiles).toContain("package.json");
-	});
+  it("touches at least the module, the barrel and the manifest", () => {
+    expect(patchedFiles).toContain("src/prompt.ts");
+    expect(patchedFiles).toContain("index.ts");
+    expect(patchedFiles).toContain("package.json");
+  });
 
-	it("documents every file it touches, and touches every file it documents", () => {
-		expect([...documentedFiles].sort()).toEqual([...patchedFiles].sort());
-	});
+  it("documents every file it touches, and touches every file it documents", () => {
+    expect([...documentedFiles].sort()).toEqual([...patchedFiles].sort());
+  });
 });
 
 describe("the version to publish is written once", () => {
-	it("bumps the manifest to a version the patch's own filename carries", () => {
-		expect(patchedVersion).not.toBe("");
-		expect(basename(PATCH_NAME)).toBe(
-			`${PACKAGE_NAME}-${patchedVersion}.patch`,
-		);
-	});
+  it("bumps the manifest to a version the patch's own filename carries", () => {
+    expect(patchedVersion).not.toBe("");
+    expect(basename(PATCH_NAME)).toBe(`${PACKAGE_NAME}-${patchedVersion}.patch`);
+  });
 
-	it("is the version the document tells you to publish", () => {
-		expect(DOC).toContain(`Publish \`${patchedVersion}\``);
-	});
+  it("is the version the document tells you to publish", () => {
+    expect(DOC).toContain(`Publish \`${patchedVersion}\``);
+  });
 
-	it("is the range the document tells mamen to depend on", () => {
-		const [major, minor] = patchedVersion.split(".");
+  it("is the range the document tells mamen to depend on", () => {
+    const [major, minor] = patchedVersion.split(".");
 
-		expect(DOC).toContain(`bun add ${PACKAGE_NAME}@^${major}.${minor}.0`);
-	});
+    expect(DOC).toContain(`bun add ${PACKAGE_NAME}@^${major}.${minor}.0`);
+  });
 });
 
 describe("the document's count of the suite is the patch's", () => {
-	it("claims exactly the tests the patch adds", () => {
-		expect(addedTests).toBeGreaterThan(0);
-		expect(DOC).toContain(
-			`**\`bun test\`: ${addedTests} pass, 0 fail** across ${addedTestFiles.length}`,
-		);
-	});
+  it("claims exactly the tests the patch adds", () => {
+    expect(addedTests).toBeGreaterThan(0);
+    expect(DOC).toContain(
+      `**\`bun test\`: ${addedTests} pass, 0 fail** across ${addedTestFiles.length}`,
+    );
+  });
 });
 
 describe("the status line tracks whether mamen can actually depend on it", () => {
-	it("says it is unpublished only while packages/api predates the patch", () => {
-		const saysUnpublished = DOC.includes("not published");
+  it("says it is unpublished only while packages/api predates the patch", () => {
+    const saysUnpublished = DOC.includes("not published");
 
-		expect(saysUnpublished).toBe(!apiDependsOnPatchedVersion);
-	});
+    expect(saysUnpublished).toBe(!apiDependsOnPatchedVersion);
+  });
 });
 
 /**
@@ -170,52 +164,48 @@ describe("the status line tracks whether mamen can actually depend on it", () =>
  * required to disappear the day `packages/api` depends on the real `0.2.0`.
  */
 const rootManifest = JSON.parse(read(`${ROOT}/package.json`)) as {
-	patchedDependencies?: Record<string, string>;
+  patchedDependencies?: Record<string, string>;
 };
-const patchedDependency = Object.entries(
-	rootManifest.patchedDependencies ?? {},
-).find(([spec]) => spec.startsWith(`${PACKAGE_NAME}@`));
+const patchedDependency = Object.entries(rootManifest.patchedDependencies ?? {}).find(([spec]) =>
+  spec.startsWith(`${PACKAGE_NAME}@`),
+);
 
 /** The `dist` paths the local patch touches, from its own headers. */
 const locallyPatchedFiles = patchedDependency
-	? [
-			...read(`${ROOT}/${patchedDependency[1]}`).matchAll(
-				/^diff --git a\/(\S+) b\/\S+$/gm,
-			),
-		].map((m) => m[1] as string)
-	: [];
+  ? [...read(`${ROOT}/${patchedDependency[1]}`).matchAll(/^diff --git a\/(\S+) b\/\S+$/gm)].map(
+      (m) => m[1] as string,
+    )
+  : [];
 
 /** The upstream patch's own source modules — not its tests, docs or manifest. */
 const upstreamModules = patchedFiles
-	.filter((file) => file.endsWith(".ts") && !file.startsWith("test/"))
-	.map((file) => basename(file, ".ts"));
+  .filter((file) => file.endsWith(".ts") && !file.startsWith("test/"))
+  .map((file) => basename(file, ".ts"));
 
 describe("the local patch stands in for the published version", () => {
-	it("is declared against the exact version packages/api depends on", () => {
-		expect(patchedDependency?.[0]).toBe(`${PACKAGE_NAME}@${apiRange}`);
-		expect(existsSync(`${ROOT}/${patchedDependency?.[1]}`)).toBe(true);
-	});
+  it("is declared against the exact version packages/api depends on", () => {
+    expect(patchedDependency?.[0]).toBe(`${PACKAGE_NAME}@${apiRange}`);
+    expect(existsSync(`${ROOT}/${patchedDependency?.[1]}`)).toBe(true);
+  });
 
-	it("carries a compiled counterpart of every module the patch changes", () => {
-		expect(upstreamModules.length).toBeGreaterThan(0);
+  it("carries a compiled counterpart of every module the patch changes", () => {
+    expect(upstreamModules.length).toBeGreaterThan(0);
 
-		for (const module of upstreamModules) {
-			expect(
-				locallyPatchedFiles.some((file) =>
-					new RegExp(`(^|/)${module}\\.(js|d\\.ts)$`).test(file),
-				),
-				`${module} is changed upstream but not in the local patch`,
-			).toBe(true);
-		}
-	});
+    for (const module of upstreamModules) {
+      expect(
+        locallyPatchedFiles.some((file) => new RegExp(`(^|/)${module}\\.(js|d\\.ts)$`).test(file)),
+        `${module} is changed upstream but not in the local patch`,
+      ).toBe(true);
+    }
+  });
 
-	it("touches the published artifact and nothing else", () => {
-		for (const file of locallyPatchedFiles) {
-			expect(file.startsWith("dist/")).toBe(true);
-		}
-	});
+  it("touches the published artifact and nothing else", () => {
+    for (const file of locallyPatchedFiles) {
+      expect(file.startsWith("dist/")).toBe(true);
+    }
+  });
 
-	it("is gone once packages/api can depend on the real thing", () => {
-		expect(patchedDependency !== undefined).toBe(!apiDependsOnPatchedVersion);
-	});
+  it("is gone once packages/api can depend on the real thing", () => {
+    expect(patchedDependency !== undefined).toBe(!apiDependsOnPatchedVersion);
+  });
 });

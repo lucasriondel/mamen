@@ -24,12 +24,12 @@ import { APP_BASE_PATH } from "@mamen/shared/app-base-path";
 export type ContainerName = "landing-page" | "web";
 
 export type Route = {
-	/** The path prefix, as the reverse proxy matches it. */
-	readonly path: string;
-	/** The container the reverse proxy sends it to. */
-	readonly container: ContainerName;
-	/** What comes back, in the words `DEPLOY.md`'s routing table uses. */
-	readonly serves: string;
+  /** The path prefix, as the reverse proxy matches it. */
+  readonly path: string;
+  /** The container the reverse proxy sends it to. */
+  readonly container: ContainerName;
+  /** What comes back, in the words `DEPLOY.md`'s routing table uses. */
+  readonly serves: string;
 };
 
 /** The site root — everything not claimed by a longer prefix below. */
@@ -51,26 +51,26 @@ export const UPLOADS_PATH = "/uploads";
  * `containerFor` implements below.
  */
 export const ROUTES: readonly Route[] = [
-	{
-		path: SITE_ROOT,
-		container: "landing-page",
-		serves: "the prerendered landing page; an unknown path is a 404",
-	},
-	{
-		path: APP_BASE_PATH,
-		container: "web",
-		serves: "the SPA shell, with `try_files` falling back to it for deep links",
-	},
-	{
-		path: API_PATH,
-		container: "web",
-		serves: "proxied to the API container over the internal Docker network",
-	},
-	{
-		path: UPLOADS_PATH,
-		container: "web",
-		serves: "proxied to the API container, off its data volume",
-	},
+  {
+    path: SITE_ROOT,
+    container: "landing-page",
+    serves: "the prerendered landing page; an unknown path is a 404",
+  },
+  {
+    path: APP_BASE_PATH,
+    container: "web",
+    serves: "the SPA shell, with `try_files` falling back to it for deep links",
+  },
+  {
+    path: API_PATH,
+    container: "web",
+    serves: "proxied to the API container over the internal Docker network",
+  },
+  {
+    path: UPLOADS_PATH,
+    container: "web",
+    serves: "proxied to the API container, off its data volume",
+  },
 ];
 
 /**
@@ -86,10 +86,8 @@ export const DEFAULT_SITE_HOST = "mamen.gousse.cool";
  * is an unset one — a deployment field left empty otherwise produces
  * `https:///app/`, which is a URL nothing can follow and nothing warns about.
  */
-export function siteHost(
-	env: Record<string, string | undefined> = process.env,
-): string {
-	return env.SITE_HOST?.trim() || DEFAULT_SITE_HOST;
+export function siteHost(env: Record<string, string | undefined> = process.env): string {
+  return env.SITE_HOST?.trim() || DEFAULT_SITE_HOST;
 }
 
 /** The configured host, resolved once at import. */
@@ -113,18 +111,18 @@ export const siteUrl = (path: string): string => `https://${SITE_HOST}${path}`;
  * container answers is covered, and no path the landing container answers is.
  */
 export const ACCESS_APPLICATION: {
-	readonly name: string;
-	readonly host: string;
-	readonly paths: readonly string[];
+  readonly name: string;
+  readonly host: string;
+  readonly paths: readonly string[];
 } = {
-	name: "mamen",
-	host: SITE_HOST,
-	paths: [APP_BASE_PATH, API_PATH, UPLOADS_PATH],
+  name: "mamen",
+  host: SITE_HOST,
+  paths: [APP_BASE_PATH, API_PATH, UPLOADS_PATH],
 };
 
 /** Whether `path` falls under `prefix`, by whole segments. */
 const under = (prefix: string, path: string): boolean =>
-	prefix === SITE_ROOT || path === prefix || path.startsWith(`${prefix}/`);
+  prefix === SITE_ROOT || path === prefix || path.startsWith(`${prefix}/`);
 
 /**
  * The container that answers `path`, by longest matching prefix. Segment-aware:
@@ -132,11 +130,11 @@ const under = (prefix: string, path: string): boolean =>
  * nginx `location` is slashed and its bare prefix gets an exact match instead.
  */
 export function containerFor(path: string): ContainerName {
-	const match = [...ROUTES]
-		.filter((route) => under(route.path, path))
-		.sort((a, b) => b.path.length - a.path.length)[0];
+  const match = [...ROUTES]
+    .filter((route) => under(route.path, path))
+    .sort((a, b) => b.path.length - a.path.length)[0];
 
-	return match?.container ?? "landing-page";
+  return match?.container ?? "landing-page";
 }
 
 /**
@@ -146,4 +144,4 @@ export function containerFor(path: string): ContainerName {
  * than as two spellings of the same list.
  */
 export const isBehindAccess = (path: string): boolean =>
-	ACCESS_APPLICATION.paths.some((prefix) => under(prefix, path));
+  ACCESS_APPLICATION.paths.some((prefix) => under(prefix, path));

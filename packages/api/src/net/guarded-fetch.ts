@@ -53,13 +53,11 @@ export const FETCH_TIMEOUT = Duration.seconds(10);
 const OVERSIZED = Symbol("oversized");
 
 const refuse = (reason: typeof ImageFetchRefused.Type.reason) =>
-	Effect.fail(new ImageFetchRefused({ reason }));
+  Effect.fail(new ImageFetchRefused({ reason }));
 
 /** Let go of a body we will not read, so nothing is left draining. */
 const discard = (response: Response) =>
-	Effect.tryPromise(() => response.body?.cancel() ?? Promise.resolve()).pipe(
-		Effect.ignore,
-	);
+  Effect.tryPromise(() => response.body?.cancel() ?? Promise.resolve()).pipe(Effect.ignore);
 
 /**
  * Read a body, refusing it the moment it passes the cap.
@@ -70,104 +68,99 @@ const discard = (response: Response) =>
  * reaches the check.
  */
 const readCapped = (response: Response) =>
-	Effect.tryPromise({
-		try: async (signal) => {
-			if (response.body === null) return new Uint8Array();
-			const reader = response.body.getReader();
-			// Release the body when this effect is interrupted — which is how the
-			// timeout arrives once headers have been received. Interrupting an
-			// Effect abandons the *promise*, it does not stop it: without this the
-			// loop goes on pulling from a socket the caller has already been told
-			// timed out, buffering toward the cap and holding the descriptor for as
-			// long as the sender cares to drip. The connect's own signal cannot do
-			// this job, having already succeeded by the time we get here.
-			//
-			// `response.body.cancel()` is not the way to spell it: the body is
-			// locked to this reader, so it would only throw.
-			signal.addEventListener(
-				"abort",
-				() => void reader.cancel().catch(() => {}),
-			);
-			const chunks: Uint8Array[] = [];
-			let total = 0;
-			while (true) {
-				const { done, value } = await reader.read();
-				if (done) break;
-				total += value.byteLength;
-				if (total > MAX_FETCH_BYTES) {
-					// Tell the producer to stop before unwinding, so the sender is
-					// not left pushing into a stream nobody reads.
-					await reader.cancel();
-					throw OVERSIZED;
-				}
-				chunks.push(value);
-			}
-			const body = new Uint8Array(total);
-			let at = 0;
-			for (const chunk of chunks) {
-				body.set(chunk, at);
-				at += chunk.byteLength;
-			}
-			return body;
-		},
-		catch: (cause) =>
-			new ImageFetchRefused({
-				reason: cause === OVERSIZED ? "too-large" : "unreachable",
-			}),
-	});
+  Effect.tryPromise({
+    try: async (signal) => {
+      if (response.body === null) return new Uint8Array();
+      const reader = response.body.getReader();
+      // Release the body when this effect is interrupted — which is how the
+      // timeout arrives once headers have been received. Interrupting an
+      // Effect abandons the *promise*, it does not stop it: without this the
+      // loop goes on pulling from a socket the caller has already been told
+      // timed out, buffering toward the cap and holding the descriptor for as
+      // long as the sender cares to drip. The connect's own signal cannot do
+      // this job, having already succeeded by the time we get here.
+      //
+      // `response.body.cancel()` is not the way to spell it: the body is
+      // locked to this reader, so it would only throw.
+      signal.addEventListener("abort", () => void reader.cancel().catch(() => {}));
+      const chunks: Uint8Array[] = [];
+      let total = 0;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        total += value.byteLength;
+        if (total > MAX_FETCH_BYTES) {
+          // Tell the producer to stop before unwinding, so the sender is
+          // not left pushing into a stream nobody reads.
+          await reader.cancel();
+          throw OVERSIZED;
+        }
+        chunks.push(value);
+      }
+      const body = new Uint8Array(total);
+      let at = 0;
+      for (const chunk of chunks) {
+        body.set(chunk, at);
+        at += chunk.byteLength;
+      }
+      return body;
+    },
+    catch: (cause) =>
+      new ImageFetchRefused({
+        reason: cause === OVERSIZED ? "too-large" : "unreachable",
+      }),
+  });
 
-export const fetchGuarded = (
-	raw: string,
-): Effect.Effect<Uint8Array, ImageFetchRefused, Outbound> =>
-	Effect.gen(function* () {
-		const outbound = yield* Outbound;
-		let target = raw;
+export const fetchGuarded = (raw: string): Effect.Effect<Uint8Array, ImageFetchRefused, Outbound> =>
+  Effect.gen(function* () {
+    const outbound = yield* Outbound;
+    let target = raw;
 
-		for (let hop = 0; ; hop++) {
-			// Re-run on every iteration, not once before the loop: this is what
-			// makes each redirect target as untrusted as the URL the caller sent.
-			const url = yield* assertPublicUrl(target);
+    for (let hop = 0; ; hop++) {
+      // Re-run on every iteration, not once before the loop: this is what
+      // makes each redirect target as untrusted as the URL the caller sent.
+      const url = yield* assertPublicUrl(target);
 
-			const response = yield* Effect.tryPromise({
-				// `redirect: "manual"` is load-bearing. Left to follow, the platform
-				// would chase the chain inside this one call and every check above
-				// would apply only to the first URL.
-				try: (signal) =>
-					outbound.fetch(url.href, {
-						redirect: "manual",
-						signal,
-						headers: { accept: "image/*" },
-					}),
-				catch: () => new ImageFetchRefused({ reason: "unreachable" }),
-			});
+      const response = yield* Effect.tryPromise({
+        // `redirect: "manual"` is load-bearing. Left to follow, the platform
+        // would chase the chain inside this one call and every check above
+        // would apply only to the first URL.
+        try: (signal) =>
+          outbound.fetch(url.href, {
+            redirect: "manual",
+            signal,
+            headers: { accept: "image/*" },
+          }),
+        catch: () => new ImageFetchRefused({ reason: "unreachable" }),
+      });
 
-			if (response.status >= 300 && response.status < 400) {
-				const location = response.headers.get("location");
-				yield* discard(response);
-				if (location === null) return yield* refuse("unreachable");
-				if (hop === MAX_REDIRECTS) return yield* refuse("too-many-redirects");
-				// Relative targets are legal and common; resolve against the hop
-				// that sent them.
-				target = yield* Effect.try({
-					try: () => new URL(location, url).href,
-					catch: () => new ImageFetchRefused({ reason: "invalid-url" }),
-				});
-				continue;
-			}
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get("location");
+        yield* discard(response);
+        if (location === null) return yield* refuse("unreachable");
+        if (hop === MAX_REDIRECTS) return yield* refuse("too-many-redirects");
+        // Relative targets are legal and common; resolve against the hop
+        // that sent them.
+        target = yield* Effect.try({
+          try: () => new URL(location, url).href,
+          catch: () => new ImageFetchRefused({ reason: "invalid-url" }),
+        });
+        continue;
+      }
 
-			if (!response.ok) {
-				yield* discard(response);
-				return yield* refuse("unreachable");
-			}
+      if (!response.ok) {
+        yield* discard(response);
+        return yield* refuse("unreachable");
+      }
 
-			return yield* readCapped(response);
-		}
-	}).pipe(
-		// Wraps the read as well as the connect: a host that sends headers and
-		// then drips one byte an hour holds the request open just as effectively
-		// as one that never answers.
-		Effect.timeoutFail({
-			duration: FETCH_TIMEOUT,
-			onTimeout: () => new ImageFetchRefused({ reason: "timeout" }),
-		}),
-	);
+      return yield* readCapped(response);
+    }
+  }).pipe(
+    // Wraps the read as well as the connect: a host that sends headers and
+    // then drips one byte an hour holds the request open just as effectively
+    // as one that never answers.
+    Effect.timeoutFail({
+      duration: FETCH_TIMEOUT,
+      onTimeout: () => new ImageFetchRefused({ reason: "timeout" }),
+    }),
+  );

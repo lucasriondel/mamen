@@ -31,61 +31,61 @@ import { describe, expect, it } from "vitest";
 const read = (path: string) => readFileSync(path, "utf8");
 
 type ComponentsJson = {
-	style: string;
-	aliases: Record<string, string>;
-	registries: Record<string, string>;
+  style: string;
+  aliases: Record<string, string>;
+  registries: Record<string, string>;
 };
 
 const config = JSON.parse(read("components.json")) as ComponentsJson;
 const manifest = JSON.parse(read("package.json")) as {
-	dependencies: Record<string, string>;
+  dependencies: Record<string, string>;
 };
 
 /** The prefix every Base UI variant of the stock registry carries. */
 const BASE_UI_FAMILY = "base-";
 
 describe("the declared style", () => {
-	it("is the Base UI variant miel uses", () => {
-		expect(config.style).toBe("base-nova");
-	});
+  it("is the Base UI variant miel uses", () => {
+    expect(config.style).toBe("base-nova");
+  });
 
-	it("is in the same family as the primitive system mamen installs", () => {
-		// The tie is the point: reverting the style while the dependency stays
-		// would leave `shadcn add` emitting source for a library this repo does
-		// not have, which is how the second primitive system came back.
-		expect(config.style.startsWith(BASE_UI_FAMILY)).toBe(true);
-		expect(manifest.dependencies).toHaveProperty("@base-ui-components/react");
-	});
+  it("is in the same family as the primitive system mamen installs", () => {
+    // The tie is the point: reverting the style while the dependency stays
+    // would leave `shadcn add` emitting source for a library this repo does
+    // not have, which is how the second primitive system came back.
+    expect(config.style.startsWith(BASE_UI_FAMILY)).toBe(true);
+    expect(manifest.dependencies).toHaveProperty("@base-ui-components/react");
+  });
 });
 
 describe("the pull targets", () => {
-	it("declares the @gousse namespace and nothing else", () => {
-		expect(config.registries).toStrictEqual({
-			"@gousse": "https://lucasriondel.github.io/gousse-ui/r/{name}.json",
-		});
-	});
+  it("declares the @gousse namespace and nothing else", () => {
+    expect(config.registries).toStrictEqual({
+      "@gousse": "https://lucasriondel.github.io/gousse-ui/r/{name}.json",
+    });
+  });
 
-	it("keeps every alias the vendored source was installed against", () => {
-		expect(config.aliases).toStrictEqual({
-			components: "@/components",
-			utils: "@/lib/utils",
-			ui: "@/components/ui",
-			lib: "@/lib",
-			hooks: "@/hooks",
-		});
-	});
+  it("keeps every alias the vendored source was installed against", () => {
+    expect(config.aliases).toStrictEqual({
+      components: "@/components",
+      utils: "@/lib/utils",
+      ui: "@/components/ui",
+      lib: "@/lib",
+      hooks: "@/hooks",
+    });
+  });
 
-	it("resolves the ui and utils aliases onto the vendored source itself", () => {
-		// The aliases a re-install writes through, checked against where that
-		// source actually sits — `shadcn add @gousse/sidebar` overwrites
-		// `sidebar.tsx` in place, and every vendored component imports `cn` from
-		// the `utils` alias. (`hooks` names no directory yet; the CLI creates one
-		// the first time an item needs it, so it is not asserted here.)
-		const ui = config.aliases.ui.replace(/^@\//, "src/");
-		const utils = config.aliases.utils.replace(/^@\//, "src/");
+  it("resolves the ui and utils aliases onto the vendored source itself", () => {
+    // The aliases a re-install writes through, checked against where that
+    // source actually sits — `shadcn add @gousse/sidebar` overwrites
+    // `sidebar.tsx` in place, and every vendored component imports `cn` from
+    // the `utils` alias. (`hooks` names no directory yet; the CLI creates one
+    // the first time an item needs it, so it is not asserted here.)
+    const ui = config.aliases.ui.replace(/^@\//, "src/");
+    const utils = config.aliases.utils.replace(/^@\//, "src/");
 
-		expect(existsSync(`${ui}/sidebar.tsx`)).toBe(true);
-		expect(existsSync(`${ui}/button.tsx`)).toBe(true);
-		expect(existsSync(`${utils}.ts`)).toBe(true);
-	});
+    expect(existsSync(`${ui}/sidebar.tsx`)).toBe(true);
+    expect(existsSync(`${ui}/button.tsx`)).toBe(true);
+    expect(existsSync(`${utils}.ts`)).toBe(true);
+  });
 });

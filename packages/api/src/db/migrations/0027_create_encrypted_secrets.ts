@@ -28,7 +28,7 @@ import { Effect } from "effect";
  * crypto module's business and not the schema's.
  */
 export default Effect.flatMap(SqlClient.SqlClient, (sql) =>
-	sql`CREATE TABLE IF NOT EXISTS encrypted_secrets (
+  sql`CREATE TABLE IF NOT EXISTS encrypted_secrets (
 			name TEXT PRIMARY KEY,
 			ciphertext TEXT NOT NULL,
 			updatedAt TEXT NOT NULL

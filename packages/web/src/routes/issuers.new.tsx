@@ -7,5 +7,5 @@ import { CreateIssuerPage } from "@/features/issuers/create-issuer-page";
  * two never collide.
  */
 export const Route = createFileRoute("/issuers/new")({
-	component: CreateIssuerPage,
+  component: CreateIssuerPage,
 });

@@ -18,9 +18,7 @@ import type { Completion } from "./close-issue.ts";
 import type { PlannedIssue } from "./plan.ts";
 
 /** How an issue came to be finished. */
-export type CompletionKind =
-  | { via: "merged" }
-  | { via: "closed"; completion: Completion };
+export type CompletionKind = { via: "merged" } | { via: "closed"; completion: Completion };
 
 /** One finished issue, as it will appear in the end-of-run summary. */
 export interface CompletedEntry {
@@ -43,9 +41,7 @@ export interface CompletedEntry {
  */
 export async function resolveRepoUrl(): Promise<string | null> {
   try {
-    const result = await Bun.$`gh repo view --json url -q .url`
-      .quiet()
-      .nothrow();
+    const result = await Bun.$`gh repo view --json url -q .url`.quiet().nothrow();
     if (result.exitCode !== 0) return null;
 
     const url = result.stdout.toString().trim();
@@ -81,11 +77,7 @@ function issueUrl(repoUrl: string | null, id: string): string | null {
 export function createRunSummary(repoUrl: string | null) {
   const entries: CompletedEntry[] = [];
 
-  function push(
-    issue: PlannedIssue,
-    iteration: number,
-    kind: CompletionKind,
-  ): void {
+  function push(issue: PlannedIssue, iteration: number, kind: CompletionKind): void {
     entries.push({
       issue,
       iteration,
@@ -105,11 +97,7 @@ export function createRunSummary(repoUrl: string | null) {
      * new commits. The `Completion` is kept so the summary can distinguish work
      * that was already finished from a branch that carried nothing.
      */
-    addClosed(
-      issue: PlannedIssue,
-      iteration: number,
-      completion: Completion,
-    ): void {
+    addClosed(issue: PlannedIssue, iteration: number, completion: Completion): void {
       push(issue, iteration, { via: "closed", completion });
     },
 

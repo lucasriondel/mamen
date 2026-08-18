@@ -85,38 +85,22 @@ export async function checkConfigFreshness(): Promise<void> {
 
   // Resolve the branch's configured upstream (e.g. "origin/main"). A branch
   // that was never pushed has none, and there is nothing to be behind.
-  const upstream = await git(
-    "rev-parse",
-    "--abbrev-ref",
-    "--symbolic-full-name",
-    "@{u}",
-  );
+  const upstream = await git("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}");
   if (!upstream) {
-    console.log(
-      `${label} ${dim(`· branch ${branch} has no upstream, skipping freshness check`)}`,
-    );
+    console.log(`${label} ${dim(`· branch ${branch} has no upstream, skipping freshness check`)}`);
     return;
   }
 
   const remote = upstream.split("/")[0] ?? "origin";
   if (!(await fetchWithTimeout(remote))) {
-    console.log(
-      `${yellow("⚠")} ${label} ${dim(`· could not reach ${remote}, freshness unknown`)}`,
-    );
+    console.log(`${yellow("⚠")} ${label} ${dim(`· could not reach ${remote}, freshness unknown`)}`);
     return;
   }
 
   // Left/right counts: commits we have that upstream lacks, and vice versa.
-  const counts = await git(
-    "rev-list",
-    "--left-right",
-    "--count",
-    `HEAD...${upstream}`,
-  );
+  const counts = await git("rev-list", "--left-right", "--count", `HEAD...${upstream}`);
   if (!counts) {
-    console.log(
-      `${yellow("⚠")} ${label} ${dim("· could not compare with upstream")}`,
-    );
+    console.log(`${yellow("⚠")} ${label} ${dim("· could not compare with upstream")}`);
     return;
   }
 
@@ -146,9 +130,7 @@ export async function checkConfigFreshness(): Promise<void> {
   if (ahead > 0) {
     const commit = ahead === 1 ? "commit" : "commits";
     console.log(
-      `${yellow("⚠")} ${label} ${yellow(
-        `has ${ahead} local ${commit} not on ${upstream}`,
-      )}`,
+      `${yellow("⚠")} ${label} ${yellow(`has ${ahead} local ${commit} not on ${upstream}`)}`,
     );
   }
 
@@ -157,8 +139,6 @@ export async function checkConfigFreshness(): Promise<void> {
   if (dirty) {
     const files = dirty.split("\n").filter(Boolean).length;
     const file = files === 1 ? "file" : "files";
-    console.log(
-      `${yellow("⚠")} ${label} ${yellow(`has ${files} uncommitted ${file}`)}`,
-    );
+    console.log(`${yellow("⚠")} ${label} ${yellow(`has ${files} uncommitted ${file}`)}`);
   }
 }

@@ -8,24 +8,15 @@ import { accountQueries } from "@/lib/sdk";
 import { AccountCard } from "./account-card";
 import { AccountsListSkeleton } from "./accounts-list-skeleton";
 import { AddAccountTile } from "./add-account-tile";
-import {
-	availableYears,
-	type MonthKey,
-	monthCells,
-	monthKey,
-} from "./month-grid";
-import {
-	type ImportedMonths,
-	importedKey,
-	useImportedMonths,
-} from "./use-imported-months";
+import { availableYears, type MonthKey, monthCells, monthKey } from "./month-grid";
+import { type ImportedMonths, importedKey, useImportedMonths } from "./use-imported-months";
 
 /** The `YYYY-MM` and year for a given instant. */
 function nowMonth(now: Date): { month: MonthKey; year: number } {
-	return {
-		month: monthKey(now.getFullYear(), now.getMonth() + 1),
-		year: now.getFullYear(),
-	};
+  return {
+    month: monthKey(now.getFullYear(), now.getMonth() + 1),
+    year: now.getFullYear(),
+  };
 }
 
 /**
@@ -51,109 +42,96 @@ function nowMonth(now: Date): { month: MonthKey; year: number } {
  * above the list instead of replacing it.
  */
 export function AccountsView({
-	now = new Date(),
+  now = new Date(),
 }: {
-	/** The reference instant for "past vs current vs future" — injectable in tests. */
-	now?: Date;
+  /** The reference instant for "past vs current vs future" — injectable in tests. */
+  now?: Date;
 }) {
-	const { month: currentMonth, year: currentYear } = nowMonth(now);
-	const accountsQuery = useQuery(accountQueries.list());
-	const imported = useImportedMonths();
+  const { month: currentMonth, year: currentYear } = nowMonth(now);
+  const accountsQuery = useQuery(accountQueries.list());
+  const imported = useImportedMonths();
 
-	const [year, setYear] = useState(currentYear);
+  const [year, setYear] = useState(currentYear);
 
-	const years = useMemo(
-		() => availableYears(imported.months, currentYear),
-		[imported.months, currentYear],
-	);
+  const years = useMemo(
+    () => availableYears(imported.months, currentYear),
+    [imported.months, currentYear],
+  );
 
-	const hasAccounts = (accountsQuery.data?.items.length ?? 0) > 0;
+  const hasAccounts = (accountsQuery.data?.items.length ?? 0) > 0;
 
-	return (
-		<PageLayout
-			title="Accounts"
-			description="The accounts your statements belong to. Drop a statement on a month to import it."
-			className="mx-auto max-w-4xl gap-6"
-			actions={
-				// Nothing to page over until there is a strip to move: with no accounts
-				// the pager would be a control over an empty page.
-				hasAccounts ? (
-					<YearPager years={years} value={year} onChange={setYear} />
-				) : undefined
-			}
-		>
-			{imported.isError ? (
-				<p role="alert" className="text-gousse-high text-sm">
-					Couldn't load your import history — imported months may not be marked.
-				</p>
-			) : null}
+  return (
+    <PageLayout
+      title="Accounts"
+      description="The accounts your statements belong to. Drop a statement on a month to import it."
+      className="mx-auto max-w-4xl gap-6"
+      actions={
+        // Nothing to page over until there is a strip to move: with no accounts
+        // the pager would be a control over an empty page.
+        hasAccounts ? <YearPager years={years} value={year} onChange={setYear} /> : undefined
+      }
+    >
+      {imported.isError ? (
+        <p role="alert" className="text-gousse-high text-sm">
+          Couldn't load your import history — imported months may not be marked.
+        </p>
+      ) : null}
 
-			<AccountsList
-				query={accountsQuery}
-				year={year}
-				currentMonth={currentMonth}
-				imported={imported}
-			/>
-		</PageLayout>
-	);
+      <AccountsList
+        query={accountsQuery}
+        year={year}
+        currentMonth={currentMonth}
+        imported={imported}
+      />
+    </PageLayout>
+  );
 }
 
 /** Body of the view: loading / error / list, driven by the list query. */
 function AccountsList({
-	query,
-	year,
-	currentMonth,
-	imported,
+  query,
+  year,
+  currentMonth,
+  imported,
 }: {
-	query: UseQueryResult<{ items: readonly Account[]; total: number }>;
-	year: number;
-	currentMonth: MonthKey;
-	imported: ImportedMonths;
+  query: UseQueryResult<{ items: readonly Account[]; total: number }>;
+  year: number;
+  currentMonth: MonthKey;
+  imported: ImportedMonths;
 }) {
-	if (query.isPending) {
-		return <AccountsListSkeleton />;
-	}
+  if (query.isPending) {
+    return <AccountsListSkeleton />;
+  }
 
-	if (query.isError) {
-		return (
-			<div className="rounded-2xl border border-gousse-line bg-gousse-panel p-6 text-center">
-				<p className="font-medium text-gousse-ink">
-					Couldn't load your accounts.
-				</p>
-				<Button
-					variant="secondary"
-					size="sm"
-					className="mt-3"
-					onClick={() => query.refetch()}
-				>
-					Try again
-				</Button>
-			</div>
-		);
-	}
+  if (query.isError) {
+    return (
+      <div className="rounded-2xl border border-gousse-line bg-gousse-panel p-6 text-center">
+        <p className="font-medium text-gousse-ink">Couldn't load your accounts.</p>
+        <Button variant="secondary" size="sm" className="mt-3" onClick={() => query.refetch()}>
+          Try again
+        </Button>
+      </div>
+    );
+  }
 
-	return (
-		<ul className="flex flex-col gap-3">
-			{query.data.items.map((account) => (
-				<AccountCard
-					key={account.id}
-					account={account}
-					year={year}
-					cells={monthCells(year, currentMonth, (month) =>
-						imported.pairs.has(importedKey(account.id, month)),
-					)}
-				/>
-			))}
-			{/* The tile is the empty state too: with no accounts it is the only thing
-			    on the page, which is exactly the one thing to do next — so it names
-			    that, rather than offering "another" of something there is none of. */}
-			<AddAccountTile
-				label={
-					query.data.items.length === 0
-						? "Add your first account"
-						: "Add another account"
-				}
-			/>
-		</ul>
-	);
+  return (
+    <ul className="flex flex-col gap-3">
+      {query.data.items.map((account) => (
+        <AccountCard
+          key={account.id}
+          account={account}
+          year={year}
+          cells={monthCells(year, currentMonth, (month) =>
+            imported.pairs.has(importedKey(account.id, month)),
+          )}
+        />
+      ))}
+      {/* The tile is the empty state too: with no accounts it is the only thing
+          on the page, which is exactly the one thing to do next — so it names
+          that, rather than offering "another" of something there is none of. */}
+      <AddAccountTile
+        label={query.data.items.length === 0 ? "Add your first account" : "Add another account"}
+      />
+    </ul>
+  );
 }

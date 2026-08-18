@@ -1,9 +1,9 @@
 import {
-	createMemoryHistory,
-	createRootRoute,
-	createRoute,
-	createRouter,
-	RouterProvider,
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  RouterProvider,
 } from "@tanstack/react-router";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -22,285 +22,256 @@ const ISSUERS = [{ id: 10, name: "Carrefour" }];
 // (id 1) merges {5, 6}; a leaf page (id 5) is {5}; the deep folder page (id 2)
 // descends past Utilities to the depth-3 leaf and merges {7, 9}.
 const CATEGORIES = [
-	{ id: 1, name: "Food", slug: "food", parentId: null, sortOrder: 0 },
-	{ id: 2, name: "Home", slug: "home", parentId: null, sortOrder: 1 },
-	{ id: 5, name: "Groceries", slug: "groceries", parentId: 1, sortOrder: 0 },
-	{
-		id: 6,
-		name: "Restaurants",
-		slug: "restaurants",
-		parentId: 1,
-		sortOrder: 1,
-	},
-	{ id: 7, name: "Rent", slug: "rent", parentId: 2, sortOrder: 0 },
-	{ id: 8, name: "Utilities", slug: "utilities", parentId: 2, sortOrder: 1 },
-	{
-		id: 9,
-		name: "Electricity",
-		slug: "electricity",
-		parentId: 8,
-		sortOrder: 0,
-	},
+  { id: 1, name: "Food", slug: "food", parentId: null, sortOrder: 0 },
+  { id: 2, name: "Home", slug: "home", parentId: null, sortOrder: 1 },
+  { id: 5, name: "Groceries", slug: "groceries", parentId: 1, sortOrder: 0 },
+  {
+    id: 6,
+    name: "Restaurants",
+    slug: "restaurants",
+    parentId: 1,
+    sortOrder: 1,
+  },
+  { id: 7, name: "Rent", slug: "rent", parentId: 2, sortOrder: 0 },
+  { id: 8, name: "Utilities", slug: "utilities", parentId: 2, sortOrder: 1 },
+  {
+    id: 9,
+    name: "Electricity",
+    slug: "electricity",
+    parentId: 8,
+    sortOrder: 0,
+  },
 ];
 
 const TXNS = [
-	{
-		id: 100,
-		accountId: 1,
-		date: new Date("2026-01-20T00:00:00Z"),
-		amount: -42.5,
-		rawIssuerString: "CARREFOUR 12",
-		issuerId: 10,
-		categoryId: 5,
-		importedAt: new Date(),
-		importMonth: "2026-01",
-	},
+  {
+    id: 100,
+    accountId: 1,
+    date: new Date("2026-01-20T00:00:00Z"),
+    amount: -42.5,
+    rawIssuerString: "CARREFOUR 12",
+    issuerId: 10,
+    categoryId: 5,
+    importedAt: new Date(),
+    importMonth: "2026-01",
+  },
 ];
 
 // ---- SDK seam mock ----------------------------------------------------------
 
 const listMock = vi.fn((params: Record<string, unknown>) => ({
-	queryKey: ["transactions", "list", params],
-	queryFn: async () => ({ items: TXNS, total: TXNS.length }),
+  queryKey: ["transactions", "list", params],
+  queryFn: async () => ({ items: TXNS, total: TXNS.length }),
 }));
 
 const countMock = vi.fn((params: Record<string, unknown>) => ({
-	queryKey: ["transactions", "count", params],
-	// A signed net total over the whole filtered set.
-	queryFn: async () => ({ count: TXNS.length, total: -42.5 }),
+  queryKey: ["transactions", "count", params],
+  // A signed net total over the whole filtered set.
+  queryFn: async () => ({ count: TXNS.length, total: -42.5 }),
 }));
 
 vi.mock("@mamen/sdk", () => ({
-	transactionQueries: {
-		// The shared transfer-suggestion read (issue #91) — every transactions table
-		// asks for it to mark its rows. Nothing here is a candidate.
-		transferCandidates: () => ({
-			queryKey: ["transactions", "transfer-candidates"],
-			queryFn: async () => [],
-		}),
-		list: (p: Record<string, unknown> = {}) => listMock(p),
-		count: (p: Record<string, unknown> = {}) => countMock(p),
-	},
-	accountQueries: {
-		list: () => ({
-			queryKey: ["accounts", "list"],
-			queryFn: async () => ({ items: ACCOUNTS, total: ACCOUNTS.length }),
-		}),
-	},
-	issuerQueries: {
-		list: () => ({
-			queryKey: ["issuers", "list"],
-			queryFn: async () => ({ items: ISSUERS, total: ISSUERS.length }),
-		}),
-		// The picker read: a name search over the whole set, like the server (#79).
-		searchByName: (term: string) => ({
-			queryKey: ["issuers", "search", term.trim()],
-			queryFn: async () => {
-				const items = ISSUERS.filter((i) =>
-					i.name.toLowerCase().includes(term.trim().toLowerCase()),
-				);
-				return { items, total: items.length };
-			},
-		}),
-		// The resolution read: exactly the ids asked for, nothing else (#62).
-		byIds: (ids: Iterable<number>) => {
-			const wanted = [...new Set(ids)].sort((a, b) => a - b);
-			return {
-				queryKey: ["issuers", "by-ids", wanted],
-				queryFn: async () => {
-					const items = ISSUERS.filter((i) => wanted.includes(i.id));
-					return { items, total: items.length };
-				},
-			};
-		},
-	},
-	categoryQueries: {
-		list: () => ({
-			queryKey: ["categories", "list"],
-			queryFn: async () => ({ items: CATEGORIES, total: CATEGORIES.length }),
-		}),
-	},
-	accountKeys: {},
-	accountMutations: {},
-	issuerKeys: {},
-	issuerMutations: {},
-	categoryKeys: {},
-	categoryMutations: {},
-	transactionKeys: {},
-	transactionMutations: {},
+  transactionQueries: {
+    // The shared transfer-suggestion read (issue #91) — every transactions table
+    // asks for it to mark its rows. Nothing here is a candidate.
+    transferCandidates: () => ({
+      queryKey: ["transactions", "transfer-candidates"],
+      queryFn: async () => [],
+    }),
+    list: (p: Record<string, unknown> = {}) => listMock(p),
+    count: (p: Record<string, unknown> = {}) => countMock(p),
+  },
+  accountQueries: {
+    list: () => ({
+      queryKey: ["accounts", "list"],
+      queryFn: async () => ({ items: ACCOUNTS, total: ACCOUNTS.length }),
+    }),
+  },
+  issuerQueries: {
+    list: () => ({
+      queryKey: ["issuers", "list"],
+      queryFn: async () => ({ items: ISSUERS, total: ISSUERS.length }),
+    }),
+    // The picker read: a name search over the whole set, like the server (#79).
+    searchByName: (term: string) => ({
+      queryKey: ["issuers", "search", term.trim()],
+      queryFn: async () => {
+        const items = ISSUERS.filter((i) =>
+          i.name.toLowerCase().includes(term.trim().toLowerCase()),
+        );
+        return { items, total: items.length };
+      },
+    }),
+    // The resolution read: exactly the ids asked for, nothing else (#62).
+    byIds: (ids: Iterable<number>) => {
+      const wanted = [...new Set(ids)].sort((a, b) => a - b);
+      return {
+        queryKey: ["issuers", "by-ids", wanted],
+        queryFn: async () => {
+          const items = ISSUERS.filter((i) => wanted.includes(i.id));
+          return { items, total: items.length };
+        },
+      };
+    },
+  },
+  categoryQueries: {
+    list: () => ({
+      queryKey: ["categories", "list"],
+      queryFn: async () => ({ items: CATEGORIES, total: CATEGORIES.length }),
+    }),
+  },
+  accountKeys: {},
+  accountMutations: {},
+  issuerKeys: {},
+  issuerMutations: {},
+  categoryKeys: {},
+  categoryMutations: {},
+  transactionKeys: {},
+  transactionMutations: {},
 }));
 
 // ---- Router harness ---------------------------------------------------------
 
 function makeRouter(initialEntry: string) {
-	const rootRoute = createRootRoute();
-	const categoriesRoute = createRoute({
-		getParentRoute: () => rootRoute,
-		path: "/categories",
-	});
-	const categoryRoute = createRoute({
-		getParentRoute: () => categoriesRoute,
-		path: "/$categoryId",
-		validateSearch: validateTransactionsSearch,
-		component: CategoryTransactionsView,
-	});
-	return createRouter({
-		routeTree: rootRoute.addChildren([
-			categoriesRoute.addChildren([categoryRoute]),
-		]),
-		history: createMemoryHistory({ initialEntries: [initialEntry] }),
-	});
+  const rootRoute = createRootRoute();
+  const categoriesRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/categories",
+  });
+  const categoryRoute = createRoute({
+    getParentRoute: () => categoriesRoute,
+    path: "/$categoryId",
+    validateSearch: validateTransactionsSearch,
+    component: CategoryTransactionsView,
+  });
+  return createRouter({
+    routeTree: rootRoute.addChildren([categoriesRoute.addChildren([categoryRoute])]),
+    history: createMemoryHistory({ initialEntries: [initialEntry] }),
+  });
 }
 
 async function renderView(initialEntry: string, value = OPEN_SHELL) {
-	const router = makeRouter(initialEntry);
-	render(withShell(<RouterProvider router={router} />, value));
-	return router;
+  const router = makeRouter(initialEntry);
+  render(withShell(<RouterProvider router={router} />, value));
+  return router;
 }
 
 beforeEach(() => {
-	listMock.mockClear();
-	countMock.mockClear();
+  listMock.mockClear();
+  countMock.mockClear();
 });
 
 describe("CategoryTransactionsView", () => {
-	// This page hand-rolled its own header and so rendered no trigger at all: a
-	// drill-down was a place a collapsed sidebar could not be re-opened from
-	// (issue #129). Its title, its way back and its total go through the shared
-	// layout now.
-	it("offers the sidebar-reopen trigger while the panel is collapsed", async () => {
-		await renderView("/categories/5", COLLAPSED_SHELL);
+  // This page hand-rolled its own header and so rendered no trigger at all: a
+  // drill-down was a place a collapsed sidebar could not be re-opened from
+  // (issue #129). Its title, its way back and its total go through the shared
+  // layout now.
+  it("offers the sidebar-reopen trigger while the panel is collapsed", async () => {
+    await renderView("/categories/5", COLLAPSED_SHELL);
 
-		expect(
-			await screen.findByRole("button", { name: "Open sidebar" }),
-		).toBeInTheDocument();
-	});
+    expect(await screen.findByRole("button", { name: "Open sidebar" })).toBeInTheDocument();
+  });
 
-	it("keeps the way back and the total in the topbar with the name", async () => {
-		await renderView("/categories/5");
+  it("keeps the way back and the total in the topbar with the name", async () => {
+    await renderView("/categories/5");
 
-		const topbar = (
-			await screen.findByRole("heading", { name: /Groceries/ })
-		).closest("header") as HTMLElement;
-		expect(
-			within(topbar).getByRole("link", { name: /Categories/ }),
-		).toBeInTheDocument();
-		await waitFor(() =>
-			expect(within(topbar).getByLabelText("Category total")).toHaveTextContent(
-				/-42,50/,
-			),
-		);
-	});
+    const topbar = (await screen.findByRole("heading", { name: /Groceries/ })).closest(
+      "header",
+    ) as HTMLElement;
+    expect(within(topbar).getByRole("link", { name: /Categories/ })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(within(topbar).getByLabelText("Category total")).toHaveTextContent(/-42,50/),
+    );
+  });
 
-	it("a leaf page filters by its own id and shows the total", async () => {
-		await renderView("/categories/5");
+  it("a leaf page filters by its own id and shows the total", async () => {
+    await renderView("/categories/5");
 
-		// The leaf's name heads the page.
-		expect(
-			await screen.findByRole("heading", { name: /Groceries/ }),
-		).toBeInTheDocument();
+    // The leaf's name heads the page.
+    expect(await screen.findByRole("heading", { name: /Groceries/ })).toBeInTheDocument();
 
-		// The list and count are both scoped to exactly this leaf.
-		expect(listMock).toHaveBeenCalledWith(
-			expect.objectContaining({ categoryId: [5], orderBy: "date" }),
-		);
-		expect(countMock).toHaveBeenCalledWith(
-			expect.objectContaining({ categoryId: [5] }),
-		);
+    // The list and count are both scoped to exactly this leaf.
+    expect(listMock).toHaveBeenCalledWith(
+      expect.objectContaining({ categoryId: [5], orderBy: "date" }),
+    );
+    expect(countMock).toHaveBeenCalledWith(expect.objectContaining({ categoryId: [5] }));
 
-		// The signed net total from the count response is shown (it resolves async).
-		await waitFor(() =>
-			expect(screen.getByLabelText("Category total")).toHaveTextContent(
-				/-42,50/,
-			),
-		);
-		// And the reused transactions table renders the row.
-		expect(screen.getByText("Carrefour")).toBeInTheDocument();
-	});
+    // The signed net total from the count response is shown (it resolves async).
+    await waitFor(() =>
+      expect(screen.getByLabelText("Category total")).toHaveTextContent(/-42,50/),
+    );
+    // And the reused transactions table renders the row.
+    expect(screen.getByText("Carrefour")).toBeInTheDocument();
+  });
 
-	it("a folder page merges its leaves' ids into one filtered query", async () => {
-		await renderView("/categories/1");
+  it("a folder page merges its leaves' ids into one filtered query", async () => {
+    await renderView("/categories/1");
 
-		expect(
-			await screen.findByRole("heading", { name: /Food/ }),
-		).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /Food/ })).toBeInTheDocument();
 
-		// Food (folder 1) merges its leaves {5, 6} — not the id 1 itself, and not
-		// Home's leaf 7.
-		expect(listMock).toHaveBeenCalledWith(
-			expect.objectContaining({ categoryId: [5, 6] }),
-		);
-		expect(countMock).toHaveBeenCalledWith(
-			expect.objectContaining({ categoryId: [5, 6] }),
-		);
-	});
+    // Food (folder 1) merges its leaves {5, 6} — not the id 1 itself, and not
+    // Home's leaf 7.
+    expect(listMock).toHaveBeenCalledWith(expect.objectContaining({ categoryId: [5, 6] }));
+    expect(countMock).toHaveBeenCalledWith(expect.objectContaining({ categoryId: [5, 6] }));
+  });
 
-	it("a folder page descends its whole subtree to a leaf at any depth", async () => {
-		await renderView("/categories/2");
+  it("a folder page descends its whole subtree to a leaf at any depth", async () => {
+    await renderView("/categories/2");
 
-		expect(
-			await screen.findByRole("heading", { name: /Home/ }),
-		).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /Home/ })).toBeInTheDocument();
 
-		// Home (folder 2) rolls up its direct leaf Rent (7) and, past the
-		// Utilities sub-folder (8), the depth-3 leaf Electricity (9) — one merged
-		// set, one query, with the money at depth 3 not understated. The mid-tier
-		// folder id (8) is never in the set.
-		expect(listMock).toHaveBeenCalledWith(
-			expect.objectContaining({ categoryId: [7, 9] }),
-		);
-		expect(countMock).toHaveBeenCalledWith(
-			expect.objectContaining({ categoryId: [7, 9] }),
-		);
-	});
+    // Home (folder 2) rolls up its direct leaf Rent (7) and, past the
+    // Utilities sub-folder (8), the depth-3 leaf Electricity (9) — one merged
+    // set, one query, with the money at depth 3 not understated. The mid-tier
+    // folder id (8) is never in the set.
+    expect(listMock).toHaveBeenCalledWith(expect.objectContaining({ categoryId: [7, 9] }));
+    expect(countMock).toHaveBeenCalledWith(expect.objectContaining({ categoryId: [7, 9] }));
+  });
 
-	it("carries the account filter from the URL into both queries", async () => {
-		await renderView("/categories/5?accountId=1");
+  it("carries the account filter from the URL into both queries", async () => {
+    await renderView("/categories/5?accountId=1");
 
-		expect(await screen.findByText("Carrefour")).toBeInTheDocument();
-		expect(listMock).toHaveBeenCalledWith(
-			expect.objectContaining({ categoryId: [5], accountId: [1] }),
-		);
-		expect(countMock).toHaveBeenCalledWith(
-			expect.objectContaining({ categoryId: [5], accountId: [1] }),
-		);
-	});
+    expect(await screen.findByText("Carrefour")).toBeInTheDocument();
+    expect(listMock).toHaveBeenCalledWith(
+      expect.objectContaining({ categoryId: [5], accountId: [1] }),
+    );
+    expect(countMock).toHaveBeenCalledWith(
+      expect.objectContaining({ categoryId: [5], accountId: [1] }),
+    );
+  });
 
-	it("carries the search term from the URL into both queries", async () => {
-		await renderView("/categories/5?search=carrefour");
+  it("carries the search term from the URL into both queries", async () => {
+    await renderView("/categories/5?search=carrefour");
 
-		expect(await screen.findByText("Carrefour")).toBeInTheDocument();
-		// The term narrows the rows *and* the header total, so the number can't
-		// describe a wider set than the list beneath it.
-		expect(listMock).toHaveBeenCalledWith(
-			expect.objectContaining({ categoryId: [5], search: "carrefour" }),
-		);
-		expect(countMock).toHaveBeenCalledWith(
-			expect.objectContaining({ categoryId: [5], search: "carrefour" }),
-		);
-	});
+    expect(await screen.findByText("Carrefour")).toBeInTheDocument();
+    // The term narrows the rows *and* the header total, so the number can't
+    // describe a wider set than the list beneath it.
+    expect(listMock).toHaveBeenCalledWith(
+      expect.objectContaining({ categoryId: [5], search: "carrefour" }),
+    );
+    expect(countMock).toHaveBeenCalledWith(
+      expect.objectContaining({ categoryId: [5], search: "carrefour" }),
+    );
+  });
 
-	it("typing in the search box writes the term to the URL", async () => {
-		const user = userEvent.setup();
-		const router = await renderView("/categories/5");
+  it("typing in the search box writes the term to the URL", async () => {
+    const user = userEvent.setup();
+    const router = await renderView("/categories/5");
 
-		await user.type(
-			await screen.findByLabelText("Search transactions"),
-			"carrefour",
-		);
+    await user.type(await screen.findByLabelText("Search transactions"), "carrefour");
 
-		await waitFor(() => {
-			expect(router.state.location.search).toMatchObject({
-				search: "carrefour",
-			});
-		});
-	});
+    await waitFor(() => {
+      expect(router.state.location.search).toMatchObject({
+        search: "carrefour",
+      });
+    });
+  });
 
-	it("shows a not-found state for an unknown category id", async () => {
-		await renderView("/categories/999");
+  it("shows a not-found state for an unknown category id", async () => {
+    await renderView("/categories/999");
 
-		expect(await screen.findByText(/category not found/i)).toBeInTheDocument();
-		// An empty set never fetches (the query is disabled), so no rows show.
-		expect(screen.queryByText("Carrefour")).not.toBeInTheDocument();
-	});
+    expect(await screen.findByText(/category not found/i)).toBeInTheDocument();
+    // An empty set never fetches (the query is disabled), so no rows show.
+    expect(screen.queryByText("Carrefour")).not.toBeInTheDocument();
+  });
 });

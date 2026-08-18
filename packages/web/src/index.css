@@ -44,20 +44,26 @@
  * so the two apps read as one design language. Bare channel triples — the
  * `rgb(var(--gousse-*))` wrapping lives in gousse's theme.css. */
 :root {
-	--gousse-accent: 37 99 235;
+  --gousse-accent: 37 99 235;
 }
 
 .dark {
-	--gousse-accent: 96 165 250;
+  --gousse-accent: 96 165 250;
 }
 
 body {
-	margin: 0;
-	background-color: rgb(var(--gousse-bg));
-	color: rgb(var(--gousse-ink));
-	font-family:
-		system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-	/* Crisper glyph rendering on macOS/WebKit (make-interfaces-feel-better #8). */
-	-webkit-font-smoothing: antialiased;
-	-moz-osx-font-smoothing: grayscale;
+  margin: 0;
+  background-color: rgb(var(--gousse-bg));
+  color: rgb(var(--gousse-ink));
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
+  /* Crisper glyph rendering on macOS/WebKit (make-interfaces-feel-better #8). */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }

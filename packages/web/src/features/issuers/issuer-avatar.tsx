@@ -11,8 +11,8 @@ import { issuerAvatarFallback } from "./avatar-fallback";
  * rather than a clipped one.
  */
 const SIZES = {
-	sm: { chip: "size-6", text: "text-xs", glyph: 14 },
-	lg: { chip: "size-12", text: "text-base", glyph: 26 },
+  sm: { chip: "size-6", text: "text-xs", glyph: 14 },
+  lg: { chip: "size-12", text: "text-base", glyph: 26 },
 } as const;
 
 /**
@@ -24,13 +24,13 @@ const SIZES = {
 const CATEGORY_SCAN_LIMIT = 200;
 
 export interface IssuerAvatarProps {
-	/** Optional issuer image URL (root-relative `/uploads/issuers/…`). */
-	imageUrl?: string;
-	/** The **issuer default category** id — the chain's second rung. */
-	defaultCategoryId?: number | null;
-	/** Visual size: `sm` for table cells and pickers, `lg` for grid cards. */
-	size?: keyof typeof SIZES;
-	className?: string;
+  /** Optional issuer image URL (root-relative `/uploads/issuers/…`). */
+  imageUrl?: string;
+  /** The **issuer default category** id — the chain's second rung. */
+  defaultCategoryId?: number | null;
+  /** Visual size: `sm` for table cells and pickers, `lg` for grid cards. */
+  size?: keyof typeof SIZES;
+  className?: string;
 }
 
 /**
@@ -55,64 +55,64 @@ export interface IssuerAvatarProps {
  * than the seeded *Uncategorised* category.
  */
 export function IssuerAvatar({
-	imageUrl,
-	defaultCategoryId,
-	size = "sm",
-	className,
+  imageUrl,
+  defaultCategoryId,
+  size = "sm",
+  className,
 }: IssuerAvatarProps) {
-	const { chip, text, glyph } = SIZES[size];
-	const needsCategory = imageUrl == null && defaultCategoryId != null;
+  const { chip, text, glyph } = SIZES[size];
+  const needsCategory = imageUrl == null && defaultCategoryId != null;
 
-	const categoriesQuery = useQuery({
-		...categoryQueries.list({ limit: CATEGORY_SCAN_LIMIT }),
-		enabled: needsCategory,
-	});
-	// A disabled query still serves whatever is already cached, so gate the read
-	// on the same flag rather than on `data` — otherwise an issuer with an image
-	// would resolve a fallback it will never paint.
-	const categories = needsCategory
-		? ((categoriesQuery.data?.items ?? []) as readonly Category[])
-		: [];
+  const categoriesQuery = useQuery({
+    ...categoryQueries.list({ limit: CATEGORY_SCAN_LIMIT }),
+    enabled: needsCategory,
+  });
+  // A disabled query still serves whatever is already cached, so gate the read
+  // on the same flag rather than on `data` — otherwise an issuer with an image
+  // would resolve a fallback it will never paint.
+  const categories = needsCategory
+    ? ((categoriesQuery.data?.items ?? []) as readonly Category[])
+    : [];
 
-	const fallback = issuerAvatarFallback(categories, defaultCategoryId);
-	// An issuer that *has* a category has not reached the end of the chain yet
-	// while its tree is in flight. Collapsing that window into the grey `?` would
-	// state "nothing is known here" and then contradict it a tick later — a grid
-	// of imageless issuers popping from a wall of `?` to a wall of colour. Held
-	// apart from "none" so the empty rung stays an answer rather than a default.
-	const state = imageUrl
-		? "image"
-		: fallback
-			? "category"
-			: needsCategory && categoriesQuery.isPending
-				? "pending"
-				: "none";
+  const fallback = issuerAvatarFallback(categories, defaultCategoryId);
+  // An issuer that *has* a category has not reached the end of the chain yet
+  // while its tree is in flight. Collapsing that window into the grey `?` would
+  // state "nothing is known here" and then contradict it a tick later — a grid
+  // of imageless issuers popping from a wall of `?` to a wall of colour. Held
+  // apart from "none" so the empty rung stays an answer rather than a default.
+  const state = imageUrl
+    ? "image"
+    : fallback
+      ? "category"
+      : needsCategory && categoriesQuery.isPending
+        ? "pending"
+        : "none";
 
-	return (
-		<span
-			data-testid="issuer-avatar"
-			data-avatar={state}
-			style={fallback ? { backgroundColor: fallback.color } : undefined}
-			className={cn(
-				// Subtle inset ring keeps a light logo/chip legible against a light
-				// panel — pure black/white at low alpha so it never tints the edge
-				// (make-interfaces-feel-better #11).
-				"flex shrink-0 items-center justify-center overflow-hidden rounded-full font-medium ring-1 ring-black/10 ring-inset dark:ring-white/10",
-				// The neutral rung's own surface; a filled chip overrides it inline.
-				!fallback && "bg-gousse-bg text-gousse-muted",
-				chip,
-				className,
-			)}
-		>
-			{imageUrl ? (
-				<img src={imageUrl} alt="" className="size-full object-cover" />
-			) : fallback ? (
-				<CategoryIcon name={fallback.icon} color={fallback.ink} size={glyph} />
-			) : state === "none" ? (
-				<span aria-hidden className={text}>
-					?
-				</span>
-			) : null}
-		</span>
-	);
+  return (
+    <span
+      data-testid="issuer-avatar"
+      data-avatar={state}
+      style={fallback ? { backgroundColor: fallback.color } : undefined}
+      className={cn(
+        // Subtle inset ring keeps a light logo/chip legible against a light
+        // panel — pure black/white at low alpha so it never tints the edge
+        // (make-interfaces-feel-better #11).
+        "flex shrink-0 items-center justify-center overflow-hidden rounded-full font-medium ring-1 ring-black/10 ring-inset dark:ring-white/10",
+        // The neutral rung's own surface; a filled chip overrides it inline.
+        !fallback && "bg-gousse-bg text-gousse-muted",
+        chip,
+        className,
+      )}
+    >
+      {imageUrl ? (
+        <img src={imageUrl} alt="" className="size-full object-cover" />
+      ) : fallback ? (
+        <CategoryIcon name={fallback.icon} color={fallback.ink} size={glyph} />
+      ) : state === "none" ? (
+        <span aria-hidden className={text}>
+          ?
+        </span>
+      ) : null}
+    </span>
+  );
 }
