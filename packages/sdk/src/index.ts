@@ -36,6 +36,7 @@ export {
 export {
   type BundleImpactParams,
   type RecapParams,
+  type RecapTrendParams,
   type TransactionCountParams,
   type TransactionListParams,
   transactionKeys,

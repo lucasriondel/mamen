@@ -27,6 +27,7 @@ export {
   issuerMutations,
   issuerQueries,
   type RecapParams,
+  type RecapTrendParams,
   type RuleCountParams,
   type RuleListParams,
   ruleKeys,

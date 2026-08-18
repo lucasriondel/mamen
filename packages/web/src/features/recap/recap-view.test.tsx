@@ -1,4 +1,4 @@
-import type { Account, Category, Issuer, RecapSummary } from "@mamen/shared/contract";
+import type { Account, Category, Issuer, RecapSummary, RecapTrend } from "@mamen/shared/contract";
 import {
   createMemoryHistory,
   createRootRoute,
@@ -23,6 +23,8 @@ let monthsList: string[];
 // The summary returned for a given `recap` call, keyed by its params so tests
 // can vary the answer by period / account selection.
 let recapFor: (params: Record<string, unknown>) => RecapSummary;
+// The trend the charts read, keyed by params like `recapFor` above.
+let trendFor: (params: Record<string, unknown>) => RecapTrend;
 
 vi.mock("@mamen/sdk", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@mamen/sdk")>();
@@ -79,6 +81,14 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
         queryKey: ["transactions", "recap-periods"],
         queryFn: async () => ({ months: monthsList }),
       }),
+      // The charts' one request (issue #113). These tests are about the recap's
+      // lists and totals, so the trend answers empty unless a test says
+      // otherwise — the chart row then renders its own empty states and the
+      // assertions below stay about the sections.
+      recapTrend: (params: Record<string, unknown>) => ({
+        queryKey: ["transactions", "recap-trend", params],
+        queryFn: async () => trendFor(params),
+      }),
     },
   };
 });
@@ -126,6 +136,7 @@ beforeEach(() => {
   categoriesList = [category(100, "Shopping"), category(200, "Streaming")];
   monthsList = ["2026-07", "2026-06"];
   recapFor = () => summary();
+  trendFor = () => ({ points: [], byCategory: [] });
 });
 
 describe("RecapView", () => {

@@ -10,6 +10,8 @@ import {
   RecapExcluded,
   RecapIssuerBucket,
   RecapTransfers,
+  RecapTrendCategoryCell,
+  RecapTrendPoint,
   TRANSFER_DATE_WINDOW_DAYS,
   Transaction,
   type TransactionCreate,
@@ -335,6 +337,15 @@ type Filters = {
  * composes.
  */
 type RecapFilter = Pick<Filters, "accountId" | "startDate" | "endDate">;
+
+/**
+ * The **trend** filter (issue #113) — the recap's period and account selection
+ * plus the granularity to bucket by. The extra field is a *grouping* choice, not
+ * a row filter: it never reaches `buildConditions`, which is why the period and
+ * account halves stay a plain {@link RecapFilter} and cannot come to mean
+ * something different here than they do for the recap above.
+ */
+type TrendFilter = RecapFilter & { granularity: "month" | "year" };
 
 /**
  * The half-open ISO bounds `[from, to)` of a `"YYYY-MM"` month — what the
@@ -792,6 +803,73 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()("api/Tran
       Result: RecapExcluded,
       execute: (f) =>
         sql`SELECT COALESCE(SUM(CASE WHEN t.amount < 0 THEN ROUND(-t.amount * 100) ELSE 0 END), 0) / 100.0 AS total, COUNT(*) AS count ${readFrom} WHERE ${sql.and([...buildConditions(f), isRecapExcluded, isNotBundleMember])}`,
+    });
+
+    // The **trend**'s WHERE (issue #113): the caller's filters AND the single
+    // `countsTowardRecap` predicate — and, deliberately, NO sign clause. That
+    // missing `t.amount < 0` is the whole difference between this and
+    // `spendWhere` above: the trend is the one recap read that reports income,
+    // so it must see the credits the breakdowns drop, and it splits them by sign
+    // in the SELECT rather than in the WHERE.
+    //
+    // Which rows *count* is unchanged, through the very same fragment: a
+    // transfer leg is not earnings on the way in any more than it is spending on
+    // the way out, an excluded row is absent from both halves, and a bundle
+    // member is still spoken for by its parent. So the `spent` this returns for
+    // a window sums to exactly what `recap` reports for it — the two cannot
+    // drift, because neither restates the rule.
+    const trendWhere = (f: Filters) =>
+      sql`WHERE ${sql.and([...buildConditions(f), countsTowardRecap])}`;
+
+    // Earnings and spending per time bucket, both as **positive magnitudes** in
+    // integer cents (the same discipline every other money sum here uses — three
+    // 0.10 € rows added as REALs give 0.30000000000000004).
+    //
+    // The bucket key is a `substr` of the ISO `date` TEXT, never a parsed date,
+    // so `"YYYY-MM"` and `"YYYY"` fall straight out of the same column every
+    // period bound is expressed over — the identical derivation
+    // `recapPeriodsQuery` uses for the picker's options. Granularity therefore
+    // costs one prefix length (7 or 4) and nothing else; it is `sql.literal`
+    // because it is a schema-validated enum of two values, never caller text.
+    //
+    // Only buckets holding at least one counted row come back: a gap in the
+    // middle of a range is a real gap, and it is the client that decides whether
+    // to draw it as a zero or a break, since only it knows the axis it is
+    // filling. Ordered **oldest first**, unlike the period picker's newest-first
+    // months, because that is already axis order for the chart that plots it.
+    const recapTrendQuery = SqlSchema.findAll({
+      Request: Schema.Any as Schema.Schema<TrendFilter>,
+      Result: RecapTrendPoint,
+      execute: (f) => {
+        const bucket = sql`substr(t.date, 1, ${sql.literal(f.granularity === "year" ? "4" : "7")})`;
+        return sql`SELECT ${bucket} AS bucket, COALESCE(SUM(CASE WHEN t.amount > 0 THEN ROUND(t.amount * 100) ELSE 0 END), 0) / 100.0 AS earned, COALESCE(SUM(CASE WHEN t.amount < 0 THEN ROUND(-t.amount * 100) ELSE 0 END), 0) / 100.0 AS spent ${readFrom} ${trendWhere(f)} GROUP BY bucket ORDER BY bucket ASC`;
+      },
+    });
+
+    // The **composition** series: spending cut by bucket AND derived category
+    // (ADR 0002), for the stacked view of where a period's money went over time.
+    //
+    // Spend-only — `spendWhere`, not `trendWhere` — because "what was the
+    // spending made of" is a question about debits, and folding credits in would
+    // make a category's band shrink in a month it happened to be refunded in.
+    // That also makes each bucket's cells sum to exactly the `spent` on the
+    // matching trend point, since the two run through the same WHERE.
+    //
+    // Grouped by the derived-category **expression**, not by the `categoryId`
+    // alias above it: SQLite resolves a bare `GROUP BY categoryId` to the table
+    // column `t.categoryId`, which is the STORED category. A row categorised
+    // through its issuer would then group under its stored `NULL` while
+    // reporting the derived id — splitting one category into several rows for
+    // the same bucket, which the client would draw as two bands of one thing.
+    // The by-category breakdown groups by the same expression for the same
+    // reason; `bucket` is safe to name because nothing else is called that.
+    const recapTrendByCategoryQuery = SqlSchema.findAll({
+      Request: Schema.Any as Schema.Schema<TrendFilter>,
+      Result: RecapTrendCategoryCell,
+      execute: (f) => {
+        const bucket = sql`substr(t.date, 1, ${sql.literal(f.granularity === "year" ? "4" : "7")})`;
+        return sql`SELECT ${bucket} AS bucket, ${derivedCategory} AS categoryId, ${spentCents} / 100.0 AS spent ${readFrom} ${spendWhere(f)} GROUP BY bucket, ${derivedCategory} ORDER BY bucket ASC, categoryId`;
+      },
     });
 
     // The months the data covers, newest first — the period picker's options.
@@ -1328,6 +1406,20 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()("api/Tran
         orDieSql,
       );
 
+    /**
+     * Earnings and spending per time bucket (issue #113) — the recap's period,
+     * read as a series rather than as one total.
+     *
+     * A single grouped query, not one read per bucket: the range is bucketed in
+     * SQL by an ISO prefix of the same `date` every recap bound is expressed
+     * over, so adding a year to the window costs no extra round trips.
+     */
+    const recapTrend = (filter: TrendFilter) =>
+      Effect.all({
+        points: recapTrendQuery(filter),
+        byCategory: recapTrendByCategoryQuery(filter),
+      }).pipe(orDieSql);
+
     const getById = (id: typeof TransactionId.Type) =>
       byIdQuery(id).pipe(
         orDieSql,
@@ -1640,6 +1732,7 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()("api/Tran
       count,
       recap,
       recapPeriods,
+      recapTrend,
       getById,
       suggestTransfers,
       transferCandidates,
