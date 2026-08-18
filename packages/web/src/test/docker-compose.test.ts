@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { API_DEV_PORT } from "@mamen/shared/ports";
+import { API_DEV_PORT, COMPOSE_STACK_WEB_PORT } from "@mamen/shared/ports";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 
@@ -108,7 +108,7 @@ const exposedPort = (dockerfile: string) =>
 
 /**
  * `HOST:CONTAINER` (or `HOST:CONTAINER/proto`), split at the *last* colon: the
- * host side is an interpolation, `${WEB_PORT:-8080}`, which carries one of its
+ * host side is an interpolation, `${WEB_PORT:-5402}`, which carries one of its
  * own.
  */
 const publishedPorts = (name: string) =>
@@ -245,6 +245,14 @@ describe("the web service", () => {
     expect(ports[0].host).toMatch(/^\$\{[A-Z_]+:?-\d+\}$/);
   });
 
+  it("publishes the port the registry reserves for this stack", () => {
+    // Issue #142. 8080 was a placeholder: outside the registry's perso 5xxx
+    // range, so no row in `~/dev/PORTS.md` covered it and the next project on
+    // the box could take it without ever seeing a conflict. The default is now
+    // a row of `@mamen/shared/ports` — a number that is written down.
+    expect(publishedPorts("web")[0].host).toBe(`\${WEB_PORT:-${COMPOSE_STACK_WEB_PORT}}`);
+  });
+
   it("points nginx at the api service on the compose network", () => {
     // The two halves of this string live in two services; `api` is the name
     // docker's DNS answers for, and the port is whatever the api listens on.
@@ -319,6 +327,13 @@ describe("the operator's .env.example", () => {
     expect(read(ENV_EXAMPLE)).toMatch(/Settings/);
   });
 
+  it("names the same published port the compose file defaults to", () => {
+    // The line is commented out — it documents the default rather than
+    // overriding it — so the two numbers can drift without anything failing to
+    // start, and the operator reads the stale one.
+    expect(read(ENV_EXAMPLE)).toContain(`WEB_PORT=${COMPOSE_STACK_WEB_PORT}`);
+  });
+
   it("ships no value that would be a secret if copied", () => {
     // Every non-comment line is either empty or a bare `NAME=`: an operator
     // copies the file and fills it in, and a shipped default for a secret is a
@@ -328,6 +343,24 @@ describe("the operator's .env.example", () => {
       .filter((line) => /^[A-Z_][A-Z0-9_]*=.+/.test(line));
 
     expect(filled).toStrictEqual([]);
+  });
+});
+
+describe("the docs an operator follows", () => {
+  // What DEPLOY.md's Compose *section* has to say — that Dokploy is still
+  // production, that nothing authenticates this stack, what the volume holds —
+  // is guarded beside the rest of that document, in
+  // `packages/landing-page/src/deploy-doc.test.ts`. Held here is the part that
+  // is a number: the address both docs send a reader to is the port this file
+  // publishes, or the first thing an operator does is load nothing.
+  const url = `http://localhost:${COMPOSE_STACK_WEB_PORT}/app/`;
+
+  it.each(["README.md", "DEPLOY.md"])("%s quotes the published port", (doc) => {
+    const text = read(doc);
+
+    expect(text).toContain(url);
+    // 8080 was the placeholder default, in no registry range and in both docs.
+    expect(text).not.toContain("localhost:8080");
   });
 });
 

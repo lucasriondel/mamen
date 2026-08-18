@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import * as packageRoot from "./index";
 import {
   API_DEV_PORT,
+  COMPOSE_STACK_WEB_PORT,
   DEMO_STACK_API_PORT,
   DEMO_STACK_WEB_PORT,
   DOCKER_HOST_PORT_FLOOR,
@@ -37,6 +38,7 @@ describe("the port table", () => {
       API_DEV_PORT,
       DEMO_STACK_WEB_PORT,
       DEMO_STACK_API_PORT,
+      COMPOSE_STACK_WEB_PORT,
     ];
     const rows = PORTS.map((row) => row.port);
 
@@ -63,6 +65,28 @@ describe("the port table", () => {
     for (const row of portsOfKind("docker")) {
       expect(row.port).toBeGreaterThanOrEqual(DOCKER_HOST_PORT_FLOOR);
     }
+  });
+
+  it("allocates the Docker host ports bottom-up, with no gap", () => {
+    // What makes the next container's port derivable rather than picked: it
+    // is the first free number above the floor. A gap is a number nobody can
+    // account for — either a row was dropped or one was skipped by hand, and
+    // the registry cannot tell the two apart.
+    const docker = portsOfKind("docker")
+      .map((row) => row.port)
+      .sort((a, b) => a - b);
+
+    expect(docker).toStrictEqual(docker.map((_, index) => DOCKER_HOST_PORT_FLOOR + index));
+  });
+
+  it("gives the self-host compose stack the one port it publishes", () => {
+    // Its api publishes nothing — the web container's nginx is the only path
+    // to it (see `docker-compose.yml`) — so the stack takes a single row, and
+    // the exhaustive list above is what says there is no second one.
+    const row = PORTS.find((entry) => entry.port === COMPOSE_STACK_WEB_PORT);
+
+    expect(row?.kind).toBe("docker");
+    expect(row?.service).toMatch(/compose/i);
   });
 
   it("keeps the demo stack clear of the ports `bun dev` binds", () => {
@@ -165,6 +189,7 @@ describe("the module", () => {
     expect(packageRoot.LANDING_PAGE_DEV_PORT).toBe(LANDING_PAGE_DEV_PORT);
     expect(packageRoot.DEMO_STACK_WEB_PORT).toBe(DEMO_STACK_WEB_PORT);
     expect(packageRoot.DEMO_STACK_API_PORT).toBe(DEMO_STACK_API_PORT);
+    expect(packageRoot.COMPOSE_STACK_WEB_PORT).toBe(COMPOSE_STACK_WEB_PORT);
   });
 
   it("has its own entry point, reachable without the package root", () => {
