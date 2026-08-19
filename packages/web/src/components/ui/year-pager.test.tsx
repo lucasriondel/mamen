@@ -1,47 +1,29 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { YearPager } from "./year-pager";
 
 /**
- * The years the pager is given come from `availableYears()`, which returns
- * **newest first** — so "older" is a step *forward* in the array. That inversion
- * is the whole of what the arrows can get wrong, so it is asserted from both
- * ends rather than through the pages, which carry their own year.
+ * The pager's range is open backwards and closed forwards, so the two things it
+ * can get wrong are stepping past `maxYear` and refusing to step back. Both ends
+ * are asserted, plus the shortcut home that only exists while away from it.
  */
-const YEARS = [2026, 2025, 2024] as const;
+const MAX_YEAR = 2026;
 
-function renderPager(value = 2026) {
+function renderPager(value = MAX_YEAR) {
   const onChange = vi.fn();
-  render(<YearPager years={YEARS} value={value} onChange={onChange} />);
+  render(<YearPager value={value} maxYear={MAX_YEAR} onChange={onChange} />);
   return { onChange };
 }
 
 describe("YearPager", () => {
-  it("renders every year inline, newest first, marking the active one", () => {
-    renderPager(2025);
+  it("shows the year in force", () => {
+    renderPager(2019);
 
-    const group = screen.getByRole("group", { name: "Year" });
-    const pages = within(group)
-      .getAllByRole("button")
-      .map((button) => button.textContent)
-      .filter((text) => text?.match(/^\d{4}$/));
-
-    expect(pages).toEqual(["2026", "2025", "2024"]);
-    expect(screen.getByRole("button", { name: "2025" })).toHaveAttribute("aria-current", "true");
-    expect(screen.getByRole("button", { name: "2026" })).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("group", { name: "Year" })).toHaveTextContent("2019");
   });
 
-  it("selects a year when its page is clicked", async () => {
-    const user = userEvent.setup();
-    const { onChange } = renderPager(2026);
-
-    await user.click(screen.getByRole("button", { name: "2024" }));
-
-    expect(onChange).toHaveBeenCalledWith(2024);
-  });
-
-  it("steps to the older year with the previous arrow", async () => {
+  it("steps back a year with the previous arrow", async () => {
     const user = userEvent.setup();
     const { onChange } = renderPager(2026);
 
@@ -50,7 +32,17 @@ describe("YearPager", () => {
     expect(onChange).toHaveBeenCalledWith(2025);
   });
 
-  it("steps to the newer year with the next arrow", async () => {
+  it("steps back without a floor, however far from the current year", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderPager(1998);
+
+    expect(screen.getByRole("button", { name: "Previous year" })).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "Previous year" }));
+
+    expect(onChange).toHaveBeenCalledWith(1997);
+  });
+
+  it("steps forward a year with the next arrow", async () => {
     const user = userEvent.setup();
     const { onChange } = renderPager(2024);
 
@@ -59,27 +51,30 @@ describe("YearPager", () => {
     expect(onChange).toHaveBeenCalledWith(2025);
   });
 
-  it("disables each arrow at its end of the range", () => {
-    const { unmount } = render(<YearPager years={YEARS} value={2026} onChange={() => {}} />);
-    expect(screen.getByRole("button", { name: "Next year" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Previous year" })).toBeEnabled();
-    unmount();
+  it("never steps into the future", () => {
+    renderPager(MAX_YEAR);
 
-    render(<YearPager years={YEARS} value={2024} onChange={() => {}} />);
-    expect(screen.getByRole("button", { name: "Previous year" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Next year" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Next year" })).toBeDisabled();
+  });
+
+  it("jumps back to the current year in one click", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderPager(2011);
+
+    await user.click(screen.getByRole("button", { name: "This year" }));
+
+    expect(onChange).toHaveBeenCalledWith(MAX_YEAR);
+  });
+
+  it("hides the shortcut home while already home", () => {
+    renderPager(MAX_YEAR);
+
+    expect(screen.queryByRole("button", { name: "This year" })).not.toBeInTheDocument();
   });
 
   it("holds the digits still with tabular numerals", () => {
     renderPager();
 
-    expect(screen.getByRole("button", { name: "2026" }).className).toContain("tabular-nums");
-  });
-
-  it("survives a single-year range with both arrows dead", () => {
-    render(<YearPager years={[2026]} value={2026} onChange={() => {}} />);
-
-    expect(screen.getByRole("button", { name: "Previous year" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Next year" })).toBeDisabled();
+    expect(screen.getByText(String(MAX_YEAR)).className).toContain("tabular-nums");
   });
 });
