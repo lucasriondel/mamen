@@ -451,6 +451,43 @@ describe("ImportWizard", () => {
     expect(within(secondRow).queryByText("Already imported")).toBeNull();
   });
 
+  // The timing is measured on the upload step but rendered on the validation
+  // step, because a successful extraction with an account already picked lands
+  // straight there — so this asserts it survives the step transition. The real
+  // clock is left alone: stubbing `performance.now()` globally is not viable
+  // here (React and RTL read it hundreds of times across the awaited upload),
+  // so this pins the count and the shape of the duration, not an exact value.
+  // `formatExtractionTime` covers the ms/s formatting itself.
+  it("reports how long the extraction took on the side-by-side view", async () => {
+    const user = userEvent.setup();
+    extractPdf.mockResolvedValue({
+      transactions: [
+        {
+          date: new Date("2026-01-15T10:00:00.000Z"),
+          amount: -10,
+          rawIssuerString: "SHOP A",
+        },
+      ],
+      declaredTotals: { debit: 10, credit: 0 },
+    });
+    renderWizard();
+
+    await user.upload(
+      await screen.findByLabelText("CSV or PDF statement"),
+      new File(["%PDF-1.7"], "statement.pdf", { type: "application/pdf" }),
+    );
+    await user.selectOptions(await screen.findByLabelText("Target account"), "1");
+    await user.click(screen.getByRole("button", { name: "Continue to preview" }));
+
+    // On the validation step, not the upload step: the editable table is up.
+    expect(await screen.findByLabelText("Raw issuer, row 1")).toBeInTheDocument();
+    // The count sits in its own <span>, so read the paragraph's flattened text.
+    const summary = screen.getByText(/transactions? extracted/);
+    expect(summary.textContent?.replace(/\s+/g, " ").trim()).toMatch(
+      /^1 transaction extracted in (\d+ms|\d+\.\ds)$/,
+    );
+  });
+
   it("warns on a reconciliation mismatch but still lets the user commit", async () => {
     const user = userEvent.setup();
     // Extracted rows sum to 10 of debits, but the statement declares 50 — a

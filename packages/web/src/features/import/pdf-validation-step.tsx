@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/format";
 import { AlreadyImportedMark } from "./already-imported-mark";
 import { CommitBar } from "./commit-bar";
+import { formatExtractionTime } from "./format-extraction-time";
 import type { ParsedTransaction } from "./parsers/types";
 import { reconcile } from "./reconcile";
 import { useDuplicateFlags } from "./use-duplicate-flags";
@@ -28,6 +29,11 @@ function fromDateInputValue(value: string): Date {
  * soft **reconciliation check** flags (never blocks) a sum mismatch against the
  * statement's **declared totals**. Commit runs the shared rail via {@link CommitBar}.
  *
+ * The extraction's wall-clock duration is surfaced here rather than on the
+ * upload step: a successful extraction with an account already picked lands
+ * straight on this view, so the upload step's copy is skipped past in the common
+ * path. `null` whenever the timing is not in hand (a resumed/handed-off state).
+ *
  * A row that looks **already imported** is marked here too (issue #89) — this is
  * the preview where acting on the mark is one click, since every row already
  * carries the × that drops it from the commit. The rows are index-aligned with
@@ -39,6 +45,7 @@ export function PdfValidationStep({
   extracted,
   declaredTotals,
   file,
+  extractionMs,
   onBack,
   dispatch,
 }: {
@@ -46,6 +53,8 @@ export function PdfValidationStep({
   extracted: readonly ExtractedTransaction[];
   declaredTotals: DeclaredTotals;
   file: File;
+  /** Wall-clock extraction time in ms; `null` when it was not measured. */
+  extractionMs: number | null;
   onBack: () => void;
   dispatch: (action: WizardAction) => void;
 }) {
@@ -55,6 +64,8 @@ export function PdfValidationStep({
   return (
     <div className="flex flex-col gap-6">
       {recon.ok ? null : <ReconciliationBanner recon={recon} />}
+
+      <ExtractionSummary count={extracted.length} extractionMs={extractionMs} />
 
       <div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
         <PdfPane file={file} />
@@ -67,6 +78,27 @@ export function PdfValidationStep({
 
       <CommitBar records={records} duplicateCount={duplicates.count} onBack={onBack} />
     </div>
+  );
+}
+
+/**
+ * How many rows the model read, and how long it took. The count is of what was
+ * *extracted*, not what is on screen now — the user's edits below change the
+ * table, not what the extraction returned.
+ */
+function ExtractionSummary({
+  count,
+  extractionMs,
+}: {
+  count: number;
+  extractionMs: number | null;
+}) {
+  return (
+    <p className="text-sm text-gousse-muted">
+      <span className="font-medium text-gousse-ink">{count}</span>{" "}
+      {count === 1 ? "transaction" : "transactions"} extracted
+      {extractionMs === null ? null : <> in {formatExtractionTime(extractionMs)}</>}
+    </p>
   );
 }
 

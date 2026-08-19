@@ -113,6 +113,7 @@ export function ImportWizard({
         extracted={state.extracted}
         declaredTotals={state.declaredTotals}
         file={state.file}
+        extractionMs={state.extractionMs}
         onBack={() => dispatch({ type: "back-to-upload" })}
         dispatch={dispatch}
       />

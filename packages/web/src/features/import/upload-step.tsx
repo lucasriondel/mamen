@@ -4,6 +4,7 @@ import { type DragEvent, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { importMutations } from "@/lib/sdk";
 import { aiProviderNotConfigured, pdfExtractionErrorMessage } from "@/lib/sdk-error";
+import { formatExtractionTime } from "./format-extraction-time";
 import { FormatPicker } from "./format-picker";
 import { InlineAccountSelect } from "./inline-account-select";
 import { parseCsvFile } from "./parse-file";
@@ -13,11 +14,6 @@ import { canPreview, type WizardAction, type WizardState } from "./wizard-reduce
 /** Whether a dropped file is a PDF (by MIME or extension) — the async fork. */
 function isPdf(file: File): boolean {
   return file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
-}
-
-/** Human-readable extraction duration — sub-second in `ms`, otherwise `s`. */
-function formatExtractionTime(ms: number): string {
-  return ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(1)}s`;
 }
 
 /**
