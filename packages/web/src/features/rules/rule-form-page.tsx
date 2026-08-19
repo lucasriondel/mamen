@@ -65,7 +65,7 @@ export function RuleFormPage({ issuerId, ruleId, defaultPattern }: RuleFormPageP
 
   if (isEditing && ruleQuery.isPending) {
     return (
-      <PageLayout title={title} back={backLink} className="max-w-2xl">
+      <PageLayout title={title} back={backLink} className="max-w-none">
         <RuleFormSkeleton />
       </PageLayout>
     );
@@ -74,7 +74,7 @@ export function RuleFormPage({ issuerId, ruleId, defaultPattern }: RuleFormPageP
   const rule = isEditing ? (ruleQuery.data as Rule | undefined) : undefined;
   if (isEditing && (ruleQuery.isError || rule == null)) {
     return (
-      <PageLayout title={title} back={backLink} className="max-w-2xl">
+      <PageLayout title={title} back={backLink} className="max-w-none">
         <p className="text-sm text-gousse-high">
           Couldn't load this Matching Rule — it may have been deleted.
         </p>
@@ -83,7 +83,7 @@ export function RuleFormPage({ issuerId, ruleId, defaultPattern }: RuleFormPageP
   }
 
   return (
-    <PageLayout title={title} back={backLink} className="max-w-2xl">
+    <PageLayout title={title} back={backLink} className="max-w-none">
       <RuleForm
         issuerId={issuerId}
         rule={rule}

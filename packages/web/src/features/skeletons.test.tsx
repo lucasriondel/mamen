@@ -6,6 +6,7 @@ import { IssuerDetailSkeleton } from "./issuers/issuer-detail-skeleton";
 import { IssuersTableSkeleton } from "./issuers/issuers-table-skeleton";
 import { RecapSkeleton } from "./recap/recap-skeleton";
 import { RuleFormSkeleton } from "./rules/rule-form-skeleton";
+import { RulePreviewGridSkeleton } from "./rules/rule-preview-grid-skeleton";
 import { RulePreviewSkeleton } from "./rules/rule-preview-skeleton";
 import { RulesListSkeleton } from "./rules/rules-list-skeleton";
 import { TransactionDetailSkeleton } from "./transactions/transaction-detail-skeleton";
@@ -21,6 +22,7 @@ const SKELETONS: ReadonlyArray<[string, () => React.ReactElement]> = [
   ["IssuersTableSkeleton", () => <IssuersTableSkeleton />],
   ["RecapSkeleton", () => <RecapSkeleton />],
   ["RuleFormSkeleton", () => <RuleFormSkeleton />],
+  ["RulePreviewGridSkeleton", () => <RulePreviewGridSkeleton label="Loading preview…" />],
   ["RulePreviewSkeleton", () => <RulePreviewSkeleton label="Loading preview…" />],
   ["RulesListSkeleton", () => <RulesListSkeleton />],
   ["TransactionDetailSkeleton", () => <TransactionDetailSkeleton />],

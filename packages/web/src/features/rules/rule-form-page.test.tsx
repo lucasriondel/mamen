@@ -1,5 +1,6 @@
 import type {
   Account,
+  Category,
   Issuer,
   IssuerId,
   Rule,
@@ -61,6 +62,18 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
           },
         };
       },
+      // The preview's grid is the app's own, so each row's Issuer cell is a
+      // live curation surface (the issuer / assignment picker) and reads the
+      // search behind it — even unopened, since the query is declared on mount.
+      searchByName: (term: string) => ({
+        queryKey: ["issuers", "search", term],
+        queryFn: async () => {
+          const items = issuersList.filter((i) =>
+            i.name.toLowerCase().includes(term.trim().toLowerCase()),
+          );
+          return { items, total: items.length };
+        },
+      }),
     },
     accountQueries: {
       list: () => ({
@@ -69,6 +82,15 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
           items: accountsList,
           total: accountsList.length,
         }),
+      }),
+    },
+    // The preview renders the app's own transactions grid, whose Category
+    // column reads the tree. No preview row carries a category in these
+    // fixtures, so an empty tree is enough — the read just has to resolve.
+    categoryQueries: {
+      list: () => ({
+        queryKey: ["categories", "list", "test"],
+        queryFn: async () => ({ items: [] as Category[], total: 0 }),
       }),
     },
     ruleQueries: {
@@ -228,9 +250,16 @@ describe("RuleFormPage — create", () => {
         expect.objectContaining({ issuerId: 1, pattern: "amazon" }),
       ),
     );
-    expect(await screen.findByRole("heading", { name: /Will match \(1\)/ })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /Will reassign \(1\)/ })).toBeInTheDocument();
-    expect(screen.getByText(/AWS/)).toBeInTheDocument();
+    // The three lists are tabs over one grid: each tab carries its own count,
+    // and the rows of the selected one are what the grid shows.
+    expect(await screen.findByRole("tab", { name: /^Will match ?1$/ })).toBeInTheDocument();
+    const reassignTab = screen.getByRole("tab", { name: /^Will reassign ?1$/ });
+    expect(screen.getByRole("tab", { name: /^Manual collisions ?0$/ })).toBeInTheDocument();
+
+    // The reassign row's current issuer is only on screen once its tab is.
+    expect(screen.queryByText(/AWS/)).not.toBeInTheDocument();
+    await user.click(reassignTab);
+    expect(await screen.findByText(/AWS/)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Create rule" }));
     await waitFor(() =>
@@ -395,6 +424,9 @@ describe("RuleFormPage — create", () => {
     renderAt("/issuers/1/rules/new");
 
     await user.type(await screen.findByLabelText("Matching Rule pattern"), "amazon");
+
+    // The collisions are their own tab, so the per-row action lives behind it.
+    await user.click(await screen.findByRole("tab", { name: /^Manual collisions ?1$/ }));
 
     const removeButton = await screen.findByRole("button", {
       name: "Remove manual issuer",

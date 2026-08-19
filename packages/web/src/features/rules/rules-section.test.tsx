@@ -32,6 +32,10 @@ let rulesByIssuer: Record<number, Rule[]>;
 let issuersList: Issuer[];
 let deletePreviewResult: RuleDeletePreviewResult;
 let previewResult: RulePreviewResult;
+// The coverage bar's denominator (every row pointing at the issuer) and the
+// account column's names — both read by the section, neither by the rules query.
+let issuerTransactionCount: number;
+let accountsList: Array<{ id: number; name: string }>;
 
 // The move panel's success toast names the target issuer — the one rule write
 // whose outcome is invisible on the page you stay on.
@@ -100,6 +104,24 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
       remove: (id: unknown) => removeRule(id),
       update: (id: unknown, patch: unknown) => updateRule(id, patch),
       preview: (input: unknown) => previewRule(input),
+    },
+    // Names for the account column: a rule stores an account *id*, and the row
+    // falls back to that id when this hasn't resolved.
+    accountQueries: {
+      list: () => ({
+        queryKey: ["accounts", "list", "test"],
+        queryFn: async () => ({
+          items: accountsList,
+          total: accountsList.length,
+        }),
+      }),
+    },
+    // The coverage bar's denominator — the issuer's unfiltered reference count.
+    transactionQueries: {
+      count: (params: unknown) => ({
+        queryKey: ["transactions", "count", params],
+        queryFn: async () => ({ count: issuerTransactionCount, total: 0 }),
+      }),
     },
   };
 });
@@ -182,6 +204,12 @@ beforeEach(() => {
   toastSuccess.mockReset();
   toastError.mockReset();
   rulesByIssuer = { 1: [rule()], 2: [] };
+  // 3 of the issuer's 5 rows are won by the rule; the other 2 were hand-picked.
+  issuerTransactionCount = 5;
+  accountsList = [
+    { id: 1, name: "Compte courant" },
+    { id: 2, name: "Livret A" },
+  ];
   issuersList = [issuer(), issuer({ id: 2 as Issuer["id"], name: "AWS" })];
   deletePreviewResult = { willReassign: [], willUnmatch: [] };
 });
@@ -191,8 +219,60 @@ describe("RulesSection — rule list", () => {
     renderSection();
 
     expect(await screen.findByText("amazon")).toBeInTheDocument();
-    expect(screen.getByText(/3 transactions/)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Matching Rules" })).toBeInTheDocument();
+
+    // The owned count is a figure in the `Owns` column now, not a sentence.
+    const row = screen.getByRole("row", { name: /amazon/ });
+    expect(within(row).getByText("3")).toBeInTheDocument();
+  });
+
+  it("gives each predicate its own column, in the rule form's order", async () => {
+    renderSection();
+    await screen.findByText("amazon");
+
+    expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual([
+      "Account",
+      "Pattern",
+      "Direction",
+      "Value",
+      "Owns",
+      // The actions column is named for assistive tech only.
+      "Actions",
+    ]);
+  });
+
+  it("prints an unset matcher as 'Any' rather than leaving the cell blank", async () => {
+    renderSection();
+
+    // The default rule scopes nothing: three of its four predicates are unset,
+    // and a blank cell would be indistinguishable from a scoped one.
+    const row = await screen.findByRole("row", { name: /amazon/ });
+    expect(within(row).getAllByText("Any")).toHaveLength(3);
+  });
+
+  it("resolves a rule's account matcher to the account's name", async () => {
+    rulesByIssuer = {
+      1: [rule({ matchAccountId: 2 as Rule["matchAccountId"] })],
+      2: [],
+    };
+    renderSection();
+
+    const row = await screen.findByRole("row", { name: /amazon/ });
+    expect(within(row).getByText("Livret A")).toBeInTheDocument();
+  });
+
+  it("reports coverage as the rules' owned rows over every row on the issuer", async () => {
+    renderSection();
+    await screen.findByText("amazon");
+
+    // 3 of 5 owned by the rule ⇒ the other 2 were assigned by hand. Asserted on
+    // the meter's own label, which is where the split is stated as one sentence
+    // (the visible line splits the figures across elements to weight them).
+    expect(
+      screen.getByRole("meter", {
+        name: "3 of 5 transactions matched by rules, 2 assigned by hand",
+      }),
+    ).toBeInTheDocument();
   });
 
   it("shows an empty state when the issuer has no rules", async () => {
@@ -219,11 +299,12 @@ describe("RulesSection — navigation into the rule pages", () => {
     const user = userEvent.setup();
     renderSection();
 
-    // The whole row is a link into that rule's edit page.
-    const row = await screen.findByRole("link", { name: /Edit rule amazon/ });
-    expect(row).toHaveAttribute("href", "/issuers/1/rules/10");
+    // The pencil is the action named for the rule; the pattern beside it links
+    // to the same page but is named by its own text.
+    const edit = await screen.findByRole("link", { name: /Edit rule amazon/ });
+    expect(edit).toHaveAttribute("href", "/issuers/1/rules/10");
 
-    await user.click(row);
+    await user.click(edit);
     expect(await screen.findByText("Edit rule page")).toBeInTheDocument();
   });
 });
