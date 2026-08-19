@@ -34,9 +34,13 @@ export function useAccountMutations() {
     onError,
   });
 
-  const rename = useMutation({
-    mutationFn: ({ id, name }: { id: AccountId; name: string }) =>
-      accountMutations.update(id, { name }),
+  // The card's edit form submits name and IBAN together, so they travel as one
+  // write: two mutations would mean two invalidations and a window where the
+  // card shows the new name beside the old IBAN. `iban: null` is meaningful —
+  // it clears a stored IBAN — so it is sent explicitly, like `color` below.
+  const edit = useMutation({
+    mutationFn: ({ id, name, iban }: { id: AccountId; name: string; iban: string | null }) =>
+      accountMutations.update(id, { name, iban }),
     onSuccess: invalidate,
     onError,
   });
@@ -57,5 +61,5 @@ export function useAccountMutations() {
     onError,
   });
 
-  return { create, rename, recolor, remove };
+  return { create, edit, recolor, remove };
 }

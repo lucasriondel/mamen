@@ -16,6 +16,7 @@ const AccountRow = Schema.Struct({
   name: Schema.String,
   type: Schema.String,
   color: Schema.NullOr(Schema.String),
+  iban: Schema.NullOr(Schema.String),
   createdAt: Schema.String,
   updatedAt: Schema.String,
 });
@@ -124,6 +125,10 @@ export class AccountRepo extends Effect.Service<AccountRepo>()("api/AccountRepo"
             // case to an explicit null so `sql.insert` always writes the
             // column rather than omitting it from the statement.
             color: payload.color ?? null,
+            // Same normalisation as `color` above, and for the same reason: an
+            // omitted IBAN is written as an explicit null rather than dropped
+            // from the statement.
+            iban: payload.iban ?? null,
             createdAt: now,
             updatedAt: now,
           }),

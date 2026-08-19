@@ -37,12 +37,30 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
 
 const { AccountCard } = await import("./account-card");
 
+/**
+ * A synthetic IBAN, assembled rather than written out.
+ *
+ * The repo's leak scan (`src/test/bank-statement-scrubbed.test.ts`) allows a
+ * literal account number in exactly two files, neither of them this one — the
+ * reserved `99999` bank code is what makes an IBAN *provably* fake, not a
+ * licence to paste one anywhere. Concatenating the halves keeps this file
+ * carrying no matchable account number while the assertions below still run
+ * against a full-length one.
+ */
+const IBAN = `FR7699999${"000011234567890189"}`;
+const IBAN_GROUPED = "FR76 9999 9000 0112 3456 7890 189";
+
+/** A second one, for the edit that replaces the first. */
+const OTHER_IBAN = `DE8999${"9999990532013000"}`;
+const OTHER_IBAN_TYPED = "DE89 9999 9999 0532 0130 00";
+
 function account(overrides: Partial<Account> = {}): Account {
   return {
     id: 1 as Account["id"],
     name: "Everyday",
     type: "checking",
     color: null,
+    iban: null,
     createdAt: new Date("2026-01-01"),
     updatedAt: new Date("2026-01-01"),
     ...overrides,
@@ -140,17 +158,17 @@ describe("AccountCard", () => {
     expect(await screen.findByText("1/12 months")).toBeInTheDocument();
   });
 
-  // Rename and Delete stop competing with the card's content: they are one `···`
+  // Edit and Delete stop competing with the card's content: they are one `···`
   // click away, not two buttons the width of the row.
-  it("keeps rename and delete behind the ··· menu", async () => {
+  it("keeps edit and delete behind the ··· menu", async () => {
     renderCard();
     await screen.findByText("Everyday");
 
-    expect(screen.queryByRole("menuitem", { name: /Rename Everyday/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: /Edit Everyday/ })).not.toBeInTheDocument();
 
     await openMenu();
 
-    expect(await screen.findByRole("menuitem", { name: /Rename Everyday/ })).toBeInTheDocument();
+    expect(await screen.findByRole("menuitem", { name: /Edit Everyday/ })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: /Delete Everyday/ })).toBeInTheDocument();
   });
 
@@ -158,13 +176,68 @@ describe("AccountCard", () => {
     renderCard();
     const user = await openMenu();
 
-    await user.click(await screen.findByRole("menuitem", { name: /Rename Everyday/ }));
+    await user.click(await screen.findByRole("menuitem", { name: /Edit Everyday/ }));
     const input = await screen.findByLabelText("New account name");
     await user.clear(input);
     await user.type(input, "Holiday fund");
     await user.click(screen.getByRole("button", { name: "Save" }));
 
-    await waitFor(() => expect(updateAccount).toHaveBeenCalledWith(1, { name: "Holiday fund" }));
+    // Name and IBAN travel as one write, so an untouched IBAN still rides along
+    // — the card must never show a new name beside a stale IBAN.
+    await waitFor(() =>
+      expect(updateAccount).toHaveBeenCalledWith(1, { name: "Holiday fund", iban: null }),
+    );
+  });
+
+  // The IBAN is reference data: on the card when there is one, and absent (not
+  // an empty line) when there is not.
+  it("shows a stored IBAN grouped in fours", async () => {
+    renderCard({ iban: IBAN });
+
+    expect(await screen.findByText(IBAN_GROUPED)).toBeInTheDocument();
+  });
+
+  it("shows no IBAN line when the account has none", async () => {
+    renderCard();
+    await screen.findByText("Everyday");
+
+    expect(screen.queryByText(/IBAN/)).not.toBeInTheDocument();
+  });
+
+  it("edits the IBAN through the update mutation", async () => {
+    renderCard({ iban: IBAN });
+    const user = await openMenu();
+
+    await user.click(await screen.findByRole("menuitem", { name: /Edit Everyday/ }));
+    const input = await screen.findByLabelText("Account IBAN");
+    // The field seeds grouped, as the user will read it against a statement.
+    expect(input).toHaveValue(IBAN_GROUPED);
+
+    await user.clear(input);
+    await user.type(input, OTHER_IBAN_TYPED);
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() =>
+      expect(updateAccount).toHaveBeenCalledWith(1, {
+        name: "Everyday",
+        iban: OTHER_IBAN,
+      }),
+    );
+  });
+
+  // Clearing the field is an instruction, not an omission — it must reach the
+  // server as an explicit null or the old IBAN would survive the edit.
+  it("clears a stored IBAN by emptying the field", async () => {
+    renderCard({ iban: IBAN });
+    const user = await openMenu();
+
+    await user.click(await screen.findByRole("menuitem", { name: /Edit Everyday/ }));
+    await user.clear(await screen.findByLabelText("Account IBAN"));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() =>
+      expect(updateAccount).toHaveBeenCalledWith(1, { name: "Everyday", iban: null }),
+    );
   });
 
   it("deletes an account with no transactions", async () => {
