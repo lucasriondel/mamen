@@ -463,6 +463,110 @@ export const RecapPeriods = Schema.Struct({
 });
 
 /**
+ * The **granularity** a trend series is bucketed at (issue #113) — the unit one
+ * point on the earnings-vs-spending chart stands for.
+ *
+ * It is a *request* parameter rather than something derived from the period
+ * server-side, because the same period is legitimately read at two grains: an
+ * all-time view is a story about years, but a user who has been importing for
+ * eight months wants it as months. The caller — which knows what it is drawing —
+ * chooses; the server only groups.
+ *
+ * Both are prefixes of the ISO `date` TEXT, so a bucket key is a `substr`, never
+ * a parsed date: `"2026-03"` for a month, `"2026"` for a year. That is the same
+ * derivation {@link RecapPeriods} uses, so the buckets a trend reports and the
+ * periods the picker offers can never disagree about which month a row is in.
+ */
+export const RecapTrendGranularity = Schema.Literal("month", "year");
+export type RecapTrendGranularity = typeof RecapTrendGranularity.Type;
+
+/**
+ * The **trend**'s filter set (issue #113) — the recap's period and account
+ * selection, plus the granularity to bucket by. Same bounds, same meaning: an
+ * inclusive range over the transaction **`date`**, so a trend and the recap it
+ * sits above are computed over the same rows.
+ */
+export const RecapTrendFilters = {
+  accountId: Schema.optional(AccountIdFilter),
+  startDate: Schema.optional(Schema.Date), // inclusive lower bound on `date`
+  endDate: Schema.optional(Schema.Date), // inclusive upper bound on `date`
+  granularity: RecapTrendGranularity,
+} as const;
+
+/**
+ * One point of the earnings-vs-spending series (issue #113): a time bucket, the
+ * money that came **in**, and the money that went **out**.
+ *
+ * Both are **positive magnitudes**, like every other figure the recap reports —
+ * `spent` sums the debits' magnitudes and `earned` the credits'. Neither is a net
+ * and the two are never combined server-side: a net collapses the two facts the
+ * chart exists to show into one number that hides both, and a month of 3000 in /
+ * 2900 out reads identically to one of 100 in / 0 out. The client draws them as
+ * two marks and derives the net itself where it wants to show one.
+ *
+ * `bucket` is the ISO prefix its granularity implies — `"YYYY-MM"` or `"YYYY"`.
+ * Only buckets with at least one counted row are returned; a gap in the middle of
+ * a range is a real gap (no transactions), and it is the client that decides
+ * whether to draw it as a zero or a break, since only it knows the axis it is
+ * filling.
+ */
+export const RecapTrendPoint = Schema.Struct({
+  bucket: Schema.String,
+  earned: Schema.Number,
+  spent: Schema.Number,
+});
+
+/**
+ * One cell of the **category composition** series (issue #113): how much was
+ * spent in one category, in one time bucket.
+ *
+ * Spend-only, unlike {@link RecapTrendPoint} beside it — a composition chart
+ * answers "what was the spending made of", and a credit is not part of what
+ * spending was made of. So this is the debits-only aggregate the recap's
+ * breakdowns already use, cut by bucket as well as by category, and its per-
+ * bucket totals therefore agree with `spent` on the matching trend point.
+ *
+ * Keyed by the **derived** category (ADR 0002), like every category read here;
+ * `categoryId` is `null` for the uncategorised bucket, reported rather than
+ * dropped.
+ */
+export const RecapTrendCategoryCell = Schema.Struct({
+  bucket: Schema.String,
+  categoryId: Schema.NullOr(CategoryId),
+  spent: Schema.Number,
+});
+
+/**
+ * `recap-trend` success body (issue #113) — earnings and spending per time
+ * bucket, ordered **oldest first** so the array is already in axis order and the
+ * client never re-sorts a series it is about to plot.
+ *
+ * This is the one recap read that reports **income**. The spend breakdowns are
+ * debits-only by design — `countsTowardRecap` plus `t.amount < 0`, so income nets
+ * a bucket down by never being counted, which is what makes a fully-refunded
+ * purchase read as its own charge rather than a negative bucket. That rule is
+ * deliberately left alone: this endpoint adds a *second* aggregate beside it
+ * rather than loosening it, and both halves run through the same
+ * `countsTowardRecap` predicate. So a transfer leg is not earnings on the way in
+ * any more than it is spending on the way out, and an excluded row is absent from
+ * both — the trend and the breakdowns hold out exactly the same rows, and the
+ * period total of `spent` here equals the recap's total for the same window.
+ */
+export const RecapTrend = Schema.Struct({
+  points: Schema.Array(RecapTrendPoint),
+  /**
+   * Spending cut by category **and** bucket — the composition series, in the
+   * same response as the totals rather than behind a second endpoint, because
+   * the two are read together and are one period's worth of the same scan.
+   * Ordered by bucket then category so the client groups without sorting.
+   */
+  byCategory: Schema.Array(RecapTrendCategoryCell),
+});
+export type RecapTrend = typeof RecapTrend.Type;
+export type RecapTrendPoint = typeof RecapTrendPoint.Type;
+export type RecapTrendCategoryCell = typeof RecapTrendCategoryCell.Type;
+
+/**
  * `list` success body — the paged envelope `{ items, total }` **plus** the
  * **bundle members** of whatever **bundle parents** the page happens to contain
  * (issue #73), so a parent can be expanded in place without a fetch per row.
@@ -797,6 +901,17 @@ export class TransactionsGroup extends HttpApiGroup.make("transactions")
   // The months the recap can be asked about — the period picker's options,
   // derived from the transaction `date` exactly as the period bounds are.
   .add(HttpApiEndpoint.get("recapPeriods")`/transactions/recap-periods`.addSuccess(RecapPeriods))
+  // The **trend** (issue #113): earnings and spending per time bucket over the
+  // same period + account selection the recap uses, bucketed by month or year.
+  // The one recap read that reports income — as a second aggregate beside the
+  // debits-only breakdowns, never by loosening `countsTowardRecap`, so both
+  // halves hold out the same transfer legs, excluded rows and bundle members.
+  // Another literal sub-path, declared before the `:id` route.
+  .add(
+    HttpApiEndpoint.get("recapTrend")`/transactions/recap-trend`
+      .setUrlParams(Schema.Struct(RecapTrendFilters))
+      .addSuccess(RecapTrend),
+  )
   // The pre-flight of deleting a statement's rows (issue #77): how many
   // **bundles** hold a row of that account + month, asked before the rows go so
   // the bundling is never destroyed silently. A read, so `GET` — and another

@@ -14,20 +14,29 @@ import { useIssuerMutations } from "./use-issuer-mutations";
  * the picker offers leaves only — and a folder id would be rejected by the API
  * (`CategoryNotLeaf`) and surface as a toast anyway.
  */
-export function IssuerDefaultCategoryPicker({ issuer }: { issuer: Issuer }) {
+export function IssuerDefaultCategoryPicker({
+  issuer,
+  triggerClassName,
+}: {
+  issuer: Issuer;
+  /**
+   * Extra classes for the picker's trigger. The detail page's header renders it
+   * as one chip in a row of them, where the default `self-start` would leave it
+   * out of line with its neighbour.
+   */
+  triggerClassName?: string;
+}) {
   const { setDefaultCategory } = useIssuerMutations();
 
   return (
-    <div className="flex flex-col gap-1">
-      <span className="text-sm text-gousse-muted">Default category</span>
-      <CategoryLeafPicker
-        value={issuer.defaultCategoryId}
-        onChange={(categoryId) => setDefaultCategory.mutate({ id: issuer.id, categoryId })}
-        disabled={setDefaultCategory.isPending}
-        title="Set this issuer's default category"
-        selectedLabel="Current default"
-        clearLabel="Remove default category"
-      />
-    </div>
+    <CategoryLeafPicker
+      value={issuer.defaultCategoryId}
+      onChange={(categoryId) => setDefaultCategory.mutate({ id: issuer.id, categoryId })}
+      disabled={setDefaultCategory.isPending}
+      title="Set this issuer's default category"
+      selectedLabel="Current default"
+      clearLabel="Remove default category"
+      triggerClassName={triggerClassName}
+    />
   );
 }

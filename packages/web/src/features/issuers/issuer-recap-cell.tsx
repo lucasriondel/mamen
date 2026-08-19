@@ -5,7 +5,7 @@ import { useIssuerMutations } from "./use-issuer-mutations";
 /**
  * The **Recap** cell — the issuer-level recap-exclusion lever, in the grid
  * rather than only on the issuer detail page (the
- * {@link IssuerRecapExclusionSection} block). Same write, same two directions:
+ * {@link IssuerRecapChip} in the detail page's header). Same write, same two directions:
  * ticking holds every one of the issuer's transactions out of the spend totals
  * — including the ones imported from now on — and unticking puts them back
  * (issue #69, ADR 0008).

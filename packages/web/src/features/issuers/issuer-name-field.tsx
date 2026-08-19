@@ -90,7 +90,11 @@ export function IssuerNameField({ issuer }: IssuerNameFieldProps) {
   // No `text-balance`: it would split a long name evenly over two lines, which is
   // exactly what the single-line heading wants to avoid. `truncate` keeps the
   // name on one line and ellipsises only when it genuinely can't fit.
-  const HEADING_CLASS = "w-full min-w-0 truncate text-2xl font-semibold text-gousse-ink";
+  //
+  // `block` so the button is a full-width box rather than an inline one that
+  // shrink-wraps the name — the whole row is the click target, which is what
+  // makes the heading read as a field.
+  const HEADING_CLASS = "block w-full min-w-0 truncate text-2xl font-semibold text-gousse-ink";
 
   if (isEditing) {
     return (
@@ -101,7 +105,7 @@ export function IssuerNameField({ issuer }: IssuerNameFieldProps) {
         onBlur={stopEditing}
         onKeyDown={handleKeyDown}
         aria-label="Issuer name"
-        className={`${HEADING_CLASS} -mx-3 rounded-full border border-gousse-line bg-gousse-bg px-3 outline-none focus:border-gousse-accent`}
+        className={`${HEADING_CLASS} rounded-full border border-gousse-line bg-gousse-bg px-3 outline-none focus:border-gousse-accent`}
       />
     );
   }
@@ -111,7 +115,7 @@ export function IssuerNameField({ issuer }: IssuerNameFieldProps) {
       type="button"
       onClick={() => setIsEditing(true)}
       title="Rename issuer"
-      className={`${HEADING_CLASS} -mx-3 rounded-full border border-transparent px-3 text-left transition-colors hover:border-gousse-line`}
+      className={`${HEADING_CLASS} cursor-text rounded-full border border-transparent px-3 text-left transition-colors hover:border-gousse-line`}
     >
       {issuer.name}
     </button>

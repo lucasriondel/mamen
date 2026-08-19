@@ -23,6 +23,7 @@ import {
   searchTree,
 } from "@/lib/category-tree";
 import { categoryQueries } from "@/lib/sdk";
+import { cn } from "@/lib/utils";
 
 /**
  * A **controlled** category-leaf picker: a `cmdk` command palette in a popover
@@ -46,6 +47,7 @@ export function CategoryLeafPicker({
   title,
   selectedLabel,
   clearLabel,
+  triggerClassName,
 }: {
   /** The currently-selected leaf, or `null`/`undefined` for none. */
   value: CategoryId | null | undefined;
@@ -58,6 +60,12 @@ export function CategoryLeafPicker({
   selectedLabel: string;
   /** Copy for the clear action (shown only when a value is set). */
   clearLabel: string;
+  /**
+   * Extra classes for the trigger, merged last. The detail page's header packs
+   * the picker into a chip beside the recap one; everywhere else takes the
+   * default `self-start` button.
+   */
+  triggerClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -121,7 +129,7 @@ export function CategoryLeafPicker({
             <Button
               variant="secondary"
               size="sm"
-              className="self-start"
+              className={cn("self-start", triggerClassName)}
               title={title}
               disabled={disabled}
             >

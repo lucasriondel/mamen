@@ -44,6 +44,7 @@ export const TransactionsLive = HttpApiBuilder.group(Api, "transactions", (handl
       .handle("count", (_) => repo.count(_.urlParams))
       .handle("recap", (_) => repo.recap(_.urlParams))
       .handle("recapPeriods", () => repo.recapPeriods())
+      .handle("recapTrend", (_) => repo.recapTrend(_.urlParams))
       .handle("getById", (_) => repo.getById(_.path.id))
       .handle("transferCandidates", () => repo.transferCandidates())
       .handle("dismissTransferPairs", (_) => repo.dismissTransferPairs(_.payload.pairs))

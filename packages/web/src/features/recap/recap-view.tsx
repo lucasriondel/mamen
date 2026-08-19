@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { PageLayout } from "@/components/page-layout";
 import { AccountMultiSelect } from "@/components/ui/account-multi-select";
 import { Empty } from "@/components/ui/empty";
+import { RecapCharts } from "./charts/recap-charts";
 import { ExcludedSummaryLine } from "./excluded-summary-line";
 import type { Period } from "./period";
 import { PeriodSelector } from "./period-selector";
@@ -108,6 +109,15 @@ export function RecapView() {
               accountIds={accountIds}
             />
           ) : null}
+          {/* The charts read the same rows the lists below do — the shape
+              first, then the figures (issue #113). */}
+          <RecapCharts
+            period={period}
+            accountIds={accountIds}
+            byIssuer={byIssuer}
+            byCategory={byCategory}
+          />
+
           <div className="grid gap-6 lg:grid-cols-2">
             <SpendSection
               title="By issuer"

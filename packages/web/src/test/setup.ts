@@ -63,3 +63,45 @@ if (!("revokeObjectURL" in URL)) {
 // unconditionally: a test that states the OS preference must not be at the mercy
 // of whatever a future jsdom decides `matchMedia` returns by default.
 installMatchMedia();
+
+// jsdom performs no layout, so every element measures 0×0 and recharts'
+// `ResponsiveContainer` — which sizes itself from its parent — warns on every
+// render that its chart has no width or height. The recap's charts are
+// therefore unassertable under jsdom (their pure data shaping is tested
+// directly instead, in `features/recap/charts/*.test.ts`), and the warning is
+// noise that buries real failures in the output.
+//
+// Given a `ResizeObserver` that reports a real box, recharts sizes itself and
+// stays quiet — so the stub above answers with one rather than silencing the
+// console, which would hide genuine errors too.
+if (typeof globalThis.ResizeObserver !== "undefined") {
+  const CHART_BOX = {
+    width: 640,
+    height: 320,
+    top: 0,
+    left: 0,
+    bottom: 320,
+    right: 640,
+    x: 0,
+    y: 0,
+  };
+  globalThis.ResizeObserver = class {
+    constructor(private readonly callback: ResizeObserverCallback) {}
+    observe(target: Element) {
+      this.callback(
+        [{ target, contentRect: CHART_BOX } as unknown as ResizeObserverEntry],
+        this as unknown as ResizeObserver,
+      );
+    }
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver;
+
+  // `ResponsiveContainer` also reads the DOM box directly on its first paint,
+  // before any observer fires.
+  if (typeof Element !== "undefined") {
+    Element.prototype.getBoundingClientRect = function getBoundingClientRect() {
+      return { ...CHART_BOX, toJSON: () => CHART_BOX } as DOMRect;
+    };
+  }
+}

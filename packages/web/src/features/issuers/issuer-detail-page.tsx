@@ -2,13 +2,14 @@ import type { Issuer, IssuerId } from "@mamen/shared/contract";
 import { MAX_IMAGE_BYTES } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
-import { useMemo, useRef } from "react";
+import { Receipt, Ruler } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { BackLink } from "@/components/back-link";
 import { PageLayout } from "@/components/page-layout";
-import { Button } from "@/components/ui/button";
 import { Empty } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsIndicator, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs";
 import { RulesSection } from "@/features/rules/rules-section";
 import type { TransactionsSearch } from "@/features/transactions/search";
 import type { TransactionFilterValues } from "@/features/transactions/transactions-filters";
@@ -16,16 +17,20 @@ import {
   composeTransactionFilters,
   TransactionsSection,
 } from "@/features/transactions/transactions-section";
-import { formatCurrency } from "@/lib/format";
-import { issuerQueries, type TransactionCountParams, transactionQueries } from "@/lib/sdk";
+import {
+  issuerQueries,
+  ruleQueries,
+  type TransactionCountParams,
+  transactionQueries,
+} from "@/lib/sdk";
 import { cn } from "@/lib/utils";
 import { BUTTON_CLASS } from "./field-styles";
-import { IssuerAvatar } from "./issuer-avatar";
-import { IssuerDefaultCategoryPicker } from "./issuer-default-category-picker";
+import { IssuerAvatarMenu } from "./issuer-avatar-menu";
+import { IssuerDeleteButton } from "./issuer-delete-button";
+import { IssuerDetailHeader } from "./issuer-detail-header";
 import { IssuerDetailSkeleton } from "./issuer-detail-skeleton";
+import { DEFAULT_ISSUER_TAB, type IssuerTab, parseIssuerTab } from "./issuer-detail-tabs";
 import { IssuerNameField } from "./issuer-name-field";
-import { IssuerNotesField } from "./issuer-notes-field";
-import { IssuerRecapExclusionSection } from "./issuer-recap-exclusion-section";
 import { LogoSearchPopover } from "./logo-search-popover";
 import { useIssuerMutations } from "./use-issuer-mutations";
 
@@ -34,8 +39,8 @@ const routeApi = getRouteApi("/issuers/$issuerId/");
 /**
  * The issuer **detail page** (PRD #8: single issuer surface) at
  * `/issuers/$issuerId`. Absorbs everything the old `IssuerEditDialog` did — the
- * header with avatar upload/remove, rename, and the guarded delete — and adds
- * the issuer's transactions list (count + net €) and its Matching Rules.
+ * avatar upload/remove, rename, and the guarded delete — and adds the issuer's
+ * transactions list (count + net €) and its Matching Rules.
  *
  * This outer component owns the async read of the issuer and the loading /
  * not-found states; once it resolves it renders {@link IssuerDetailContent}.
@@ -112,9 +117,20 @@ interface IssuerDetailContentProps {
 /**
  * The resolved detail surface — everything that needs a loaded issuer.
  *
+ * The page is a **hero over two panels** ({@link IssuerDetailHeader} plus a tab
+ * strip): identity, note, money and the two switchable settings on top, then
+ * Transactions / Rules. Before this, every one of those sections was stacked at
+ * equal weight, so the image controls — used once in an issuer's life — pushed
+ * the transactions below the fold on every visit.
+ *
+ * The open tab lives in the URL (`?tab=rules`), so a refresh or a shared link
+ * lands on the panel the sender was looking at; the default panel stays out of
+ * the URL so `/issuers/1` has exactly one spelling.
+ *
  * Deletion stays blocked while transactions reference the issuer (the button is
- * disabled with the existing explanation), so no row is ever left pointing at a
- * deleted issuer; a successful delete navigates back to the issuers grid. The
+ * disabled with the existing explanation beside it), so no row is ever left
+ * pointing at a deleted issuer; an allowed delete is confirmed in a dialog
+ * first, and a successful one navigates back to the issuers grid. The
  * 2 MiB image cap is pre-checked here for an instant message (the contract's
  * multipart parser also enforces it server-side).
  */
@@ -122,21 +138,31 @@ function IssuerDetailContent({ issuer }: IssuerDetailContentProps) {
   const navigate = useNavigate();
   const search = routeApi.useSearch();
   const routeNavigate = routeApi.useNavigate();
-  const { uploadImage, deleteImage, remove } = useIssuerMutations();
+  const { uploadImage, deleteImage, remove, setExcludedFromRecap } = useIssuerMutations();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // The logo search is a panel without a trigger here — the avatar's menu opens
+  // it — so the page holds its open state and the element it hangs off.
+  const [logoSearchOpen, setLogoSearchOpen] = useState(false);
+  const avatarRef = useRef<HTMLSpanElement>(null);
+
+  const tab = parseIssuerTab(search.tab);
 
   const scope = useMemo<TransactionCountParams>(() => ({ issuerId: issuer.id }), [issuer.id]);
 
   // The unfiltered reference count — the delete guard asks "does *any* row
   // point here", which the user's account/month/search filters must not narrow.
   const referenceCountQuery = useQuery(transactionQueries.count(scope));
-  const count = referenceCountQuery.data?.count ?? 0;
-  const hasTransactions = count > 0;
+  const referenceCount = referenceCountQuery.data?.count ?? 0;
+  const hasTransactions = referenceCount > 0;
 
-  // The net over the *filtered* set, so the header total always describes the
-  // rows shown beneath it (matching the category page's behaviour).
+  // The count and net over the *filtered* set, so the header total always describes
+  // the rows shown beneath it (matching the category page's behaviour).
   const netQuery = useQuery(transactionQueries.count(composeTransactionFilters(scope, search)));
   const net = netQuery.data?.total ?? 0;
+  const filteredCount = netQuery.data?.count ?? 0;
+
+  const rulesQuery = useQuery(ruleQueries.list({ issuerId: issuer.id }));
+  const ruleCount = rulesQuery.data?.items?.length ?? 0;
 
   const applyFilters = (patch: TransactionFilterValues) => {
     routeNavigate({
@@ -157,6 +183,16 @@ function IssuerDetailContent({ issuer }: IssuerDetailContentProps) {
   const goToPage = (page: number) => {
     routeNavigate({
       search: (prev: TransactionsSearch) => ({ ...prev, page }),
+    });
+  };
+
+  /** The default panel stays out of the URL — one view, one spelling. */
+  const selectTab = (next: IssuerTab) => {
+    routeNavigate({
+      search: (prev: TransactionsSearch) => ({
+        ...prev,
+        tab: next === DEFAULT_ISSUER_TAB ? undefined : next,
+      }),
     });
   };
 
@@ -183,116 +219,108 @@ function IssuerDetailContent({ issuer }: IssuerDetailContentProps) {
     <PageLayout
       back={<BackLink to="/issuers">Issuers</BackLink>}
       // The name *is* the heading — click it to edit in place (no separate
-      // rename form; edits autosave once typing settles). `flex-1` so the field
-      // takes the whole row beside the avatar rather than shrink-wrapping.
+      // rename form; edits autosave once typing settles). The avatar rides in
+      // the title beside it, as the menu for everything that acts on the issuer
+      // as an object. `flex-1` so the field takes the whole row rather than
+      // shrink-wrapping.
       title={
         <>
-          <IssuerAvatar
-            imageUrl={issuer.imageUrl}
-            defaultCategoryId={issuer.defaultCategoryId}
-            size="lg"
-          />
+          <span ref={avatarRef} className="flex shrink-0 items-center">
+            <IssuerAvatarMenu
+              issuer={issuer}
+              onUpload={() => fileInputRef.current?.click()}
+              onSearchLogo={() => setLogoSearchOpen(true)}
+              onRemoveImage={() => deleteImage.mutate(issuer.id)}
+              busy={uploadImage.isPending || deleteImage.isPending}
+            />
+          </span>
           <span className="min-w-0 flex-1">
             <IssuerNameField issuer={issuer} />
           </span>
         </>
       }
-      description={
-        <span className="flex items-baseline gap-2 text-sm">
-          <span className="tabular-nums">
-            {count} transaction{count === 1 ? "" : "s"}
-          </span>
-          <span
-            className={cn(
-              "font-medium tabular-nums",
-              net < 0 && "text-gousse-high",
-              net > 0 && "text-gousse-low",
-            )}
-          >
-            {formatCurrency(net)}
-          </span>
-        </span>
-      }
-      className="gap-8"
+      className="gap-6"
     >
-      <div className="flex flex-wrap gap-2">
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploadImage.isPending}
-        >
-          Upload image
-        </Button>
-        {/* The second way in: search rather than a file (issue #61). Beside
-            the upload because they answer the same question — the two paths
-            store byte-identical images (ADR 0007), so neither is the
-            fallback for the other. */}
-        <LogoSearchPopover issuer={issuer} />
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={() => deleteImage.mutate(issuer.id)}
-          disabled={issuer.imageUrl == null || deleteImage.isPending}
-        >
-          Remove image
-        </Button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          aria-label="Issuer image"
-          onChange={handleFile}
-        />
-      </div>
+      {/* Not the layout's `description` slot: that renders a `<p>`, and this is
+          a row of controls and a figure, not a sentence. It leads the page
+          instead, directly under the title it describes. */}
+      <IssuerDetailHeader
+        issuer={issuer}
+        count={filteredCount}
+        net={net}
+        onToggleRecap={(excluded) => setExcludedFromRecap.mutate({ id: issuer.id, excluded })}
+        recapBusy={setExcludedFromRecap.isPending}
+        deleteAction={
+          <IssuerDeleteButton
+            issuerName={issuer.name}
+            deleteBlocked={hasTransactions}
+            transactionCount={referenceCount}
+            onConfirm={handleDelete}
+            busy={remove.isPending}
+          />
+        }
+      />
 
-      <IssuerDefaultCategoryPicker issuer={issuer} />
+      {/* The second way in: search rather than a file (issue #61). Both paths
+          store byte-identical images (ADR 0007), so neither is the fallback for
+          the other — they simply live in the avatar's menu now. */}
+      <LogoSearchPopover
+        issuer={issuer}
+        open={logoSearchOpen}
+        onOpenChange={setLogoSearchOpen}
+        withTrigger={false}
+        anchor={avatarRef.current}
+      />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        aria-label="Issuer image"
+        onChange={handleFile}
+      />
 
-      <IssuerNotesField issuer={issuer} />
+      <Tabs value={tab} onValueChange={(next) => selectTab(next as IssuerTab)}>
+        <TabsList>
+          <TabsTab value="transactions">
+            <Receipt className="size-3.5" aria-hidden />
+            Transactions
+            <TabCount>{referenceCount}</TabCount>
+          </TabsTab>
+          <TabsTab value="rules">
+            <Ruler className="size-3.5" aria-hidden />
+            Rules
+            <TabCount>{ruleCount}</TabCount>
+          </TabsTab>
+          <TabsIndicator />
+        </TabsList>
 
-      {/* The bulk exclusion lever (issue #69), directly above the rows it
-          governs — whether they count is read *through* the issuer, so this
-          is the one write that changes the whole list's arithmetic. */}
-      <IssuerRecapExclusionSection issuer={issuer} />
+        {/* The same table, filters, sort, and pagination as the transactions and
+            category pages — scoped to this issuer (issue #62). */}
+        <TabsPanel value="transactions" className="pt-5">
+          <TransactionsSection
+            scope={scope}
+            search={search}
+            onFiltersChange={applyFilters}
+            onToggleSort={toggleSort}
+            onPageChange={goToPage}
+            emptyDescription="No transactions reference this issuer yet."
+          />
+        </TabsPanel>
 
-      {/* The same table, filters, sort, and pagination as the transactions and
-          category pages — scoped to this issuer (issue #62). */}
-      <div className="flex flex-col gap-6">
-        <TransactionsSection
-          scope={scope}
-          search={search}
-          onFiltersChange={applyFilters}
-          onToggleSort={toggleSort}
-          onPageChange={goToPage}
-          emptyDescription="No transactions reference this issuer yet."
-        >
-          <h2 className="text-balance text-lg font-semibold text-gousse-ink">Transactions</h2>
-        </TransactionsSection>
-      </div>
-
-      <div className="border-t border-gousse-line pt-6">
-        <RulesSection issuer={issuer} />
-      </div>
-
-      <div className="flex flex-col gap-1 border-t border-gousse-line pt-6">
-        <Button
-          variant="danger"
-          size="sm"
-          className="self-start"
-          onClick={handleDelete}
-          disabled={hasTransactions || remove.isPending}
-          title={hasTransactions ? "This issuer is still referenced by transactions" : undefined}
-        >
-          Delete issuer
-        </Button>
-        {hasTransactions ? (
-          <span className="text-xs text-gousse-muted tabular-nums">
-            {count} transaction{count === 1 ? "" : "s"} reference this issuer — reassign them to
-            delete.
-          </span>
-        ) : null}
-      </div>
+        <TabsPanel value="rules" className="pt-5">
+          <RulesSection issuer={issuer} />
+        </TabsPanel>
+      </Tabs>
     </PageLayout>
+  );
+}
+
+/** The count beside a tab's label — a pill, so it reads as a badge not a word. */
+function TabCount({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="rounded-full bg-gousse-line/60 px-1.5 text-[11px] text-gousse-muted tabular-nums">
+      {children}
+    </span>
   );
 }

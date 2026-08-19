@@ -2,6 +2,7 @@ import type {
   AccountId,
   CategoryId,
   IssuerId,
+  RecapTrendGranularity,
   TransactionBulkCreate,
   TransactionBulkPut,
   TransactionCreate,
@@ -109,6 +110,16 @@ export type RecapParams = {
 };
 
 /**
+ * The `recapTrend` params (issue #113) — the recap's own period and account
+ * selection, plus the time bucket to group by. `granularity` is required: it is
+ * the shape of the answer, and defaulting it would let a caller silently get a
+ * series at a grain it never asked for.
+ */
+export type RecapTrendParams = RecapParams & {
+  granularity: RecapTrendGranularity;
+};
+
+/**
  * The `bundleImpact` params (issue #77) — the statement whose rows are about to
  * be deleted. Both are required: this is a pre-flight of one targeted delete,
  * not a filtered read.
@@ -138,6 +149,8 @@ export const transactionKeys = {
   transferCandidates: () => [...transactionKeys.all, "transfer-candidates"] as const,
   recap: (params: RecapParams) => [...transactionKeys.all, "recap", params] as const,
   recapPeriods: () => [...transactionKeys.all, "recap-periods"] as const,
+  recapTrend: (params: RecapTrendParams) =>
+    [...transactionKeys.all, "recap-trend", params] as const,
   bundleImpact: (params: BundleImpactParams) =>
     [...transactionKeys.all, "bundle-impact", params] as const,
   bulkGet: (ids: ReadonlyArray<TransactionId>) =>
@@ -270,6 +283,26 @@ export const transactionQueries = {
       queryFn: ({ signal }) =>
         runQuery(
           Effect.flatMap(Client, (client) => client.transactions.recapPeriods()),
+          signal,
+        ),
+    }),
+
+  /**
+   * Earnings and spending per time bucket (issue #113) — the recap's period read
+   * as a series rather than one total, for the trend chart.
+   *
+   * The one recap read that reports **income**: the spend breakdowns are
+   * debits-only by design, and this adds a second aggregate beside them rather
+   * than loosening that rule, so both halves hold out the same transfer legs,
+   * excluded rows and bundle members. `spent` over the window therefore agrees
+   * with what {@link recap} totals for it. Invalidated by the same writes.
+   */
+  recapTrend: (params: RecapTrendParams) =>
+    queryOptions({
+      queryKey: transactionKeys.recapTrend(params),
+      queryFn: ({ signal }) =>
+        runQuery(
+          Effect.flatMap(Client, (client) => client.transactions.recapTrend({ urlParams: params })),
           signal,
         ),
     }),

@@ -2033,6 +2033,207 @@ describe("TransactionRepo", () => {
     );
   });
 
+  // The trend (issue #113) — earnings and spending per time bucket. The one
+  // recap read that reports income, so what it must prove is that adding the
+  // credit half did NOT loosen which rows count: the same transfer legs,
+  // excluded rows and bundle members `countsTowardRecap` drops for the
+  // breakdowns are absent from both halves here.
+  describe("recap trend (issue #113)", () => {
+    /** A row dated in a given `YYYY-MM`, on the 15th. */
+    const at = (month: string, over: Partial<TransactionCreate> = {}): TransactionCreate =>
+      make({
+        amount: -10,
+        date: new Date(`${month}-15T12:00:00.000Z`),
+        importMonth: month,
+        ...over,
+      });
+
+    it.effect("splits debits and credits into spent/earned as positive magnitudes", () =>
+      Effect.gen(function* () {
+        const repo = yield* TransactionRepo;
+        yield* repo.create(at("2026-07", { amount: -10 }));
+        yield* repo.create(at("2026-07", { amount: -5 }));
+        yield* repo.create(at("2026-07", { amount: 2000 }));
+
+        const { points } = yield* repo.recapTrend({ granularity: "month" });
+        assert.deepStrictEqual(points, [{ bucket: "2026-07", earned: 2000, spent: 15 }]);
+      }).pipe(Effect.provide(RepoTest)),
+    );
+
+    it.effect("buckets by month, oldest first, and omits months with no rows", () =>
+      Effect.gen(function* () {
+        const repo = yield* TransactionRepo;
+        yield* repo.create(at("2026-05", { amount: -10 }));
+        yield* repo.create(at("2026-07", { amount: -20 }));
+
+        const { points } = yield* repo.recapTrend({ granularity: "month" });
+        // June is absent rather than zero-filled: a gap is a real gap, and the
+        // client owns the axis it draws it on.
+        assert.deepStrictEqual(
+          points.map((p) => p.bucket),
+          ["2026-05", "2026-07"],
+        );
+      }).pipe(Effect.provide(RepoTest)),
+    );
+
+    it.effect("buckets by year when asked, collapsing that year's months", () =>
+      Effect.gen(function* () {
+        const repo = yield* TransactionRepo;
+        yield* repo.create(at("2025-02", { amount: -10 }));
+        yield* repo.create(at("2025-11", { amount: -20 }));
+        yield* repo.create(at("2026-01", { amount: 50 }));
+
+        const { points } = yield* repo.recapTrend({ granularity: "year" });
+        assert.deepStrictEqual(points, [
+          { bucket: "2025", earned: 0, spent: 30 },
+          { bucket: "2026", earned: 50, spent: 0 },
+        ]);
+      }).pipe(Effect.provide(RepoTest)),
+    );
+
+    it.effect("sums money in integer cents, so small amounts do not drift", () =>
+      Effect.gen(function* () {
+        const repo = yield* TransactionRepo;
+        yield* repo.create(at("2026-07", { amount: -0.1 }));
+        yield* repo.create(at("2026-07", { amount: -0.1 }));
+        yield* repo.create(at("2026-07", { amount: -0.1 }));
+
+        const { points } = yield* repo.recapTrend({ granularity: "month" });
+        // Added as REALs this is 0.30000000000000004.
+        assert.strictEqual(points[0]?.spent, 0.3);
+      }).pipe(Effect.provide(RepoTest)),
+    );
+
+    it.effect("holds out the same rows the breakdowns do — on BOTH halves", () =>
+      Effect.gen(function* () {
+        const repo = yield* TransactionRepo;
+        const counted = yield* repo.create(at("2026-07", { amount: -10 }));
+        const income = yield* repo.create(at("2026-07", { amount: 100 }));
+        // Excluded deliberately: absent from spend AND from earnings.
+        yield* repo.create(
+          at("2026-07", { amount: -999, excludedFromRecap: true, manualExcluded: true }),
+        );
+        yield* repo.create(
+          at("2026-07", { amount: 999, excludedFromRecap: true, manualExcluded: true }),
+        );
+        // A transfer pair: money between the user's own accounts, neither
+        // spending on the way out nor earnings on the way in.
+        const out = yield* repo.create(at("2026-07", { amount: -30 }));
+        const back = yield* repo.create(at("2026-07", { amount: 30, accountId: asAccount(2) }));
+        yield* repo.linkTransfer([out.id, back.id]);
+
+        const { points } = yield* repo.recapTrend({ granularity: "month" });
+        assert.deepStrictEqual(points, [{ bucket: "2026-07", earned: 100, spent: 10 }]);
+
+        // And the spend half agrees with what `recap` reports for the window,
+        // which is the property that keeps the chart and the lists consistent.
+        const recap = yield* repo.recap({});
+        const recapSpent = recap.byIssuer.reduce((t, b) => t + b.spent, 0);
+        assert.strictEqual(points[0]?.spent, recapSpent);
+        assert.deepStrictEqual([counted.id, income.id].length, 2);
+      }).pipe(Effect.provide(RepoTest)),
+    );
+
+    it.effect("counts a bundle parent once and never its members", () =>
+      Effect.gen(function* () {
+        const repo = yield* TransactionRepo;
+        const a = yield* repo.create(at("2026-07", { amount: -10 }));
+        const b = yield* repo.create(at("2026-07", { amount: -15 }));
+        yield* repo.createBundle([a.id, b.id], "Groceries run");
+
+        const { points } = yield* repo.recapTrend({ granularity: "month" });
+        // The parent stands for 25; counting the members too would show 50.
+        assert.deepStrictEqual(points, [{ bucket: "2026-07", earned: 0, spent: 25 }]);
+      }).pipe(Effect.provide(RepoTest)),
+    );
+
+    it.effect("cuts spending by category and bucket, summing to that bucket's spent", () =>
+      Effect.gen(function* () {
+        const repo = yield* TransactionRepo;
+        yield* repo.create(
+          at("2026-06", { amount: -10, categoryId: asCategory(7), manualCategory: true }),
+        );
+        yield* repo.create(
+          at("2026-07", { amount: -20, categoryId: asCategory(7), manualCategory: true }),
+        );
+        yield* repo.create(
+          at("2026-07", { amount: -5, categoryId: asCategory(8), manualCategory: true }),
+        );
+        // A credit: money in is not part of what the spending was made of, so
+        // it must not appear in the composition at all.
+        yield* repo.create(at("2026-07", { amount: 500 }));
+
+        const { points, byCategory } = yield* repo.recapTrend({ granularity: "month" });
+
+        assert.deepStrictEqual(byCategory, [
+          { bucket: "2026-06", categoryId: 7, spent: 10 },
+          { bucket: "2026-07", categoryId: 7, spent: 20 },
+          { bucket: "2026-07", categoryId: 8, spent: 5 },
+        ]);
+
+        // Each bucket's cells sum to the `spent` on its trend point — the two
+        // run through the same WHERE, so they cannot drift.
+        for (const point of points) {
+          const cells = byCategory
+            .filter((c) => c.bucket === point.bucket)
+            .reduce((total, c) => total + c.spent, 0);
+          assert.strictEqual(cells, point.spent);
+        }
+      }).pipe(Effect.provide(RepoTest)),
+    );
+
+    it.effect("groups a bucket by the DERIVED category, not the stored column", () =>
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient;
+        const repo = yield* TransactionRepo;
+        // An issuer carrying a default category: rows matched to it are
+        // categorised THROUGH it (ADR 0002) and store no category of their own.
+        yield* sql`INSERT INTO issuers (id, name, defaultCategoryId, createdAt, firstSeen) VALUES (8, 'Spotify AB', 7, ${DATE.toISOString()}, ${DATE.toISOString()})`;
+        yield* repo.create(at("2026-07", { amount: -10, issuerId: asIssuer(8) }));
+        yield* repo.create(at("2026-07", { amount: -5, issuerId: asIssuer(8) }));
+        // And one row that stores category 7 directly — the same category,
+        // reached the other way.
+        yield* repo.create(
+          at("2026-07", { amount: -3, categoryId: asCategory(7), manualCategory: true }),
+        );
+
+        const { byCategory } = yield* repo.recapTrend({ granularity: "month" });
+
+        // ONE cell for the bucket, summing all three. Grouping by the bare
+        // `categoryId` alias would resolve to the stored column and split the
+        // issuer-derived rows into a second cell reporting the same id.
+        assert.deepStrictEqual(byCategory, [{ bucket: "2026-07", categoryId: 7, spent: 18 }]);
+      }).pipe(Effect.provide(RepoAndSqlTest)),
+    );
+
+    it.effect("reports the uncategorised band rather than dropping it", () =>
+      Effect.gen(function* () {
+        const repo = yield* TransactionRepo;
+        yield* repo.create(at("2026-07", { amount: -12 }));
+
+        const { byCategory } = yield* repo.recapTrend({ granularity: "month" });
+        assert.deepStrictEqual(byCategory, [{ bucket: "2026-07", categoryId: null, spent: 12 }]);
+      }).pipe(Effect.provide(RepoTest)),
+    );
+
+    it.effect("scopes to the period bounds and the account selection", () =>
+      Effect.gen(function* () {
+        const repo = yield* TransactionRepo;
+        yield* repo.create(at("2026-06", { amount: -10 }));
+        yield* repo.create(at("2026-07", { amount: -20 }));
+        yield* repo.create(at("2026-07", { amount: -7, accountId: asAccount(2) }));
+
+        const { points } = yield* repo.recapTrend({
+          granularity: "month",
+          startDate: new Date("2026-07-01T00:00:00.000Z"),
+          endDate: new Date("2026-07-31T23:59:59.999Z"),
+          accountId: asAccount(1),
+        });
+        assert.deepStrictEqual(points, [{ bucket: "2026-07", earned: 0, spent: 20 }]);
+      }).pipe(Effect.provide(RepoTest)),
+    );
+  });
+
   // Link/unlink internal transfers (PRD #48, issue #50). The atomic multi-row
   // operations validated entirely server-side — tested at the repository seam
   // over the in-memory SQLite layer, the same boundary the handler tests use.

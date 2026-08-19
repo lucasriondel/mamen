@@ -72,7 +72,7 @@ export function PageLayout({
               {/* A flex row, so a title that carries a glyph — a category's
                * icon, an issuer's avatar — sets it beside the name rather than
                * each page re-deciding the gap. */}
-              <h1 className="flex min-w-0 items-center gap-2 text-balance text-2xl font-semibold text-gousse-ink">
+              <h1 className="flex min-w-0 flex-1 items-center gap-2 text-balance text-2xl font-semibold text-gousse-ink">
                 {title}
               </h1>
             </div>
