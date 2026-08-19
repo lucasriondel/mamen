@@ -127,15 +127,21 @@ table.
 **Skipped row**:
 A previewed row the user held out of the commit — the recourse for an **already
 imported** mark, and the only thing that ever keeps a parsed row from being
-written (epic #85). Offered per row on both preview paths: the CSV preview
-strikes the row through and keeps a restore control beside it, while the
-**side-by-side validation** view deletes it outright, since a PDF's rows are
-editable there anyway. A skip is a decision about *this* commit and nothing
-else: it writes nothing, stores nothing, and is gone when the wizard is.
+written (epic #85). Offered per row on both preview paths: the row is struck
+through and restorable, and its editable fields (where it has any) are disabled
+while it is skipped. A skip is a decision about *this* commit and nothing else:
+it writes nothing, stores nothing, and is gone when the wizard is.
+
+The **side-by-side validation** view used to delete a row outright instead, on
+the grounds that a PDF's rows are editable there anyway. That reasoning is
+retired by issue #190: a skipped row's inputs are inert, so deleting bought
+nothing that skipping does not, and cost reversibility. Adding a row the
+extraction missed remains a separate control — it solves the opposite problem.
 _Avoid_: Excluded (reserved for **excluded from recap**), ignored, deselected.
-_Code note_: `skippedRows` on the wizard state, ascending indices into the
-parsed records. They name records rather than CSV lines, so another file or
-another **Parser** clears them.
+_Code note_: `skippedRows` on the wizard state — a set of **stable row ids**,
+minted per candidate row from a counter in wizard state (issue #190). They name
+records rather than CSV lines or positions, so another file or another
+**Parser** clears them, and filtering the preview cannot skip the wrong row.
 
 **Raw issuer string**:
 The unparsed counterparty text on a transaction (`rawIssuerString`, e.g.
