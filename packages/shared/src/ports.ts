@@ -62,9 +62,10 @@ export const API_DEV_PORT = 5500;
 
 /**
  * The throwaway demo stack's web container (issue #141): the app served over
- * the seeded demo database, for screenshots. Reserved here rather than picked
- * in the compose file, because the stack has to come up while `bun dev` is
- * already running.
+ * the seeded demo database, for screenshots. Published by
+ * `docker-compose.demo.yml`, which states it as a literal and is held to this
+ * row by test — the number was reserved here first, and deliberately, because
+ * the stack has to come up while `bun dev` is already running.
  */
 export const DEMO_STACK_WEB_PORT = 5400;
 

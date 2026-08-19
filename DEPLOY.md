@@ -395,6 +395,13 @@ database, and there is no database server to start: sqlite is a file the API
 opens in-process and the migrator creates at boot. Local development is
 `bun dev`.
 
+The one other compose file in the repo is `docker-compose.demo.yml`, and it is
+not a deploy path either: it serves the seeded demo database for screenshots
+(`bun run demo:up`, README) and is built to be thrown away — its own project
+name, its own volume, no credential and no `restart:`, so nothing it holds
+outlives `bun run demo:down`. Never point it at real data; it re-seeds, which
+clears the tables it writes.
+
 ## Making the repository public
 
 The repository is private, and the flip is effectively irreversible: anything

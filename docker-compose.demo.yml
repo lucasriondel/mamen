@@ -1,0 +1,99 @@
+# The throwaway demo stack (issue #141): the app, over the seeded demo
+# database, for screenshots.
+#
+#     bun run demo:up      # build, seed, serve on http://localhost:5400/app/
+#     bun run demo:down    # containers, volume and the images this built, gone
+#
+# It is NOT a deploy path — `docker-compose.yml` beside it is that, and DEPLOY.md
+# describes the production one. Nothing here is meant to survive: no `restart:`,
+# no `.env`, no credential, and a teardown that takes the volume with it.
+#
+# Three things keep it away from real state, and each is a line below rather than
+# a habit:
+#
+# - its own project name (`mamen-demo`), so `down` reaches these containers and
+#   not the self-host stack's, which is built from this same checkout and would
+#   otherwise share the directory-derived default;
+# - its own volume (`mamen-demo-data`), so seeding — which clears the tables it
+#   writes — cannot land in a database somebody was keeping;
+# - its own host port, 5400, mamen's registered row for this stack
+#   (`packages/shared/src/ports.ts`). The stack is meant to come up while
+#   `bun dev` is already running, so the number is one nothing else binds.
+#
+# Nothing is interpolated. Compose reads `.env` from this directory, and that
+# file is the self-host operator's — a real TOKEN_ENCRYPTION_KEY among other
+# things. Every value here is a literal, so this stack is the same stack on every
+# machine, whatever is lying beside it.
+name: mamen-demo
+
+services:
+  # One shot, then exit. It writes the demo dataset — one invented household's
+  # six months of banking (issue #139) — into the volume the api then reads,
+  # creating and migrating the file itself.
+  #
+  # It runs on the api image because that image already carries the script and
+  # its dependencies; a second build would install them again to run one file.
+  seed:
+    build:
+      context: .
+      dockerfile: packages/api/Dockerfile
+    command: ["bun", "packages/api/scripts/seed-demo.ts", "/data/demo.db"]
+    volumes:
+      - mamen-demo-data:/data
+    # No `environment:`, and DB_PATH in particular. The seeder refuses a target
+    # whose file name is the API's own database — the guard that stops it being
+    # aimed at a developer's statements — and the api image bakes
+    # `DB_PATH=/data/mamen.db`. `demo.db` is another name, so the guard passes
+    # on its own terms and `--force` never appears here.
+    #
+    # It re-runs on every `up`, and that is the point: the seeder replaces the
+    # rows it owns rather than adding to them, so a volume that survived a
+    # `down` is brought back to the same app rather than left wherever the last
+    # screenshot session put it.
+
+  api:
+    build:
+      context: .
+      dockerfile: packages/api/Dockerfile
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+    environment:
+      # Must match the port in `API_UPSTREAM` below.
+      PORT: "5500"
+      # The file the seeder just wrote. `UPLOADS_DIR` is left at the image's
+      # default, `/data/uploads`, which is what lets one mount cover both.
+      DB_PATH: /data/demo.db
+      # No TOKEN_ENCRYPTION_KEY and no LOGODEV_TOKEN, deliberately: without
+      # them, storing an AI credential fails and Logo search reports itself
+      # unconfigured. Neither is on the path to a screenshot, and a demo stack
+      # is the last place a real key should be.
+    volumes:
+      - mamen-demo-data:/data
+    # No `ports:`. 5401 is this stack's second registered row — the demo API
+    # reached directly — and it is a reservation, not a default: the API has no
+    # authentication of its own, `POST /api/database/reset` included, so
+    # publishing it would put the demo database on the host. Add it here, by
+    # hand, while debugging the stack; the number is written down so that the
+    # one taken then is not some other project's.
+
+  web:
+    build:
+      context: .
+      dockerfile: packages/web/Dockerfile
+    depends_on:
+      - api
+    environment:
+      # Rendered into nginx.conf at container start by nginx's own envsubst
+      # entrypoint. `api` is the name docker's DNS answers for on this network.
+      API_UPSTREAM: "api:5500"
+    ports:
+      # The stack's only published port, and a literal rather than a knob: a
+      # throwaway stack that answers on a different port per machine is one
+      # whose documented URL is wrong somewhere.
+      - "5400:80"
+
+volumes:
+  # Removed by `bun run demo:down`. It holds nothing but the seeded demo — every
+  # counterparty, amount and account number in it is invented.
+  mamen-demo-data:
