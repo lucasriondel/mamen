@@ -127,15 +127,21 @@ table.
 **Skipped row**:
 A previewed row the user held out of the commit — the recourse for an **already
 imported** mark, and the only thing that ever keeps a parsed row from being
-written (epic #85). Offered per row on both preview paths: the CSV preview
-strikes the row through and keeps a restore control beside it, while the
-**side-by-side validation** view deletes it outright, since a PDF's rows are
-editable there anyway. A skip is a decision about *this* commit and nothing
-else: it writes nothing, stores nothing, and is gone when the wizard is.
+written (epic #85). Offered per row on both preview paths: the row is struck
+through and restorable, and its editable fields (where it has any) are disabled
+while it is skipped. A skip is a decision about *this* commit and nothing else:
+it writes nothing, stores nothing, and is gone when the wizard is.
+
+The **side-by-side validation** view used to delete a row outright instead, on
+the grounds that a PDF's rows are editable there anyway. That reasoning is
+retired by issue #190: a skipped row's inputs are inert, so deleting bought
+nothing that skipping does not, and cost reversibility. Adding a row the
+extraction missed remains a separate control — it solves the opposite problem.
 _Avoid_: Excluded (reserved for **excluded from recap**), ignored, deselected.
-_Code note_: `skippedRows` on the wizard state, ascending indices into the
-parsed records. They name records rather than CSV lines, so another file or
-another **Parser** clears them.
+_Code note_: `skippedRows` on the wizard state — a set of **stable row ids**,
+minted per candidate row from a counter in wizard state (issue #190). They name
+records rather than CSV lines or positions, so another file or another
+**Parser** clears them, and filtering the preview cannot skip the wrong row.
 
 **Raw issuer string**:
 The unparsed counterparty text on a transaction (`rawIssuerString`, e.g.
@@ -350,15 +356,19 @@ no longer exists), header (the `<header>` element is the topbar's markup).
 
 **Account card**:
 One account as a single object on the accounts page: its swatch (still the
-recolour surface), name, type, transaction count, month coverage, a `···` menu,
-and its own **month strip** (issue #131). The page used to be two blocks that
+recolour surface), name, type, transaction count, month coverage, its **IBAN**
+when it has one, a `···` menu, and its own **month strip** (issue #131). The page used to be two blocks that
 each enumerated every account — a list of name-and-buttons rows, then an
 `Import statements` matrix repeating the names down its left edge — so every
 account was named twice and "is this one behind?" was a cross-reference. The
 count is a **stat**, not a warning: it used to read `137 transactions — clear
 them to delete`, permanent error copy explaining a disabled button nobody had
 pressed. The explanation now lives in the menu, beside the Delete it answers.
-_Avoid_: account row (the flat list it replaced), import grid (deleted with it).
+The menu's first item is **Edit**, not *Rename*: the form it opens carries the
+name and the IBAN together, as one write — two writes would be two invalidations
+and a frame showing the new name beside the old IBAN.
+_Avoid_: account row (the flat list it replaced), import grid (deleted with it),
+rename form (the single-field form the edit form replaced).
 
 **Month strip**:
 The twelve months of one year on one card, each a **month cell** whose state is
@@ -392,10 +402,13 @@ The last item of the accounts list: a dashed ghost tile that opens the
 create-account dialog (issue #131). Creating an account used to be an always-open
 form pinned above the list — the loudest position on the page for its rarest
 task, and two fields of empty chrome between the title and the accounts. As a
-tile it costs one row of dashes at rest and asks its two questions (name, type)
-only once pressed. It is also the page's **empty state**, where it names a *first*
-account rather than another one. No colour field: a new account resolves to a
-stable colour from its id, and the card's swatch is where that is changed.
+tile it costs one row of dashes at rest and asks its questions (name, type, and
+an optional **IBAN**) only once pressed. It is also the page's **empty state**,
+where it names a *first* account rather than another one. No colour field: a new
+account resolves to a stable colour from its id, and the card's swatch is where
+that is changed. The IBAN *is* asked for, and the difference is that it is data
+already in front of the user — they are reading the statement it is printed on —
+where a colour is a decision about an object that does not exist yet.
 _Avoid_: create account form (the pinned form it replaced).
 
 **Nav glyph**:

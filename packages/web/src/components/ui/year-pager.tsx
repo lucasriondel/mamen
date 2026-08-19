@@ -2,10 +2,10 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface YearPagerProps {
-  /** The selectable years, **newest first** — `availableYears()`'s order. */
-  years: readonly number[];
   /** The year currently shown. */
   value: number;
+  /** The newest selectable year — the pager never steps past it. */
+  maxYear: number;
   onChange: (year: number) => void;
   /** Names the group; also names the arrows ("Previous year"). */
   label?: string;
@@ -16,91 +16,86 @@ const ARROW_CLASS =
   "flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full text-gousse-muted outline-none transition-colors hover:bg-gousse-line/60 hover:text-gousse-ink focus-visible:ring-2 focus-visible:ring-gousse-accent disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-gousse-muted";
 
 /**
- * A pill that renders every page of a short bounded range inline, plus an arrow
- * at each end — the accounts page's year selector (issue #131).
+ * A pill holding the year in force, an arrow at each end, and a way back to the
+ * present — the accounts page's year selector (issues #131, #159).
  *
- * It replaces a `<select>` because the range it pages over is
- * `availableYears()`: the earliest imported year through the current one,
- * typically one to three entries. A select hides that list behind a click, so
- * "which years hold data?" costs a gesture; laid out inline it costs nothing and
- * fits in the topbar beside the title. Past ~10 years the track would need to
- * scroll or collapse — not built, because nothing can produce that range yet.
+ * The past is **unbounded**: a statement can be as old as the account, and the
+ * pager used to stop at the earliest year that already held an import, which is
+ * exactly backwards — you page back to a year *in order to* import into it, so
+ * refusing to go there until something is there is a lock with the key inside.
+ * Stepping back is therefore always allowed.
  *
- * **The array is newest-first**, so the arrows are inverted with respect to the
- * index: stepping to an *older* year means moving *forward* through `years`.
- * That is the one thing here worth getting wrong, so both arrows resolve their
- * target through {@link step} rather than by arithmetic at the call site.
+ * The future is not. `maxYear` is the newest year worth showing (the current
+ * one): months after today aren't over, so their statements don't exist yet and
+ * a year of them would be twelve dead cells.
  *
- * `role="group"` rather than `tablist` or `radiogroup`: the pages are ordinary
- * buttons that change what the page below shows, and `aria-current` states which
- * one is in force — the same relationship pagination has, which is what this is.
+ * Because the range is open-ended it can no longer be laid out inline — an
+ * arbitrary number of pages doesn't fit a topbar pill. So the pill shows the
+ * active year alone, and {@link ThisYearButton} appears beside it once you have
+ * wandered off `maxYear`, which is the only jump a one-at-a-time stepper is slow
+ * at: getting home from far away costs one click instead of N.
+ *
+ * `role="group"` rather than `tablist` or `radiogroup`: the arrows are ordinary
+ * buttons that change what the page below shows — the same relationship
+ * pagination has, which is what this is.
  */
-export function YearPager({ years, value, onChange, label = "Year", className }: YearPagerProps) {
-  const index = years.indexOf(value);
-
-  /** The year `offset` steps *newer* than the active one, or `undefined`. */
-  const step = (offset: number): number | undefined => {
-    if (index < 0) return undefined;
-    return years[index - offset];
-  };
-
-  const older = step(-1);
-  const newer = step(1);
+export function YearPager({ value, maxYear, onChange, label = "Year", className }: YearPagerProps) {
+  const atMax = value >= maxYear;
 
   return (
-    // biome-ignore lint/a11y/useSemanticElements: a `fieldset` announces a group of form controls; these are pagination buttons that change what the page shows, and a legend inside this pill would have nowhere to sit.
-    <div
-      // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- the same decision as the biome-ignore above, for the other linter
-      role="group"
-      aria-label={label}
-      className={cn(
-        "inline-flex items-center gap-0.5 rounded-full border border-gousse-line bg-gousse-panel p-1",
-        className,
-      )}
-    >
-      <button
-        type="button"
-        aria-label={`Previous ${label.toLowerCase()}`}
-        title={`Previous ${label.toLowerCase()}`}
-        disabled={older === undefined}
-        onClick={() => older !== undefined && onChange(older)}
-        className={ARROW_CLASS}
+    <div className={cn("inline-flex items-center gap-2", className)}>
+      {/* biome-ignore lint/a11y/useSemanticElements: a `fieldset` announces a group of form controls; these are pagination buttons that change what the page shows, and a legend inside this pill would have nowhere to sit. */}
+      <div
+        // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- the same decision as the biome-ignore above, for the other linter
+        role="group"
+        aria-label={label}
+        className="inline-flex items-center gap-0.5 rounded-full border border-gousse-line bg-gousse-panel p-1"
       >
-        <ChevronLeft className="size-4" aria-hidden />
-      </button>
+        <button
+          type="button"
+          aria-label={`Previous ${label.toLowerCase()}`}
+          title={`Previous ${label.toLowerCase()}`}
+          onClick={() => onChange(value - 1)}
+          className={ARROW_CLASS}
+        >
+          <ChevronLeft className="size-4" aria-hidden />
+        </button>
 
-      {years.map((year) => {
-        const active = year === value;
-        return (
-          <button
-            key={year}
-            type="button"
-            // `aria-current` is a state, not a flag: an inactive page carries no
-            // attribute at all rather than `aria-current="false"`.
-            aria-current={active ? "true" : undefined}
-            onClick={() => onChange(year)}
-            className={cn(
-              "cursor-pointer rounded-full px-3 py-1 text-sm tabular-nums outline-none transition-colors focus-visible:ring-2 focus-visible:ring-gousse-accent",
-              active
-                ? "bg-gousse-accent/15 font-semibold text-gousse-accent"
-                : "text-gousse-muted hover:bg-gousse-line/60 hover:text-gousse-ink",
-            )}
-          >
-            {year}
-          </button>
-        );
-      })}
+        <output
+          aria-live="polite"
+          className="rounded-full bg-gousse-accent/15 px-3 py-1 text-center font-semibold text-gousse-accent text-sm tabular-nums"
+        >
+          {value}
+        </output>
 
-      <button
-        type="button"
-        aria-label={`Next ${label.toLowerCase()}`}
-        title={`Next ${label.toLowerCase()}`}
-        disabled={newer === undefined}
-        onClick={() => newer !== undefined && onChange(newer)}
-        className={ARROW_CLASS}
-      >
-        <ChevronRight className="size-4" aria-hidden />
-      </button>
+        <button
+          type="button"
+          aria-label={`Next ${label.toLowerCase()}`}
+          title={`Next ${label.toLowerCase()}`}
+          disabled={atMax}
+          onClick={() => !atMax && onChange(value + 1)}
+          className={ARROW_CLASS}
+        >
+          <ChevronRight className="size-4" aria-hidden />
+        </button>
+      </div>
+
+      {/* Only worth a control when it would do something: on the current year it
+          would be a button that does nothing to a state you are already in. */}
+      {atMax ? null : <ThisYearButton onClick={() => onChange(maxYear)} />}
     </div>
+  );
+}
+
+/** The one-click way back to `maxYear`, shown only while away from it. */
+function ThisYearButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="cursor-pointer rounded-full border border-gousse-line bg-gousse-panel px-3 py-1.5 text-gousse-muted text-sm outline-none transition-colors hover:bg-gousse-line/60 hover:text-gousse-ink focus-visible:ring-2 focus-visible:ring-gousse-accent"
+    >
+      This year
+    </button>
   );
 }

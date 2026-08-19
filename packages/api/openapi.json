@@ -171,6 +171,16 @@
                         "type": "null"
                       }
                     ]
+                  },
+                  "iban": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "additionalProperties": false
@@ -305,6 +315,16 @@
                     ]
                   },
                   "color": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "iban": {
                     "anyOf": [
                       {
                         "type": "string"
@@ -2841,6 +2861,150 @@
                       "type": "array",
                       "items": {
                         "type": "string"
+                      }
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/transactions/recap-trend": {
+      "get": {
+        "tags": [
+          "Transactions"
+        ],
+        "operationId": "transactions.recapTrend",
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "query",
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/NumberFromString"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NumberFromString"
+                  }
+                }
+              ]
+            },
+            "required": false
+          },
+          {
+            "name": "startDate",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/Date"
+            },
+            "required": false
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/Date"
+            },
+            "required": false
+          },
+          {
+            "name": "granularity",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "month",
+                "year"
+              ]
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "points",
+                    "byCategory"
+                  ],
+                  "properties": {
+                    "points": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "bucket",
+                          "earned",
+                          "spent"
+                        ],
+                        "properties": {
+                          "bucket": {
+                            "type": "string"
+                          },
+                          "earned": {
+                            "type": "number"
+                          },
+                          "spent": {
+                            "type": "number"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "byCategory": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "bucket",
+                          "categoryId",
+                          "spent"
+                        ],
+                        "properties": {
+                          "bucket": {
+                            "type": "string"
+                          },
+                          "categoryId": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "description": "an integer",
+                                "title": "int"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "spent": {
+                            "type": "number"
+                          }
+                        },
+                        "additionalProperties": false
                       }
                     }
                   },
@@ -6414,6 +6578,7 @@
           "name",
           "type",
           "color",
+          "iban",
           "createdAt",
           "updatedAt"
         ],
@@ -6436,6 +6601,16 @@
             ]
           },
           "color": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "iban": {
             "anyOf": [
               {
                 "type": "string"

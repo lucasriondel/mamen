@@ -176,16 +176,11 @@ describe("AccountsView", () => {
     renderView();
 
     const pager = await screen.findByRole("group", { name: "Year" });
-    await waitFor(() =>
-      expect(
-        within(pager)
-          .getAllByRole("button")
-          .map((button) => button.textContent)
-          .filter((text) => text?.match(/^\d{4}$/)),
-      ).toEqual(["2026", "2025", "2024"]),
-    );
+    await waitFor(() => expect(pager).toHaveTextContent("2026"));
 
-    await user.click(within(pager).getByRole("button", { name: "2024" }));
+    const back = within(pager).getByRole("button", { name: "Previous year" });
+    await user.click(back);
+    await user.click(back);
 
     expect(await screen.findByRole("group", { name: "Everyday — 2024" })).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Rainy day — 2024" })).toBeInTheDocument();

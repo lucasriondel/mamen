@@ -13,12 +13,19 @@ import { Paged, Pagination } from "./pagination";
  * entry derived from the account's `id`, which is why no migration backfills the
  * column: every pre-existing account already paints a distinct badge, and a user
  * who never opens the colour picker never sees an uncoloured account.
+ *
+ * `iban` is nullable too, but null there means **not given**, not *auto*: there
+ * is nothing to derive one from, so a null simply reads as an account with no
+ * IBAN on file. It is stored normalised (upper-case, no spaces) and only
+ * shape-checked — never validated against the country register — so a statement
+ * from a bank the app has never seen is still enterable.
  */
 export class Account extends Schema.Class<Account>("Account")({
   id: AccountId,
   name: Schema.String,
   type: Schema.Literal("checking", "savings", "credit_card", "other"),
   color: Schema.NullOr(Schema.String), // null = auto-derive from id
+  iban: Schema.NullOr(Schema.String), // null = not given
   createdAt: Schema.Date,
   updatedAt: Schema.Date,
 }) {}
@@ -27,11 +34,14 @@ export class Account extends Schema.Class<Account>("Account")({
  * Create payload — the server assigns `id`, `createdAt`, `updatedAt`. `color` is
  * optional here (rather than nullable-required) so existing callers that only
  * send `name`/`type` stay valid; an omitted colour lands as null, i.e. auto.
+ * `iban` is optional for the same reason, and an omitted one lands as null —
+ * an account with no IBAN on file.
  */
 export const AccountCreate = Schema.Struct({
   name: Account.fields.name,
   type: Account.fields.type,
   color: Schema.optional(Account.fields.color),
+  iban: Schema.optional(Account.fields.iban),
 });
 export type AccountCreate = typeof AccountCreate.Type;
 

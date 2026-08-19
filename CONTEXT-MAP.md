@@ -778,3 +778,58 @@ repeated per package.
   detail page, which is read-only about them.
   _Avoid_: error, warning badge, validation (nothing is invalid — a flagged row
   is a correct row worth looking at), alert.
+
+- **Raw source** — the original bank row exactly as the provider delivered it,
+  kept verbatim on the transaction (`rawSource`, a JSON object of the row's own
+  column names to their string values) so that a column mamen ignores today can
+  be read tomorrow **without re-importing**. Every key is kept, including the
+  ones already mapped to real fields: mapped-ness is decided when the row is
+  *rendered*, not when it is imported, because which column turns out to matter
+  is exactly what an importer cannot know in advance — the lesson `IBAN du
+  tiers` taught. Keys stay in the provider's own words (`Intitulé`, `Moyen de
+  paiement`), untranslated: a French header is *correct provenance*, and
+  renaming keys would reintroduce the import-time guessing the archive exists to
+  avoid. It is an **archive, not a competing source of truth** — nothing derives
+  from it, and a value promoted to a real column (see **Counterparty IBAN**) is
+  free to disagree with its raw form. Its contents are the bank's own words and
+  are labelled as such wherever shown, so Green-Got's `Catégorie` reads as
+  provenance rather than as a second, contradicting **Derived category**. It
+  means **as most recently delivered**: a re-import replaces it rather than
+  preserving the first delivery, because the useful question is always what the
+  bank says about this row *now*. CSV-imported rows carry one; a row from PDF
+  extraction has no original row to keep and leaves it null.
+  See [ADR 0012](./docs/adr/0012-raw-source-is-an-archive-promotion-is-earned.md).
+  _Avoid_: other metadata, extra fields, leftovers (all name it by what it
+  lacks); raw row (the value is an object, not the delimited line).
+
+- **Counterparty IBAN** — the IBAN of **the other party** to a transaction
+  (`counterpartyIban`, nullable), direction-agnostic: on a debit it is who was
+  paid, on a credit it is who paid. It follows **Issuer** in being bidirectional
+  by design — "destination IBAN" is the obvious wrong reading and would silently
+  invert every credit row. Null is the common case: card rows carry no IBAN at
+  all, only SEPA and direct-debit rows do. Stored **normalised** — upper-case,
+  no spaces — identically to `accounts.iban`, because it exists to be *joined*
+  against it and an unnormalised value fails that join the first time a bank
+  spaces its IBANs. The raw delivered form stays in **Raw source**; this is the
+  one place a promoted column and the archive deliberately disagree, and that is
+  the division of labour: the column is for matching, the archive is for
+  provenance. Promoted out of the archive rather than left in it because a
+  matcher cannot reach inside an opaque JSON bin.
+  _Avoid_: destination IBAN, payee IBAN (both directional); third-party IBAN.
+
+- **IBAN-confirmed candidate** — a **Transfer candidate** on which one leg's
+  **Counterparty IBAN** equals the *other* leg's account IBAN: the bank itself
+  names the account the money reached, so the pairing is certain rather than
+  probable. Satisfied from **either side** — the debit naming the credit's
+  account, or the credit naming the debit's — because only SEPA rows carry an
+  IBAN at all and requiring both would make the signal fire almost never, while
+  one is already conclusive: an IBAN naming the exact counterpart account is not
+  a coincidence. Like the candidate it rides, it is **derived on every read** and
+  never stored. It **labels, and never reorders**: candidates stay ordered by
+  closest date, because a hidden sort key makes the list's order unexplainable,
+  and the mark already draws the eye without moving the row. It confirms a
+  pairing the user still has to accept — it never links one on its own, since an
+  IBAN match proves counterparty identity, not that the legs **sum to zero**.
+  _Avoid_: verified, validated (both suggest the pairing is already made);
+  IBAN match as the entity name (the match is the evidence, the candidate is the
+  thing).

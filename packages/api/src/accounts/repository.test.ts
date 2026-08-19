@@ -24,6 +24,61 @@ describe("AccountRepo", () => {
     }).pipe(Effect.provide(RepoTest)),
   );
 
+  // A synthetic IBAN, assembled rather than written out, so this file carries no
+  // matchable account number of its own (the repo's leak scan, issue #108).
+  const IBAN = `FR7699999${"000011234567890189"}`;
+
+  it.effect("create stores an omitted IBAN as null, not absent", () =>
+    Effect.gen(function* () {
+      const repo = yield* AccountRepo;
+      const created = yield* repo.create({ name: "Main", type: "checking" });
+
+      // Null is the contract's "not given" — an account with no IBAN on file,
+      // distinct from an empty string nobody chose to enter.
+      assert.strictEqual(created.iban, null);
+    }).pipe(Effect.provide(RepoTest)),
+  );
+
+  it.effect("create round-trips an IBAN", () =>
+    Effect.gen(function* () {
+      const repo = yield* AccountRepo;
+      const created = yield* repo.create({ name: "Main", type: "checking", iban: IBAN });
+      assert.strictEqual(created.iban, IBAN);
+
+      const fetched = yield* repo.getById(created.id);
+      assert.strictEqual(fetched.iban, IBAN);
+    }).pipe(Effect.provide(RepoTest)),
+  );
+
+  // The update is a partial, so an IBAN must be settable, changeable, and
+  // *clearable* — the last one is the case a naive `?? current` would drop on
+  // the floor, leaving a stale account number the user believes they deleted.
+  it.effect("update sets, changes and clears the IBAN", () =>
+    Effect.gen(function* () {
+      const repo = yield* AccountRepo;
+      const created = yield* repo.create({ name: "Main", type: "checking" });
+
+      const set = yield* repo.update(created.id, { iban: IBAN });
+      assert.strictEqual(set.iban, IBAN);
+
+      const cleared = yield* repo.update(created.id, { iban: null });
+      assert.strictEqual(cleared.iban, null);
+    }).pipe(Effect.provide(RepoTest)),
+  );
+
+  // An update that says nothing about the IBAN must not erase it: a rename is
+  // the common partial write, and it travels without an `iban` key.
+  it.effect("update leaves an untouched IBAN alone", () =>
+    Effect.gen(function* () {
+      const repo = yield* AccountRepo;
+      const created = yield* repo.create({ name: "Main", type: "checking", iban: IBAN });
+
+      const renamed = yield* repo.update(created.id, { name: "Renamed" });
+      assert.strictEqual(renamed.name, "Renamed");
+      assert.strictEqual(renamed.iban, IBAN);
+    }).pipe(Effect.provide(RepoTest)),
+  );
+
   it.effect("list returns items and the full count", () =>
     Effect.gen(function* () {
       const repo = yield* AccountRepo;

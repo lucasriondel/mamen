@@ -71,25 +71,6 @@ export function yearOf(month: MonthKey): number {
   return Number(month.slice(0, 4));
 }
 
-/**
- * The years to offer in the grid's year selector, newest first.
- *
- * Spans from the earliest imported month's year (or the current year, whichever
- * is earlier) up to the current year — so the user can always reach every year
- * that holds data plus the year they're living in, and never a future year with
- * nothing importable in it.
- */
-export function availableYears(importedMonths: Iterable<MonthKey>, currentYear: number): number[] {
-  let earliest = currentYear;
-  for (const month of importedMonths) {
-    const year = yearOf(month);
-    if (Number.isFinite(year) && year < earliest) earliest = year;
-  }
-  const years: number[] = [];
-  for (let year = currentYear; year >= earliest; year--) years.push(year);
-  return years;
-}
-
 /** One month of a strip: its key, its column label and its state. */
 export interface MonthCellSpec {
   month: MonthKey;

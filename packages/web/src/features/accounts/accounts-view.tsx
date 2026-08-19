@@ -1,6 +1,6 @@
 import type { Account } from "@mamen/shared/contract";
 import { type UseQueryResult, useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { PageLayout } from "@/components/page-layout";
 import { Button } from "@/components/ui/button";
 import { YearPager } from "@/components/ui/year-pager";
@@ -8,7 +8,7 @@ import { accountQueries } from "@/lib/sdk";
 import { AccountCard } from "./account-card";
 import { AccountsListSkeleton } from "./accounts-list-skeleton";
 import { AddAccountTile } from "./add-account-tile";
-import { availableYears, type MonthKey, monthCells, monthKey } from "./month-grid";
+import { type MonthKey, monthCells, monthKey } from "./month-grid";
 import { type ImportedMonths, importedKey, useImportedMonths } from "./use-imported-months";
 
 /** The `YYYY-MM` and year for a given instant. */
@@ -30,9 +30,9 @@ function nowMonth(now: Date): { month: MonthKey; year: number } {
  *
  * The **year** lives here rather than on a card, because it is the page's
  * question: one pager in the topbar moves every strip at once, and comparing two
- * accounts over the same year is the comparison the layout exists for. Its range
- * is `availableYears()` over the imported months — the earliest year holding
- * data through the current one — so it never offers a year with nothing in it.
+ * accounts over the same year is the comparison the layout exists for. It pages
+ * back without a floor — an old statement is imported by first going to its year
+ * — and stops at the current one, whose later months haven't happened yet.
  *
  * Reads go through the SDK: the accounts `list` query, and the shared import
  * scan behind {@link useImportedMonths}, which is what tells every strip which
@@ -53,11 +53,6 @@ export function AccountsView({
 
   const [year, setYear] = useState(currentYear);
 
-  const years = useMemo(
-    () => availableYears(imported.months, currentYear),
-    [imported.months, currentYear],
-  );
-
   const hasAccounts = (accountsQuery.data?.items.length ?? 0) > 0;
 
   return (
@@ -68,7 +63,9 @@ export function AccountsView({
       actions={
         // Nothing to page over until there is a strip to move: with no accounts
         // the pager would be a control over an empty page.
-        hasAccounts ? <YearPager years={years} value={year} onChange={setYear} /> : undefined
+        hasAccounts ? (
+          <YearPager value={year} maxYear={currentYear} onChange={setYear} />
+        ) : undefined
       }
     >
       {imported.isError ? (

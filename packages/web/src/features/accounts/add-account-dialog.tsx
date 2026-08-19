@@ -10,12 +10,14 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { ibanPayload } from "./account-iban";
 import { ACCOUNT_TYPE_OPTIONS, type AccountType } from "./account-type";
+import { IbanField } from "./iban-field";
 import { useAccountMutations } from "./use-account-mutations";
 
 /**
- * Create an account: a name and a type, in a modal opened by the list's ghost
- * tile (issue #131).
+ * Create an account: a name, a type and an optional IBAN, in a modal opened by
+ * the list's ghost tile (issue #131).
  *
  * The same two fields the always-open form above the list used to carry, moved
  * behind the gesture that wants them — the create path is unchanged, so the
@@ -24,6 +26,12 @@ import { useAccountMutations } from "./use-account-mutations";
  * the button says so), and the dialog closes only on a successful create: a
  * refused write surfaces as a toast from the mutation hook and leaves the draft
  * where the user can fix it.
+ *
+ * The IBAN *is* asked for here, where the colour is not, and the difference is
+ * that one is data the user already has in front of them and the other is a
+ * decision about an object that does not exist yet. Someone adding an account is
+ * reading a statement; the IBAN is on it. It stays optional — an empty field
+ * sends nothing and the account is created without one.
  *
  * No colour field. A new account resolves to a stable colour from its id, and
  * the card's swatch is the place that is changed — asking here would be a
@@ -39,13 +47,17 @@ export function AddAccountDialog({
   const { create } = useAccountMutations();
   const [name, setName] = useState("");
   const [type, setType] = useState<AccountType>("checking");
+  const [iban, setIban] = useState("");
 
   const trimmed = name.trim();
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (trimmed.length === 0 || create.isPending) return;
-    create.mutate({ name: trimmed, type }, { onSuccess: () => onOpenChange(false) });
+    create.mutate(
+      { name: trimmed, type, iban: ibanPayload(iban) },
+      { onSuccess: () => onOpenChange(false) },
+    );
   };
 
   return (
@@ -55,8 +67,8 @@ export function AddAccountDialog({
           <DialogHeader>
             <DialogTitle>New account</DialogTitle>
             <DialogDescription>
-              Name it and say what kind of account it is. You can recolour it from its card
-              afterwards.
+              Name it and say what kind of account it is. The IBAN is optional, and you can recolour
+              it from its card afterwards.
             </DialogDescription>
           </DialogHeader>
 
@@ -87,6 +99,8 @@ export function AddAccountDialog({
               ))}
             </Select>
           </label>
+
+          <IbanField value={iban} onChange={setIban} />
 
           <DialogFooter>
             <Button variant="secondary" type="button" onClick={() => onOpenChange(false)}>

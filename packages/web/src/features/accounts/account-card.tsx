@@ -1,12 +1,12 @@
 import type { Account } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
-import { type FormEvent, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { useState } from "react";
 import { transactionQueries } from "@/lib/sdk";
 import { AccountActionsMenu } from "./account-actions-menu";
 import { resolveAccountColor } from "./account-color";
 import { AccountColorPicker } from "./account-color-picker";
+import { AccountEditForm } from "./account-edit-form";
+import { formatIban } from "./account-iban";
 import { AccountMonthStrip } from "./account-month-strip";
 import { accountTypeLabel } from "./account-type";
 import { type MonthCellSpec, monthProgress } from "./month-grid";
@@ -33,9 +33,11 @@ export interface AccountCardProps {
  * recolour surface — the colour is changed where it is read), then the name and
  * type, then the transaction count *as a stat*: it used to be error text welded
  * to a disabled Delete — `137 transactions — clear them to delete` — permanently
- * explaining a button nobody had pressed. Rename and Delete are behind the `···`
+ * explaining a button nobody had pressed. Edit and Delete are behind the `···`
  * menu, which is also where that explanation now lives, at the moment it answers
- * something.
+ * something. The **IBAN**, when there is one, sits under that row: it is
+ * reference data someone reads while checking *which* account this is, so it
+ * belongs on the card but not in the line the eye scans.
  *
  * The delete guard survives that move: it is re-checked here, not just rendered
  * as a disabled item, because the API's `remove` does not check for referencing
@@ -43,9 +45,8 @@ export interface AccountCardProps {
  * refactor from being gone.
  */
 export function AccountCard({ account, year, cells }: AccountCardProps) {
-  const { rename, recolor, remove } = useAccountMutations();
+  const { edit, recolor, remove } = useAccountMutations();
   const [editing, setEditing] = useState(false);
-  const [draftName, setDraftName] = useState(account.name);
 
   const countQuery = useQuery(transactionQueries.count({ accountId: account.id }));
   const transactionCount = countQuery.data?.count ?? 0;
@@ -53,15 +54,14 @@ export function AccountCard({ account, year, cells }: AccountCardProps) {
 
   const progress = monthProgress(cells);
 
-  const handleRename = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const trimmed = draftName.trim();
-    if (trimmed.length === 0 || rename.isPending) return;
-    if (trimmed === account.name) {
+  const handleEdit = (changes: { name: string; iban: string | null }) => {
+    // Nothing moved — close without spending a write. The IBAN is compared
+    // normalised on both sides, so re-grouping the same digits is not an edit.
+    if (changes.name === account.name && changes.iban === (account.iban ?? null)) {
       setEditing(false);
       return;
     }
-    rename.mutate({ id: account.id, name: trimmed }, { onSuccess: () => setEditing(false) });
+    edit.mutate({ id: account.id, ...changes }, { onSuccess: () => setEditing(false) });
   };
 
   const handleDelete = () => {
@@ -74,32 +74,16 @@ export function AccountCard({ account, year, cells }: AccountCardProps) {
   return (
     <li className="flex flex-col gap-3.5 rounded-2xl border border-gousse-line bg-gousse-panel p-4">
       {editing ? (
-        <form onSubmit={handleRename} className="flex flex-wrap items-center gap-2">
-          <Input
-            value={draftName}
-            onChange={(event) => setDraftName(event.target.value)}
-            aria-label="New account name"
-            className="max-w-56"
-            // Focus the field the user just opened from the menu — the menu
-            // returns focus to its trigger otherwise, and the rename would
-            // start with a click already spent.
-            // oxlint-disable-next-line jsx-a11y/no-autofocus -- the field the user just opened from the menu, per the note above
-            autoFocus
-          />
-          <Button type="submit" variant="primary" size="sm" disabled={rename.isPending}>
-            Save
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => {
-              setDraftName(account.name);
-              setEditing(false);
-            }}
-          >
-            Cancel
-          </Button>
-        </form>
+        <AccountEditForm
+          // Remount per open, so the draft always re-seeds from the account —
+          // an edit cancelled and reopened starts from what is stored, not from
+          // what was abandoned.
+          key={`${account.name}|${account.iban ?? ""}`}
+          account={account}
+          pending={edit.isPending}
+          onSubmit={handleEdit}
+          onCancel={() => setEditing(false)}
+        />
       ) : (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           {/* The swatch paints the *resolved* colour, so an account that has
@@ -128,16 +112,25 @@ export function AccountCard({ account, year, cells }: AccountCardProps) {
           </span>
           <AccountActionsMenu
             name={account.name}
-            onRename={() => {
-              setDraftName(account.name);
-              setEditing(true);
-            }}
+            onEdit={() => setEditing(true)}
             onDelete={handleDelete}
             blocked={hasTransactions}
             deleting={remove.isPending}
           />
         </div>
       )}
+
+      {/* Reference data, so it sits under the identity row rather than in it:
+          it is read when someone is checking which account this is, never
+          scanned. Grouped in fours and tabular, because comparing it against a
+          statement is the only thing anyone does with it. Absent when there is
+          none — an empty line would be a field asking to be filled. */}
+      {!editing && account.iban ? (
+        <p className="text-gousse-muted text-xs tabular-nums">
+          <span className="sr-only">IBAN: </span>
+          {formatIban(account.iban)}
+        </p>
+      ) : null}
 
       <AccountMonthStrip
         accountId={account.id}

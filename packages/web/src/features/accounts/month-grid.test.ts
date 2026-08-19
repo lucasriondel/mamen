@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  availableYears,
   isMonthImportable,
   MONTH_LABELS,
   monthCells,
@@ -50,22 +49,6 @@ describe("isMonthImportable", () => {
   it("disables future months", () => {
     expect(isMonthImportable("2026-08", now)).toBe(false);
     expect(isMonthImportable("2027-01", now)).toBe(false);
-  });
-});
-
-describe("availableYears", () => {
-  it("spans the earliest imported year up to the current year, newest first", () => {
-    expect(availableYears(["2024-03", "2025-11"], 2026)).toEqual([2026, 2025, 2024]);
-  });
-
-  it("returns just the current year when there is no earlier data", () => {
-    expect(availableYears([], 2026)).toEqual([2026]);
-    expect(availableYears(["2026-01"], 2026)).toEqual([2026]);
-  });
-
-  it("never offers a year past the current one", () => {
-    // A stray future month (shouldn't happen, but be defensive) is ignored.
-    expect(availableYears(["2027-05"], 2026)).toEqual([2026]);
   });
 });
 

@@ -20,16 +20,14 @@ export function importedKey(accountId: AccountId, month: string): string {
 export type ImportedMonths = {
   /** Keys (`importedKey`) of every (account, month) pair that already has rows. */
   pairs: ReadonlySet<string>;
-  /** The distinct `YYYY-MM` months seen, for the year selector. */
-  months: ReadonlySet<string>;
   isPending: boolean;
   isError: boolean;
 };
 
 /**
  * Derive which (account, month) pairs are already imported by scanning the
- * transactions table client-side. Feeds the import grid's cell states (imported
- * vs available) and its year selector.
+ * transactions table client-side. Feeds the month strips' cell states (imported
+ * vs available).
  */
 export function useImportedMonths(): ImportedMonths {
   const query = useQuery(transactionQueries.list({ limit: IMPORT_SCAN_LIMIT, offset: 0 }));
@@ -37,14 +35,11 @@ export function useImportedMonths(): ImportedMonths {
   return useMemo(() => {
     const items = (query.data?.items ?? []) as readonly Transaction[];
     const pairs = new Set<string>();
-    const months = new Set<string>();
     for (const tx of items) {
       pairs.add(importedKey(tx.accountId, tx.importMonth));
-      months.add(tx.importMonth);
     }
     return {
       pairs,
-      months,
       isPending: query.isPending,
       isError: query.isError,
     };

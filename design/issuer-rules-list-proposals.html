@@ -1,0 +1,552 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Issuer rules list — design proposals</title>
+    <style>
+      /* ---- Real gousse tokens (packages/web/src/styles/gousse/tokens.css) ---- */
+      :root {
+        --gousse-bg: 249 247 244;
+        --gousse-panel: 255 255 255;
+        --gousse-ink: 17 16 14;
+        --gousse-muted: 120 120 116;
+        --gousse-line: 226 222 215;
+        --gousse-accent: 220 120 40;
+        --gousse-high: 220 71 50;
+        --gousse-medium: 245 158 11;
+        --gousse-low: 74 168 97;
+        --gousse-shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07);
+      }
+      html.dark {
+        --gousse-bg: 13 13 12;
+        --gousse-panel: 23 23 22;
+        --gousse-ink: 245 245 242;
+        --gousse-muted: 156 156 150;
+        --gousse-line: 68 66 60;
+        --gousse-accent: 251 146 60;
+        --gousse-high: 255 107 80;
+        --gousse-medium: 250 192 38;
+        --gousse-low: 134 194 122;
+        --gousse-shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
+      }
+      :root {
+        --bg: rgb(var(--gousse-bg));
+        --panel: rgb(var(--gousse-panel));
+        --ink: rgb(var(--gousse-ink));
+        --muted: rgb(var(--gousse-muted));
+        --line: rgb(var(--gousse-line));
+        --accent: rgb(var(--gousse-accent));
+        --high: rgb(var(--gousse-high));
+        --medium: rgb(var(--gousse-medium));
+        --low: rgb(var(--gousse-low));
+        --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+        --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans); font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+      .page { max-width: 1180px; margin: 0 auto; padding: 40px 24px 96px; }
+      .page-head h1 { font-size: 26px; margin: 0 0 6px; letter-spacing: -0.02em; }
+      .page-head p { margin: 0; color: var(--muted); max-width: 70ch; font-size: 14px; }
+      .switcher { position: sticky; top: 0; z-index: 10; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 28px 0 8px; padding: 10px 0; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+      .switcher a { text-decoration: none; color: var(--muted); font-size: 13px; border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; transition: color .15s, border-color .15s; }
+      .switcher a:hover { color: var(--ink); border-color: var(--accent); }
+      .switcher .spacer { flex: 1; }
+      .theme-toggle { font: inherit; font-size: 13px; cursor: pointer; color: var(--muted); background: none; border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; }
+      section.direction { padding-top: 44px; scroll-margin-top: 64px; }
+      .dir-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
+      .dir-num { font-family: var(--mono); font-size: 12px; color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); border-radius: 999px; padding: 1px 8px; }
+      .dir-head h2 { font-size: 20px; margin: 0; letter-spacing: -0.01em; }
+      .thesis { margin: 10px 0 2px; max-width: 78ch; font-size: 14px; }
+      .tradeoff { margin: 4px 0 0; max-width: 78ch; font-size: 13px; color: var(--muted); }
+      .tradeoff b { color: var(--high); font-weight: 600; }
+      .viewport { margin: 20px 0 0; padding: 24px; border: 1px solid var(--line); border-radius: 18px; background: var(--bg); box-shadow: var(--gousse-shadow-md); overflow-x: auto; }
+      .changed { margin: 16px 0 0; padding: 0 0 0 18px; font-size: 13px; color: var(--muted); }
+      .changed li { margin: 3px 0; }
+      .changed b { color: var(--ink); font-weight: 500; }
+      .tabstrip { display: flex; gap: 22px; align-items: center; border-bottom: 1px solid var(--line); margin-bottom: 20px; }
+      .tabstrip .tab { display: inline-flex; align-items: center; gap: 7px; padding: 8px 2px 10px; font-size: 14px; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+      .tabstrip .tab.on { color: var(--ink); border-bottom-color: var(--accent); }
+      .tabstrip .pill { border-radius: 999px; background: color-mix(in srgb, var(--line) 60%, transparent); color: var(--muted); font-size: 11px; padding: 0 6px; font-variant-numeric: tabular-nums; }
+      .icon { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.8; flex: none; }
+      .icon-sm { width: 12px; height: 12px; }
+      .btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 999px; background: none; color: var(--ink); font: inherit; font-size: 13px; padding: 5px 13px; cursor: pointer; transition: border-color .15s, background .15s; }
+      .btn:hover { border-color: var(--accent); }
+      .btn-accent { background: var(--accent); border-color: var(--accent); color: rgb(23,23,22); font-weight: 500; }
+      .btn-icon { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 999px; border: 1px solid transparent; background: none; color: var(--muted); cursor: pointer; transition: color .15s, background .15s; }
+      .btn-icon:hover { color: var(--ink); background: color-mix(in srgb, var(--line) 45%, transparent); }
+      .btn-icon.danger:hover { color: var(--high); }
+      code, .mono { font-family: var(--mono); }
+      .sect-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+      .sect-head h3 { font-size: 14px; margin: 0; font-weight: 600; }
+      .sect-sub { font-size: 12.5px; color: var(--muted); margin: 2px 0 0; font-weight: 400; }
+
+      /* ============ D1: Rule Sentence ============ */
+      .d1-list { display: flex; flex-direction: column; gap: 10px; }
+      .d1-row { display: flex; align-items: center; gap: 14px; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); padding: 12px 12px 12px 16px; transition: border-color .15s; }
+      .d1-row:hover { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
+      .d1-main { min-width: 0; flex: 1; }
+      .d1-sentence { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 14px; line-height: 1.9; }
+      .d1-sentence .kw { color: var(--muted); font-size: 12.5px; }
+      .d1-pattern { font-family: var(--mono); font-size: 13px; color: var(--ink); background: color-mix(in srgb, var(--accent) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); border-radius: 8px; padding: 1px 8px; max-width: 42ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .chip { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--line); border-radius: 999px; padding: 1px 9px; font-size: 12px; color: var(--ink); background: color-mix(in srgb, var(--line) 30%, transparent); }
+      .chip .icon-sm { color: var(--muted); }
+      .chip.num { font-variant-numeric: tabular-nums; font-family: var(--mono); }
+      .d1-owned { display: flex; flex-direction: column; align-items: flex-end; flex: none; padding-right: 4px; border-right: 1px solid var(--line); margin-right: 2px; }
+      .d1-owned .n { font-size: 17px; font-variant-numeric: tabular-nums; line-height: 1.15; }
+      .d1-owned .l { font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+      .d1-owned.zero .n { color: var(--muted); }
+      .d1-acts { display: flex; gap: 2px; flex: none; }
+      .d1-empty { border: 1px dashed var(--line); border-radius: 16px; padding: 26px; text-align: center; color: var(--muted); font-size: 13.5px; }
+      .warnline { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--medium); margin-top: 4px; }
+
+      /* ============ D2: Coverage Console ============ */
+      .d2-wrap { border: 1px solid var(--line); border-radius: 16px; background: var(--panel); overflow: hidden; }
+      .d2-bar { display: flex; align-items: center; gap: 14px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--line) 22%, transparent); }
+      .d2-stat { display: flex; align-items: baseline; gap: 6px; font-size: 12.5px; color: var(--muted); }
+      .d2-stat b { font-size: 15px; color: var(--ink); font-variant-numeric: tabular-nums; font-weight: 600; }
+      .d2-meter { flex: 1; height: 6px; border-radius: 999px; background: color-mix(in srgb, var(--line) 70%, transparent); overflow: hidden; display: flex; min-width: 120px; }
+      .d2-meter i { display: block; height: 100%; }
+      .d2-legend { display: flex; gap: 12px; font-size: 11.5px; color: var(--muted); }
+      .d2-legend span { display: inline-flex; align-items: center; gap: 5px; }
+      .dot { width: 7px; height: 7px; border-radius: 999px; display: inline-block; }
+      table.d2 { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+      table.d2 th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 500; padding: 9px 16px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+      table.d2 td { padding: 10px 16px; border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent); vertical-align: middle; }
+      table.d2 tr:last-child td { border-bottom: none; }
+      table.d2 tbody tr:hover { background: color-mix(in srgb, var(--line) 22%, transparent); }
+      .num { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--mono); }
+      .t-pattern { font-family: var(--mono); font-size: 13px; color: var(--ink); max-width: 34ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+      .t-any { color: color-mix(in srgb, var(--muted) 72%, transparent); font-style: italic; font-size: 12.5px; }
+      .badge { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; padding: 1px 8px; font-size: 11.5px; border: 1px solid transparent; }
+      .badge.out { color: var(--high); border-color: color-mix(in srgb, var(--high) 35%, transparent); background: color-mix(in srgb, var(--high) 10%, transparent); }
+      .badge.in { color: var(--low); border-color: color-mix(in srgb, var(--low) 40%, transparent); background: color-mix(in srgb, var(--low) 12%, transparent); }
+      .badge.warn { color: var(--medium); border-color: color-mix(in srgb, var(--medium) 38%, transparent); background: color-mix(in srgb, var(--medium) 10%, transparent); }
+      .rowacts { display: flex; gap: 2px; justify-content: flex-end; opacity: .5; transition: opacity .15s; }
+      table.d2 tbody tr:hover .rowacts { opacity: 1; }
+      .d2-foot { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--muted); }
+
+      /* ============ D3: Rule Workbench ============ */
+      .d3 { display: grid; grid-template-columns: minmax(260px, 320px) 1fr; border: 1px solid var(--line); border-radius: 18px; background: var(--panel); overflow: hidden; min-height: 420px; }
+      .d3-left { border-right: 1px solid var(--line); display: flex; flex-direction: column; }
+      .d3-left-head { padding: 12px 14px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+      .d3-left-head h4 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 500; }
+      .d3-items { display: flex; flex-direction: column; padding: 6px; gap: 2px; }
+      .d3-item { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 12px; cursor: pointer; border: 1px solid transparent; transition: background .15s, border-color .15s; }
+      .d3-item:hover { background: color-mix(in srgb, var(--line) 30%, transparent); }
+      .d3-item.on { background: color-mix(in srgb, var(--accent) 12%, transparent); border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
+      .d3-item .p { font-family: var(--mono); font-size: 12.5px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .d3-item .c { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
+      .d3-item .rail { width: 3px; align-self: stretch; border-radius: 999px; background: var(--line); flex: none; }
+      .d3-item.on .rail { background: var(--accent); }
+      .d3-item.zero .rail { background: color-mix(in srgb, var(--medium) 70%, transparent); }
+      .d3-right { display: flex; flex-direction: column; min-width: 0; }
+      .d3-right-head { padding: 16px 18px 14px; border-bottom: 1px solid var(--line); }
+      .d3-title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+      .d3-title code { font-size: 15px; }
+      .d3-predbar { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 12px; padding: 8px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg); }
+      .d3-cell { padding: 3px 12px; border-radius: 999px; min-width: 0; }
+      .d3-cell .k { font-size: 10px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); display: block; }
+      .d3-cell .v { font-size: 13px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .d3-cell .v.mono { font-family: var(--mono); font-size: 12.5px; }
+      .d3-subtabs { display: flex; gap: 6px; padding: 12px 18px 0; }
+      .d3-subtab { border: 1px solid var(--line); border-radius: 999px; padding: 3px 11px; font-size: 12px; color: var(--muted); background: none; cursor: pointer; }
+      .d3-subtab.on { color: var(--ink); background: color-mix(in srgb, var(--line) 45%, transparent); }
+      table.d3t { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; }
+      table.d3t th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 500; padding: 8px 18px; border-bottom: 1px solid var(--line); }
+      table.d3t td { padding: 8px 18px; border-bottom: 1px solid color-mix(in srgb, var(--line) 50%, transparent); }
+      .d3-acts { margin-top: auto; padding: 12px 18px; border-top: 1px solid var(--line); display: flex; gap: 8px; align-items: center; }
+
+      table.cmp { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 16px; }
+      table.cmp th, table.cmp td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+      table.cmp th { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 500; }
+      table.cmp td:first-child { font-weight: 600; white-space: nowrap; }
+
+      @media (max-width: 860px) {
+        .d3 { grid-template-columns: 1fr; }
+        .d3-left { border-right: none; border-bottom: 1px solid var(--line); }
+        .d3-predbar { grid-template-columns: 1fr 1fr; border-radius: 16px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header class="page-head">
+        <h1>Issuer detail → Rules tab</h1>
+        <p>
+          Today the list shows one thing per rule: the raw pattern in a wide monospace slab, plus a muted
+          transaction count. The three predicates the redesigned rule form made first-class — <b>account</b>,
+          <b>direction</b>, <b>value</b> — are invisible here, so two rules that differ only by account look
+          identical. Three directions for a list that says what each rule actually matches.
+        </p>
+      </header>
+
+      <nav class="switcher">
+        <a href="#d1">1 · Rule Sentence</a>
+        <a href="#d2">2 · Coverage Console</a>
+        <a href="#d3">3 · Rule Workbench</a>
+        <a href="#cmp">Compare</a>
+        <span class="spacer"></span>
+        <button class="theme-toggle" id="theme">Light / dark</button>
+      </nav>
+
+      <!-- ========================= DIRECTION 1 ========================= -->
+      <section class="direction" id="d1">
+        <div class="dir-head"><span class="dir-num">01</span><h2>Rule Sentence</h2></div>
+        <p class="thesis">
+          A rule is a <em>sentence</em>, so render it as one: “Match <code>ALLIANZ I A R D</code> on
+          Compte courant, money out, €41.32.” The predicates become inline chips that only appear when
+          they're set, so a plain regex rule stays a single quiet line and a four-predicate rule is
+          visibly narrower in scope.
+        </p>
+        <p class="tradeoff">
+          <b>Gives up:</b> column alignment. Chips are variable-width, so you can't scan “which rules
+          are scoped to Compte courant” down a straight edge — fine at 1–8 rules, poor at 30.
+        </p>
+
+        <div class="viewport">
+          <div class="tabstrip">
+            <span class="tab">
+              <svg class="icon" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+              Transactions <span class="pill">3</span>
+            </span>
+            <span class="tab on">
+              <svg class="icon" viewBox="0 0 24 24"><path d="M21.3 8.7 8.7 21.3a2.4 2.4 0 0 1-3.4 0L2.7 18.7a2.4 2.4 0 0 1 0-3.4L15.3 2.7"/><path d="M14.5 4 20 9.5"/></svg>
+              Rules <span class="pill">4</span>
+            </span>
+          </div>
+
+          <div class="sect-head">
+            <div>
+              <h3>Matching Rules</h3>
+              <p class="sect-sub">Applied top-down by specificity — the narrowest match wins a transaction.</p>
+            </div>
+            <button class="btn"><svg class="icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add rule</button>
+          </div>
+
+          <div class="d1-list">
+            <div class="d1-row">
+              <div class="d1-main">
+                <div class="d1-sentence">
+                  <span class="kw">Match</span>
+                  <span class="d1-pattern">ALLIANZ I A R D</span>
+                  <span class="chip"><svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>Compte courant</span>
+                  <span class="chip"><svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M12 19V5M6 13l6 6 6-6"/></svg>Money out</span>
+                  <span class="chip num">€41.32</span>
+                </div>
+              </div>
+              <div class="d1-owned"><span class="n">3</span><span class="l">owned</span></div>
+              <div class="d1-acts">
+                <button class="btn-icon" title="Edit"><svg class="icon" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+                <button class="btn-icon" title="Move to another issuer"><svg class="icon" viewBox="0 0 24 24"><path d="M14 4h7v7"/><path d="M21 4 10 15"/><path d="M20 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h5"/></svg></button>
+                <button class="btn-icon danger" title="Delete"><svg class="icon" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button>
+              </div>
+            </div>
+
+            <div class="d1-row">
+              <div class="d1-main">
+                <div class="d1-sentence">
+                  <span class="kw">Match</span>
+                  <span class="d1-pattern">^ALLIANZ.*IARD</span>
+                  <span class="kw">— any account, any direction, any value</span>
+                </div>
+              </div>
+              <div class="d1-owned"><span class="n">12</span><span class="l">owned</span></div>
+              <div class="d1-acts">
+                <button class="btn-icon" title="Edit"><svg class="icon" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+                <button class="btn-icon" title="Move to another issuer"><svg class="icon" viewBox="0 0 24 24"><path d="M14 4h7v7"/><path d="M21 4 10 15"/><path d="M20 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h5"/></svg></button>
+                <button class="btn-icon danger" title="Delete"><svg class="icon" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button>
+              </div>
+            </div>
+
+            <div class="d1-row">
+              <div class="d1-main">
+                <div class="d1-sentence">
+                  <span class="kw">Match</span>
+                  <span class="d1-pattern">ALLIANZ VIE</span>
+                  <span class="chip"><svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M12 5v14M18 11l-6-6-6 6"/></svg>Money in</span>
+                </div>
+                <div class="warnline">
+                  <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+                  Owns nothing — a narrower rule may be winning these rows.
+                </div>
+              </div>
+              <div class="d1-owned zero"><span class="n">0</span><span class="l">owned</span></div>
+              <div class="d1-acts">
+                <button class="btn-icon" title="Edit"><svg class="icon" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+                <button class="btn-icon" title="Move to another issuer"><svg class="icon" viewBox="0 0 24 24"><path d="M14 4h7v7"/><path d="M21 4 10 15"/><path d="M20 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h5"/></svg></button>
+                <button class="btn-icon danger" title="Delete"><svg class="icon" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button>
+              </div>
+            </div>
+          </div>
+
+          <p style="margin:22px 0 8px;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Empty state</p>
+          <div class="d1-empty">
+            No Matching Rules yet.<br />
+            <span style="font-size:12.5px">Add one and every import will assign this issuer automatically.</span>
+            <div style="margin-top:12px"><button class="btn btn-accent"><svg class="icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add the first rule</button></div>
+          </div>
+        </div>
+
+        <ul class="changed">
+          <li><b>Pattern shrinks to its content.</b> The monospace chip is sized to the regex, not to the row — no more one-word slab across 1900px.</li>
+          <li><b>Predicates become chips, conditionally.</b> Only set matchers render; an unscoped rule says so in one muted clause instead of three empty columns.</li>
+          <li><b>Owned count gets weight.</b> Number over a small caps label, right-aligned, divider before the actions — it reads as a figure, not a footnote.</li>
+          <li><b>A zero-owned rule explains itself.</b> A rule owning nothing is the single most common “why isn't this working” — it gets an inline line rather than silence.</li>
+          <li><b>Edit becomes an explicit icon.</b> Whole-row-is-a-link plus two icon buttons was an ambiguous hit target; now three peer actions.</li>
+        </ul>
+      </section>
+
+      <!-- ========================= DIRECTION 2 ========================= -->
+      <section class="direction" id="d2">
+        <div class="dir-head"><span class="dir-num">02</span><h2>Coverage Console</h2></div>
+        <p class="thesis">
+          The question this tab actually answers is “are this issuer's transactions covered, and by
+          what?” So lead with a coverage bar — 15 of 18 rows claimed by rules, 3 hand-assigned — and
+          render the rules as a real table whose columns are exactly the predicate bar's four fields.
+        </p>
+        <p class="tradeoff">
+          <b>Gives up:</b> comfort at N=1. A four-column table with a header row and a summary bar is
+          heavy scaffolding for the single-rule issuer, which is most of them.
+        </p>
+
+        <div class="viewport">
+          <div class="tabstrip">
+            <span class="tab">
+              <svg class="icon" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+              Transactions <span class="pill">18</span>
+            </span>
+            <span class="tab on">
+              <svg class="icon" viewBox="0 0 24 24"><path d="M21.3 8.7 8.7 21.3a2.4 2.4 0 0 1-3.4 0L2.7 18.7a2.4 2.4 0 0 1 0-3.4L15.3 2.7"/><path d="M14.5 4 20 9.5"/></svg>
+              Rules <span class="pill">4</span>
+            </span>
+          </div>
+
+          <div class="sect-head">
+            <div><h3>Matching Rules</h3></div>
+            <button class="btn"><svg class="icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add rule</button>
+          </div>
+
+          <div class="d2-wrap">
+            <div class="d2-bar">
+              <div class="d2-stat"><b>15</b> of 18 transactions matched by rules</div>
+              <div class="d2-meter">
+                <i style="width:83%;background:var(--accent)"></i>
+                <i style="width:17%;background:color-mix(in srgb, var(--medium) 60%, transparent)"></i>
+              </div>
+              <div class="d2-legend">
+                <span><i class="dot" style="background:var(--accent)"></i>rule-matched</span>
+                <span><i class="dot" style="background:color-mix(in srgb, var(--medium) 60%, transparent)"></i>hand-assigned&nbsp;3</span>
+              </div>
+            </div>
+
+            <table class="d2">
+              <thead>
+                <tr>
+                  <th style="width:32%">Pattern</th>
+                  <th style="width:20%">Account</th>
+                  <th style="width:13%">Direction</th>
+                  <th style="width:12%" class="num">Value</th>
+                  <th style="width:11%" class="num">Owns</th>
+                  <th style="width:12%"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code class="t-pattern">ALLIANZ I A R D</code></td>
+                  <td>Compte courant</td>
+                  <td><span class="badge out">↓ Money out</span></td>
+                  <td class="num">41.32</td>
+                  <td class="num">3</td>
+                  <td><div class="rowacts">
+                    <button class="btn-icon" title="Edit"><svg class="icon" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+                    <button class="btn-icon" title="Move"><svg class="icon" viewBox="0 0 24 24"><path d="M14 4h7v7"/><path d="M21 4 10 15"/><path d="M20 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h5"/></svg></button>
+                    <button class="btn-icon danger" title="Delete"><svg class="icon" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button>
+                  </div></td>
+                </tr>
+                <tr>
+                  <td><code class="t-pattern">^ALLIANZ.*IARD</code></td>
+                  <td><span class="t-any">Any</span></td>
+                  <td><span class="t-any">Any</span></td>
+                  <td class="num"><span class="t-any">Any</span></td>
+                  <td class="num">12</td>
+                  <td><div class="rowacts">
+                    <button class="btn-icon" title="Edit"><svg class="icon" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+                    <button class="btn-icon" title="Move"><svg class="icon" viewBox="0 0 24 24"><path d="M14 4h7v7"/><path d="M21 4 10 15"/><path d="M20 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h5"/></svg></button>
+                    <button class="btn-icon danger" title="Delete"><svg class="icon" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button>
+                  </div></td>
+                </tr>
+                <tr>
+                  <td><code class="t-pattern">ALLIANZ VIE</code></td>
+                  <td><span class="t-any">Any</span></td>
+                  <td><span class="badge in">↑ Money in</span></td>
+                  <td class="num"><span class="t-any">Any</span></td>
+                  <td class="num"><span class="badge warn">0</span></td>
+                  <td><div class="rowacts">
+                    <button class="btn-icon" title="Edit"><svg class="icon" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+                    <button class="btn-icon" title="Move"><svg class="icon" viewBox="0 0 24 24"><path d="M14 4h7v7"/><path d="M21 4 10 15"/><path d="M20 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h5"/></svg></button>
+                    <button class="btn-icon danger" title="Delete"><svg class="icon" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button>
+                  </div></td>
+                </tr>
+                <tr>
+                  <td><code class="t-pattern">ALLIANZ\s+IARD\s+\d{4}</code></td>
+                  <td>Livret A</td>
+                  <td><span class="t-any">Any</span></td>
+                  <td class="num"><span class="t-any">Any</span></td>
+                  <td class="num">0</td>
+                  <td><div class="rowacts">
+                    <button class="btn-icon" title="Edit"><svg class="icon" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+                    <button class="btn-icon" title="Move"><svg class="icon" viewBox="0 0 24 24"><path d="M14 4h7v7"/><path d="M21 4 10 15"/><path d="M20 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h5"/></svg></button>
+                    <button class="btn-icon danger" title="Delete"><svg class="icon" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button>
+                  </div></td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div class="d2-foot">
+              <span>3 transactions on this issuer were assigned by hand and no rule can take them.</span>
+              <button class="btn" style="font-size:12px;padding:3px 11px">Review them</button>
+            </div>
+          </div>
+        </div>
+
+        <ul class="changed">
+          <li><b>Columns mirror the predicate bar</b> — account · pattern · direction · value, same order as the rule form, so editing feels like zooming into one row.</li>
+          <li><b>“Any” is printed, not omitted.</b> An unset matcher reads as an explicit scope word, which is what makes two similar rules diffable at a glance.</li>
+          <li><b>Coverage bar on top</b> answers the tab's real question before any rule is read, and surfaces the hand-assigned rows that rules will never claim.</li>
+          <li><b>Owns column is a right-aligned tabular figure</b>, so the outlier zeros pop down the column; a 0 gets an amber badge.</li>
+          <li><b>Row actions fade in on hover</b> — four rules × three always-on icons was twelve competing targets.</li>
+        </ul>
+      </section>
+
+      <!-- ========================= DIRECTION 3 ========================= -->
+      <section class="direction" id="d3">
+        <div class="dir-head"><span class="dir-num">03</span><h2>Rule Workbench</h2></div>
+        <p class="thesis">
+          Stop sending people to another page to see what a rule does. A narrow rule rail on the left,
+          and the selected rule's full predicate bar plus the transactions it owns on the right — the
+          redesigned rule page, folded into the tab. Editing happens here; only “Add rule” navigates.
+        </p>
+        <p class="tradeoff">
+          <b>Gives up:</b> simplicity and route parity. It duplicates a lot of the rule page inside a tab
+          panel, and master-detail inside a tab inside a page is three levels of nested selection state.
+        </p>
+
+        <div class="viewport">
+          <div class="tabstrip">
+            <span class="tab">
+              <svg class="icon" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+              Transactions <span class="pill">18</span>
+            </span>
+            <span class="tab on">
+              <svg class="icon" viewBox="0 0 24 24"><path d="M21.3 8.7 8.7 21.3a2.4 2.4 0 0 1-3.4 0L2.7 18.7a2.4 2.4 0 0 1 0-3.4L15.3 2.7"/><path d="M14.5 4 20 9.5"/></svg>
+              Rules <span class="pill">4</span>
+            </span>
+          </div>
+
+          <div class="d3">
+            <div class="d3-left">
+              <div class="d3-left-head">
+                <h4>4 rules</h4>
+                <button class="btn" style="font-size:12px;padding:3px 10px"><svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add</button>
+              </div>
+              <div class="d3-items">
+                <div class="d3-item on"><span class="rail"></span><span class="p">ALLIANZ I A R D</span><span class="c">3</span></div>
+                <div class="d3-item"><span class="rail"></span><span class="p">^ALLIANZ.*IARD</span><span class="c">12</span></div>
+                <div class="d3-item zero"><span class="rail"></span><span class="p">ALLIANZ VIE</span><span class="c">0</span></div>
+                <div class="d3-item zero"><span class="rail"></span><span class="p">ALLIANZ\s+IARD\s+\d{4}</span><span class="c">0</span></div>
+              </div>
+            </div>
+
+            <div class="d3-right">
+              <div class="d3-right-head">
+                <div class="d3-title">
+                  <code>/ALLIANZ I A R D/i</code>
+                  <span class="badge in">✓ Valid pattern</span>
+                </div>
+                <div class="d3-predbar">
+                  <div class="d3-cell"><span class="k">Account</span><span class="v">Compte courant</span></div>
+                  <div class="d3-cell"><span class="k">Pattern</span><span class="v mono">ALLIANZ I A R D</span></div>
+                  <div class="d3-cell"><span class="k">Direction</span><span class="v">Money out</span></div>
+                  <div class="d3-cell"><span class="k">Value</span><span class="v mono">41.32</span></div>
+                </div>
+              </div>
+
+              <div class="d3-subtabs">
+                <button class="d3-subtab on">Owns <span style="font-variant-numeric:tabular-nums">3</span></button>
+                <button class="d3-subtab">Would claim <span style="font-variant-numeric:tabular-nums">0</span></button>
+                <button class="d3-subtab">Manual collisions <span style="font-variant-numeric:tabular-nums">1</span></button>
+              </div>
+
+              <table class="d3t">
+                <thead><tr><th>Date</th><th>Raw issuer</th><th style="text-align:right">Amount</th></tr></thead>
+                <tbody>
+                  <tr><td class="mono">2026-07-04</td><td class="mono">ALLIANZ I A R D ALLIANZ I A R D</td><td class="num">−41.32</td></tr>
+                  <tr><td class="mono">2026-06-04</td><td class="mono">ALLIANZ I A R D ALLIANZ I A R D</td><td class="num">−41.32</td></tr>
+                  <tr><td class="mono">2026-05-05</td><td class="mono">ALLIANZ I A R D ALLIANZ I A R D</td><td class="num">−41.32</td></tr>
+                </tbody>
+              </table>
+
+              <div class="d3-acts">
+                <button class="btn btn-accent">Edit rule</button>
+                <button class="btn"><svg class="icon" viewBox="0 0 24 24"><path d="M14 4h7v7"/><path d="M21 4 10 15"/><path d="M20 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h5"/></svg>Move to another issuer</button>
+                <span style="flex:1"></span>
+                <button class="btn" style="color:var(--high);border-color:color-mix(in srgb, var(--high) 40%, transparent)">Delete</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <ul class="changed">
+          <li><b>Master-detail replaces the flat list.</b> The rail carries pattern + owned count; everything else moves into the detail pane.</li>
+          <li><b>The predicate bar comes along</b>, read-only and in the rule form's exact column order — the same object, seen at two zoom levels.</li>
+          <li><b>The preview tabs come along too.</b> “Owns / Would claim / Manual collisions” reuses <code>rule-preview-tabs.tsx</code> verbatim.</li>
+          <li><b>Move and delete stop being row icons</b> and become labelled buttons on the selected rule, where there's room for words.</li>
+          <li><b>Zero-owned rules get an amber rail</b>, so a dead rule is visible in the rail without reading a count.</li>
+        </ul>
+      </section>
+
+      <!-- ========================= COMPARISON ========================= -->
+      <section class="direction" id="cmp">
+        <div class="dir-head"><span class="dir-num">—</span><h2>Compare</h2></div>
+        <table class="cmp">
+          <thead>
+            <tr><th></th><th>Hierarchy</th><th>Density</th><th>Navigation</th><th>Best at N =</th><th>Build cost</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>1 · Rule Sentence</td>
+              <td>Pattern hero, predicates as inline modifiers</td>
+              <td>Roomy — one card per rule</td>
+              <td>Same as today: row → rule page</td>
+              <td>1–8</td>
+              <td>Low — rewrites one <code>&lt;li&gt;</code></td>
+            </tr>
+            <tr>
+              <td>2 · Coverage Console</td>
+              <td>Coverage first, rules as uniform records</td>
+              <td>Dense — table rows</td>
+              <td>Same as today, plus a hand-assigned escape hatch</td>
+              <td>4–40</td>
+              <td>Medium — needs a coverage figure the API doesn't return yet</td>
+            </tr>
+            <tr>
+              <td>3 · Rule Workbench</td>
+              <td>Selected rule is hero; the list is a rail</td>
+              <td>Mixed — compact rail, roomy detail</td>
+              <td>Master-detail inside the tab; edit in place</td>
+              <td>3–30</td>
+              <td>High — preview queries per selection, new selection state</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+    </div>
+
+    <script>
+      document.getElementById("theme").addEventListener("click", () => {
+        document.documentElement.classList.toggle("dark");
+      });
+    </script>
+  </body>
+</html>

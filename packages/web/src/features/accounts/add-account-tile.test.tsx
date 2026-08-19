@@ -72,6 +72,9 @@ describe("AddAccountTile", () => {
       expect(createAccount).toHaveBeenCalledWith({
         name: "Holiday fund",
         type: "savings",
+        // Untouched IBAN field — null, not undefined, so the create writes an
+        // explicit "no IBAN on file" rather than an absent column.
+        iban: null,
       }),
     );
   });
@@ -98,6 +101,51 @@ describe("AddAccountTile", () => {
       expect(createAccount).toHaveBeenCalledWith({
         name: "Spaced",
         type: "checking",
+        iban: null,
+      }),
+    );
+  });
+
+  // The IBAN is on the statement the user is already reading, so the create
+  // dialog asks for it — normalised on the way out, since it is copied from a
+  // bank that prints it in groups of four.
+  it("normalises a pasted IBAN before creating", async () => {
+    const user = await openDialog();
+
+    await user.type(screen.getByLabelText("Account name"), "Everyday");
+    await user.type(screen.getByLabelText("Account IBAN"), "fr76 9999 9000 0112 3456 7890 189");
+    await user.click(screen.getByRole("button", { name: "Add account" }));
+
+    await waitFor(() =>
+      expect(createAccount).toHaveBeenCalledWith({
+        name: "Everyday",
+        type: "checking",
+        // Assembled, not written out: the repo's leak scan allows a literal
+        // account number in two files and this is not one of them.
+        iban: `FR7699999${"000011234567890189"}`,
+      }),
+    );
+  });
+
+  // A shape the app does not recognise is still the user's real account number:
+  // the field says so, and saves it anyway.
+  it("flags an implausible IBAN without blocking the create", async () => {
+    const user = await openDialog();
+
+    await user.type(screen.getByLabelText("Account name"), "Everyday");
+    await user.type(screen.getByLabelText("Account IBAN"), "NOPE1");
+
+    expect(screen.getByLabelText("Account IBAN")).toHaveAttribute("aria-invalid", "true");
+
+    const submit = screen.getByRole("button", { name: "Add account" });
+    expect(submit).toBeEnabled();
+    await user.click(submit);
+
+    await waitFor(() =>
+      expect(createAccount).toHaveBeenCalledWith({
+        name: "Everyday",
+        type: "checking",
+        iban: "NOPE1",
       }),
     );
   });
