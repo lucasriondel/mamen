@@ -45,3 +45,18 @@ export const MODEL = "claude-opus-5";
  * a single run with `--timezone=<zone>`.
  */
 export const TIMEZONE = "Europe/Paris";
+
+/**
+ * Overrides for built-in lifecycle timeouts. Unset keys keep their defaults.
+ *
+ * `copyToWorktreeMs` bounds the host-side copy of the `copyToWorktree` paths
+ * above. The 60s default assumes one worktree at a time, but the planner fans
+ * out ten-plus issues per iteration and every sandbox copies node_modules
+ * concurrently — so the copies contend for the same disk and all of them blow
+ * the default at once. A timed-out copy also leaves a half-written worktree
+ * directory behind, which is what makes the *next* iteration fail differently
+ * ("already exists", "not a git repository") until the directory is removed.
+ */
+export const timeouts = {
+  copyToWorktreeMs: 600_000,
+};
