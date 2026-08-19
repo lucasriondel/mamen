@@ -39,11 +39,12 @@ function readPrefill(initialAccountId?: AccountId): WizardPrefill | undefined {
 }
 
 /**
- * The 3-step CSV import wizard (PRD): (1) file drop + parser auto-detect +
- * account selection, (2) mandatory preview, (3) commit → toast → navigate. State
- * is local (`useReducer`) — there is no global store. The parsed records are
- * derived from the chosen parser + rows so the preview and commit share one
- * source of truth.
+ * The 3-step import wizard (PRD): (1) target account, then the file drop and its
+ * **Parser** auto-detect, (2) mandatory preview, (3) commit → toast → navigate.
+ * The account leads the step because a **Statement Format** is account-scoped
+ * (issue #181). State is local (`useReducer`) — there is no global store. The
+ * parsed records are derived from the chosen parser + rows so the preview and
+ * commit share one source of truth.
  */
 export function ImportWizard({
   initialAccountId,
@@ -136,7 +137,7 @@ export function ImportWizard({
       title="Import"
       description={
         state.step === "upload"
-          ? "Drop a CSV or PDF statement, pick its account, and preview before committing."
+          ? "Pick the account, drop its CSV or PDF statement, and preview before committing."
           : "Review what will be written — committing adds these rows to the account."
       }
       className={`mx-auto ${wide ? "w-full" : "max-w-3xl"}`}

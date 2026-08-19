@@ -133,6 +133,9 @@ export const initialWizardState: WizardState = {
  * target account is pre-picked from the dropped-on cell, and an already-parsed
  * statement (handed off via {@link module:import-handoff}) drops the user
  * straight onto the format/preview path instead of the empty dropzone.
+ *
+ * The cell is the account, so the grid always sends both — and the file is kept
+ * only when it does, which is the same door {@link canAcceptFile} holds.
  */
 export type WizardPrefill = {
   accountId?: AccountId | null;
@@ -155,7 +158,10 @@ export function makeInitialWizardState(prefill?: WizardPrefill): WizardState {
   return {
     ...initialWizardState,
     accountId: accountId ?? null,
-    ...(file
+    // Same door as {@link canAcceptFile}: a statement handed off without an
+    // account is one the wizard cannot read, so it is dropped rather than seated
+    // in front of a user who still owes the account it belongs to.
+    ...(file && accountId != null
       ? {
           source: "csv" as const,
           fileName: file.fileName,
@@ -167,6 +173,22 @@ export function makeInitialWizardState(prefill?: WizardPrefill): WizardState {
         }
       : {}),
   };
+}
+
+/**
+ * Whether the wizard may take a statement yet — i.e. whether the account it
+ * belongs to is settled (issue #181).
+ *
+ * The account comes **first**, before the file: a **Statement Format** is
+ * account-scoped, so neither path can choose one until the account is known, and
+ * the PDF path in particular cannot build its extraction prompt without it. So
+ * this gates the drop zone, and the reducer ignores `file-parsed` /
+ * `extract-start` while it is false — the ordering is a property of the state
+ * machine rather than of one component's disabled attribute, which is what keeps
+ * a PDF from being sent anywhere before there is an account to read it against.
+ */
+export function canAcceptFile(state: WizardState): boolean {
+  return state.accountId !== null;
 }
 
 /**
@@ -186,6 +208,7 @@ export function canPreview(state: WizardState): boolean {
 export function wizardReducer(state: WizardState, action: WizardAction): WizardState {
   switch (action.type) {
     case "file-parsed":
+      if (!canAcceptFile(state)) return state;
       return {
         ...state,
         source: "csv",
@@ -235,6 +258,7 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
     case "back-to-upload":
       return { ...state, step: "upload" };
     case "extract-start":
+      if (!canAcceptFile(state)) return state;
       return {
         ...state,
         source: "pdf",
@@ -253,19 +277,19 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         autoDetected: false,
         skippedRows: [],
       };
-    case "extract-success": {
-      const next: WizardState = {
+    case "extract-success":
+      return {
         ...state,
         extracting: false,
         extracted: action.transactions,
         declaredTotals: action.declaredTotals,
         extractionMs: action.extractionMs,
         error: null,
+        // Extraction could only have started with an account in hand, so a
+        // success has nothing left to wait for: it lands on the validation view
+        // rather than parking the user on the upload step to pick one.
+        step: "preview",
       };
-      // Auto-land on the preview when the account was already chosen; otherwise
-      // hold on upload so the user can pick one, then continue.
-      return canPreview(next) ? { ...next, step: "preview" } : next;
-    }
     case "extract-error":
       return {
         ...state,

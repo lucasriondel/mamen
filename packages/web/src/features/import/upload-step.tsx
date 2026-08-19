@@ -9,7 +9,7 @@ import { FormatPicker } from "./format-picker";
 import { InlineAccountSelect } from "./inline-account-select";
 import { parseCsvFile } from "./parse-file";
 import { detectParser } from "./parsers/registry";
-import { canPreview, type WizardAction, type WizardState } from "./wizard-reducer";
+import { canAcceptFile, canPreview, type WizardAction, type WizardState } from "./wizard-reducer";
 
 /** Whether a dropped file is a PDF (by MIME or extension) — the async fork. */
 function isPdf(file: File): boolean {
@@ -17,12 +17,20 @@ function isPdf(file: File): boolean {
 }
 
 /**
- * Step 1 — file drop, then a fork on file shape. A **CSV** parses in-browser
- * (papaparse), auto-detects its **Parser** by header fingerprint, and continues
- * synchronously. A **PDF** uploads to `/import/extract-pdf` and shows a loading
- * state while the async extraction runs; on success it holds the extracted rows.
- * Either way the user picks a target account (with inline creation) and continues
- * to the mandatory preview once the path is complete.
+ * Step 1 — the target account (with inline creation) **first**, then the file.
+ *
+ * The order is the point (issue #181): a **Statement Format** is account-scoped,
+ * so until the account is settled there is nothing to read the file against, and
+ * the PDF path cannot even build its extraction prompt. The drop zone stays on
+ * screen so the user can see what is coming, but it is inert — its input
+ * disabled, its drop handler a no-op — while {@link canAcceptFile} is false.
+ *
+ * Once a file is taken, the fork on file shape is unchanged. A **CSV** parses
+ * in-browser (papaparse), auto-detects its **Parser** by header fingerprint, and
+ * continues synchronously. A **PDF** uploads to `/import/extract-pdf` and shows a
+ * loading state while the async extraction runs; on success the wizard lands
+ * straight on the **side-by-side validation** view, since the account it was
+ * waiting for was settled before the drop.
  */
 export function UploadStep({
   state,
@@ -32,6 +40,9 @@ export function UploadStep({
   dispatch: (action: WizardAction) => void;
 }) {
   const [dragging, setDragging] = useState(false);
+
+  /** Whether the account is settled — the one thing the drop zone waits for. */
+  const accepting = canAcceptFile(state);
 
   /**
    * Whether the last extraction failed for the one reason the user fixes
@@ -112,33 +123,56 @@ export function UploadStep({
   const onDrop = (event: DragEvent<HTMLElement>) => {
     event.preventDefault();
     setDragging(false);
+    // A drag can reach an inert zone — a disabled input rejects a click, not a
+    // drop — so the gate is restated here rather than left to the input.
+    if (!accepting) return;
     const file = event.dataTransfer.files[0];
     if (file) void handleFile(file);
   };
 
   return (
     <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-4 rounded-2xl border border-gousse-line bg-gousse-panel p-4">
+        <InlineAccountSelect
+          value={state.accountId}
+          onChange={(accountId: AccountId) => dispatch({ type: "select-account", accountId })}
+        />
+      </div>
+
       {/* oxlint-disable-next-line no-noninteractive-element-interactions -- the
           drop zone *is* the file input's label; drag events have no keyboard
           equivalent to mirror, and clicking or tabbing still reaches the input. */}
       <label
         onDragOver={(event) => {
           event.preventDefault();
-          setDragging(true);
+          if (accepting) setDragging(true);
         }}
         onDragLeave={() => setDragging(false)}
         onDrop={onDrop}
-        className={`flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed p-10 text-center transition-colors ${
-          dragging ? "border-gousse-accent bg-gousse-panel" : "border-gousse-line"
-        }`}
+        aria-disabled={!accepting}
+        className={`flex flex-col items-center gap-2 rounded-2xl border-2 border-dashed p-10 text-center transition-colors ${
+          accepting ? "cursor-pointer" : "cursor-not-allowed opacity-60"
+        } ${dragging ? "border-gousse-accent bg-gousse-panel" : "border-gousse-line"}`}
       >
-        <span className="font-medium text-gousse-ink">Drop a CSV or PDF statement here</span>
-        <span className="text-sm text-gousse-muted">or click to choose a file</span>
+        {accepting ? (
+          <>
+            <span className="font-medium text-gousse-ink">Drop a CSV or PDF statement here</span>
+            <span className="text-sm text-gousse-muted">or click to choose a file</span>
+          </>
+        ) : (
+          <>
+            <span className="font-medium text-gousse-ink">Pick an account first</span>
+            <span className="text-sm text-gousse-muted">
+              A statement is read against the account it belongs to.
+            </span>
+          </>
+        )}
         <input
           type="file"
           accept=".csv,text/csv,.pdf,application/pdf"
           className="sr-only"
           aria-label="CSV or PDF statement"
+          disabled={!accepting}
           onChange={(event) => {
             const file = event.target.files?.[0];
             if (file) void handleFile(file);
@@ -183,11 +217,6 @@ export function UploadStep({
           </p>
 
           {state.source === "csv" ? <FormatPicker state={state} dispatch={dispatch} /> : null}
-
-          <InlineAccountSelect
-            value={state.accountId}
-            onChange={(accountId: AccountId) => dispatch({ type: "select-account", accountId })}
-          />
         </div>
       ) : null}
 

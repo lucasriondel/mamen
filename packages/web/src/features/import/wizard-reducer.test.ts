@@ -1,6 +1,7 @@
 import type { AccountId } from "@mamen/shared/contract";
 import { describe, expect, it } from "vitest";
 import {
+  canAcceptFile,
   canPreview,
   initialWizardState,
   makeInitialWizardState,
@@ -10,6 +11,12 @@ import {
 const HEADERS = ["Statut", "Date", "Montant", "Direction", "Intitulé"];
 const ROWS = [{ Statut: "COMPLETE", Date: "2026-01-01T00:00:00Z" }];
 
+/** The account is picked first now (issue #181) — every file case starts here. */
+const withAccount = wizardReducer(initialWizardState, {
+  type: "select-account",
+  accountId: 5 as AccountId,
+});
+
 describe("wizardReducer", () => {
   it("starts on the upload step with nothing configured", () => {
     expect(initialWizardState.step).toBe("upload");
@@ -17,8 +24,13 @@ describe("wizardReducer", () => {
     expect(initialWizardState.accountId).toBeNull();
   });
 
+  it("takes no file until the account is chosen", () => {
+    expect(canAcceptFile(initialWizardState)).toBe(false);
+    expect(canAcceptFile(withAccount)).toBe(true);
+  });
+
   it("auto-selects the parser when the file is recognized", () => {
-    const state = wizardReducer(initialWizardState, {
+    const state = wizardReducer(withAccount, {
       type: "file-parsed",
       fileName: "statement.csv",
       headers: HEADERS,
@@ -34,7 +46,7 @@ describe("wizardReducer", () => {
   });
 
   it("leaves the parser unset for a manual pick when unrecognized", () => {
-    const state = wizardReducer(initialWizardState, {
+    const state = wizardReducer(withAccount, {
       type: "file-parsed",
       fileName: "unknown.csv",
       headers: ["a", "b"],
@@ -46,18 +58,38 @@ describe("wizardReducer", () => {
     expect(state.autoDetected).toBe(false);
   });
 
-  it("records a manual parser choice and the account", () => {
-    let state = wizardReducer(initialWizardState, {
+  // The ordering is the state machine's, not only the drop zone's: a **Statement
+  // Format** is account-scoped, so nothing may be read into the wizard — and on
+  // the PDF path nothing may be sent anywhere — before the account is settled.
+  it("ignores a parsed CSV while no account is chosen", () => {
+    const state = wizardReducer(initialWizardState, {
+      type: "file-parsed",
+      fileName: "statement.csv",
+      headers: HEADERS,
+      rows: ROWS,
+      detectedParserId: "green-got",
+    });
+
+    expect(state).toBe(initialWizardState);
+  });
+
+  it("ignores a dropped PDF while no account is chosen", () => {
+    const state = wizardReducer(initialWizardState, {
+      type: "extract-start",
+      file: new File([], "statement.pdf", { type: "application/pdf" }),
+    });
+
+    expect(state).toBe(initialWizardState);
+  });
+
+  it("records the account and then a manual parser choice", () => {
+    const state = wizardReducer(withAccount, {
       type: "select-parser",
       parserId: "green-got",
     });
-    state = wizardReducer(state, {
-      type: "select-account",
-      accountId: 5 as AccountId,
-    });
 
-    expect(state.parserId).toBe("green-got");
     expect(state.accountId).toBe(5);
+    expect(state.parserId).toBe("green-got");
   });
 
   it("advances to preview only with a file, parser, and account", () => {
@@ -88,7 +120,7 @@ describe("wizardReducer", () => {
   });
 
   it("records a file parse error", () => {
-    const state = wizardReducer(initialWizardState, {
+    const state = wizardReducer(withAccount, {
       type: "file-error",
       message: "Could not read that file.",
     });
@@ -112,7 +144,7 @@ describe("wizardReducer — PDF extraction path", () => {
   const TOTALS = { debit: 10, credit: 20 };
 
   it("enters the extracting state on a PDF drop, clearing any CSV state", () => {
-    const fromCsv = wizardReducer(initialWizardState, {
+    const fromCsv = wizardReducer(withAccount, {
       type: "file-parsed",
       fileName: "statement.csv",
       headers: HEADERS,
@@ -134,8 +166,10 @@ describe("wizardReducer — PDF extraction path", () => {
     expect(state.parserId).toBeNull();
   });
 
-  it("holds on upload after extraction when no account is chosen yet", () => {
-    const extracting = wizardReducer(initialWizardState, {
+  // Extraction can only have started with an account in hand, so a success has
+  // nothing left to wait for — it lands on the validation view directly.
+  it("lands on the preview when extraction succeeds", () => {
+    const extracting = wizardReducer(withAccount, {
       type: "extract-start",
       file: new File([], "statement.pdf", { type: "application/pdf" }),
     });
@@ -149,11 +183,11 @@ describe("wizardReducer — PDF extraction path", () => {
     expect(state.extracting).toBe(false);
     expect(state.extracted).toBe(EXTRACTED);
     expect(state.declaredTotals).toEqual(TOTALS);
-    expect(state.step).toBe("upload");
+    expect(state.step).toBe("preview");
   });
 
   it("records the extraction duration on success and clears it on a later error", () => {
-    const extracting = wizardReducer(initialWizardState, {
+    const extracting = wizardReducer(withAccount, {
       type: "extract-start",
       file: new File([], "statement.pdf", { type: "application/pdf" }),
     });
@@ -174,50 +208,9 @@ describe("wizardReducer — PDF extraction path", () => {
     expect(failed.extractionMs).toBeNull();
   });
 
-  it("auto-lands on preview after extraction when the account was already chosen", () => {
-    let state = wizardReducer(initialWizardState, {
-      type: "select-account",
-      accountId: 5 as AccountId,
-    });
-    state = wizardReducer(state, {
-      type: "extract-start",
-      file: new File([], "statement.pdf", { type: "application/pdf" }),
-    });
-    state = wizardReducer(state, {
-      type: "extract-success",
-      transactions: EXTRACTED,
-      declaredTotals: TOTALS,
-      extractionMs: 0,
-    });
-
-    expect(state.step).toBe("preview");
-    expect(state.extracted).toBe(EXTRACTED);
-  });
-
-  it("advances a held PDF to preview once the account is picked and continue fires", () => {
-    let state = wizardReducer(initialWizardState, {
-      type: "extract-start",
-      file: new File([], "statement.pdf", { type: "application/pdf" }),
-    });
-    state = wizardReducer(state, {
-      type: "extract-success",
-      transactions: EXTRACTED,
-      declaredTotals: TOTALS,
-      extractionMs: 0,
-    });
-    expect(state.step).toBe("upload");
-
-    state = wizardReducer(state, {
-      type: "select-account",
-      accountId: 5 as AccountId,
-    });
-    state = wizardReducer(state, { type: "go-to-preview" });
-    expect(state.step).toBe("preview");
-  });
-
   it("keeps the dropped PDF file for the side-by-side blob-URL preview", () => {
     const pdf = new File([], "statement.pdf", { type: "application/pdf" });
-    const state = wizardReducer(initialWizardState, {
+    const state = wizardReducer(withAccount, {
       type: "extract-start",
       file: pdf,
     });
@@ -227,7 +220,7 @@ describe("wizardReducer — PDF extraction path", () => {
 
   it("edits an extracted row in place (date, amount, raw issuer)", () => {
     const extracted = wizardReducer(
-      wizardReducer(initialWizardState, {
+      wizardReducer(withAccount, {
         type: "extract-start",
         file: new File([], "statement.pdf", { type: "application/pdf" }),
       }),
@@ -255,7 +248,7 @@ describe("wizardReducer — PDF extraction path", () => {
 
   it("deletes a phantom extracted row", () => {
     const extracted = wizardReducer(
-      wizardReducer(initialWizardState, {
+      wizardReducer(withAccount, {
         type: "extract-start",
         file: new File([], "statement.pdf", { type: "application/pdf" }),
       }),
@@ -278,7 +271,7 @@ describe("wizardReducer — PDF extraction path", () => {
 
   it("adds a blank extracted row for a missed operation", () => {
     const extracted = wizardReducer(
-      wizardReducer(initialWizardState, {
+      wizardReducer(withAccount, {
         type: "extract-start",
         file: new File([], "statement.pdf", { type: "application/pdf" }),
       }),
@@ -300,7 +293,7 @@ describe("wizardReducer — PDF extraction path", () => {
   });
 
   it("surfaces an extraction failure and stays on upload", () => {
-    const extracting = wizardReducer(initialWizardState, {
+    const extracting = wizardReducer(withAccount, {
       type: "extract-start",
       file: new File([], "statement.pdf", { type: "application/pdf" }),
     });
@@ -316,7 +309,7 @@ describe("wizardReducer — PDF extraction path", () => {
   });
 
   it("clears a prior successful extraction when a later file drop fails", () => {
-    const extracting = wizardReducer(initialWizardState, {
+    const extracting = wizardReducer(withAccount, {
       type: "extract-start",
       file: new File([], "statement.pdf", { type: "application/pdf" }),
     });
@@ -342,7 +335,7 @@ describe("wizardReducer — PDF extraction path", () => {
 });
 
 describe("wizardReducer — skipping previewed rows (CSV path)", () => {
-  const loaded = wizardReducer(initialWizardState, {
+  const loaded = wizardReducer(withAccount, {
     type: "file-parsed",
     fileName: "statement.csv",
     headers: HEADERS,
@@ -431,6 +424,7 @@ describe("makeInitialWizardState", () => {
 
   it("leaves the parser unset when the handed-off file is unrecognized", () => {
     const state = makeInitialWizardState({
+      accountId: 7 as AccountId,
       file: {
         fileName: "unknown.csv",
         headers: ["a", "b"],
@@ -441,5 +435,25 @@ describe("makeInitialWizardState", () => {
 
     expect(state.parserId).toBeNull();
     expect(state.autoDetected).toBe(false);
+  });
+
+  // The grid always hands off both, so this is the invariant restated at the
+  // door rather than a case the UI can reach: a statement with no account is a
+  // statement the wizard cannot read, and taking it would seat the user in front
+  // of a file whose account they still owe.
+  it("drops a handed-off file that carries no account", () => {
+    const state = makeInitialWizardState({
+      file: {
+        fileName: "statement.csv",
+        headers: HEADERS,
+        rows: ROWS,
+        detectedParserId: "green-got",
+      },
+    });
+
+    expect(state.accountId).toBeNull();
+    expect(state.fileName).toBeNull();
+    expect(state.rows).toEqual([]);
+    expect(state.parserId).toBeNull();
   });
 });

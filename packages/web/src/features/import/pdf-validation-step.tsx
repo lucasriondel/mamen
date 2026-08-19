@@ -30,9 +30,10 @@ function fromDateInputValue(value: string): Date {
  * statement's **declared totals**. Commit runs the shared rail via {@link CommitBar}.
  *
  * The extraction's wall-clock duration is surfaced here rather than on the
- * upload step: a successful extraction with an account already picked lands
- * straight on this view, so the upload step's copy is skipped past in the common
- * path. `null` whenever the timing is not in hand (a resumed/handed-off state).
+ * upload step: the account is settled before the drop (issue #181), so a
+ * successful extraction always lands straight on this view and the upload step's
+ * copy is only ever seen on the way back. `null` whenever the timing is not in
+ * hand (a resumed/handed-off state).
  *
  * A row that looks **already imported** is marked here too (issue #89) — this is
  * the preview where acting on the mark is one click, since every row already

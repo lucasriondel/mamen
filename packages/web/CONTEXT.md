@@ -22,6 +22,26 @@ from an Import — a single Statement can produce transactions across several
 import months.
 _Avoid_: File, upload, export.
 
+**Account-first upload**:
+The order of the wizard's step 1: the target account is picked **before** the
+drop zone will take a **Statement**, and the zone sits there visibly inert until
+it is (issue #181). Dropping a PDF therefore no longer starts **PDF extraction**
+on the spot — nothing is sent anywhere until the account is known.
+
+The reason is not the account itself but what hangs off it: a Statement Format
+belongs to one account (PRD #180), so neither path can choose one until the
+account is settled, and the extraction prompt cannot be built without it. The
+gate is `canAcceptFile` on the wizard reducer, which ignores `file-parsed` and
+`extract-start` while there is no account — the ordering is a property of the
+state machine, not of one component's `disabled` attribute, which is what makes
+"no file is read before the account" true of the drag path too.
+
+Two consequences downstream: a successful extraction lands straight on
+**side-by-side validation** (the account it used to wait for is already in
+hand), and a grid handoff carrying no account is dropped rather than seated in
+front of a user who still owes one — the accounts grid always sends both.
+_Avoid_: Gate, lock (the zone is inert, not refusing).
+
 **Parser** (Statement Parser):
 A pluggable module that turns one bank's **CSV** row shape into transaction
 records. Declares a header fingerprint (`matches`) for auto-detection and a pure

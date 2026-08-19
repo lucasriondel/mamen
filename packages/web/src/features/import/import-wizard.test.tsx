@@ -93,6 +93,19 @@ function renderWizard(router = makeRouter()) {
   render(withShell(<RouterProvider router={router} />));
 }
 
+/**
+ * Pick the target account — the wizard's *first* move since issue #181, and what
+ * makes the drop zone live. Every path below starts here, because a **Statement
+ * Format** is account-scoped: until there is an account, there is nothing to
+ * read the file against.
+ */
+async function chooseAccount(user: ReturnType<typeof userEvent.setup>) {
+  // The select is on screen from mount now, so its options are what has to be
+  // waited for — the accounts query lands after the first render.
+  await screen.findByRole("option", { name: "Checking" });
+  await user.selectOptions(screen.getByLabelText("Target account"), "1");
+}
+
 beforeEach(() => {
   bulkCreate.mockReset().mockResolvedValue([]);
   extractPdf.mockReset();
@@ -113,9 +126,34 @@ const STORED_SHOP_A = {
 };
 
 describe("ImportWizard", () => {
+  // Issue #181: the account is picked *before* the file, because a **Statement
+  // Format** is account-scoped. The drop zone is on screen the whole time — the
+  // user should see what is coming — but inert until there is an account, and a
+  // PDF dropped into it is not sent anywhere.
+  it("holds the drop zone inert until an account is chosen", async () => {
+    const user = userEvent.setup();
+    renderWizard();
+
+    const input = await screen.findByLabelText("CSV or PDF statement");
+    expect(input).toBeDisabled();
+    expect(screen.getByText(/Pick an account first/)).toBeInTheDocument();
+
+    await user.upload(input, new File(["%PDF-1.7"], "statement.pdf", { type: "application/pdf" }));
+    expect(extractPdf).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Continue to preview" })).toBeDisabled();
+
+    await chooseAccount(user);
+
+    expect(screen.getByLabelText("CSV or PDF statement")).toBeEnabled();
+    expect(screen.queryByText(/Pick an account first/)).toBeNull();
+    expect(screen.getByText("Drop a CSV or PDF statement here")).toBeInTheDocument();
+  });
+
   it("drops a CSV, previews, and commits both months in one insert", async () => {
     const user = userEvent.setup();
     renderWizard();
+
+    await chooseAccount(user);
 
     // Step 1 — drop the CSV; the format auto-detects and the config panel opens.
     const file = new File([CSV], "statement.csv", { type: "text/csv" });
@@ -123,8 +161,7 @@ describe("ImportWizard", () => {
 
     expect(await screen.findByText("Auto-detected.")).toBeInTheDocument();
 
-    // Choose the target account, then continue to the mandatory preview.
-    await user.selectOptions(screen.getByLabelText("Target account"), "1");
+    // Continue to the mandatory preview.
     await user.click(screen.getByRole("button", { name: "Continue to preview" }));
 
     // Step 2 — the preview shows the two months found; commit.
@@ -166,11 +203,12 @@ describe("ImportWizard", () => {
     );
     renderWizard();
 
+    await chooseAccount(user);
+
     await user.upload(
       await screen.findByLabelText("CSV or PDF statement"),
       new File([CSV], "statement.csv", { type: "text/csv" }),
     );
-    await user.selectOptions(await screen.findByLabelText("Target account"), "1");
     await user.click(screen.getByRole("button", { name: "Continue to preview" }));
 
     // The January row is marked; the February one — genuinely new — is not.
@@ -208,11 +246,12 @@ describe("ImportWizard", () => {
     );
     renderWizard();
 
+    await chooseAccount(user);
+
     await user.upload(
       await screen.findByLabelText("CSV or PDF statement"),
       new File([CSV], "statement.csv", { type: "text/csv" }),
     );
-    await user.selectOptions(await screen.findByLabelText("Target account"), "1");
     await user.click(screen.getByRole("button", { name: "Continue to preview" }));
 
     expect(await screen.findByRole("status")).toHaveTextContent(
@@ -238,11 +277,12 @@ describe("ImportWizard", () => {
     const user = userEvent.setup();
     renderWizard();
 
+    await chooseAccount(user);
+
     await user.upload(
       await screen.findByLabelText("CSV or PDF statement"),
       new File([CSV], "statement.csv", { type: "text/csv" }),
     );
-    await user.selectOptions(await screen.findByLabelText("Target account"), "1");
     await user.click(screen.getByRole("button", { name: "Continue to preview" }));
 
     await user.click(await screen.findByRole("button", { name: "Skip row 2" }));
@@ -270,11 +310,12 @@ describe("ImportWizard", () => {
     });
     renderWizard();
 
+    await chooseAccount(user);
+
     await user.upload(
       await screen.findByLabelText("CSV or PDF statement"),
       new File([CSV], "statement.csv", { type: "text/csv" }),
     );
-    await user.selectOptions(await screen.findByLabelText("Target account"), "1");
     await user.click(screen.getByRole("button", { name: "Continue to preview" }));
 
     await screen.findByText("SHOP A");
@@ -312,7 +353,9 @@ describe("ImportWizard", () => {
     expect(continueButton).toBeEnabled();
   });
 
-  it("drops a PDF, extracts, previews the extracted rows, and commits", async () => {
+  // With the account settled before the drop, a successful extraction has
+  // nothing left to ask for: it lands on the side-by-side view directly (#181).
+  it("drops a PDF, extracts, lands on the validation view, and commits", async () => {
     const user = userEvent.setup();
     // The extraction endpoint is mocked: dropping a PDF returns two candidate
     // rows (Jan debit + Feb credit) plus the statement's declared totals.
@@ -333,6 +376,8 @@ describe("ImportWizard", () => {
     });
     renderWizard();
 
+    await chooseAccount(user);
+
     // Step 1 — drop the PDF; extraction fires and lands the extracted rows.
     const file = new File(["%PDF-1.7"], "statement.pdf", {
       type: "application/pdf",
@@ -340,11 +385,12 @@ describe("ImportWizard", () => {
     await user.upload(await screen.findByLabelText("CSV or PDF statement"), file);
 
     expect(extractPdf).toHaveBeenCalledTimes(1);
-    expect(await screen.findByText(/2 transactions extracted/)).toBeInTheDocument();
 
-    // Pick the target account (the shared rail), then continue to the preview.
-    await user.selectOptions(screen.getByLabelText("Target account"), "1");
-    await user.click(screen.getByRole("button", { name: "Continue to preview" }));
+    // Straight onto the validation view — no second ask, no Continue click. The
+    // count sits in its own <span>, so read the paragraph's flattened text.
+    const summary = await screen.findByText(/transactions extracted/);
+    expect(summary.textContent?.replace(/\s+/g, " ").trim()).toMatch(/^2 transactions extracted/);
+    expect(screen.queryByRole("button", { name: "Continue to preview" })).toBeNull();
 
     // Step 2 — commit runs the same single-insert rail as the CSV path.
     await user.click(await screen.findByRole("button", { name: "Commit import" }));
@@ -376,12 +422,12 @@ describe("ImportWizard", () => {
     });
     renderWizard();
 
+    await chooseAccount(user);
+
     await user.upload(
       await screen.findByLabelText("CSV or PDF statement"),
       new File(["%PDF-1.7"], "statement.pdf", { type: "application/pdf" }),
     );
-    await user.selectOptions(await screen.findByLabelText("Target account"), "1");
-    await user.click(screen.getByRole("button", { name: "Continue to preview" }));
 
     // The source PDF renders in a native-viewer iframe beside the rows.
     expect(await screen.findByTitle("PDF statement")).toBeInTheDocument();
@@ -436,12 +482,12 @@ describe("ImportWizard", () => {
     });
     renderWizard();
 
+    await chooseAccount(user);
+
     await user.upload(
       await screen.findByLabelText("CSV or PDF statement"),
       new File(["%PDF-1.7"], "statement.pdf", { type: "application/pdf" }),
     );
-    await user.selectOptions(await screen.findByLabelText("Target account"), "1");
-    await user.click(screen.getByRole("button", { name: "Continue to preview" }));
 
     const firstRow = (await screen.findByLabelText("Raw issuer, row 1")).closest(
       "tr",
@@ -472,12 +518,12 @@ describe("ImportWizard", () => {
     });
     renderWizard();
 
+    await chooseAccount(user);
+
     await user.upload(
       await screen.findByLabelText("CSV or PDF statement"),
       new File(["%PDF-1.7"], "statement.pdf", { type: "application/pdf" }),
     );
-    await user.selectOptions(await screen.findByLabelText("Target account"), "1");
-    await user.click(screen.getByRole("button", { name: "Continue to preview" }));
 
     // On the validation step, not the upload step: the editable table is up.
     expect(await screen.findByLabelText("Raw issuer, row 1")).toBeInTheDocument();
@@ -504,12 +550,12 @@ describe("ImportWizard", () => {
     });
     renderWizard();
 
+    await chooseAccount(user);
+
     await user.upload(
       await screen.findByLabelText("CSV or PDF statement"),
       new File(["%PDF-1.7"], "statement.pdf", { type: "application/pdf" }),
     );
-    await user.selectOptions(await screen.findByLabelText("Target account"), "1");
-    await user.click(screen.getByRole("button", { name: "Continue to preview" }));
 
     expect(await screen.findByText(/Reconciliation mismatch/)).toBeInTheDocument();
 
@@ -532,12 +578,12 @@ describe("ImportWizard", () => {
     });
     renderWizard();
 
+    await chooseAccount(user);
+
     await user.upload(
       await screen.findByLabelText("CSV or PDF statement"),
       new File(["%PDF-1.7"], "statement.pdf", { type: "application/pdf" }),
     );
-    await user.selectOptions(await screen.findByLabelText("Target account"), "1");
-    await user.click(screen.getByRole("button", { name: "Continue to preview" }));
 
     expect(await screen.findByTitle("PDF statement")).toBeInTheDocument();
     expect(screen.queryByText(/Reconciliation mismatch/)).toBeNull();
@@ -547,6 +593,8 @@ describe("ImportWizard", () => {
     const user = userEvent.setup();
     extractPdf.mockRejectedValue({ _tag: "ExtractionFailed" });
     renderWizard();
+
+    await chooseAccount(user);
 
     const file = new File(["%PDF-1.7"], "statement.pdf", {
       type: "application/pdf",
@@ -573,6 +621,8 @@ describe("ImportWizard", () => {
       provider: "claude-code",
     });
     renderWizard();
+
+    await chooseAccount(user);
 
     await user.upload(
       await screen.findByLabelText("CSV or PDF statement"),
@@ -606,6 +656,8 @@ describe("ImportWizard", () => {
     });
     renderWizard();
 
+    await chooseAccount(user);
+
     const input = await screen.findByLabelText("CSV or PDF statement");
     await user.upload(input, new File(["%PDF-1.7"], "statement.pdf", { type: "application/pdf" }));
     expect(await screen.findByRole("link", { name: "Open AI settings" })).toBeInTheDocument();
@@ -629,6 +681,8 @@ describe("ImportWizard", () => {
     extractPdf.mockRejectedValue({ _tag: "InvalidFileType" });
     renderWizard();
 
+    await chooseAccount(user);
+
     const file = new File(["%PDF-1.7"], "statement.pdf", {
       type: "application/pdf",
     });
@@ -645,6 +699,8 @@ describe("ImportWizard", () => {
   it("rejects an oversize PDF client-side without attempting extraction", async () => {
     const user = userEvent.setup();
     renderWizard();
+
+    await chooseAccount(user);
 
     const file = new File(["%PDF-1.7"], "statement.pdf", {
       type: "application/pdf",
@@ -667,6 +723,8 @@ describe("ImportWizard", () => {
     const user = userEvent.setup();
     renderWizard();
 
+    await chooseAccount(user);
+
     // A valid CSV is loaded first and an account chosen — the wizard is now one
     // click from previewing it.
     await user.upload(
@@ -674,7 +732,6 @@ describe("ImportWizard", () => {
       new File([CSV], "statement.csv", { type: "text/csv" }),
     );
     expect(await screen.findByText("Auto-detected.")).toBeInTheDocument();
-    await user.selectOptions(screen.getByLabelText("Target account"), "1");
     expect(screen.getByRole("button", { name: "Continue to preview" })).toBeEnabled();
 
     // Dropping an oversize PDF is rejected client-side. The rejection must not
