@@ -164,12 +164,37 @@ unless you pass `--force` — seeding clears what it writes, and the default
 account numbers are from a reserved range that cannot exist. See
 `packages/api/src/demo/dataset.ts`, which is the whole dataset.
 
+### The demo stack (screenshots)
+
+To photograph the app rather than develop against it, `docker-compose.demo.yml`
+brings up a throwaway copy serving that seeded database — a one-shot seeder, the
+API and the web container:
+
+```sh
+bun run demo:up      # http://localhost:5400/app/
+bun run demo:down    # containers, volume and the images this built, gone
+```
+
+`demo:up` stays in the foreground, where the seeder's own summary is the
+confirmation that the app has rows in it; `demo:down` runs in another terminal.
+The base images it pulled are left alone — only what this stack built is
+removed.
+
+It runs happily beside `bun dev`: its own project name (`mamen-demo`), its own
+volume and its own port, 5400, which is this stack's row in the table below. It
+interpolates nothing, so the root `.env` — the self-host operator's, with a real
+key in it — cannot reach it, and it carries no credential of its own. Without
+one, PDF import is the only thing that stops working, and it says so.
+
+The seeder runs on every `demo:up` and replaces the rows it owns, so tearing the
+stack down and bringing it back gives the same app, with the same figures on the
+same dates. It is not a deploy path: `docker-compose.yml`, below, is that one.
+
 ### Ports
 
-Every port mamen binds on the host, and the ones it has reserved for containers
-it does not run yet. The numbers live in `packages/shared/src/ports.ts`, which
-the Vite configs and the API's `PORT` default import — so this table and the
-running servers cannot disagree.
+Every port mamen binds on the host, the reserved ones included. The numbers live
+in `packages/shared/src/ports.ts`, which the Vite configs and the API's `PORT`
+default import — so this table and the running servers cannot disagree.
 
 | Port | Bound by | What answers there |
 | --- | --- | --- |
@@ -182,11 +207,14 @@ running servers cannot disagree.
 
 The Vite servers are pinned with `strictPort`, so a taken port fails to boot
 instead of quietly moving to the next one — which would be some other app's.
-The three container rows are allocated bottom-up from 5400; the demo stack's two
-are reservations, binding nothing yet, and the point of writing them down is
-that a stack has to come up while `bun dev` is already running. The last row is
-what [`docker compose up`](#deploying) publishes. On a machine that keeps a port
-registry, mamen's rows go there too; this table is the copy the code is held to.
+The three container rows are allocated bottom-up from 5400. 5400 is what [the
+demo stack](#the-demo-stack-screenshots) publishes and 5402 what [`docker
+compose up`](#deploying) does; 5401 binds nothing — it is the demo API reached
+directly, published by hand while debugging that stack and reserved so the
+number taken then is not some other project's. The point of writing all three
+down is that a stack has to come up while `bun dev` is already running. On a
+machine that keeps a port registry, mamen's rows go there too; this table is the
+copy the code is held to.
 
 ### Optional configuration
 

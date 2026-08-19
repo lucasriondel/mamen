@@ -227,6 +227,17 @@ repeated per package.
   _Avoid_: sample data, test data (it is neither a sample of anything real nor
   the input to a test).
 
+- **Demo stack** — the throwaway containers that serve a Demo database for
+  screenshots: `docker-compose.demo.yml`, up and down in one command each
+  (issue #141). Not a deployment and not a development environment — it exists
+  to be photographed and destroyed, so it takes no credential, restarts
+  nothing, and re-seeds on every start, which is what makes two runs the same
+  app. It is kept apart from anything real by three things it owns rather than
+  shares: its project name, its volume and its host port, the last so that it
+  comes up while `bun dev` is already running.
+  _Avoid_: staging, demo environment (both name something that stays up and
+  that somebody's data could end up in).
+
 - **Issuer default category** — the Category an Issuer assigns to every
   transaction of its own that carries no **Category override**
   (`issuer.defaultCategoryId`). The bulk lever: changing it reclassifies the

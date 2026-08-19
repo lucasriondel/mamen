@@ -1,7 +1,7 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { API_DEV_PORT, COMPOSE_STACK_WEB_PORT } from "@mamen/shared/ports";
 import { describe, expect, it } from "vitest";
-import { parse } from "yaml";
+import { composeFile, exposedPort, imageEnv, readRepoFile as read, repoPath } from "./compose-file";
 
 /**
  * The root `docker-compose.yml`: the self-hosting path, where
@@ -26,46 +26,20 @@ import { parse } from "yaml";
  * would assert the compose file against this test rather than against the app.
  *
  * Parsed rather than grepped: `ports:` in a comment explaining why there is no
- * `ports:` is the same bytes to a substring search.
+ * `ports:` is the same bytes to a substring search. The parsing itself is
+ * `./compose-file.ts`, shared with the demo stack's guard.
  *
  * Lives under `src/test/` because its subject is the repo, not a component
  * (same as `ci-workflow.test.ts`). Paths are cwd-relative — vitest runs from
  * the package root — so the root is `../../`.
  */
 
-const ROOT = "../..";
-const read = (path: string) => readFileSync(`${ROOT}/${path}`, "utf8");
-
 const COMPOSE_FILE = "docker-compose.yml";
+const DEMO_FILE = "docker-compose.demo.yml";
 const ENV_EXAMPLE = ".env.example";
 
-type Service = {
-  build?: { context?: string; dockerfile?: string; args?: unknown };
-  environment?: Record<string, string | number | null>;
-  ports?: string[];
-  volumes?: string[];
-  depends_on?: string[];
-  restart?: string;
-};
-
-type Compose = {
-  services?: Record<string, Service>;
-  volumes?: Record<string, unknown>;
-};
-
-const composeText = () => read(COMPOSE_FILE);
-const compose = (): Compose => parse(composeText());
-const services = () => compose().services ?? {};
-const service = (name: string): Service => services()[name] ?? {};
-
-/** `KEY: value` environment, as strings, for whichever service. */
-const env = (name: string): Record<string, string> =>
-  Object.fromEntries(
-    Object.entries(service(name).environment ?? {}).map(([key, value]) => [
-      key,
-      String(value ?? ""),
-    ]),
-  );
+const compose = composeFile(COMPOSE_FILE);
+const { env, mounts, publishedPorts, service, services, text: composeText } = compose;
 
 /** The env names `packages/api/src/config.ts` actually reads. */
 const apiConfigEnv = new Set(
@@ -89,41 +63,6 @@ const apiPortDefaultSource = () =>
     /Config\.integer\("PORT"\)[\s\S]*?withDefault\((\w+)\)/,
   )?.[1] as string;
 
-/** `ENV NAME=value` defaults baked into an image. */
-function imageEnv(dockerfile: string): Record<string, string> {
-  const out: Record<string, string> = {};
-
-  for (const [, name, value] of read(dockerfile).matchAll(
-    /^(?:ENV\s+|\t)([A-Z_][A-Z0-9_]*)=(\S+)/gm,
-  )) {
-    out[name as string] = value as string;
-  }
-
-  return out;
-}
-
-/** The port an image says it listens on. */
-const exposedPort = (dockerfile: string) =>
-  read(dockerfile).match(/^EXPOSE\s+(\d+)/m)?.[1] as string;
-
-/**
- * `HOST:CONTAINER` (or `HOST:CONTAINER/proto`), split at the *last* colon: the
- * host side is an interpolation, `${WEB_PORT:-5402}`, which carries one of its
- * own.
- */
-const publishedPorts = (name: string) =>
-  (service(name).ports ?? []).map((entry) => {
-    const [, host, container] = entry.split("/")[0].match(/^(.*):(\d+)$/) as RegExpMatchArray;
-    return { host, container };
-  });
-
-/** `SOURCE:TARGET` mounts, split. */
-const mounts = (name: string) =>
-  (service(name).volumes ?? []).map((entry) => {
-    const [source, target] = entry.split(":");
-    return { source, target };
-  });
-
 /** The exclusion patterns of `.dockerignore`, comments and blanks dropped. */
 const dockerignore = () =>
   read(".dockerignore")
@@ -145,7 +84,7 @@ const documented = (text: string) =>
 
 describe("the production compose file", () => {
   it("exists at the repo root", () => {
-    expect(existsSync(`${ROOT}/${COMPOSE_FILE}`)).toBe(true);
+    expect(existsSync(repoPath(COMPOSE_FILE))).toBe(true);
   });
 
   it("defines exactly the two services the app is made of", () => {
@@ -163,7 +102,7 @@ describe("the production compose file", () => {
       // context of `packages/<name>` cannot build them at all.
       expect(build.context, name).toBe(".");
       expect(build.dockerfile, name).toBe(dockerfile);
-      expect(existsSync(`${ROOT}/${dockerfile}`), dockerfile).toBe(true);
+      expect(existsSync(repoPath(dockerfile)), dockerfile).toBe(true);
     }
   });
 
@@ -204,7 +143,7 @@ describe("the api service", () => {
     // Named, not a bind: `docker compose down` removes the containers, and a
     // volume declared at the top level is what survives it.
     expect(mount.source).not.toMatch(/^[./~]/);
-    expect(Object.keys(compose().volumes ?? {})).toContain(mount.source);
+    expect(compose.volumeNames()).toContain(mount.source);
 
     // One mount covers both because both paths live under it — the api image
     // already defaults them there, and this only has to not move them.
@@ -310,7 +249,7 @@ describe("what a local build sends to the daemon", () => {
 
 describe("the operator's .env.example", () => {
   it("exists", () => {
-    expect(existsSync(`${ROOT}/${ENV_EXAMPLE}`)).toBe(true);
+    expect(existsSync(repoPath(ENV_EXAMPLE))).toBe(true);
   });
 
   it("documents every variable the compose file reads, and none it does not", () => {
@@ -365,12 +304,20 @@ describe("the docs an operator follows", () => {
 });
 
 describe("the compose files in the repo", () => {
-  it("are the one production file, with no dev companion", () => {
+  it("are this one and the demo stack, with no dev companion", () => {
     // A dev compose file's only job would be "up just the database", and there
     // is no database server to up — sqlite is a file the API opens in-process.
     // Local development is `bun dev`.
-    const found = readdirSync(ROOT).filter((name) => /^(docker-)?compose.*\.ya?ml$/.test(name));
+    //
+    // The second file is `docker-compose.demo.yml` (issue #141): a throwaway
+    // stack serving the seeded demo database for screenshots, with its own
+    // project name, volume and port so that it cannot reach this stack's data.
+    // It is guarded in `docker-compose-demo.test.ts`, and it is not a deploy
+    // path — this file remains the only one.
+    const found = readdirSync(repoPath(".")).filter((name) =>
+      /^(docker-)?compose.*\.ya?ml$/.test(name),
+    );
 
-    expect(found).toStrictEqual([COMPOSE_FILE]);
+    expect(found.sort()).toStrictEqual([DEMO_FILE, COMPOSE_FILE].sort());
   });
 });
