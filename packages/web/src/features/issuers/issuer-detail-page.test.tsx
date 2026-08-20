@@ -9,7 +9,7 @@ import {
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { validateTransactionsSearch } from "@/features/transactions/search";
+import { validateIssuerDetailSearch } from "@/features/issuers/detail-search";
 import { COLLAPSED_SHELL, OPEN_SHELL, withShell } from "@/test/sidebar-shell";
 
 // Mock the SDK seam (PRD): the page reads the issuer (`issuerQueries.getById`),
@@ -259,12 +259,14 @@ function makeRouter(initialEntry: string) {
     component: IssuersView,
   });
   // Mirrors the real route: the trailing slash (the `/` index route the page's
-  // `getRouteApi` addresses) and the transactions search schema its embedded
-  // transactions section reads its filters/sort/offset from.
+  // `getRouteApi` addresses) and the route's own search schema — the
+  // transactions filters/sort/page its embedded section reads, plus the `tab`
+  // this page adds. The shared transactions schema alone would leave `tab` an
+  // unvalidated pass-through here, which is exactly the gap issue #165 closes.
   const detailRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/issuers/$issuerId/",
-    validateSearch: validateTransactionsSearch,
+    validateSearch: validateIssuerDetailSearch,
     component: IssuerDetailPage,
   });
   return createRouter({
@@ -279,7 +281,11 @@ function makeRouter(initialEntry: string) {
  * in for it — open, unless a case is about the trigger itself.
  */
 function renderAt(initialEntry: string, shellValue = OPEN_SHELL) {
-  render(withShell(<RouterProvider router={makeRouter(initialEntry)} />, shellValue));
+  const router = makeRouter(initialEntry);
+  render(withShell(<RouterProvider router={router} />, shellValue));
+  // Returned so a case can read the URL the page navigated to — the tab and the
+  // filters are search params, so what lands in the URL *is* the behaviour.
+  return router;
 }
 
 beforeEach(() => {
@@ -397,6 +403,40 @@ describe("IssuerDetailPage", () => {
     // No click: the tab came from the URL, so a refresh or a shared link lands
     // on the panel the sender was looking at.
     expect(await screen.findByRole("heading", { name: "Matching Rules" })).toBeInTheDocument();
+  });
+
+  it("names the open panel in the URL", async () => {
+    const user = userEvent.setup();
+    const router = renderAt("/issuers/1");
+
+    await openTab(user, /Rules/);
+
+    await waitFor(() => expect(router.state.location.search).toMatchObject({ tab: "rules" }));
+  });
+
+  // The default panel is the one tab that stays *out* of the URL: `/issuers/1`
+  // and `?tab=transactions` would otherwise be two URLs for one view.
+  it("drops the parameter when switching back to the default panel", async () => {
+    const user = userEvent.setup();
+    const router = renderAt("/issuers/1?tab=rules");
+
+    await openTab(user, /Transactions/);
+
+    await waitFor(() => expect(router.state.location.search).not.toHaveProperty("tab"));
+    expect(router.state.location.searchStr).not.toContain("tab");
+  });
+
+  // Unlike the filter and sort handlers, switching panels is not a new query —
+  // it shows the same rows in a different pane, so page 2 stays page 2.
+  it("leaves the page number untouched when the panel changes", async () => {
+    const user = userEvent.setup();
+    const router = renderAt("/issuers/1?page=2");
+
+    await openTab(user, /Rules/);
+
+    await waitFor(() =>
+      expect(router.state.location.search).toMatchObject({ tab: "rules", page: 2 }),
+    );
   });
 
   it("renames the issuer inline, autosaving once typing settles", async () => {
