@@ -3,11 +3,12 @@
 #
 # Independent of packages/web's Dockerfile on purpose (issue #113): the two are
 # separate images behind one reverse proxy, so the landing copy never rides
-# along in the app image and the app's dependency tree never rides along here.
-# The build's whole output is HTML and one stylesheet: React and the router are
-# installed below (issue #145) but they run in Node, at build time, and nothing
-# of them is bundled for a browser — the image that ships carries no JavaScript
-# at all.
+# along in the app image and the app's tree never reaches the image that ships
+# from here. The build's whole output is HTML and one stylesheet: React and the
+# router are installed below and render the page (issues #145, #148), but they
+# run in Node, at build time, in a stage that is thrown away — the image that
+# ships carries no JavaScript at all. That division is the decision recorded in
+# docs/adr/0002-react-renders-the-landing-page-at-build-time.md.
 #
 # Build context is the REPO ROOT (Dokploy: dockerContextPath `.`), because the
 # workspace install reads the root manifests and the lockfile.
@@ -33,7 +34,9 @@ COPY packages/landing-page/package.json ./packages/landing-page/
 # Tailwind, no query client, none of the api's native modules. (The root
 # manifest's own devDependencies — turbo, oxlint, oxfmt — come along with any
 # install here; verified by listing the tree.) devDependencies are kept, unlike
-# the api image: vite, tsc and the prerenderer's React all run the build.
+# the api image: vite, tsc and the page's own React all run the build. React is
+# a devDependency for exactly this reason — it is build tooling here, not
+# something a browser is sent (`src/packaging.test.ts`).
 #
 # None of it reaches the image that ships. This stage is thrown away and the
 # final one below copies two files out of it.

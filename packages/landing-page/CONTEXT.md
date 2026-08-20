@@ -3,13 +3,16 @@
 The public page served at the **site root** (issue #113). HTML and one
 stylesheet, prerendered by Vite at build time and served by nginx from its own
 image — no runtime, nothing to hydrate. The package is `index.html` (a stub),
-`src/page.ts` (the page), `src/content/` (its words), `src/prerender.ts` (the
+`src/page.tsx` (the page), `src/content/` (its words), `src/prerender.ts` (the
 Vite plugin that puts one into the other) and `src/styles.css`.
 
-Beside it, at a **preview route**, the same page rendered a second way: React
-components on a TanStack router, under `src/preview/` (issue #145). That is the
-expand half of an expand–contract; both renderers ship until the contract step
-picks one.
+The page is React components on a TanStack router, rendered once in Node
+(**build-time React**, below). It was a hand-written string until issue #148,
+and the reversal of the decision that made it one is recorded rather than
+assumed: [ADR 0001](docs/adr/0001-the-landing-page-takes-no-framework.md) is the
+no-framework decision as taken, superseded by
+[ADR 0002](docs/adr/0002-react-renders-the-landing-page-at-build-time.md), which
+states what changed and — more usefully — what did not.
 
 It shares no domain vocabulary with the app: nothing here knows what a
 **transaction**, an **issuer** or a **bundle** is, and nothing should. The one
@@ -36,6 +39,9 @@ not route to the web container, which owns `/app`, `/api` and `/uploads`. The
 root is what the app gave up when it moved under its prefix, and owning it is
 this package's entire job. An unknown path here is a **404**, not the page: one
 static page has no client-side routing to fall back to, unlike the SPA's shell.
+`nginx.conf` says so with `try_files … =404`, and the dev server says the same
+thing with `appType: "mpa"`: under Vite's default it would answer `index.html`
+to every unknown path, which is production's answer to none of them.
 _Avoid_: home page (this is the site's root, not the app's landing view — the
 app's own first screen is the transactions view).
 
@@ -76,28 +82,34 @@ HTML entry on disk is a stub the plugin replaces wholesale, and the plugin runs
 _Avoid_: SSR, static site generation (nothing renders per request, and there is
 one page — no generator, no routes, no data).
 
-**Preview route**:
-`/preview/`, where the React renderer answers while it stands beside the string
-one (issue #145). Temporary by construction: the **expand** step of an
-expand–contract adds the new form without taking the old one away, so the site
-root keeps serving `src/page.ts` and every test written against it keeps
-passing. It is a second HTML entry (`preview/index.html`, another stub) built
-to `dist/preview/index.html`, which the existing `try_files … $uri/` and
-`index index.html` already resolve — the route needs no nginx block, and so
-none has to be taken back out. The contract step moves the React page to `/`
-and deletes this prefix, `src/page.ts` and this entry with it.
-_Avoid_: staging, beta (nothing is deployed separately or gated — it is one
-extra path on the same container).
-
 **Build-time React**:
 React and `@tanstack/react-router` are **devDependencies** here, and that is a
-statement rather than a technicality: `src/preview/render.tsx` runs the router
-on a memory history and `renderToStaticMarkup`s the tree in Node, so what
-reaches the image is HTML. No client entry, no hydration, no `<script>` — the
-built page is asserted to carry none. A runtime dependency on React would mean
-the browser assembling a page this package exists to serve finished.
+statement rather than a technicality: `src/page.tsx` runs the router on a memory
+history and `renderToStaticMarkup`s the tree in Node, so what reaches the image
+is HTML. No client entry, no hydration, no `<script>` — the built page is
+asserted to carry none, and there is no framework plugin in `vite.config.ts`,
+because a framework plugin's job is serving React to a browser. A runtime
+dependency on React would mean the browser assembling a page this package exists
+to serve finished. That line is where the superseding decision draws itself
+([ADR 0002](docs/adr/0002-react-renders-the-landing-page-at-build-time.md)): the
+package took a framework, not a runtime.
 _Avoid_: SSR (there is no server rendering per request — the render happens once,
 at build).
+
+**Expand–contract**:
+How the page changed renderer without a commit that broke the package. The
+**expand** step (issue #145) built the React page beside the string one and
+served it at a temporary `/preview/` route, a second HTML entry, removing
+nothing; two more issues moved the words into `src/content/` (#147) and the
+palette onto the app's ramp (#146) with both renderers reading them; the
+**contract** step (#148) gave React the root and deleted the route, the second
+entry, the string renderer and its tests. What made the swap a swap rather than a
+rewrite is that the words were shared and compared across both renderers while
+they stood side by side — the surviving half of that guard is `src/copy.test.ts`.
+Nothing about the route reached nginx, so nothing had to be taken back out of it.
+_Avoid_: migration (nothing was converted — the two forms existed at once, and
+the old one was deleted, not upgraded), staging (the temporary route was one
+extra path on the same container, not a separate deployment).
 
 **Restated palette**:
 The app's colour ramp, written out again in `src/styles.css` (issue #146): the
@@ -120,12 +132,13 @@ anything else consumes).
 **Content module**:
 One section of the page as typed data, under `src/content/` — the site's
 metadata, the hero, the install guide, the contributing note and the call to
-action, one module each (issue #147). Both renderers read them and neither
-writes a sentence of its own: two renderers holding the same words is exactly
-the drift expand–contract invites, so `src/preview/copy.test.ts` renders both,
-compares the text a reader sees, and bans a package file from restating any of
-it. It keeps the contract step a swap of the renderer rather than a rewrite of
-the page.
+action, one module each (issue #147). The renderer reads them and writes no
+sentence of its own: it was written that way because two renderers holding the
+same words is exactly the drift **expand–contract** invites, and
+`src/copy.test.ts` — which compared both pages while both existed — is what kept
+the contract step a swap of the renderer rather than a rewrite of the page. It
+still bans a package file from restating any of the copy, which is the rule that
+outlives the second renderer.
 It is **data, not markup**: nothing renders it — no markdown pass, no entities —
 so an asterisk meant as emphasis reaches the reader as an asterisk, and a
 backticked command reaches them with its backticks. `src/content/prose.test.ts`

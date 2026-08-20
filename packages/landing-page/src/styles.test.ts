@@ -1,7 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { renderPage } from "./page";
-import { renderPreviewPage } from "./preview/render";
 
 /**
  * The landing page's colours, held to the app's (issue #146).
@@ -221,15 +220,15 @@ describe("the landing page's colour scheme", () => {
   it("tints the browser chrome per scheme, as the app's shell does", async () => {
     // One `theme-color` cannot say two things, so it is two tags keyed off the
     // OS — exactly the pair in `packages/web/index.html`.
-    for (const html of [renderPage(), await renderPreviewPage()]) {
-      for (const scheme of SCHEMES) {
-        const pattern = new RegExp(
-          `<meta name="theme-color" media="\\(prefers-color-scheme: ${scheme}\\)" content="([^"]+)"`,
-        );
-        expect(html.match(pattern)?.[1]).toBe(landing[scheme]["--bg"]);
-      }
-      expect(html).toMatch(/<meta name="color-scheme" content="light dark"/);
+    const html = await renderPage();
+
+    for (const scheme of SCHEMES) {
+      const pattern = new RegExp(
+        `<meta name="theme-color" media="\\(prefers-color-scheme: ${scheme}\\)" content="([^"]+)"`,
+      );
+      expect(html.match(pattern)?.[1]).toBe(landing[scheme]["--bg"]);
     }
+    expect(html).toMatch(/<meta name="color-scheme" content="light dark"/);
   });
 });
 

@@ -90,7 +90,7 @@ no authentication of any kind — see [SECURITY.md](SECURITY.md).
 | `@mamen/api` | `packages/api` | Effect `HttpApi` server implementing the contract, over SQLite. |
 | `@mamen/sdk` | `packages/sdk` | Typed client derived from the contract, wired to TanStack Query. |
 | `@mamen/web` | `packages/web` | The React frontend. |
-| `@mamen/landing-page` | `packages/landing-page` | The public page at the site root. Prerendered static HTML, its own image, no framework. |
+| `@mamen/landing-page` | `packages/landing-page` | The public page at the site root. Its own image, serving HTML prerendered at build time — the browser runs no JavaScript to read it. |
 
 Dependencies run one way: `shared` ← `api`, `shared` ← `sdk` ← `web`. Nothing in
 `shared` may acquire a runtime dependency beyond `effect` and `@effect/platform`.

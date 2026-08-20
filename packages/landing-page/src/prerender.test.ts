@@ -18,6 +18,11 @@ import { prerender } from "./prerender";
  * still to come. That pass is what rewrites `/src/styles.css` to the hashed
  * asset; a `post` hook would hand it a document it has already finished with,
  * and the built page would ship a link to a source path that is not in `dist`.
+ *
+ * The hook took a second entry and dispatched on `ctx.path` while the two
+ * renderers stood side by side (issue #145). With the string one deleted it
+ * answers every entry the same way, which is why the context below is no longer
+ * part of what is asserted.
  */
 
 const entry = fileURLToPath(new URL("../index.html", import.meta.url));
@@ -43,7 +48,7 @@ describe("the prerender plugin", () => {
   });
 
   it("replaces the entry with the rendered page", async () => {
-    expect(await hook.handler(stub, ctx)).toBe(renderPage());
+    expect(await hook.handler(stub, ctx)).toBe(await renderPage());
   });
 
   it("names itself, so a build log says what wrote the page", () => {
@@ -52,16 +57,16 @@ describe("the prerender plugin", () => {
 });
 
 describe("index.html", () => {
-  it("is a stub, not a second copy of the page", () => {
-    // Whatever the page says, it says in `src/page.ts`. The entry exists
+  it("is a stub, not a second copy of the page", async () => {
+    // Whatever the page says, it says in `src/page.tsx`. The entry exists
     // because Vite resolves the build from an HTML file.
     expect(stub).not.toMatch(/<h1\b/);
     expect(stub).not.toMatch(/<link\b/);
     expect(stub).not.toMatch(/<script\b/);
-    expect(stub.length).toBeLessThan(renderPage().length / 2);
+    expect(stub.length).toBeLessThan((await renderPage()).length / 2);
   });
 
   it("points at the module that does own the page", () => {
-    expect(stub).toMatch(/src\/page\.ts/);
+    expect(stub).toMatch(/src\/page\.tsx/);
   });
 });
