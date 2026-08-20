@@ -22,8 +22,22 @@ function FieldListSkeleton({ widths }: { widths: readonly string[] }) {
   );
 }
 
-/** The eight core fields — id, date, amount, account, raw issuer, issuer, category, notes. */
-const CORE_WIDTHS = ["w-16", "w-24", "w-20", "w-32", "w-64", "w-40", "w-28", "w-48"] as const;
+/**
+ * The nine core fields — id, date, amount, account, raw issuer, counterparty
+ * IBAN, issuer, category, notes. In the page's own order, so the placeholder
+ * column is the height the settled one will be and nothing below it jumps.
+ */
+const CORE_WIDTHS = [
+  "w-16",
+  "w-24",
+  "w-20",
+  "w-32",
+  "w-64",
+  "w-56",
+  "w-40",
+  "w-28",
+  "w-48",
+] as const;
 
 /** The refund + duplicate block's fields. */
 const REFUND_WIDTHS = ["w-12", "w-36", "w-14"] as const;

@@ -2370,6 +2370,9 @@
                       "type": "string"
                     }
                   },
+                  "counterpartyIban": {
+                    "type": "string"
+                  },
                   "importedAt": {
                     "$ref": "#/components/schemas/Date"
                   },
@@ -3309,6 +3312,9 @@
                       "type": "string"
                     }
                   },
+                  "counterpartyIban": {
+                    "type": "string"
+                  },
                   "importedAt": {
                     "$ref": "#/components/schemas/Date"
                   },
@@ -3586,6 +3592,9 @@
                           "additionalProperties": {
                             "type": "string"
                           }
+                        },
+                        "counterpartyIban": {
+                          "type": "string"
                         },
                         "importedAt": {
                           "$ref": "#/components/schemas/Date"
@@ -7143,6 +7152,9 @@
             "additionalProperties": {
               "type": "string"
             }
+          },
+          "counterpartyIban": {
+            "type": "string"
           },
           "importedAt": {
             "$ref": "#/components/schemas/Date"

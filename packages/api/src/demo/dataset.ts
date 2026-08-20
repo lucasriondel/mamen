@@ -873,6 +873,10 @@ export const buildDemoDataset = (): DemoDataset => {
       // No bank sent these rows, so there is no **raw source** to archive
       // (issue #176) — the same null a PDF-extracted row carries.
       rawSource: null,
+      // And no **counterparty IBAN** to promote out of one (issue #178): the
+      // demo's transfer legs name their counterpart account by the row's own
+      // wording, the way a statement without IBANs does.
+      counterpartyIban: null,
       importedAt: importedAtFor(month),
       importMonth: month,
       importBatchId: batchOf(row.accountId, month),

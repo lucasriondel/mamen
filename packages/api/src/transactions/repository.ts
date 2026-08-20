@@ -66,6 +66,7 @@ const TransactionRow = Schema.Struct({
   manualExcluded: Schema.Number,
   notes: Schema.NullOr(Schema.String),
   rawSource: Schema.NullOr(Schema.String),
+  counterpartyIban: Schema.NullOr(Schema.String),
   importedAt: Schema.String,
   importMonth: Schema.String,
   importBatchId: Schema.NullOr(Schema.String),
@@ -136,6 +137,9 @@ export const TransactionFromRow = Schema.transform(TransactionRow, Transaction, 
     ...(row.rawSource !== null
       ? { rawSource: Schema.decodeSync(RawSourceJson)(row.rawSource) }
       : {}),
+    // A plain string column, so the ordinary null → absent fold: a card row
+    // carries no counterparty IBAN and reads back with the field missing.
+    ...(row.counterpartyIban !== null ? { counterpartyIban: row.counterpartyIban } : {}),
     importedAt: row.importedAt,
     importMonth: row.importMonth,
     ...(row.importBatchId !== null ? { importBatchId: row.importBatchId } : {}),
@@ -166,6 +170,7 @@ export const TransactionFromRow = Schema.transform(TransactionRow, Transaction, 
     manualExcluded: t.manualExcluded ? 1 : 0,
     notes: t.notes ?? null,
     rawSource: t.rawSource !== undefined ? Schema.encodeSync(RawSourceJson)(t.rawSource) : null,
+    counterpartyIban: t.counterpartyIban ?? null,
     importedAt: t.importedAt,
     importMonth: t.importMonth,
     importBatchId: t.importBatchId ?? null,
@@ -209,6 +214,7 @@ const TransferCandidateRow = Schema.Struct({
   f_manualExcluded: Schema.Number,
   f_notes: Schema.NullOr(Schema.String),
   f_rawSource: Schema.NullOr(Schema.String),
+  f_counterpartyIban: Schema.NullOr(Schema.String),
   f_importedAt: Schema.String,
   f_importMonth: Schema.String,
   f_importBatchId: Schema.NullOr(Schema.String),
@@ -234,6 +240,7 @@ const TransferCandidateRow = Schema.Struct({
   t_manualExcluded: Schema.Number,
   t_notes: Schema.NullOr(Schema.String),
   t_rawSource: Schema.NullOr(Schema.String),
+  t_counterpartyIban: Schema.NullOr(Schema.String),
   t_importedAt: Schema.String,
   t_importMonth: Schema.String,
   t_importBatchId: Schema.NullOr(Schema.String),
@@ -271,6 +278,7 @@ const legFromRow = (row: typeof TransferCandidateRow.Type, prefix: "f" | "t"): T
     manualExcluded: pick("manualExcluded"),
     notes: pick("notes"),
     rawSource: pick("rawSource"),
+    counterpartyIban: pick("counterpartyIban"),
     importedAt: pick("importedAt"),
     importMonth: pick("importMonth"),
     importBatchId: pick("importBatchId"),
@@ -432,6 +440,7 @@ export type WriteRow = {
   manualExcluded: number;
   notes: string | null;
   rawSource: string | null;
+  counterpartyIban: string | null;
   importedAt: string;
   importMonth: string;
   importBatchId: string | null;
@@ -725,7 +734,7 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()("api/Tran
     // (`RETURNING *`) echo the stored row verbatim, and the internal
     // `storedByIdQuery` reads the raw row so an update's merge never persists
     // a derived value.
-    const readColumns = sql`t.id, t.accountId, t.date, t.amount, t.rawIssuerString, t.issuerId, ${derivedCategory} AS categoryId, t.manualCategory, t.manualIssuer, t.isRefund, t.linkedRefundId, t.transferGroupId, t.kind, t.bundleId, t.manualDate, t.anomalyFlags, t.isDuplicateExcluded, t.duplicateNote, ${recapExclusion} AS excludedFromRecap, t.manualExcluded, t.notes, t.rawSource, t.importedAt, t.importMonth, t.importBatchId`;
+    const readColumns = sql`t.id, t.accountId, t.date, t.amount, t.rawIssuerString, t.issuerId, ${derivedCategory} AS categoryId, t.manualCategory, t.manualIssuer, t.isRefund, t.linkedRefundId, t.transferGroupId, t.kind, t.bundleId, t.manualDate, t.anomalyFlags, t.isDuplicateExcluded, t.duplicateNote, ${recapExclusion} AS excludedFromRecap, t.manualExcluded, t.notes, t.rawSource, t.counterpartyIban, t.importedAt, t.importMonth, t.importBatchId`;
     const readFrom = sql`FROM transactions t LEFT JOIN issuers i ON t.issuerId = i.id`;
 
     // `Request: Schema.Any` skips a redundant re-decode: filters are already
@@ -1020,7 +1029,7 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()("api/Tran
       Request: TransactionId,
       Result: TransactionFromRow,
       execute: (id) =>
-        sql`SELECT c.id, c.accountId, c.date, c.amount, c.rawIssuerString, c.issuerId, ${derivedCategoryFor("c", "ci")} AS categoryId, c.manualCategory, c.manualIssuer, c.isRefund, c.linkedRefundId, c.transferGroupId, c.kind, c.bundleId, c.manualDate, c.anomalyFlags, c.isDuplicateExcluded, c.duplicateNote, ${recapExclusionFor("c", "ci")} AS excludedFromRecap, c.manualExcluded, c.notes, c.rawSource, c.importedAt, c.importMonth, c.importBatchId
+        sql`SELECT c.id, c.accountId, c.date, c.amount, c.rawIssuerString, c.issuerId, ${derivedCategoryFor("c", "ci")} AS categoryId, c.manualCategory, c.manualIssuer, c.isRefund, c.linkedRefundId, c.transferGroupId, c.kind, c.bundleId, c.manualDate, c.anomalyFlags, c.isDuplicateExcluded, c.duplicateNote, ${recapExclusionFor("c", "ci")} AS excludedFromRecap, c.manualExcluded, c.notes, c.rawSource, c.counterpartyIban, c.importedAt, c.importMonth, c.importBatchId
 						FROM transactions t
 						JOIN transactions c
 							ON c.id <> t.id
@@ -1058,7 +1067,7 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()("api/Tran
     // property of the *query*, not of a client-side filter some surface could
     // forget to apply.
     const candidateColumns = (a: "f" | "c", issuerAlias: "fi" | "ci", prefix: "f" | "t") =>
-      sql`${sql.literal(a)}.id AS ${sql.literal(prefix)}_id, ${sql.literal(a)}.accountId AS ${sql.literal(prefix)}_accountId, ${sql.literal(a)}.date AS ${sql.literal(prefix)}_date, ${sql.literal(a)}.amount AS ${sql.literal(prefix)}_amount, ${sql.literal(a)}.rawIssuerString AS ${sql.literal(prefix)}_rawIssuerString, ${sql.literal(a)}.issuerId AS ${sql.literal(prefix)}_issuerId, ${derivedCategoryFor(a, issuerAlias)} AS ${sql.literal(prefix)}_categoryId, ${sql.literal(a)}.manualCategory AS ${sql.literal(prefix)}_manualCategory, ${sql.literal(a)}.manualIssuer AS ${sql.literal(prefix)}_manualIssuer, ${sql.literal(a)}.isRefund AS ${sql.literal(prefix)}_isRefund, ${sql.literal(a)}.linkedRefundId AS ${sql.literal(prefix)}_linkedRefundId, ${sql.literal(a)}.transferGroupId AS ${sql.literal(prefix)}_transferGroupId, ${sql.literal(a)}.kind AS ${sql.literal(prefix)}_kind, ${sql.literal(a)}.bundleId AS ${sql.literal(prefix)}_bundleId, ${sql.literal(a)}.manualDate AS ${sql.literal(prefix)}_manualDate, ${sql.literal(a)}.anomalyFlags AS ${sql.literal(prefix)}_anomalyFlags, ${sql.literal(a)}.isDuplicateExcluded AS ${sql.literal(prefix)}_isDuplicateExcluded, ${sql.literal(a)}.duplicateNote AS ${sql.literal(prefix)}_duplicateNote, ${recapExclusionFor(a, issuerAlias)} AS ${sql.literal(prefix)}_excludedFromRecap, ${sql.literal(a)}.manualExcluded AS ${sql.literal(prefix)}_manualExcluded, ${sql.literal(a)}.notes AS ${sql.literal(prefix)}_notes, ${sql.literal(a)}.rawSource AS ${sql.literal(prefix)}_rawSource, ${sql.literal(a)}.importedAt AS ${sql.literal(prefix)}_importedAt, ${sql.literal(a)}.importMonth AS ${sql.literal(prefix)}_importMonth, ${sql.literal(a)}.importBatchId AS ${sql.literal(prefix)}_importBatchId`;
+      sql`${sql.literal(a)}.id AS ${sql.literal(prefix)}_id, ${sql.literal(a)}.accountId AS ${sql.literal(prefix)}_accountId, ${sql.literal(a)}.date AS ${sql.literal(prefix)}_date, ${sql.literal(a)}.amount AS ${sql.literal(prefix)}_amount, ${sql.literal(a)}.rawIssuerString AS ${sql.literal(prefix)}_rawIssuerString, ${sql.literal(a)}.issuerId AS ${sql.literal(prefix)}_issuerId, ${derivedCategoryFor(a, issuerAlias)} AS ${sql.literal(prefix)}_categoryId, ${sql.literal(a)}.manualCategory AS ${sql.literal(prefix)}_manualCategory, ${sql.literal(a)}.manualIssuer AS ${sql.literal(prefix)}_manualIssuer, ${sql.literal(a)}.isRefund AS ${sql.literal(prefix)}_isRefund, ${sql.literal(a)}.linkedRefundId AS ${sql.literal(prefix)}_linkedRefundId, ${sql.literal(a)}.transferGroupId AS ${sql.literal(prefix)}_transferGroupId, ${sql.literal(a)}.kind AS ${sql.literal(prefix)}_kind, ${sql.literal(a)}.bundleId AS ${sql.literal(prefix)}_bundleId, ${sql.literal(a)}.manualDate AS ${sql.literal(prefix)}_manualDate, ${sql.literal(a)}.anomalyFlags AS ${sql.literal(prefix)}_anomalyFlags, ${sql.literal(a)}.isDuplicateExcluded AS ${sql.literal(prefix)}_isDuplicateExcluded, ${sql.literal(a)}.duplicateNote AS ${sql.literal(prefix)}_duplicateNote, ${recapExclusionFor(a, issuerAlias)} AS ${sql.literal(prefix)}_excludedFromRecap, ${sql.literal(a)}.manualExcluded AS ${sql.literal(prefix)}_manualExcluded, ${sql.literal(a)}.notes AS ${sql.literal(prefix)}_notes, ${sql.literal(a)}.rawSource AS ${sql.literal(prefix)}_rawSource, ${sql.literal(a)}.counterpartyIban AS ${sql.literal(prefix)}_counterpartyIban, ${sql.literal(a)}.importedAt AS ${sql.literal(prefix)}_importedAt, ${sql.literal(a)}.importMonth AS ${sql.literal(prefix)}_importMonth, ${sql.literal(a)}.importBatchId AS ${sql.literal(prefix)}_importBatchId`;
 
     const transferCandidatesQuery = SqlSchema.findAll({
       Request: Schema.Void,
@@ -1227,6 +1236,9 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()("api/Tran
       manualExcluded: t.manualExcluded ? 1 : 0,
       notes: t.notes ?? null,
       rawSource: t.rawSource !== undefined ? Schema.encodeSync(RawSourceJson)(t.rawSource) : null,
+      // Stored as handed over: normalisation is the import edge's job (the
+      // parser), so the repository never rewrites what a caller stated.
+      counterpartyIban: t.counterpartyIban ?? null,
       importedAt: t.importedAt.toISOString(),
       importMonth: t.importMonth,
       importBatchId: t.importBatchId ?? null,

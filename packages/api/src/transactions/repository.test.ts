@@ -57,6 +57,13 @@ const day = (n: number) => new Date(`2026-03-${String(n).padStart(2, "0")}T00:00
 const byId = (rows: ReadonlyArray<{ id: number | null; spent: number; count: number }>) =>
   Object.fromEntries(rows.map((r) => [r.id ?? "none", r]));
 
+/**
+ * A **counterparty IBAN** in its stored, normalised form. Assembled rather than
+ * written out, so this file carries no matchable account number (issue #108) —
+ * the reserved `99999` bank code is not one any bank was allocated.
+ */
+const COUNTERPARTY_IBAN = `FR7699999${"0".repeat(18)}`;
+
 /** The anomaly kinds standing on a row, in order. */
 const flagsOf = (txn: { anomalyFlags?: ReadonlyArray<{ type: string }> }) =>
   (txn.anomalyFlags ?? []).map((f) => f.type);
@@ -101,6 +108,7 @@ describe("TransactionFromRow storage codec", () => {
       duplicateNote: "dup",
       notes: "lunch with the team",
       rawSource: { Intitulé: "ACME", "Moyen de paiement": "SEPA" },
+      counterpartyIban: COUNTERPARTY_IBAN,
       importedAt: DATE,
       importMonth: "2026-03",
       importBatchId: "batch-9",
@@ -119,6 +127,9 @@ describe("TransactionFromRow storage codec", () => {
       Intitulé: "ACME",
       "Moyen de paiement": "SEPA",
     });
+    // The promoted column is a plain string, stored exactly as handed over —
+    // normalising is the import edge's job, not the codec's (issue #178).
+    assert.strictEqual(row.counterpartyIban, COUNTERPARTY_IBAN);
     assert.deepStrictEqual(decode(row), full);
   });
 
@@ -144,6 +155,9 @@ describe("TransactionFromRow storage codec", () => {
     // Null, not `"{}"`: a row with no archive and a row whose archive is empty
     // would otherwise be two spellings of the same absence.
     assert.strictEqual(row.rawSource, null);
+    // Null, not `""`: a card row carries no counterparty IBAN at all, and "not
+    // given" must not be storable a second way (issue #178).
+    assert.strictEqual(row.counterpartyIban, null);
     assert.strictEqual(row.importBatchId, null);
     // `kind` is the exception to the null → absent fold: the column is never
     // null, so an absent kind is stored as the `bank` it means and reads back
@@ -265,6 +279,54 @@ describe("TransactionRepo", () => {
         // The other leg was created without one, so the null→absent fold has to
         // hold on this route too.
         assert.strictEqual(candidate?.counterparts[0]?.transaction.rawSource, undefined);
+      }).pipe(Effect.provide(RepoTest)),
+    );
+  });
+
+  describe("counterparty IBAN (issue #178)", () => {
+    it.effect("survives a create → read round trip unchanged", () =>
+      Effect.gen(function* () {
+        const repo = yield* TransactionRepo;
+        const created = yield* repo.create(make({ counterpartyIban: COUNTERPARTY_IBAN }));
+
+        assert.strictEqual(created.counterpartyIban, COUNTERPARTY_IBAN);
+
+        // Through the projected read too, not only the write's `RETURNING *`:
+        // the column has to be in `readColumns` or the list would drop it.
+        const fetched = yield* repo.getById(created.id);
+        assert.strictEqual(fetched.counterpartyIban, COUNTERPARTY_IBAN);
+      }).pipe(Effect.provide(RepoTest)),
+    );
+
+    it.effect("is absent — not an empty string — on a row created without one", () =>
+      Effect.gen(function* () {
+        const repo = yield* TransactionRepo;
+        const created = yield* repo.create(make());
+
+        assert.strictEqual(created.counterpartyIban, undefined);
+        assert.strictEqual((yield* repo.getById(created.id)).counterpartyIban, undefined);
+      }).pipe(Effect.provide(RepoTest)),
+    );
+
+    // The third read path, and the one the mark (#179) will be computed on: the
+    // candidate self-join projects every column twice, `f_`/`t_` prefixed. A leg
+    // reaching the wire without its IBAN would be a projection that silently
+    // skipped this route — and the join that earns this column its promotion
+    // starts from exactly these rows.
+    it.effect("rides a transfer-candidate leg, both ways round", () =>
+      Effect.gen(function* () {
+        const repo = yield* TransactionRepo;
+        yield* repo.create(
+          make({ amount: -947.26, accountId: asAccount(1), counterpartyIban: COUNTERPARTY_IBAN }),
+        );
+        yield* repo.create(make({ amount: 947.26, accountId: asAccount(2) }));
+
+        const [candidate] = yield* repo.transferCandidates();
+
+        assert.strictEqual(candidate?.leg.counterpartyIban, COUNTERPARTY_IBAN);
+        // The credit leg was created without one, so the null→absent fold has to
+        // hold on this route too.
+        assert.strictEqual(candidate?.counterparts[0]?.transaction.counterpartyIban, undefined);
       }).pipe(Effect.provide(RepoTest)),
     );
   });
