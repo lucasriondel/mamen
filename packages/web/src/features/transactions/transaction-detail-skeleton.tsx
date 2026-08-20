@@ -15,7 +15,7 @@ function FieldListSkeleton({ widths }: { widths: readonly string[] }) {
   return (
     <div className="rounded-2xl border border-gousse-line px-4">
       {widths.map((width, index) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: a static placeholder list — never reordered, and two fields may share a width
+        // Index key: a static placeholder list — never reordered, and two fields may share a width
         <DetailFieldSkeleton key={index} valueWidth={width} />
       ))}
     </div>

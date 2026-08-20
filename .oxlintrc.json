@@ -22,7 +22,19 @@
     "unicorn/no-array-sort": "off",
     // Same reason, the other method: `toReversed` is ES2023 too.
     "unicorn/no-array-reverse": "off",
+    // The next two are the rules this repo has always allowed. The decision
+    // predates the ox toolchain — the config that carried it was deleted at the
+    // cutover (issue #138), so each reason is re-homed here rather than lost
+    // with it.
+    //
+    // `any` is how the app types the edges it does not own: a jsdom stub, a
+    // recharts payload, a JSON blob on its way into a schema. The rule's fix at
+    // those sites is a cast that says less than the code it replaces.
     "typescript/no-explicit-any": "off",
+    // An assertion is how the app reads a lookup it has just proved non-empty —
+    // the index into a list it filtered, the match group a regex it wrote
+    // guarantees. The alternative is a branch that cannot be taken and cannot
+    // be tested.
     "typescript/no-non-null-assertion": "off",
     "jsx-a11y/label-has-associated-control": [
       "error",

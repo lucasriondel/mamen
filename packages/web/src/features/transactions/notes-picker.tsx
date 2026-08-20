@@ -79,10 +79,8 @@ export function NotesPicker({ transaction }: NotesPickerProps) {
               save();
             }
           }}
-          /* oxlint-disable jsx-a11y/no-autofocus -- the popover exists only to edit this field */
-          // biome-ignore lint/a11y/noAutofocus: the popover exists only to edit this field
+          // oxlint-disable-next-line jsx-a11y/no-autofocus -- the popover exists only to edit this field
           autoFocus
-          /* oxlint-enable jsx-a11y/no-autofocus */
           rows={4}
           maxLength={NOTES_MAX_LENGTH}
           placeholder="Add a note…"

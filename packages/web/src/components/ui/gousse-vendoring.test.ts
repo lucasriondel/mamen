@@ -9,8 +9,8 @@ import { describe, expect, it } from "vitest";
  * overwrites in place. As with the theme layer's vendoring test, the subject is
  * wiring a later refactor can silently undo: the compound surface the registry
  * publishes, the fact that the hand-written stand-in it replaced is gone from
- * the tree, and the biome exclusion that keeps the next `shadcn add` from
- * fighting the formatter. All are asserted as text.
+ * the tree, and the formatter exclusion that keeps the next `shadcn add` from
+ * fighting oxfmt. All are asserted as text.
  *
  * That surface is also what drifted (issue #105): the tree held an earlier,
  * smaller sidebar — icon-rail collapse, `cva` rows, no shell, no triggers — and
@@ -27,9 +27,16 @@ const sidebar = read("src/components/ui/sidebar.tsx");
 const chrome = read("src/styles/gousse/sidebar-chrome.css");
 const indexCss = read("src/index.css");
 const appSidebar = read("src/components/app-sidebar.tsx");
-const biome = JSON.parse(read("../../biome.json")) as {
-  files: { includes: string[] };
-};
+/**
+ * The two rc files, read as JSONC — both carry comments, which is where their
+ * exclusions keep their reasons. Only `ignorePatterns` is read here.
+ */
+const ignorePatterns = (path: string): string[] =>
+  JSON.parse(
+    read(path)
+      .replace(/^\s*\/\/.*$/gm, "")
+      .replace(/^\s*\/\*[\s\S]*?\*\/\s*$/gm, ""),
+  ).ignorePatterns ?? [];
 
 /** This file — it names the retired surface, so it cannot scan itself. */
 const SELF = "components/ui/gousse-vendoring.test.ts";
@@ -104,8 +111,12 @@ describe("the vendored gousse sidebar", () => {
     expect(indented).toContain(" ");
   });
 
-  it("is excluded from biome, so a re-install is not churned", () => {
-    expect(biome.files.includes).toContain("!packages/web/src/components/ui/sidebar.tsx");
+  it("is excluded from both ox tools, so a re-install is not churned", () => {
+    // The formatter is the one that would rewrite it; the linter is here too
+    // because a file nobody may edit is a file whose findings nobody can fix.
+    for (const rc of ["../../.oxfmtrc.json", "../../.oxlintrc.json"]) {
+      expect(ignorePatterns(rc), rc).toContain("packages/web/src/components/ui/sidebar.tsx");
+    }
   });
 });
 

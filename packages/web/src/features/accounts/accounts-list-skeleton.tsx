@@ -17,7 +17,7 @@ export function AccountsListSkeleton() {
     <SkeletonScreen label="Loading accounts…" className="flex flex-col gap-3">
       {ROW_WIDTHS.map((width, index) => (
         <div
-          // biome-ignore lint/suspicious/noArrayIndexKey: a static placeholder list — never reordered, and two rows may share a width
+          // Index key: a static placeholder list — never reordered, and two rows may share a width
           key={index}
           className="flex flex-col gap-3.5 rounded-2xl border border-gousse-line bg-gousse-panel p-4"
         >
@@ -32,7 +32,7 @@ export function AccountsListSkeleton() {
           <div className="grid grid-cols-6 gap-1 sm:grid-cols-12">
             {Array.from({ length: 12 }, (_cell, monthIndex) => (
               <Skeleton
-                // biome-ignore lint/suspicious/noArrayIndexKey: twelve interchangeable placeholder cells
+                // Index key: twelve interchangeable placeholder cells
                 key={monthIndex}
                 className="h-8 rounded-xl"
               />

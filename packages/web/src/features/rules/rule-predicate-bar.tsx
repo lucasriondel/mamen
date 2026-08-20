@@ -115,10 +115,8 @@ export function RulePredicateBar({
           placeholder="e.g. amazon"
           aria-label="Matching Rule pattern"
           aria-invalid={patternError !== null}
-          /* oxlint-disable jsx-a11y/no-autofocus -- focus the primary field on open */
-          // biome-ignore lint/a11y/noAutofocus: focus the primary field on open
+          // oxlint-disable-next-line jsx-a11y/no-autofocus -- focus the primary field on open
           autoFocus
-          /* oxlint-enable jsx-a11y/no-autofocus */
         />
 
         <Select

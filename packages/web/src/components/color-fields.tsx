@@ -201,13 +201,10 @@ export function PaletteGrid({
   return (
     <div className="flex flex-col gap-2">
       <span className="text-gousse-muted text-xs uppercase tracking-wide">Palette</span>
-      {/* Two linters, one decision, and each wants its directive on the line
-          directly above — so oxlint's is a block and biome's keeps the slot. */}
-      {/* oxlint-disable jsx-a11y/no-noninteractive-element-interactions -- the arrows are handled here because a roving `tabIndex` leaves one cell focusable at a time */}
-      {/* biome-ignore lint/a11y/useSemanticElements: a grid of swatches is a group of buttons, not a listbox — each cell stays a real button so Enter and Space pick it. */}
+      {/* oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- the arrows are handled here because a roving `tabIndex` leaves one cell focusable at a time */}
       <div
         ref={gridRef}
-        // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- the same decision as the biome-ignore above, for the other linter
+        // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- a grid of swatches is a group of buttons, not a listbox: each cell stays a real button so Enter and Space pick it
         role="group"
         aria-label="Colour palette"
         onKeyDown={handleKeyDown}

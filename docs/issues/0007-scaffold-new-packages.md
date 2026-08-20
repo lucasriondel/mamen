@@ -14,7 +14,7 @@ Stand up the three-package skeleton so per-resource ports have a home. AFK task,
 
 - Resolve the naming collision: new `@mamen/api` (server) vs the existing `@mamen/api` (client hooks). Frontend is allowed to break — decide whether old packages are deleted/renamed now or parked until cutover, and do it.
 - Create/rework the packages: `@mamen/shared` (Effect Schema + contract home, zod dependency dropped from it), `@mamen/api` (platform-bun server entry, layers skeleton, dev script teeing to `logs/server.log` per repo convention), `@mamen/sdk` (client derivation + tanstack-query layer skeleton, react-query peer dep).
-- Wire the workspace: turbo tasks (dev/build/test/typecheck), tsconfig refs, biome, vitest + @effect/vitest config, v8 coverage gate config (threshold per map notes).
+- Wire the workspace: turbo tasks (dev/build/test/typecheck), tsconfig refs, the linter, vitest + @effect/vitest config, v8 coverage gate config (threshold per map notes).
 - One walking-skeleton endpoint end-to-end as proof: `/api/health` defined in the contract, implemented in the server, hit through the derived SDK client in an integration test, visible in `/api/openapi.json` and Scalar docs.
 
 Resolution records: package layout as built, versions pinned, how to run dev/test, what was done with the old packages.
@@ -34,7 +34,7 @@ Three-package skeleton stood up, walking skeleton green end-to-end, whole worksp
 
 **Versions pinned** (per survey, all Effect 3.21 stable): effect 3.21.4, @effect/platform 0.96.2, @effect/platform-bun 0.90.0, @effect/sql 0.51.1, @effect/sql-sqlite-bun 0.52.0; test-side @effect/sql-sqlite-node 0.52.0, @effect/platform-node 0.107.0, @effect/vitest 0.29.0, **vitest 3.2.4 + @vitest/coverage-v8 3.2.4** (the required pin — vitest 4 breaks @effect/vitest). Web stays on vitest 4.
 
-**Config wired:** turbo tasks were already generic (dev/build/test/typecheck) and needed no change. Root `tsconfig.json` references all six packages. api + sdk each have a `vitest.config.ts` (Node env, `fakeTimers.toFake: undefined`, v8 coverage). api has a `vitest.setup.ts` calling `addEqualityTesters()`. sdk uses `passWithNoTests` (its runtime is covered through api's integration tests). Biome clean.
+**Config wired:** turbo tasks were already generic (dev/build/test/typecheck) and needed no change. Root `tsconfig.json` references all six packages. api + sdk each have a `vitest.config.ts` (Node env, `fakeTimers.toFake: undefined`, v8 coverage). api has a `vitest.setup.ts` calling `addEqualityTesters()`. sdk uses `passWithNoTests` (its runtime is covered through api's integration tests). Lint clean.
 
 **Coverage gate** (provisional — the threshold number is still open on the map): api enforces lines/functions/statements 70, branches 60, with `all: true` and **runtime-bootstrap files excluded** (`index.ts`, `server.ts`, `config.ts`, `api-live.ts` — exercised via the running server, not unit tests). Current handler coverage is 100%, gate passes.
 

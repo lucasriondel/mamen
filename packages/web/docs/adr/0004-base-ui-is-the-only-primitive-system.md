@@ -30,8 +30,8 @@ library gousse's components import.
 That answers the question ADR 0003 leaves a reader holding. Its two formatting
 regimes turn on whether a file may be overwritten by a re-install; these three
 are in neither regime, because nothing upstream will ever overwrite them. They
-are ordinary repo code: biome formats them, they are edited in place without a
-fork to reconcile, and a Base UI upgrade that breaks one is ours to fix. If
+are ordinary repo code: oxfmt owns them, they are edited in place without a fork
+to reconcile, and a Base UI upgrade that breaks one is ours to fix. If
 gousse ever ships these items, adopting them is a deliberate migration with call
 sites to review — not an install.
 

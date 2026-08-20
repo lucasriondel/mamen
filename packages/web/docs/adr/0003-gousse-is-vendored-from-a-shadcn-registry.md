@@ -45,8 +45,9 @@ the fix upstream separately if it belongs there.
 - Vendored files fall into **two formatting regimes**, and which one a file is
   in says whether it may be re-installed blind. `src/styles/gousse/` and
   `src/components/ui/sidebar.tsx` are upstream source untouched, so they are
-  excluded from biome (`biome.json`) — tabifying them would be reverted by the
-  next `shadcn add` and the churn would read as ours. `Button`, `Empty`,
+  excluded from both ox tools (`.oxlintrc.json`, `.oxfmtrc.json`) — reformatting
+  them would be reverted by the next `shadcn add` and the churn would read as
+  ours. `Button`, `Empty`,
   `Textarea` and `Checkbox` were edited in place, cannot be overwritten cleanly
   anyway, and therefore stay on the repo's formatting.
 - **"Never reach" is a promise, and it was kept.** The sidebar sat at the

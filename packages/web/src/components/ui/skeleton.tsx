@@ -59,9 +59,9 @@ export interface SkeletonScreenProps {
  * conveyed to assistive tech even though every block inside is `aria-hidden`.
  *
  * `<output>` rather than a `role="status"` div: it carries the status role
- * implicitly (and the polite live region with it), which is what biome's
- * `useSemanticElements` asks for — the same choice the categories page makes for
- * its live folder totals. `display` comes from `className`, so a flex/grid
+ * implicitly (and the polite live region with it), which is what the
+ * semantic-elements rule asks for — the same choice the categories page makes
+ * for its live folder totals. `display` comes from `className`, so a flex/grid
  * screen lays out exactly as the settled view does.
  */
 export function SkeletonScreen({ label, children, className }: SkeletonScreenProps) {

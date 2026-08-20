@@ -44,9 +44,8 @@ export function YearPager({ value, maxYear, onChange, label = "Year", className 
 
   return (
     <div className={cn("inline-flex items-center gap-2", className)}>
-      {/* biome-ignore lint/a11y/useSemanticElements: a `fieldset` announces a group of form controls; these are pagination buttons that change what the page shows, and a legend inside this pill would have nowhere to sit. */}
       <div
-        // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- the same decision as the biome-ignore above, for the other linter
+        // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- a `fieldset` announces a group of form controls; these are pagination buttons that change what the page shows, and a legend inside this pill would have nowhere to sit
         role="group"
         aria-label={label}
         className="inline-flex items-center gap-0.5 rounded-full border border-gousse-line bg-gousse-panel p-1"

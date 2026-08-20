@@ -29,7 +29,8 @@ COPY packages/landing-page/package.json ./packages/landing-page/
 # because a workspace dependency brings its own, shared's `effect`. What is
 # never resolved is the app itself: no React, no Tailwind, no TanStack, none of
 # the api's native modules. (The root manifest's own devDependencies — turbo,
-# biome — come along with any install here; verified by listing the tree.)
+# oxlint, oxfmt — come along with any install here; verified by listing the
+# tree.)
 # devDependencies are kept, unlike the api image: vite and tsc run the build.
 #
 # None of it reaches the image that ships. This stage is thrown away and the

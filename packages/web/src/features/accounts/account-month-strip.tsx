@@ -31,9 +31,8 @@ export interface AccountMonthStripProps {
  */
 export function AccountMonthStrip({ accountId, accountName, year, cells }: AccountMonthStripProps) {
   return (
-    // biome-ignore lint/a11y/useSemanticElements: a `fieldset` is for form controls, and its legend cannot be a grid item — this is twelve links-into-the-app that need one shared name.
     <div
-      // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- the same decision as the biome-ignore above, for the other linter
+      // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- a `fieldset` is for form controls, and its legend cannot be a grid item; this is twelve links-into-the-app that need one shared name
       role="group"
       aria-label={`${accountName} — ${year}`}
       className="grid grid-cols-6 gap-1 sm:grid-cols-12"
