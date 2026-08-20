@@ -1,7 +1,7 @@
 import { SqlClient, SqlSchema } from "@effect/sql";
 import type { Fragment } from "@effect/sql/Statement";
 import {
-  type AccountId,
+  AccountId,
   AnomalyFlag,
   CategoryNotLeaf,
   NotFound,
@@ -245,6 +245,11 @@ const TransferCandidateRow = Schema.Struct({
   t_importMonth: Schema.String,
   t_importBatchId: Schema.NullOr(Schema.String),
   daysApart: Schema.Number,
+  // The **IBAN-confirmed** mark (issue #179), computed per pair: the id of the
+  // account one leg's counterparty IBAN named, or null when neither named the
+  // other's. Decoded through `AccountId` here rather than as a bare number, so
+  // the branded id the wire type wants comes out of the query already branded.
+  ibanConfirmedAccountId: Schema.NullOr(AccountId),
 });
 
 /**
@@ -311,6 +316,11 @@ const groupCandidates = (
       new TransferCounterpart({
         transaction: legFromRow(row, "t"),
         daysApart: row.daysApart,
+        // Null → absent, the fold every optional field on this payload uses:
+        // "no IBAN evidence" is the ordinary case and gets one spelling.
+        ...(row.ibanConfirmedAccountId !== null
+          ? { ibanConfirmedAccountId: row.ibanConfirmedAccountId }
+          : {}),
       }),
     );
   }
@@ -1069,11 +1079,40 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()("api/Tran
     const candidateColumns = (a: "f" | "c", issuerAlias: "fi" | "ci", prefix: "f" | "t") =>
       sql`${sql.literal(a)}.id AS ${sql.literal(prefix)}_id, ${sql.literal(a)}.accountId AS ${sql.literal(prefix)}_accountId, ${sql.literal(a)}.date AS ${sql.literal(prefix)}_date, ${sql.literal(a)}.amount AS ${sql.literal(prefix)}_amount, ${sql.literal(a)}.rawIssuerString AS ${sql.literal(prefix)}_rawIssuerString, ${sql.literal(a)}.issuerId AS ${sql.literal(prefix)}_issuerId, ${derivedCategoryFor(a, issuerAlias)} AS ${sql.literal(prefix)}_categoryId, ${sql.literal(a)}.manualCategory AS ${sql.literal(prefix)}_manualCategory, ${sql.literal(a)}.manualIssuer AS ${sql.literal(prefix)}_manualIssuer, ${sql.literal(a)}.isRefund AS ${sql.literal(prefix)}_isRefund, ${sql.literal(a)}.linkedRefundId AS ${sql.literal(prefix)}_linkedRefundId, ${sql.literal(a)}.transferGroupId AS ${sql.literal(prefix)}_transferGroupId, ${sql.literal(a)}.kind AS ${sql.literal(prefix)}_kind, ${sql.literal(a)}.bundleId AS ${sql.literal(prefix)}_bundleId, ${sql.literal(a)}.manualDate AS ${sql.literal(prefix)}_manualDate, ${sql.literal(a)}.anomalyFlags AS ${sql.literal(prefix)}_anomalyFlags, ${sql.literal(a)}.isDuplicateExcluded AS ${sql.literal(prefix)}_isDuplicateExcluded, ${sql.literal(a)}.duplicateNote AS ${sql.literal(prefix)}_duplicateNote, ${recapExclusionFor(a, issuerAlias)} AS ${sql.literal(prefix)}_excludedFromRecap, ${sql.literal(a)}.manualExcluded AS ${sql.literal(prefix)}_manualExcluded, ${sql.literal(a)}.notes AS ${sql.literal(prefix)}_notes, ${sql.literal(a)}.rawSource AS ${sql.literal(prefix)}_rawSource, ${sql.literal(a)}.counterpartyIban AS ${sql.literal(prefix)}_counterpartyIban, ${sql.literal(a)}.importedAt AS ${sql.literal(prefix)}_importedAt, ${sql.literal(a)}.importMonth AS ${sql.literal(prefix)}_importMonth, ${sql.literal(a)}.importBatchId AS ${sql.literal(prefix)}_importBatchId`;
 
+    // The **IBAN-confirmed** mark (issue #179): the id of the account one leg's
+    // **counterparty IBAN** named, or null. The bank itself says which account
+    // the money reached, so a pairing carrying this is certain rather than
+    // probable — and the id is what lets the surface name the matched account
+    // instead of asserting confidence without evidence.
+    //
+    // Satisfied from **either** direction, hence the two branches: the debit
+    // naming the credit's account (the account named is the credit's), or the
+    // credit naming the debit's (the debit's). Only SEPA rows carry an IBAN at
+    // all, so requiring both would make the signal fire almost never, while one
+    // is already conclusive — an IBAN naming the exact counterpart account is
+    // not a coincidence. Order of the branches decides only which id is reported
+    // when both hold, and both name a true match.
+    //
+    // Both sides are normalised the same way (upper-case, unspaced) at the write
+    // edge, which is what makes a plain `=` the right comparison. The `IS NOT
+    // NULL` guards are not redundant: SQL equality against null is null, but an
+    // account with an empty-string IBAN would otherwise match a leg whose column
+    // is likewise empty, and "" is not evidence of anything.
+    //
+    // Nothing here touches the WHERE/ORDER BY — the mark **labels, and never
+    // reorders**. It is derived on every read with the candidate itself and
+    // never stored (ADR 0010).
+    const ibanConfirmedAccountId = sql`CASE
+							WHEN f.counterpartyIban IS NOT NULL AND ca.iban IS NOT NULL AND f.counterpartyIban <> '' AND f.counterpartyIban = ca.iban THEN c.accountId
+							WHEN c.counterpartyIban IS NOT NULL AND fa.iban IS NOT NULL AND c.counterpartyIban <> '' AND c.counterpartyIban = fa.iban THEN f.accountId
+							ELSE NULL
+						END`;
+
     const transferCandidatesQuery = SqlSchema.findAll({
       Request: Schema.Void,
       Result: TransferCandidateRow,
       execute: () =>
-        sql`SELECT ${candidateColumns("f", "fi", "f")}, ${candidateColumns("c", "ci", "t")}, CAST(ABS(julianday(c.date) - julianday(f.date)) AS INTEGER) AS daysApart
+        sql`SELECT ${candidateColumns("f", "fi", "f")}, ${candidateColumns("c", "ci", "t")}, CAST(ABS(julianday(c.date) - julianday(f.date)) AS INTEGER) AS daysApart, ${ibanConfirmedAccountId} AS ibanConfirmedAccountId
 						FROM transactions f
 						JOIN transactions c
 							ON f.amount < 0
@@ -1086,6 +1125,8 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()("api/Tran
 							AND NOT EXISTS (SELECT 1 FROM transfer_dismissals d WHERE d.debitId = f.id AND d.creditId = c.id)
 						LEFT JOIN issuers fi ON f.issuerId = fi.id
 						LEFT JOIN issuers ci ON c.issuerId = ci.id
+						LEFT JOIN accounts fa ON f.accountId = fa.id
+						LEFT JOIN accounts ca ON c.accountId = ca.id
 						ORDER BY ABS(julianday(c.date) - julianday(f.date)), f.id, c.id`,
     });
 

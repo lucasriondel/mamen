@@ -523,6 +523,26 @@ describe("TransactionDetailPage", () => {
     expect(await screen.findByText("VIREMENT RECU")).toBeVisible();
     expect(screen.getByText(/1 day apart/)).toBeVisible();
     expect(screen.getByRole("button", { name: /link as transfer/i })).toBeVisible();
+    // No IBAN evidence on this pair, and no mark — absence is the ordinary
+    // case, so an unmarked suggestion reads exactly as it always has.
+    expect(screen.queryByText(/IBAN-confirmed/)).toBeNull();
+  });
+
+  // The same mark the Transfers page and the table's panel show (issue #179):
+  // three surfaces read one cache entry, so they cannot disagree about which
+  // pairing the bank vouched for.
+  it("marks an IBAN-confirmed suggestion and names the matched account", async () => {
+    candidateRows = [
+      {
+        leg: TXN,
+        counterparts: [{ transaction: COUNTERPART, daysApart: 1, ibanConfirmedAccountId: 1 }],
+      },
+    ];
+    renderPage();
+
+    expect(await screen.findByText(/IBAN-confirmed · Checking/)).toBeVisible();
+    // It labels only — the pairing is still confirmed by the user's own click.
+    expect(screen.getByRole("button", { name: /link as transfer/i })).toBeVisible();
   });
 
   // Issue #177. The web fixtures are cast through `unknown`, so `rawSource`

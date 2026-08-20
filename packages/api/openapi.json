@@ -7235,6 +7235,11 @@
           },
           "daysApart": {
             "type": "number"
+          },
+          "ibanConfirmedAccountId": {
+            "type": "integer",
+            "description": "an integer",
+            "title": "int"
           }
         },
         "additionalProperties": false

@@ -789,10 +789,29 @@ export type BundleDissolve = typeof BundleDissolve.Type;
  * plus `daysApart`, the whole number of days between the two dates — the signal
  * that ranks one candidate above another ("same day" beats "4 days apart") and
  * the reason the list is ordered the way it is.
+ *
+ * `ibanConfirmedAccountId` is the **IBAN-confirmed** mark (issue #179): present
+ * when one leg's **counterparty IBAN** equals the *other* leg's account IBAN,
+ * carrying the id of the account that IBAN named, so the surface showing the
+ * mark can say *why* mamen is confident. Satisfied from either direction — the
+ * debit naming the credit's account, or the credit naming the debit's — so the
+ * account named is the credit's in the first case and the debit's in the second.
+ *
+ * It rides the **counterpart**, not the candidate, because the evidence is a
+ * property of one *pairing*: a debit matching three credits can be confirmed
+ * against exactly one of them, and a mark on the group would say which decision
+ * is certain without saying which counterpart it is certain about.
+ *
+ * Absent means *no such evidence*, never *refuted*: only SEPA rows carry an IBAN
+ * and an account may have none on file, so an unmarked counterpart is an
+ * ordinary candidate and not a second-class one. Derived with the candidate on
+ * every read and never stored (ADR 0010), and it never reorders anything —
+ * counterparts stay closest-date first.
  */
 export class TransferCounterpart extends Schema.Class<TransferCounterpart>("TransferCounterpart")({
   transaction: Transaction,
   daysApart: Schema.Number,
+  ibanConfirmedAccountId: Schema.optional(AccountId),
 }) {}
 
 /**

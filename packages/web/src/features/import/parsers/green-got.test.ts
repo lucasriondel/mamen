@@ -115,7 +115,7 @@ describe("greenGotParser.parse keeps the raw source (issue #176)", () => {
 });
 
 describe("greenGotParser.parse promotes the counterparty IBAN (issue #178)", () => {
-  const records = greenGotParser.parse(rows, ctx);
+  const records = greenGotParser.parse(rows, ctx).map((parsedRow) => parsedRow.record);
 
   /** The fixture's first SEPA row — the ones that carry `IBAN du tiers` at all. */
   const sepaIndex = rows.findIndex((row) => row["IBAN du tiers"] !== "");
@@ -156,7 +156,7 @@ describe("greenGotParser.parse normalises the counterparty IBAN (issue #178)", (
     "IBAN du tiers": delivered,
   };
 
-  const [record] = greenGotParser.parse([spaced], ctx);
+  const [{ record }] = greenGotParser.parse([spaced], ctx);
 
   it("stores it upper-cased with whitespace stripped, like the account IBAN", () => {
     // The column exists to be *joined* against `accounts.iban`, which is stored

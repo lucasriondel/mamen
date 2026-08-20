@@ -72,12 +72,21 @@ const OTHER_CREDIT = {
   importMonth: "2026-05",
 };
 
+/**
+ * The **IBAN-confirmed** mark (issue #179) rides the *farther* counterpart here
+ * on purpose: the mark labels and never reorders, so the list must still read
+ * closest-date first with the certain pairing second. It names account 2
+ * (Savings) — the account the bank's IBAN matched.
+ *
+ * These fixtures are cast through `unknown` on the way to the contract type, so
+ * a new field lands here silently and gets no coverage unless someone states it.
+ */
 const CANDIDATES = [
   {
     leg: DEBIT,
     counterparts: [
       { transaction: CREDIT_NEAR, daysApart: 1 },
-      { transaction: CREDIT_FAR, daysApart: 3 },
+      { transaction: CREDIT_FAR, daysApart: 3, ibanConfirmedAccountId: 2 },
     ],
   },
   {
@@ -196,6 +205,37 @@ describe("TransfersView", () => {
     // panel states rather than hides.
     expect(screen.getAllByRole("button", { name: "Link as transfer" })).toHaveLength(2);
     expect(screen.getAllByRole("button", { name: /Not a transfer/ })).toHaveLength(1);
+  });
+
+  // The mark's whole job (issue #179): say which of several near-identical
+  // candidates the bank itself vouches for, and say *why* — by naming the
+  // account its IBAN matched.
+  it("marks the IBAN-confirmed counterpart and names the matched account", async () => {
+    const user = userEvent.setup();
+    await renderView();
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: /2 possible transfer matches for VIR SEPA VERS LIVRET A/,
+      }),
+    );
+    await screen.findByText("Possible transfer");
+
+    const entries = screen
+      .getAllByRole("listitem")
+      .filter((node) => within(node).queryByRole("button", { name: "Link as transfer" }) !== null);
+    expect(entries).toHaveLength(2);
+
+    // Closest date still leads: the mark labels, it never reorders.
+    expect(within(entries[0]).getByText("VIREMENT RECU LUCAS")).toBeInTheDocument();
+    expect(within(entries[1]).getByText("VIREMENT DIVERS")).toBeInTheDocument();
+    expect(within(entries[1]).getByText(/IBAN-confirmed.*Savings/)).toBeInTheDocument();
+
+    // An unmarked candidate keeps every field and the same action — no mark is
+    // "no such evidence", not "worse candidate".
+    expect(within(entries[0]).queryByText(/IBAN-confirmed/)).toBeNull();
+    expect(within(entries[0]).getByText(/2 Apr 2026.*Savings/)).toBeInTheDocument();
+    expect(within(entries[0]).getByRole("button", { name: "Link as transfer" })).toBeEnabled();
   });
 
   it("confirms the chosen pair and nothing else", async () => {

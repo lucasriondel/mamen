@@ -58,15 +58,22 @@ const byId = (rows: ReadonlyArray<{ id: number | null; spent: number; count: num
   Object.fromEntries(rows.map((r) => [r.id ?? "none", r]));
 
 /**
- * A **counterparty IBAN** in its stored, normalised form. Assembled rather than
+ * One IBAN per number, in the stored, normalised form. Assembled rather than
  * written out, so this file carries no matchable account number (issue #108) —
  * the reserved `99999` bank code is not one any bank was allocated.
  */
-const COUNTERPARTY_IBAN = `FR7699999${"0".repeat(18)}`;
+const ibanOf = (n: number) => `FR7699999${String(n).padStart(18, "0")}`;
+
+/** A **counterparty IBAN**, for the cases where only its presence matters. */
+const COUNTERPARTY_IBAN = ibanOf(0);
 
 /** The anomaly kinds standing on a row, in order. */
 const flagsOf = (txn: { anomalyFlags?: ReadonlyArray<{ type: string }> }) =>
   (txn.anomalyFlags ?? []).map((f) => f.type);
+
+/** The **IBAN-confirmed** mark on each of a leg's counterparts, in order. */
+const marks = (candidate: { counterparts: ReadonlyArray<{ ibanConfirmedAccountId?: number }> }) =>
+  candidate.counterparts.map((c) => c.ibanConfirmedAccountId);
 
 describe("TransactionFromRow storage codec", () => {
   // The row codec's `encode` is the storage inverse of the read path. It's the
@@ -4036,6 +4043,180 @@ describe("TransactionRepo", () => {
         assert.deepStrictEqual(out, []);
       }).pipe(Effect.provide(RepoTest)),
     );
+
+    /**
+     * The **IBAN-confirmed** mark (issue #179): a candidate whose one leg's
+     * **counterparty IBAN** names the *other* leg's account, so the bank itself
+     * says where the money went. Derived with the candidate on every read and
+     * never stored (ADR 0010).
+     *
+     * These are the only candidate tests that need real `accounts` rows. Every
+     * other one above builds legs from bare account ids and inserts no account
+     * at all — the transactions table has no foreign key, so nothing forced the
+     * issue. The mark *joins* accounts, so it does, which is why this block runs
+     * on the harness variant that keeps the `SqlClient` reachable.
+     */
+    describe("IBAN-confirmed candidates (issue #179)", () => {
+      /** A real `accounts` row, with or without an IBAN on file. */
+      const account = (id: number, name: string, iban: string | null) =>
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+          yield* sql`INSERT INTO accounts (id, name, type, iban, createdAt, updatedAt) VALUES (${id}, ${name}, 'checking', ${iban}, ${DATE.toISOString()}, ${DATE.toISOString()})`;
+        });
+
+      it.effect("marks the pair when the debit's IBAN names the credit's account", () =>
+        Effect.gen(function* () {
+          const repo = yield* TransactionRepo;
+          yield* account(1, "Checking", ibanOf(1));
+          yield* account(2, "Savings", ibanOf(2));
+          yield* repo.create(
+            make({ amount: -30, accountId: asAccount(1), counterpartyIban: ibanOf(2) }),
+          );
+          yield* repo.create(make({ amount: 30, accountId: asAccount(2) }));
+
+          const out = yield* repo.transferCandidates();
+          // The mark names the account the IBAN matched — the credit's, since
+          // that is the account the debit named.
+          assert.deepStrictEqual(marks(out[0]), [asAccount(2)]);
+        }).pipe(Effect.provide(RepoAndSqlTest)),
+      );
+
+      // Either side satisfies it: only SEPA rows carry an IBAN, so requiring
+      // both would make the signal fire almost never, while one is conclusive.
+      it.effect("marks the pair when only the credit's IBAN names the debit's account", () =>
+        Effect.gen(function* () {
+          const repo = yield* TransactionRepo;
+          yield* account(1, "Checking", ibanOf(1));
+          yield* account(2, "Savings", ibanOf(2));
+          yield* repo.create(make({ amount: -30, accountId: asAccount(1) }));
+          yield* repo.create(
+            make({ amount: 30, accountId: asAccount(2), counterpartyIban: ibanOf(1) }),
+          );
+
+          const out = yield* repo.transferCandidates();
+          // Matched from the other direction, so the account named is the
+          // debit's — the one the credit's IBAN pointed at.
+          assert.deepStrictEqual(marks(out[0]), [asAccount(1)]);
+        }).pipe(Effect.provide(RepoAndSqlTest)),
+      );
+
+      it.effect("leaves the pair unmarked when neither leg names the other's account", () =>
+        Effect.gen(function* () {
+          const repo = yield* TransactionRepo;
+          yield* account(1, "Checking", ibanOf(1));
+          yield* account(2, "Savings", ibanOf(2));
+          yield* repo.create(make({ amount: -30, accountId: asAccount(1) }));
+          yield* repo.create(make({ amount: 30, accountId: asAccount(2) }));
+
+          const out = yield* repo.transferCandidates();
+          assert.deepStrictEqual(marks(out[0]), [undefined]);
+        }).pipe(Effect.provide(RepoAndSqlTest)),
+      );
+
+      // An account with no IBAN on file simply never satisfies the test, and
+      // its candidates behave exactly as they did before this feature.
+      it.effect("leaves the pair unmarked when the named account has no IBAN on file", () =>
+        Effect.gen(function* () {
+          const repo = yield* TransactionRepo;
+          yield* account(1, "Checking", ibanOf(1));
+          yield* account(2, "Savings", null);
+          yield* repo.create(
+            make({ amount: -30, accountId: asAccount(1), counterpartyIban: ibanOf(2) }),
+          );
+          yield* repo.create(make({ amount: 30, accountId: asAccount(2) }));
+
+          const out = yield* repo.transferCandidates();
+          assert.strictEqual(out.length, 1);
+          assert.deepStrictEqual(marks(out[0]), [undefined]);
+        }).pipe(Effect.provide(RepoAndSqlTest)),
+      );
+
+      // Both columns are plain nullable strings, so `""` is storable on either
+      // side, and two empty strings *are* equal in SQL. "Nothing on file" is
+      // not evidence that the bank named this account, whichever spelling of
+      // nothing the row happens to carry.
+      it.effect("leaves the pair unmarked when both IBANs are blank", () =>
+        Effect.gen(function* () {
+          const repo = yield* TransactionRepo;
+          yield* account(1, "Checking", ibanOf(1));
+          yield* account(2, "Savings", "");
+          yield* repo.create(make({ amount: -30, accountId: asAccount(1), counterpartyIban: "" }));
+          yield* repo.create(make({ amount: 30, accountId: asAccount(2) }));
+
+          const out = yield* repo.transferCandidates();
+          assert.strictEqual(out.length, 1);
+          assert.deepStrictEqual(marks(out[0]), [undefined]);
+        }).pipe(Effect.provide(RepoAndSqlTest)),
+      );
+
+      it.effect("leaves the pair unmarked when the IBANs differ", () =>
+        Effect.gen(function* () {
+          const repo = yield* TransactionRepo;
+          yield* account(1, "Checking", ibanOf(1));
+          yield* account(2, "Savings", ibanOf(2));
+          // A real IBAN, but a third party's — not either of these accounts.
+          yield* repo.create(
+            make({ amount: -30, accountId: asAccount(1), counterpartyIban: ibanOf(3) }),
+          );
+          yield* repo.create(make({ amount: 30, accountId: asAccount(2) }));
+
+          const out = yield* repo.transferCandidates();
+          assert.deepStrictEqual(marks(out[0]), [undefined]);
+        }).pipe(Effect.provide(RepoAndSqlTest)),
+      );
+
+      // The mark **labels, and never reorders**: a hidden sort key would make
+      // the list's order unexplainable, and the mark draws the eye on its own.
+      it.effect("leaves the ordering alone — closest date still leads", () =>
+        Effect.gen(function* () {
+          const repo = yield* TransactionRepo;
+          yield* account(1, "Checking", ibanOf(1));
+          yield* account(2, "Savings", ibanOf(2));
+          yield* account(3, "Joint", ibanOf(3));
+          // The debit names account 3, whose credit is the FARTHER of the two.
+          const debit = yield* repo.create(
+            make({
+              amount: -30,
+              accountId: asAccount(1),
+              date: day(10),
+              counterpartyIban: ibanOf(3),
+            }),
+          );
+          const near = yield* repo.create(
+            make({ amount: 30, accountId: asAccount(2), date: day(11) }),
+          );
+          const far = yield* repo.create(
+            make({ amount: 30, accountId: asAccount(3), date: day(14) }),
+          );
+
+          const out = yield* repo.transferCandidates();
+          assert.strictEqual(out[0].leg.id, debit.id);
+          assert.deepStrictEqual(
+            out[0].counterparts.map((c) => c.transaction.id),
+            [near.id, far.id],
+          );
+          // The marked one is still second: confidence labels, ranking is date.
+          assert.deepStrictEqual(marks(out[0]), [undefined, asAccount(3)]);
+        }).pipe(Effect.provide(RepoAndSqlTest)),
+      );
+
+      // mamen's confidence never overrides the user's refusal.
+      it.effect("keeps a dismissed pair excluded even when the IBANs match", () =>
+        Effect.gen(function* () {
+          const repo = yield* TransactionRepo;
+          yield* account(1, "Checking", ibanOf(1));
+          yield* account(2, "Savings", ibanOf(2));
+          const debit = yield* repo.create(
+            make({ amount: -30, accountId: asAccount(1), counterpartyIban: ibanOf(2) }),
+          );
+          const credit = yield* repo.create(make({ amount: 30, accountId: asAccount(2) }));
+
+          yield* repo.dismissTransferPairs([{ debitId: debit.id, creditId: credit.id }]);
+
+          assert.deepStrictEqual(yield* repo.transferCandidates(), []);
+        }).pipe(Effect.provide(RepoAndSqlTest)),
+      );
+    });
   });
 
   // **Dismissed pairs** (issue #91) — the user's refusal, the one thing the

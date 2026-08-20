@@ -143,7 +143,10 @@ const TRANSFER_CANDIDATES = [
   {
     leg: TRANSFER_DEBIT,
     counterparts: [
-      { transaction: TRANSFER_CREDIT_NEAR, daysApart: 1 },
+      // **IBAN-confirmed** (issue #179): the bank named account 1 (Checking) on
+      // this pairing. The mark is evidence about the *pair*, so it has to
+      // survive the reverse indexing that gives the credit row its indicator.
+      { transaction: TRANSFER_CREDIT_NEAR, daysApart: 1, ibanConfirmedAccountId: 1 },
       { transaction: TRANSFER_CREDIT_FAR, daysApart: 3 },
     ],
   },
@@ -1165,6 +1168,24 @@ describe("TransactionsView — transfer suggestions", () => {
         name: /1 possible transfer match for VIREMENT RECU LUCAS/,
       }),
     ).toBeInTheDocument();
+  });
+
+  // The mark rides the reverse index too (issue #179). The payload states it
+  // once, on the debit's counterpart; the credit row reads the same pairing from
+  // the other end and must carry the same evidence, naming the same account.
+  it("carries the IBAN-confirmed mark into the credit row's own panel", async () => {
+    useTransferFixture();
+    const user = userEvent.setup();
+    await renderView();
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: /1 possible transfer match for VIREMENT RECU LUCAS/,
+      }),
+    );
+    await screen.findByText("Possible transfer");
+
+    expect(await screen.findByText(/IBAN-confirmed · Checking/)).toBeInTheDocument();
   });
 
   // A row the server judged ineligible never appears in the payload, so it never

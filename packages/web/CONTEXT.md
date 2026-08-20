@@ -313,6 +313,24 @@ contract. A move is also the one rule write whose outcome is invisible on the
 page you stay on — the row simply leaves — so it raises a **success** toast
 naming the target, departing from `useRuleMutations`' errors-only style.
 
+**IBAN-confirmed mark**:
+How an **IBAN-confirmed candidate** (see [CONTEXT-MAP.md](../../CONTEXT-MAP.md))
+looks (issue #179): one badge component, `iban-confirmed-mark.tsx`, rendered by
+all three surfaces that offer a pairing — the detail page's transfer section,
+the transactions table's suggestion popover, and the Transfers page's panel —
+so they cannot disagree about which pairing the bank vouched for. It **names the
+matched account**, because "mamen is confident" is worth nothing on its own: the
+account name is the evidence the user can check against their statement.
+_Avoid_: verified, validated (both suggest the pairing is already made); a tick
+glyph (the claim is *your bank said so*, not *mamen validated this* — hence
+`Landmark`).
+_Code note_: the mark rides the **counterpart**, not the leg — a debit matching
+three credits is confirmed against exactly one of them — and `indexCandidates`
+carries it into the reverse entry unchanged, since the account it names is the
+same whichever of the two rows is on screen. Absent is the ordinary case, not a
+refutation, so an unmarked candidate keeps every field and the same enabled
+action; and the mark never reorders, so the list stays closest-date first.
+
 **Amount sign convention**:
 `amount` is a single signed number. A CSV `DEBIT` (money leaving) is stored
 **negative**; a `CREDIT` (money arriving) is **positive**. The sum of a set of

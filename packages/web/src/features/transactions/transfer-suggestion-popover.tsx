@@ -7,6 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { formatCurrency, formatShortDate } from "@/lib/format";
 import { accountQueries } from "@/lib/sdk";
 import { cn, indexById } from "@/lib/utils";
+import { IbanConfirmedMark } from "./iban-confirmed-mark";
 import { useTransfer } from "./use-transfer";
 import {
   dayGapLabel,
@@ -21,6 +22,11 @@ import {
  * own **raw issuer string** — usually the field that settles it outright, a
  * label like `VIR SEPA VERS LIVRET A` — and the **day gap** that explains its
  * rank. Plus the one per-counterpart action: confirm *this* pairing.
+ *
+ * When the pairing is **IBAN-confirmed** (issue #179) it also carries the mark,
+ * naming the account the bank's own IBAN matched — the field that settles it
+ * outright when the raw issuer string does not. The row is otherwise identical
+ * to an unmarked one, and the list's order is untouched.
  *
  * Confirm is per-counterpart and there is deliberately no bulk confirm: a leg
  * belongs to at most one **transfer group**, so "confirm all" is incoherent.
@@ -58,6 +64,12 @@ function CounterpartRow({
       {/* The bank's own label, verbatim and monospaced like the table's Raw
           issuer column: it is evidence, so it is never normalised here. */}
       <span className="break-words font-mono text-gousse-muted text-xs">{leg.rawIssuerString}</span>
+      {counterpart.ibanConfirmedAccountId !== undefined ? (
+        <IbanConfirmedMark
+          accountId={counterpart.ibanConfirmedAccountId}
+          accountsById={accountsById}
+        />
+      ) : null}
       <Button
         variant="secondary"
         size="sm"
