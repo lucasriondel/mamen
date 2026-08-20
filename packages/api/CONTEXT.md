@@ -286,6 +286,30 @@ what preserves the two-column Débit/Crédit layout the rules depend on (issue
 **one** copy of the extraction rules (`ai-runner/prompt.ts`), so the same
 statement cannot extract differently depending on the chosen vendor; the CLI
 prompt's own text is unchanged and `tasks.test.ts` holds it so.
+The **declared columns** of the chosen **Statement Format** are part of that one
+copy, not of either column (issue #185): both transports are being asked to read
+the same statement, so a columns block written into one of them would be exactly
+the drift the split exists to prevent. They arrive as `ExtractPdfInput.columns`
+for the same reason the bytes do — a prompt builder is a pure function and
+looking a format up is a database read, so `import/extract.ts` resolves it and
+hands the list over. A format declaring none produces no block at all: an empty
+heading tells the model the statement carries nothing.
+
+**Extraction takes a format**:
+`POST /import/extract-pdf` takes `formatId` alongside the file, and is therefore
+**no longer account-agnostic** — a **Statement Format** belongs to one account,
+so naming one names the account ([ADR 0014](../../docs/adr/0014-pdf-extraction-is-account-aware-through-its-format.md),
+amending [ADR 0005](../../docs/adr/0005-pdf-extraction-runs-server-side.md)).
+The *id*, never the column list: what a bank's statement carries is the account's
+stored answer, so `import/extract.ts` reads it back through `StatementFormatRepo`
+rather than believing a body that could declare any columns it liked. A **CSV**
+format's id is refused as `NotFound` and not applied — its `headers` are a
+*fingerprint* (what a file must carry to be recognised), a different thing from
+the columns to ask a model for, and the lookup fails before a provider is
+reached. What has not changed is the answer: still candidates keyed to nothing,
+with account, batch and month stamped client-side at commit.
+_Avoid_: format detection (the model is never asked to pick the format as well as
+apply it — the choice is the user's, or arithmetic when there is exactly one).
 
 **Hosted document part**:
 The statement's bytes reach the task through `ExtractPdfInput.pdfBytes`, read by

@@ -31,6 +31,16 @@ export interface ExtractPdfInput {
    * because a prompt builder is a pure function and reading a file is not.
    */
   readonly pdfBytes: Uint8Array;
+  /**
+   * The columns the chosen **Statement Format** declares (issue #185) — what the
+   * user has told mamen this bank's statement is laid out like.
+   *
+   * It arrives as an input rather than being read here for the same reason the
+   * bytes do: a prompt builder is a pure function, and looking a format up is a
+   * database read. The handler resolves the format the request names and hands
+   * the list over.
+   */
+  readonly columns: readonly string[];
 }
 
 /** The one media type extraction accepts, and the one it declares to a vendor. */
@@ -42,7 +52,7 @@ export const AI_TASK_TABLE = {
     // Unchanged from the direct-CLI path (issue #44): the model opens the
     // staged PDF itself with its own `Read` tool, which is why the prompt names
     // the absolute path and why `Read` is the one allowed tool.
-    cliPrompt: (input: ExtractPdfInput) => extractionPrompt(input.pdfPath),
+    cliPrompt: (input: ExtractPdfInput) => extractionPrompt(input.pdfPath, input.columns),
     /**
      * The hosted column (issue #124). A vendor has no tools and no filesystem,
      * so the statement itself travels: the bytes as a document part, which is
@@ -56,7 +66,7 @@ export const AI_TASK_TABLE = {
      * review note, and `service.test.ts` asserts it at the seam.
      */
     hostedPrompt: (input: ExtractPdfInput) => ({
-      text: hostedExtractionPrompt(),
+      text: hostedExtractionPrompt(input.columns),
       document: { data: input.pdfBytes, mediaType: PDF_MEDIA_TYPE },
     }),
     hostedInstruction: HOSTED_EXTRACTION_INSTRUCTION,

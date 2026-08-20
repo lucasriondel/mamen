@@ -21,6 +21,38 @@ const CSV = [
 
 const ACCOUNTS = [{ id: 1, name: "Checking", type: "checking" }];
 
+/**
+ * The account's stored **Statement Formats** (issue #185). The PDF path reads
+ * this list: with exactly one PDF format it extracts against it without asking,
+ * and with several it asks which. Reassigned per test; the default is the common
+ * case, one PDF format.
+ */
+let FORMATS: ReadonlyArray<Record<string, unknown>> = [];
+
+const MAPPING = { date: "Date", rawIssuerString: "Libellé", counterpartyIban: null };
+const RULES = {
+  sign: { strategy: "debit-credit-columns", debitColumn: "Débit", creditColumn: "Crédit" },
+  dateOrder: "day-first",
+  decimalSeparator: "comma",
+  filter: null,
+};
+
+/** One stored format, as the list endpoint hands it back. */
+const format = (over: Record<string, unknown>) => ({
+  accountId: 1,
+  mapping: MAPPING,
+  rules: RULES,
+  createdAt: new Date("2026-01-01T00:00:00.000Z"),
+  updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+  ...over,
+});
+
+const pdfFormat = (id: number, name: string, columns = ["Date", "Libellé", "Débit", "Crédit"]) =>
+  format({ id, name, kind: "pdf", columns });
+
+const csvFormat = (id: number, name: string) =>
+  format({ id, name, kind: "csv", headers: ["Date", "Libellé", "Montant"] });
+
 // SDK-boundary seam: mock the account read + the writes the wizard makes,
 // keeping the rest of the SDK (keys) real for invalidation. `transactionMutations`
 // is replaced wholesale rather than spread over: committing is purely additive
@@ -41,6 +73,14 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
         queryFn: async () => ({ items: ACCOUNTS, total: ACCOUNTS.length }),
       }),
     },
+    // Read live inside `queryFn` rather than closed over at mock time, so a test
+    // that reassigns FORMATS before rendering is answered with its own list.
+    statementFormatQueries: {
+      list: (params: Record<string, unknown>) => ({
+        queryKey: ["statement-formats", "list", params],
+        queryFn: async () => ({ items: FORMATS, total: FORMATS.length }),
+      }),
+    },
     transactionQueries: {
       list: (params: Record<string, unknown>) => ({
         queryKey: ["transactions", "list", params],
@@ -52,7 +92,9 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
     },
     importMutations: {
       ...actual.importMutations,
-      extractPdf: (file: unknown) => extractPdf(file),
+      // Both arguments are recorded: since issue #185 an extraction is run
+      // *against* a format, and which id travelled is the assertion.
+      extractPdf: (file: unknown, formatId: unknown) => extractPdf(file, formatId),
     },
   };
 });
@@ -106,10 +148,40 @@ async function chooseAccount(user: ReturnType<typeof userEvent.setup>) {
   await user.selectOptions(screen.getByLabelText("Target account"), "1");
 }
 
+/**
+ * Drop a fresh statement into the (account-settled) zone, and hand the `File`
+ * back — the PDF cases assert on *which* file travelled, so the object dropped
+ * has to be the object compared against.
+ */
+async function dropPdf(user: ReturnType<typeof userEvent.setup>) {
+  const file = new File(["%PDF-1.7"], "statement.pdf", { type: "application/pdf" });
+  await user.upload(await screen.findByLabelText("CSV or PDF statement"), file);
+  return file;
+}
+
+/**
+ * What the one extraction call was given: the file and the **Statement Format**
+ * id, read off the mock.
+ *
+ * Read positionally and asserted with `toBe` rather than through
+ * `toHaveBeenCalledWith`, because identity is the sharper claim — it must be the
+ * *very* file that was dropped, not one equal to it — and because the matcher's
+ * deep-equality walk over a jsdom `File` throws inside jsdom rather than
+ * answering (it reaches `window.location` on a torn-down realm), so it cannot
+ * report on this argument at all.
+ */
+function sentToExtraction(): [File | undefined, unknown] {
+  const call = extractPdf.mock.calls[0] as [File, unknown] | undefined;
+  return [call?.[0], call?.[1]];
+}
+
 beforeEach(() => {
   bulkCreate.mockReset().mockResolvedValue([]);
   extractPdf.mockReset();
   listTransactions.mockReset().mockResolvedValue({ items: [], total: 0, bundleMembers: [] });
+  // The common case, and what every PDF case below that is not about the choice
+  // itself runs on: exactly one PDF format, so the drop extracts without an ask.
+  FORMATS = [pdfFormat(7, "CCF — relevé de compte")];
 });
 
 /** A stored row the re-import cases compare against, as the list returns it. */
@@ -446,6 +518,115 @@ describe("ImportWizard", () => {
     });
 
     expect(await screen.findByText("Transactions page")).toBeInTheDocument();
+  });
+
+  /**
+   * Issue #185 — a PDF is extracted *against* a **Statement Format**, because the
+   * format's declared columns are what the model is told the statement carries.
+   * So the wizard has to settle which format before it sends anything: with
+   * exactly one PDF format on the account that costs the user nothing, and with
+   * several it is a question. The model is never asked to pick the format as
+   * well as apply it (PRD #180).
+   */
+  describe("the PDF path chooses a Statement Format first", () => {
+    const EXTRACTION = {
+      transactions: [
+        { date: new Date("2026-01-15T10:00:00.000Z"), amount: -10, rawIssuerString: "SHOP A" },
+      ],
+      declaredTotals: { debit: 10, credit: 0 },
+    };
+
+    it("extracts against the account's sole PDF format without asking which", async () => {
+      const user = userEvent.setup();
+      extractPdf.mockResolvedValue(EXTRACTION);
+      renderWizard();
+
+      await chooseAccount(user);
+      const file = await dropPdf(user);
+
+      // Sent straight out, carrying the id of the one format that could apply.
+      await waitFor(() => expect(extractPdf).toHaveBeenCalledTimes(1));
+      const [sentFile, sentFormatId] = sentToExtraction();
+      expect(sentFile).toBe(file);
+      expect(sentFormatId).toBe(7);
+      expect(screen.queryByLabelText("PDF statement format")).toBeNull();
+    });
+
+    // A CSV format is not a candidate for a PDF: it carries a header
+    // fingerprint, not the columns to ask a model for. Two of them on the
+    // account must not turn the common case into a question.
+    it("counts only PDF formats when deciding whether to ask", async () => {
+      const user = userEvent.setup();
+      extractPdf.mockResolvedValue(EXTRACTION);
+      FORMATS = [csvFormat(1, "Green-Got"), csvFormat(2, "Green-Got (2026)"), pdfFormat(7, "CCF")];
+      renderWizard();
+
+      await chooseAccount(user);
+      const file = await dropPdf(user);
+
+      await waitFor(() => expect(extractPdf).toHaveBeenCalledTimes(1));
+      const [sentFile, sentFormatId] = sentToExtraction();
+      expect(sentFile).toBe(file);
+      expect(sentFormatId).toBe(7);
+    });
+
+    it("asks which format when the account has several, and sends nothing until told", async () => {
+      const user = userEvent.setup();
+      extractPdf.mockResolvedValue(EXTRACTION);
+      FORMATS = [
+        pdfFormat(7, "CCF — old layout"),
+        pdfFormat(8, "CCF — since 2026"),
+        csvFormat(1, "Green-Got"),
+      ];
+      renderWizard();
+
+      await chooseAccount(user);
+      const file = await dropPdf(user);
+
+      // The question is on screen and the statement has gone nowhere: the file
+      // is held in the wizard, not uploaded and then re-read.
+      const picker = await screen.findByLabelText("PDF statement format");
+      expect(extractPdf).not.toHaveBeenCalled();
+      expect(screen.getByText("statement.pdf", { exact: false })).toBeInTheDocument();
+
+      // Only the PDF formats are offered — a CSV format could only ever fail here.
+      const offered = within(picker as HTMLSelectElement)
+        .getAllByRole("option")
+        .map((option) => option.textContent);
+      expect(offered).toContain("CCF — old layout");
+      expect(offered).toContain("CCF — since 2026");
+      expect(offered).not.toContain("Green-Got");
+
+      await user.selectOptions(picker, "8");
+      await user.click(screen.getByRole("button", { name: "Extract transactions" }));
+
+      // The chosen one travelled, and the held file is the one that was dropped.
+      await waitFor(() => expect(extractPdf).toHaveBeenCalledTimes(1));
+      const [sentFile, sentFormatId] = sentToExtraction();
+      expect(sentFile).toBe(file);
+      expect(sentFormatId).toBe(8);
+
+      // …and the wizard carries on exactly as the single-format path does.
+      expect(await screen.findByTitle("PDF statement")).toBeInTheDocument();
+    });
+
+    // Nothing can be extracted against no format, and a generic prompt is the
+    // guessing this ticket removes — so the drop is refused, in the sentence the
+    // rest of the step already uses for a file it cannot take.
+    it("refuses the drop when the account has no PDF format at all", async () => {
+      const user = userEvent.setup();
+      FORMATS = [csvFormat(1, "Green-Got")];
+      renderWizard();
+
+      await chooseAccount(user);
+      await dropPdf(user);
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "This account has no PDF statement format yet.",
+      );
+      expect(extractPdf).not.toHaveBeenCalled();
+      expect(screen.getByRole("button", { name: "Continue to preview" })).toBeDisabled();
+    });
   });
 
   it("renders the PDF beside editable rows and commits an in-place edit", async () => {

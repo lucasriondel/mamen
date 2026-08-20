@@ -6989,6 +6989,16 @@
               }
             }
           },
+          "404": {
+            "description": "NotFound",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFound"
+                }
+              }
+            }
+          },
           "415": {
             "description": "InvalidFileType",
             "content": {
@@ -7029,7 +7039,8 @@
               "schema": {
                 "type": "object",
                 "required": [
-                  "file"
+                  "file",
+                  "formatId"
                 ],
                 "properties": {
                   "file": {
@@ -7041,6 +7052,9 @@
                     "title": "itemsCount(1)",
                     "minItems": 1,
                     "maxItems": 1
+                  },
+                  "formatId": {
+                    "$ref": "#/components/schemas/NumberFromString"
                   }
                 },
                 "additionalProperties": false

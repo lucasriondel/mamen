@@ -23,12 +23,44 @@
  */
 
 /**
- * How to read a French bank statement, once. Shared verbatim by both prompts;
- * everything above it is transport-specific and everything in it is not.
+ * What the chosen **Statement Format** says this bank's statement is laid out
+ * like (issue #185, PRD #180).
+ *
+ * Until a format was sent with the file, the prompt described French bank
+ * statements *in general* and the model worked the columns out for itself — so a
+ * statement it had no vocabulary for produced plausible rows that were silently
+ * wrong, and the only backstop was the user reading every line. The columns
+ * mamen already knows are told to it instead.
+ *
+ * The columns are named, not mapped: which of them carries the date, the amount
+ * or the label is the format's `mapping`, and on the PDF path it is the *rules
+ * below* that say how to read a value out of a French statement. This block says
+ * only what the file contains, which is exactly what the model could not know.
+ *
+ * A format that declares none produces nothing at all rather than an empty
+ * heading — a list of no columns reads as "this statement carries nothing".
  */
-const EXTRACTION_RULES = `Extract every real account operation into structured data. Follow these rules exactly:
+const declaredColumns = (columns: readonly string[]): string =>
+  columns.length === 0
+    ? ""
+    : `COLUMNS THIS STATEMENT CARRIES
+- The user has told mamen this bank's statement is laid out in these columns:
+${columns.map((column) => `  - "${column}"`).join("\n")}
+- Read the operation rows against those columns. They are what the statement
+  carries; do not invent one the list does not name.
 
-SIGN CONVENTION
+`;
+
+/**
+ * How to read a French bank statement, once. Shared verbatim by both prompts;
+ * everything above it is transport-specific and everything in it is not — the
+ * declared columns included, since a hosted vendor and the local CLI are being
+ * asked to read the *same* statement.
+ */
+const extractionRules = (columns: readonly string[]): string =>
+  `Extract every real account operation into structured data. Follow these rules exactly:
+
+${declaredColumns(columns)}SIGN CONVENTION
 - The statement lists amounts in two columns: "Débit" (money out) and "Crédit" (money in).
 - Fold them into ONE signed \`amount\`: a Débit is NEGATIVE, a Crédit is POSITIVE.
 - Each operation has an amount in exactly one column.
@@ -64,13 +96,13 @@ DECLARED TOTALS
 Return only the structured object: the array of transactions and the declared totals.`;
 
 /** The CLI transport's prompt: the model opens the staged file itself. */
-export const extractionPrompt = (pdfPath: string): string =>
+export const extractionPrompt = (pdfPath: string, columns: readonly string[]): string =>
   `You are extracting transactions from a French bank statement (relevé de compte) PDF.
 
 Use your Read tool to open and read the PDF at this absolute path:
 ${pdfPath}
 
-${EXTRACTION_RULES}`;
+${extractionRules(columns)}`;
 
 /**
  * The hosted transport's prompt — the system message a vendor is given.
@@ -81,12 +113,12 @@ ${EXTRACTION_RULES}`;
  * difference from the CLI column; the rules below the paragraph are the same
  * ones, from the same constant.
  */
-export const hostedExtractionPrompt = (): string =>
+export const hostedExtractionPrompt = (columns: readonly string[]): string =>
   `You are extracting transactions from a French bank statement (relevé de compte) PDF.
 
 The statement is attached to the user's message as a PDF document. Read it directly — there is no file to open and no tool to call.
 
-${EXTRACTION_RULES}`;
+${extractionRules(columns)}`;
 
 /**
  * The hosted transport's user turn — the one line the document rides beside,

@@ -4,12 +4,15 @@ import {
   ExtractionFailed,
   type ExtractPdfResult,
   InvalidFileType,
+  NotFound,
+  type StatementFormatId,
   type TaskProviderRejected,
 } from "@mamen/shared/contract";
 import type { TaskRunError } from "ai-task-runner-effect";
 import { ClaudeCode, type ClaudeCodeService } from "claude-code-effect";
 import { Effect } from "effect";
 import { AiRunner } from "../ai-runner";
+import { StatementFormatRepo } from "../statement-formats/repository";
 
 /** The one MIME type this endpoint accepts. */
 const PDF_MIME = "application/pdf";
@@ -70,6 +73,34 @@ const notConfigured = (
 };
 
 /**
+ * The columns the chosen **Statement Format** declares — read from the account's
+ * own stored record, which is what makes this endpoint account-aware (issue
+ * #185, ADR 0014).
+ *
+ * The request names a format by id and the columns are looked up, rather than
+ * the columns being sent: what a bank's statement carries is the account's
+ * stored answer, and a body that could declare its own would make the record the
+ * user authored advisory.
+ *
+ * A **CSV** format under that id is refused as {@link NotFound}, not applied. Its
+ * `headers` are a *fingerprint* — the columns a file must carry for the format to
+ * recognise it — which is a different thing from the columns to ask a model for,
+ * and putting one in the prompt as though it were the statement's layout is
+ * exactly the silent wrongness this ticket exists to end. To this endpoint there
+ * simply is no PDF format under that id, which is what a 404 says.
+ */
+const declaredColumns = (
+  id: StatementFormatId,
+): Effect.Effect<readonly string[], NotFound, StatementFormatRepo> =>
+  Effect.gen(function* () {
+    const repo = yield* StatementFormatRepo;
+    const format = yield* repo.getById(id);
+    return format.kind === "pdf"
+      ? format.columns
+      : yield* Effect.fail(new NotFound({ resource: "pdf statement format", id }));
+  });
+
+/**
  * Let the CLI read one directory, and change nothing else about it.
  *
  * The `Read`-only tool allowance is the task table's (`allowedTools`), but the
@@ -127,10 +158,11 @@ const allowRead =
  */
 export const extractPdf = (
   file: Multipart.PersistedFile,
+  formatId: StatementFormatId,
 ): Effect.Effect<
   ExtractPdfResult,
-  InvalidFileType | ExtractionFailed | AiProviderNotConfigured,
-  FileSystem.FileSystem | Path.Path | ClaudeCode | AiRunner
+  InvalidFileType | NotFound | ExtractionFailed | AiProviderNotConfigured,
+  FileSystem.FileSystem | Path.Path | ClaudeCode | AiRunner | StatementFormatRepo
 > =>
   Effect.gen(function* () {
     if (file.contentType !== PDF_MIME) {
@@ -141,6 +173,8 @@ export const extractPdf = (
         }),
       );
     }
+
+    const columns = yield* declaredColumns(formatId);
 
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
@@ -160,7 +194,7 @@ export const extractPdf = (
     const pdfBytes = yield* fs.readFile(pdfPath).pipe(Effect.orDie);
 
     const runner = yield* AiRunner;
-    const { output } = yield* runner.run(TASK, { pdfPath, pdfBytes }).pipe(
+    const { output } = yield* runner.run(TASK, { pdfPath, pdfBytes, columns }).pipe(
       Effect.updateService(ClaudeCode, allowRead(dir)),
       // One client-visible failure, or the one client-actionable one; either
       // way the real tag is kept server-side and logged the same.
