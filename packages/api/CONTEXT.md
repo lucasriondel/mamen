@@ -132,17 +132,31 @@ the cache-invalidation rule that follows from this list, still worded as that
 superset; issue #170 restates it in these six fields, in these words.
 _Avoid_: "moves rows", "touches transactions" (both name a superset of the six).
 
-**Wire suite / repo suite**:
-The two test seams, one file each per resource. The **wire suite**
-(`handlers.test.ts`) stands the whole API up on an ephemeral Node server over a
-fresh `:memory:` database and drives it through the derived `HttpApiClient`, so
-every assertion round-trips the real encode/decode — it is where a status code,
-an error `_tag` and a **refusal reason** get pinned. The **repo suite**
-(`repository.test.ts`) drives the repository directly, which is where multi-row
-invariants and "what was actually written" are cheapest to state. A new rule
-usually earns one of each: the repo suite says the write is refused, the wire
-suite says the client is told so. Coverage is a real gate (90% lines/functions/
-statements, 85% branches, counting modules no test imports).
+**Wire suite / repo suite / rule-module suite**:
+The three test seams. Two of them are per resource, one file each. The **wire
+suite** (`handlers.test.ts`) stands the whole API up on an ephemeral Node server
+over a fresh `:memory:` database and drives it through the derived
+`HttpApiClient`, so every assertion round-trips the real encode/decode — it is
+where a status code, an error `_tag` and a **refusal reason** get pinned. The
+**repo suite** (`repository.test.ts`) drives the repository directly, which is
+where multi-row invariants and "what was actually written" are cheapest to
+state. A new rule usually earns one of each: the repo suite says the write is
+refused, the wire suite says the client is told so. Coverage is a real gate (90%
+lines/functions/statements, 85% branches, counting modules no test imports).
+
+The third seam has no per-resource file because it is not per resource: a
+**rule-module suite** calls a pure decision module's exports directly, with no
+Effect runtime, no server and no database — `ai-tasks/kernel.test.ts` (the
+**save-time kernel**), `matching/issuer-matcher.test.ts` (the matching engine,
+issue #158) and `transactions/bundle-derivation.test.ts` among them. This is
+where a *decision matrix* belongs, and belongs **only**: at roughly a thousandth
+of the per-case cost of an HTTP round trip, the exhaustive version is nearly
+free, and it names the failure. Issue #161 retired nineteen matching-decision
+cases from `rules/handlers.test.ts` for exactly that reason — which rule wins a
+row was being asserted twice, once slowly. What the wire suite keeps for a rule
+module is the **wiring**: that the handler reaches the module, in a transaction,
+against the live tables, and returns its answer. _Avoid_: adding a decision case
+to a `handlers.test.ts` because that is where the feature's other tests are.
 
 **OpenAPI drift guard**:
 `openapi.json` is emitted from the contract by `scripts/emit-openapi.ts` and
