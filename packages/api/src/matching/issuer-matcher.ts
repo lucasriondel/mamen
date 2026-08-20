@@ -278,6 +278,45 @@ export const ownedCounts = (
 ): Map<number, number> => tally(derive(rows, rules).outcomes, rules);
 
 /**
+ * One row's issuer as a recompute settled it, for a row whose stored issuer
+ * disagreed — `issuerId: null` means the column is cleared. The unit of
+ * {@link issuerAssignmentDiff}, and one `UPDATE` on the service side.
+ */
+export type IssuerAssignment = {
+  transactionId: typeof Transaction.Type.id;
+  issuerId: typeof IssuerId.Type | null;
+};
+
+/**
+ * The rows a recompute has to write: the {@link derive} outcomes that disagree
+ * with what their row currently stores, in outcome order (issue #160). Absent
+ * and `null` are the same stored answer — a row nobody owns is not written a
+ * second `null`.
+ *
+ * This is the **decision**, kept separate from the statements that carry it out
+ * so it can be tested without a database: the service turns each entry into an
+ * `UPDATE` and executes them, and decides nothing of its own. Manual rows derive
+ * to their own stored issuer (the Issuer invariant, step (a)), so they never
+ * appear here.
+ *
+ * The empty answer is the load-bearing one. Every rule create, edit and delete
+ * recomputes the *whole* table, so this filter is the only thing standing
+ * between a no-op recompute and a table-wide rewrite.
+ *
+ * `outcomes` are expected to be `derive`d from these same `rows`; an outcome for
+ * a row outside the set has no stored issuer to be compared against.
+ */
+export const issuerAssignmentDiff = (
+  rows: ReadonlyArray<Transaction>,
+  outcomes: ReadonlyArray<MatchOutcome>,
+): ReadonlyArray<IssuerAssignment> => {
+  const current = new Map(rows.map((r) => [r.id as number, r.issuerId ?? null]));
+  return outcomes
+    .filter((o) => (o.issuerId ?? null) !== current.get(o.transactionId))
+    .map((o) => ({ transactionId: o.transactionId, issuerId: o.issuerId ?? null }));
+};
+
+/**
  * The three preview lists for one scoped pattern — `Transaction`s bucketed by how
  * the prospective rule would touch them. Pure; the API surface decides the shape.
  */
@@ -491,22 +530,14 @@ export class IssuerMatcher extends Effect.Service<IssuerMatcher>()("api/IssuerMa
 
     /**
      * The `issuerId` writes that bring the whole table back to the Issuer
-     * invariant — one `UPDATE` per row whose derived issuer differs from its
-     * stored one (a `null` winner clears the column). Manual rows derive to
-     * their current issuer, so they never produce a write.
+     * invariant — one `UPDATE` per entry of the diff ({@link
+     * issuerAssignmentDiff}, which is where "which rows changed" is decided and
+     * tested; a `null` assignment clears the column).
      */
-    const issuerWrites = (
-      rows: ReadonlyArray<Transaction>,
-      outcomes: ReadonlyArray<MatchOutcome>,
-    ) => {
-      const current = new Map(rows.map((r) => [r.id as number, r.issuerId ?? null]));
-      return outcomes
-        .filter((o) => (o.issuerId ?? null) !== current.get(o.transactionId))
-        .map(
-          (o) =>
-            sql`UPDATE transactions SET issuerId = ${o.issuerId} WHERE id = ${o.transactionId}`,
-        );
-    };
+    const issuerWrites = (changed: ReadonlyArray<IssuerAssignment>) =>
+      changed.map(
+        (a) => sql`UPDATE transactions SET issuerId = ${a.issuerId} WHERE id = ${a.transactionId}`,
+      );
 
     /**
      * Recompute every transaction's issuer against the (already-written) rule
@@ -522,7 +553,7 @@ export class IssuerMatcher extends Effect.Service<IssuerMatcher>()("api/IssuerMa
       const rules = yield* allRulesQuery();
       const rows = yield* allTransactionsQuery();
       const { outcomes } = derive(rows, rules);
-      const writes = issuerWrites(rows, outcomes);
+      const writes = issuerWrites(issuerAssignmentDiff(rows, outcomes));
       if (writes.length > 0) {
         yield* Effect.all(writes, { discard: true });
       }
