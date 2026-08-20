@@ -109,6 +109,16 @@ data. Regex compiles in JS, never in SQL, so an invalid pattern becomes a
 recompute it triggers share one `withTransaction`, so the fallout is
 all-or-nothing.
 
+The service is the **writes only**: every decision it acts on comes from a pure
+export of the same file — `derive`, `previewLists`, `deleteLists`, and (since
+issue #160) `issuerAssignmentDiff`, which says which rows a recompute has
+actually moved and therefore need an `UPDATE`. That last one is why a rule save
+that changes nothing rewrites nothing: the recompute derives the whole table
+every time, and the diff is the only thing between that and a table-wide
+rewrite. _Avoid_: deciding anything inside the service that the pure half could
+decide — a decision fused to its statement construction needs a database to
+test.
+
 **Owned-count input set**:
 The six things a **Matching Rule**'s **Owned count** (see CONTEXT-MAP.md) is
 derived from, stated where the derivation is — `derive` in

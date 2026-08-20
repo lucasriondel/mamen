@@ -7,11 +7,19 @@ import {
   Transaction,
   TransactionId,
 } from "@mamen/shared/contract";
-import { derive, deleteLists, ownedCounts, previewLists } from "./issuer-matcher";
+import {
+  derive,
+  deleteLists,
+  issuerAssignmentDiff,
+  type MatchOutcome,
+  ownedCounts,
+  previewLists,
+} from "./issuer-matcher";
 
 /**
  * The **pure matching engine** (issue #158) — `derive`, `ownedCounts`,
- * `previewLists` and `deleteLists`, called directly.
+ * `previewLists`, `deleteLists` and `issuerAssignmentDiff` (issue #160), called
+ * directly.
  *
  * Everything below is a plain function over domain objects, so there is no
  * server, no database and no Effect layer anywhere in this file. That is what
@@ -30,7 +38,10 @@ import { derive, deleteLists, ownedCounts, previewLists } from "./issuer-matcher
  *   the matching rules, else unmatched — across every predicate family and
  *   combination, and the owned counts derived from those outcomes;
  * - the two dry-runs, whose whole job is to say what a save or a delete *would*
- *   do before it does it.
+ *   do before it does it;
+ * - the **recompute diff** — which rows a settled derivation actually has to
+ *   write, and, above all, that a recompute settling on what is already stored
+ *   writes nothing at all (issue #160).
  */
 
 const asAccount = AccountId.make;
@@ -795,5 +806,144 @@ describe("delete preview", () => {
     const lists = deleteLists(rows, [broad, specific, idle], RuleId.make(4));
     assert.deepStrictEqual(lists.willReassign, []);
     assert.deepStrictEqual(lists.willUnmatch, []);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4. The recompute diff
+// ---------------------------------------------------------------------------
+
+/** The diff as plain `[id, issuer]` pairs, so an expectation reads as literals. */
+const pairs = (
+  rows: ReadonlyArray<Transaction>,
+  outcomes: ReadonlyArray<MatchOutcome>,
+): ReadonlyArray<readonly [number, number | null]> =>
+  issuerAssignmentDiff(rows, outcomes).map((a) => [a.transactionId as number, a.issuerId] as const);
+
+/** The rows as the diff's writes would leave them — what the next recompute reads. */
+const applied = (
+  rows: ReadonlyArray<Transaction>,
+  outcomes: ReadonlyArray<MatchOutcome>,
+): ReadonlyArray<Transaction> => {
+  const byId = new Map(
+    issuerAssignmentDiff(rows, outcomes).map((a) => [a.transactionId as number, a.issuerId]),
+  );
+  return rows.map((r) =>
+    byId.has(r.id) ? new Transaction({ ...r, issuerId: byId.get(r.id) ?? undefined }) : r,
+  );
+};
+
+/**
+ * `issuerAssignmentDiff` — the decision half of the recompute (issue #160):
+ * given the rows as stored and the outcomes derived over them, which rows have
+ * actually changed issuer and therefore need writing. The service builds one
+ * `UPDATE` per entry and executes them; nothing else decides what is written.
+ *
+ * The case worth having is the empty one. A recompute runs after every rule
+ * create, edit and delete, over the whole table, and derives every row whether
+ * it moved or not — so the difference between a no-op and a table-wide rewrite
+ * is this filter and nothing else.
+ */
+describe("the recompute diff", () => {
+  it("skips a row whose derived issuer is the one it already stores", () => {
+    const settled = row({ id: 1, issuerId: 10 });
+    assert.deepStrictEqual(pairs([settled], [outcome(1, 10, 1)]), []);
+  });
+
+  it("writes a row that has just gained an issuer", () => {
+    const orphan = row({ id: 1 });
+    assert.deepStrictEqual(pairs([orphan], [outcome(1, 10, 1)]), [[1, 10]]);
+  });
+
+  it("writes a null onto a row that has lost its issuer", () => {
+    const owned = row({ id: 1, issuerId: 10 });
+    // The column is cleared, not left holding an issuer no rule justifies.
+    assert.deepStrictEqual(pairs([owned], [unmatched(1)]), [[1, null]]);
+  });
+
+  it("writes a row that has changed hands between two issuers", () => {
+    const owned = row({ id: 1, issuerId: 10 });
+    assert.deepStrictEqual(pairs([owned], [outcome(1, 11, 2)]), [[1, 11]]);
+  });
+
+  // A stored `null` and a derived `null` are the same decision, however each
+  // side spells it — the row is nobody's, and no `UPDATE` says so again.
+  it("skips a row that was unmatched and stayed unmatched", () => {
+    assert.deepStrictEqual(pairs([row({ id: 1 })], [unmatched(1)]), []);
+  });
+
+  it("keeps only the rows that moved, in the order the outcomes came in", () => {
+    const rows = [
+      row({ id: 1, issuerId: 10 }), // settled
+      row({ id: 2 }), // gains
+      row({ id: 3, issuerId: 12 }), // loses
+      row({ id: 4, issuerId: 13 }), // changes hands
+    ];
+    assert.deepStrictEqual(
+      pairs(rows, [outcome(1, 10, 1), outcome(2, 11, 2), unmatched(3), outcome(4, 14, 3)]),
+      [
+        [2, 11],
+        [3, null],
+        [4, 14],
+      ],
+    );
+  });
+
+  it("reads an empty table as an empty diff", () => {
+    assert.deepStrictEqual(pairs([], []), []);
+  });
+
+  /**
+   * The same filter, fed from a real derivation rather than hand-written
+   * outcomes — a recompute of a table the current rule set has already settled.
+   */
+  describe("a recompute that changes nothing", () => {
+    const broad = rule({ id: 1, pattern: "amazon", issuerId: 10 });
+    const valued = rule({ id: 2, pattern: "amazon", matchValue: 6.99, issuerId: 11 });
+    const rules = [broad, valued];
+    // The table exactly as those two rules leave it: the 6.99 row on the value
+    // rule, the other on the broad one, one row nothing matches, and one hand-
+    // assigned row carrying an issuer no rule would ever give it.
+    const settled = [
+      row({ id: 1, rawIssuerString: "AMAZON EU", amount: -42.5, issuerId: 10 }),
+      row({ id: 2, rawIssuerString: "AMAZON MKTP", amount: -6.99, issuerId: 11 }),
+      row({ id: 3, rawIssuerString: "CARREFOUR", amount: -30 }),
+      row({ id: 4, rawIssuerString: "AMAZON EU", issuerId: 99, manualIssuer: true }),
+    ];
+
+    it("produces no writes at all", () => {
+      const { outcomes } = derive(settled, rules);
+      assert.deepStrictEqual(issuerAssignmentDiff(settled, outcomes), []);
+    });
+
+    it("still produces none on the pass after one that did write", () => {
+      // The unsettled table: every row's issuer is wrong or missing.
+      const unsettled = [
+        row({ id: 1, rawIssuerString: "AMAZON EU", amount: -42.5 }),
+        row({ id: 2, rawIssuerString: "AMAZON MKTP", amount: -6.99, issuerId: 10 }),
+        row({ id: 3, rawIssuerString: "CARREFOUR", amount: -30, issuerId: 10 }),
+        row({ id: 4, rawIssuerString: "AMAZON EU", issuerId: 99, manualIssuer: true }),
+      ];
+      const first = derive(unsettled, rules).outcomes;
+      assert.deepStrictEqual(
+        issuerAssignmentDiff(unsettled, first).map((a) => a.transactionId as number),
+        [1, 2, 3],
+        "three rows move; the manual one never does",
+      );
+      // Recompute over the rows those writes leave behind: the derivation is a
+      // fixed point, so the second pass writes nothing.
+      const written = applied(unsettled, first);
+      const second = derive(written, rules).outcomes;
+      assert.deepStrictEqual(issuerAssignmentDiff(written, second), []);
+    });
+
+    it("never writes a hand-assigned row, whatever the rules say", () => {
+      // The manual row alone, against a rule whose pattern matches it and whose
+      // issuer differs: `derive` hands back the row's own issuer, so no write.
+      const manual = settled[3];
+      assert.ok(manual !== undefined);
+      const { outcomes } = derive([manual], rules);
+      assert.deepStrictEqual(issuerAssignmentDiff([manual], outcomes), []);
+    });
   });
 });
