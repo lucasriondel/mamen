@@ -246,9 +246,12 @@ adds missed ones (edit-in-place) before committing. The CSV path keeps its own
 plain-table preview; both converge on the same commit.
 _Avoid_: Diff view, comparison.
 _Code note_: the panel is a real table since issue #193 — TanStack Table over the
-**candidate-table primitives**, columns *skip | date | raw issuer | amount*. The
-skip is a checkbox in front of the values rather than the pair of icon buttons it
-used to be: checked *is* skipped, so one control says the state and reverses it.
+**candidate-table primitives**, columns *skip | date | raw issuer | amount*, plus
+the statement's own columns hidden behind the toggle and the **row facets** above
+it (issue #195). The skip is a checkbox in front of the values rather than the
+pair of icon buttons it used to be: checked *is* skipped, so one control says the
+state and reverses it — and the same control in the header holds out every row on
+screen.
 The transactions grid is deliberately not reused, and the two previews stay two
 components — one is editable with an add-row control and a reconciliation banner,
 the other is neither, and collapsing them would mean one component steered by a
@@ -308,6 +311,13 @@ skip checkbox (issue #193); the CSV preview still carries the icon-button pair
 until it adopts the same table (issue #194). A skip is a decision about *this* commit and nothing else:
 it writes nothing, stores nothing, and is gone when the wizard is.
 
+Since issue #195 a whole set can be skipped at once, from the checkbox in the
+table header — and it acts on **the rows on screen**, never on the ones a **row
+facet** is hiding. That is the payoff: narrowing to `TYPE = Exécution d'ordre`
+and clicking once holds out fifteen rows that used to cost fifteen deletes. It
+takes them back the same way, which is what makes a mis-narrowed bulk skip cost
+one click rather than a re-import.
+
 The **side-by-side validation** view used to delete a row outright instead, on
 the grounds that a PDF's rows are editable there anyway. That reasoning is
 retired by issue #192: a skipped row's inputs are inert, so deleting bought
@@ -356,7 +366,9 @@ selected row is a skipped row**, projected from `skippedRows` and dispatched bac
 as `skip-row` / `restore-row`, so the table holds no copy of the decision),
 column visibility (`use-preview-column-visibility.ts` — state, not storage: an
 import preview's hideable columns are read off the statement in hand and a
-preference must not outlive the wizard), and the shell + skip column that render
+preference must not outlive the wizard, and they are hidden until asked for while
+the preview's own columns cannot be hidden at all), filtering (**row facets**,
+`facets.ts` + `candidate-filters.tsx`), and the shell + skip column that render
 them (`candidate-table.tsx`).
 
 The **transactions table** is not among them, on purpose. It renders persisted
@@ -365,10 +377,48 @@ and a candidate row has none of that. What is shared is the primitives and the
 pattern, not the component.
 _Avoid_: Reusing the transactions table, one preview behind capability flags.
 _Code note_: the PDF panel composes them today; the CSV preview follows in issue
-#194, and the facets and toggleable raw-source columns in #195. The columns are
-memoised on `dispatch` alone and everything else a cell needs reaches it on the
-row — a cell closing over a fresh array per render gives the column list a new
-identity, which remounts the editable inputs and eats the keystroke being typed.
+#194 and picks up the facets with them, since #195 put both in the shared hook
+rather than in the panel. The columns are memoised on `dispatch` alone and
+everything else a cell needs reaches it on the row — a cell closing over a fresh
+array per render gives the column list a new identity, which remounts the
+editable inputs and eats the keystroke being typed. The statement's own columns
+are the one thing derived from the rows, so they are held still by identity
+(`useStableList`): editing a *value* must not read as a change of *columns*.
+
+**Row facet**:
+One of the statement's own columns offered as a filter above an import preview's
+table, listing the distinct values it prints and how many rows carry each (issue
+#195). Choosing a value narrows the table to the rows that print exactly it;
+choosing several values of one column is an *or*, and narrowing two columns is an
+*and*. What makes the facets possible at all is the **raw source** — the cells as
+the bank printed them — which both import paths carry since issue #189.
+
+A column is facet-eligible by a stated rule and by nothing else: its distinct
+values number **at most `FACET_VALUE_LIMIT` (12)** and **strictly fewer than the
+rows**. That takes a Trade Republic statement's operation type and product name
+and leaves its description and running balance; on the shipped Green-Got export
+it takes `Catégorie` (11 values over 40 rows) and leaves `Référence` (14) and
+`Intitulé` (25). No configuration, no setup, and a bank mamen has never seen gets
+its facets from the file it sent. A blank cell is **no value** — the same thing an
+omitted one is — so the two paths facet one statement identically.
+
+Facets are **exact-value, never substring**, which is deliberate: this control
+removes rows from an import, and over-matching drops the wrong ones silently.
+`Virement` and `Virement instantané` are two values, and the user picks the one
+they mean.
+
+They are **ephemeral**. Nothing outside the table reads or writes them, they are
+gone with the wizard, and a durable "always hold out this type" rule belongs to
+the **Statement Format**'s row filter — two mechanisms for one intent would
+compete.
+_Avoid_: Search, query, filter chip (a facet lists what is *there*, and matches
+whole values).
+_Code note_: `facets.ts` is pure and table-free — which columns become filters is
+a statement about the file, and it is tested as one. Each facet-eligible column
+is a real (hidden) table column with an exact-match `filterFn`, so a filter *is*
+a TanStack column filter: the row model the select-all acts over is then the
+filtered one for free. TanStack's own `arrIncludesSome` is a substring matcher
+and is deliberately not used.
 
 **Raw issuer string**:
 The unparsed counterparty text on a transaction (`rawIssuerString`, e.g.

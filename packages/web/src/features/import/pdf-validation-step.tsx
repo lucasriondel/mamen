@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/format";
 import { AlreadyImportedMark } from "./already-imported-mark";
+import { CandidateFilters } from "./candidate-filters";
 import {
   CandidateTable,
   type PreviewColumn,
@@ -173,11 +174,12 @@ function fieldClass(isSkipped: boolean): string {
  *
  * A real table since issue #193 — TanStack Table over the shared candidate-table
  * primitives ({@link useCandidateTable}), so the panel keys on the row's **stable
- * row id**, reads its skips off row selection, and is already wired for the
- * raw-source columns and facets #195 adds. The transactions grid is not reused:
- * it renders persisted rows and a candidate row is not one. Columns are what the
- * view always showed — date, raw issuer, amount — behind the shared skip
- * checkbox.
+ * row id** and reads its skips off row selection. The transactions grid is not
+ * reused: it renders persisted rows and a candidate row is not one. The columns
+ * declared here are the ones the view always showed — date, raw issuer, amount —
+ * behind the shared skip checkbox; the statement's own columns and the **row
+ * facets** over them are the shared hook's (issue #195), read off the rows rather
+ * than named here, so both previews offer one statement the same filters.
  *
  * Skipping replaced deleting (issue #192). A skipped row stays on screen struck
  * through with every one of its inputs disabled, and one click puts it back —
@@ -293,7 +295,7 @@ function ExtractedRows({
   );
   // oxlint-enable react/no-unstable-nested-components
 
-  const table = useCandidateTable({
+  const { table, facets } = useCandidateTable({
     rows: extracted,
     rowIds,
     duplicateFlags,
@@ -304,6 +306,10 @@ function ExtractedRows({
 
   return (
     <div className="flex flex-col gap-3 overflow-hidden rounded-2xl border border-gousse-line">
+      {/* Outside the scroll container: the filters say what the table below is
+          showing, so they must not scroll away from it (issue #195). */}
+      <CandidateFilters table={table} facets={facets} />
+
       <div className="max-h-[85vh] overflow-y-auto">
         <CandidateTable table={table} />
       </div>

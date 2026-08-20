@@ -892,7 +892,12 @@ repeated per package.
   free to disagree with its raw form. That "nothing" is held to the whole repo
   by `packages/web/src/test/raw-source-is-an-archive.test.ts`: which files may
   name it in code, and that no query ever filters, groups, joins or counts on it
-  — unlike the promoted column, which is exactly what promotion buys. Its contents are the bank's own words and
+  — unlike the promoted column, which is exactly what promotion buys. The one
+  place the archive is *looked at* rather than displayed is the **row facets**
+  of an import preview (issue #195), and it is looking rather than deriving: the
+  rows are not stored yet, and all that comes out is which of them are on screen
+  while the user decides. Nothing populates a field from it, no total counts it,
+  and a filter is gone with the wizard. Its contents are the bank's own words and
   are labelled as such wherever shown, so Green-Got's `Catégorie` reads as
   provenance rather than as a second, contradicting **Derived category**. It
   means **as most recently delivered**: a re-import replaces it rather than

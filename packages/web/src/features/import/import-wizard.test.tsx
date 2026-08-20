@@ -313,6 +313,26 @@ async function mapFrenchColumns(user: ReturnType<typeof userEvent.setup>) {
   await user.selectOptions(screen.getByLabelText("Decimal separator"), "comma");
 }
 
+/**
+ * The rows the **side-by-side validation** table is showing, by their raw
+ * issuer, in table order — what a **row facet** narrows (issue #195).
+ */
+function shownRows(): string[] {
+  return within(screen.getByRole("table"))
+    .getAllByLabelText(/^Raw issuer, row \d+$/)
+    .map((input) => (input as HTMLInputElement).value);
+}
+
+/** Narrow that table to one value of one of the statement's own columns. */
+async function chooseFacetValue(
+  user: ReturnType<typeof userEvent.setup>,
+  column: string,
+  value: string,
+) {
+  await user.click(screen.getByRole("button", { name: `Filter by ${column}` }));
+  await user.click(await screen.findByRole("menuitemcheckbox", { name: value }));
+}
+
 /** The live preview's rows, as `date | issuer | amount` text. */
 function previewedRows(): string[] {
   const table = screen.getByRole("table", { name: "Preview of the parsed rows" });
@@ -1206,11 +1226,16 @@ describe("ImportWizard", () => {
 
     const rows = await screen.findByLabelText("Raw issuer, row 1");
     const table = rows.closest("table") as HTMLElement;
+    // The skip column's header carries no text: since issue #195 it is the
+    // select-all control itself, named for assistive tech like the per-row ones.
     expect(
       within(table)
         .getAllByRole("columnheader")
         .map((th) => th.textContent),
-    ).toEqual(["Skip", "Date", "Raw issuer", "Amount"]);
+    ).toEqual(["", "Date", "Raw issuer", "Amount"]);
+    expect(
+      within(table).getByRole("checkbox", { name: "Skip all shown rows" }),
+    ).toBeInTheDocument();
 
     // The skip is a checkbox on the row, not the icon button it used to be:
     // checked means skipped, so one control says the state and reverses it.
@@ -1522,6 +1547,231 @@ describe("ImportWizard", () => {
     // …while reconciliation still sums both extracted rows against the declared
     // 30 and stays silent. Summing only the kept row would cry wolf here.
     expect(screen.queryByText(/Reconciliation mismatch/)).toBeNull();
+  });
+
+  /**
+   * Issue #195 — the payoff slice of PRD #190: holding a statement's
+   * order-execution rows out of the ledger is two clicks rather than one delete
+   * per row.
+   *
+   * The **row facets** are read off the rows' **raw source**, which is why this
+   * is the first thing here to write one out per row. Web fixtures are cast
+   * through `unknown` and absorb a new field silently, so the coverage is
+   * deliberate: the statement below prints a `TYPE` on every operation and a
+   * `Libellé` that never repeats, which is both halves of the eligibility rule in
+   * one file.
+   */
+  describe("faceting the raw-source columns", () => {
+    /**
+     * Four operations of a two-product statement, in the order it prints them —
+     * the executions are *not* adjacent, so a skip made over the filtered table
+     * has to name rows rather than the positions they were clicked at.
+     */
+    const FACETED = {
+      verdict: MATCHED,
+      transactions: [
+        {
+          date: new Date("2026-01-15T10:00:00.000Z"),
+          amount: 2500,
+          rawIssuerString: "SALAIRE",
+          rawSource: { TYPE: "Virement", Libellé: "Virement reçu", Montant: "2 500,00" },
+        },
+        {
+          date: new Date("2026-01-16T10:00:00.000Z"),
+          amount: -100,
+          rawIssuerString: "ACME ETF",
+          rawSource: { TYPE: "Exécution d'ordre", Libellé: "Achat ACME ETF", Montant: "-100,00" },
+        },
+        {
+          date: new Date("2026-01-17T10:00:00.000Z"),
+          amount: 5,
+          rawIssuerString: "DIVIDENDE ACME",
+          rawSource: { TYPE: "Rendement", Libellé: "Dividende ACME", Montant: "5,00" },
+        },
+        {
+          date: new Date("2026-01-18T10:00:00.000Z"),
+          amount: -200,
+          rawIssuerString: "ZETA ETF",
+          rawSource: { TYPE: "Exécution d'ordre", Libellé: "Achat ZETA ETF", Montant: "-200,00" },
+        },
+      ],
+      declaredTotals: { debit: 300, credit: 2505 },
+    };
+
+    /** Drop a statement and wait for side-by-side validation. */
+    async function dropFaceted(
+      user: ReturnType<typeof userEvent.setup>,
+      extraction: unknown = FACETED,
+    ) {
+      extractPdf.mockResolvedValue(extraction);
+      renderWizard();
+      await chooseAccount(user);
+      await dropPdf(user);
+      expect(await screen.findByTitle("PDF statement")).toBeInTheDocument();
+    }
+
+    it("narrows the table to one value of a column, and says what it is hiding", async () => {
+      const user = userEvent.setup();
+      await dropFaceted(user);
+
+      // Offered off the file itself — no configuration, no setup. `Libellé`
+      // prints a different value on every row, so filtering by it would hand
+      // the user their own statement back one row at a time.
+      expect(screen.getByRole("button", { name: "Filter by TYPE" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Filter by Libellé" })).toBeNull();
+
+      await chooseFacetValue(user, "TYPE", "Exécution d'ordre (2)");
+
+      expect(shownRows()).toEqual(["ACME ETF", "ZETA ETF"]);
+      // A narrowed table must not read as a short statement.
+      expect(screen.getByText(/2 of 4 rows/)).toBeInTheDocument();
+    });
+
+    it("gives the hidden rows back, by the value or by clearing every filter", async () => {
+      const user = userEvent.setup();
+      await dropFaceted(user);
+      const whole = ["SALAIRE", "ACME ETF", "DIVIDENDE ACME", "ZETA ETF"];
+
+      // Unchecking the value it was narrowed by: an emptied facet is *no
+      // filter*, not a filter that matches nothing.
+      await chooseFacetValue(user, "TYPE", "Exécution d'ordre (2)");
+      await user.click(screen.getByRole("menuitemcheckbox", { name: "Exécution d'ordre (2)" }));
+      expect(shownRows()).toEqual(whole);
+
+      // Or all at once, which is the way back from several columns narrowed.
+      await user.click(screen.getByRole("menuitemcheckbox", { name: "Exécution d'ordre (2)" }));
+      expect(shownRows()).toEqual(["ACME ETF", "ZETA ETF"]);
+      await user.click(screen.getByRole("button", { name: "Clear filters" }));
+      expect(shownRows()).toEqual(whole);
+      expect(screen.queryByText(/of 4 rows/)).toBeNull();
+    });
+
+    it("filters on the exact value, never on the rows that merely contain it", async () => {
+      const user = userEvent.setup();
+      // One value of this column is a prefix of another. Under any substring
+      // match — TanStack's own `arrIncludesSome` included — choosing the short
+      // one takes the long one's rows with it, and on a control that removes
+      // rows from an import that is a wrong row dropped silently (PRD #190).
+      await dropFaceted(user, {
+        verdict: MATCHED,
+        transactions: [
+          {
+            date: new Date("2026-01-15T10:00:00.000Z"),
+            amount: 2500,
+            rawIssuerString: "SALAIRE",
+            rawSource: { TYPE: "Virement" },
+          },
+          {
+            date: new Date("2026-01-16T10:00:00.000Z"),
+            amount: -30,
+            rawIssuerString: "REMBOURSEMENT",
+            rawSource: { TYPE: "Virement instantané" },
+          },
+          {
+            date: new Date("2026-01-17T10:00:00.000Z"),
+            amount: -40,
+            rawIssuerString: "CADEAU",
+            rawSource: { TYPE: "Virement instantané" },
+          },
+        ],
+        declaredTotals: { debit: 70, credit: 2500 },
+      });
+
+      await chooseFacetValue(user, "TYPE", "Virement (1)");
+
+      expect(shownRows()).toEqual(["SALAIRE"]);
+    });
+
+    it("skips exactly the filtered rows from the header checkbox, never the hidden ones", async () => {
+      const user = userEvent.setup();
+      await dropFaceted(user);
+
+      await chooseFacetValue(user, "TYPE", "Exécution d'ordre (2)");
+      await user.click(screen.getByRole("checkbox", { name: "Skip all shown rows" }));
+
+      // The two executions are held out — and they are rows 2 and 4 of the
+      // statement, so the skip named rows rather than the first two positions.
+      await user.click(screen.getByRole("button", { name: "Clear filters" }));
+      expect(screen.getByRole("checkbox", { name: "Skip row 2" })).toBeChecked();
+      expect(screen.getByRole("checkbox", { name: "Skip row 4" })).toBeChecked();
+      expect(screen.getByRole("checkbox", { name: "Skip row 1" })).not.toBeChecked();
+      expect(screen.getByRole("checkbox", { name: "Skip row 3" })).not.toBeChecked();
+
+      await user.click(screen.getByRole("button", { name: "Commit import" }));
+      await waitFor(() => expect(bulkCreate).toHaveBeenCalledTimes(1));
+      expect(
+        bulkCreate.mock.calls[0][0].map(
+          (record: { rawIssuerString: string }) => record.rawIssuerString,
+        ),
+      ).toEqual(["SALAIRE", "DIVIDENDE ACME"]);
+    });
+
+    it("restores in bulk over the filtered rows only", async () => {
+      const user = userEvent.setup();
+      await dropFaceted(user);
+
+      // Everything is held out to begin with — the whole statement.
+      await user.click(screen.getByRole("checkbox", { name: "Skip all shown rows" }));
+      expect(screen.getByRole("checkbox", { name: "Skip row 1" })).toBeChecked();
+
+      // Narrow, then take the shown rows back: the rows a filter is hiding are
+      // not the rows the user is looking at, and must not move.
+      await chooseFacetValue(user, "TYPE", "Exécution d'ordre (2)");
+      await user.click(screen.getByRole("checkbox", { name: "Skip all shown rows" }));
+
+      await user.click(screen.getByRole("button", { name: "Clear filters" }));
+      expect(screen.getByRole("checkbox", { name: "Skip row 2" })).not.toBeChecked();
+      expect(screen.getByRole("checkbox", { name: "Skip row 4" })).not.toBeChecked();
+      expect(screen.getByRole("checkbox", { name: "Skip row 1" })).toBeChecked();
+      expect(screen.getByRole("checkbox", { name: "Skip row 3" })).toBeChecked();
+    });
+
+    it("offers every raw-source column as a hidden column, and never the three that always show", async () => {
+      const user = userEvent.setup();
+      await dropFaceted(user);
+
+      const table = screen.getByRole("table");
+      const headers = () =>
+        within(table)
+          .getAllByRole("columnheader")
+          .map((th) => th.textContent);
+      expect(headers()).toEqual(["", "Date", "Raw issuer", "Amount"]);
+
+      await user.click(screen.getByRole("button", { name: "Choose columns" }));
+      const menu = await screen.findByRole("menu", { name: "Toggle columns" });
+      // Every key the archive carries, faceted or not — the point of the toggle
+      // is to read the value being filtered on, and `Libellé` earns no facet.
+      expect(
+        within(menu)
+          .getAllByRole("menuitemcheckbox")
+          .map((item) => item.textContent),
+      ).toEqual(["TYPE", "Libellé", "Montant"]);
+
+      await user.click(within(menu).getByRole("menuitemcheckbox", { name: "TYPE" }));
+
+      expect(headers()).toEqual(["", "Date", "Raw issuer", "Amount", "TYPE"]);
+      // As the statement printed it (issue #189), beside the parsed amount.
+      expect(within(table).getAllByText("Exécution d'ordre")).toHaveLength(2);
+    });
+
+    it("forgets the filters on the next import", async () => {
+      const user = userEvent.setup();
+      await dropFaceted(user);
+
+      await chooseFacetValue(user, "TYPE", "Exécution d'ordre (2)");
+      expect(shownRows()).toEqual(["ACME ETF", "ZETA ETF"]);
+
+      // Back to the drop zone and in with the next statement. A choice made
+      // against last month's statement must not silently hide rows of this
+      // one's — the durable version of "always hold this type out" belongs to
+      // the **Statement Format**'s row filter, not to remembered UI state.
+      await user.click(screen.getByRole("button", { name: "Back" }));
+      await dropPdf(user);
+      expect(await screen.findByTitle("PDF statement")).toBeInTheDocument();
+
+      expect(shownRows()).toEqual(["SALAIRE", "ACME ETF", "DIVIDENDE ACME", "ZETA ETF"]);
+      expect(screen.queryByText(/of 4 rows/)).toBeNull();
+    });
   });
 
   it("shows no reconciliation banner when the sums reconcile", async () => {

@@ -67,6 +67,27 @@ disagree with mamen's **Derived category**. Presented as a bare "Category" field
 it would read as a contradiction or a bug; presented under the bank's name it
 reads as provenance, which is what it is.
 
+**The import preview's row facets look at the archive, and that is not deriving
+from it** (issue #195). A statement's own columns become the filters above the
+preview table, so holding fifteen order-execution rows out of a Trade Republic
+import is two clicks. Read against the rule above, the distinction is what the
+cells are read *for*:
+
+- The rows are **not stored yet**. The facets help the user decide which of them
+  to store; nothing about a transaction already in the table is read.
+- **Nothing comes out of them but which rows are on screen.** No field is
+  populated from the archive, no total counts it, no matcher consults it, and
+  nothing a filter produces is persisted — a filter is gone with the wizard.
+- The **SQL half of the rule is untouched**: no query filters, groups, joins or
+  counts on the column, which is what
+  `packages/web/src/test/raw-source-is-an-archive.test.ts` still asserts. The
+  four preview files that name `rawSource` are listed there with their role, so
+  the reading above is a diff a reviewer can check rather than a claim.
+
+A durable *"always hold out this type"* rule is a different thing and is
+deliberately **not** this: it belongs to the **Statement Format**'s row filter,
+which reads the file's columns rather than the stored archive.
+
 ### 3. A value is promoted to a real column when a matcher needs to reach it
 
 `counterpartyIban` is promoted out of the archive into a real nullable column,

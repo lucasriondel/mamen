@@ -26,9 +26,9 @@ export interface UseSkipSelectionResult {
  * skip names a row rather than wherever it currently sits (issue #190).
  *
  * One action per changed row, because that is what the reducer takes. It is also
- * what makes a future select-all over the *filtered* rows (issue #195) work here
- * unchanged: whatever set TanStack proposes, this diffs it and dispatches the
- * difference.
+ * what let the select-all over the *filtered* rows (issue #195) land without
+ * touching this: whatever set TanStack proposes, this diffs it and dispatches the
+ * difference — fifteen skips from one click read the same way as one.
  */
 export function useSkipSelection(
   skippedRows: readonly RowId[],

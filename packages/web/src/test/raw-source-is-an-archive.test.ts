@@ -27,6 +27,15 @@ import { describe, expect, it } from "vitest";
  *    appears in a `WHERE`, a `WHEN`, a `GROUP BY` or an aggregate is a column
  *    something *derives from*, whatever the prose around it says.
  *
+ * Four of the sites below are the **import preview's row facets** (issue #195),
+ * and they are the one group worth reading twice. They look at the cells of rows
+ * that are *not stored yet*, to help the user decide which of them to store —
+ * nothing comes out of them but which rows are on screen. No field is populated
+ * from the archive, no total counts it, and nothing the facets produce is
+ * persisted: a filter is gone with the wizard. That is looking, not deriving, and
+ * it is why the SQL half of this file stays empty for `rawSource` — the ledger
+ * still reads nobody's archive. ADR 0012 §2 says so in the same words.
+ *
  * This lives under `src/test/` rather than beside a component because its subject
  * is the repo rather than a component — the same reason
  * `bank-statement-scrubbed.test.ts` does. Paths are cwd-relative (vitest runs
@@ -84,8 +93,20 @@ const ARCHIVE_SITES = [
     role: "the field itself",
   },
   {
+    path: "packages/web/src/features/import/candidate-filters.tsx",
+    role: "the facet bar, which names the table column a statement column is filtered by",
+  },
+  {
+    path: "packages/web/src/features/import/candidate-table.tsx",
+    role: "where a statement's columns become hidden, exact-value-filterable table columns",
+  },
+  {
     path: "packages/web/src/features/import/enrich-extracted.ts",
     role: "where a PDF row's archive joins the commit rail, carried not built",
+  },
+  {
+    path: "packages/web/src/features/import/facets.ts",
+    role: "which of a candidate row's cells the import preview can facet on, before anything is stored",
   },
   {
     path: "packages/web/src/features/import/parsers/apply-format.ts",

@@ -1,5 +1,5 @@
 import type { VisibilityState } from "@tanstack/react-table";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 export interface UsePreviewColumnVisibilityResult {
   /** The TanStack `columnVisibility` state to hand to `useReactTable`. */
@@ -23,17 +23,38 @@ export interface UsePreviewColumnVisibilityResult {
  * wizard: a choice made against last month's statement silently hiding a column
  * of this month's is precisely what the PRD rules out. State, not storage.
  *
- * Nothing is hidden yet — the four columns the panel shows are all it has
- * (issue #193 ships no toggleable columns) — so today this holds an empty state
- * and the table shows everything. It exists now so the table is already wired for
- * the raw-source columns rather than being rebuilt around them later.
+ * The defaulting runs the *opposite* way to the transactions grid's, which is
+ * why the hideable ids are a parameter rather than a constant. Every one of them
+ * is a **raw-source** column read off the statement, and they are **hidden until
+ * asked for**: a French bank's export carries thirteen columns where the common
+ * import shows four, so showing them all would make the wall of columns the
+ * default and the readable table the thing you configure. The user's own choices
+ * are laid over that default, so a column shown stays shown while the statement
+ * does.
+ *
+ * The preview's own columns are never in the list. Date, operation label and
+ * amount are what makes a row readable at all, and a table that can hide them is
+ * a table that can be made unreadable.
  */
-export function usePreviewColumnVisibility(): UsePreviewColumnVisibilityResult {
-  const [columnVisibility, setState] = useState<VisibilityState>({});
+export function usePreviewColumnVisibility(
+  /** The ids hidden until asked for — the statement's own columns. */
+  hideableColumnIds: readonly string[],
+): UsePreviewColumnVisibilityResult {
+  const [chosen, setChosen] = useState<VisibilityState>({});
+
+  // The ids are expected to keep their identity for as long as the statement
+  // does — see `useStableList` in `candidate-table.tsx`. A fresh object here on
+  // every render would hand the table a new visibility state on every keystroke
+  // typed into an editable cell.
+  const columnVisibility = useMemo<VisibilityState>(() => {
+    const hidden: VisibilityState = {};
+    for (const id of hideableColumnIds) hidden[id] = false;
+    return { ...hidden, ...chosen };
+  }, [hideableColumnIds, chosen]);
 
   const setColumnVisibility = useCallback(
     (updater: VisibilityState | ((old: VisibilityState) => VisibilityState)) => {
-      setState((old) => (typeof updater === "function" ? updater(old) : updater));
+      setChosen((old) => (typeof updater === "function" ? updater(old) : updater));
     },
     [],
   );
