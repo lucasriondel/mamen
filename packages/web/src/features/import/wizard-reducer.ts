@@ -57,6 +57,18 @@ export type WizardState = {
    * side-by-side) and until a PDF is dropped.
    */
   file: File | null;
+  /**
+   * A dropped **PDF** held back because the account has several PDF **Statement
+   * Formats** and the user has not said which reads this statement (issue #185).
+   * `null` whenever nothing is waiting — which is every case but that one, since
+   * an account with exactly one PDF format is extracted without an ask.
+   *
+   * It is state rather than a local in the upload step because it is a state of
+   * the *import*: a file is in hand and nothing has been sent anywhere. Clearing
+   * it is how "the request has been made" is said, so it goes on `extract-start`
+   * and on every action that empties the step.
+   */
+  pendingPdf: File | null;
   headers: readonly string[];
   rows: ReadonlyArray<Record<string, string>>;
   /**
@@ -154,6 +166,13 @@ export type WizardAction =
   | { type: "select-account"; accountId: AccountId }
   | { type: "go-to-preview" }
   | { type: "back-to-upload" }
+  /**
+   * A PDF was dropped into an account with **several** PDF **Statement Formats**
+   * — it waits here while the user says which one reads it. Nothing has been
+   * sent anywhere: the model is never asked to pick the format as well as apply
+   * it (PRD #180).
+   */
+  | { type: "pdf-awaits-format"; file: File }
   /** A PDF was dropped — extraction has started (spinner until it settles). */
   | { type: "extract-start"; file: File }
   /** Extraction succeeded — candidate rows (+ declared totals) are in hand. */
@@ -193,6 +212,7 @@ export const initialWizardState: WizardState = {
   source: null,
   fileName: null,
   file: null,
+  pendingPdf: null,
   headers: [],
   rows: [],
   formatId: null,
@@ -311,6 +331,7 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         source: "csv",
         fileName: action.fileName,
         file: null,
+        pendingPdf: null,
         headers: action.headers,
         rows: action.rows,
         // Undecided until `detect-format` lands: the account's formats are a
@@ -344,6 +365,7 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         error: action.message,
         source: null,
         file: null,
+        pendingPdf: null,
         headers: [],
         rows: [],
         formatId: null,
@@ -384,6 +406,28 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         formatId: null,
         formatSelection: null,
       };
+    case "pdf-awaits-format":
+      if (!canAcceptFile(state)) return state;
+      return {
+        ...state,
+        source: "pdf",
+        fileName: action.file.name,
+        file: action.file,
+        pendingPdf: action.file,
+        error: null,
+        // The same clearing a PDF drop does — the file in hand is this one, and
+        // a prior CSV's rows must not be previewable behind the question.
+        headers: [],
+        rows: [],
+        formatId: null,
+        formatSelection: null,
+        extracting: false,
+        extracted: null,
+        declaredTotals: null,
+        extractionMs: null,
+        skippedRows: [],
+        rowIds: [],
+      };
     case "go-to-preview":
       return canPreview(state) ? { ...state, step: "preview" } : state;
     case "back-to-upload":
@@ -395,6 +439,9 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         source: "pdf",
         fileName: action.file.name,
         file: action.file,
+        // The wait, if there was one, is over: this file's format is settled and
+        // the request is on its way.
+        pendingPdf: null,
         extracting: true,
         extracted: null,
         declaredTotals: null,

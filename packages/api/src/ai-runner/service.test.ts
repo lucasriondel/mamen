@@ -45,6 +45,13 @@ const PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37
 const INPUT = {
   pdfPath: "/tmp/mamen-pdf-abc/statement.pdf",
   pdfBytes: PDF_BYTES,
+  /**
+   * The columns the chosen **Statement Format** declares (issue #185). This
+   * suite is about the *transport* — which column of the task table a provider
+   * is served from, and what travels with it — so the list is only ever here to
+   * be a well-formed input; what it does to the prompt is `tasks.test.ts`.
+   */
+  columns: ["Date", "Libellé", "Débit", "Crédit"],
 };
 
 const ANTHROPIC_KEY = "sk-ant-api03-Kj28fnQ2xLmPqR7v-3f9";
@@ -124,7 +131,7 @@ describe("the hosted branch sends the statement to the chosen vendor", () => {
       // open it with a tool the vendor does not have. Neither may travel.
       assert.notInclude(call?.system ?? "", INPUT.pdfPath);
       assert.notInclude(call?.system ?? "", "Read tool");
-      assert.notStrictEqual(call?.system, extractionPrompt(INPUT.pdfPath));
+      assert.notStrictEqual(call?.system, extractionPrompt(INPUT.pdfPath, INPUT.columns));
       // …and the user turn the document rides beside is the task's own.
       assert.strictEqual(call?.prompt, HOSTED_EXTRACTION_INSTRUCTION);
     }).pipe(Effect.provide(runnerWith(generate)));

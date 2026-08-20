@@ -115,6 +115,15 @@ never persists server-side (temp dir is deleted after the call) and no issuer or
 category is assigned at this stage (those are derived post-commit by Matching
 Rules, as with CSV). The counterpart of a **Parser**, for the file shape a
 parser can't handle.
+Since issue #185 the upload carries the **Statement Format** to read the
+statement with, whose declared columns are what the model is told the file
+carries — so the wizard settles *which* format before it sends anything. With
+exactly one PDF format on the account that costs nothing: it is the only answer
+there is and it is used without an ask. With several, the file is held in wizard
+state (`pendingPdf`) and the user picks; the model is never asked to choose the
+format as well as apply it (PRD #180). With none, the drop is refused, because a
+prompt describing French statements in general is the guessing this work removed
+— building one from the file in front of the user is issue #186's step.
 _Avoid_: Parsing (reserved for CSV), OCR, scanning.
 
 **Extracted transaction**:

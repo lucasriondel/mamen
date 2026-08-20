@@ -6,14 +6,16 @@ import { BadArgument } from "@effect/platform/Error";
 import { NodeHttpServer } from "@effect/platform-node";
 import { afterEach, assert, beforeEach, describe, it } from "@effect/vitest";
 import {
+  AccountId,
   AiProviderNotConfigured,
   Api,
   ExtractionFailed,
   InvalidFileType,
+  NotFound,
 } from "@mamen/shared/contract";
 import type { HostedGenerate } from "ai-task-runner-effect";
 import type { SpawnHandler } from "claude-code-effect";
-import { Effect, Layer } from "effect";
+import { Effect, Layer, Schema } from "effect";
 import { HostedTransport } from "../ai-runner";
 import { ApiLive } from "../api-live";
 import { DatabaseTest } from "../db/test";
@@ -148,16 +150,80 @@ const httpLiveWithStoredToken = (handler: SpawnHandler) =>
 /** The four bytes every upload here carries unless a test wants its own. */
 const PDF_MAGIC = Uint8Array.from([0x25, 0x50, 0x44, 0x46]);
 
-/** A single-file `application/pdf` multipart upload (bytes are opaque here). */
+/**
+ * The columns the account's stored PDF **Statement Format** declares — the CCF
+ * statement's own layout.
+ *
+ * Since issue #185 an extraction is always run *against* a format, so every
+ * upload below carries one: the endpoint is no longer account-agnostic, and a
+ * file with no format named is a request it cannot build a prompt for.
+ */
+const CCF_COLUMNS = ["Date", "Valeur", "Libellé", "Débit", "Crédit"];
+
+/**
+ * A PDF upload: the statement under `file`, and under `formatId` the id of the
+ * **Statement Format** the user chose for it.
+ *
+ * The id rather than the record. What the columns are is the account's stored
+ * answer, so the server reads it back rather than believing a client that could
+ * name any columns it liked for a format it does not own.
+ */
 const pdfFormData = (
+  formatId: number | string,
   mime = "application/pdf",
   filename = "RLV_CHQ1_LUCAS_RIO_001.pdf",
   bytes: Uint8Array<ArrayBuffer> = PDF_MAGIC,
 ): FormData => {
   const fd = new FormData();
   fd.append("file", new File([bytes], filename, { type: mime }));
+  fd.append("formatId", String(formatId));
   return fd;
 };
+
+/** A PDF **Statement Format** for the account, stored the way the wizard will. */
+const storePdfFormat = (columns: readonly string[] = CCF_COLUMNS) =>
+  Effect.gen(function* () {
+    const client = yield* HttpApiClient.make(Api);
+    const format = yield* client.statementFormats.create({
+      payload: {
+        accountId: Schema.decodeSync(AccountId)(1),
+        name: "CCF — relevé de compte",
+        kind: "pdf",
+        columns,
+        mapping: { date: "Date", rawIssuerString: "Libellé", counterpartyIban: null },
+        rules: {
+          sign: {
+            strategy: "debit-credit-columns",
+            debitColumn: "Débit",
+            creditColumn: "Crédit",
+          },
+          dateOrder: "day-first",
+          decimalSeparator: "comma",
+          filter: null,
+        },
+      },
+    });
+    return format.id;
+  });
+
+/**
+ * The upload every test below sends: a freshly stored PDF format, and a
+ * multipart body naming it. One helper rather than a fixture id, because the
+ * database is `:memory:` and fresh per test — the format has to be *put there*
+ * by the same endpoints a user would.
+ */
+const pdfUpload = (
+  options: {
+    readonly mime?: string;
+    readonly filename?: string;
+    readonly bytes?: Uint8Array<ArrayBuffer>;
+    readonly columns?: readonly string[];
+  } = {},
+) =>
+  Effect.gen(function* () {
+    const formatId = yield* storePdfFormat(options.columns);
+    return pdfFormData(formatId, options.mime, options.filename, options.bytes);
+  });
 
 /** The dir the CLI was scoped to — i.e. where the statement was staged. */
 const stagedIn = (args: ReadonlyArray<string>): string => {
@@ -199,7 +265,7 @@ describe("import endpoints", () => {
     Effect.gen(function* () {
       const client = yield* HttpApiClient.make(Api);
       const result = yield* client.import.extractPdf({
-        payload: pdfFormData(),
+        payload: yield* pdfUpload(),
       });
 
       // Re-decoded through the ExtractedTransaction schema: dates are Dates,
@@ -236,7 +302,7 @@ describe("import endpoints", () => {
   it.effect("extractPdf drives the claude CLI read-only, scoped to the temp dir", () =>
     Effect.gen(function* () {
       const client = yield* HttpApiClient.make(Api);
-      yield* client.import.extractPdf({ payload: pdfFormData() });
+      yield* client.import.extractPdf({ payload: yield* pdfUpload() });
     }).pipe(
       Effect.provide(
         httpLiveWith((input) => {
@@ -256,11 +322,126 @@ describe("import endpoints", () => {
     ),
   );
 
+  /**
+   * Issue #185 — the endpoint takes the chosen **Statement Format** alongside
+   * the file, and the format's declared columns are what the model is told the
+   * statement carries. This is the payload change, asserted where it lands: on
+   * the prompt the CLI is actually handed.
+   */
+  it.effect("extractPdf tells the model the columns the chosen format declares", () => {
+    let prompt = "";
+    return Effect.gen(function* () {
+      const client = yield* HttpApiClient.make(Api);
+      // A second PDF format on the same account, so "the columns reached the
+      // prompt" is a claim about the one the request named rather than about
+      // every format stored.
+      yield* storePdfFormat(["Jour", "Opération", "Montant réglé"]);
+
+      yield* client.import.extractPdf({
+        payload: yield* pdfUpload({ columns: ["Date", "Opération", "Retrait", "Dépôt"] }),
+      });
+
+      for (const column of ["Date", "Opération", "Retrait", "Dépôt"]) {
+        assert.include(prompt, `"${column}"`);
+      }
+      assert.notInclude(prompt, "Montant réglé");
+    }).pipe(
+      Effect.provide(
+        httpLiveWith((input) => {
+          prompt = input.stdin;
+          return Effect.succeed({
+            stdout: okEnvelope(CCF_OBJECT),
+            stderr: "",
+            exitCode: 0,
+          });
+        }),
+      ),
+    );
+  });
+
+  // The columns are the account's stored answer, so a format id that names no
+  // row is a 404 and not an extraction run on a guessed layout. The statement is
+  // never sent anywhere: the lookup fails before a provider is reached.
+  it.effect("extractPdf 404s on a format id that names nothing, without extracting", () => {
+    let spawned = false;
+    return Effect.gen(function* () {
+      const client = yield* HttpApiClient.make(Api);
+      const error = yield* client.import
+        .extractPdf({ payload: pdfFormData(9999) })
+        .pipe(Effect.flip);
+
+      assert.ok(error instanceof NotFound);
+      assert.strictEqual(error.id, 9999);
+      assert.isFalse(spawned);
+    }).pipe(
+      Effect.provide(
+        httpLiveWith(() => {
+          spawned = true;
+          return Effect.succeed({
+            stdout: okEnvelope(CCF_OBJECT),
+            stderr: "",
+            exitCode: 0,
+          });
+        }),
+      ),
+    );
+  });
+
+  /**
+   * A CSV format is not a PDF format that happens to be stored elsewhere: it
+   * declares the headers that *fingerprint* a file, which is a different thing
+   * from the columns to ask a model for. Applying one here would put a
+   * fingerprint into the prompt as though it were the statement's layout, so the
+   * lookup refuses it — there is no PDF format under that id.
+   */
+  it.effect("extractPdf refuses a CSV format's id", () =>
+    Effect.gen(function* () {
+      const client = yield* HttpApiClient.make(Api);
+      const csv = yield* client.statementFormats.create({
+        payload: {
+          accountId: Schema.decodeSync(AccountId)(1),
+          name: "Green-Got",
+          kind: "csv",
+          headers: ["Statut", "Date", "Montant", "Direction", "Intitulé"],
+          mapping: { date: "Date", rawIssuerString: "Intitulé", counterpartyIban: null },
+          rules: {
+            sign: {
+              strategy: "direction-column",
+              amountColumn: "Montant",
+              directionColumn: "Direction",
+              debitValue: "DEBIT",
+            },
+            dateOrder: "iso",
+            decimalSeparator: "dot",
+            filter: null,
+          },
+        },
+      });
+
+      const error = yield* client.import
+        .extractPdf({ payload: pdfFormData(csv.id) })
+        .pipe(Effect.flip);
+
+      assert.ok(error instanceof NotFound);
+      assert.strictEqual(error.id, csv.id);
+    }).pipe(
+      Effect.provide(
+        httpLiveWith(() =>
+          Effect.succeed({
+            stdout: okEnvelope(CCF_OBJECT),
+            stderr: "",
+            exitCode: 0,
+          }),
+        ),
+      ),
+    ),
+  );
+
   it.effect("extractPdf rejects a non-PDF upload with InvalidFileType (415)", () =>
     Effect.gen(function* () {
       const client = yield* HttpApiClient.make(Api);
       const error = yield* client.import
-        .extractPdf({ payload: pdfFormData("image/png", "not-a.pdf") })
+        .extractPdf({ payload: yield* pdfUpload({ mime: "image/png", filename: "not-a.pdf" }) })
         .pipe(Effect.flip);
 
       assert.ok(error instanceof InvalidFileType);
@@ -284,7 +465,9 @@ describe("import endpoints", () => {
   it.effect("extractPdf collapses a spawn failure to ExtractionFailed (502)", () =>
     Effect.gen(function* () {
       const client = yield* HttpApiClient.make(Api);
-      const error = yield* client.import.extractPdf({ payload: pdfFormData() }).pipe(Effect.flip);
+      const error = yield* client.import
+        .extractPdf({ payload: yield* pdfUpload() })
+        .pipe(Effect.flip);
 
       assert.ok(error instanceof ExtractionFailed);
     }).pipe(
@@ -307,7 +490,9 @@ describe("import endpoints", () => {
   it.effect("extractPdf collapses an API-error envelope to ExtractionFailed", () =>
     Effect.gen(function* () {
       const client = yield* HttpApiClient.make(Api);
-      const error = yield* client.import.extractPdf({ payload: pdfFormData() }).pipe(Effect.flip);
+      const error = yield* client.import
+        .extractPdf({ payload: yield* pdfUpload() })
+        .pipe(Effect.flip);
 
       assert.ok(error instanceof ExtractionFailed);
     }).pipe(
@@ -339,7 +524,7 @@ describe("the staged PDF does not outlive the request", () => {
     let dir = "";
     return Effect.gen(function* () {
       const client = yield* HttpApiClient.make(Api);
-      yield* client.import.extractPdf({ payload: pdfFormData() });
+      yield* client.import.extractPdf({ payload: yield* pdfUpload() });
 
       assert.isFalse(existsSync(dir));
     }).pipe(
@@ -363,7 +548,7 @@ describe("the staged PDF does not outlive the request", () => {
     let dir = "";
     return Effect.gen(function* () {
       const client = yield* HttpApiClient.make(Api);
-      yield* client.import.extractPdf({ payload: pdfFormData() }).pipe(Effect.flip);
+      yield* client.import.extractPdf({ payload: yield* pdfUpload() }).pipe(Effect.flip);
 
       assert.isFalse(existsSync(dir));
     }).pipe(
@@ -397,7 +582,7 @@ describe("extraction runs on the stored choice", () => {
       const resolved = yield* client.aiTasks.resolve({
         path: { task: "extract-pdf" },
       });
-      yield* client.import.extractPdf({ payload: pdfFormData() });
+      yield* client.import.extractPdf({ payload: yield* pdfUpload() });
 
       // A fresh install has chosen nothing, so this is the catalogue default —
       // the local CLI on its cheap model, asserted through the resolver rather
@@ -428,7 +613,7 @@ describe("extraction runs on the stored choice", () => {
         payload: { tasks: [{ task: "extract-pdf", model: "claude-opus-5" }] },
       });
       const result = yield* client.import.extractPdf({
-        payload: pdfFormData(),
+        payload: yield* pdfUpload(),
       });
 
       // Same rows either way — the model is a transport choice, not a contract
@@ -476,7 +661,9 @@ describe("the Claude Code token comes from the credential store", () => {
     let spawned = false;
     return Effect.gen(function* () {
       const client = yield* HttpApiClient.make(Api);
-      const error = yield* client.import.extractPdf({ payload: pdfFormData() }).pipe(Effect.flip);
+      const error = yield* client.import
+        .extractPdf({ payload: yield* pdfUpload() })
+        .pipe(Effect.flip);
 
       // Distinguishable from the generic collapse: this is the one extraction
       // failure a user can act on, and a client that could not tell it from
@@ -507,7 +694,9 @@ describe("the Claude Code token comes from the credential store", () => {
     process.env.CLAUDE_CODE_OAUTH_TOKEN = "sk-ant-oat01-from-the-environment";
     return Effect.gen(function* () {
       const client = yield* HttpApiClient.make(Api);
-      const error = yield* client.import.extractPdf({ payload: pdfFormData() }).pipe(Effect.flip);
+      const error = yield* client.import
+        .extractPdf({ payload: yield* pdfUpload() })
+        .pipe(Effect.flip);
 
       assert.ok(error instanceof AiProviderNotConfigured);
     }).pipe(
@@ -532,7 +721,9 @@ describe("the Claude Code token comes from the credential store", () => {
     return Effect.gen(function* () {
       const client = yield* HttpApiClient.make(Api);
 
-      const before = yield* client.import.extractPdf({ payload: pdfFormData() }).pipe(Effect.flip);
+      const before = yield* client.import
+        .extractPdf({ payload: yield* pdfUpload() })
+        .pipe(Effect.flip);
       assert.ok(before instanceof AiProviderNotConfigured);
 
       // Pasted on the settings page like any other credential.
@@ -546,7 +737,7 @@ describe("the Claude Code token comes from the credential store", () => {
       assert.notStrictEqual(status.hint, TOKEN);
 
       const result = yield* client.import.extractPdf({
-        payload: pdfFormData(),
+        payload: yield* pdfUpload(),
       });
       assert.strictEqual(result.transactions.length, 6);
       // And it is *that* token the CLI authenticated with.
@@ -575,7 +766,9 @@ describe("the Claude Code token comes from the credential store", () => {
         payload: { value: TOKEN },
       });
 
-      const error = yield* client.import.extractPdf({ payload: pdfFormData() }).pipe(Effect.flip);
+      const error = yield* client.import
+        .extractPdf({ payload: yield* pdfUpload() })
+        .pipe(Effect.flip);
 
       assert.ok(error instanceof ExtractionFailed);
     }).pipe(
@@ -618,7 +811,7 @@ describe("a hosted provider extracts the statement", () => {
       yield* chooseAnthropic;
       const client = yield* HttpApiClient.make(Api);
       const result = yield* client.import.extractPdf({
-        payload: pdfFormData(),
+        payload: yield* pdfUpload(),
       });
 
       // Byte-for-byte the assertions the CLI branch's first test makes.
@@ -667,7 +860,9 @@ describe("a hosted provider extracts the statement", () => {
     return Effect.gen(function* () {
       yield* chooseAnthropic;
       const client = yield* HttpApiClient.make(Api);
-      const error = yield* client.import.extractPdf({ payload: pdfFormData() }).pipe(Effect.flip);
+      const error = yield* client.import
+        .extractPdf({ payload: yield* pdfUpload() })
+        .pipe(Effect.flip);
 
       // The same deliberately opaque 502 the CLI branch's failures collapse
       // to (ADR 0005) — and nothing of the vendor's message came with it.
@@ -710,7 +905,7 @@ describe("a hosted provider extracts the statement", () => {
         yield* chooseAnthropic;
         const client = yield* HttpApiClient.make(Api);
         const run = client.import.extractPdf({
-          payload: pdfFormData("application/pdf", "RLV.pdf", outcome.marker),
+          payload: yield* pdfUpload({ filename: "RLV.pdf", bytes: outcome.marker }),
         });
         yield* outcome.failed ? Effect.flip(run) : run;
 
@@ -877,7 +1072,7 @@ describe("a hosted provider extracts the statement", () => {
       return Effect.gen(function* () {
         yield* chooseHosted(wire.provider, wire.key, wire.model);
         const client = yield* HttpApiClient.make(Api);
-        yield* client.import.extractPdf({ payload: pdfFormData() }).pipe(Effect.flip);
+        yield* client.import.extractPdf({ payload: yield* pdfUpload() }).pipe(Effect.flip);
 
         // One request, to the vendor the user chose, with that vendor's own
         // key — nothing fanned out to a second vendor on the way.
@@ -944,7 +1139,9 @@ describe("a hosted provider extracts the statement", () => {
       assert.isTrue(anthropic?.configured);
       assert.strictEqual(anthropic?.hint, null);
 
-      const error = yield* client.import.extractPdf({ payload: pdfFormData() }).pipe(Effect.flip);
+      const error = yield* client.import
+        .extractPdf({ payload: yield* pdfUpload() })
+        .pipe(Effect.flip);
 
       assert.ok(error instanceof AiProviderNotConfigured);
       assert.strictEqual(error.provider, "anthropic");
@@ -991,7 +1188,9 @@ describe("a hosted provider extracts the statement", () => {
       process.env.ANTHROPIC_API_KEY = "sk-ant-api03-fromTheEnvironment-0001";
 
       const client = yield* HttpApiClient.make(Api);
-      const error = yield* client.import.extractPdf({ payload: pdfFormData() }).pipe(Effect.flip);
+      const error = yield* client.import
+        .extractPdf({ payload: yield* pdfUpload() })
+        .pipe(Effect.flip);
 
       assert.ok(error instanceof AiProviderNotConfigured);
       // Nothing left for the vendor: the environment's key bought nothing,

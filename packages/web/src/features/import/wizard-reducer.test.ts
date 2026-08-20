@@ -223,6 +223,67 @@ describe("wizardReducer", () => {
     expect(state.step).toBe("upload");
   });
 
+  /**
+   * Issue #185 — a PDF is extracted *against* a **Statement Format**, so when the
+   * account has more than one of them the file waits in the wizard while the user
+   * says which. Held in the state machine rather than in the upload step's local
+   * state, for the same reason the account gate is: "a file is in hand and
+   * nothing has been sent anywhere" is a state of the import, and the step that
+   * renders it is not the only thing that has to agree about it.
+   */
+  describe("a PDF waiting on a format choice", () => {
+    const PDF = new File([], "statement.pdf", { type: "application/pdf" });
+
+    it("holds the file without extracting anything", () => {
+      const state = wizardReducer(withAccount, { type: "pdf-awaits-format", file: PDF });
+
+      expect(state.pendingPdf).toBe(PDF);
+      expect(state.source).toBe("pdf");
+      expect(state.fileName).toBe("statement.pdf");
+      // Nothing is in flight and nothing came back: the spinner belongs to a
+      // request that has been made, and no request has been made.
+      expect(state.extracting).toBe(false);
+      expect(state.extracted).toBeNull();
+      expect(canPreview(state)).toBe(false);
+    });
+
+    it("clears any CSV state, as a PDF drop does", () => {
+      const fromCsv = wizardReducer(parsedCsv, {
+        type: "detect-format",
+        detection: { outcome: "detected", format: FORMAT },
+      });
+
+      const state = wizardReducer(fromCsv, { type: "pdf-awaits-format", file: PDF });
+
+      expect(state.rows).toEqual([]);
+      expect(state.formatId).toBeNull();
+      expect(state.formatSelection).toBeNull();
+    });
+
+    it("lets go of the file once its extraction starts", () => {
+      const waiting = wizardReducer(withAccount, { type: "pdf-awaits-format", file: PDF });
+      const state = wizardReducer(waiting, { type: "extract-start", file: PDF });
+
+      expect(state.pendingPdf).toBeNull();
+      expect(state.extracting).toBe(true);
+    });
+
+    it("lets go of the file when the drop is refused", () => {
+      const waiting = wizardReducer(withAccount, { type: "pdf-awaits-format", file: PDF });
+      const state = wizardReducer(waiting, { type: "file-error", message: "No." });
+
+      expect(state.pendingPdf).toBeNull();
+    });
+
+    // The same door the rest of the file waits at: without an account there is
+    // no set of formats to choose from in the first place.
+    it("is ignored while no account is chosen", () => {
+      const state = wizardReducer(initialWizardState, { type: "pdf-awaits-format", file: PDF });
+
+      expect(state).toBe(initialWizardState);
+    });
+  });
+
   it("records a file parse error", () => {
     const state = wizardReducer(withAccount, {
       type: "file-error",

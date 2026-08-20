@@ -1,14 +1,38 @@
-import { type AccountId, type CsvStatementFormat, MAX_PDF_BYTES } from "@mamen/shared/contract";
+import {
+  type AccountId,
+  type CsvStatementFormat,
+  MAX_PDF_BYTES,
+  type PdfStatementFormat,
+  type StatementFormat,
+  type StatementFormatId,
+} from "@mamen/shared/contract";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { type DragEvent, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { importMutations } from "@/lib/sdk";
+import { Select } from "@/components/ui/select";
+import { importMutations, statementFormatQueries } from "@/lib/sdk";
 import { aiProviderNotConfigured, pdfExtractionErrorMessage } from "@/lib/sdk-error";
 import { formatExtractionTime } from "./format-extraction-time";
 import { FormatPicker } from "./format-picker";
 import { InlineAccountSelect } from "./inline-account-select";
 import { parseCsvFile } from "./parse-file";
 import { canAcceptFile, canPreview, type WizardAction, type WizardState } from "./wizard-reducer";
+
+/**
+ * What the user is told when the account they picked has no PDF **Statement
+ * Format** at all. Extraction cannot run against no format — its whole job since
+ * issue #185 is telling the model which columns the statement carries — and the
+ * old behaviour, a prompt describing French statements in general, is exactly the
+ * guessing this work removes. So the drop is refused rather than served by a
+ * fallback that produces plausible-but-wrong rows.
+ *
+ * Building one from the file in front of the user is issue #186's step; until it
+ * lands this is a dead end, and saying so plainly beats a spinner that resolves
+ * into nonsense.
+ */
+const NO_PDF_FORMAT =
+  "This account has no PDF statement format yet. Import a CSV export from your bank instead.";
 
 /** Whether a dropped file is a PDF (by MIME or extension) — the async fork. */
 function isPdf(file: File): boolean {
@@ -62,7 +86,34 @@ export function UploadStep({
    */
   const [notConfigured, setNotConfigured] = useState(false);
 
-  const handlePdf = async (file: File) => {
+  /**
+   * The account's stored **Statement Formats**. Account-scoped by the query
+   * itself, since that is the only scope at which "which columns does this
+   * bank's statement carry" has an answer (PRD #180) — and not asked for at all
+   * until the account is settled, which is what {@link canAcceptFile} guards.
+   */
+  const formatsQuery = useQuery({
+    ...statementFormatQueries.list(state.accountId === null ? {} : { accountId: state.accountId }),
+    enabled: state.accountId !== null,
+  });
+
+  // Only the PDF half. A CSV format's `headers` are a *fingerprint* — the columns
+  // a file must carry to be recognised — which is a different thing from the
+  // columns to ask a model for, so one is never a candidate here.
+  const pdfFormats = ((formatsQuery.data?.items ?? []) as readonly StatementFormat[]).filter(
+    (format): format is PdfStatementFormat => format.kind === "pdf",
+  );
+
+  /**
+   * Which format the user picked for a PDF that is waiting on the question —
+   * `null` until they answer. Local rather than in the reducer: the *file* being
+   * held is a state of the import (`state.pendingPdf`) that the preview gate and
+   * every clearing action have to agree about, while a half-answered question is
+   * this control's own business and dies with it.
+   */
+  const [chosenPdfFormat, setChosenPdfFormat] = useState<StatementFormatId | null>(null);
+
+  const handlePdf = async (file: File, formatId: StatementFormatId) => {
     // Oversize is rejected upstream by the multipart parser as a framework
     // error, not `InvalidFileType`, so it would otherwise fall through to the
     // generic retry copy. Pre-check the cap client-side — as the issuer image
@@ -81,7 +132,7 @@ export function UploadStep({
     dispatch({ type: "extract-start", file });
     const startedAt = performance.now();
     try {
-      const result = await importMutations.extractPdf(file);
+      const result = await importMutations.extractPdf(file, formatId);
       dispatch({
         type: "extract-success",
         transactions: result.transactions,
@@ -111,12 +162,32 @@ export function UploadStep({
     }
   };
 
+  /**
+   * A dropped PDF, routed on how many formats could read it (issue #185).
+   *
+   * Exactly one is the common case and costs the user nothing: it is the only
+   * answer there is, so it is used without an ask. Several is a real question,
+   * and it is the *user's* — the model is never asked to pick the format as well
+   * as apply it, since it cannot then cleanly report a mismatch against a choice
+   * of its own (PRD #180). None is a refusal; see {@link NO_PDF_FORMAT}.
+   */
+  const takePdf = (file: File) => {
+    const only = pdfFormats.length === 1 ? pdfFormats[0] : undefined;
+    if (only) return handlePdf(file, only.id);
+    if (pdfFormats.length === 0) {
+      dispatch({ type: "file-error", message: NO_PDF_FORMAT });
+      return;
+    }
+    setChosenPdfFormat(null);
+    dispatch({ type: "pdf-awaits-format", file });
+  };
+
   // Cleared here rather than per branch: every dropped file is a fresh attempt,
   // and a CSV that then fails to parse must not inherit the previous PDF's link
   // to Settings.
   const handleFile = (file: File) => {
     setNotConfigured(false);
-    return isPdf(file) ? handlePdf(file) : handleCsv(file);
+    return isPdf(file) ? takePdf(file) : handleCsv(file);
   };
 
   const onDrop = (event: DragEvent<HTMLElement>) => {
@@ -178,6 +249,55 @@ export function UploadStep({
           }}
         />
       </label>
+
+      {state.pendingPdf !== null ? (
+        <div className="flex flex-col gap-4 rounded-2xl border border-gousse-line bg-gousse-panel p-4">
+          <p className="text-sm text-gousse-muted">
+            <span className="font-medium text-gousse-ink">{state.fileName}</span> — this account has
+            several PDF statement formats. Which one reads this statement?
+          </p>
+          <label className="flex flex-col gap-1 text-sm text-gousse-muted">
+            Format
+            <Select
+              value={chosenPdfFormat === null ? "" : String(chosenPdfFormat)}
+              onChange={(event) =>
+                setChosenPdfFormat(
+                  event.target.value === ""
+                    ? null
+                    : (Number(event.target.value) as StatementFormatId),
+                )
+              }
+              aria-label="PDF statement format"
+            >
+              <option value="" disabled>
+                Pick the statement format…
+              </option>
+              {pdfFormats.map((format) => (
+                <option key={format.id} value={format.id}>
+                  {format.name}
+                </option>
+              ))}
+            </Select>
+          </label>
+          <div>
+            <Button
+              variant="primary"
+              size="md"
+              disabled={chosenPdfFormat === null}
+              onClick={() => {
+                // Both are non-null under the button's own guard, but they are
+                // read together here so the pair that travels is the pair the
+                // user answered about.
+                const file = state.pendingPdf;
+                if (file === null || chosenPdfFormat === null) return;
+                void handlePdf(file, chosenPdfFormat);
+              }}
+            >
+              Extract transactions
+            </Button>
+          </div>
+        </div>
+      ) : null}
 
       {state.extracting ? (
         <output className="flex items-center gap-2 rounded-2xl border border-gousse-line bg-gousse-panel p-4 text-sm text-gousse-muted">

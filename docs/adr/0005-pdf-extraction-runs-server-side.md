@@ -44,6 +44,15 @@ extraction did not produce a result and can offer a retry. The multipart
 
 ## Account-agnostic by design
 
+> **Amended by [ADR 0014](./0014-pdf-extraction-is-account-aware-through-its-format.md)**
+> (issue #185). Since the endpoint takes the **Statement Format** to read the
+> statement with, and a format belongs to one account, it is no longer
+> account-agnostic: naming a format names an account. What survives is the
+> second half of this section — the *answer* is still keyed to nothing, and the
+> account, batch and month are still stamped client-side at commit. What is gone
+> is extraction being a pure function of the file: the same PDF under two formats
+> yields two results.
+
 The endpoint returns candidates keyed to nothing — no account, batch, or month.
 That keeps extraction a pure function of the file, so the same PDF yields the
 same rows regardless of where they'll land, and it lets the review/commit step

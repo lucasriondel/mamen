@@ -13,7 +13,10 @@ import { AI_TASK_TABLE } from "./tasks";
 
 const PDF_PATH = "/tmp/mamen-pdf-abc123/statement.pdf";
 const PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
-const INPUT = { pdfPath: PDF_PATH, pdfBytes: PDF_BYTES };
+
+/** The columns the chosen **Statement Format** declares (issue #185). */
+const COLUMNS = ["Date", "Valeur", "Libellé", "Débit", "Crédit"];
+const INPUT = { pdfPath: PDF_PATH, pdfBytes: PDF_BYTES, columns: COLUMNS };
 
 const extract = AI_TASK_TABLE["extract-pdf"];
 
@@ -37,7 +40,7 @@ describe("the CLI column", () => {
   // This ticket *moves* it and does not touch its wording, so the column is
   // asserted to be that prompt itself rather than a copy that could drift.
   it("is the existing extraction prompt, unchanged", () => {
-    assert.strictEqual(extract.cliPrompt(INPUT), extractionPrompt(PDF_PATH));
+    assert.strictEqual(extract.cliPrompt(INPUT), extractionPrompt(PDF_PATH, COLUMNS));
   });
 
   it("names the absolute path of the staged PDF", () => {
@@ -91,6 +94,65 @@ describe("the hosted column", () => {
     assert.strictEqual(rules, rulesOf(extract.cliPrompt(INPUT)));
     assert.include(rules, "SIGN CONVENTION");
     assert.include(rules, "DECLARED TOTALS");
+  });
+});
+
+/**
+ * Issue #185 — the chosen **Statement Format**'s declared columns reach the
+ * model. This is the whole point of making the endpoint take a format: until it
+ * did, the prompt described French bank statements in general and the model
+ * worked the columns out for itself, which is how a statement it has no
+ * vocabulary for produces plausible rows that are silently wrong.
+ */
+describe("the format's declared columns", () => {
+  const COLUMN_HEADING = "COLUMNS THIS STATEMENT CARRIES";
+
+  it("names every column the chosen format declares", () => {
+    const prompt = extract.cliPrompt(INPUT);
+
+    assert.include(prompt, COLUMN_HEADING);
+    for (const column of COLUMNS) assert.include(prompt, `"${column}"`);
+  });
+
+  // In the *shared* rules, not above them: a hosted vendor is asked to read the
+  // same statement as the local CLI, and a columns block written into one column
+  // only would be exactly the silent drift the two-column split exists to
+  // prevent. Asserted through `rulesOf`, so it is the shared region that carries
+  // them rather than a second copy that happens to match today.
+  it("reaches the hosted column too, from the same copy", () => {
+    const rules = rulesOf(extract.hostedPrompt(INPUT).text);
+
+    assert.include(rules, COLUMN_HEADING);
+    for (const column of COLUMNS) assert.include(rules, `"${column}"`);
+    assert.strictEqual(rules, rulesOf(extract.cliPrompt(INPUT)));
+  });
+
+  // The columns say what the file is laid out like; they do not replace how its
+  // values are read. Every rule the extraction has always run on is still in the
+  // prompt beside them (issue #185's "existing extraction rules are preserved").
+  it("are added to the existing rules, not in place of them", () => {
+    const prompt = extract.cliPrompt(INPUT);
+
+    for (const section of [
+      "SIGN CONVENTION",
+      "DATE",
+      "NUMBERS (French format)",
+      "LABEL",
+      "ROWS TO EXCLUDE",
+      "DECLARED TOTALS",
+    ]) {
+      assert.include(prompt, section);
+    }
+  });
+
+  // A format may declare no columns at all — the contract's `columns` is an
+  // array and nothing makes it non-empty. An empty heading would be worse than
+  // no heading: it tells the model the statement carries nothing.
+  it("say nothing at all when the format declares none", () => {
+    const prompt = extract.cliPrompt({ ...INPUT, columns: [] });
+
+    assert.notInclude(prompt, COLUMN_HEADING);
+    assert.include(prompt, "SIGN CONVENTION");
   });
 });
 

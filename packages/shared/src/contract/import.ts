@@ -1,6 +1,7 @@
 import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema, Multipart, OpenApi } from "@effect/platform";
 import { Option, Schema } from "effect";
-import { AiProviderNotConfigured, InvalidFileType } from "./errors";
+import { AiProviderNotConfigured, InvalidFileType, NotFound } from "./errors";
+import { numFromStr, StatementFormatId } from "./ids";
 
 /**
  * The PDF-upload size limit: 10 MiB. A bank statement is a handful of text
@@ -14,9 +15,10 @@ export const MAX_PDF_BYTES = 10 * 1024 * 1024;
 /**
  * A single **Extracted transaction** — one operation lifted from a PDF bank
  * statement, before any account/batch/month is stamped (that happens
- * client-side at commit; this endpoint is account-agnostic). The field names
- * and types mirror {@link Transaction}'s core so the client can thread them
- * straight into a `TransactionCreate` at commit:
+ * client-side at commit; nothing the endpoint returns is keyed to an account,
+ * even though since issue #185 it knows which one through the format it was
+ * given). The field names and types mirror {@link Transaction}'s core so the
+ * client can thread them straight into a `TransactionCreate` at commit:
  *
  * - `date` — the operation date (not the value date), decoded from the
  *   statement. Year is inferred from the statement header, since the per-row
@@ -71,28 +73,48 @@ export class ExtractionFailed extends Schema.TaggedError<ExtractionFailed>()(
 ) {}
 
 /**
- * The multipart upload payload for `extractPdf`. One file under the key `file`;
- * `maxFileSize` caps it at {@link MAX_PDF_BYTES} and `maxParts` at 1. The
- * `application/pdf` allow-list is NOT expressible here — the handler enforces it
- * and fails {@link InvalidFileType}, mirroring the issuer image upload. The
- * derived client types this as `FormData`.
+ * The multipart upload payload for `extractPdf`: the statement under `file`, and
+ * under `formatId` the **Statement Format** to read it with (issue #185).
+ *
+ * The *id*, not the record. Which columns a bank's statement carries is the
+ * account's own stored answer, so the server reads it back from the table rather
+ * than believing a body that could declare any columns it liked — and it is that
+ * read which makes the endpoint account-aware (ADR 0014). A multipart field
+ * arrives as a string, hence `numFromStr`; a non-numeric one is a schema decode
+ * failure → `HttpApiDecodeError (400)`, like any other malformed id.
+ *
+ * `maxFileSize` caps the file at {@link MAX_PDF_BYTES} and `maxParts` is 2 — the
+ * file and the id, and nothing else. The `application/pdf` allow-list is NOT
+ * expressible here — the handler enforces it and fails {@link InvalidFileType},
+ * mirroring the issuer image upload. The derived client types this as
+ * `FormData`.
  */
 export const PdfUpload = HttpApiSchema.Multipart(
-  Schema.Struct({ file: Multipart.SingleFileSchema }),
+  Schema.Struct({
+    file: Multipart.SingleFileSchema,
+    formatId: numFromStr(StatementFormatId),
+  }),
   {
     maxFileSize: Option.some(MAX_PDF_BYTES),
-    maxParts: Option.some(1),
+    maxParts: Option.some(2),
   },
 );
 
 /**
  * Import group, prefix `/import`. The server-side half of PDF import: a single
- * `POST /import/extract-pdf` takes a PDF bank statement and returns candidate
- * transactions with no database write (ADR 0005 — extraction runs server-side).
- * The endpoint is **account-agnostic**: it takes only the file; the account,
- * import batch, and month are stamped client-side at commit.
+ * `POST /import/extract-pdf` takes a PDF bank statement **and the Statement
+ * Format to read it with**, and returns candidate transactions with no database
+ * write (ADR 0005 — extraction runs server-side).
+ *
+ * The endpoint is **no longer account-agnostic**, and that is a deliberate
+ * reversal of what ADR 0005 decided rather than drift: a format belongs to one
+ * account, so naming one names the account too. It is what lets the prompt say
+ * which columns the statement carries instead of asking the model to work them
+ * out (ADR 0014). What has *not* changed is the answer: still candidates keyed
+ * to nothing, with the account, batch and month stamped client-side at commit.
  *
  * `extractPdf` declares {@link InvalidFileType} (non-PDF / oversize upload),
+ * {@link NotFound} (no PDF format under that id — issue #185),
  * {@link ExtractionFailed} (the single client-visible collapse of the whole
  * extraction failure taxonomy) and {@link AiProviderNotConfigured} (issue #122 —
  * the one extraction failure the client can act on, held out of the collapse
@@ -104,6 +126,7 @@ export class ImportGroup extends HttpApiGroup.make("import")
       .setPayload(PdfUpload)
       .addSuccess(ExtractPdfResult)
       .addError(InvalidFileType)
+      .addError(NotFound)
       .addError(ExtractionFailed)
       .addError(AiProviderNotConfigured),
   )

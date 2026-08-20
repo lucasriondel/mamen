@@ -339,9 +339,14 @@ repeated per package.
   in a **transient temp dir** deleted on every exit path — nothing persists, no
   row is written.
   The whole extraction failure taxonomy collapses to a single client-visible
-  **`ExtractionFailed`** (real tag logged server-side); `InvalidFileType` and
-  **`AiProviderNotConfigured`** are the two other, client-fixable, errors. See
-  [ADR 0005](./docs/adr/0005-pdf-extraction-runs-server-side.md).
+  **`ExtractionFailed`** (real tag logged server-side); `InvalidFileType`,
+  `NotFound` and **`AiProviderNotConfigured`** are the three other,
+  client-fixable, errors. Since issue #185 the endpoint takes the **Statement
+  Format** to read the statement with, so it is **no longer account-agnostic** —
+  a format belongs to one account, and its declared columns are what the model is
+  told the statement carries. See
+  [ADR 0005](./docs/adr/0005-pdf-extraction-runs-server-side.md) and
+  [ADR 0014](./docs/adr/0014-pdf-extraction-is-account-aware-through-its-format.md).
 
 - **Provider not configured** — `AiProviderNotConfigured` (501), the one
   extraction failure held **out of** the collapse into `ExtractionFailed`: the
