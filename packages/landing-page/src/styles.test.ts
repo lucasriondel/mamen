@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { SHIPPED_SCREENSHOTS } from "./content/screenshots.gen";
 import { renderPage } from "./page";
 
 /**
@@ -33,6 +34,17 @@ const css = read("src/styles.css");
 const appTokens = read("../web/src/styles/gousse/tokens.css");
 const appTint = read("../web/src/index.css");
 
+/** Where the block opened at `at` ends: the index just past its `}`, braces
+ *  matched, so a nested rule — a media query's contents — is stepped over. */
+function endOfBlock(source: string, at: number): number {
+  let depth = 0;
+  for (let i = source.indexOf("{", at); i < source.length; i++) {
+    if (source[i] === "{") depth++;
+    else if (source[i] === "}" && --depth === 0) return i + 1;
+  }
+  throw new Error(`unterminated block at ${at}`);
+}
+
 /** The body of the first block opened by `selector`, braces matched. The
  *  selector is matched at the start of a line, so `a` finds the bare anchor
  *  rule rather than the `a {` inside `.cta {`. */
@@ -40,14 +52,24 @@ function block(source: string, selector: string): string {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const at = source.search(new RegExp(`^\\s*${escaped}\\s*\\{`, "m"));
   if (at < 0) throw new Error(`no \`${selector}\` block`);
-  const start = source.indexOf("{", at);
-  let depth = 0;
-  for (let i = start; i < source.length; i++) {
-    if (source[i] === "{") depth++;
-    else if (source[i] === "}" && --depth === 0) return source.slice(start + 1, i);
-  }
-  throw new Error(`unterminated \`${selector}\` block`);
+  return source.slice(source.indexOf("{", at) + 1, endOfBlock(source, at) - 1);
 }
+
+/**
+ * The sheet as a narrow viewport reads it: every `min-width` media block cut
+ * out, the rest left where it is.
+ *
+ * A phone applies the base rules and none of the widening ones, so this is the
+ * stylesheet whose every declaration has to survive 320 px of screen.
+ */
+const narrow = (() => {
+  let source = css;
+  for (;;) {
+    const at = source.search(/@media\s*\(min-width:/);
+    if (at < 0) return source;
+    source = source.slice(0, at) + source.slice(endOfBlock(source, at));
+  }
+})();
 
 /** Every custom property a block declares, `--name` → its value. */
 const vars = (body: string): Record<string, string> =>
@@ -240,5 +262,50 @@ describe("the landing page's stylesheet", () => {
     // comment is the opposite — it is what makes the copy traceable.
     expect(css).not.toMatch(/@import|@tailwind|@apply|@plugin|@theme/);
     expect(css.replace(/\/\*[\s\S]*?\*\//g, "")).not.toMatch(/gousse|tailwind|@mamen/i);
+  });
+});
+
+describe("the screenshots the page shows", () => {
+  it("scales every frame down into the column it is read in", () => {
+    // The frames are 2880 px wide — four times the reading column and wider
+    // than any phone. At their intrinsic size they would decide the page's
+    // width, and every line of prose on it would scroll sideways. The
+    // `width`/`height` attributes stay on the tag (`page.test.ts`), so the
+    // height has to be released here or a scaled frame is squashed.
+    const rule = block(css, ".screenshots img");
+
+    expect(rule).toMatch(/max-width:\s*100%/);
+    expect(rule).toMatch(/height:\s*auto/);
+  });
+
+  it("has pixels to spare at the widest size it shows them", () => {
+    // Sharpness is a ratio, not a file size: the frames are captured at a
+    // device scale factor of 2 so that a retina screen has two image pixels
+    // for every CSS pixel it paints. Widening the figures spends that ratio —
+    // this is the assertion that ties the two numbers together, so a section
+    // widened past what the capture can cover fails here rather than shipping
+    // a soft screenshot nobody notices in review.
+    const widest = Number(block(css, ".screenshots").match(/width:\s*([\d.]+)rem/)?.[1]) * 16;
+    expect(widest).toBeGreaterThan(0);
+
+    for (const shot of SHIPPED_SCREENSHOTS) {
+      expect(shot.width / widest, shot.name).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it("steps outside that column only where there is room to", () => {
+    // A screenshot of a 1440-px app is legible in a 42rem column and better
+    // in a wider one, so the figures widen past the prose on a screen that
+    // can hold it. What makes that safe is where the rule lives: a negative
+    // margin outside a `min-width` query pulls the image under the body's
+    // padding — off the side of a phone — and takes the horizontal scrollbar
+    // with it. So the assertion is on the sheet a narrow viewport sees.
+    expect(css).toMatch(/@media\s*\(min-width:/);
+    expect(narrow).not.toMatch(/margin[\w-]*:\s*-/);
+
+    // Nothing in the narrow sheet may be given a width the viewport might not
+    // have. `100%`, `auto` and the `max-width`s above are the whole vocabulary.
+    const widths = [...narrow.matchAll(/^\s*width:\s*([^;]+);/gm)].map((m) => m[1] as string);
+    for (const width of widths) expect(width.trim()).toMatch(/^(?:100%|auto)$/);
   });
 });

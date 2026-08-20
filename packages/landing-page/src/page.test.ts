@@ -1,9 +1,10 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { APP_BASE_PATH, APP_BASE_PATH_SLASH } from "@mamen/shared/app-base-path";
 import { describe, expect, it } from "vitest";
-import { CONTRIBUTING, INSTALL } from "./content";
+import { CONTRIBUTING, INSTALL, SCREENSHOTS, screenshotFigures } from "./content";
 import { renderPage } from "./page";
+import { SHIPPED_DIR, SHIPPED_URL_PREFIX } from "./screenshots/manifest";
 
 /**
  * The landing page is the public root of the deployed site (issue #113): the
@@ -30,6 +31,26 @@ const source = (path: string) =>
 
 /** Every `href="…"` the page carries, in order. */
 const hrefs = [...html.matchAll(/href="([^"]*)"/g)].map((m) => m[1] as string);
+
+/**
+ * One attribute of one tag.
+ *
+ * Matched case-insensitively because React writes the name it was given —
+ * `srcSet`, `charSet` — and HTML parses attribute names case-insensitively, so
+ * the browser reads `srcset` either way. Asserting on the casing would be a
+ * test of React's spelling rather than of the page.
+ */
+const attr = (tag: string, name: string) =>
+  tag.match(new RegExp(`\\s${name}="([^"]*)"`, "i"))?.[1] as string | undefined;
+
+/** Every `<picture>` the page renders, as its dark `<source>` and its `<img>`. */
+const pictures = [...html.matchAll(/<picture>([\s\S]*?)<\/picture>/g)].map((match) => {
+  const block = match[1] as string;
+  return {
+    source: block.match(/<source\b[^>]*>/)?.[0] ?? "",
+    img: block.match(/<img\b[^>]*>/)?.[0] ?? "",
+  };
+});
 
 describe("the landing page", () => {
   it("carries the content React rendered, not an empty shell", () => {
@@ -123,5 +144,60 @@ describe("the landing page", () => {
     // instead would inline CSS into a document nginx serves `no-store`, so a
     // repeat visitor would download it again on every page load.
     expect(hrefs).toContain("/src/styles.css");
+  });
+});
+
+describe("the screenshots the page shows", () => {
+  it("shows every surface, swapping frames on the reader's colour scheme", () => {
+    // The page's half of issue #149: a visitor sees what the app looks like
+    // without running it, in the scheme they are already reading in. The
+    // swap is `<picture>` and a media query rather than a script, which is
+    // the only mechanism a page shipping no JavaScript has.
+    expect(pictures).toHaveLength(SCREENSHOTS.shots.length);
+    expect(pictures.length).toBeGreaterThan(1);
+
+    for (const [index, figure] of screenshotFigures().entries()) {
+      const picture = pictures[index] as (typeof pictures)[number];
+
+      expect(attr(picture.source, "media"), figure.name).toBe("(prefers-color-scheme: dark)");
+      expect(attr(picture.source, "srcset"), figure.name).toBe(figure.dark.src);
+      expect(attr(picture.img, "src"), figure.name).toBe(figure.light.src);
+      // The description a reader who cannot see the image gets — the same
+      // one the README carries, held equal in `screenshots/sync.test.ts`.
+      expect(attr(picture.img, "alt"), figure.name).toBe(figure.alt);
+    }
+  });
+
+  it("reserves the space each image takes before it loads", () => {
+    // The intrinsic size, from the generated module: without it the caption
+    // and everything below it sit under a zero-height box and jump down when
+    // the image arrives, which is the worst thing a heavy image does to a
+    // page. The CSS scales it back down (`styles.test.ts`).
+    for (const [index, figure] of screenshotFigures().entries()) {
+      const { img } = pictures[index] as (typeof pictures)[number];
+
+      expect(attr(img, "width"), figure.name).toBe(String(figure.width));
+      expect(attr(img, "height"), figure.name).toBe(String(figure.height));
+    }
+  });
+
+  it("loads them from the copies the container serves, not from the repository", () => {
+    // The deployed page is a different origin from the repository host and is
+    // built from a context that excludes `docs/` (`.dockerignore`), so a URL
+    // pointing at the README's own files is a broken image on the live site.
+    // Every frame is a file `public/` carries, which Vite copies into `dist`
+    // verbatim.
+    const frames = pictures.flatMap((picture) => [
+      attr(picture.source, "srcset") ?? "",
+      attr(picture.img, "src") ?? "",
+    ]);
+    expect(frames).toHaveLength(pictures.length * 2);
+
+    for (const frame of frames) {
+      expect(frame.startsWith(`${SHIPPED_URL_PREFIX}/`), frame).toBe(true);
+      expect(existsSync(`${SHIPPED_DIR}${frame.slice(SHIPPED_URL_PREFIX.length + 1)}`), frame).toBe(
+        true,
+      );
+    }
   });
 });
