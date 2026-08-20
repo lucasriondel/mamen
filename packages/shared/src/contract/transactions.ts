@@ -138,6 +138,28 @@ export class Transaction extends Schema.Class<Transaction>("Transaction")({
    * not carried here as a filter.
    */
   notes: Schema.optional(Schema.String.pipe(Schema.maxLength(NOTES_MAX_LENGTH))),
+  /**
+   * **Raw source** (issue #176, ADR 0012) — the original bank row exactly as the
+   * provider delivered it, an object of the row's own column names to their
+   * string values. Kept so a column mamen ignores today can be read tomorrow as
+   * a display change, **without re-importing**: which column turns out to matter
+   * is precisely what an importer cannot know in advance.
+   *
+   * Every key is kept, including the ones already mapped to real fields (`Date`,
+   * `Montant`, `Intitulé`) — mapped-ness is decided when a row is *rendered*, not
+   * when it is imported. Keys stay in the provider's own words, untranslated: a
+   * French header is correct provenance, and renaming would reintroduce the
+   * import-time guessing the archive exists to avoid.
+   *
+   * An **archive, not a second source of truth**: nothing derives from it, no
+   * matcher queries it and no total counts it. Optional, and absent is the
+   * ordinary resting state — rows imported before this existed carry none
+   * (there is no backfill), and a PDF-extracted row has no original row to keep.
+   *
+   * Untyped by construction, which is the point: the shape is the bank's, so the
+   * contract only promises string keys to string values.
+   */
+  rawSource: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.String })),
   importedAt: Schema.Date,
   importMonth: Schema.String, // "YYYY-MM"
   importBatchId: Schema.optional(Schema.String),
@@ -174,6 +196,10 @@ export const TransactionCreate = Schema.Struct({
   excludedFromRecap: Transaction.fields.excludedFromRecap,
   manualExcluded: Transaction.fields.manualExcluded,
   notes: Transaction.fields.notes,
+  // The archive rides the create payload because the CSV import is client-side
+  // (web ADR 0001): the parser runs in the browser, so the only way the bank's
+  // row reaches the database is on the ordinary bulk create.
+  rawSource: Transaction.fields.rawSource,
   importedAt: Transaction.fields.importedAt,
   importMonth: Transaction.fields.importMonth,
   importBatchId: Transaction.fields.importBatchId,

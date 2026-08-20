@@ -17,10 +17,16 @@ const COMPLETE = "COMPLETE";
  * Column mapping (PRD): `Date` (ISO) → `date`; `Montant` + `Direction` → signed
  * `amount` (DEBIT negative, CREDIT positive); `Intitulé` → `rawIssuerString`;
  * `importMonth` derived per-row from the date. Rows are filtered to `Statut` ===
- * `COMPLETE`. `Arrondi` (round-up) is parsed by the bank but ignored here; the
- * bank's `Catégorie` and `N° transaction` are dropped (the contract has no
- * external-id field). A statement spanning a month boundary therefore splits
- * naturally, since each row derives its own `importMonth`.
+ * `COMPLETE`. `Arrondi` (round-up) is parsed by the bank but ignored here. A
+ * statement spanning a month boundary therefore splits naturally, since each row
+ * derives its own `importMonth`.
+ *
+ * Nothing is dropped any more (issue #176): the whole row is archived verbatim
+ * as **raw source**, so the columns no field maps — `Catégorie`, `Référence`,
+ * `Moyen de paiement`, `N° transaction`, and the `IBAN du tiers` that turned out
+ * to matter — survive the import and can be read later without re-importing.
+ * The mapping above is now about which columns are *promoted*, not about which
+ * ones are kept.
  */
 export const greenGotParser: StatementParser = {
   id: "green-got",
@@ -42,6 +48,10 @@ export const greenGotParser: StatementParser = {
         date,
         amount,
         rawIssuerString: row.Intitulé,
+        // The whole row, every key, in the bank's own words. A copy rather than
+        // the row itself so a caller reusing its parsed rows cannot see one of
+        // them mutated through a record it handed us.
+        rawSource: { ...row },
         importMonth: importMonthKey(date),
         importBatchId: ctx.importBatchId,
       });

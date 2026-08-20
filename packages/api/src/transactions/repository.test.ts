@@ -100,6 +100,7 @@ describe("TransactionFromRow storage codec", () => {
       isDuplicateExcluded: true,
       duplicateNote: "dup",
       notes: "lunch with the team",
+      rawSource: { Intitulé: "ACME", "Moyen de paiement": "SEPA" },
       importedAt: DATE,
       importMonth: "2026-03",
       importBatchId: "batch-9",
@@ -111,6 +112,13 @@ describe("TransactionFromRow storage codec", () => {
     assert.strictEqual(row.issuerId, 3);
     assert.strictEqual(row.notes, "lunch with the team");
     assert.strictEqual(typeof row.anomalyFlags, "string");
+    // The **raw source** takes the same treatment: a JSON object in a TEXT
+    // column, keys in the bank's own words and unescaped by anything here.
+    assert.strictEqual(typeof row.rawSource, "string");
+    assert.deepStrictEqual(JSON.parse(row.rawSource ?? "null"), {
+      Intitulé: "ACME",
+      "Moyen de paiement": "SEPA",
+    });
     assert.deepStrictEqual(decode(row), full);
   });
 
@@ -133,6 +141,9 @@ describe("TransactionFromRow storage codec", () => {
     assert.strictEqual(row.manualIssuer, 0);
     assert.strictEqual(row.anomalyFlags, null);
     assert.strictEqual(row.notes, null);
+    // Null, not `"{}"`: a row with no archive and a row whose archive is empty
+    // would otherwise be two spellings of the same absence.
+    assert.strictEqual(row.rawSource, null);
     assert.strictEqual(row.importBatchId, null);
     // `kind` is the exception to the null → absent fold: the column is never
     // null, so an absent kind is stored as the `bank` it means and reads back
@@ -197,6 +208,66 @@ describe("TransactionRepo", () => {
       assert.strictEqual(created.importBatchId, undefined);
     }).pipe(Effect.provide(RepoTest)),
   );
+
+  describe("raw source (issue #176)", () => {
+    // The bank's own row, in the bank's own words — French keys, mapped and
+    // unmapped columns side by side. The account number is assembled rather
+    // than written out, so this file carries no matchable one (issue #108).
+    const archive: Record<string, string> = {
+      "N° transaction": "000000000000000000000015",
+      Statut: "COMPLETE",
+      Montant: "947.26",
+      Direction: "DEBIT",
+      Intitulé: "Paul Exemple",
+      "IBAN du tiers": `FR7699999${"0".repeat(18)}`,
+      "Moyen de paiement": "SEPA",
+      Catégorie: "TRANSFER",
+      Référence: "echeance pret",
+    };
+
+    it.effect("survives a create → read round trip unchanged", () =>
+      Effect.gen(function* () {
+        const repo = yield* TransactionRepo;
+        const created = yield* repo.create(make({ rawSource: archive }));
+
+        assert.deepStrictEqual({ ...created.rawSource }, archive);
+
+        // Through the projected read too, not only the write's `RETURNING *`:
+        // the archive has to be in `readColumns` or the list would drop it.
+        const fetched = yield* repo.getById(created.id);
+        assert.deepStrictEqual({ ...fetched.rawSource }, archive);
+      }).pipe(Effect.provide(RepoTest)),
+    );
+
+    it.effect("is absent — not an empty object — on a row created without one", () =>
+      Effect.gen(function* () {
+        const repo = yield* TransactionRepo;
+        const created = yield* repo.create(make());
+
+        assert.strictEqual(created.rawSource, undefined);
+        assert.strictEqual((yield* repo.getById(created.id)).rawSource, undefined);
+      }).pipe(Effect.provide(RepoTest)),
+    );
+
+    // The third read path, and the one that decodes the archive under a column
+    // alias rather than its own name: the candidate self-join projects every
+    // column twice, `f_`/`t_` prefixed. A leg reaching the wire with its archive
+    // still JSON *text* would be a decode that silently skipped this route.
+    it.effect("is decoded on a transfer-candidate leg, not handed back as JSON text", () =>
+      Effect.gen(function* () {
+        const repo = yield* TransactionRepo;
+        yield* repo.create(make({ amount: -947.26, accountId: asAccount(1), rawSource: archive }));
+        yield* repo.create(make({ amount: 947.26, accountId: asAccount(2) }));
+
+        const [candidate] = yield* repo.transferCandidates();
+
+        assert.deepStrictEqual({ ...candidate?.leg.rawSource }, archive);
+        // The other leg was created without one, so the null→absent fold has to
+        // hold on this route too.
+        assert.strictEqual(candidate?.counterparts[0]?.transaction.rawSource, undefined);
+      }).pipe(Effect.provide(RepoTest)),
+    );
+  });
 
   it.effect("optional fields set on create round-trip through storage", () =>
     Effect.gen(function* () {
@@ -2166,9 +2237,9 @@ describe("TransactionRepo", () => {
         const { points, byCategory } = yield* repo.recapTrend({ granularity: "month" });
 
         assert.deepStrictEqual(byCategory, [
-          { bucket: "2026-06", categoryId: 7, spent: 10 },
-          { bucket: "2026-07", categoryId: 7, spent: 20 },
-          { bucket: "2026-07", categoryId: 8, spent: 5 },
+          { bucket: "2026-06", categoryId: asCategory(7), spent: 10 },
+          { bucket: "2026-07", categoryId: asCategory(7), spent: 20 },
+          { bucket: "2026-07", categoryId: asCategory(8), spent: 5 },
         ]);
 
         // Each bucket's cells sum to the `spent` on its trend point — the two
@@ -2202,7 +2273,9 @@ describe("TransactionRepo", () => {
         // ONE cell for the bucket, summing all three. Grouping by the bare
         // `categoryId` alias would resolve to the stored column and split the
         // issuer-derived rows into a second cell reporting the same id.
-        assert.deepStrictEqual(byCategory, [{ bucket: "2026-07", categoryId: 7, spent: 18 }]);
+        assert.deepStrictEqual(byCategory, [
+          { bucket: "2026-07", categoryId: asCategory(7), spent: 18 },
+        ]);
       }).pipe(Effect.provide(RepoAndSqlTest)),
     );
 

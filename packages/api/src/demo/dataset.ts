@@ -870,6 +870,9 @@ export const buildDemoDataset = (): DemoDataset => {
       excludedFromRecap: row.manualExcluded === true ? 1 : 0,
       manualExcluded: row.manualExcluded === true ? 1 : 0,
       notes: row.notes ?? null,
+      // No bank sent these rows, so there is no **raw source** to archive
+      // (issue #176) — the same null a PDF-extracted row carries.
+      rawSource: null,
       importedAt: importedAtFor(month),
       importMonth: month,
       importBatchId: batchOf(row.accountId, month),

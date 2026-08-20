@@ -71,6 +71,49 @@ describe("greenGotParser.parse (shipped fixture)", () => {
   });
 });
 
+describe("greenGotParser.parse keeps the raw source (issue #176)", () => {
+  const records = greenGotParser.parse(rows, ctx);
+
+  it("archives the whole delivered row, verbatim", () => {
+    // Compared against the papaparse row itself rather than a hand-written
+    // literal: "verbatim" is the claim, and restating the row here would only
+    // pin this file's idea of it — and would put the fixture's account numbers
+    // in a second file, which the leak scan (issue #108) forbids.
+    expect(records[0].rawSource).toStrictEqual(rows[0]);
+  });
+
+  it("keeps the mapped columns too — mapped-ness is a rendering decision", () => {
+    const raw = records[0].rawSource ?? {};
+
+    // Every column the parser already reads into a real field is still in the
+    // archive: `Date` → `date`, `Montant`/`Direction` → `amount`, `Intitulé` →
+    // `rawIssuerString`, `Statut` → the skip rule.
+    expect(Object.keys(raw)).toEqual(
+      expect.arrayContaining(["Statut", "Date", "Montant", "Direction", "Intitulé"]),
+    );
+  });
+
+  it("keeps the keys in the bank's own words, untranslated", () => {
+    expect(Object.keys(records[0].rawSource ?? {})).toStrictEqual(headers);
+    expect(records[0].rawSource).toHaveProperty("Moyen de paiement");
+    expect(records[0].rawSource).toHaveProperty("N° transaction");
+  });
+
+  it("archives a copy, so a later edit of the record cannot rewrite the row", () => {
+    const [first] = greenGotParser.parse(rows, ctx);
+
+    expect(first.rawSource).not.toBe(rows[0]);
+  });
+
+  it("carries the columns the parser reads nothing from", () => {
+    // `Référence` is the one this ticket exists for in miniature: nothing maps
+    // it today, and it is readable tomorrow without a re-import.
+    const withReference = records.find((r) => r.rawSource?.Référence === "echeance pret");
+
+    expect(withReference?.amount).toBe(-947.26);
+  });
+});
+
 describe("greenGotParser.parse (synthetic edge cases)", () => {
   const synthetic: Record<string, string>[] = [
     {
@@ -109,5 +152,12 @@ describe("greenGotParser.parse (synthetic edge cases)", () => {
   it("splits a month boundary into the correct per-row months", () => {
     expect(records[0].importMonth).toBe("2026-01");
     expect(records[1].importMonth).toBe("2026-02");
+  });
+
+  it("still parses a file lacking the archived-only columns", () => {
+    // These rows carry the fingerprint columns and nothing else. The archive is
+    // read opportunistically, so it holds exactly what was delivered.
+    expect(greenGotParser.matches(Object.keys(synthetic[0]))).toBe(true);
+    expect(records[0].rawSource).toStrictEqual(synthetic[0]);
   });
 });
