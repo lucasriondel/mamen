@@ -11,7 +11,6 @@ import { Empty } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsIndicator, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs";
 import { RulesSection } from "@/features/rules/rules-section";
-import type { TransactionsSearch } from "@/features/transactions/search";
 import type { TransactionFilterValues } from "@/features/transactions/transactions-filters";
 import {
   composeTransactionFilters,
@@ -24,6 +23,7 @@ import {
   transactionQueries,
 } from "@/lib/sdk";
 import { cn } from "@/lib/utils";
+import type { IssuerDetailSearch } from "./detail-search";
 import { BUTTON_CLASS } from "./field-styles";
 import { IssuerAvatarMenu } from "./issuer-avatar-menu";
 import { IssuerDeleteButton } from "./issuer-delete-button";
@@ -164,15 +164,23 @@ function IssuerDetailContent({ issuer }: IssuerDetailContentProps) {
   const rulesQuery = useQuery(ruleQueries.list({ issuerId: issuer.id }));
   const ruleCount = rulesQuery.data?.items?.length ?? 0;
 
+  // Every updater below is typed against *this route's* search — the shared
+  // transactions params plus the `tab` this page adds — on both sides: `prev`
+  // for what it may read, and the return for what it may write. The shared
+  // `TransactionsSearch` would also compile, being the wider type, but it has
+  // no `tab` field, so the one handler that writes one wrote it unchecked: the
+  // spread carried it at runtime while the annotation said it did not exist
+  // (issue #165). The return annotation is what makes a field outside the type
+  // an error at all — the router's own updater slot accepts extra keys.
   const applyFilters = (patch: TransactionFilterValues) => {
     routeNavigate({
-      search: (prev: TransactionsSearch) => ({ ...prev, ...patch, page: 1 }),
+      search: (prev: IssuerDetailSearch): IssuerDetailSearch => ({ ...prev, ...patch, page: 1 }),
     });
   };
 
   const toggleSort = () => {
     routeNavigate({
-      search: (prev: TransactionsSearch) => ({
+      search: (prev: IssuerDetailSearch): IssuerDetailSearch => ({
         ...prev,
         direction: prev.direction === "asc" ? "desc" : "asc",
         page: 1,
@@ -182,14 +190,18 @@ function IssuerDetailContent({ issuer }: IssuerDetailContentProps) {
 
   const goToPage = (page: number) => {
     routeNavigate({
-      search: (prev: TransactionsSearch) => ({ ...prev, page }),
+      search: (prev: IssuerDetailSearch): IssuerDetailSearch => ({ ...prev, page }),
     });
   };
 
-  /** The default panel stays out of the URL — one view, one spelling. */
+  /**
+   * The default panel stays out of the URL — one view, one spelling. No `page`
+   * reset, unlike the filter and sort handlers above: switching panels is not a
+   * new query, so the transactions table is left where it was paged to.
+   */
   const selectTab = (next: IssuerTab) => {
     routeNavigate({
-      search: (prev: TransactionsSearch) => ({
+      search: (prev: IssuerDetailSearch): IssuerDetailSearch => ({
         ...prev,
         tab: next === DEFAULT_ISSUER_TAB ? undefined : next,
       }),
