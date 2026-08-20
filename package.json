@@ -21,9 +21,10 @@
     "demo:shots": "bun .claude/skills/demo-screenshots/capture.ts",
     "landing:screenshots": "bun packages/landing-page/src/screenshots/sync.ts",
     "landing:reconcile": "bun packages/landing-page/src/reconcile/reconcile.ts",
-    "sandcastle": "bun .sandcastle/main.ts",
-    "sandcastle:implement": "bun .sandcastle/implement/index.ts",
-    "sandcastle:implement-review": "bun .sandcastle/implement-review/index.ts"
+    "sandcastle:implement": "bun .sandcastle/run.ts implement",
+    "sandcastle:implement-once": "bun .sandcastle/run.ts implement --no-relaunch",
+    "sandcastle:implement-review": "bun .sandcastle/run.ts implement-review",
+    "sandcastle:implement-review-once": "bun .sandcastle/run.ts implement-review --no-relaunch"
   },
   "devDependencies": {
     "@ai-hero/sandcastle": "^0.12.0",
