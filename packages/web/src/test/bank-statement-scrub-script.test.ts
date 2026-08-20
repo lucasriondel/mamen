@@ -54,9 +54,14 @@ const SCRIPT_TEXT = readFileSync(`${ROOT}/${SCRIPT}`, "utf8");
 const GUARD = "packages/web/src/test/bank-statement-scrubbed.test.ts";
 const GUARD_TEXT = readFileSync(`${ROOT}/${GUARD}`, "utf8");
 
-/** The fixture that survives the rewrite, and the parser that reads it. */
+/**
+ * The fixture that survives the rewrite, and the **Statement Format** record
+ * that reads it — the hand-written parser module until issue #182 replaced it
+ * with a record. The script derives the fixture's required columns from this
+ * file, so the two have to be named together.
+ */
 const FIXTURE = "packages/web/src/features/import/__fixtures__/green-got-sample.csv";
-const PARSER = "packages/web/src/features/import/parsers/green-got.ts";
+const FORMAT = "packages/web/src/features/import/parsers/formats.ts";
 
 /** A path the rewrite must take out of every commit. */
 const WAL = "packages/server/mamen.db-wal";
@@ -93,8 +98,8 @@ function copyIn(dir: string, path: string) {
 }
 
 /**
- * A repository shaped like a clean clone: the script, the fixture and the
- * parser the script derives the fixture's columns from, and one commit. `build`
+ * A repository shaped like a clean clone: the script, the fixture and the format
+ * record the script derives the fixture's columns from, and one commit. `build`
  * runs before that commit, so a case can add whatever it needs to be wrong
  * about.
  */
@@ -109,7 +114,7 @@ function scratchRepo(build: (dir: string) => void = () => {}): string {
   copyIn(dir, SCRIPT);
   chmodSync(join(dir, SCRIPT), 0o755);
   copyIn(dir, FIXTURE);
-  copyIn(dir, PARSER);
+  copyIn(dir, FORMAT);
 
   build(dir);
 
@@ -156,9 +161,20 @@ describe("the script and the working-tree guard", () => {
     expect(scriptConstant("FIXTURE")).toBe(`packages/web/${inGuard?.[1]}`);
   });
 
-  it("names a parser that exists, so the column check cannot go vacuous", () => {
-    expect(SCRIPT_TEXT).toContain(PARSER);
-    expect(() => readFileSync(`${ROOT}/${PARSER}`)).not.toThrow();
+  it("names a format record that exists, so the column check cannot go vacuous", () => {
+    expect(SCRIPT_TEXT).toContain(FORMAT);
+    expect(() => readFileSync(`${ROOT}/${FORMAT}`)).not.toThrow();
+  });
+
+  it("derives the required columns from an array that file actually declares", () => {
+    // The script reads the fingerprint out of the record by name. A rename on
+    // either side leaves the check reading nothing, which the script itself
+    // reports — but only when someone runs it, and it is run once, by hand,
+    // before a one-way operation.
+    const declaration = SCRIPT_TEXT.match(/\/(\w+) = \\\[\//);
+
+    expect(declaration).not.toBeNull();
+    expect(readFileSync(`${ROOT}/${FORMAT}`, "utf8")).toContain(`${declaration?.[1]} = [`);
   });
 });
 
@@ -273,7 +289,7 @@ describe("--verify's scan for the leaked content", () => {
   });
 });
 
-// ── the fixture survives, and is still the file the parser reads (#133) ──────
+// ── the fixture survives, and is still the file the format reads (#133) ──────
 
 describe("--verify on the surviving fixture", () => {
   it("fails when the rewrite took the fixture path with the blob", () => {
@@ -287,7 +303,7 @@ describe("--verify on the surviving fixture", () => {
     expect(status).toBe(1);
   });
 
-  it("fails when the fixture lost a column the parser requires", () => {
+  it("fails when the fixture lost a column the format requires", () => {
     const dir = scratchRepo((d) => {
       const csv = readFileSync(`${ROOT}/${FIXTURE}`, "utf8").split("\n");
       csv[0] = csv[0].replace('"Direction",', "");
@@ -312,16 +328,16 @@ describe("--verify on the surviving fixture", () => {
     expect(status).toBe(1);
   });
 
-  it("fails loudly when the parser it derives the columns from is gone", () => {
-    // Silence here would be worse than a false alarm: no parser found means
-    // no required columns, and every fixture passes a check of nothing.
+  it("fails loudly when the format record it derives the columns from is gone", () => {
+    // Silence here would be worse than a false alarm: no record found means no
+    // required columns, and every fixture passes a check of nothing.
     const dir = scratchRepo();
-    rmSync(join(dir, PARSER));
-    git(dir, "commit", "-q", "-a", "-m", "move the parser");
+    rmSync(join(dir, FORMAT));
+    git(dir, "commit", "-q", "-a", "-m", "move the format record");
 
     const { status, output } = verify(dir);
 
-    expect(output).toContain("parser");
+    expect(output).toContain("format record");
     expect(status).toBe(1);
   });
 });

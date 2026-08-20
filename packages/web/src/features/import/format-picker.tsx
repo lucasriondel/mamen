@@ -1,5 +1,5 @@
 import { Select } from "@/components/ui/select";
-import { PARSERS } from "./parsers/registry";
+import { FORMATS } from "./parsers/registry";
 import type { WizardAction, WizardState } from "./wizard-reducer";
 
 /**
@@ -25,9 +25,9 @@ export function FormatPicker({
         <option value="" disabled>
           Pick the statement format…
         </option>
-        {PARSERS.map((parser) => (
-          <option key={parser.id} value={parser.id}>
-            {parser.label}
+        {FORMATS.map((format) => (
+          <option key={format.id} value={format.id}>
+            {format.name}
           </option>
         ))}
       </Select>

@@ -6,9 +6,11 @@
 
 ## Context
 
-The Green-Got CSV delivers thirteen columns. The parser maps four of them
-(`green-got.ts:31-50`): `Date`, `Montant` + `Direction` folded into a signed
-`amount`, and `Intitulé` into `rawIssuerString`. `Statut` is read as a filter.
+The Green-Got CSV delivers thirteen columns. The parser maps four of them (then
+`green-got.ts:31-50`; since issue #182 the same mapping is the Green-Got
+**Statement Format** record in `parsers/formats.ts`): `Date`, `Montant` +
+`Direction` folded into a signed `amount`, and `Intitulé` into
+`rawIssuerString`. `Statut` is read as a filter.
 The other eight — `N° transaction`, `Arrondi`, `Devise`, `IBAN du compte`,
 `IBAN du tiers`, `Moyen de paiement`, `Catégorie`, `Référence` — are dropped on
 the floor and are unrecoverable without the original file.

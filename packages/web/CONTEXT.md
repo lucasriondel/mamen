@@ -42,16 +42,49 @@ hand), and a grid handoff carrying no account is dropped rather than seated in
 front of a user who still owes one — the accounts grid always sends both.
 _Avoid_: Gate, lock (the zone is inert, not refusing).
 
+**Statement Format**:
+A record of how to read one bank's export — **data, not code** (PRD #180, issue
+#182). It names the headers that fingerprint the file, which columns become which
+transaction properties, and how the values are written: the sign convention, the
+date order, the decimal separator, and an optional row filter. Green-Got is one
+of these, not a module: a `Direction` column with `DEBIT` meaning a debit, ISO
+dates, dot decimals, and a filter keeping only `Statut` = `COMPLETE`.
+
+Every rule is a **closed union** rather than an expression language, so each case
+is a checked branch in the **Parser** and a fixed choice in the mapping UI that
+will author these — adding a bank is filling one in, not writing a module. The
+mapped target set is closed too (`date`, `amount`, `rawIssuerString`, and
+`counterpartyIban` once it exists); everything else the file carries is **raw
+source**, so mapping decides what is *promoted*, never what is kept.
+
+The date order and the decimal separator are **never auto-detected**: `03/04/2026`
+is unresolvable without knowing the bank, and a guess corrupts data invisibly —
+the row still parses and is simply the wrong day.
+_Avoid_: Adapter, mapper, importer, schema.
+_Code note_: `parsers/format.ts` holds the vocabulary, `parsers/formats.ts` the
+Green-Got record. Literals in code at this stage — they become rows of a
+user-authored, account-scoped table, at which point `FORMATS` becomes a query
+rather than a longer array. The `kind` discriminant is `csv` only for now; the
+PDF half declares expected columns instead of a fingerprint and lands with the
+endpoint that needs it. `scripts/scrub-bank-statements.sh` reads
+`GREEN_GOT_HEADERS` out of `formats.ts` to check the fixture still carries the
+columns the format needs.
+
 **Parser** (Statement Parser):
-A pluggable module that turns one bank's **CSV** row shape into transaction
-records. Declares a header fingerprint (`matches`) for auto-detection and a pure
-`parse(rows, ctx)` that maps raw rows to records, each naming the `sourceIndex`
-it was read from — a parser drops the rows its format won't import, so that join
-is the only way the preview can put a row's **stable row id** on the record it
-produced. The registry runs papaparse once, then hands parsed rows to the
-selected parser. Green-Got is the first
-parser. CSV-only by design — a PDF Statement has no headers and no synchronous
-parse; it goes through **PDF extraction** instead.
+The code that **applies** a **Statement Format** to a **CSV**'s rows — not a
+module that embodies one bank. `applyFormat(format, rows, ctx)` is pure: a
+format, the rows and the context the file cannot supply go in, records come out,
+no I/O and no network (web ADR 0001). Each record names the `sourceIndex` it was
+read from, because the format's row filter drops rows it won't import, and that
+join is the only way the preview can put a row's **stable row id** on the record
+it produced. Detection is a separate pure function over the format records:
+`detectFormat(headers, candidates)` picks the sole format whose header
+fingerprint the file satisfies, and `null` when none or several do — the
+candidates being a parameter is what makes "several matched" reachable while one
+format is registered.
+The wizard runs papaparse once, then applies the selected format. CSV-only by
+design — a PDF Statement has no headers and no synchronous parse; it goes through
+**PDF extraction** instead.
 _Avoid_: Adapter, mapper, importer.
 
 **PDF extraction**:
@@ -206,9 +239,10 @@ _Avoid_: key, index, position, uuid.
 _Code note_: `rowIds` + `nextRowId` on the wizard state, positional with `rows`
 (CSV) or `extracted` (PDF). Branded `RowId`, so the compiler refuses an index
 where an id belongs. On the CSV path they name papaparse's rows, not the
-**Parser**'s records — a parser drops rows it won't import, so the join is the
-parser's to report: `parse` returns a `ParsedRow` per record carrying the
-`sourceIndex` it was read from, and the preview reads the id off that.
+**Parser**'s records — a **Statement Format**'s row filter drops rows it won't
+import, so the join is the **Parser**'s to report: `applyFormat` returns a
+`ParsedRow` per record carrying the `sourceIndex` it was read from, and the
+preview reads the id off that.
 
 **Candidate-table primitives**:
 What the two import previews share instead of a component (issue #193): row
