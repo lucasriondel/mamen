@@ -192,7 +192,16 @@ export type WizardState = {
    * two identical rows a real statement is allowed to carry.
    */
   nextRowId: number;
-  /** The statement's own declared totals, echoed by extraction (reconcile handle). */
+  /**
+   * The statement's own declared totals, echoed by extraction (reconcile handle).
+   *
+   * `null` on the CSV path and before any extraction settles — and also for a PDF
+   * whose statement **printed no totals line** (issue #196). The three are one
+   * state on purpose: each means there is nothing to reconcile the rows against,
+   * and the **reconciliation check** answers "no check" to all of them. Which is
+   * why nothing branches on this field to decide *which step* is up — that is
+   * what `extracted` says.
+   */
   declaredTotals: DeclaredTotals | null;
   /**
    * Wall-clock time the PDF extraction took, in milliseconds — measured
@@ -240,11 +249,17 @@ export type WizardAction =
   | { type: "pdf-awaits-format"; file: File }
   /** A PDF was dropped — extraction has started (spinner until it settles). */
   | { type: "extract-start"; file: File }
-  /** Extraction succeeded — candidate rows (+ declared totals) are in hand. */
+  /**
+   * Extraction succeeded — candidate rows (+ declared totals) are in hand.
+   *
+   * `declaredTotals: null` when the statement printed no totals line (issue
+   * #196): the rows are seated exactly as they would be otherwise, and only the
+   * **reconciliation check** notices.
+   */
   | {
       type: "extract-success";
       transactions: readonly ExtractedTransaction[];
-      declaredTotals: DeclaredTotals;
+      declaredTotals: DeclaredTotals | null;
       /** Wall-clock extraction time in ms, measured around the round-trip. */
       extractionMs: number;
     }

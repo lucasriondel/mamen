@@ -607,6 +607,74 @@ describe("import endpoints", () => {
     );
   });
 
+  /**
+   * Issue #196 (PRD #190) — **declared totals are optional**, because not every
+   * statement prints them. A Trade Republic statement carries no
+   * `TOTAL DES OPÉRATIONS` line; the model says so with `null` and the endpoint
+   * answers with the field absent, so the client's **reconciliation check** skips
+   * rather than reconciling the rows against an assumed zero.
+   */
+  describe("the declared totals", () => {
+    /** The same statement, its totals line reported as the model saw it. */
+    const totalling =
+      (declaredTotals: unknown): SpawnHandler =>
+      () =>
+        Effect.succeed({
+          stdout: okEnvelope({ ...CCF_OBJECT, declaredTotals }),
+          stderr: "",
+          exitCode: 0,
+        });
+
+    // Absent, not zeroed: a zero pair is what a statement with no debits
+    // *declares*, and the client is entitled to reconcile against it.
+    it.effect("is absent when the statement printed no totals line", () =>
+      Effect.gen(function* () {
+        const client = yield* HttpApiClient.make(Api);
+        const result = yield* client.import.extractPdf({ payload: yield* pdfUpload() });
+
+        assert.notProperty(result, "declaredTotals");
+        // The rows are untouched — nothing about the statement's arithmetic
+        // changes what the model read off it.
+        assert.strictEqual(result.transactions.length, 6);
+      }).pipe(Effect.provide(httpLiveWith(totalling(null)))),
+    );
+
+    it.effect("keeps a declared zero, which is a total the statement printed", () =>
+      Effect.gen(function* () {
+        const client = yield* HttpApiClient.make(Api);
+        const result = yield* client.import.extractPdf({ payload: yield* pdfUpload() });
+
+        assert.deepStrictEqual(result.declaredTotals, { debit: 0, credit: 0 });
+      }).pipe(Effect.provide(httpLiveWith(totalling({ debit: 0, credit: 0 })))),
+    );
+
+    // Required of the model, like the row archive and the missing columns: a
+    // silence is not an answer to "does this statement print totals?".
+    it.effect("fails the run when the model says nothing about them", () =>
+      Effect.gen(function* () {
+        const client = yield* HttpApiClient.make(Api);
+        const error = yield* client.import
+          .extractPdf({ payload: yield* pdfUpload() })
+          .pipe(Effect.flip);
+
+        assert.ok(error instanceof ExtractionFailed);
+      }).pipe(
+        Effect.provide(
+          httpLiveWith(() =>
+            Effect.succeed({
+              stdout: okEnvelope({
+                transactions: CCF_OBJECT.transactions,
+                missingColumns: [],
+              }),
+              stderr: "",
+              exitCode: 0,
+            }),
+          ),
+        ),
+      ),
+    );
+  });
+
   // The columns are the account's stored answer, so a format id that names no
   // row is a 404 and not an extraction run on a guessed layout. The statement is
   // never sent anywhere: the lookup fails before a provider is reached.

@@ -16,7 +16,7 @@ import { CommitBar } from "./commit-bar";
 import { formatExtractionTime } from "./format-extraction-time";
 import { keptPositions } from "./kept-rows";
 import type { ParsedTransaction } from "./parsers/types";
-import { reconcile } from "./reconcile";
+import { type Reconciliation, reconcile } from "./reconcile";
 import { useDuplicateFlags } from "./use-duplicate-flags";
 import type { RowId, WizardAction } from "./wizard-reducer";
 
@@ -75,7 +75,8 @@ export function PdfValidationStep({
   /** The row ids the user held out of the commit. */
   skippedRows: readonly RowId[];
   extracted: readonly ExtractedTransaction[];
-  declaredTotals: DeclaredTotals;
+  /** `null` when the statement printed no totals line — no check runs (#196). */
+  declaredTotals: DeclaredTotals | null;
   file: File;
   /** Wall-clock extraction time in ms; `null` when it was not measured. */
   extractionMs: number | null;
@@ -83,7 +84,9 @@ export function PdfValidationStep({
   dispatch: (action: WizardAction) => void;
 }) {
   const skipped = useMemo(() => new Set(skippedRows), [skippedRows]);
-  // Over every extracted row, skips included — see the note above.
+  // Over every extracted row, skips included — see the note above. `null` back
+  // means no check ran at all (the statement printed no totals), which is not a
+  // mismatch and shows nothing.
   const recon = reconcile(records, declaredTotals);
   // Flagged over all rows (the flags are positional with the table) but counted
   // over the kept ones: the bar's line is about what this commit will write.
@@ -96,7 +99,7 @@ export function PdfValidationStep({
 
   return (
     <div className="flex flex-col gap-6">
-      {recon.ok ? null : <ReconciliationBanner recon={recon} />}
+      {recon === null || recon.ok ? null : <ReconciliationBanner recon={recon} />}
 
       <ExtractionSummary count={extracted.length} extractionMs={extractionMs} />
 
@@ -369,8 +372,11 @@ function AmountInput({
  * The soft reconciliation warning: shown only when the extracted rows don't sum
  * to the declared totals. It points at where to look (a probable dropped row or
  * a summary line read as an operation) but never blocks commit.
+ *
+ * A statement that declared no totals never gets here — `reconcile` answers
+ * `null` and there is nothing to show (issue #196).
  */
-function ReconciliationBanner({ recon }: { recon: ReturnType<typeof reconcile> }) {
+function ReconciliationBanner({ recon }: { recon: Reconciliation }) {
   return (
     <div
       role="alert"

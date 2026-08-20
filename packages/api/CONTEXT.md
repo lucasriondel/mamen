@@ -301,6 +301,12 @@ them. Required, not defaulted: a silence folded into "everything matched" is the
 silent wrongness the verdict exists to end. Its rows are `ExtractedRow`, the
 model's own row, which differs from the endpoint's by requiring `rawSource`
 (issue #189) for the same reason.
+Its `declaredTotals` is **required and nullable** (issue #196): not every
+statement prints a `TOTAL DES OPÉRATIONS` line, and the model must say which case
+it saw rather than stay silent about it. `import/extract.ts` folds the `null` to
+an absent field on `ExtractPdfResult`, so the client's reconciliation check skips
+instead of comparing the rows to an assumed zero — a zero pair stays a real
+declared total, since a statement can print one.
 
 **A PDF row's raw source**:
 `ExtractedTransaction.rawSource` — each operation's own cells, keyed by the

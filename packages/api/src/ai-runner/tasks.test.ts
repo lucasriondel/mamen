@@ -157,6 +157,32 @@ describe("the format's declared columns", () => {
 });
 
 /**
+ * Issue #196 — the totals rule stops assuming there is a totals line. A Trade
+ * Republic statement prints none, and a model asked for a figure that is not on
+ * the page either invents one or reports zero; both read downstream as a
+ * statement whose rows do not add up.
+ *
+ * In the shared rules, like every other reading rule: a hosted vendor and the
+ * local CLI are being asked to read the same statement, and one column allowed
+ * to make totals up is the drift the two-column table exists to prevent.
+ */
+describe("a statement that prints no totals", () => {
+  it("is told to answer with no totals rather than invent them", () => {
+    const rules = rulesOf(extract.hostedPrompt(INPUT).text);
+
+    assert.include(rules, "no such line");
+    assert.include(rules, "`declaredTotals` to null");
+    // The two ways a model fills a field it cannot read, both refused: summing
+    // the operations (which would make the reconciliation check compare mamen's
+    // arithmetic to itself and always agree) and reporting zeroes (which would
+    // make it disagree with every row on the statement).
+    assert.include(rules, "Never add up the operations yourself");
+    assert.include(rules, "never report totals of 0");
+    assert.strictEqual(rules, rulesOf(extract.cliPrompt(INPUT)));
+  });
+});
+
+/**
  * Issue #188 — the model reports whether the statement it read actually carries
  * the columns the chosen format declares. The columns reaching the prompt (#185)
  * are what make the question askable at all: until they did, there was nothing
@@ -323,6 +349,38 @@ describe("the output contract", () => {
 
       const [first] = issues as ReadonlyArray<{ readonly path: ReadonlyArray<PropertyKey> }>;
       assert.deepStrictEqual([...first.path], ["transactions", 0, "rawSource"]);
+    }),
+  );
+
+  /**
+   * Issue #196 — not every statement prints a `TOTAL DES OPÉRATIONS` line, and
+   * until this the model was asked for two figures that were not on the page.
+   * `null` is the answer for "there is no totals line", and it is a *required*
+   * null for the same reason `missingColumns` is required: a silence would be
+   * folded into an answer nobody gave. The endpoint turns it into an absent
+   * field, and the client's reconciliation check skips rather than reconciling
+   * against an assumed zero.
+   */
+  it.effect("takes null totals from a statement that prints none", () =>
+    Effect.gen(function* () {
+      const decoded = yield* extract.output.decode({
+        transactions: [],
+        declaredTotals: null,
+        missingColumns: [],
+      });
+
+      assert.strictEqual(decoded.declaredTotals, null);
+    }),
+  );
+
+  it.effect("refuses an answer that says nothing about the totals at all", () =>
+    Effect.gen(function* () {
+      const issues = yield* Effect.flip(
+        extract.output.decode({ transactions: [], missingColumns: [] }),
+      );
+
+      const [first] = issues as ReadonlyArray<{ readonly path: ReadonlyArray<PropertyKey> }>;
+      assert.deepStrictEqual([...first.path], ["declaredTotals"]);
     }),
   );
 

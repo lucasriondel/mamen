@@ -83,7 +83,19 @@ export class ExtractedRow extends Schema.Class<ExtractedRow>("ExtractedRow")({
  */
 export class ExtractionOutput extends Schema.Class<ExtractionOutput>("ExtractionOutput")({
   transactions: Schema.Array(ExtractedRow),
-  declaredTotals: DeclaredTotals,
+  /**
+   * The statement's own totals line, or **`null` — this statement prints none**
+   * (issue #196).
+   *
+   * Required, and nullable rather than optional, for the reason `missingColumns`
+   * is required: the model must *say* which of the two it saw. An omitted field
+   * would be a silence, and the only ways to fold a silence are into totals
+   * nobody printed or into "no totals line" on a statement that has one — both
+   * silently wrong in the direction the client's reconciliation check reports on.
+   * A `null` is an observation; the endpoint folds it to an absent field
+   * (`import/extract.ts`), the same division of labour as the row archive.
+   */
+  declaredTotals: Schema.NullOr(DeclaredTotals),
   missingColumns: Schema.Array(Schema.String),
 }) {}
 

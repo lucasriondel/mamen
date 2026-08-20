@@ -68,6 +68,12 @@ export class ExtractedTransaction extends Schema.Class<ExtractedTransaction>(
  * client can later reconcile the extracted rows against what the bank declared.
  * Both are positive magnitudes (debit = sum of outflows, credit = sum of
  * inflows), exactly as printed — never a signed net.
+ *
+ * A statement that prints no totals line has none of this: see
+ * {@link ExtractPdfResult.declaredTotals}, which is optional for exactly that
+ * reason (issue #196). Zeroes are not the answer — `{ debit: 0, credit: 0 }` is
+ * what a statement with no debits and no credits *declares*, and the client's
+ * **reconciliation check** is entitled to read it as one.
  */
 export class DeclaredTotals extends Schema.Class<DeclaredTotals>("DeclaredTotals")({
   debit: Schema.Number,
@@ -117,7 +123,25 @@ export class FormatVerdict extends Schema.Class<FormatVerdict>("FormatVerdict")(
  */
 export class ExtractPdfResult extends Schema.Class<ExtractPdfResult>("ExtractPdfResult")({
   transactions: Schema.Array(ExtractedTransaction),
-  declaredTotals: DeclaredTotals,
+  /**
+   * The statement's own totals line — **optional, and absent means the statement
+   * printed none** (issue #196, PRD #190).
+   *
+   * Not every bank prints one: a Trade Republic statement carries no
+   * `TOTAL DES OPÉRATIONS`, and until this field could be absent the model was
+   * asked for a figure that was not on the page. The client's **reconciliation
+   * check** skips entirely when it is absent rather than reconciling against an
+   * assumed zero, which would warn about every correctly-read statement of such a
+   * bank — a warning that fires on correct behaviour is one the user learns to
+   * ignore.
+   *
+   * Absent rather than zeroed, because zero is a real declared total: a statement
+   * with no debits prints `0` and rows summing to anything else is a genuine
+   * mismatch. The model reports the observation (`null` — no totals line) and the
+   * endpoint folds it to absence (`import/extract.ts`), the same division of
+   * labour as the **format verdict** and the row archive.
+   */
+  declaredTotals: Schema.optional(DeclaredTotals),
   verdict: FormatVerdict,
 }) {}
 

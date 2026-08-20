@@ -8718,7 +8718,6 @@
         "type": "object",
         "required": [
           "transactions",
-          "declaredTotals",
           "verdict"
         ],
         "properties": {

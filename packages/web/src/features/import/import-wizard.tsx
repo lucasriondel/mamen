@@ -216,8 +216,11 @@ export function ImportWizard({
     state.accountId !== null &&
     state.source === "pdf" &&
     state.file !== null &&
-    state.extracted !== null &&
-    state.declaredTotals !== null
+    // What seats the validation view is *rows*, and nothing else. The declared
+    // totals used to be part of this test, which quietly made a statement that
+    // prints no totals line unreviewable (issue #196) — they are an input to the
+    // reconciliation check, not evidence that an extraction happened.
+    state.extracted !== null
   ) {
     // PDF path: the side-by-side validation view (PDF beside editable rows).
     wide = true;

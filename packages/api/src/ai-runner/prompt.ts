@@ -169,6 +169,10 @@ DECLARED TOTALS
   printed figures as \`declaredTotals\`: \`debit\` = the total debit figure, \`credit\` = the
   total credit figure. Both are POSITIVE magnitudes exactly as printed (parse French
   numbers the same way). This is the bank's own total, not a sum you compute.
+- Not every statement prints one. If there is no such line, set \`declaredTotals\` to null.
+  Never add up the operations yourself to fill it in, and never report totals of 0 for a
+  statement that simply does not declare any — both would be your arithmetic presented as
+  the bank's.
 
 ${ROW_ARCHIVE}
 ${FORMAT_MATCH}

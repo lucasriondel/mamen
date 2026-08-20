@@ -220,6 +220,13 @@ The debit and credit totals the statement itself prints on its summary line
 (CCF's `TOTAL DES OPÉRATIONS DU RELEVÉ`), returned alongside the **extracted
 transactions**. Not transactions — the statement's own arithmetic, extracted so
 the client can run a **reconciliation check**.
+
+**Not every statement prints them** (issue #196). A Trade Republic statement has
+no totals line at all, so extraction answers with none and the field arrives
+absent — never zeroed, because `{ debit: 0, credit: 0 }` is a total a statement
+can genuinely print and the check is entitled to compare against it. `null` on the
+wizard state is how "nothing to reconcile against" is spelled, and it is the same
+`null` a CSV import carries.
 _Avoid_: Sum, balance (balances are a different line).
 
 **Reconciliation check**:
@@ -235,6 +242,11 @@ counts only the kept ones. The two counts answer different questions — did the
 model read the statement correctly, versus what is about to be written — and
 summing kept rows here would fire the banner on every deliberate skip until the
 user learned to ignore it. Counter-intuitive on purpose; not a bug to fix.
+
+A statement that declared no totals gets **no check** — `reconcile` answers
+`null`, and no banner is shown (issue #196). Not a passing check and not a
+mismatch against zero: there was nothing to compare. The rows are still reviewed,
+skipped and committed exactly as any other statement's.
 _Avoid_: Validation (reserve for the whole review step), audit, gate.
 
 **Side-by-side validation**:

@@ -276,7 +276,11 @@ export const extractPdf = (
     // it (issue #189).
     return new ExtractPdfResult({
       transactions: output.transactions.map(rowOf),
-      declaredTotals: output.declaredTotals,
+      // A statement that prints no totals line declares none: the model's `null`
+      // becomes an absent field, never a pair of zeroes (issue #196). Zeroes are
+      // a total a statement can actually print, and the client's reconciliation
+      // check is entitled to read them as one — so the two must not collapse.
+      ...(output.declaredTotals === null ? {} : { declaredTotals: output.declaredTotals }),
       verdict: verdictOf(columns, output.missingColumns),
     });
   }).pipe(Effect.scoped);

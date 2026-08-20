@@ -58,7 +58,10 @@ That keeps extraction a pure function of the file, so the same PDF yields the
 same rows regardless of where they'll land, and it lets the review/commit step
 (issue #45) choose the destination account after the user has eyeballed the
 rows. `declaredTotals` mirrors the statement's printed `TOTAL DES OPÉRATIONS` so
-that commit step can reconcile the extracted rows against what the bank declared.
+that commit step can reconcile the extracted rows against what the bank declared
+— and is **absent when the statement prints no such line** (issue #196), which
+makes the reconciliation check skip rather than compare the rows to an assumed
+zero.
 
 ## Considered options
 

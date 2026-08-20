@@ -332,7 +332,11 @@ repeated per package.
   figures, echoed back beside the extracted rows (`{ debit, credit }`, both
   positive magnitudes exactly as printed). Not a sum the server computes — the
   bank's own total, carried so the review/commit step can reconcile the
-  extracted rows against what the statement declared.
+  extracted rows against what the statement declared. **Optional**: a statement
+  that prints no totals line declares none (a Trade Republic statement prints no
+  `TOTAL DES OPÉRATIONS`), the model answers `null`, the endpoint answers with
+  the field absent, and the **reconciliation check** runs no check at all rather
+  than reconciling against an assumed zero (issue #196).
 
 - **Server-side extraction** — PDF import extracts candidates on the API server,
   not in the browser: the OAuth token stays a server secret and the model reads

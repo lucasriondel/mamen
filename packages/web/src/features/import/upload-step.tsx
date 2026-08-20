@@ -212,7 +212,9 @@ export function UploadStep({
       dispatch({
         type: "extract-success",
         transactions: result.transactions,
-        declaredTotals: result.declaredTotals,
+        // Absent whenever the statement printed no totals line (issue #196);
+        // `null` is how the wizard spells "nothing to reconcile against".
+        declaredTotals: result.declaredTotals ?? null,
         extractionMs: performance.now() - startedAt,
       });
     } catch (error) {

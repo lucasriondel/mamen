@@ -1545,8 +1545,23 @@ describe("ImportWizard", () => {
     // The marked row is held out, so the bar has nothing left to advise about…
     await waitFor(() => expect(screen.queryByText(/looks already imported/)).toBeNull());
     // …while reconciliation still sums both extracted rows against the declared
-    // 30 and stays silent. Summing only the kept row would cry wolf here.
+    // 30 and stays silent. Summing only the kept row would put 20 against 30 and
+    // redden a banner on a statement the model read perfectly.
     expect(screen.queryByText(/Reconciliation mismatch/)).toBeNull();
+
+    // And here the two counts are, differing on purpose (issue #196): two rows
+    // read off the statement, one row written. A change that collapsed them
+    // would have to break one of these two assertions.
+    expect(screen.getByText(/transactions? extracted/).textContent?.replace(/\s+/g, " ")).toMatch(
+      /^2 transactions extracted/,
+    );
+    await user.click(screen.getByRole("button", { name: "Commit import" }));
+    await waitFor(() => expect(bulkCreate).toHaveBeenCalledTimes(1));
+    expect(
+      bulkCreate.mock.calls[0][0].map(
+        (record: { rawIssuerString: string }) => record.rawIssuerString,
+      ),
+    ).toEqual(["SHOP B"]);
   });
 
   /**
@@ -1798,6 +1813,46 @@ describe("ImportWizard", () => {
 
     expect(await screen.findByTitle("PDF statement")).toBeInTheDocument();
     expect(screen.queryByText(/Reconciliation mismatch/)).toBeNull();
+  });
+
+  /**
+   * Issue #196 — not every statement prints a totals line. A Trade Republic
+   * statement has no `TOTAL DES OPÉRATIONS`, so extraction comes back with none
+   * and there is nothing to reconcile against. The rows are still reviewable and
+   * still committable; what must not happen is the check running against an
+   * assumed zero, which would warn about every statement of that bank.
+   */
+  it("reviews and commits a statement that declared no totals, with no banner", async () => {
+    const user = userEvent.setup();
+    // The key is *absent*, not zeroed — that difference is the whole case, and a
+    // fixture cast through `unknown` will not point it out.
+    extractPdf.mockResolvedValue({
+      verdict: MATCHED,
+      transactions: [
+        {
+          date: new Date("2026-01-15T10:00:00.000Z"),
+          amount: -10,
+          rawIssuerString: "SHOP A",
+        },
+        {
+          date: new Date("2026-01-16T10:00:00.000Z"),
+          amount: 2500,
+          rawIssuerString: "SALAIRE",
+        },
+      ],
+    });
+    renderWizard();
+
+    await chooseAccount(user);
+    await dropPdf(user);
+
+    expect(await screen.findByTitle("PDF statement")).toBeInTheDocument();
+    expect(shownRows()).toEqual(["SHOP A", "SALAIRE"]);
+    expect(screen.queryByText(/Reconciliation mismatch/)).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Commit import" }));
+    await waitFor(() => expect(bulkCreate).toHaveBeenCalledTimes(1));
+    expect(bulkCreate.mock.calls[0][0]).toHaveLength(2);
   });
 
   it("surfaces an extraction failure and stays on the upload step", async () => {
