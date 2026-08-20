@@ -7,7 +7,16 @@ import {
   RouterProvider,
 } from "@tanstack/react-router";
 import { renderToStaticMarkup } from "react-dom/server";
-import { ACTIONS, CONTRIBUTING, HERO, INSTALL, prerequisiteLabel, SITE } from "./content";
+import {
+  ACTIONS,
+  CONTRIBUTING,
+  HERO,
+  INSTALL,
+  prerequisiteLabel,
+  SCREENSHOTS,
+  screenshotFigures,
+  SITE,
+} from "./content";
 
 /**
  * The public page served at the site root: React components on a TanStack
@@ -74,6 +83,7 @@ function LandingPage() {
   return (
     <main>
       <Hero />
+      <Screenshots />
       <Install />
       <Contributing />
       <Actions />
@@ -96,6 +106,53 @@ function Hero() {
         ))}
       </ul>
     </header>
+  );
+}
+
+/**
+ * What the app looks like, above the guide to running it (issue #149).
+ *
+ * `<picture>` with one `prefers-color-scheme` source is the whole mechanism:
+ * the browser fetches the frame matching the reader's scheme and never the
+ * other, which is both how the swap happens without a script and why the page
+ * weighs half of what it ships. The README does the same thing with the same
+ * files, which is what `src/screenshots/sync.test.ts` holds the two to.
+ *
+ * The intrinsic `width`/`height` come from the generated module rather than
+ * from a guess: they are what lets the browser reserve the box before the
+ * bytes arrive, so the caption below does not jump when it does. The
+ * stylesheet scales them back into the column.
+ *
+ * `loading="lazy"` because this section is below the hero on every viewport,
+ * and these are by far the heaviest thing on the page — a reader who never
+ * scrolls should not pay for them.
+ */
+function Screenshots() {
+  return (
+    <section className="screenshots">
+      <h2>{SCREENSHOTS.heading}</h2>
+
+      <p className="section-lead">{SCREENSHOTS.lead}</p>
+
+      {screenshotFigures().map((figure) => (
+        <figure key={figure.name}>
+          <picture>
+            <source media="(prefers-color-scheme: dark)" srcSet={figure.dark.src} />
+            <img
+              src={figure.light.src}
+              alt={figure.alt}
+              width={figure.width}
+              height={figure.height}
+              loading="lazy"
+              decoding="async"
+            />
+          </picture>
+          <figcaption>
+            <strong>{figure.title}</strong> {figure.caption}
+          </figcaption>
+        </figure>
+      ))}
+    </section>
   );
 }
 

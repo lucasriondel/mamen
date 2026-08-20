@@ -1,6 +1,6 @@
 import { APP_BASE_PATH_SLASH } from "@mamen/shared/app-base-path";
 import { describe, expect, it } from "vitest";
-import { ACTIONS, CONTRIBUTING, HERO, INSTALL, SITE } from ".";
+import { ACTIONS, CONTRIBUTING, HERO, INSTALL, SCREENSHOTS, SITE } from ".";
 
 /**
  * The rules every sentence in `src/content/` obeys (issue #147).
@@ -15,8 +15,13 @@ import { ACTIONS, CONTRIBUTING, HERO, INSTALL, SITE } from ".";
  * covered the day it is added, without anyone remembering to list it here.
  */
 
-/** Fields that are not prose: identifiers, URLs and the lines a reader types. */
-const NOT_PROSE = new Set(["url", "href", "commands", "variable", "version", "kind"]);
+/**
+ * Fields that are not prose: identifiers, URLs and the lines a reader types.
+ *
+ * `name` is a screenshot's key into the generated module (issue #149) — the
+ * capture's file name for the surface, not a word anybody reads.
+ */
+const NOT_PROSE = new Set(["url", "href", "commands", "variable", "version", "kind", "name"]);
 
 /** Every prose string in the content, wherever it sits in the structure. */
 const proseOf = (value: unknown, key = ""): readonly string[] => {
@@ -28,7 +33,7 @@ const proseOf = (value: unknown, key = ""): readonly string[] => {
   return [];
 };
 
-const PROSE = proseOf({ SITE, HERO, INSTALL, CONTRIBUTING, ACTIONS });
+const PROSE = proseOf({ SITE, HERO, SCREENSHOTS, INSTALL, CONTRIBUTING, ACTIONS });
 
 /** Every line a reader is told to type, across the guide. */
 const COMMANDS = INSTALL.steps.flatMap((step) => step.commands);

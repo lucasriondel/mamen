@@ -4,7 +4,10 @@ The public page served at the **site root** (issue #113). HTML and one
 stylesheet, prerendered by Vite at build time and served by nginx from its own
 image — no runtime, nothing to hydrate. The package is `index.html` (a stub),
 `src/page.tsx` (the page), `src/content/` (its words), `src/prerender.ts` (the
-Vite plugin that puts one into the other) and `src/styles.css`.
+Vite plugin that puts one into the other) and `src/styles.css`. One thing in the
+build is not made from those: `public/screenshots/`, the copies of the README's
+images the page shows (**shipped screenshots**, below), written by a command
+from `src/screenshots/`.
 
 The page is React components on a TanStack router, rendered once in Node
 (**build-time React**, below). It was a hand-written string until issue #148,
@@ -158,6 +161,32 @@ staleness fail a test run. A **command** therefore lives in its step's
 reader copies is compared literally.
 _Avoid_: docs generation (the README is not built from this, nor this from it —
 they are written separately and held equal).
+
+**Shipped screenshots**:
+The four `.webp` frames the page shows — a light and a dark of Transactions and
+of Recap — as **copies** under `public/screenshots/` (issue #149). The originals
+are captured for the README once, into `docs/screenshots/`
+(`.claude/skills/demo-screenshots/SKILL.md`), and the README points straight at
+them; the page cannot, because this image is built from a context that excludes
+`docs/` and is served from a different origin than the repository host. So the
+copies are **generated, never hand-placed**: `bun run landing:screenshots`
+rewrites the directory and writes `src/content/screenshots.gen.ts` — the URLs,
+the intrinsic sizes, the digests — which is the page's only knowledge of the
+images, and `src/screenshots/sync.test.ts` renders that module again from the
+sources and fails on any difference. What the generator cannot write lives beside
+it in `src/content/screenshots.ts`: the heading, a sentence per surface, and the
+alt text, which is the README's word for word and held equal to it — the same
+rule as **README sync**, for the same reason.
+The weight is **capped, not watched** (`src/screenshots/manifest.ts`): 600 kB
+across every frame, 300 kB per scheme, since `<picture>` fetches one of each pair
+and never both. Screenshots are the heaviest thing here by an order of magnitude
+and a denser or more legible screenshot is a *larger* file, so the command
+refuses to write over the ceiling rather than letting the page grow inside an
+image diff. Raising it is a trade to make in a commit that says why.
+_Avoid_: assets (Vite hashes and bundles those; these are copied in verbatim,
+because the URLs in the generated module are the URLs nginx answers), thumbnails
+(they are full-resolution frames — at twice the widest size the page shows them,
+which is what `src/styles.test.ts` holds).
 
 **Honest copy**:
 What the page may claim, which is less than a landing page usually does. mamen

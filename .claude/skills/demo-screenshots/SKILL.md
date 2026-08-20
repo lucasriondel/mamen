@@ -13,6 +13,12 @@ reader's colour scheme:
 | Transactions | `transactions-light.webp` | `transactions-dark.webp` |
 | Recap | `recap-light.webp` | `recap-dark.webp` |
 
+The landing page shows the same four (issue #149), from **copies** it carries
+under `packages/landing-page/public/screenshots/` — its image is built from a
+context that excludes `docs/`. Those copies are written by a command, never by
+hand; see [The landing page's copies](#the-landing-pages-copies) below, which is
+the second half of every capture.
+
 They are taken from the **demo stack** (`docker-compose.demo.yml`, issue #141) —
 a throwaway copy of the app over the seeded demo database, whose every
 counterparty, amount and account number is invented. Nothing here ever points a
@@ -44,8 +50,9 @@ images behind:
 ```sh
 trap 'bun run demo:down' EXIT INT TERM
 
-bun run demo:up --detach     # builds, seeds, serves http://localhost:5400/app/
-bun run demo:shots           # writes the four files into docs/screenshots/
+bun run demo:up --detach       # builds, seeds, serves http://localhost:5400/app/
+bun run demo:shots             # writes the four files into docs/screenshots/
+bun run landing:screenshots    # copies them onto the landing page
 ```
 
 `demo:up` runs the seeder as a one-shot container and holds the API back until
@@ -100,6 +107,29 @@ a habit — `capture.ts` and `shots.ts` beside this file, with
 | `No Chrome found` | Set `CHROME`. |
 | `Chrome exited with …` | Usually the sandbox in a container: set `CHROME_NO_SANDBOX=1`. |
 | Frames are the right size but the text is wrong | A font the capturing machine resolves differently. See the prerequisite. |
+
+## The landing page's copies
+
+`bun run landing:screenshots` is the rest of the capture, and skipping it leaves
+the deployed page showing the previous release. It rewrites
+`packages/landing-page/public/screenshots/` from `docs/screenshots/` — rewrites,
+so a renamed or dropped surface takes its old frames with it — and regenerates
+`packages/landing-page/src/content/screenshots.gen.ts`, which is the page's only
+knowledge of the images. Neither is edited by hand:
+`packages/landing-page/src/screenshots/sync.test.ts` renders that module again
+from the source images and fails on any difference.
+
+Two things it will refuse, both deliberate:
+
+- **A surface with no words.** The generated module lists what the capture
+  produced; `src/content/screenshots.ts` carries the heading and the sentence
+  introducing each one, written by hand because no generator can write them, and
+  the alt text held equal to the README's. A new surface needs an entry there.
+- **Weight over the ceiling.** The four frames are ~498 kB against a 600 kB
+  total and a 300 kB per-scheme cap (`src/screenshots/manifest.ts`). A third
+  pair, or a re-capture at higher quality, hits it — and that is a real trade
+  between page weight, fidelity and how much the screenshot shows. Raise the
+  number in a commit that says why, rather than quietly re-encoding smaller.
 
 ## Changing what is captured
 

@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { ACTIONS, CONTRIBUTING, HERO, INSTALL, SITE } from "./content";
+import { ACTIONS, CONTRIBUTING, HERO, INSTALL, SCREENSHOTS, SITE } from "./content";
 import { renderPage } from "./page";
 
 /**
@@ -67,6 +67,9 @@ const page = await renderPage();
 const SENTENCES = [
   HERO.lead,
   ...HERO.points.flatMap((point) => [point.term, point.detail]),
+  SCREENSHOTS.heading,
+  SCREENSHOTS.lead,
+  ...SCREENSHOTS.shots.flatMap((shot) => [shot.title, shot.caption]),
   INSTALL.heading,
   INSTALL.lead,
   ...INSTALL.prerequisites.map((prerequisite) => prerequisite.detail),
@@ -89,6 +92,10 @@ const SENTENCES_RESTATED = [
   ...SENTENCES,
   SITE.title,
   SITE.description,
+  // The alt text never renders as text — it is an attribute, so the reading
+  // above cannot see it — and it is the sentence most likely to be pasted
+  // into a renderer, being the one that describes what the markup shows.
+  ...SCREENSHOTS.shots.map((shot) => shot.alt),
   ...INSTALL.steps.flatMap((step) => step.commands),
 ].filter((sentence) => sentence.length > 20);
 

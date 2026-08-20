@@ -106,6 +106,59 @@ h1 {
   font-weight: 600;
 }
 
+/* The screenshots (issue #149). The heaviest thing the page ships and the
+   only part of it that shows the app rather than describing it, so they are
+   given the width the page can spare and nothing else changes for them.
+
+   The frames are captured at 2880×1800 — a 1440×900 app at a device scale
+   factor of 2 — and the tag carries that size so the browser can reserve the
+   box before the bytes land. Scaling them back down here is what makes them
+   sharp on a retina screen and, more importantly, what stops an intrinsic
+   width four times the reading column from deciding the width of the page. */
+
+.screenshots figure {
+  margin: 0 0 2rem;
+}
+
+.screenshots img {
+  display: block;
+  max-width: 100%;
+  /* The attribute pins the intrinsic height; without this the scaled frame
+     keeps it and the app comes out squashed. */
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+}
+
+.screenshots figcaption {
+  margin: 0.75rem 0 0;
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+
+.screenshots figcaption strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* Wider than the prose, where the screen has the room. A screenshot of a
+   1440-px app is readable in the 42rem reading column and considerably better
+   in 56rem, but the reading column is 42rem because that is how wide prose
+   wants to be — so the figures step out of it rather than the page widening.
+
+   The query is what keeps that safe: below 64rem the section is left in the
+   column, which is already the viewport minus the body's padding, so nothing
+   is ever pulled under the edge of a phone. 64rem is the narrowest viewport
+   where 56rem of figure plus that padding still fits, with room over. */
+@media (min-width: 64rem) {
+  .screenshots {
+    width: 56rem;
+    /* Centred on the column rather than auto-margined: a block wider than its
+       parent over-constrains `auto` to zero and would hang off one side. */
+    margin-left: -7rem;
+  }
+}
+
 /* The install guide (issue #147). Running mamen yourself is the only call to
    action the page can honestly make, so the steps get the room to be read as
    instructions rather than as a feature list. */

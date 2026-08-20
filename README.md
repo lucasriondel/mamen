@@ -206,8 +206,11 @@ same dates. It is not a deploy path: `docker-compose.yml`, below, is that one.
 
 The images at the top of this file are taken from it by `bun run demo:shots`,
 which drives a browser over the two surfaces in both colour schemes and writes
-`docs/screenshots/`. The whole procedure — prerequisites, the teardown trap, and
-the ways a capture goes wrong — is
+`docs/screenshots/`. The landing page shows the same four, from copies
+`bun run landing:screenshots` writes into `packages/landing-page/public/` — run
+it after every capture, or the deployed page keeps showing the previous ones.
+The whole procedure — prerequisites, the teardown trap, and the ways a capture
+goes wrong — is
 [`.claude/skills/demo-screenshots/SKILL.md`](.claude/skills/demo-screenshots/SKILL.md).
 
 ### Ports

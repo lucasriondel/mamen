@@ -2,9 +2,9 @@
  * What the public page says, apart from how it is rendered (issue #147).
  *
  * The page's words are **typed content modules**, one per section — the site's
- * metadata, the hero, the install guide, the contributing note and the call to
- * action — rather than sentences embedded in markup. Two things follow from
- * that, and both are the point:
+ * metadata, the hero, the screenshots (issue #149), the install guide, the
+ * contributing note and the call to action — rather than sentences embedded in
+ * markup. Two things follow from that, and both are the point:
  *
  * - Two renderers hold this page while issue #145's expand–contract runs
  *   (`src/page.ts`, the string the root serves, and `src/preview/`, React on a
@@ -39,4 +39,11 @@ export {
   type Prerequisite,
   prerequisiteLabel,
 } from "./install";
+export {
+  SCREENSHOTS,
+  type ScreenshotCopy,
+  type ScreenshotFigure,
+  screenshotFigures,
+  type ScreenshotSection,
+} from "./screenshots";
 export { SITE, type SiteMetadata } from "./site";
