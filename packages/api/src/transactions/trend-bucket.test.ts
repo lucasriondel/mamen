@@ -70,10 +70,13 @@ describe("the trend bucket fragment (issue #173)", () => {
     expect(SOURCE.match(BUCKET_EXPRESSION)).toHaveLength(1);
   });
 
-  it("declares it beside the money fragment the recap queries already share", () => {
-    // In the shared-fragment block rather than in either closure: within its
-    // own comment's length of `spentCents`, and above both readers.
-    expect(Math.abs(lineOf("const trendBucket =") - lineOf("const spentCents ="))).toBeLessThan(20);
+  it("declares it beside the money fragments the recap queries already share", () => {
+    // In the shared-fragment block rather than in either closure: below
+    // `spentCents` and above the first query that reads any of them. Stated as
+    // position rather than a line distance since issue #167 put two more money
+    // fragments between the two declarations.
+    expect(lineOf("const trendBucket =")).toBeGreaterThan(lineOf("const spentCents ="));
+    expect(lineOf("const trendBucket =")).toBeLessThan(lineOf("const recapByIssuerQuery ="));
     for (const query of TREND_QUERIES)
       expect(lineOf("const trendBucket =")).toBeLessThan(lineOf(`const ${query} =`));
   });

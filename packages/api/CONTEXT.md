@@ -87,6 +87,14 @@ so a filter starts disagreeing with the value it filters on, or a warning counts
 a set the delete beneath it does not. When a new clause is needed, it goes in the
 fragment; if a rule has three hand-written copies, collapsing them to one
 fragment is the fix.
+
+Two fragments that look like one are named apart and carry their precondition,
+because the drift they invite is silent: the recap's `spentCents` negates every
+row and is correct only under a WHERE that has already filtered to debits, while
+`debitCents` / `creditCents` filter sign inside the aggregate for the queries
+whose WHERE says nothing about it (issue #167). Swapped, they report a refund as
+spending or an income line as zero — with no error and no failing behaviour test,
+which is why `recap-sums.test.ts` and `trend-bucket.test.ts` read the source.
 _Avoid_: helper, snippet, query builder.
 
 **SqlError boundary**:

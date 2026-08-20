@@ -791,7 +791,30 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()("api/Tran
     // `linkTransfer` and `createBundle` apply to comparing and summing money.
     // `ROUND(-t.amount * 100)` is a whole number of cents held exactly in a
     // REAL, so `SUM` over them is exact.
+    //
+    // **Requires a WHERE that has already filtered to debits** — it negates
+    // every row it is given, so a credit inside the set would *subtract* from
+    // the spend. Only for queries running under `spendWhere`, which states
+    // `t.amount < 0`; anywhere else it is `debitCents` below (issue #167).
     const spentCents = sql`SUM(ROUND(-t.amount * 100))`;
+
+    // The same figure for a query whose WHERE says nothing about sign, so the
+    // sign filter moves inside the aggregate: debit magnitudes summed, credits
+    // contributing 0 rather than cancelling them. **Safe under any WHERE** —
+    // that is the whole difference from `spentCents`, and why both are named
+    // here rather than pasted per call site, where the two forms look alike
+    // enough to swap (issue #167).
+    //
+    // `COALESCE(…, 0)` is part of the fragment because two of its three readers
+    // are single-row aggregates over a possibly empty set, where a bare `SUM`
+    // is SQL `NULL` and the line should read 0.
+    const debitCents = sql`COALESCE(SUM(CASE WHEN t.amount < 0 THEN ROUND(-t.amount * 100) ELSE 0 END), 0)`;
+
+    // The credit half the trend pairs with `debitCents`: income as a **positive
+    // magnitude**, debits contributing 0. Self-filtering for the same reason —
+    // `trendWhere` deliberately carries no sign clause — and **needs a WHERE
+    // that does not filter to debits**, or it reports 0 for every bucket.
+    const creditCents = sql`COALESCE(SUM(CASE WHEN t.amount > 0 THEN ROUND(t.amount * 100) ELSE 0 END), 0)`;
 
     // The trend's **bucket key** (issue #113), shared by both trend queries
     // below the way `spentCents` is shared by the breakdowns above (issue
@@ -847,7 +870,7 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()("api/Tran
       Request: Schema.Any as Schema.Schema<Filters>,
       Result: RecapTransfers,
       execute: (f) =>
-        sql`SELECT COALESCE(SUM(CASE WHEN t.amount < 0 THEN ROUND(-t.amount * 100) ELSE 0 END), 0) / 100.0 AS total, COUNT(*) AS count ${readFrom} WHERE ${sql.and([...buildConditions(f), isTransferLeg, sql`NOT ${isRecapExcluded}`, isNotBundleMember])}`,
+        sql`SELECT ${debitCents} / 100.0 AS total, COUNT(*) AS count ${readFrom} WHERE ${sql.and([...buildConditions(f), isTransferLeg, sql`NOT ${isRecapExcluded}`, isNotBundleMember])}`,
     });
 
     // The spend held out of the breakdowns by an exclusion decision (issue
@@ -874,7 +897,7 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()("api/Tran
       Request: Schema.Any as Schema.Schema<Filters>,
       Result: RecapExcluded,
       execute: (f) =>
-        sql`SELECT COALESCE(SUM(CASE WHEN t.amount < 0 THEN ROUND(-t.amount * 100) ELSE 0 END), 0) / 100.0 AS total, COUNT(*) AS count ${readFrom} WHERE ${sql.and([...buildConditions(f), isRecapExcluded, isNotBundleMember])}`,
+        sql`SELECT ${debitCents} / 100.0 AS total, COUNT(*) AS count ${readFrom} WHERE ${sql.and([...buildConditions(f), isRecapExcluded, isNotBundleMember])}`,
     });
 
     // The **trend**'s WHERE (issue #113): the caller's filters AND the single
@@ -896,7 +919,10 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()("api/Tran
     // Earnings and spending per time bucket, both as **positive magnitudes** in
     // integer cents (the same discipline every other money sum here uses — three
     // 0.10 € rows added as REALs give 0.30000000000000004). The bucket key is
-    // the shared `trendBucket` fragment, declared beside `spentCents` above.
+    // the shared `trendBucket` fragment, and the two halves are the shared
+    // `creditCents` / `debitCents` — the self-filtering sums, because
+    // `trendWhere` below carries no sign clause for them to lean on. All three
+    // are declared beside `spentCents` above.
     //
     // Only buckets holding at least one counted row come back: a gap in the
     // middle of a range is a real gap, and it is the client that decides whether
@@ -907,7 +933,7 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()("api/Tran
       Request: Schema.Any as Schema.Schema<TrendFilter>,
       Result: RecapTrendPoint,
       execute: (f) =>
-        sql`SELECT ${trendBucket(f.granularity)} AS bucket, COALESCE(SUM(CASE WHEN t.amount > 0 THEN ROUND(t.amount * 100) ELSE 0 END), 0) / 100.0 AS earned, COALESCE(SUM(CASE WHEN t.amount < 0 THEN ROUND(-t.amount * 100) ELSE 0 END), 0) / 100.0 AS spent ${readFrom} ${trendWhere(f)} GROUP BY bucket ORDER BY bucket ASC`,
+        sql`SELECT ${trendBucket(f.granularity)} AS bucket, ${creditCents} / 100.0 AS earned, ${debitCents} / 100.0 AS spent ${readFrom} ${trendWhere(f)} GROUP BY bucket ORDER BY bucket ASC`,
     });
 
     // The **composition** series: spending cut by bucket AND derived category
@@ -926,7 +952,7 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()("api/Tran
     // reporting the derived id — splitting one category into several rows for
     // the same bucket, which the client would draw as two bands of one thing.
     // The by-category breakdown groups by the same expression for the same
-    // reason; `bucket` is safe to name because nothing else is called that.
+    // reason.
     const recapTrendByCategoryQuery = SqlSchema.findAll({
       Request: Schema.Any as Schema.Schema<TrendFilter>,
       Result: RecapTrendCategoryCell,
