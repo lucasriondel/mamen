@@ -157,6 +157,92 @@ describe("the format's declared columns", () => {
 });
 
 /**
+ * PRD #180, amendment 1 — the extraction returns **every operation row**.
+ *
+ * The rule this replaces told the model that the statement was "for the
+ * current/cheque account only" and that anything belonging to another account
+ * was noise. A real Trade Republic statement is two products in one file — a
+ * `Compte PEA` and a `Compte courant` — so that rule discards half the document,
+ * and the model cannot know which half is "the" account: nothing in the prompt
+ * says which account the file is being imported into.
+ *
+ * The user is the one who decides which rows belong in their ledger, and they
+ * decide *after* the extraction, in the import table's row facets (#195). A row
+ * the model never returned is one they can never get back — which is why the
+ * exclusions are now about what a row **is** (a balance, a total) and never
+ * about which product it belongs to.
+ */
+describe("a statement covering more than one product", () => {
+  const EVERY_ROW_HEADING = "EVERY OPERATION ROW";
+
+  it("has every product's operations extracted, not one product's", () => {
+    const prompt = extract.cliPrompt(INPUT);
+
+    assert.include(prompt, EVERY_ROW_HEADING);
+    assert.include(prompt, "Emit the operations of ALL of them");
+  });
+
+  // The rule that made this impossible, gone rather than softened: while it
+  // stands, a model reading a two-product file is being told in one breath to
+  // return every row and to treat one of the products as noise.
+  it("no longer calls another product's rows noise", () => {
+    const prompt = extract.cliPrompt(INPUT);
+
+    assert.notInclude(prompt, "current/cheque account only");
+    assert.notInclude(prompt, "Livret A");
+  });
+
+  /**
+   * The product name is what the user filters on, and on this statement it is
+   * printed as a *section heading* rather than in a column of the table — so a
+   * row only carries it if the model attributes the heading to the rows beneath
+   * it. Conditional on the format declaring a column for it: the archive is
+   * keyed by the declared columns (#189), so a heading with nowhere to go is not
+   * a key the model may invent.
+   */
+  it("attributes the product heading to the rows printed under it", () => {
+    const prompt = extract.cliPrompt(INPUT);
+
+    assert.include(prompt, "product or account heading");
+    assert.include(prompt, "COLUMNS list");
+  });
+
+  // In the *shared* rules, like every other reading rule: one statement must not
+  // extract to different rows depending on which vendor the user chose.
+  it("is told to the hosted column too, from the same copy", () => {
+    const rules = rulesOf(extract.hostedPrompt(INPUT).text);
+
+    assert.include(rules, EVERY_ROW_HEADING);
+    assert.strictEqual(rules, rulesOf(extract.cliPrompt(INPUT)));
+  });
+
+  // What did *not* change: balances and totals are still not operations. The
+  // amendment narrows the exclusions to those two, it does not remove them.
+  it("still drops the balance and summary lines", () => {
+    const prompt = extract.cliPrompt(INPUT);
+
+    assert.include(prompt, "ROWS TO EXCLUDE");
+    assert.include(prompt, "Balance lines");
+    assert.include(prompt, "Summary lines");
+  });
+
+  /**
+   * The totals half of the same statement (with #196): its figures live in a
+   * per-product `SYNTHÈSE DU RELEVÉ DE COMPTE` block, and there are two of them.
+   * Adding them up would reconcile the import against a figure covering rows
+   * from a product the user may be holding out — a false mismatch on every
+   * import of a multi-product statement, which is worse than no check at all.
+   */
+  it("has no one total to declare, and is told to answer with none", () => {
+    const rules = rulesOf(extract.hostedPrompt(INPUT).text);
+
+    assert.include(rules, "SYNTHÈSE");
+    assert.include(rules, "`declaredTotals` to null");
+    assert.strictEqual(rules, rulesOf(extract.cliPrompt(INPUT)));
+  });
+});
+
+/**
  * Issue #196 — the totals rule stops assuming there is a totals line. A Trade
  * Republic statement prints none, and a model asked for a figure that is not on
  * the page either invents one or reports zero; both read downstream as a

@@ -294,6 +294,20 @@ for the same reason the bytes do — a prompt builder is a pure function and
 looking a format up is a database read, so `import/extract.ts` resolves it and
 hands the list over. A format declaring none produces no block at all: an empty
 heading tells the model the statement carries nothing.
+**Every operation row** is asked for, a second product's included (PRD #180,
+amendment 1): one statement file can carry two accounts — a Trade Republic
+statement prints a `Compte PEA` and a `Compte courant` — and the prompt never
+says which one the import is for, so the old *"this statement is for the
+current/cheque account only"* rule discarded half the document on a guess the
+model had no way to make. The exclusions are now about what a row **is** (a
+balance, a total, a per-product `SYNTHÈSE` block) and never about which product
+it belongs to; which rows enter the ledger is the user's decision afterwards, in
+the import table's **row facets** (#195), and a row the model never returned is
+one no facet can give back. The product is a *section heading* on that statement
+rather than a cell, so the model is told to attribute the heading to the rows
+printed beneath it — conditional on the format declaring a column for it, since
+the archive is keyed by the declared columns and a heading with nowhere to go is
+not a key the model may invent.
 The task's **output** is `ExtractionOutput`, not the endpoint's `ExtractPdfResult`
 (issue #188): the model answers with the rows, the totals and `missingColumns` —
 the declared columns it could not find — and never with the conclusion drawn from
@@ -306,7 +320,10 @@ statement prints a `TOTAL DES OPÉRATIONS` line, and the model must say which ca
 it saw rather than stay silent about it. `import/extract.ts` folds the `null` to
 an absent field on `ExtractPdfResult`, so the client's reconciliation check skips
 instead of comparing the rows to an assumed zero — a zero pair stays a real
-declared total, since a statement can print one.
+declared total, since a statement can print one. A per-product `SYNTHÈSE` block
+is not the totals line: a file covering several products prints one each and no
+single total over them all, so the answer there is `null` rather than one block
+picked or several added up.
 
 **A PDF row's raw source**:
 `ExtractedTransaction.rawSource` — each operation's own cells, keyed by the

@@ -328,6 +328,19 @@ repeated per package.
   _Avoid_: parsed transaction, imported transaction (nothing is imported until
   the user commits, issue #45).
 
+  **Every operation row comes back**, a second product's included (PRD #180,
+  amendment 1). One statement file can carry two accounts — a real Trade
+  Republic statement prints a `Compte PEA` and a `Compte courant` — and nothing
+  tells the model which one the import is for, so a rule that dropped "other
+  accounts" as noise discarded half the document on a guess. Only **balance and
+  summary lines** are excluded now: a row is dropped for what it *is*, never for
+  which product it belongs to, and *which rows belong in the ledger* is the
+  user's decision afterwards, in the import table's **row facets**. A row the
+  model never returned is one no facet can give back. When the statement prints
+  its operations under a product heading and the chosen **Statement Format**
+  declares a column for it, that heading rides each row's **raw source** — which
+  is what makes the product a facet at all.
+
 - **Declared totals** — the statement's own printed `TOTAL DES OPÉRATIONS`
   figures, echoed back beside the extracted rows (`{ debit, credit }`, both
   positive magnitudes exactly as printed). Not a sum the server computes — the
@@ -336,7 +349,10 @@ repeated per package.
   that prints no totals line declares none (a Trade Republic statement prints no
   `TOTAL DES OPÉRATIONS`), the model answers `null`, the endpoint answers with
   the field absent, and the **reconciliation check** runs no check at all rather
-  than reconciling against an assumed zero (issue #196).
+  than reconciling against an assumed zero (issue #196). A per-product
+  `SYNTHÈSE` block is **not** that line: a file covering several products prints
+  one each and no single total over them all, so adding them together would fire
+  a false mismatch on every such import.
 
 - **Server-side extraction** — PDF import extracts candidates on the API server,
   not in the browser: the OAuth token stays a server secret and the model reads

@@ -77,6 +77,18 @@ rules still say how a value in it is read.
 A format that declares no columns produces no block at all. An empty heading is
 worse than a missing one: it tells the model the statement carries nothing.
 
+**Amended by PRD #180's first amendment** — one of those rules did not survive.
+The prompt also told the model that *"this statement is for the current/cheque
+account only"* and that another account's material was noise. Naming a format
+names an account, but it does not name it **on the page**: a Trade Republic
+statement prints two products, a `Compte PEA` and a `Compte courant`, and there
+is no reliable way for a model to tell which of them mamen is importing into. So
+the rule was dropped rather than sharpened, and the extraction now returns
+**every operation row**, excluding only balance and summary lines. Being
+account-aware makes the *columns* knowable; it does not make the rows selectable,
+and that selection belongs to the user, in the import table's row facets (#195).
+The rest of §4 stands: everything else about how a value is read is unchanged.
+
 ### 5. What has *not* changed: the answer is still keyed to nothing
 
 The response is unchanged — candidate transactions and the statement's declared

@@ -403,7 +403,12 @@ table, listing the distinct values it prints and how many rows carry each (issue
 #195). Choosing a value narrows the table to the rows that print exactly it;
 choosing several values of one column is an *or*, and narrowing two columns is an
 *and*. What makes the facets possible at all is the **raw source** — the cells as
-the bank printed them — which both import paths carry since issue #189.
+the bank printed them — which both import paths carry since issue #189. On the
+PDF path it is also why the extraction returns **every operation row** of a
+two-product statement and attributes the product heading to the rows under it
+(PRD #180, amendment 1): a facet can only narrow rows the model actually
+returned, so holding out one product's operations is the user's choice here and
+never a decision taken during the read.
 
 A column is facet-eligible by a stated rule and by nothing else: its distinct
 values number **at most `FACET_VALUE_LIMIT` (12)** and **strictly fewer than the

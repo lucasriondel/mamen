@@ -129,6 +129,46 @@ const ROW_ARCHIVE = `THE ROW AS PRINTED
 `;
 
 /**
+ * **Every operation row comes back** (PRD #180, amendment 1) — including the
+ * rows of a second product printed in the same file.
+ *
+ * The rule this replaces read *"any balances for OTHER accounts printed on later
+ * pages (e.g. Livret A, LDDS, CEL) — this statement is for the current/cheque
+ * account only"*, and it was written against a bank that prints one account's
+ * operations and other accounts' closing balances. A real Trade Republic
+ * statement is **two products in one file**, a `Compte PEA` and a
+ * `Compte courant`, each with its own operations — so that rule discards half
+ * the document, and there is no way for the model to guess right: nothing in the
+ * prompt says which account the file is being imported into, and mamen does not
+ * tell it (the format names the account, but the account's own number is not on
+ * the page in a form a model could match).
+ *
+ * So the decision moves to where it can be made correctly. **The user chooses
+ * which rows enter their ledger**, after the extraction, in the import table's
+ * **row facets** (#195) — and a row the model never returned is one no facet can
+ * give back. The exclusions become a statement about what a row *is*, a balance
+ * or a total, and never about which product it belongs to.
+ *
+ * The second half is what makes the choice possible: on this statement the
+ * product is a **section heading**, not a cell, so a row carries it only if the
+ * heading is attributed to the rows beneath it. Conditional on the format
+ * declaring a column for it, because the archive is keyed by the declared
+ * columns ({@link ROW_ARCHIVE}) — a heading with nowhere to go is not a key the
+ * model may invent.
+ */
+const EVERY_ROW = `EVERY OPERATION ROW
+- One statement file may cover more than one product or account — a "Compte PEA" and a
+  "Compte courant", or a savings account printed after the current one.
+  Emit the operations of ALL of them.
+- You have not been told which product this file is being imported into, so do not choose:
+  the user decides which rows belong in their ledger, after this, and a row you leave out is
+  one they can never get back.
+- When the statement prints its operations under a product or account heading and the
+  COLUMNS list above names a column for that, record the heading a row falls under as that
+  row's value for that column, on every row printed beneath it.
+`;
+
+/**
  * How to read a French bank statement, once. Shared verbatim by both prompts;
  * everything above it is transport-specific and everything in it is not — the
  * declared columns included, since a hosted vendor and the local CLI are being
@@ -158,11 +198,15 @@ LABEL
 - \`rawIssuerString\` is the operation's description/label. When a description spans
   multiple lines, MERGE them into a single string (collapse the wrapping into spaces).
 
+${EVERY_ROW}
 ROWS TO EXCLUDE (do NOT emit these as transactions)
 - Balance lines: "ANCIEN SOLDE CRÉDITEUR", "NOUVEAU SOLDE CRÉDITEUR", any "SOLDE" line.
-- Summary lines: "TOTAL DES OPÉRATIONS".
-- Any balances for OTHER accounts printed on later pages (e.g. Livret A, LDDS, CEL) — this
-  statement is for the current/cheque account only.
+  A running-balance COLUMN on an operation row does not make that row one: it is still an
+  operation, and its balance is simply another of its cells.
+- Summary lines: "TOTAL DES OPÉRATIONS", and per-product summary blocks such as
+  "SYNTHÈSE DU RELEVÉ DE COMPTE".
+- Nothing else. A row is excluded for what it IS — a balance, a total — and never for which
+  product or account it belongs to.
 
 DECLARED TOTALS
 - Separately, read the statement's own "TOTAL DES OPÉRATIONS" line and return its two
@@ -173,6 +217,9 @@ DECLARED TOTALS
   Never add up the operations yourself to fill it in, and never report totals of 0 for a
   statement that simply does not declare any — both would be your arithmetic presented as
   the bank's.
+- A per-product "SYNTHÈSE" block is not that line. A file covering several products prints
+  one such block each and no single total over them all, so set \`declaredTotals\` to null
+  rather than picking one block or adding several together.
 
 ${ROW_ARCHIVE}
 ${FORMAT_MATCH}
