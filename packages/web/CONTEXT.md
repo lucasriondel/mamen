@@ -158,10 +158,31 @@ retired by issue #190: a skipped row's inputs are inert, so deleting bought
 nothing that skipping does not, and cost reversibility. Adding a row the
 extraction missed remains a separate control — it solves the opposite problem.
 _Avoid_: Excluded (reserved for **excluded from recap**), ignored, deselected.
-_Code note_: `skippedRows` on the wizard state — a set of **stable row ids**,
-minted per candidate row from a counter in wizard state (issue #190). They name
-records rather than CSV lines or positions, so another file or another
-**Parser** clears them, and filtering the preview cannot skip the wrong row.
+_Code note_: `skippedRows` on the wizard state. Still **ascending indices** into
+the previewed rows as of issue #191 — the **stable row ids** it will be keyed on
+are minted beside it but read by nothing yet. Either way it is cleared by another
+file, a parse error, another **Parser** or a new extraction: an index or an id
+that outlived the rows it named would hold out whichever row took its place.
+
+**Stable row id**:
+The identity of one candidate row in the import wizard — minted when the row is
+parsed from a CSV, extracted from a PDF, or added blank for an operation the
+extraction missed. Rows are about to be filtered and reordered on screen (issue
+#190), and a skip must name a row rather than a position, or narrowing the table
+silently holds out the wrong one.
+
+Ids come off a **monotonic counter kept in wizard state**, never a UUID and never
+a content hash. The counter is in state so the reducer stays pure and its tests
+stay fixture-driven — the same actions from the same state mint the same ids. A
+hash would be deterministic too, but it collides on the two identical rows a real
+statement is allowed to carry. The counter is never rewound, so an id from a
+discarded file cannot match a row of the next one.
+_Avoid_: key, index, position, uuid.
+_Code note_: `rowIds` + `nextRowId` on the wizard state, positional with `rows`
+(CSV) or `extracted` (PDF). Branded `RowId`, so the compiler refuses an index
+where an id belongs. On the CSV path they name papaparse's rows, not the
+**Parser**'s records — a parser drops rows it won't import, so joining an id to a
+record needs the parser to report each record's source row.
 
 **Raw issuer string**:
 The unparsed counterparty text on a transaction (`rawIssuerString`, e.g.

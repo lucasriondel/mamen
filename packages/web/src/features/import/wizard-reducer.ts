@@ -11,6 +11,18 @@ export type WizardStep = "upload" | "preview";
  */
 export type WizardSource = "csv" | "pdf";
 
+/**
+ * A **stable row id** — the identity of one candidate row, minted from the
+ * wizard's monotonic counter when the row is parsed from a CSV, extracted from a
+ * PDF, or added blank for an operation the extraction missed (issue #190).
+ *
+ * Branded, because an id and a row *index* are both numbers and both live on
+ * this state while `skippedRows` is still index-addressed. Confusing the two is
+ * precisely how the preview skips one row and silently drops another, so the
+ * compiler is asked to keep them apart rather than a naming convention.
+ */
+export type RowId = number & { readonly __brand: "RowId" };
+
 /** Local state for the 3-step import wizard (no global store — PRD). */
 export type WizardState = {
   step: WizardStep;
@@ -51,6 +63,37 @@ export type WizardState = {
    * set of records — another file, another parser — clears them.
    */
   skippedRows: readonly number[];
+  /**
+   * A **stable row id** per candidate row, positional with whichever array is
+   * live: {@link WizardState.rows} on the CSV path, {@link WizardState.extracted}
+   * on the PDF one. Minted alongside those rows and re-minted wherever
+   * {@link WizardState.skippedRows} is cleared, so an id never outlives the row
+   * it named.
+   *
+   * Nothing reads these yet (issue #191): they are the *expand* half of moving
+   * `skippedRows` off indices, and they land alone because retyping row identity
+   * touches the reducer, both previews and every reducer test at once.
+   *
+   * They name the rows *this state holds*, which on the CSV path is papaparse's
+   * output — not the **Parser**'s records, which are a filtered subset of it (a
+   * parser drops the rows it won't import, e.g. a non-`COMPLETE` `Statut`) and
+   * are derived outside the reducer. Joining an id to a record is the *contract*
+   * half's problem and needs the parser to say which row each record came from;
+   * it is not solvable positionally.
+   */
+  rowIds: readonly RowId[];
+  /**
+   * The next id the counter will hand out. Monotonic for the wizard's whole life
+   * — never rewound by a clear — so an id from a discarded file can never match a
+   * row of the next one.
+   *
+   * It lives in state rather than in a module-level counter so the reducer stays
+   * pure: the same actions from the same state always mint the same ids, which is
+   * what keeps the fixture-driven tests deterministic. A UUID or a content hash
+   * would not do — the first is not deterministic, and the second collides on the
+   * two identical rows a real statement is allowed to carry.
+   */
+  nextRowId: number;
   /** The statement's own declared totals, echoed by extraction (reconcile handle). */
   declaredTotals: DeclaredTotals | null;
   /**
@@ -126,7 +169,19 @@ export const initialWizardState: WizardState = {
   declaredTotals: null,
   extractionMs: null,
   skippedRows: [],
+  rowIds: [],
+  nextRowId: 1,
 };
+
+/**
+ * Take `count` ids off the counter. Returns the minted ids and the counter
+ * advanced past them — the caller spreads both into the next state, so the
+ * counter only ever moves forward.
+ */
+function mintRowIds(from: number, count: number): { rowIds: readonly RowId[]; nextRowId: number } {
+  const rowIds = Array.from({ length: count }, (_, offset) => (from + offset) as RowId);
+  return { rowIds, nextRowId: from + count };
+}
 
 /**
  * Seed values for a wizard opened from the accounts import grid (issue #36): the
@@ -163,6 +218,9 @@ export function makeInitialWizardState(prefill?: WizardPrefill): WizardState {
     // in front of a user who still owes the account it belongs to.
     ...(file && accountId != null
       ? {
+          // The handoff's rows are already parsed, so they never see
+          // `file-parsed` — this is their one chance to be given an identity.
+          ...mintRowIds(initialWizardState.nextRowId, file.rows.length),
           source: "csv" as const,
           fileName: file.fileName,
           headers: file.headers,
@@ -211,6 +269,8 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
       if (!canAcceptFile(state)) return state;
       return {
         ...state,
+        // A fresh id per row of the new file; the old file's are gone with it.
+        ...mintRowIds(state.nextRowId, action.rows.length),
         source: "csv",
         fileName: action.fileName,
         file: null,
@@ -246,11 +306,21 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         declaredTotals: null,
         extractionMs: null,
         skippedRows: [],
+        // Nothing is previewable behind the error, so there is no row to name.
+        rowIds: [],
       };
     case "select-parser":
       // Another parser reads the same file into different records, so an index
       // kept here would hold out whichever row landed at that position.
-      return { ...state, parserId: action.parserId, skippedRows: [] };
+      return {
+        ...state,
+        // Re-minted, not emptied: the rows stay on screen and every one of them
+        // still needs an id — just not one a skip made under the old parser could
+        // still name. The counter never rewinds, so the new ids can't collide.
+        ...mintRowIds(state.nextRowId, state.rows.length),
+        parserId: action.parserId,
+        skippedRows: [],
+      };
     case "select-account":
       return { ...state, accountId: action.accountId };
     case "go-to-preview":
@@ -276,10 +346,13 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         parserId: null,
         autoDetected: false,
         skippedRows: [],
+        // No candidate rows until the extraction settles.
+        rowIds: [],
       };
     case "extract-success":
       return {
         ...state,
+        ...mintRowIds(state.nextRowId, action.transactions.length),
         extracting: false,
         extracted: action.transactions,
         declaredTotals: action.declaredTotals,
@@ -298,6 +371,7 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         declaredTotals: null,
         extractionMs: null,
         error: action.message,
+        rowIds: [],
       };
     case "edit-extracted": {
       if (state.extracted === null) return state;
@@ -313,6 +387,9 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
       return {
         ...state,
         extracted: state.extracted.filter((_, index) => index !== action.index),
+        // The ids are positional with `extracted`, so the deleted row takes its
+        // own id with it rather than leaving the tail shifted under the wrong one.
+        rowIds: state.rowIds.filter((_, index) => index !== action.index),
       };
     }
     case "add-extracted": {
@@ -321,7 +398,16 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         amount: 0,
         rawIssuerString: "",
       };
-      return { ...state, extracted: [...(state.extracted ?? []), blank] };
+      // The one place ids are appended rather than replaced. Off the same
+      // counter, so the blank row can never land on the id of a row this wizard
+      // has already shown — including one deleted a moment ago.
+      const minted = mintRowIds(state.nextRowId, 1);
+      return {
+        ...state,
+        extracted: [...(state.extracted ?? []), blank],
+        rowIds: [...state.rowIds, ...minted.rowIds],
+        nextRowId: minted.nextRowId,
+      };
     }
     case "skip-row": {
       if (state.skippedRows.includes(action.index)) return state;

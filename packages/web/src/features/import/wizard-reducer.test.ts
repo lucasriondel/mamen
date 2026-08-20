@@ -392,6 +392,193 @@ describe("wizardReducer — skipping previewed rows (CSV path)", () => {
   });
 });
 
+/** Three CSV rows, so a per-row id list is distinguishable from a per-file one. */
+const CSV_ROWS = [
+  { Statut: "COMPLETE", Date: "2026-01-01T00:00:00Z" },
+  { Statut: "COMPLETE", Date: "2026-01-02T00:00:00Z" },
+  { Statut: "COMPLETE", Date: "2026-01-03T00:00:00Z" },
+];
+
+const PDF_ROWS = [
+  { date: new Date("2026-01-15T00:00:00Z"), amount: -10, rawIssuerString: "A" },
+  { date: new Date("2026-02-03T00:00:00Z"), amount: 20, rawIssuerString: "B" },
+];
+
+/** Drive the wizard to a parsed CSV — the CSV path's minting point. */
+const parseCsv = (rows = CSV_ROWS) =>
+  wizardReducer(withAccount, {
+    type: "file-parsed",
+    fileName: "statement.csv",
+    headers: HEADERS,
+    rows,
+    detectedParserId: "green-got",
+  });
+
+/** Drive the wizard through a whole PDF drop to a settled extraction. */
+const extractPdf = () =>
+  wizardReducer(
+    wizardReducer(withAccount, {
+      type: "extract-start",
+      file: new File([], "statement.pdf", { type: "application/pdf" }),
+    }),
+    {
+      type: "extract-success",
+      transactions: PDF_ROWS,
+      declaredTotals: { debit: 10, credit: 20 },
+      extractionMs: 0,
+    },
+  );
+
+/**
+ * The **stable row id** half of issue #191 — the *expand* of an expand–contract.
+ * The ids sit beside the index-addressed `skippedRows`, which is untouched here:
+ * nothing reads an id yet, so these tests state what the ids *are* (present,
+ * unique, stable, cleared) rather than what anything does with them.
+ */
+describe("wizardReducer — stable row ids", () => {
+  it("mints one id per row parsed from a CSV", () => {
+    const state = parseCsv();
+
+    expect(state.rowIds).toHaveLength(CSV_ROWS.length);
+    expect(new Set(state.rowIds).size).toBe(CSV_ROWS.length);
+  });
+
+  it("mints one id per row extracted from a PDF", () => {
+    const state = extractPdf();
+
+    expect(state.rowIds).toHaveLength(PDF_ROWS.length);
+    expect(new Set(state.rowIds).size).toBe(PDF_ROWS.length);
+  });
+
+  it("mints a fresh id for a blank added row, unique against every existing row", () => {
+    const extracted = extractPdf();
+    const state = wizardReducer(extracted, { type: "add-extracted" });
+
+    expect(state.rowIds).toHaveLength(3);
+    expect(state.rowIds.slice(0, 2)).toEqual(extracted.rowIds);
+    expect(extracted.rowIds).not.toContain(state.rowIds[2]);
+  });
+
+  // The counter is never rewound, so a removed row takes its id out of
+  // circulation with it. A `delete` that re-derived ids from the row count would
+  // hand the blank row the deleted row's id — two rows one skip could not tell
+  // apart, which is the whole reason the ids are not positions.
+  it("never hands an added row the id of one just deleted", () => {
+    const extracted = extractPdf();
+    const deleted = wizardReducer(extracted, { type: "delete-extracted", index: 0 });
+
+    const state = wizardReducer(deleted, { type: "add-extracted" });
+
+    expect(state.rowIds).not.toContain(extracted.rowIds[0]);
+    expect(new Set(state.rowIds).size).toBe(state.rowIds.length);
+  });
+
+  it("keeps a row's id through an in-place edit of its date, label and amount", () => {
+    const extracted = extractPdf();
+
+    const state = wizardReducer(extracted, {
+      type: "edit-extracted",
+      index: 0,
+      patch: {
+        date: new Date("2026-03-09T00:00:00Z"),
+        amount: -12,
+        rawIssuerString: "CORRECTED",
+      },
+    });
+
+    expect(state.rowIds).toEqual(extracted.rowIds);
+  });
+
+  it("drops the id of a deleted extracted row and leaves the others alone", () => {
+    const extracted = extractPdf();
+
+    const state = wizardReducer(extracted, { type: "delete-extracted", index: 0 });
+
+    expect(state.rowIds).toEqual([extracted.rowIds[1]]);
+  });
+
+  // The four points that clear `skippedRows` today. Each mints a different set of
+  // candidate rows (or none at all), so an id surviving one would name a row that
+  // no longer exists — the failure mode the ids are being introduced to prevent.
+  it("mints a different set of ids when another file is parsed", () => {
+    const first = parseCsv();
+    const second = wizardReducer(first, {
+      type: "file-parsed",
+      fileName: "other.csv",
+      headers: HEADERS,
+      rows: CSV_ROWS,
+      detectedParserId: "green-got",
+    });
+
+    expect(second.rowIds).toHaveLength(CSV_ROWS.length);
+    for (const id of second.rowIds) expect(first.rowIds).not.toContain(id);
+  });
+
+  it("clears the ids when a file drop fails", () => {
+    const state = wizardReducer(parseCsv(), {
+      type: "file-error",
+      message: "Couldn't read that file. Is it a valid CSV?",
+    });
+
+    expect(state.rowIds).toEqual([]);
+  });
+
+  it("mints a different set of ids when the parser changes", () => {
+    const parsed = parseCsv();
+    const state = wizardReducer(parsed, {
+      type: "select-parser",
+      parserId: "some-other-bank",
+    });
+
+    // Re-minted rather than emptied: the rows are still on screen, so every one
+    // of them still needs an id — just not the one a stale skip might name.
+    expect(state.rowIds).toHaveLength(CSV_ROWS.length);
+    for (const id of state.rowIds) expect(parsed.rowIds).not.toContain(id);
+  });
+
+  it("clears the ids when a new extraction starts, and re-mints them on success", () => {
+    const first = extractPdf();
+
+    const extracting = wizardReducer(first, {
+      type: "extract-start",
+      file: new File([], "other.pdf", { type: "application/pdf" }),
+    });
+    expect(extracting.rowIds).toEqual([]);
+
+    const second = wizardReducer(extracting, {
+      type: "extract-success",
+      transactions: PDF_ROWS,
+      declaredTotals: { debit: 10, credit: 20 },
+      extractionMs: 0,
+    });
+    for (const id of second.rowIds) expect(first.rowIds).not.toContain(id);
+  });
+
+  it("clears the ids when an extraction fails", () => {
+    const state = wizardReducer(extractPdf(), {
+      type: "extract-error",
+      message: "Couldn't read that PDF statement. Please try again.",
+    });
+
+    expect(state.rowIds).toEqual([]);
+  });
+
+  it("mints the same ids for the same actions, so the reducer stays fixture-driven", () => {
+    expect(parseCsv().rowIds).toEqual(parseCsv().rowIds);
+    expect(extractPdf().rowIds).toEqual(extractPdf().rowIds);
+  });
+
+  it("leaves the skipped rows as ascending indices, unread by any id", () => {
+    const state = wizardReducer(wizardReducer(parseCsv(), { type: "skip-row", index: 2 }), {
+      type: "skip-row",
+      index: 0,
+    });
+
+    expect(state.skippedRows).toEqual([0, 2]);
+    expect(state.rowIds).toHaveLength(CSV_ROWS.length);
+  });
+});
+
 describe("makeInitialWizardState", () => {
   it("returns the empty state with no prefill", () => {
     expect(makeInitialWizardState()).toBe(initialWizardState);
@@ -455,5 +642,28 @@ describe("makeInitialWizardState", () => {
     expect(state.fileName).toBeNull();
     expect(state.rows).toEqual([]);
     expect(state.parserId).toBeNull();
+  });
+
+  // The handoff arrives already parsed, so its rows never pass through
+  // `file-parsed` — they would start the wizard as the only candidate rows with
+  // no identity if the initializer didn't mint here too.
+  it("mints a stable row id for every handed-off row", () => {
+    const state = makeInitialWizardState({
+      accountId: 7 as AccountId,
+      file: {
+        fileName: "statement.csv",
+        headers: HEADERS,
+        rows: [ROWS[0], ROWS[0]],
+        detectedParserId: "green-got",
+      },
+    });
+
+    expect(state.rowIds).toHaveLength(2);
+    expect(new Set(state.rowIds).size).toBe(2);
+    expect(state.nextRowId).toBeGreaterThan(Math.max(...state.rowIds));
+  });
+
+  it("mints no ids when there is no handed-off file", () => {
+    expect(makeInitialWizardState({ accountId: 7 as AccountId }).rowIds).toEqual([]);
   });
 });
