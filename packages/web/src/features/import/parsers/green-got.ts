@@ -1,4 +1,4 @@
-import { normalizeIban } from "@/features/accounts/account-iban";
+import { isPlausibleIban, normalizeIban } from "@/features/accounts/account-iban";
 import { importMonthKey } from "./month";
 import type { ParseContext, ParsedRow, StatementParser } from "./types";
 
@@ -27,13 +27,31 @@ const COUNTERPARTY_IBAN_COLUMN = "IBAN du tiers";
  * rows carry an IBAN at all, so "not given" is the common answer and must have
  * exactly one spelling — an empty string would be a second one.
  *
+ * So does a value that **could not be an IBAN** (PRD #175): banks write prose in
+ * this column — "not communicated", a masked card number, a dash — and promotion
+ * exists so a matcher can join this against `accounts.iban`. A string that cannot
+ * be an account number is not evidence of one, and promoting it would put a value
+ * in the matching column that only a second junk value could ever equal. The
+ * check is the account field's own {@link isPlausibleIban}: shape only, no
+ * per-country length table and no mod-97 checksum, so a statement from a bank
+ * mamen has never seen still imports — the same latitude, for the same reason.
+ *
+ * Nothing is lost by refusing: the delivered value stays in the archive either
+ * way, and unlike the account form — where the user typed it, is shown the
+ * warning and is the authority on their own account number — there is nobody in
+ * the loop at import time to ask.
+ *
  * The *delivered* form is untouched in the archive. That disagreement is the
  * division of labour ADR 0012 records: the column is for matching, the raw
  * source is for provenance.
  */
 const counterpartyIbanOf = (row: Record<string, string>): string | undefined => {
   const normalized = normalizeIban(row[COUNTERPARTY_IBAN_COLUMN] ?? "");
-  return normalized.length === 0 ? undefined : normalized;
+  // `isPlausibleIban` calls empty valid — the field it guards is optional, and an
+  // untouched one is "not given" rather than a failed entry. Here that answer is
+  // already spelled `undefined`, so emptiness is settled first.
+  if (normalized.length === 0) return undefined;
+  return isPlausibleIban(normalized) ? normalized : undefined;
 };
 
 /**

@@ -173,6 +173,50 @@ describe("greenGotParser.parse normalises the counterparty IBAN (issue #178)", (
   });
 });
 
+describe("greenGotParser.parse shape-checks the counterparty IBAN (PRD #175)", () => {
+  /** The record a one-row statement produces, given what that row's IBAN column holds. */
+  const from = (tiers: string) => {
+    const row: Record<string, string> = {
+      Statut: "COMPLETE",
+      Date: "2026-01-05T09:07:03.000Z",
+      Montant: "947.26",
+      Direction: "DEBIT",
+      Intitulé: "SOCIETE EXEMPLE SARL",
+      "IBAN du tiers": tiers,
+    };
+    return greenGotParser.parse([row], ctx)[0].record;
+  };
+
+  it("refuses a value that cannot be an IBAN, and leaves it in the archive", () => {
+    // Banks write prose in this column — "not communicated", a masked card
+    // number, a dash. The column exists to be *joined*, and a string that cannot
+    // be an account number is not evidence of one; the archive keeps it, which is
+    // the whole division of labour (ADR 0012).
+    const prose = "PAS D'IBAN COMMUNIQUE PAR LA BANQUE";
+    const record = from(prose);
+
+    expect(record.counterpartyIban).toBeUndefined();
+    expect(record.rawSource?.["IBAN du tiers"]).toBe(prose);
+  });
+
+  it("refuses one too short to be an IBAN", () => {
+    // Assembled, like every IBAN in this file, so it carries no matchable
+    // account number: the right shape, twelve characters, and no country issues
+    // one shorter than fifteen.
+    expect(from(`FR7699999${"0".repeat(3)}`).counterpartyIban).toBeUndefined();
+  });
+
+  it("still promotes an IBAN from a country it holds no table for", () => {
+    // Shape and nothing else — the same latitude the account IBAN field takes.
+    // Per-country lengths and the mod-97 checksum are knowable, and checking
+    // either would mean refusing a real account number for the crime of coming
+    // from a bank mamen has never seen.
+    const foreign = `MT84MALT${"0".repeat(26)}`;
+
+    expect(from(foreign).counterpartyIban).toBe(foreign);
+  });
+});
+
 describe("greenGotParser.parse (synthetic edge cases)", () => {
   const synthetic: Record<string, string>[] = [
     {

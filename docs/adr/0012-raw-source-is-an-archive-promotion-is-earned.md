@@ -78,6 +78,17 @@ inside an opaque JSON bin sensibly.* Anything that only ever needs to be *looked
 at* stays in the archive. This keeps the column list from re-accreting all
 thirteen fields under the excuse that each might be handy.
 
+A promoted value is **shape-checked at the import edge**, and one that fails the
+check is simply not promoted — it stays in the archive with everything else.
+Banks write prose in `IBAN du tiers` (a dash, a masked card number, "not
+communicated"), and a matching column that holds a string which could not be an
+account number holds something only a second junk value could ever equal. The
+check is the account field's own (`isPlausibleIban`): shape only, never a
+per-country length table or the mod-97 checksum, so a statement from a bank
+mamen has never seen still imports. Nothing is lost by refusing, because the
+delivered value is archived either way — the archive is what makes a strict
+promotion edge affordable.
+
 `counterpartyIban` clears that bar because it joins against `accounts.iban` to
 mark an **IBAN-confirmed candidate**: a **transfer candidate** where one leg's
 counterparty IBAN is the other leg's account, so the bank itself says where the
