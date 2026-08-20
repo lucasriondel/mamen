@@ -105,6 +105,10 @@ const csvFormat = (id: number, name: string) =>
 // missing function.
 const bulkCreate = vi.fn();
 const extractPdf = vi.fn();
+// The **Statement Format** a mapping-step import authors (issue #186). It is
+// written by the commit and by nothing else, so a call to this outside one is
+// the "abandoning leaves a draft behind" bug.
+const createFormat = vi.fn();
 // The per-month read behind the preview's already-imported marks (issue #89).
 const listTransactions = vi.fn();
 // The account's formats, which the CSV path reads instead of a compile-time
@@ -137,6 +141,9 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
     },
     transactionMutations: {
       bulkCreate: (records: unknown) => bulkCreate(records),
+    },
+    statementFormatMutations: {
+      create: (payload: unknown) => createFormat(payload),
     },
     importMutations: {
       ...actual.importMutations,
@@ -245,9 +252,66 @@ function sentToExtraction(): [File | undefined, unknown] {
   return [call?.[0], call?.[1]];
 }
 
+// ---- The mapping step (issue #186) ------------------------------------------
+
+/**
+ * A French bank's export: day-first dates and comma decimals, the pair PRD #180
+ * refuses to guess at. `03/04/2026` is a real date under either order, which is
+ * exactly why the preview has to show which one was chosen.
+ */
+const FRENCH_CSV = [
+  '"Date opération","Libellé","Débit","Crédit","Type"',
+  '"03/04/2026","SHOP A","1 929,71","","CARTE"',
+  '"11/04/2026","SALAIRE","","2 500,00","VIREMENT"',
+].join("\n");
+
+/** Drop the French export into an account, and take the offer to map it. */
+async function dropFrenchCsv(user: ReturnType<typeof userEvent.setup>) {
+  renderWizard();
+  await chooseAccount(user);
+  await user.upload(
+    await screen.findByLabelText("CSV or PDF statement"),
+    new File([FRENCH_CSV], "releve.csv", { type: "text/csv" }),
+  );
+  await user.click(await screen.findByRole("button", { name: "Build a format from this file" }));
+  // The step transition is animated (`AnimatePresence mode="wait"`), so the form
+  // arrives a beat after the click.
+  await screen.findByLabelText("Format name");
+}
+
+/** Everything the French export needs, less whatever the case is about. */
+async function mapFrenchColumns(user: ReturnType<typeof userEvent.setup>) {
+  await user.type(screen.getByLabelText("Format name"), "CCF");
+  await user.selectOptions(screen.getByLabelText("Operation date column"), "Date opération");
+  await user.selectOptions(screen.getByLabelText("Operation label column"), "Libellé");
+  await user.selectOptions(
+    screen.getByLabelText("How the amount is signed"),
+    "debit-credit-columns",
+  );
+  await user.selectOptions(screen.getByLabelText("Debit column"), "Débit");
+  await user.selectOptions(screen.getByLabelText("Credit column"), "Crédit");
+  await user.selectOptions(screen.getByLabelText("Date order"), "day-first");
+  await user.selectOptions(screen.getByLabelText("Decimal separator"), "comma");
+}
+
+/** The live preview's rows, as `date | issuer | amount` text. */
+function previewedRows(): string[] {
+  const table = screen.getByRole("table", { name: "Preview of the parsed rows" });
+  return within(table)
+    .getAllByRole("row")
+    .slice(1)
+    .map((row) =>
+      within(row)
+        .getAllByRole("cell")
+        .map((cell) => cell.textContent)
+        .join(" | "),
+    );
+}
+
 beforeEach(() => {
   bulkCreate.mockReset().mockResolvedValue([]);
   extractPdf.mockReset();
+  createFormat.mockReset().mockResolvedValue({ ...greenGotFormat, id: 12 });
   listTransactions.mockReset().mockResolvedValue({ items: [], total: 0, bundleMembers: [] });
   // The common case for both paths: the account has the Green-Got format the CSV
   // above needs, and exactly one PDF format — so a dropped PDF extracts against
@@ -559,14 +623,17 @@ describe("ImportWizard", () => {
     expect(offeredFormats()).toEqual(["Pick the statement format…", "Green-Got", "Other bank"]);
   });
 
-  it("offers nothing and reports no match when the account's only format is a PDF one", async () => {
+  // An account whose only format is a PDF one has, from the CSV path's side, no
+  // format at all — so this is the *first-import* route (issue #186), not a file
+  // the app failed to recognise. Nothing here could ever have read a CSV.
+  it("offers nothing and reads as a first import when the account's only format is a PDF one", async () => {
     const user = userEvent.setup();
     withFormats(PDF_FORMAT);
     await dropCsv(user);
 
     expect(
       await screen.findByText(
-        "No saved format recognizes this file — pick the one to read it with.",
+        "This account has no saved CSV format yet — the first import sets one up.",
       ),
     ).toBeInTheDocument();
     expect(offeredFormats()).toEqual(["Pick the statement format…"]);
@@ -1375,5 +1442,259 @@ describe("ImportWizard", () => {
     // The stale CSV's config panel is gone and preview is unreachable.
     expect(screen.queryByText("Auto-detected.")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Continue to preview" })).toBeDisabled();
+  });
+
+  /**
+   * Issue #186 — the mapping step. When no **Statement Format** applies, the
+   * wizard walks the user through building one against the file in front of
+   * them instead of dead-ending. Three routes reach it and behave identically —
+   * nothing matched, several matched, and the account having no CSV format at
+   * all — and only the copy differs, so a brand-new account reads as being set
+   * up rather than as having failed.
+   */
+  describe("building a format from the file in front of you", () => {
+    // Route one: a brand-new account. The copy has to read as setup, because
+    // nothing has failed — there was never a format to fail.
+    it("walks a first import into the step, in words a failure would not use", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropCsv(user);
+
+      expect(
+        await screen.findByText(
+          "This account has no saved CSV format yet — the first import sets one up.",
+        ),
+      ).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Build a format from this file" }));
+
+      expect(
+        await screen.findByText(/This account has no CSV statement format yet/),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/recognizes/)).toBeNull();
+    });
+
+    // Route two: the account has formats and none of them fingerprints the file.
+    it("reaches the step when nothing matched, saying so", async () => {
+      const user = userEvent.setup();
+      withFormats(FOREIGN_CSV_FORMAT);
+      await dropCsv(user);
+
+      await user.click(
+        await screen.findByRole("button", { name: "Build a format from this file" }),
+      );
+
+      expect(
+        await screen.findByText(/No saved format recognizes statement.csv/),
+      ).toBeInTheDocument();
+    });
+
+    // Route three: several matched. The user may still settle it with the
+    // picker — the step is an offer, not a verdict — so the copy says *new*.
+    it("reaches the step when several matched, offering a new format rather than a pick", async () => {
+      const user = userEvent.setup();
+      withFormats(OTHER_CSV_FORMAT, TIED_CSV_FORMAT);
+      await dropCsv(user);
+
+      await user.click(
+        await screen.findByRole("button", { name: "Build a format from this file" }),
+      );
+
+      expect(
+        await screen.findByText(/More than one saved format matches statement.csv/),
+      ).toBeInTheDocument();
+    });
+
+    // An import a stored format already reads is untouched by all of this (PRD
+    // user story 40): the feature costs nothing when it is not needed.
+    it("offers nothing to build when a format was detected", async () => {
+      const user = userEvent.setup();
+      await dropCsv(user);
+
+      expect(await screen.findByText("Auto-detected.")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Build a format from this file" })).toBeNull();
+    });
+
+    it("offers the file's real headers as the choices", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+
+      const offered = within(await screen.findByLabelText("Operation date column"))
+        .getAllByRole("option")
+        .map((option) => option.textContent);
+      // Every column the file carries, and nothing invented: the user is
+      // choosing from what is actually in front of them.
+      expect(offered).toEqual([
+        "Pick a column…",
+        "Date opération",
+        "Libellé",
+        "Débit",
+        "Crédit",
+        "Type",
+      ]);
+    });
+
+    // The one thing that makes a wrong date order or decimal separator visible
+    // before it becomes stored data — and it has to move when the choice does,
+    // or the user cannot tell which choice fixed it.
+    it("previews real rows, and re-reads them when a choice changes", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+      await mapFrenchColumns(user);
+
+      expect(previewedRows()).toEqual([
+        expect.stringContaining("03 Apr 2026 | SHOP A"),
+        expect.stringContaining("11 Apr 2026 | SALAIRE"),
+      ]);
+      // Read day-first, the debit is negative and the credit positive — the two
+      // columns folded into one signed amount.
+      expect(previewedRows()[0]).toMatch(/-1\s?929,71/);
+      expect(previewedRows()[1]).toMatch(/\+2\s?500,00/);
+
+      // The same file, one answer changed: the third of April becomes the fourth
+      // of March. Both are dates, which is why nothing but the preview could
+      // tell the user which one they had chosen.
+      await user.selectOptions(screen.getByLabelText("Date order"), "month-first");
+      expect(previewedRows()[0]).toContain("04 Mar 2026");
+
+      // …and read with a dot decimal, `1 929,71` is a number that ends at the
+      // comma.
+      await user.selectOptions(screen.getByLabelText("Decimal separator"), "dot");
+      expect(previewedRows()[0]).toMatch(/-1\s?929,00/);
+    });
+
+    it("keeps the preview out of reach until every unguessable rule is answered", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+
+      expect(screen.queryByRole("table", { name: "Preview of the parsed rows" })).toBeNull();
+      await mapFrenchColumns(user);
+      expect(screen.getByRole("table", { name: "Preview of the parsed rows" })).toBeInTheDocument();
+    });
+
+    // A name is required to save (PRD #180) but not to preview: a user finds out
+    // whether a format is worth naming by watching it parse.
+    it("previews an unnamed draft and refuses to continue with one", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+      await mapFrenchColumns(user);
+      await user.clear(screen.getByLabelText("Format name"));
+
+      expect(screen.getByRole("table", { name: "Preview of the parsed rows" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Continue to preview" })).toBeDisabled();
+
+      await user.type(screen.getByLabelText("Format name"), "CCF");
+      expect(screen.getByRole("button", { name: "Continue to preview" })).toBeEnabled();
+    });
+
+    // The optional row filter, which is how "settled operations only" is said.
+    it("drops the rows the optional filter excludes, and says how many are left", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+      await mapFrenchColumns(user);
+
+      await user.selectOptions(screen.getByLabelText("Only import rows where"), "Type");
+      await user.type(screen.getByLabelText("…equals"), "CARTE");
+
+      expect(previewedRows()).toHaveLength(1);
+      expect(previewedRows()[0]).toContain("SHOP A");
+      expect(screen.getByText("1 of 2 rows will be imported.")).toBeInTheDocument();
+    });
+
+    // Nothing is written on the way out of the step, and nothing is written on
+    // the way into the preview: an abandoned import leaves the account exactly
+    // as it found it (PRD #180).
+    it("persists nothing when the import is abandoned at the preview", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+      await mapFrenchColumns(user);
+
+      await user.click(screen.getByRole("button", { name: "Continue to preview" }));
+      expect(await screen.findByRole("button", { name: "Commit import" })).toBeInTheDocument();
+      expect(createFormat).not.toHaveBeenCalled();
+
+      // Back out of the preview and give up on the format entirely.
+      await user.click(screen.getByRole("button", { name: "Back" }));
+      await user.click(await screen.findByRole("button", { name: "Discard this format" }));
+
+      expect(createFormat).not.toHaveBeenCalled();
+      expect(bulkCreate).not.toHaveBeenCalled();
+      // The wizard is back where it started, with the file still in hand.
+      expect(screen.getByRole("button", { name: "Continue to preview" })).toBeDisabled();
+      expect(
+        await screen.findByRole("button", { name: "Build a format from this file" }),
+      ).toBeInTheDocument();
+    });
+
+    /**
+     * The feature's first real end-to-end use, and the acceptance criterion that
+     * matters most: Green-Got — the bank whose parser this work deleted — read
+     * by a user who has no formats at all, through a format they author here.
+     */
+    it("imports a Green-Got CSV for an account with no formats, saving the format with the rows", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropCsv(user);
+
+      await user.click(
+        await screen.findByRole("button", { name: "Build a format from this file" }),
+      );
+
+      await user.type(await screen.findByLabelText("Format name"), "Green-Got");
+      await user.selectOptions(screen.getByLabelText("Operation date column"), "Date");
+      await user.selectOptions(screen.getByLabelText("Operation label column"), "Intitulé");
+      await user.selectOptions(
+        screen.getByLabelText("How the amount is signed"),
+        "direction-column",
+      );
+      await user.selectOptions(screen.getByLabelText("Amount column"), "Montant");
+      await user.selectOptions(screen.getByLabelText("Direction column"), "Direction");
+      await user.type(screen.getByLabelText("Value meaning a debit"), "DEBIT");
+      await user.selectOptions(screen.getByLabelText("Date order"), "iso");
+      await user.selectOptions(screen.getByLabelText("Decimal separator"), "dot");
+      await user.selectOptions(screen.getByLabelText("Only import rows where"), "Statut");
+      await user.type(screen.getByLabelText("…equals"), "COMPLETE");
+
+      await user.click(screen.getByRole("button", { name: "Continue to preview" }));
+      // The preview names the format being built, not a stored one.
+      expect(await screen.findByText("Green-Got")).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Commit import" }));
+
+      // One action, two writes: the format the user authored…
+      await waitFor(() => expect(createFormat).toHaveBeenCalledTimes(1));
+      expect(createFormat).toHaveBeenCalledWith({
+        kind: "csv",
+        accountId: 1,
+        name: "Green-Got",
+        // The fingerprint is the file's own header row, whole — not the subset
+        // the mapping reads.
+        headers: ["Statut", "Date", "Montant", "Direction", "Intitulé"],
+        mapping: { date: "Date", rawIssuerString: "Intitulé", counterpartyIban: null },
+        rules: {
+          sign: {
+            strategy: "direction-column",
+            amountColumn: "Montant",
+            directionColumn: "Direction",
+            debitValue: "DEBIT",
+          },
+          dateOrder: "iso",
+          decimalSeparator: "dot",
+          filter: { column: "Statut", equals: "COMPLETE" },
+        },
+      });
+
+      // …and the rows it read, signed the way it says they are signed.
+      await waitFor(() => expect(bulkCreate).toHaveBeenCalledTimes(1));
+      const records = bulkCreate.mock.calls[0][0];
+      expect(records).toHaveLength(2);
+      expect(records[0]).toMatchObject({ amount: -10, rawIssuerString: "SHOP A" });
+      expect(records[1]).toMatchObject({ amount: 20, rawIssuerString: "SHOP B" });
+      expect(await screen.findByText("Transactions page")).toBeInTheDocument();
+    });
   });
 });

@@ -27,12 +27,68 @@ import { canAcceptFile, canPreview, type WizardAction, type WizardState } from "
  * guessing this work removes. So the drop is refused rather than served by a
  * fallback that produces plausible-but-wrong rows.
  *
- * Building one from the file in front of the user is issue #186's step; until it
- * lands this is a dead end, and saying so plainly beats a spinner that resolves
+ * The mapping step (issue #186) does not rescue this path either: it builds a
+ * format from a file's **real headers** and previews its **real rows**, and a
+ * PDF has neither until an extraction has run — the very extraction there is no
+ * format for. Authoring one for a PDF belongs to the mismatch flow (issue #188),
+ * so this stays a refusal, and saying so plainly beats a spinner that resolves
  * into nonsense.
  */
 const NO_PDF_FORMAT =
   "This account has no PDF statement format yet. Import a CSV export from your bank instead.";
+
+/**
+ * The way out of a CSV import no stored **Statement Format** applies to (issue
+ * #186), and the state of the one being built.
+ *
+ * Offered rather than forced: all three routes here — nothing matched, several
+ * matched, an account with no CSV format at all — leave the picker on screen, so
+ * a user whose file *is* readable by something they already have can still say
+ * so. The offer disappears the moment a format is chosen, which is why a routine
+ * import never sees it (PRD #180: the feature costs nothing when it is not
+ * needed).
+ *
+ * Once a draft exists it says so here, because the upload step is where the user
+ * comes back to: the picker below shows nothing selected, and a wizard that let
+ * them continue without explaining what it was about to import under would be
+ * keeping the format it is going to save a secret.
+ */
+function BuildFormat({
+  state,
+  dispatch,
+}: {
+  state: WizardState;
+  dispatch: (action: WizardAction) => void;
+}) {
+  if (state.draftFormat !== null) {
+    const named = state.draftFormat.name.trim();
+    return (
+      <div className="flex flex-wrap items-center gap-3 text-sm text-gousse-muted">
+        <span>A new format{named === "" ? "" : ` — ${named}`} will be saved with this import.</span>
+        <Button variant="secondary" size="sm" onClick={() => dispatch({ type: "build-format" })}>
+          Edit this format
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => dispatch({ type: "discard-format-draft" })}
+        >
+          Discard this format
+        </Button>
+      </div>
+    );
+  }
+
+  if (state.formatId !== null) return null;
+
+  return (
+    <div>
+      <Button variant="secondary" size="sm" onClick={() => dispatch({ type: "build-format" })}>
+        Build a format from this file
+      </Button>
+    </div>
+  );
+}
 
 /** Whether a dropped file is a PDF (by MIME or extension) — the async fork. */
 function isPdf(file: File): boolean {
@@ -336,7 +392,10 @@ export function UploadStep({
           </p>
 
           {state.source === "csv" ? (
-            <FormatPicker formats={formats} state={state} dispatch={dispatch} />
+            <>
+              <FormatPicker formats={formats} state={state} dispatch={dispatch} />
+              <BuildFormat state={state} dispatch={dispatch} />
+            </>
           ) : null}
         </div>
       ) : null}

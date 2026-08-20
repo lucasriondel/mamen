@@ -5,9 +5,18 @@ import type {
   StatementFormatId,
 } from "@mamen/shared/contract";
 import type { FormatDetection } from "./parsers/detect-format";
+import { blankDraft, draftComplete, type FormatDraft } from "./parsers/format-draft";
 
-/** The wizard's two interactive steps (commit is a transient action, not a step). */
-export type WizardStep = "upload" | "preview";
+/**
+ * The wizard's interactive steps (commit is a transient action, not a step).
+ *
+ * `mapping` sits between the other two and is only ever reached when no
+ * **Statement Format** applies to the dropped CSV (issue #186) — nothing
+ * matched, several matched, or the account has none of this kind. It is not a
+ * step every import passes through, which is why the upload step still leads
+ * straight to the preview.
+ */
+export type WizardStep = "upload" | "mapping" | "preview";
 
 /**
  * Which file shape the dropped statement is. A **CSV** forks to the synchronous
@@ -40,10 +49,16 @@ export type RowId = number & { readonly __brand: "RowId" };
  * (PRD #180). `manual` silences both: the user has answered the question the
  * hint was asking.
  *
- * A format is set exactly under `detected` and `manual`; the other two leave it
- * `null`, which is what keeps the wizard off the preview until someone decides.
+ * `no-formats` is the third of these — the account has no CSV format at all, so
+ * there is nothing this file could have failed against. It reads as a first
+ * import being set up rather than as a file being rejected (issue #186), and it
+ * is the only difference between the three routes into the mapping step.
+ *
+ * A format is set exactly under `detected` and `manual`; the other three leave
+ * it `null`, which is what keeps the wizard off the preview until someone
+ * decides.
  */
-export type FormatSelection = "detected" | "manual" | "none" | "several";
+export type FormatSelection = "detected" | "manual" | "none" | "several" | "no-formats";
 
 /** Local state for the 3-step import wizard (no global store — PRD). */
 export type WizardState = {
@@ -82,6 +97,22 @@ export type WizardState = {
   formatId: StatementFormatId | null;
   /** How {@link formatId} was arrived at, and the picker's hint. */
   formatSelection: FormatSelection | null;
+  /**
+   * The **Statement Format** the user is building from this very file (issue
+   * #186), or `null` when they are not building one — which is every import an
+   * existing format reads.
+   *
+   * It lives in the import's state rather than in the mapping step's locals
+   * because it outlives that step: the preview reads the rows through it, and
+   * the commit is the one action that saves it. And it lives *only* here, so
+   * abandoning the import leaves nothing behind — an account never fills with
+   * drafts from imports nobody finished (PRD #180).
+   *
+   * Mutually exclusive with {@link formatId} in practice: picking a stored
+   * format drops the draft, and building one is what a user does when no stored
+   * format applies. The wizard reads the draft first where both could be set.
+   */
+  draftFormat: FormatDraft | null;
   accountId: AccountId | null;
   /** Groups every row of this import together; regenerated per file. */
   importBatchId: string;
@@ -164,6 +195,16 @@ export type WizardAction =
   | { type: "file-error"; message: string }
   | { type: "select-format"; formatId: StatementFormatId }
   | { type: "select-account"; accountId: AccountId }
+  /**
+   * Build a **Statement Format** from the loaded CSV — the way out of all three
+   * no-format-applies routes (issue #186). Opens the mapping step on the draft
+   * already in hand, or on a blank one.
+   */
+  | { type: "build-format" }
+  /** Answer one question on the draft; the others stand. */
+  | { type: "update-format-draft"; patch: Partial<FormatDraft> }
+  /** Give up on building one — the draft is gone and nothing was saved. */
+  | { type: "discard-format-draft" }
   | { type: "go-to-preview" }
   | { type: "back-to-upload" }
   /**
@@ -217,6 +258,7 @@ export const initialWizardState: WizardState = {
   rows: [],
   formatId: null,
   formatSelection: null,
+  draftFormat: null,
   accountId: null,
   importBatchId: "",
   error: null,
@@ -306,17 +348,25 @@ export function canAcceptFile(state: WizardState): boolean {
 }
 
 /**
- * Whether the upload step has everything it needs to move to the preview. The
- * account is required either way; a CSV also needs parsed rows + a chosen
- * **Statement Format**, while a PDF needs a settled extraction (rows in hand,
- * not still extracting).
+ * Whether the wizard has everything it needs to move to the preview. The account
+ * is required either way; a CSV also needs parsed rows and a **Statement
+ * Format** to read them with, while a PDF needs a settled extraction (rows in
+ * hand, not still extracting).
+ *
+ * A format the user is *building* counts, once it is complete enough to save —
+ * name included, because the commit that writes the rows writes the format too
+ * (issue #186), and an unnamed one would be a record they could never tell apart
+ * from the next unnamed one.
  */
 export function canPreview(state: WizardState): boolean {
   if (state.accountId === null) return false;
   if (state.source === "pdf") {
     return state.extracted !== null && !state.extracting;
   }
-  return state.rows.length > 0 && state.formatId !== null;
+  if (state.rows.length === 0) return false;
+  return (
+    state.formatId !== null || (state.draftFormat !== null && draftComplete(state.draftFormat))
+  );
 }
 
 /** Pure state machine for the import wizard. */
@@ -338,6 +388,10 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         // query, and this file may have arrived before its result did.
         formatId: null,
         formatSelection: null,
+        // A draft is built *against* a file, from its own headers — so another
+        // file is another draft, and this one is dropped rather than carried
+        // onto columns it may not have.
+        draftFormat: null,
         importBatchId: crypto.randomUUID(),
         error: null,
         // A CSV replacing a prior PDF drop clears the extraction state.
@@ -370,6 +424,8 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         rows: [],
         formatId: null,
         formatSelection: null,
+        // The file the draft was being built against is gone with the error.
+        draftFormat: null,
         extracting: false,
         extracted: null,
         declaredTotals: null,
@@ -391,6 +447,9 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         // The user has answered; whatever detection had to say about this file
         // is no longer the thing to tell them.
         formatSelection: "manual",
+        // …and they answered with a format that already exists, so the one they
+        // were building is not the one this import uses — nor one to save.
+        draftFormat: null,
         skippedRows: [],
       };
     case "select-account":
@@ -405,6 +464,14 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         accountId: action.accountId,
         formatId: null,
         formatSelection: null,
+        // A format is saved *onto* an account, so a draft built for one is not a
+        // draft for another — and the step that would save it is the commit,
+        // which now belongs to somewhere else.
+        draftFormat: null,
+        // Whatever step it was authored on is not a step this import is on any
+        // more; the file has to be decided against the new account's formats
+        // first, which happens back on the upload step.
+        step: state.step === "mapping" ? "upload" : state.step,
       };
     case "pdf-awaits-format":
       if (!canAcceptFile(state)) return state;
@@ -421,6 +488,7 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         rows: [],
         formatId: null,
         formatSelection: null,
+        draftFormat: null,
         extracting: false,
         extracted: null,
         declaredTotals: null,
@@ -428,6 +496,25 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         skippedRows: [],
         rowIds: [],
       };
+    case "build-format":
+      // The step's whole subject is the file's real headers, so there has to be
+      // a file with headers — a PDF has none until extraction has run, and its
+      // format is authored elsewhere.
+      if (state.source !== "csv" || state.headers.length === 0) return state;
+      return {
+        ...state,
+        step: "mapping",
+        // Reopening is editing: a user who came back to fix the date order must
+        // find the rest of their answers where they left them.
+        draftFormat: state.draftFormat ?? blankDraft(),
+      };
+    case "update-format-draft":
+      if (state.draftFormat === null) return state;
+      return { ...state, draftFormat: { ...state.draftFormat, ...action.patch } };
+    case "discard-format-draft":
+      // The draft was never written anywhere else, so letting go of it here is
+      // the whole of "abandoning leaves nothing behind" (PRD #180).
+      return { ...state, draftFormat: null, step: "upload" };
     case "go-to-preview":
       return canPreview(state) ? { ...state, step: "preview" } : state;
     case "back-to-upload":
@@ -453,6 +540,8 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         rows: [],
         formatId: null,
         formatSelection: null,
+        // …the draft included: it was being built against those headers.
+        draftFormat: null,
         skippedRows: [],
         // No candidate rows until the extraction settles.
         rowIds: [],

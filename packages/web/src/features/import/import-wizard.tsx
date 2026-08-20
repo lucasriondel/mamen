@@ -7,8 +7,10 @@ import { stepPresence } from "@/lib/motion";
 import { accountQueries, statementFormatQueries } from "@/lib/sdk";
 import { enrichExtracted } from "./enrich-extracted";
 import { takeHandoff } from "./import-handoff";
-import { applyFormat } from "./parsers/apply-format";
+import { MappingStep } from "./mapping-step";
+import { applyFormat, type FormatToApply } from "./parsers/apply-format";
 import { csvFormats, detectFormat } from "./parsers/detect-format";
+import { draftCreate, draftRules } from "./parsers/format-draft";
 import type { ParsedTransaction } from "./parsers/types";
 import { PdfValidationStep } from "./pdf-validation-step";
 import { PreviewStep } from "./preview-step";
@@ -17,6 +19,7 @@ import {
   makeInitialWizardState,
   type RowId,
   type WizardPrefill,
+  type WizardStep,
   wizardReducer,
 } from "./wizard-reducer";
 
@@ -38,6 +41,18 @@ function readPrefill(initialAccountId?: AccountId): WizardPrefill | undefined {
       ? { file: { fileName: handoff.fileName, headers: handoff.headers, rows: handoff.rows } }
       : {}),
   };
+}
+
+/** What the page says it is for, which is not the same thing on every step. */
+function stepDescription(step: WizardStep): string {
+  switch (step) {
+    case "upload":
+      return "Pick the account, drop its CSV or PDF statement, and preview before committing.";
+    case "mapping":
+      return "Say how this bank writes its statement — the rows below are read as you choose.";
+    case "preview":
+      return "Review what will be written — committing adds these rows to the account.";
+  }
 }
 
 /**
@@ -89,10 +104,43 @@ export function ImportWizard({
     dispatch({ type: "detect-format", detection: detectFormat(state.headers, formats) });
   }, [state.source, state.headers, state.formatSelection, formats, formatsQuery.isPending]);
 
-  /** The record the preview and the commit are read through; `undefined` until picked. */
+  /** The stored record the preview and the commit read; `undefined` until picked. */
   const selectedFormat = useMemo(
     () => formats.find((format) => format.id === state.formatId),
     [formats, state.formatId],
+  );
+
+  /**
+   * What the rows are actually read with — the **Statement Format** the user is
+   * building from this very file (issue #186) if there is one, otherwise the
+   * stored record they picked.
+   *
+   * One derivation for both, so the mapping step's live preview, the preview
+   * step's table and the commit are the same reading of the same file. A
+   * separate one for the draft would be a second answer to "what does this
+   * format make of this row", and the whole point of the live preview is that
+   * what it shows is what will be committed.
+   *
+   * The draft comes first where both exist, which in practice they do not: the
+   * reducer drops each when the other is chosen.
+   */
+  const activeFormat: FormatToApply | undefined = useMemo(() => {
+    const drafted = state.draftFormat === null ? null : draftRules(state.draftFormat);
+    return drafted ?? selectedFormat;
+  }, [state.draftFormat, selectedFormat]);
+
+  /**
+   * The format this import will save alongside its rows, or `null` when it is
+   * reading one that already exists. Built here because the two things the draft
+   * itself cannot know — the account it belongs to and the file's own header row
+   * — are the wizard's (issue #186).
+   */
+  const formatToCreate = useMemo(
+    () =>
+      state.draftFormat === null || state.accountId === null
+        ? null
+        : draftCreate(state.draftFormat, state.accountId, state.headers),
+    [state.draftFormat, state.accountId, state.headers],
   );
 
   // The previewed rows and the **stable row id** each one is skipped by, kept
@@ -119,8 +167,8 @@ export function ImportWizard({
       if (!state.extracted) return { records: [], rowIds: [] };
       return { records: enrichExtracted(state.extracted, ctx), rowIds: state.rowIds };
     }
-    if (!selectedFormat) return { records: [], rowIds: [] };
-    const parsed = applyFormat(selectedFormat, state.rows, ctx);
+    if (!activeFormat) return { records: [], rowIds: [] };
+    const parsed = applyFormat(activeFormat, state.rows, ctx);
     return {
       records: parsed.map(({ record }) => record),
       rowIds: parsed.map(({ sourceIndex }) => state.rowIds[sourceIndex]),
@@ -128,14 +176,19 @@ export function ImportWizard({
   }, [
     state.source,
     state.extracted,
-    selectedFormat,
+    activeFormat,
     state.accountId,
     state.rows,
     state.rowIds,
     state.importBatchId,
   ]);
 
-  const sourceLabel = state.source === "pdf" ? "PDF extraction" : (selectedFormat?.name ?? "—");
+  // What the preview calls the format it read the rows with. A draft has no
+  // stored name to look up — it is named in the step that is building it.
+  const sourceLabel =
+    state.source === "pdf"
+      ? "PDF extraction"
+      : ((state.draftFormat?.name.trim() || selectedFormat?.name) ?? "—");
 
   const accountName = accounts.find((account) => account.id === state.accountId)?.name ?? "—";
 
@@ -147,6 +200,18 @@ export function ImportWizard({
   let stepContent: ReactNode = null;
   if (state.step === "upload") {
     stepContent = <UploadStep formats={formats} state={state} dispatch={dispatch} />;
+  } else if (state.step === "mapping" && state.draftFormat !== null) {
+    stepContent = (
+      <MappingStep
+        fileName={state.fileName ?? "this file"}
+        headers={state.headers}
+        reason={state.formatSelection}
+        draft={state.draftFormat}
+        records={records}
+        rowCount={state.rows.length}
+        dispatch={dispatch}
+      />
+    );
   } else if (
     state.accountId !== null &&
     state.source === "pdf" &&
@@ -169,7 +234,7 @@ export function ImportWizard({
         dispatch={dispatch}
       />
     );
-  } else if (state.accountId !== null && selectedFormat !== undefined) {
+  } else if (state.accountId !== null && activeFormat !== undefined) {
     stepContent = (
       <PreviewStep
         records={records}
@@ -177,6 +242,7 @@ export function ImportWizard({
         skippedRows={state.skippedRows}
         accountName={accountName}
         parserLabel={sourceLabel}
+        formatToCreate={formatToCreate}
         onBack={() => dispatch({ type: "back-to-upload" })}
         dispatch={dispatch}
       />
@@ -186,11 +252,7 @@ export function ImportWizard({
   return (
     <PageLayout
       title="Import"
-      description={
-        state.step === "upload"
-          ? "Pick the account, drop its CSV or PDF statement, and preview before committing."
-          : "Review what will be written — committing adds these rows to the account."
-      }
+      description={stepDescription(state.step)}
       className={`mx-auto ${wide ? "w-full" : "max-w-3xl"}`}
     >
       <AnimatePresence mode="wait" initial={false}>

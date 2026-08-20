@@ -136,15 +136,30 @@ function counterpartyIbanOf(
 }
 
 /**
+ * The half of a **Statement Format** that reading a CSV actually consults: which
+ * column becomes which property, and how the values are written. Everything else
+ * a stored record carries — its id, its name, its account, its fingerprint — is
+ * about *choosing* the format, not about applying it.
+ *
+ * Stated as a type so the mapping step's **format draft** can be applied by this
+ * very function while it is still being authored and has no id to be applied
+ * *by* (issue #186). The live preview is then the real thing rather than a
+ * second reading of the rules that could disagree with the import's.
+ *
+ * `kind` is part of it though nothing here branches on it: it is what keeps a
+ * `PdfStatementFormat` — which carries a mapping and rules too — from being
+ * assignable, so handing one to a CSV parser stays the type error issue #184
+ * made it rather than a `mapping.date` that reads a column no CSV has.
+ */
+export type FormatToApply = Pick<CsvStatementFormat, "kind" | "mapping" | "rules">;
+
+/**
  * Apply a **Statement Format** to raw CSV rows — the primary import seam, and
  * the successor to the hand-written parsers' `parse`.
  *
- * The format is the stored entity itself (issue #184), fetched from the account
- * it belongs to like any other contract data — web ADR 0001 stands, since the
- * rows never leave the browser. `CsvStatementFormat` rather than the union: a
- * PDF format declares the columns to ask a model for and is applied by **PDF
- * extraction**, so handing one to a CSV parser is a type error rather than a
- * `mapping.date` that reads a column no CSV has.
+ * The format is normally the stored entity itself (issue #184), fetched from the
+ * account it belongs to like any other contract data — web ADR 0001 stands,
+ * since the rows never leave the browser.
  *
  * Pure: a format, the rows, and the context the file cannot supply go in;
  * records come out. No file I/O and no network, which is what keeps client-side
@@ -160,7 +175,7 @@ function counterpartyIbanOf(
  * columns the format maps decides what is *promoted*, never what is kept.
  */
 export function applyFormat(
-  format: CsvStatementFormat,
+  format: FormatToApply,
   rows: ReadonlyArray<Record<string, string>>,
   ctx: ParseContext,
 ): ParsedRow[] {

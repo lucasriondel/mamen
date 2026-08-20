@@ -77,6 +77,15 @@ function FormatHint({ state }: { state: WizardState }) {
           More than one saved format matches this file — pick the one to read it with.
         </span>
       );
+    // The third route into the mapping step (issue #186), and it is not a
+    // failure to report: nothing has been rejected, because there was never a
+    // format for this file to be rejected by.
+    case "no-formats":
+      return (
+        <span className="text-xs text-gousse-muted">
+          This account has no saved CSV format yet — the first import sets one up.
+        </span>
+      );
     default:
       return null;
   }

@@ -307,6 +307,12 @@ repeated per package.
   that changes its export earns a new format, the newer record's fingerprint is
   a strict superset of the older's, and **the format requiring the most headers
   wins** when several match.
+
+  A format is **authored by the user, against a file** (issue #186): when no
+  stored one applies, the import wizard's **mapping step** offers to build one
+  from the statement in front of them, and the commit that writes the rows
+  writes the format. Nothing seeds one — Green-Got included — so the feature's
+  first real use is its first end-to-end test.
   _Avoid_: adapter, mapper, importer, schema.
 
 - **Extracted transaction** — one candidate operation lifted from a PDF bank

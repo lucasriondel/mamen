@@ -2,10 +2,18 @@ import type { CsvStatementFormat, StatementFormat } from "@mamen/shared/contract
 
 /**
  * What detection concluded about a dropped **CSV** and one account's stored
- * **Statement Formats**. Three arms, because the wizard says three different
- * things: it preselects, it reports **nothing matched**, or it reports **several
- * matched** — and the last two are distinct facts about the file, not one
- * "unrecognised" catch-all.
+ * **Statement Formats**. Four arms, because the wizard says four different
+ * things: it preselects, it reports **nothing matched**, it reports **several
+ * matched**, or it reports that this account has **no formats** of this kind at
+ * all — distinct facts about the file and the account, not one "unrecognised"
+ * catch-all.
+ *
+ * `no-formats` is the third of issue #186's routes into the mapping step, and it
+ * is separate from `none` for the copy alone: an account nobody has set up yet
+ * has not *failed* to recognise anything, and a first import that reads as a
+ * failure is the dead end the mapping step exists to remove. An account holding
+ * only PDF formats is here too — from the CSV path's side there is nothing that
+ * could ever have read this file.
  *
  * `several` deliberately carries no formats. Nothing renders them: the picker
  * lists every CSV format the account has either way, since a user who disagrees
@@ -14,7 +22,8 @@ import type { CsvStatementFormat, StatementFormat } from "@mamen/shared/contract
 export type FormatDetection =
   | { readonly outcome: "detected"; readonly format: CsvStatementFormat }
   | { readonly outcome: "several" }
-  | { readonly outcome: "none" };
+  | { readonly outcome: "none" }
+  | { readonly outcome: "no-formats" };
 
 /**
  * The **CSV** formats among an account's, which is every format the CSV import
@@ -60,7 +69,13 @@ export function detectFormat(
   headers: readonly string[],
   formats: readonly StatementFormat[],
 ): FormatDetection {
-  const matches = csvFormats(formats).filter((format) => matchesHeaders(format, headers));
+  const candidates = csvFormats(formats);
+  // Asked before anything is matched: "this account has no format that could
+  // read a CSV" is a fact about the account, and it is the one the mapping
+  // step's first-import copy turns on (issue #186).
+  if (candidates.length === 0) return { outcome: "no-formats" };
+
+  const matches = candidates.filter((format) => matchesHeaders(format, headers));
   if (matches.length === 0) return { outcome: "none" };
 
   const demanded = Math.max(...matches.map((format) => format.headers.length));

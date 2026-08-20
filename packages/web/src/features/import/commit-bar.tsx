@@ -1,3 +1,4 @@
+import type { StatementFormatCreate } from "@mamen/shared/contract";
 import { Button } from "@/components/ui/button";
 import type { ParsedTransaction } from "./parsers/types";
 import { useImportCommit } from "./use-import-commit";
@@ -24,11 +25,20 @@ import { useImportCommit } from "./use-import-commit";
 export function CommitBar({
   records,
   duplicateCount,
+  formatToCreate,
   onBack,
 }: {
   records: readonly ParsedTransaction[];
   /** How many of `records` look already imported (`useDuplicateFlags`). */
   duplicateCount: number;
+  /**
+   * The **Statement Format** the user built from this file, written by this
+   * button and by nothing else (issue #186). Saving a format and using it are
+   * one decision, and a draft saved anywhere earlier would outlive the imports
+   * nobody finished. Absent on the PDF path and on any import reading a stored
+   * format.
+   */
+  formatToCreate?: StatementFormatCreate | null;
   onBack: () => void;
 }) {
   const commit = useImportCommit();
@@ -41,7 +51,7 @@ export function CommitBar({
         <Button
           variant="primary"
           size="md"
-          onClick={() => commit.mutate({ records })}
+          onClick={() => commit.mutate({ records, format: formatToCreate ?? undefined })}
           // Nothing left to write — every previewed row was skipped (epic #85),
           // or the statement parsed to no rows at all. Committing would post an
           // empty batch and toast an import of nothing.

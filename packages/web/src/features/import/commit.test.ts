@@ -8,6 +8,8 @@ import type { ParsedTransaction } from "./parsers/types";
 // for (a delete above all) fails the suite as a missing function rather than
 // slipping past an assertion nobody wrote.
 const bulkCreate = vi.fn();
+/** The **Statement Format** a mapping-step import saves alongside its rows (#186). */
+const createFormat = vi.fn();
 
 vi.mock("@mamen/sdk", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@mamen/sdk")>();
@@ -15,6 +17,9 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
     ...actual,
     transactionMutations: {
       bulkCreate: (records: unknown) => bulkCreate(records),
+    },
+    statementFormatMutations: {
+      create: (payload: unknown) => createFormat(payload),
     },
   };
 });
@@ -37,7 +42,23 @@ function record(overrides: Partial<ParsedTransaction> = {}): ParsedTransaction {
 
 beforeEach(() => {
   bulkCreate.mockReset().mockResolvedValue([]);
+  createFormat.mockReset().mockResolvedValue({ id: 12 });
 });
+
+/** A format built in the mapping step, as its draft folds into a payload. */
+const FORMAT = {
+  kind: "csv",
+  accountId: ACCOUNT_ID,
+  name: "Green-Got",
+  headers: ["Date", "Montant"],
+  mapping: { date: "Date", rawIssuerString: "Intitulé", counterpartyIban: null },
+  rules: {
+    sign: { strategy: "signed-column", amountColumn: "Montant" },
+    dateOrder: "iso",
+    decimalSeparator: "dot",
+    filter: null,
+  },
+} as const;
 
 describe("distinctMonths", () => {
   it("returns the sorted distinct import months", () => {
@@ -78,6 +99,42 @@ describe("commitImport", () => {
 
   // What the success toast reports: which months the batch landed in, and how
   // many rows landed there.
+  /**
+   * Issue #186 — a format built in the mapping step is saved by the action that
+   * commits the rows, not by leaving the step. Saving a format and using it are
+   * one decision (PRD #180), which is also what keeps an abandoned import from
+   * leaving a half-considered draft on the account.
+   */
+  describe("with a format built from the file", () => {
+    it("saves the format and then the rows", async () => {
+      await commitImport([record()], FORMAT);
+
+      expect(createFormat).toHaveBeenCalledTimes(1);
+      expect(createFormat).toHaveBeenCalledWith(FORMAT);
+      expect(bulkCreate).toHaveBeenCalledTimes(1);
+      // The order is the recoverable one: a format that fails to save writes no
+      // rows, and the user retries an import that has landed nothing. The other
+      // way round, the retry would duplicate every transaction — which is the
+      // failure the already-imported mark exists because nothing can undo.
+      expect(createFormat.mock.invocationCallOrder[0]).toBeLessThan(
+        bulkCreate.mock.invocationCallOrder[0],
+      );
+    });
+
+    it("writes no rows when the format cannot be saved", async () => {
+      createFormat.mockRejectedValue(new Error("nope"));
+
+      await expect(commitImport([record()], FORMAT)).rejects.toThrow("nope");
+      expect(bulkCreate).not.toHaveBeenCalled();
+    });
+
+    it("saves nothing extra for an import that reads a stored format", async () => {
+      await commitImport([record()]);
+
+      expect(createFormat).not.toHaveBeenCalled();
+    });
+  });
+
   it("reports the months and the row count", async () => {
     const result = await commitImport([
       record({ importMonth: "2026-02" }),

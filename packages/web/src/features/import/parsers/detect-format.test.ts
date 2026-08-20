@@ -54,8 +54,21 @@ describe("detecting a CSV format from a file's headers", () => {
     expect(detectFormat(["Date", "Description", "Amount"], [bank])).toEqual({ outcome: "none" });
   });
 
-  it("reports nothing matched when the account has no formats at all", () => {
-    expect(detectFormat(["Date", "Montant"], [])).toEqual({ outcome: "none" });
+  // A third fact, distinct from *nothing matched* (issue #186): an account with
+  // no CSV format at all has not failed to recognise the file, it has never been
+  // set up. The wizard walks a first import into building one, and the copy has
+  // to read as being set up rather than as having failed — which it cannot do if
+  // this arrives here as "none".
+  it("reports no formats when the account has none at all", () => {
+    expect(detectFormat(["Date", "Montant"], [])).toEqual({ outcome: "no-formats" });
+  });
+
+  it("reports no formats when the account's formats are all PDF ones", () => {
+    // Same fact from the CSV path's point of view: nothing here could ever read
+    // a CSV, so there is nothing for the file to have failed against.
+    expect(detectFormat(["Date", "Montant"], [pdf(3, "Bank (PDF)", ["Date"])])).toEqual({
+      outcome: "no-formats",
+    });
   });
 
   // The reason most-specific-wins exists: a bank adding a column is a *new*
@@ -97,7 +110,11 @@ describe("detecting a CSV format from a file's headers", () => {
   it("never considers a PDF format — it carries no fingerprint to match", () => {
     const pdfFormat = pdf(3, "Bank (PDF)", ["Date", "Montant"]);
 
-    expect(detectFormat(["Date", "Montant"], [pdfFormat])).toEqual({ outcome: "none" });
+    // …a CSV format that cannot read the file leaves it unmatched, even though
+    // the PDF one names every column of it.
+    expect(detectFormat(["Date", "Montant"], [pdfFormat, csv(4, "Other", ["Solde"])])).toEqual({
+      outcome: "none",
+    });
     // …and a PDF format alongside a matching CSV one leaves the CSV one sole.
     expect(detectFormat(["Date", "Montant"], [pdfFormat, bank])).toEqual({
       outcome: "detected",

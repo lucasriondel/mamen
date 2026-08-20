@@ -1,3 +1,4 @@
+import type { StatementFormatCreate } from "@mamen/shared/contract";
 import { Undo2, X } from "lucide-react";
 import { useMemo } from "react";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,7 @@ export function PreviewStep({
   skippedRows,
   accountName,
   parserLabel,
+  formatToCreate,
   onBack,
   dispatch,
 }: {
@@ -44,6 +46,11 @@ export function PreviewStep({
   skippedRows: readonly RowId[];
   accountName: string;
   parserLabel: string;
+  /**
+   * The **Statement Format** built from this file, saved by the commit itself
+   * (issue #186); `null` for an import reading a stored one.
+   */
+  formatToCreate?: StatementFormatCreate | null;
   onBack: () => void;
   dispatch: (action: WizardAction) => void;
 }) {
@@ -83,7 +90,12 @@ export function PreviewStep({
         dispatch={dispatch}
       />
 
-      <CommitBar records={kept} duplicateCount={duplicateCount} onBack={onBack} />
+      <CommitBar
+        records={kept}
+        duplicateCount={duplicateCount}
+        formatToCreate={formatToCreate}
+        onBack={onBack}
+      />
     </div>
   );
 }

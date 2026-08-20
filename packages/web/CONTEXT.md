@@ -56,7 +56,8 @@ rather than a registered one — nothing imports it at runtime, it drives the
 applying suite against the shipped fixture, and
 `scripts/scrub-bank-statements.sh` reads `GREEN_GOT_HEADERS` out of it to check
 the fixture still carries the columns the format needs. The real Green-Got is
-authored by a user through the UI (PRD #180 declines to seed it).
+authored by a user through the UI (PRD #180 declines to seed it) — which is what
+the **mapping step** is for since issue #186.
 
 **Parser** (Statement Parser):
 The code that **applies** a **Statement Format** to a **CSV**'s rows — not a
@@ -67,9 +68,13 @@ read from, because the format's row filter drops rows it won't import, and that
 join is the only way the preview can put a row's **stable row id** on the record
 it produced. Detection is a separate pure function over the format records:
 `detectFormat(headers, formats)` in `parsers/detect-format.ts` answers with one
-of three verdicts — a format, **nothing matched**, or **several matched** — over
-the account's stored formats, which are its candidates rather than a
-module-level set.
+of four verdicts — a format, **nothing matched**, **several matched**, or **no
+formats yet** — over the account's stored formats, which are its candidates
+rather than a module-level set. It applies to a **format draft** too
+(`parsers/format-draft.ts`), which is why `applyFormat` takes a `FormatToApply`
+— the mapping and the rules — rather than a whole stored record: a format being
+authored has no id to be applied by, and its live preview has to be the same
+reading the import will do.
 **The most specific match wins.** A bank that changes its export earns a *new*
 format rather than an edit to the old one (PRD #180), so the newer record's
 fingerprint is a strict superset of the older's: requiring the most headers is
@@ -92,16 +97,50 @@ fingerprint and could only ever fail against a CSV — and a manual pick silence
 whatever the hint below it was saying, because the user has answered the
 question it was asking.
 
-**Nothing matched** / **several matched**:
-The format picker's two hint states, and two different facts about the file.
-*Nothing matched* means no format the account holds fingerprints it; *several
+**Nothing matched** / **several matched** / **no formats yet**:
+The format picker's three hint states, and three different facts. *Nothing
+matched* means no format the account holds fingerprints this file; *several
 matched* means more than one does, equally specifically, and neither is more
-specific than the other. They were a single "Format not recognized" line before
+specific than the other; *no formats yet* means the account has no CSV format at
+all, so nothing could have matched — an account whose only formats are PDF ones
+is here too. The first two were a single "Format not recognized" line before
 issue #184, which made the app understanding a file **twice over** read as not
-understanding it at all. Both leave the format unchosen and the preview out of
-reach — nothing is guessed at — and both are settled by the user picking.
+understanding it at all; the third was folded into *nothing matched* until issue
+#186, which made a brand-new account read as a rejection. All three leave the
+format unchosen and the preview out of reach — nothing is guessed at — and all
+three are settled either by the user picking or by the **mapping step**.
 _Avoid_: Unrecognised, unsupported (for *several matched* — the file was
-recognised, more than once).
+recognised, more than once); failed, rejected (for *no formats yet* — nothing
+was refused).
+
+**Mapping step**:
+The wizard step between upload and preview, reached only when no **Statement
+Format** applies to a dropped CSV — the three hint states above are its three
+routes, and they behave identically apart from the sentence at the top (issue
+#186). It shows the file's **real headers** as the choices and collects the
+format's name, the four mapped targets, the sign rule, the date order, the
+decimal separator and the optional row filter.
+
+It is **offered, not forced**: the picker stays on screen, so a user whose file
+one of their formats can read still picks it, and a detected format offers
+nothing to build at all.
+
+The **live preview** under the form parses the file's real rows through
+`applyFormat` — the same function the import runs, reached through
+`draftRules(draft)` — and re-reads them on every change. It is the only thing
+that makes a wrong date order or decimal separator visible before it becomes
+stored data: `03/04/2026` is a real date under either order and `1 929,71` a real
+number under either separator, so the wrongness is a plausible value rather than
+an error. Both are unanswered when the step opens, because a default here is a
+guess the user never made.
+
+The draft lives in `WizardState.draftFormat` and is written **only** by the
+commit, alongside the rows (`commitImport(records, format)`). Abandoning the
+import therefore leaves nothing behind, and the account never fills with drafts
+from imports nobody finished. The format is created *before* the rows: a failed
+create writes nothing and the retry is clean, where the other order would have
+the retry duplicate every transaction.
+_Avoid_: Wizard step 2 (the preview is that), column editor, schema builder.
 
 **PDF extraction**:
 The server-side act of turning a **PDF** Statement into candidate transaction
@@ -122,8 +161,11 @@ exactly one PDF format on the account that costs nothing: it is the only answer
 there is and it is used without an ask. With several, the file is held in wizard
 state (`pendingPdf`) and the user picks; the model is never asked to choose the
 format as well as apply it (PRD #180). With none, the drop is refused, because a
-prompt describing French statements in general is the guessing this work removed
-— building one from the file in front of the user is issue #186's step.
+prompt describing French statements in general is the guessing this work removed.
+The **mapping step** does not rescue this path: it builds a format from a file's
+real headers and previews its real rows, and a PDF has neither until extraction
+has already run — which is the extraction this account cannot do. Authoring a PDF
+format is the mismatch flow's (issue #188).
 _Avoid_: Parsing (reserved for CSV), OCR, scanning.
 
 **Extracted transaction**:

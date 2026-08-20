@@ -1,5 +1,6 @@
 import type { AccountId, CsvStatementFormat, StatementFormatId } from "@mamen/shared/contract";
 import { describe, expect, it } from "vitest";
+import { blankDraft } from "./parsers/format-draft";
 import {
   canAcceptFile,
   canPreview,
@@ -281,6 +282,143 @@ describe("wizardReducer", () => {
       const state = wizardReducer(initialWizardState, { type: "pdf-awaits-format", file: PDF });
 
       expect(state).toBe(initialWizardState);
+    });
+  });
+
+  /**
+   * Issue #186 — when no format applies, the wizard walks the user into building
+   * one against the file in front of them. The draft lives here, in the state of
+   * the *import*, because it outlives the step that authors it: the preview
+   * reads the rows through it and the commit saves it.
+   */
+  describe("a Statement Format being built from the file", () => {
+    /** A draft with every answer the applying half needs, over `HEADERS`. */
+    const READY = {
+      ...blankDraft(),
+      name: "Green-Got",
+      mapping: { date: "Date", rawIssuerString: "Intitulé", counterpartyIban: null },
+      sign: { strategy: "signed-column" as const, amountColumn: "Montant" },
+      dateOrder: "iso" as const,
+      decimalSeparator: "dot" as const,
+    };
+
+    // The third route in, and the one the copy exists for: an account nobody has
+    // set up yet has not failed to recognise anything.
+    it("records that the account has no format of this kind at all", () => {
+      const state = wizardReducer(parsedCsv, {
+        type: "detect-format",
+        detection: { outcome: "no-formats" },
+      });
+
+      expect(state.formatId).toBeNull();
+      expect(state.formatSelection).toBe("no-formats");
+    });
+
+    it("opens the mapping step on a draft that declares nothing", () => {
+      const state = wizardReducer(parsedCsv, { type: "build-format" });
+
+      expect(state.step).toBe("mapping");
+      expect(state.draftFormat).toEqual(blankDraft());
+    });
+
+    // Reopening is editing, not restarting: a user who went to the preview and
+    // came back to fix the date order must find the rest of their answers.
+    it("reopens the draft it already has rather than blanking it", () => {
+      const drafted = wizardReducer(wizardReducer(parsedCsv, { type: "build-format" }), {
+        type: "update-format-draft",
+        patch: { name: "Green-Got" },
+      });
+      const state = wizardReducer({ ...drafted, step: "upload" }, { type: "build-format" });
+
+      expect(state.step).toBe("mapping");
+      expect(state.draftFormat?.name).toBe("Green-Got");
+    });
+
+    // Nothing to map against: the mapping step's whole subject is the file's real
+    // headers, and a PDF has none until extraction has run.
+    it("is ignored when there is no parsed CSV to map", () => {
+      const pdf = wizardReducer(withAccount, {
+        type: "extract-start",
+        file: new File([], "statement.pdf", { type: "application/pdf" }),
+      });
+
+      expect(wizardReducer(pdf, { type: "build-format" })).toBe(pdf);
+      expect(wizardReducer(withAccount, { type: "build-format" })).toBe(withAccount);
+    });
+
+    it("patches one answer at a time, leaving the others standing", () => {
+      const opened = wizardReducer(parsedCsv, { type: "build-format" });
+      const named = wizardReducer(opened, {
+        type: "update-format-draft",
+        patch: { name: "Green-Got" },
+      });
+      const state = wizardReducer(named, {
+        type: "update-format-draft",
+        patch: { dateOrder: "day-first" },
+      });
+
+      expect(state.draftFormat).toEqual({
+        ...blankDraft(),
+        name: "Green-Got",
+        dateOrder: "day-first",
+      });
+    });
+
+    it("ignores a patch when nothing is being drafted", () => {
+      expect(wizardReducer(parsedCsv, { type: "update-format-draft", patch: { name: "X" } })).toBe(
+        parsedCsv,
+      );
+    });
+
+    // The abandon path: the draft is never written anywhere but here, so letting
+    // go of it is all "leave nothing behind" takes.
+    it("throws the draft away and returns to the upload step", () => {
+      const drafted = { ...parsedCsv, step: "mapping" as const, draftFormat: READY };
+      const state = wizardReducer(drafted, { type: "discard-format-draft" });
+
+      expect(state.draftFormat).toBeNull();
+      expect(state.step).toBe("upload");
+      // The file is untouched — the user gave up on the format, not the import.
+      expect(state.rows).toBe(ROWS);
+    });
+
+    it("previews on a complete draft with no stored format chosen", () => {
+      const incomplete = {
+        ...parsedCsv,
+        draftFormat: { ...READY, decimalSeparator: null },
+      };
+      expect(canPreview(incomplete)).toBe(false);
+
+      const ready = { ...parsedCsv, draftFormat: READY };
+      expect(canPreview(ready)).toBe(true);
+      expect(wizardReducer(ready, { type: "go-to-preview" }).step).toBe("preview");
+    });
+
+    // An unnamed format cannot be saved, and the draft is saved by the very
+    // action that commits — so an unnamed draft cannot reach the preview either.
+    it("holds the preview back until the draft is named", () => {
+      expect(canPreview({ ...parsedCsv, draftFormat: { ...READY, name: "  " } })).toBe(false);
+    });
+
+    it.each([
+      [
+        "the user picks a stored format instead",
+        { type: "select-format", formatId: 9 as StatementFormatId } as const,
+      ],
+      [
+        "another file is parsed",
+        { type: "file-parsed", fileName: "b.csv", headers: HEADERS, rows: ROWS } as const,
+      ],
+      ["the account changes", { type: "select-account", accountId: 8 as AccountId } as const],
+      [
+        "a PDF takes the file's place",
+        { type: "extract-start", file: new File([], "s.pdf") } as const,
+      ],
+      ["the drop fails", { type: "file-error", message: "No." } as const],
+    ])("lets go of the draft when %s", (_when, action) => {
+      const drafted = { ...parsedCsv, draftFormat: READY };
+
+      expect(wizardReducer(drafted, action).draftFormat).toBeNull();
     });
   });
 
