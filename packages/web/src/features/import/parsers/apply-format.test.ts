@@ -320,6 +320,78 @@ describe("the row filter", () => {
   });
 });
 
+// ── the counterparty IBAN, and which column carries it ───────────────────────
+
+/**
+ * A synthetic account number, assembled rather than written out so this file
+ * carries no matchable one: `99999` is not an allocated French bank code, and a
+ * literal would have to be exempted from the leak scan (issue #108).
+ */
+const iban = (last: string) => `FR7699999${"0".repeat(17)}${last}`;
+
+describe("the counterparty IBAN column", () => {
+  /** The plainest format, told to read the IBAN out of `column`. */
+  const reading = (column: string | null): CsvStatementFormat => ({
+    ...formatWith({}),
+    mapping: { date: "Date", rawIssuerString: "Label", counterpartyIban: column },
+  });
+
+  /** One row carrying two account numbers, in two differently-named columns. */
+  const twoColumns = [row({ "Compte du tiers": iban("1"), "IBAN du tiers": iban("2") })];
+
+  const ibanOf = (column: string | null, rows = twoColumns) =>
+    applyFormat(reading(column), rows, ctx)[0].record.counterpartyIban;
+
+  // The claim the mapping exists for. A bank that calls this column something
+  // else populates the field just the same, because the column name is the
+  // *record's* — nothing in the applying code knows one.
+  it("is the one the format names", () => {
+    expect(ibanOf("Compte du tiers")).toBe(iban("1"));
+  });
+
+  it("is a different column under a format naming a different one", () => {
+    // The same row, read by two formats: which value is promoted is decided by
+    // the record and by nothing else.
+    expect(ibanOf("IBAN du tiers")).toBe(iban("2"));
+    expect(ibanOf("IBAN du tiers")).not.toBe(ibanOf("Compte du tiers"));
+  });
+
+  it("promotes nothing when the format maps none, and the rows still import", () => {
+    const parsed = applyFormat(reading(null), twoColumns, ctx);
+
+    expect(parsed).toHaveLength(1);
+    // Absent, not an empty string and not a column the parser fell back on: a
+    // bank that writes no counterparty account number said so in its record.
+    expect(parsed[0].record).not.toHaveProperty("counterpartyIban");
+  });
+
+  it("keeps the column in the archive whether it is promoted or not", () => {
+    // Promotion decides what a matcher can reach, never what is kept (ADR 0012).
+    for (const column of [null, "Compte du tiers"]) {
+      const [{ record }] = applyFormat(reading(column), twoColumns, ctx);
+
+      expect(record.rawSource?.["Compte du tiers"]).toBe(iban("1"));
+      expect(record.rawSource?.["IBAN du tiers"]).toBe(iban("2"));
+    }
+  });
+
+  it("yields absent for a mapped column the file has not got", () => {
+    expect(ibanOf("Compte du bénéficiaire")).toBeUndefined();
+  });
+
+  it("yields absent for a blank one, never an empty string", () => {
+    // "Not given" gets exactly one spelling, or a matcher joining on the column
+    // later has two shapes of nothing to handle.
+    const blank = [row({ "Compte du tiers": "   " })];
+
+    expect(ibanOf("Compte du tiers", blank)).toBeUndefined();
+    expect(applyFormat(reading("Compte du tiers"), blank, ctx)[0].record).not.toHaveProperty(
+      "counterpartyIban",
+      "",
+    );
+  });
+});
+
 // ── what every record carries regardless of the rules ────────────────────────
 
 describe("every record", () => {

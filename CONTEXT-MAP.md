@@ -869,7 +869,10 @@ repeated per package.
   renaming keys would reintroduce the import-time guessing the archive exists to
   avoid. It is an **archive, not a competing source of truth** — nothing derives
   from it, and a value promoted to a real column (see **Counterparty IBAN**) is
-  free to disagree with its raw form. Its contents are the bank's own words and
+  free to disagree with its raw form. That "nothing" is held to the whole repo
+  by `packages/web/src/test/raw-source-is-an-archive.test.ts`: which files may
+  name it in code, and that no query ever filters, groups, joins or counts on it
+  — unlike the promoted column, which is exactly what promotion buys. Its contents are the bank's own words and
   are labelled as such wherever shown, so Green-Got's `Catégorie` reads as
   provenance rather than as a second, contradicting **Derived category**. It
   means **as most recently delivered**: a re-import replaces it rather than
@@ -892,7 +895,13 @@ repeated per package.
   one place a promoted column and the archive deliberately disagree, and that is
   the division of labour: the column is for matching, the archive is for
   provenance. Promoted out of the archive rather than left in it because a
-  matcher cannot reach inside an opaque JSON bin.
+  matcher cannot reach inside an opaque JSON bin. **Which column carries it is
+  the Statement Format's to name** (`mapping.counterpartyIban`), so a bank that
+  calls it something other than `IBAN du tiers` populates the field just the
+  same; a bank that writes no counterparty account number says so with a `null`
+  and its statements import with none. Absent, blank and *could not be an IBAN*
+  all come out null — "not given" gets one spelling, or a join has two shapes of
+  nothing to handle.
   _Avoid_: destination IBAN, payee IBAN (both directional); third-party IBAN.
 
 - **IBAN-confirmed candidate** — a **Transfer candidate** on which one leg's

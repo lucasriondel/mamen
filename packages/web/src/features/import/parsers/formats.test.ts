@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import type { AccountId } from "@mamen/shared/contract";
+import type { AccountId, CsvStatementFormat } from "@mamen/shared/contract";
 import Papa from "papaparse";
 import { describe, expect, it } from "vitest";
 import { applyFormat } from "./apply-format";
@@ -146,6 +146,37 @@ describe("the Green-Got format promotes the counterparty IBAN (issue #178)", () 
     expect(rows[0]["IBAN du tiers"]).toBe("");
     expect(records[0].counterpartyIban).toBeUndefined();
     expect(records[0]).not.toHaveProperty("counterpartyIban", "");
+  });
+});
+
+describe("a format that maps no counterparty IBAN, on the same fixture (issue #187)", () => {
+  // Green-Got's own record with that one target unmapped — the same file, read
+  // by a bank that writes no counterparty account number. It has to *say* so,
+  // and saying so is a `null` column rather than a missing field.
+  const withoutIban: CsvStatementFormat = {
+    ...greenGotFormat,
+    mapping: { ...greenGotFormat.mapping, counterpartyIban: null },
+  };
+  const records = applyFormat(withoutIban, rows, ctx).map((parsedRow) => parsedRow.record);
+
+  it("still imports every row the format keeps", () => {
+    // Read against the record that does map it, so this says "the same rows",
+    // not "some rows" — a mapping decides what is promoted, never what imports.
+    expect(records.length).toBe(applyFormat(greenGotFormat, rows, ctx).length);
+    expect(records.length).toBeGreaterThan(0);
+  });
+
+  it("promotes none of them", () => {
+    for (const record of records) {
+      expect(record).not.toHaveProperty("counterpartyIban");
+    }
+  });
+
+  it("keeps the column in the archive all the same", () => {
+    // The fixture's SEPA rows carry account numbers; unmapped is not unkept.
+    const sepaIndex = rows.findIndex((row) => row["IBAN du tiers"] !== "");
+
+    expect(records[sepaIndex].rawSource?.["IBAN du tiers"]).toBe(rows[sepaIndex]["IBAN du tiers"]);
   });
 });
 
