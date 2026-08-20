@@ -30,17 +30,18 @@ function BoolField({ value }: { value: boolean }) {
 }
 
 /**
- * The row's amount, the one number this page is about — and, since issue #129,
- * a number at the end of a title row rather than a headline of its own. So it is
- * set like the other two title-row numbers (a category's total, a recap line's)
- * instead of the headline scale it wore when it had a line to itself — beside a
- * `text-2xl` title, a bigger number reads as the page's name.
+ * The row's amount, the one number this surface is about — and, since issue
+ * #129, a number at the end of a title row rather than a headline of its own. So
+ * it is set like the other two title-row numbers (a category's total, a recap
+ * line's) instead of the headline scale it wore when it had a line to itself —
+ * beside a `text-2xl` title, a bigger number reads as the page's name. Exported
+ * because the **detail panel** ends its own header with the same number.
  *
  * A `span`, not the `<output>` those two are: this is a field of the row, fixed
  * for as long as the page is open, not a total the filters recompute — there is
  * nothing here for a live region to announce.
  */
-function DetailAmount({ amount }: { amount: number }) {
+export function DetailAmount({ amount }: { amount: number }) {
   return (
     <span
       className={cn(
@@ -196,7 +197,7 @@ function ImportSection({ txn }: { txn: Transaction }) {
   );
 }
 
-interface TransactionDetailContentProps {
+interface TransactionDetailFieldsProps {
   transaction: Transaction;
   /** Resolved account for `accountId` (name lookup). */
   account?: Account;
@@ -211,41 +212,29 @@ interface TransactionDetailContentProps {
 }
 
 /**
- * The resolved transaction detail surface — every field the app holds for one
- * transaction, laid out as labelled rows. Split from {@link TransactionDetailPage}
- * so that component owns only the async reads and this one is a pure render of the
- * loaded row plus its lookups.
+ * Every field the app holds for one transaction, laid out as labelled rows —
+ * the detail surface **below whatever chrome frames it**.
  *
- * The issuer and category rows reuse the grid's read-only cells
- * ({@link IssuerCell} / {@link CategoryCell}) so the same manual/override/derived
- * ink shows here as in the table; amounts follow the app sign convention (debit
- * red, credit green).
+ * Two things frame it (issue #154): the page at `/transactions/$transactionId`,
+ * through {@link TransactionDetailContent} below, and the panel beside the grid.
+ * They differ in their header and in nothing else, so the sections live here and
+ * are rendered by both rather than forked — a panel that showed a *summary* and
+ * linked out would reintroduce the page swap the panel exists to remove.
+ *
+ * The issuer, category and notes rows are the grid's own curation controls, so
+ * the same manual/override/derived ink shows here as in the table; amounts
+ * follow the app sign convention (debit red, credit green).
  */
-export function TransactionDetailContent({
+export function TransactionDetailFields({
   transaction: txn,
   account,
   issuer,
   category,
   categoryColor,
   linkedRefund,
-}: TransactionDetailContentProps) {
+}: TransactionDetailFieldsProps) {
   return (
-    <PageLayout
-      /*
-       * Back, not a link to the list: the user came from some page of some
-       * filtered view (global, a category's, an issuer's), and popping history
-       * is the only thing that returns them to that exact spot.
-       */
-      back={<BackLink to="/transactions">Transactions</BackLink>}
-      // The row's counterparty is what this page is *about*, so it is the
-      // title — the raw bank string only while no issuer resolves it. The
-      // amount moves to the far end of the same row, where every other
-      // drill-down page (a category's, a recap line's) puts its number.
-      title={issuer ? issuer.name : txn.rawIssuerString}
-      description={formatShortDate(txn.date)}
-      actions={<DetailAmount amount={txn.amount} />}
-      className="gap-8"
-    >
+    <>
       <CoreFields
         txn={txn}
         account={account}
@@ -271,6 +260,49 @@ export function TransactionDetailContent({
       <TransferSection transaction={txn} />
       <AnomalyFlagsSection flags={txn.anomalyFlags} />
       <ImportSection txn={txn} />
+    </>
+  );
+}
+
+/**
+ * The resolved transaction detail **page** — {@link TransactionDetailFields}
+ * under the topbar a page has. Split from {@link TransactionDetailPage} so that
+ * component owns only the reads and this one is a pure render of the loaded row
+ * plus its lookups.
+ */
+export function TransactionDetailContent({
+  transaction: txn,
+  account,
+  issuer,
+  category,
+  categoryColor,
+  linkedRefund,
+}: TransactionDetailFieldsProps) {
+  return (
+    <PageLayout
+      /*
+       * Back, not a link to the list: the user came from some page of some
+       * filtered view (global, a category's, an issuer's), and popping history
+       * is the only thing that returns them to that exact spot.
+       */
+      back={<BackLink to="/transactions">Transactions</BackLink>}
+      // The row's counterparty is what this page is *about*, so it is the
+      // title — the raw bank string only while no issuer resolves it. The
+      // amount moves to the far end of the same row, where every other
+      // drill-down page (a category's, a recap line's) puts its number.
+      title={issuer ? issuer.name : txn.rawIssuerString}
+      description={formatShortDate(txn.date)}
+      actions={<DetailAmount amount={txn.amount} />}
+      className="gap-8"
+    >
+      <TransactionDetailFields
+        transaction={txn}
+        account={account}
+        issuer={issuer}
+        category={category}
+        categoryColor={categoryColor}
+        linkedRefund={linkedRefund}
+      />
     </PageLayout>
   );
 }

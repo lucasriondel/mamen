@@ -5,7 +5,7 @@ import type {
   Transaction,
   TransactionId,
 } from "@mamen/shared/contract";
-import { useQuery } from "@tanstack/react-query";
+import { hashKey, useQuery } from "@tanstack/react-query";
 import type { RowSelectionState } from "@tanstack/react-table";
 import { useMemo, useState } from "react";
 import { Empty } from "@/components/ui/empty";
@@ -101,6 +101,15 @@ export interface TransactionsSectionProps {
   onColumnVisibilityChange?: React.ComponentProps<
     typeof TransactionsTable
   >["onColumnVisibilityChange"];
+  /**
+   * What opening a row means on this page (issue #154) — see
+   * {@link TransactionsTable.onOpenTransaction}. Omitted by the scoped
+   * drill-downs, which have no panel beside their table, so a row click there
+   * goes to the standalone detail page as it always has.
+   */
+  onOpenTransaction?: React.ComponentProps<typeof TransactionsTable>["onOpenTransaction"];
+  /** The row that panel is showing, marked in the table. */
+  selectedId?: number;
 }
 
 /**
@@ -128,6 +137,8 @@ export function TransactionsSection({
   actions,
   columnVisibility,
   onColumnVisibilityChange,
+  onOpenTransaction,
+  selectedId,
 }: TransactionsSectionProps) {
   // The scope + the user's filters — the exact set the rows describe.
   const filters = useMemo<TransactionCountParams>(
@@ -164,9 +175,17 @@ export function TransactionsSection({
   // than in an effect: React's own "adjusting state when a prop changes" — the
   // selection is dropped in the same pass that swaps the rows, so no frame ever
   // shows ticks belonging to a page that has gone.
-  const [selectionScope, setSelectionScope] = useState(listParams);
-  if (selectionScope !== listParams) {
-    setSelectionScope(listParams);
+  //
+  // Compared by **value**, through the same structural hash the query cache
+  // keys on, rather than by object identity: `listParams` is rebuilt whenever
+  // the search object is, and since issue #154 the URL carries something that
+  // is not a filter — the open panel's row. Identity would read that as a new
+  // page of rows and drop the ticks, so opening a row would silently clear a
+  // selection the user had built to bundle with.
+  const selectionKey = hashKey([listParams]);
+  const [selectionScope, setSelectionScope] = useState(selectionKey);
+  if (selectionScope !== selectionKey) {
+    setSelectionScope(selectionKey);
     setRowSelection({});
   }
   const selectedIds = useMemo(
@@ -325,6 +344,8 @@ export function TransactionsSection({
             rowSelection={rowSelection}
             onRowSelectionChange={setRowSelection}
             bundleMembers={bundleMembers}
+            onOpenTransaction={onOpenTransaction}
+            selectedId={selectedId}
           />
           <TransactionsPagination
             page={page}

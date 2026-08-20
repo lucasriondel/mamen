@@ -8,6 +8,7 @@ import {
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { setViewportWidth } from "@/test/match-media";
 import { withShell } from "@/test/sidebar-shell";
 import { validateTransactionsSearch } from "./search";
 import { TransactionsView } from "./transactions-view";
@@ -228,9 +229,25 @@ const candidatesMock = vi.fn(() => ({
   queryFn: async () => candidateRows,
 }));
 
+/**
+ * Every row this file cans, by id — what the **detail panel** reads when a row
+ * is opened beside the table (issue #154). The panel asks for one row by id, the
+ * way the standalone page does; nothing else in the view uses this read.
+ */
+const ROWS_BY_ID = new Map<number, Record<string, unknown>>(
+  [...TXNS, BUNDLE_PARENT, ...BUNDLE_MEMBERS, TRANSFER_DEBIT].map((row) => [
+    row.id as number,
+    row as Record<string, unknown>,
+  ]),
+);
+
 vi.mock("@mamen/sdk", () => ({
   transactionQueries: {
     list: (p: Record<string, unknown> = {}) => listMock(p),
+    getById: (id: number) => ({
+      queryKey: ["transactions", "detail", id],
+      queryFn: async () => ROWS_BY_ID.get(id),
+    }),
     transferCandidates: () => candidatesMock(),
   },
   accountQueries: {
@@ -322,6 +339,9 @@ async function pickAccounts(user: ReturnType<typeof userEvent.setup>, names: rea
 }
 
 beforeEach(() => {
+  // A desktop viewport — where there is room for the **detail panel** beside
+  // the table (issue #154). The narrow case says so for itself.
+  setViewportWidth(1440);
   listMock.mockClear();
   issuerByIdsMock.mockClear();
   bulkDeleteMock.mockClear();
@@ -341,6 +361,16 @@ const debitIndicator = () =>
   screen.findByRole("button", {
     name: /2 possible transfer matches for VIR SEPA VERS LIVRET A/,
   });
+
+/** The **detail panel**, by its landmark. Awaited: its row is a read of its own. */
+const detailPanel = () => screen.findByRole("complementary", { name: /transaction detail/i });
+
+/**
+ * A cell of the grid, by its text — scoped to the table because an open detail
+ * panel shows the same row's date and raw issuer string beside it (issue #154),
+ * so an unscoped `getByText` would match in both places.
+ */
+const gridCell = (text: string) => within(screen.getByRole("table")).getByText(text);
 
 describe("TransactionsView", () => {
   it("renders the table with newest-first data and signed, colored amounts", async () => {
@@ -623,19 +653,6 @@ describe("TransactionsView", () => {
     );
   });
 
-  it("navigates to the transaction detail page when a row is clicked", async () => {
-    const router = await renderView();
-    const user = userEvent.setup();
-
-    // Click the row's Date cell (a non-curation cell) — the whole row is the
-    // navigation surface. "01 Feb 2026" is the date of TXN 101.
-    await user.click(screen.getByText("01 Feb 2026"));
-
-    await waitFor(() => {
-      expect(router.state.location.pathname).toBe("/transactions/101");
-    });
-  });
-
   it("does not navigate when a curation cell (issuer/category/notes) is clicked", async () => {
     const router = await renderView();
     const user = userEvent.setup();
@@ -911,7 +928,12 @@ describe("TransactionsView", () => {
     expect(listMock).toHaveBeenCalledWith(expect.objectContaining({ offset: 100 }));
   });
 
+  // The narrow case, where a row click still swaps the whole page for the
+  // standalone detail route (issue #154) — which is what makes the way back
+  // worth testing here at all. The wide case never leaves the page: the panel
+  // opens beside the table with the pager untouched.
   it("returns to the exact page it left when history goes back", async () => {
+    setViewportWidth(800);
     listTotal = 120;
     const router = await renderView();
     const user = userEvent.setup();
@@ -931,6 +953,181 @@ describe("TransactionsView", () => {
       expect(router.state.location.pathname).toBe("/transactions");
       expect(router.state.location.search).toMatchObject({ page: 3 });
     });
+  });
+});
+
+/**
+ * **The detail panel** (issue #154). Curating is a loop — look at a row, name
+ * its issuer, move to the next — and opening each row as its own page cost a
+ * full swap in both directions, with the row under work off screen while it was
+ * being worked on. The detail is a panel beside the table now: the list stays
+ * mounted, the row stays visible and marked, and the panel is a *place* —
+ * `/transactions?selected=123` — so it can be linked, reloaded and backed out of.
+ *
+ * The standalone page at `/transactions/123` is untouched by all of this. It is
+ * still what four links across the app point at, and still where a viewport too
+ * narrow to hold a panel sends a row click.
+ */
+describe("TransactionsView — detail panel", () => {
+  it("opens beside the table when a row is clicked, without leaving the page", async () => {
+    const router = await renderView();
+    const user = userEvent.setup();
+
+    // The row's Date cell — a non-curation cell, so the whole row is the
+    // opening surface. "01 Feb 2026" is the date of TXN 101.
+    await user.click(gridCell("01 Feb 2026"));
+
+    // The panel is a search param on this route, not a route of its own: the
+    // path never changes, so the list is never unmounted.
+    await waitFor(() => expect(router.state.location.search).toMatchObject({ selected: 101 }));
+    expect(router.state.location.pathname).toBe("/transactions");
+
+    // The row that was clicked is still on screen, with the table around it.
+    expect(
+      within(screen.getByRole("table")).getByRole("button", { name: /ACME PAYROLL/ }),
+    ).toBeInTheDocument();
+    // The panel names the row it is about — its counterparty, as the page's
+    // title does. TXN 101 resolves to no issuer, so that is the raw bank string.
+    expect(
+      within(await detailPanel()).getByRole("heading", { name: "ACME PAYROLL" }),
+    ).toBeInTheDocument();
+  });
+
+  it("marks the row the panel is showing", async () => {
+    await renderView();
+    const user = userEvent.setup();
+
+    await user.click(gridCell("01 Feb 2026"));
+
+    await detailPanel();
+    const row = gridCell("01 Feb 2026").closest("tr");
+    expect(row).toHaveAttribute("data-selected", "true");
+    expect(row).toHaveAttribute("aria-current", "true");
+    // The other row is not the one being read.
+    expect(gridCell("20 Jan 2026").closest("tr")).not.toHaveAttribute("data-selected");
+  });
+
+  it("restores the panel from a bookmarked ?selected= URL", async () => {
+    await renderView("/transactions?selected=100");
+
+    // TXN 100 *does* resolve an issuer, so the panel is titled by its name.
+    expect(
+      within(await detailPanel()).getByRole("heading", { name: "Spotify" }),
+    ).toBeInTheDocument();
+  });
+
+  // The point of the whole thing: the next row swaps what the panel shows, and
+  // nothing else moves.
+  it("swaps content when a second row is clicked, keeping the table mounted", async () => {
+    await renderView();
+    const user = userEvent.setup();
+
+    await user.click(gridCell("01 Feb 2026"));
+    const table = screen.getByRole("table");
+    expect(
+      within(await detailPanel()).getByRole("heading", { name: "ACME PAYROLL" }),
+    ).toBeInTheDocument();
+
+    await user.click(gridCell("20 Jan 2026"));
+
+    await waitFor(async () =>
+      expect(
+        within(await detailPanel()).getByRole("heading", { name: "Spotify" }),
+      ).toBeInTheDocument(),
+    );
+    // The very same table element — never unmounted between the two rows.
+    expect(screen.getByRole("table")).toBe(table);
+  });
+
+  it("closes from its own control, leaving the list where it was", async () => {
+    const router = await renderView("/transactions?page=1&selected=100");
+    const user = userEvent.setup();
+
+    await user.click(within(await detailPanel()).getByRole("button", { name: /close/i }));
+
+    await waitFor(() => expect(router.state.location.search).not.toHaveProperty("selected"));
+    expect(router.state.location.pathname).toBe("/transactions");
+    expect(screen.queryByRole("complementary", { name: /transaction detail/i })).toBeNull();
+  });
+
+  it("closes on Escape", async () => {
+    const router = await renderView("/transactions?selected=100");
+    const user = userEvent.setup();
+
+    await detailPanel();
+    await user.keyboard("{Escape}");
+
+    await waitFor(() => expect(router.state.location.search).not.toHaveProperty("selected"));
+  });
+
+  // The keyboard loop, both halves of it: focus follows the row into the panel
+  // so Tab reaches what Enter just opened, and closing hands it back to the row
+  // — which is where the *next* row is one arrow key away. Without the return
+  // trip, Escape drops focus to the top of the document and the user walks the
+  // whole table again for every transaction they curate.
+  it("takes focus into the panel and hands it back to the row on close", async () => {
+    await renderView();
+    const user = userEvent.setup();
+
+    const row = gridCell("01 Feb 2026").closest("tr");
+    await user.click(gridCell("01 Feb 2026"));
+
+    expect(await detailPanel()).toHaveFocus();
+
+    await user.keyboard("{Escape}");
+
+    await waitFor(() => expect(row).toHaveFocus());
+  });
+
+  // Opening a row is not a filter change: the params the query is keyed on are
+  // untouched, so the rows underneath are the same rows — which the page-scoped
+  // selection, dropped whenever that key changes, is the honest witness for.
+  it("leaves the filters, the page and the row selection alone", async () => {
+    listTotal = 120;
+    const router = await renderView("/transactions?page=3&uncurated=true");
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("checkbox", { name: /select transaction SPOTIFY/i }));
+    await user.click(gridCell("01 Feb 2026"));
+
+    await detailPanel();
+    expect(router.state.location.search).toMatchObject({
+      page: 3,
+      uncurated: true,
+      selected: 101,
+    });
+    expect(screen.getByRole("checkbox", { name: /select transaction SPOTIFY/i })).toBeChecked();
+  });
+
+  // Below the width that fits a panel beside the table, the standalone page is
+  // the right answer — which the issue said before triage did.
+  it("sends a row click to the standalone page on a narrow viewport", async () => {
+    setViewportWidth(800);
+    const router = await renderView();
+    const user = userEvent.setup();
+
+    await user.click(gridCell("01 Feb 2026"));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/transactions/101"));
+  });
+
+  it("renders no panel on a narrow viewport, even from a ?selected= URL", async () => {
+    setViewportWidth(800);
+    await renderView("/transactions?selected=100");
+
+    expect(screen.queryByRole("complementary", { name: /transaction detail/i })).toBeNull();
+  });
+
+  // The panel is beside the standalone page, not in place of it: a deep link
+  // out of the panel reaches the full page, which is also how a narrow viewport
+  // gets there.
+  it("links out to the standalone page", async () => {
+    await renderView("/transactions?selected=100");
+
+    expect(within(await detailPanel()).getByRole("link", { name: /full page/i })).toHaveAttribute(
+      "href",
+      "/transactions/100",
+    );
   });
 });
 

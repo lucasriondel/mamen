@@ -354,6 +354,40 @@ so a view test wraps it in the stand-in from `test/sidebar-shell.tsx`
 _Avoid_: page header (the row is the *topbar*; `PageHeader` was a component and
 no longer exists), header (the `<header>` element is the topbar's markup).
 
+**Detail panel**:
+One transaction's detail **beside** the transactions table rather than in place
+of it (issue #154). Curating is a loop — read a row, name its issuer, pick a
+category, move on — and opening each row as its own page charged a full swap in
+each direction, with the row under work off screen while it was being worked on.
+
+The open row is a search param, `?selected=<id>`, so the panel is a *place*:
+linkable, reloadable, and what the back button navigates out of. It is
+deliberately **not a filter** — it enters no query key and resets no page, so
+opening, swapping and closing it leave the list exactly as it was. That is why
+`transactions-section.tsx` compares its selection scope by structural *value*
+rather than object identity: identity would read a new `selected` as a new page
+of rows and silently drop the user's ticks.
+
+It shows the **same** sections the standalone page does
+(`TransactionDetailFields`, read through `useTransactionDetail`), not a summary
+that links out — a summary would send the user to the page for anything real,
+which is the swap the panel exists to remove. Only the chrome differs: a close
+button for a back link, an `h2` for the page's `h1`, and a link to the full
+page. Focus follows the row in and is handed back to it on close, so the next
+row is one arrow key away.
+
+The **standalone page** at `/transactions/$transactionId` survives all of it: it
+is what links from elsewhere in the app point at, and it is where a row click
+goes below `xl` (1280px), where there is no room for a column beside the table.
+That width is a `useMediaQuery` (`lib/use-media-query.ts`) rather than a CSS
+class because the *click handler* has to know which of the two it is doing — a
+`hidden`/`block` pair cannot express that. The scoped drill-downs (a category's,
+an issuer's) have no panel at all, and say so by withholding
+`onOpenTransaction` from `TransactionsSection`.
+_Avoid_: transaction dialog / modal (nothing here is modal — the list stays live
+underneath, and the panel is a `complementary` landmark, not a dialog),
+transaction drawer (it does not slide over anything; it takes a column).
+
 **Account card**:
 One account as a single object on the accounts page: its swatch (still the
 recolour surface), name, type, transaction count, month coverage, its **IBAN**
