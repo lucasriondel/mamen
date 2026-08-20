@@ -114,6 +114,65 @@ describe("greenGotParser.parse keeps the raw source (issue #176)", () => {
   });
 });
 
+describe("greenGotParser.parse promotes the counterparty IBAN (issue #178)", () => {
+  const records = greenGotParser.parse(rows, ctx);
+
+  /** The fixture's first SEPA row — the ones that carry `IBAN du tiers` at all. */
+  const sepaIndex = rows.findIndex((row) => row["IBAN du tiers"] !== "");
+
+  it("reads it from `IBAN du tiers`", () => {
+    // Compared against the row's own value rather than a literal: the fixture is
+    // the authority on what the bank delivered, and restating an account number
+    // here would put one in a second file (the leak scan, issue #108).
+    expect(records[sepaIndex].counterpartyIban).toBe(rows[sepaIndex]["IBAN du tiers"]);
+  });
+
+  it("leaves a card row without one — absent, never an empty string", () => {
+    // Row 0 is a card/internal row: the column is present and blank. "Not given"
+    // has to have exactly one spelling, or a matcher joining on it later has two
+    // shapes of nothing to handle.
+    expect(rows[0]["IBAN du tiers"]).toBe("");
+    expect(records[0].counterpartyIban).toBeUndefined();
+    expect(records[0]).not.toHaveProperty("counterpartyIban", "");
+  });
+});
+
+describe("greenGotParser.parse normalises the counterparty IBAN (issue #178)", () => {
+  // Assembled rather than written out, so this file carries no matchable account
+  // number: the stored form first, then the way a bank prints it — grouped in
+  // fours, and here lower-cased for good measure.
+  const stored = `FR7699999${"0".repeat(17)}2`;
+  const delivered = stored
+    .toLowerCase()
+    .replace(/(.{4})/g, "$1 ")
+    .trim();
+
+  const spaced: Record<string, string> = {
+    Statut: "COMPLETE",
+    Date: "2026-01-02T15:48:37.000Z",
+    Montant: "500",
+    Direction: "CREDIT",
+    Intitulé: "SOCIETE EXEMPLE SARL",
+    "IBAN du tiers": delivered,
+  };
+
+  const [record] = greenGotParser.parse([spaced], ctx);
+
+  it("stores it upper-cased with whitespace stripped, like the account IBAN", () => {
+    // The column exists to be *joined* against `accounts.iban`, which is stored
+    // this way — a delivered form kept verbatim fails that join the first time a
+    // bank spaces its IBANs.
+    expect(delivered).not.toBe(stored);
+    expect(record.counterpartyIban).toBe(stored);
+  });
+
+  it("leaves the raw source carrying the original delivered form", () => {
+    // The one place a promoted column and the archive deliberately disagree
+    // (ADR 0012): the column is for matching, the archive is for provenance.
+    expect(record.rawSource?.["IBAN du tiers"]).toBe(delivered);
+  });
+});
+
 describe("greenGotParser.parse (synthetic edge cases)", () => {
   const synthetic: Record<string, string>[] = [
     {
@@ -159,5 +218,8 @@ describe("greenGotParser.parse (synthetic edge cases)", () => {
     // read opportunistically, so it holds exactly what was delivered.
     expect(greenGotParser.matches(Object.keys(synthetic[0]))).toBe(true);
     expect(records[0].rawSource).toStrictEqual(synthetic[0]);
+    // `IBAN du tiers` is read opportunistically too, so a file that never had
+    // the column parses to a row that simply has no counterparty IBAN.
+    expect(records[0].counterpartyIban).toBeUndefined();
   });
 });

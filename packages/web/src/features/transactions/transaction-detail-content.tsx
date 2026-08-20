@@ -2,6 +2,7 @@ import type { Account, Category, Issuer, Transaction } from "@mamen/shared/contr
 import { Link } from "@tanstack/react-router";
 import { BackLink } from "@/components/back-link";
 import { PageLayout } from "@/components/page-layout";
+import { formatIban } from "@/features/accounts/account-iban";
 import { formatCurrency, formatMonth, formatShortDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { AnomalyFlags } from "./anomaly-flags";
@@ -56,7 +57,10 @@ export function DetailAmount({ amount }: { amount: number }) {
   );
 }
 
-/** The core field list — id, date, amount, account, issuer/category, notes. */
+/**
+ * The core field list — id, date, amount, account, raw issuer, counterparty
+ * IBAN, issuer/category, notes.
+ */
 function CoreFields({
   txn,
   account,
@@ -94,6 +98,24 @@ function CoreFields({
       </DetailField>
       <DetailField label="Raw issuer text">
         <span className="break-words">{txn.rawIssuerString}</span>
+      </DetailField>
+      {/*
+       * The **counterparty IBAN** (issue #178) — the other party's account,
+       * whichever way the money went. An ordinary field, not a block of its
+       * own: it is one value the bank sent, promoted out of the archive because
+       * a matcher needs to reach it, and it reads here as reference data
+       * alongside the raw issuer string it corroborates.
+       *
+       * Printed grouped in fours and tabular, as the account card prints one,
+       * because comparing it against a statement is the only thing anyone does
+       * with an IBAN. Absent falls through to {@link DetailField}'s own muted
+       * em-dash — the common case, since only SEPA and direct-debit rows carry
+       * one at all.
+       */}
+      <DetailField label="Counterparty IBAN">
+        {txn.counterpartyIban ? (
+          <span className="break-all tabular-nums">{formatIban(txn.counterpartyIban)}</span>
+        ) : null}
       </DetailField>
       {/*
        * Issuer, category and notes are **edited here**, through the very

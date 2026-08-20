@@ -370,6 +370,9 @@ export const bundleWrites = ({
         // there is no **raw source** to keep. Null is the honest answer, and
         // the same one a PDF-extracted row gives (issue #176).
         rawSource: null,
+        // And no other party either: a parent stands for its members, none of
+        // whom the bank paid *it* (issue #178).
+        counterpartyIban: null,
         // The synthetic row entered the system now; its *date* is the
         // members' business, its import stamp is this write's.
         importedAt: now.toISOString(),

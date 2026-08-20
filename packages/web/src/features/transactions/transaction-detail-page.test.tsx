@@ -75,6 +75,13 @@ const FLAGGED_BUNDLE = {
  * the recap, so nothing may also bundle it — the page has to say that where the
  * bundling action is, rather than let the user earn a 422.
  */
+/**
+ * A **counterparty IBAN** in its stored, normalised form (issue #178).
+ * Assembled rather than written out, so this file carries no matchable account
+ * number — `99999` is not an allocated French bank code (the leak scan, #108).
+ */
+const COUNTERPARTY_IBAN = `FR7699999${"0".repeat(17)}3`;
+
 const LEG = {
   id: 500,
   accountId: 1,
@@ -82,6 +89,10 @@ const LEG = {
   amount: -30,
   rawIssuerString: "VIREMENT COMPTE JOINT",
   transferGroupId: 500,
+  // A SEPA row, so the bank named the other party's account. Stated
+  // deliberately: these fixtures are cast through `unknown`, so a new contract
+  // field lands here silently and gets no coverage unless someone writes it.
+  counterpartyIban: COUNTERPARTY_IBAN,
   importedAt: new Date(),
   importMonth: "2026-03",
 } as unknown as Transaction;
@@ -295,6 +306,17 @@ beforeEach(() => {
   candidateRows = [];
 });
 
+/**
+ * The value shown for one labelled detail row. The fields are a `<dl>` of
+ * term/definition pairs, so the label is the handle and the `dd` beside it is
+ * what the page actually shows — which is the only way to ask about an *absent*
+ * value, since several rows render the same muted em-dash at once.
+ */
+function fieldValue(label: string): HTMLElement {
+  const row = screen.getByText(label).closest("div") as HTMLElement;
+  return within(row).getByRole("definition");
+}
+
 describe("TransactionDetailPage", () => {
   // The last page to compose its own header, and so the last one with no way
   // back to a collapsed sidebar (issue #129).
@@ -428,6 +450,30 @@ describe("TransactionDetailPage", () => {
 
     expect(await screen.findByText(/transfer leg can't be bundled/i)).toBeVisible();
     expect(screen.getByRole("button", { name: /add to bundle/i })).toBeDisabled();
+  });
+
+  // Issue #178. The value promoted out of the archive is an ordinary field on
+  // this page — no block, no label of its own invention — and it is printed the
+  // way the account card prints one, grouped in fours, because comparing it
+  // against a statement is the only thing anyone does with an IBAN.
+  it("shows the counterparty IBAN as an ordinary field", async () => {
+    renderPage(500);
+
+    await screen.findByRole("heading", { name: "VIREMENT COMPTE JOINT" });
+
+    const grouped = COUNTERPARTY_IBAN.replace(/(.{4})/g, "$1 ").trim();
+    expect(fieldValue("Counterparty IBAN")).toHaveTextContent(grouped);
+  });
+
+  // The common case, and the one a card row always takes: the bank named no
+  // other party, so the field renders the same muted em-dash every absent field
+  // on this page does rather than a blank or an empty string.
+  it("renders a muted em-dash when the row carries no counterparty IBAN", async () => {
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Spotify" });
+
+    expect(fieldValue("Counterparty IBAN")).toHaveTextContent("—");
   });
 
   it("says so plainly when a row carries no anomaly", async () => {

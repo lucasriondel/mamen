@@ -160,6 +160,30 @@ export class Transaction extends Schema.Class<Transaction>("Transaction")({
    * contract only promises string keys to string values.
    */
   rawSource: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.String })),
+  /**
+   * **Counterparty IBAN** (issue #178, ADR 0012) — the IBAN of *the other party*
+   * to this transaction, promoted out of {@link Transaction.rawSource} into a
+   * field of its own because a matcher has to reach it and cannot reach inside
+   * an opaque JSON bin.
+   *
+   * **Direction-agnostic**, following `issuerId` in being bidirectional by
+   * design: on a debit it is who was paid, on a credit it is who paid. "Destination
+   * IBAN" is the obvious wrong reading and would silently invert every credit row.
+   *
+   * Stored **normalised** — upper-case, whitespace stripped — identically to
+   * `accounts.iban`, because the two exist to be *joined* and a bank that prints
+   * IBANs in groups of four would otherwise fail that join. The raw delivered
+   * form stays in the archive: this is the one place a promoted column and
+   * `rawSource` deliberately disagree, and that is the division of labour — the
+   * column is for matching, the archive is for provenance.
+   *
+   * Shape-checked at the import edge and never validated against a country
+   * register, the same latitude `accounts.iban` takes, so a statement from an
+   * unfamiliar bank still imports. Optional, and **absent is the common case**:
+   * only SEPA and direct-debit rows carry an IBAN at all. A row without one is
+   * absent rather than an empty string — "not given" gets one spelling.
+   */
+  counterpartyIban: Schema.optional(Schema.String),
   importedAt: Schema.Date,
   importMonth: Schema.String, // "YYYY-MM"
   importBatchId: Schema.optional(Schema.String),
@@ -196,10 +220,12 @@ export const TransactionCreate = Schema.Struct({
   excludedFromRecap: Transaction.fields.excludedFromRecap,
   manualExcluded: Transaction.fields.manualExcluded,
   notes: Transaction.fields.notes,
-  // The archive rides the create payload because the CSV import is client-side
-  // (web ADR 0001): the parser runs in the browser, so the only way the bank's
-  // row reaches the database is on the ordinary bulk create.
+  // The archive and the one column promoted out of it both ride the create
+  // payload because the CSV import is client-side (web ADR 0001): the parser
+  // runs in the browser, so the only way the bank's row — and the IBAN read out
+  // of it — reaches the database is on the ordinary bulk create.
   rawSource: Transaction.fields.rawSource,
+  counterpartyIban: Transaction.fields.counterpartyIban,
   importedAt: Transaction.fields.importedAt,
   importMonth: Transaction.fields.importMonth,
   importBatchId: Transaction.fields.importBatchId,
