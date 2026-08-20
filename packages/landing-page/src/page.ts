@@ -20,8 +20,9 @@ import {
  * whole shape of this package — no framework, no runtime, no hydration.
  *
  * The copy is deliberately thin (issue #113 scopes this slice to the package,
- * the build, the container and the routing; the real copy and design are a
- * follow-up). What it must not do is oversell: mamen is one person's
+ * the build, the container and the routing; the real copy is a follow-up — the
+ * colours caught up with the app's in #146). What it must not do is oversell:
+ * mamen is one person's
  * self-hosted tool, there is nothing to sign up for, and a landing page that
  * implies otherwise is worse than none.
  *
@@ -46,8 +47,9 @@ export function renderPage(): string {
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<meta name="color-scheme" content="dark light" />
-		<meta name="theme-color" content="#0a0a0a" />
+		<meta name="color-scheme" content="light dark" />
+		<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f9f7f4" />
+		<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0d0d0c" />
 		<meta name="description" content="${DESCRIPTION}" />
 		<title>${TITLE}</title>
 		<link rel="stylesheet" href="/src/styles.css" />

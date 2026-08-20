@@ -1,15 +1,6 @@
 import { APP_BASE_PATH_SLASH } from "@mamen/shared/app-base-path";
 import { createRootRoute, createRoute, Outlet } from "@tanstack/react-router";
-import {
-  DESCRIPTION,
-  HEADING,
-  LEAD,
-  OPEN_APP,
-  POINTS,
-  SOURCE,
-  SOURCE_URL,
-  TITLE,
-} from "../copy";
+import { DESCRIPTION, HEADING, LEAD, OPEN_APP, POINTS, SOURCE, SOURCE_URL, TITLE } from "../copy";
 
 /**
  * The landing page as React components on a TanStack router (issue #145).
@@ -40,8 +31,9 @@ function Document() {
       <head>
         <meta charSet="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <meta name="color-scheme" content="dark light" />
-        <meta name="theme-color" content="#0a0a0a" />
+        <meta name="color-scheme" content="light dark" />
+        <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f9f7f4" />
+        <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0d0d0c" />
         <meta name="description" content={DESCRIPTION} />
         <title>{TITLE}</title>
         <link rel="stylesheet" href="/src/styles.css" />

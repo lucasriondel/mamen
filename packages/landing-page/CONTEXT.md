@@ -17,8 +17,9 @@ fact it shares with `@mamen/web` is the **path prefix** the app is served under
 (`packages/web/CONTEXT.md`), read from `@mamen/shared/app-base-path` so the link
 into the app cannot drift from where nginx puts it.
 
-The copy is provisional — this slice delivered the package, the build, the
-container and the routing; the real copy and design are a follow-up. What it may
+The copy is provisional — that slice delivered the package, the build, the
+container and the routing, and the real copy is still a follow-up; the colours
+caught up with the app's in issue #146 (**restated palette**, below). What it may
 not do is oversell: mamen is single-user and self-hosted, there is nothing to
 sign up for, and a page implying otherwise is worse than no page.
 
@@ -96,6 +97,24 @@ built page is asserted to carry none. A runtime dependency on React would mean
 the browser assembling a page this package exists to serve finished.
 _Avoid_: SSR (there is no server rendering per request — the render happens once,
 at build).
+
+**Restated palette**:
+The app's colour ramp, written out again in `src/styles.css` (issue #146): the
+warm-tinted `--gousse-*` neutrals — red down to blue, never a pure grey — with
+mamen's blue accent over them. **Restated, not imported**: this package takes
+none of the app's Tailwind, theme layer or component library, so the values are
+a second copy, and `src/styles.test.ts` is what stops the two from drifting —
+it reads the app's sheets at test time and holds these against them. Two
+deliberate differences from a straight copy: the light scheme's muted step is
+darkened until it clears 4.5:1, because this page sets paragraphs in it where
+the app sets labels; and dark is a `prefers-color-scheme` media query rather
+than the app's `.dark` class, because there is no script here to resolve a
+stored choice with. The accent is a **highlight** — link colour, focus ring —
+and never a fill: the call to action is an ink-filled pill, exactly as the app's
+primary button is.
+_Avoid_: theme (there is nothing to switch — the reader's preference is the
+whole input), design tokens (these are six custom properties, not a contract
+anything else consumes).
 
 **Shared copy**:
 `src/copy.ts` — the page's words as data, read by both renderers. Two renderers

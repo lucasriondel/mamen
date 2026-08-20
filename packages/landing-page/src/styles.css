@@ -4,15 +4,43 @@
    is smaller than the tooling that would generate it.
 
    Vite finds this through the `<link>` in the prerendered document and emits it
-   as a hashed asset, so the built page carries no inline style block. */
+   as a hashed asset, so the built page carries no inline style block.
+
+   The colours are the app's, restated (issue #146). A visitor who follows the
+   link into the app should not feel they changed product, so the ramp below is
+   the `--gousse-*` ramp: warm-tinted neutrals — red down to blue rather than a
+   pure grey — with mamen's blue accent, which tracks miel's, on top. Restated
+   is the operative word: the values are copied, not imported, because importing
+   them is the dependency the paragraph above rules out. `src/styles.test.ts`
+   reads the app's sheets and holds these against them, so the two copies cannot
+   drift in silence.
+
+   One value is not a copy. The app's light `--gousse-muted` is 4.1:1 on its own
+   background, which is fine for the short labels it carries there and not fine
+   for the paragraphs this page sets in it, so it is stepped down the same warm
+   ramp until it clears 4.5:1. Dark needs no such step.
+
+   Dark is a media query, not a class: the app resolves a stored choice with a
+   script before first paint, and this page ships no JavaScript at all, so the
+   reader's preference is the whole input. */
 
 :root {
-  color-scheme: dark;
-  --bg: #0a0a0a;
-  --fg: #ededed;
-  --muted: #a1a1a1;
-  --accent: #d8b26e;
-  --line: #262626;
+  color-scheme: light dark;
+  --bg: #f9f7f4;
+  --ink: #11100e;
+  --muted: #6b6b67;
+  --line: #e2ded7;
+  --accent: #2563eb;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d0d0c;
+    --ink: #f5f5f2;
+    --muted: #9c9c96;
+    --line: #44423c;
+    --accent: #60a5fa;
+  }
 }
 
 *,
@@ -25,7 +53,7 @@ body {
   margin: 0;
   padding: 4rem 1.5rem;
   background: var(--bg);
-  color: var(--fg);
+  color: var(--ink);
   font-family:
     ui-sans-serif,
     system-ui,
@@ -46,7 +74,7 @@ h1 {
   margin: 0 0 0.5rem;
   font-size: 3rem;
   letter-spacing: -0.03em;
-  color: var(--accent);
+  color: var(--ink);
 }
 
 .lead {
@@ -69,7 +97,7 @@ h1 {
 }
 
 .points strong {
-  color: var(--fg);
+  color: var(--ink);
   font-weight: 600;
 }
 
@@ -81,22 +109,42 @@ h1 {
   margin: 0;
 }
 
+/* The accent's job on this page: the colour a link is, and the ring a keyboard
+   gives whatever it lands on. Both are highlights. Nothing here is filled with
+   it — see `.cta`. */
 a {
   color: var(--accent);
 }
 
+a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 0.375rem;
+}
+
+/* The app's primary button, in plain CSS: an **ink**-filled pill with a
+   background-coloured label, not an accent-filled one. Blue is the highlight in
+   this design language, never the fill, and a call to action that got that
+   wrong would misrepresent the screen it opens. */
 .cta {
   display: inline-block;
   padding: 0.625rem 1.25rem;
-  border-radius: 0.5rem;
-  background: var(--accent);
+  border-radius: 9999px;
+  background: var(--ink);
   color: var(--bg);
-  font-weight: 600;
+  font-weight: 500;
   text-decoration: none;
 }
 
+/* `hover:bg-gousse-ink/90` over the page background, resolved statically — the
+   app's ink at 90% opacity is its ink mixed a tenth of the way to what is
+   behind it. */
 .cta:hover {
-  filter: brightness(1.1);
+  background: color-mix(in srgb, var(--ink) 90%, var(--bg));
+}
+
+.cta:active {
+  transform: scale(0.96);
 }
 
 .secondary {
@@ -105,12 +153,14 @@ a {
 }
 
 .secondary:hover {
-  color: var(--fg);
+  color: var(--ink);
 }
 
 @media (prefers-reduced-motion: no-preference) {
   .cta {
-    transition: filter 150ms ease;
+    transition:
+      background-color 150ms ease,
+      transform 150ms ease;
   }
 
   .secondary {
