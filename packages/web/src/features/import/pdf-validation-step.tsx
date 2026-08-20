@@ -1,9 +1,16 @@
 import type { DeclaredTotals, ExtractedTransaction } from "@mamen/shared/contract";
-import { Undo2, X } from "lucide-react";
+import { createColumnHelper } from "@tanstack/react-table";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/format";
 import { AlreadyImportedMark } from "./already-imported-mark";
+import {
+  CandidateTable,
+  type PreviewColumn,
+  skipColumn,
+  useCandidateTable,
+} from "./candidate-table";
+import type { CandidateRow } from "./candidate-rows";
 import { CommitBar } from "./commit-bar";
 import { formatExtractionTime } from "./format-extraction-time";
 import { keptPositions } from "./kept-rows";
@@ -97,7 +104,7 @@ export function PdfValidationStep({
         <ExtractedRows
           extracted={extracted}
           rowIds={rowIds}
-          skipped={skipped}
+          skippedRows={skippedRows}
           duplicateFlags={duplicates.flags}
           dispatch={dispatch}
         />
@@ -152,19 +159,40 @@ function PdfPane({ file }: { file: File }) {
   );
 }
 
+const columnHelper = createColumnHelper<CandidateRow<ExtractedTransaction>>();
+
+/** The pill an editable cell wears, struck through while the row is skipped. */
+function fieldClass(isSkipped: boolean): string {
+  return `w-full rounded-full border border-gousse-line bg-gousse-bg px-3 py-1 text-gousse-ink ${
+    isSkipped ? "line-through opacity-60" : ""
+  }`;
+}
+
 /**
  * The editable extracted-rows table: edit in place, skip a row, add a row.
+ *
+ * A real table since issue #193 — TanStack Table over the shared candidate-table
+ * primitives ({@link useCandidateTable}), so the panel keys on the row's **stable
+ * row id**, reads its skips off row selection, and is already wired for the
+ * raw-source columns and facets #195 adds. The transactions grid is not reused:
+ * it renders persisted rows and a candidate row is not one. Columns are what the
+ * view always showed — date, raw issuer, amount — behind the shared skip
+ * checkbox.
  *
  * Skipping replaced deleting (issue #192). A skipped row stays on screen struck
  * through with every one of its inputs disabled, and one click puts it back —
  * deleting bought nothing that skipping does not, and cost reversibility. The
  * disabling is the part that earned the change: an edit to a row that will not
  * commit is an edit thrown away.
+ *
+ * An edit still addresses a row by its `index`, which the candidate row carries:
+ * `edit-extracted` patches the wizard's array in place. The ids name the rows,
+ * the index reaches them.
  */
 function ExtractedRows({
   extracted,
   rowIds,
-  skipped,
+  skippedRows,
   duplicateFlags,
   dispatch,
 }: {
@@ -172,120 +200,112 @@ function ExtractedRows({
   /** Positional with `extracted`: the row id a skip names each row by. */
   rowIds: readonly RowId[];
   /** The row ids held out of the commit. */
-  skipped: ReadonlySet<RowId>;
+  skippedRows: readonly RowId[];
   /** Positional with `extracted`: does this row look already imported? */
   duplicateFlags: readonly boolean[];
   dispatch: (action: WizardAction) => void;
 }) {
+  /*
+   * The `header` and `cell` entries below are TanStack **renderers**, not
+   * components: the table calls them through `flexRender`, never as JSX, so none
+   * of them has an identity React could remount on — the same reason the
+   * transactions grid disables this rule over its column definitions.
+   */
+  // oxlint-disable react/no-unstable-nested-components
+  const columns = useMemo<ReadonlyArray<PreviewColumn<ExtractedTransaction>>>(
+    () => [
+      skipColumn<ExtractedTransaction>(),
+      columnHelper.accessor((candidate) => candidate.row.date, {
+        id: "date",
+        header: "Date",
+        cell: ({ row }) => (
+          <input
+            type="date"
+            aria-label={`Date, row ${row.original.index + 1}`}
+            value={toDateInputValue(row.original.row.date)}
+            disabled={row.getIsSelected()}
+            onChange={(event) =>
+              dispatch({
+                type: "edit-extracted",
+                index: row.original.index,
+                patch: { date: fromDateInputValue(event.target.value) },
+              })
+            }
+            className={fieldClass(row.getIsSelected())}
+          />
+        ),
+      }),
+      columnHelper.accessor((candidate) => candidate.row.rawIssuerString, {
+        id: "rawIssuer",
+        header: "Raw issuer",
+        cell: ({ row }) => {
+          const isSkipped = row.getIsSelected();
+          return (
+            <div className="flex flex-col items-start gap-1">
+              <input
+                type="text"
+                aria-label={`Raw issuer, row ${row.original.index + 1}`}
+                value={row.original.row.rawIssuerString}
+                disabled={isSkipped}
+                onChange={(event) =>
+                  dispatch({
+                    type: "edit-extracted",
+                    index: row.original.index,
+                    patch: { rawIssuerString: event.target.value },
+                  })
+                }
+                className={fieldClass(isSkipped)}
+              />
+              {row.original.duplicate ? <AlreadyImportedMark /> : null}
+              {isSkipped ? (
+                <span className="whitespace-nowrap text-gousse-muted text-xs">
+                  Skipped — won't be imported
+                </span>
+              ) : null}
+            </div>
+          );
+        },
+      }),
+      columnHelper.accessor((candidate) => candidate.row.amount, {
+        id: "amount",
+        header: () => <span className="block text-right">Amount</span>,
+        cell: ({ row }) => (
+          <AmountInput
+            label={`Amount, row ${row.original.index + 1}`}
+            value={row.original.row.amount}
+            disabled={row.getIsSelected()}
+            onChange={(amount) =>
+              dispatch({
+                type: "edit-extracted",
+                index: row.original.index,
+                patch: { amount },
+              })
+            }
+          />
+        ),
+      }),
+    ],
+    // `dispatch` is `useReducer`'s, so this list never changes and neither does
+    // the column identity — which is what keeps the input a user is typing into
+    // from being remounted under them mid-keystroke. Everything else a cell needs
+    // reaches it on the row.
+    [dispatch],
+  );
+  // oxlint-enable react/no-unstable-nested-components
+
+  const table = useCandidateTable({
+    rows: extracted,
+    rowIds,
+    duplicateFlags,
+    columns,
+    skippedRows,
+    dispatch,
+  });
+
   return (
     <div className="flex flex-col gap-3 overflow-hidden rounded-2xl border border-gousse-line">
       <div className="max-h-[85vh] overflow-y-auto">
-        <table className="w-full text-sm">
-          <thead className="sticky top-0 bg-gousse-panel text-gousse-muted">
-            <tr>
-              <th className="px-2 py-2 text-left font-medium">Date</th>
-              <th className="px-2 py-2 text-left font-medium">Raw issuer</th>
-              <th className="px-2 py-2 text-right font-medium">Amount</th>
-              {/* The row-actions column: named for assistive tech rather than
-                  left blank, the same way the table columns elsewhere are. */}
-              <th className="px-2 py-2">
-                <span className="sr-only">Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {extracted.map((tx, index) => {
-              const rowId = rowIds[index];
-              const isSkipped = skipped.has(rowId);
-              const position = index + 1;
-              // The row is still there and still says what it says — struck
-              // through, so the user sees what they have held out rather than
-              // watching it vanish.
-              const field = `w-full rounded-full border border-gousse-line bg-gousse-bg px-3 py-1 text-gousse-ink ${
-                isSkipped ? "line-through opacity-60" : ""
-              }`;
-              return (
-                <tr key={rowId} className="border-gousse-line border-t">
-                  <td className="px-2 py-1">
-                    <input
-                      type="date"
-                      aria-label={`Date, row ${position}`}
-                      value={toDateInputValue(tx.date)}
-                      disabled={isSkipped}
-                      onChange={(event) =>
-                        dispatch({
-                          type: "edit-extracted",
-                          index,
-                          patch: { date: fromDateInputValue(event.target.value) },
-                        })
-                      }
-                      className={field}
-                    />
-                  </td>
-                  <td className="px-2 py-1">
-                    <div className="flex flex-col items-start gap-1">
-                      <input
-                        type="text"
-                        aria-label={`Raw issuer, row ${position}`}
-                        value={tx.rawIssuerString}
-                        disabled={isSkipped}
-                        onChange={(event) =>
-                          dispatch({
-                            type: "edit-extracted",
-                            index,
-                            patch: { rawIssuerString: event.target.value },
-                          })
-                        }
-                        className={field}
-                      />
-                      {duplicateFlags[index] ? <AlreadyImportedMark /> : null}
-                      {isSkipped ? (
-                        <span className="whitespace-nowrap text-gousse-muted text-xs">
-                          Skipped — won't be imported
-                        </span>
-                      ) : null}
-                    </div>
-                  </td>
-                  <td className="px-2 py-1">
-                    <AmountInput
-                      label={`Amount, row ${position}`}
-                      value={tx.amount}
-                      disabled={isSkipped}
-                      onChange={(amount) =>
-                        dispatch({
-                          type: "edit-extracted",
-                          index,
-                          patch: { amount },
-                        })
-                      }
-                    />
-                  </td>
-                  <td className="px-2 py-1 text-right">
-                    {isSkipped ? (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label={`Restore row ${position}`}
-                        onClick={() => dispatch({ type: "restore-row", rowId })}
-                      >
-                        <Undo2 size={14} aria-hidden />
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label={`Skip row ${position}`}
-                        onClick={() => dispatch({ type: "skip-row", rowId })}
-                      >
-                        <X size={14} aria-hidden />
-                      </Button>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <CandidateTable table={table} />
       </div>
 
       <div className="px-2 pb-2">

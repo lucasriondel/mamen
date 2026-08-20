@@ -109,6 +109,14 @@ phantom ones (a **skipped row**, since issue #192 — it used to delete them), a
 adds missed ones (edit-in-place) before committing. The CSV path keeps its own
 plain-table preview; both converge on the same commit.
 _Avoid_: Diff view, comparison.
+_Code note_: the panel is a real table since issue #193 — TanStack Table over the
+**candidate-table primitives**, columns *skip | date | raw issuer | amount*. The
+skip is a checkbox in front of the values rather than the pair of icon buttons it
+used to be: checked *is* skipped, so one control says the state and reverses it.
+The transactions grid is deliberately not reused, and the two previews stay two
+components — one is editable with an add-row control and a reconciliation banner,
+the other is neither, and collapsing them would mean one component steered by a
+handful of capability flags.
 
 **Import**:
 The result of committing a Statement for one account and one month, keyed
@@ -159,7 +167,9 @@ A previewed row the user held out of the commit — the recourse for an **alread
 imported** mark, and the only thing that ever keeps a parsed row from being
 written (epic #85). Offered per row on both preview paths: the row is struck
 through and restorable, and its editable fields (where it has any) are disabled
-while it is skipped. A skip is a decision about *this* commit and nothing else:
+while it is skipped. On **side-by-side validation** the control is the table's
+skip checkbox (issue #193); the CSV preview still carries the icon-button pair
+until it adopts the same table (issue #194). A skip is a decision about *this* commit and nothing else:
 it writes nothing, stores nothing, and is gone when the wizard is.
 
 The **side-by-side validation** view used to delete a row outright instead, on
@@ -199,6 +209,29 @@ where an id belongs. On the CSV path they name papaparse's rows, not the
 **Parser**'s records — a parser drops rows it won't import, so the join is the
 parser's to report: `parse` returns a `ParsedRow` per record carrying the
 `sourceIndex` it was read from, and the preview reads the id off that.
+
+**Candidate-table primitives**:
+What the two import previews share instead of a component (issue #193): row
+identity (`candidate-rows.ts` — the wizard's positional rows, ids and
+already-imported marks zipped into one `CandidateRow` per row, which is what
+TanStack's `getRowId` can answer with), selection (`use-skip-selection.ts` — **a
+selected row is a skipped row**, projected from `skippedRows` and dispatched back
+as `skip-row` / `restore-row`, so the table holds no copy of the decision),
+column visibility (`use-preview-column-visibility.ts` — state, not storage: an
+import preview's hideable columns are read off the statement in hand and a
+preference must not outlive the wizard), and the shell + skip column that render
+them (`candidate-table.tsx`).
+
+The **transactions table** is not among them, on purpose. It renders persisted
+rows — keyed on a database id, joining issuer and category, expanding bundles —
+and a candidate row has none of that. What is shared is the primitives and the
+pattern, not the component.
+_Avoid_: Reusing the transactions table, one preview behind capability flags.
+_Code note_: the PDF panel composes them today; the CSV preview follows in issue
+#194, and the facets and toggleable raw-source columns in #195. The columns are
+memoised on `dispatch` alone and everything else a cell needs reaches it on the
+row — a cell closing over a fresh array per render gives the column list a new
+identity, which remounts the editable inputs and eats the keystroke being typed.
 
 **Raw issuer string**:
 The unparsed counterparty text on a transaction (`rawIssuerString`, e.g.

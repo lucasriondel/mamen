@@ -496,8 +496,51 @@ describe("ImportWizard", () => {
     });
   });
 
+  // Issue #193: the panel is a real table now — TanStack Table over the shared
+  // table and checkbox primitives — and the skip is a checkbox column in front of
+  // the three columns the view has always shown. Nothing else moves: this asserts
+  // the columns the user gets, not how they are built.
+  it("renders the side-by-side rows as a table, skip checkbox first", async () => {
+    const user = userEvent.setup();
+    extractPdf.mockResolvedValue({
+      transactions: [
+        {
+          date: new Date("2026-01-15T10:00:00.000Z"),
+          amount: -10,
+          rawIssuerString: "SHOP A",
+        },
+      ],
+      declaredTotals: { debit: 10, credit: 0 },
+    });
+    renderWizard();
+
+    await chooseAccount(user);
+
+    await user.upload(
+      await screen.findByLabelText("CSV or PDF statement"),
+      new File(["%PDF-1.7"], "statement.pdf", { type: "application/pdf" }),
+    );
+
+    const rows = await screen.findByLabelText("Raw issuer, row 1");
+    const table = rows.closest("table") as HTMLElement;
+    expect(
+      within(table)
+        .getAllByRole("columnheader")
+        .map((th) => th.textContent),
+    ).toEqual(["Skip", "Date", "Raw issuer", "Amount"]);
+
+    // The skip is a checkbox on the row, not the icon button it used to be:
+    // checked means skipped, so one control says the state and reverses it.
+    const skip = within(table).getByRole("checkbox", { name: "Skip row 1" });
+    expect(skip).not.toBeChecked();
+    expect(screen.queryByRole("button", { name: "Skip row 1" })).toBeNull();
+    // It leads the row — the decision about whether the row belongs at all sits
+    // in front of the values it carries.
+    expect(skip.closest("td")).toBe(rows.closest("tr")?.firstElementChild);
+  });
+
   // The PDF path marks the same rows in the side-by-side view, where the row's
-  // existing × is the way to act on the mark.
+  // skip checkbox is the way to act on the mark.
   it("marks an already-imported row in the side-by-side validation view", async () => {
     const user = userEvent.setup();
     extractPdf.mockResolvedValue({
@@ -638,7 +681,7 @@ describe("ImportWizard", () => {
     // Deleting is gone — skipping subsumes it and is reversible.
     expect(screen.queryByRole("button", { name: "Delete row 1" })).toBeNull();
 
-    await user.click(screen.getByRole("button", { name: "Skip row 1" }));
+    await user.click(screen.getByRole("checkbox", { name: "Skip row 1" }));
 
     // The row is still on screen, struck through, and every field it offers is
     // inert: an edit to a row that will not commit is an edit thrown away.
@@ -678,8 +721,13 @@ describe("ImportWizard", () => {
       new File(["%PDF-1.7"], "statement.pdf", { type: "application/pdf" }),
     );
 
-    await user.click(await screen.findByRole("button", { name: "Skip row 1" }));
-    await user.click(screen.getByRole("button", { name: "Restore row 1" }));
+    // One control both ways since issue #193: the checkbox that skipped the row
+    // is the one that takes it back, so there is no second button to find.
+    const skip = await screen.findByRole("checkbox", { name: "Skip row 1" });
+    await user.click(skip);
+    expect(skip).toBeChecked();
+    await user.click(skip);
+    expect(skip).not.toBeChecked();
 
     const issuer = screen.getByLabelText("Raw issuer, row 1");
     expect(issuer).toBeEnabled();
@@ -727,7 +775,7 @@ describe("ImportWizard", () => {
 
     // Skipping the row that *was* extracted leaves the added one, which is the
     // proof the skip named a row rather than the position it was clicked at.
-    await user.click(screen.getByRole("button", { name: "Skip row 1" }));
+    await user.click(screen.getByRole("checkbox", { name: "Skip row 1" }));
     expect(screen.getByLabelText("Raw issuer, row 2")).toBeEnabled();
 
     await user.click(screen.getByRole("button", { name: "Commit import" }));
@@ -777,7 +825,7 @@ describe("ImportWizard", () => {
     expect(await screen.findByTitle("PDF statement")).toBeInTheDocument();
     expect(await screen.findByText(/1 of these rows looks already imported/)).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Skip row 1" }));
+    await user.click(screen.getByRole("checkbox", { name: "Skip row 1" }));
 
     // The marked row is held out, so the bar has nothing left to advise about…
     await waitFor(() => expect(screen.queryByText(/looks already imported/)).toBeNull());
