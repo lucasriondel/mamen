@@ -109,6 +109,29 @@ data. Regex compiles in JS, never in SQL, so an invalid pattern becomes a
 recompute it triggers share one `withTransaction`, so the fallout is
 all-or-nothing.
 
+**Owned-count input set**:
+The six things a **Matching Rule**'s **Owned count** (see CONTEXT-MAP.md) is
+derived from, stated where the derivation is — `derive` in
+`matching/issuer-matcher.ts`: **row existence**, `manualIssuer`,
+`rawIssuerString`, `amount`, `accountId`, and **the rule set** itself. Nothing
+else. The count is computed on every read and never stored (the `matchCount`
+column went in migration `0017_drop_rules_match_count`), so it is a function of
+those six as they stand now.
+
+The inverse is the load-bearing half: **a write touching none of the six cannot
+change an Owned count**. `transferGroupId` (transfer link / unlink / dismiss),
+`categoryId` / `manualCategory` (a category override), `excludedFromRecap` /
+`manualExcluded` (recap exclusion) and an issuer's own `excludedFromRecap` recap
+flag change how a row is *displayed or aggregated*; the matcher reads none of
+them. Read loosely — as "any write that moves rows" — that reads as "any write
+to the transactions table", and two separate reviews have now concluded from it
+that the mutation hooks omitting the rules-cache invalidation were shipping
+stale counts. They are not: check a write against the field list mechanically
+instead of inferring from what "moves" means. `packages/web/CONTEXT.md` holds
+the cache-invalidation rule that follows from this list, still worded as that
+superset; issue #170 restates it in these six fields, in these words.
+_Avoid_: "moves rows", "touches transactions" (both name a superset of the six).
+
 **Wire suite / repo suite**:
 The two test seams, one file each per resource. The **wire suite**
 (`handlers.test.ts`) stands the whole API up on an ephemeral Node server over a

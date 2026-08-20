@@ -153,6 +153,10 @@ const compile = (rules: ReadonlyArray<Rule>): CompiledSet => {
  * columns the optional predicates ask about. A whole `Transaction` satisfies it;
  * naming it keeps the predicate from growing another positional parameter each
  * time a predicate is added.
+ *
+ * These three are the *per-row* part of the Owned count's input set; the whole
+ * set (six things, with the two counter-example lists) is stated on
+ * {@link derive}.
  */
 type MatchRow = Pick<typeof Transaction.Type, "rawIssuerString" | "amount" | "accountId">;
 
@@ -189,6 +193,28 @@ const winnerFor = (row: MatchRow, compiled: ReadonlyArray<CompiledRule>): Rule |
  * (`issuerId: null`). Pure and mode-agnostic — the single routine both dry-run
  * and commit paths call. Exported for direct unit reasoning; the feature's
  * behaviour is tested at the API boundary.
+ *
+ * **The Owned count's input set is this function's, and it is six things**
+ * (issue #166): row existence, `manualIssuer`, `rawIssuerString`, `amount`,
+ * `accountId`, and the rule set itself. The count is derived on every read
+ * ({@link ownedCounts}) and never stored — the `matchCount` column went in
+ * migration `0017_drop_rules_match_count` — so it is a function of those six as
+ * they stand *now*, and of nothing else.
+ *
+ * The inverse is the half worth writing down, because it has been derived and
+ * refuted twice: **a write touching none of the six cannot change an Owned
+ * count.** `transferGroupId` (transfer link / unlink / dismiss), `categoryId`
+ * and `manualCategory` (a category override), `excludedFromRecap` and
+ * `manualExcluded` (recap exclusion), and an issuer's own `excludedFromRecap`
+ * recap flag all change how a row is *displayed or aggregated* — none is read
+ * here, so none moves ownership, and the mutations confined to them correctly
+ * invalidate the transactions cache without the rules one.
+ *
+ * The same six-field list, in the same words, is in `packages/api/CONTEXT.md`
+ * (**Owned-count input set**). `packages/web/CONTEXT.md` holds the
+ * cache-invalidation rule that follows from it and still words it as "any
+ * mutation that moves rows" — the superset this comment exists to narrow; issue
+ * #170 replaces that wording with this list.
  */
 export const derive = (
   rows: ReadonlyArray<Transaction>,
