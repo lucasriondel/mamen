@@ -8,7 +8,9 @@ import {
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { pagedListParams } from "@/test/paged-list-params";
 import { COLLAPSED_SHELL, OPEN_SHELL, withShell } from "@/test/sidebar-shell";
+import { findNextPageButton, findSortButton } from "@/test/transactions-controls";
 import { validateTransactionsSearch } from "../transactions/search";
 import { CategoryTransactionsView } from "./category-transactions-view";
 
@@ -59,9 +61,15 @@ const TXNS = [
 
 // ---- SDK seam mock ----------------------------------------------------------
 
+/**
+ * The `total` the mocked list envelope reports. Defaults to the canned row; a
+ * pagination test raises it so there is more than one page to move between.
+ */
+let listTotal = TXNS.length;
+
 const listMock = vi.fn((params: Record<string, unknown>) => ({
   queryKey: ["transactions", "list", params],
-  queryFn: async () => ({ items: TXNS, total: TXNS.length }),
+  queryFn: async () => ({ items: TXNS, total: listTotal }),
 }));
 
 const countMock = vi.fn((params: Record<string, unknown>) => ({
@@ -159,7 +167,11 @@ async function renderView(initialEntry: string, value = OPEN_SHELL) {
 beforeEach(() => {
   listMock.mockClear();
   countMock.mockClear();
+  listTotal = TXNS.length;
 });
+
+/** This harness's paged list params — see {@link pagedListParams}. */
+const pagedList = () => pagedListParams(listMock);
 
 describe("CategoryTransactionsView", () => {
   // This page hand-rolled its own header and so rendered no trigger at all: a
@@ -264,6 +276,129 @@ describe("CategoryTransactionsView", () => {
       expect(router.state.location.search).toMatchObject({
         search: "carrefour",
       });
+    });
+  });
+
+  // ---- Sort and pagination (issue #168) -------------------------------------
+  //
+  // The controls are the shared section's, but the handlers that answer them
+  // are this page's own — and each one rewrites a URL that pins a scope. So
+  // what is checked here is not that a sort button sorts, but that this page's
+  // sort survives the trip through the URL *with its category still on it*.
+
+  it("toggles the date sort direction in the URL and in the scoped query", async () => {
+    const user = userEvent.setup();
+    const router = await renderView("/categories/5");
+
+    await user.click(await findSortButton());
+
+    await waitFor(() => {
+      expect(router.state.location.search).toMatchObject({ direction: "asc" });
+    });
+    // The rows are re-asked for the other way round — still scoped to the leaf
+    // the page is about, which the toggle has no business dropping. Awaited in
+    // its own right: the URL is rewritten a beat before the re-render that
+    // re-runs the query off it, so asserting the two in one breath is a race.
+    await waitFor(() => {
+      expect(listMock).toHaveBeenCalledWith(
+        expect.objectContaining({ categoryId: [5], orderBy: "date", direction: "asc" }),
+      );
+    });
+  });
+
+  it("puts the page number — not the row offset — in the URL", async () => {
+    listTotal = 120;
+    const user = userEvent.setup();
+    const router = await renderView("/categories/5");
+
+    await user.click(await findNextPageButton());
+
+    // The URL carries the human-readable page; the SDK still gets the offset it
+    // multiplies out to, and the scope rides along with it.
+    await waitFor(() => {
+      expect(router.state.location.search).toMatchObject({ page: 2 });
+    });
+    expect(router.state.location.search).not.toHaveProperty("offset");
+    await waitFor(() => {
+      expect(listMock).toHaveBeenCalledWith(
+        expect.objectContaining({ categoryId: [5], offset: 50, limit: 50 }),
+      );
+    });
+  });
+
+  // The page-reset rule, whose regression is a confusing empty page rather than
+  // a crash: a narrower filter over a set that no longer reaches page 3 leaves
+  // the user on a page of nothing.
+  it("returns to the first page when a filter changes", async () => {
+    listTotal = 120;
+    const user = userEvent.setup();
+    const router = await renderView("/categories/5?page=3");
+
+    await user.type(await screen.findByLabelText("Search transactions"), "carrefour");
+
+    await waitFor(() => {
+      expect(router.state.location.search).toMatchObject({
+        search: "carrefour",
+        page: 1,
+      });
+    });
+    await waitFor(() => {
+      expect(pagedList()).toMatchObject({ categoryId: [5], offset: 0 });
+    });
+  });
+
+  it("returns to the first page when the sort direction changes", async () => {
+    listTotal = 120;
+    const user = userEvent.setup();
+    const router = await renderView("/categories/5?page=3&direction=asc");
+
+    await user.click(await findSortButton());
+
+    // Page 3 of newest-first is a different set of rows from page 3 of
+    // oldest-first, so the reorder starts the reading over.
+    await waitFor(() => {
+      expect(router.state.location.search).toMatchObject({
+        direction: "desc",
+        page: 1,
+      });
+    });
+    await waitFor(() => {
+      expect(pagedList()).toMatchObject({ categoryId: [5], offset: 0 });
+    });
+  });
+
+  it("changes page without disturbing the rest of the search state", async () => {
+    listTotal = 120;
+    const user = userEvent.setup();
+    const router = await renderView(
+      "/categories/5?accountId=1&search=carrefour&direction=asc&page=2",
+    );
+
+    await user.click(await findNextPageButton());
+
+    await waitFor(() => {
+      expect(router.state.location.search).toMatchObject({ page: 3 });
+    });
+    // Every filter, and the sort, are exactly what they were — a page change is
+    // the one move that must NOT reset anything.
+    expect(router.state.location.search).toMatchObject({
+      accountId: [1],
+      search: "carrefour",
+      direction: "asc",
+    });
+    // And the page is still this category's: the scope lives in the path, which
+    // the search-only rewrite leaves alone.
+    expect(router.state.location.pathname).toBe("/categories/5");
+    await waitFor(() => {
+      expect(listMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          categoryId: [5],
+          accountId: [1],
+          search: "carrefour",
+          direction: "asc",
+          offset: 100,
+        }),
+      );
     });
   });
 
