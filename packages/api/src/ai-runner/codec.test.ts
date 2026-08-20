@@ -62,8 +62,9 @@ describe("the JSON schema handed to the model", () => {
     const root = asObject(effectSchemaCodec(ExtractionOutput).jsonSchema);
     const defs = asObject(root.$defs);
 
-    // `transactions` items still point at `#/$defs/ExtractedTransaction`.
-    assert.property(defs, "ExtractedTransaction");
+    // `transactions` items still point at `#/$defs/ExtractedRow` — the model's
+    // own row, whose archive is required (issue #189).
+    assert.property(defs, "ExtractedRow");
     assert.property(defs, "DeclaredTotals");
   });
 
@@ -79,7 +80,14 @@ describe("decoding the model's answer", () => {
   it.effect("re-decodes through the schema, transforms and all", () =>
     Effect.gen(function* () {
       const decoded = yield* effectSchemaCodec(ExtractionOutput).decode({
-        transactions: [{ date: "2026-01-03", amount: -6.99, rawIssuerString: "CB AMAZON" }],
+        transactions: [
+          {
+            date: "2026-01-03",
+            amount: -6.99,
+            rawIssuerString: "CB AMAZON",
+            rawSource: { Libellé: "CB AMAZON", Débit: "6,99" },
+          },
+        ],
         declaredTotals: { debit: 6.99, credit: 0 },
         missingColumns: [],
       });

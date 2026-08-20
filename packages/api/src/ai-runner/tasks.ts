@@ -45,6 +45,26 @@ export interface ExtractPdfInput {
 }
 
 /**
+ * One row as the **model** answers with it (issue #189): an
+ * {@link ExtractedTransaction} whose archive is **required**.
+ *
+ * The endpoint's own row has it optional, because absent is what a row with
+ * nothing to keep carries; the model is never allowed to be the one that decides
+ * that. A silence folded into "this row had nothing" is the premise issue #175
+ * excluded PDF rows on, and making that premise false is the whole of this
+ * ticket — so the field travels to the provider as a required one in the tool's
+ * input schema, and an answer without it fails the run loudly and retryably.
+ *
+ * The fold from `{}` to absent is the server's, in `import/extract.ts`, for the
+ * same reason the **format verdict** is: the model reports what it saw, and what
+ * that adds up to is mamen's conclusion.
+ */
+export class ExtractedRow extends Schema.Class<ExtractedRow>("ExtractedRow")({
+  ...ExtractedTransaction.fields,
+  rawSource: Schema.Record({ key: Schema.String, value: Schema.String }),
+}) {}
+
+/**
  * What the model is asked to answer with — the rows, the statement's declared
  * totals, and **the declared columns it could not find** (issue #188).
  *
@@ -62,7 +82,7 @@ export interface ExtractPdfInput {
  * enforces. An answer without it fails the run loudly and retryably.
  */
 export class ExtractionOutput extends Schema.Class<ExtractionOutput>("ExtractionOutput")({
-  transactions: Schema.Array(ExtractedTransaction),
+  transactions: Schema.Array(ExtractedRow),
   declaredTotals: DeclaredTotals,
   missingColumns: Schema.Array(Schema.String),
 }) {}

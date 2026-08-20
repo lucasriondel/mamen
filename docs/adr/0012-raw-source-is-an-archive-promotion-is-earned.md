@@ -140,10 +140,24 @@ after this change.
 - **Rows imported before this change have `rawSource` null**, permanently. There
   is no backfill, because backfilling is the re-import this ADR is partly about
   making safe.
-- **PDF-extracted rows have no `rawSource`.** `ExtractedTransaction` is
-  `{date, amount, rawIssuerString}` — there is no original row to keep. Their
-  provenance question (which model, what confidence) is a different one and is
-  not answered here.
+- ~~**PDF-extracted rows have no `rawSource`.**~~ **Superseded by issue #189
+  (PRD #180).** This was written when `ExtractedTransaction` was
+  `{date, amount, rawIssuerString}` and the reason given was that there is no
+  original row to keep. **Statement Formats** made that premise false: since
+  issue #185 the model is told which columns the statement carries, and since
+  #189 it returns each operation's own cells beside the parsed fields, keyed by
+  those columns and written as the statement printed them. A returned table is
+  row-shaped, and a row is what an archive keeps — so a PDF row now carries one,
+  under the same rules as a CSV row's. The divergence from issue #175's stated
+  scope was raised on that issue rather than landed silently.
+
+  Nothing else in this ADR moves. The archive is still an archive on that path:
+  nothing derives from it, the model reports the cells and never a conclusion
+  about them, and a row with nothing to keep carries `rawSource` **absent**
+  rather than `{}` — the endpoint folds that, so the detail page shows nothing
+  instead of an empty block. The other provenance question a PDF row raises
+  (which model, what confidence) is still a different one and is still not
+  answered here.
 - **Re-import still doubles rows.** Accepted, and now written down rather than
   merely true.
 - **The archive will drift from the columns.** As values are promoted, the same

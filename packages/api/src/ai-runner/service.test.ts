@@ -31,12 +31,20 @@ const PAYLOAD = {
   // The model's half of the **format verdict** (issue #188): nothing missing,
   // i.e. the statement carried every column its **Statement Format** declares.
   missingColumns: [],
+  // Each row's own cells (issue #189), as the statement printed them — required
+  // of the model, so a well-formed payload carries one per row.
   transactions: [
-    { date: "2026-01-03", amount: -6.99, rawIssuerString: "CB AMAZON" },
+    {
+      date: "2026-01-03",
+      amount: -6.99,
+      rawIssuerString: "CB AMAZON",
+      rawSource: { Libellé: "CB AMAZON", Débit: "6,99" },
+    },
     {
       date: "2026-01-15",
       amount: 1947.26,
       rawIssuerString: "VIR SALAIRE ACME",
+      rawSource: { Libellé: "VIR SALAIRE ACME", Crédit: "1 947,26" },
     },
   ],
   declaredTotals: { debit: 6.99, credit: 1947.26 },

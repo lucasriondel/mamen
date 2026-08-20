@@ -1,6 +1,7 @@
 import { FileSystem, type Multipart, Path } from "@effect/platform";
 import {
   AiProviderNotConfigured,
+  ExtractedTransaction,
   ExtractionFailed,
   ExtractPdfResult,
   FormatVerdict,
@@ -13,6 +14,7 @@ import type { TaskRunError } from "ai-task-runner-effect";
 import { ClaudeCode, type ClaudeCodeService } from "claude-code-effect";
 import { Effect } from "effect";
 import { AiRunner } from "../ai-runner";
+import type { ExtractedRow } from "../ai-runner/tasks";
 import { StatementFormatRepo } from "../statement-formats/repository";
 
 /** The one MIME type this endpoint accepts. */
@@ -135,6 +137,29 @@ const verdictOf = (declared: readonly string[], reported: readonly string[]): Fo
 };
 
 /**
+ * One extracted row as the **endpoint** answers with it — the model's row, with
+ * an empty archive folded away (issue #189).
+ *
+ * The model is required to answer with a `rawSource`, so that a silence cannot
+ * be read as "this row had nothing to keep" — the premise issue #175 excluded
+ * PDF rows on, and the one this ticket makes false. But `{}` and "no archive"
+ * are the same fact, and the contract spells it one way: **absent**. A row that
+ * archived nothing therefore carries no key at all, which is what makes the
+ * detail page show nothing rather than an empty block of the bank's own words.
+ *
+ * The same shape of fold as the {@link FormatVerdict} above, for the same
+ * reason: the model reports what it saw, and what that adds up to is mamen's
+ * conclusion, drawn once, here.
+ */
+const rowOf = (row: ExtractedRow): ExtractedTransaction =>
+  new ExtractedTransaction({
+    date: row.date,
+    amount: row.amount,
+    rawIssuerString: row.rawIssuerString,
+    ...(Object.keys(row.rawSource).length === 0 ? {} : { rawSource: row.rawSource }),
+  });
+
+/**
  * Let the CLI read one directory, and change nothing else about it.
  *
  * The `Read`-only tool allowance is the task table's (`allowedTools`), but the
@@ -246,9 +271,11 @@ export const extractPdf = (
 
     // The model answered with the rows and the columns it could not find; the
     // verdict on the *format* is folded from that against what the format
-    // declared, and it is the endpoint's answer rather than the model's.
+    // declared, and it is the endpoint's answer rather than the model's. Each
+    // row is folded the same way, its archive absent when there was nothing in
+    // it (issue #189).
     return new ExtractPdfResult({
-      transactions: output.transactions,
+      transactions: output.transactions.map(rowOf),
       declaredTotals: output.declaredTotals,
       verdict: verdictOf(columns, output.missingColumns),
     });

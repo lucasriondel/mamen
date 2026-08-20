@@ -152,9 +152,11 @@ export class Transaction extends Schema.Class<Transaction>("Transaction")({
    * import-time guessing the archive exists to avoid.
    *
    * An **archive, not a second source of truth**: nothing derives from it, no
-   * matcher queries it and no total counts it. Optional, and absent is the
-   * ordinary resting state — rows imported before this existed carry none
-   * (there is no backfill), and a PDF-extracted row has no original row to keep.
+   * matcher queries it and no total counts it. Optional, and absent is what a row
+   * with nothing to keep carries — rows imported before this existed (there is no
+   * backfill), and rows a user typed by hand. A **PDF-extracted** row carries one
+   * too since issue #189: the model is told which columns the statement has and
+   * returns each operation's own cells, which is a row-shaped thing to archive.
    *
    * Untyped by construction, which is the point: the shape is the bank's, so the
    * contract only promises string keys to string values.

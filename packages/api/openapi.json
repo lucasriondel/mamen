@@ -8753,6 +8753,14 @@
           },
           "rawIssuerString": {
             "type": "string"
+          },
+          "rawSource": {
+            "type": "object",
+            "required": [],
+            "properties": {},
+            "additionalProperties": {
+              "type": "string"
+            }
           }
         },
         "additionalProperties": false

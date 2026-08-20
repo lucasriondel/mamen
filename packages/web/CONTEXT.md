@@ -198,13 +198,21 @@ formats fit.
 
 **Extracted transaction**:
 One candidate record the model reads off a PDF Statement: `{ date, amount,
-rawIssuerString }` — the only PDF-observable fields. Not yet a saved
+rawIssuerString }` plus the row's **raw source**. Not yet a saved
 transaction: the user reviews and corrects it in the **side-by-side validation**
 view, then it is enriched (account, import batch, derived month) and committed
 through the same path as a CSV record. The `amount` is a single signed number
 folded from the statement's Débit/Crédit columns per the amount sign convention;
 the model resolves French number format and infers the year from the statement
 header, using the operation date (not the value date).
+Its archive is **carried, not built** (issue #189, `enrich-extracted.ts`): the
+only thing that ever saw the statement is the extraction, so the cells arrive
+from the endpoint keyed by the format's declared columns and as the statement
+printed them — the parsed `amount` and the archived `Débit` disagree on purpose
+(ADR 0012). A row with nothing to archive — one the endpoint folded to absent, or
+one the user added by hand in **side-by-side validation** — commits with the key
+absent rather than as `{}`, so the detail page shows nothing rather than an empty
+block.
 _Avoid_: Candidate, draft, row.
 
 **Declared totals**:
