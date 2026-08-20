@@ -90,11 +90,13 @@ describe("the prerequisites", () => {
   });
 
   it("keep the optional one optional", () => {
-    // The `claude` CLI is needed by PDF import alone; a page that presents it
-    // as required turns a reader away from an app that would have run.
+    // The `claude` CLI is needed by PDF import on its default provider alone;
+    // a page that presents it as required turns a reader away from an app that
+    // would have run. What makes it the *default's* rather than PDF import's
+    // is the code, and `src/reconcile/facts.test.ts` is where that is read.
     const optional = INSTALL.prerequisites.filter((p) => !p.required);
     expect(optional.map((p) => p.name)).toStrictEqual(["The claude CLI"]);
-    expect(README_PROSE).toContain("for PDF import, the");
+    expect(README_PROSE).toContain("for PDF import on its default provider, the");
   });
 });
 
@@ -106,6 +108,19 @@ describe("the dev servers", () => {
     for (const server of INSTALL.servers) {
       expect(README).toContain(server.url);
     }
+  });
+
+  it("are the ones the README lists, by the names it calls them, in its order", () => {
+    // The URLs alone would let the page keep a server the README dropped, or
+    // call one something else — `bun dev` brings up whatever it brings up, and
+    // a reader matches the two lists by the name in front of each URL.
+    const list = README.slice(README.indexOf("That runs every dev server"));
+    const bullets = [...list.matchAll(/^- (.+?) — <(http[^>]+)>/gm)].map((match) => [
+      match[1] as string,
+      match[2] as string,
+    ]);
+
+    expect(INSTALL.servers.map((server) => [server.name, server.url])).toStrictEqual(bullets);
   });
 });
 

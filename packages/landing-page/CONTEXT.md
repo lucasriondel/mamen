@@ -159,6 +159,14 @@ nobody re-reads it while changing a port — and structure is what makes the
 staleness fail a test run. A **command** therefore lives in its step's
 `commands` field, never inside a sentence: prose is compared loosely, a block a
 reader copies is compared literally.
+The pass around those tests is `.claude/skills/readme-landing-sync/SKILL.md`
+(issue #150) — what must agree, what may differ, and the third case a
+document-to-document comparison cannot see: the two agreeing with each other and
+the **code** having moved under both. `src/reconcile/commands.ts` extracts each
+document's commands and diffs them as text, for `bun run landing:reconcile` and
+`src/reconcile/commands.test.ts` alike; `src/reconcile/facts.test.ts` reads the
+facts both documents state out of the files that decide them — the pinned Bun
+version, the API's environment, the AI catalogue.
 _Avoid_: docs generation (the README is not built from this, nor this from it —
 they are written separately and held equal).
 

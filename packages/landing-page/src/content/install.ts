@@ -100,7 +100,7 @@ export const INSTALL: InstallGuide = {
       name: "The claude CLI",
       url: "https://docs.claude.com/en/docs/claude-code/overview",
       detail:
-        "Needed by PDF import alone, which hands it the statement. Every other part of the app runs without it.",
+        "Needed by PDF import on its default provider, which hands it the statement. Pick a hosted vendor in Settings instead, and nothing needs it. Every other part of the app runs without it either way.",
       required: false,
     },
   ],
