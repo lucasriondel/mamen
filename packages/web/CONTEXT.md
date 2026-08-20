@@ -229,13 +229,31 @@ rule.
 _Code note_: the entity is `Rule` in the contract/DB/SDK; "Matching Rule" is the
 user-facing name only. Each rule row shows its **owned count** (see
 [CONTEXT-MAP.md](../../CONTEXT-MAP.md)) worded as what it counts — "3
-transactions", never "3 matches". Because that count is derived from the
-transactions table, any mutation that moves rows must invalidate `ruleKeys.all`
-too, not just `transactionKeys.all` — an assignment, a removed manual pick, an
-import commit and every **bundle** mutation all change what a rule owns without
-touching a rule. Bundles count because the parent is an ordinary row carrying
-the user's label as its `rawIssuerString`, the string the matcher reads: making
-a bundle can hand a rule a row, dissolving one takes it back (issue #78).
+transactions", never "3 matches". That count is derived from the transactions
+table on every read, out of six inputs and nothing else (the
+**Owned-count input set**, `packages/api/CONTEXT.md`): **row existence**,
+`manualIssuer`, `rawIssuerString`, `amount`, `accountId`, and **the rule set**
+itself. A mutation writing any of the six must invalidate `ruleKeys.all` too,
+not just `transactionKeys.all` — an assignment, a removed manual pick, a bulk
+delete, an import commit and every **bundle** mutation all change what a rule
+owns without touching a rule. Bundles count because the parent is an ordinary
+row carrying the user's label as its `rawIssuerString`, the string the matcher
+reads: making a bundle can hand a rule a row, dissolving one takes it back
+(issue #78).
+
+The inverse is the load-bearing half: **a write touching none of the six cannot
+change an Owned count**. `transferGroupId` (transfer link / unlink / dismiss),
+`categoryId` / `manualCategory` (a category override), `excludedFromRecap` /
+`manualExcluded` (recap exclusion) and an issuer's own `excludedFromRecap` recap
+flag change how a row is *displayed or aggregated*, not what a rule owns — so
+`useTransfer`, `useCategoryOverride`, `useRecapExclusion` and the issuer lever
+`setExcludedFromRecap` correctly invalidate `transactionKeys.all` alone. Check a
+mutation against the field list mechanically instead of inferring from what
+"moves" means: read loosely, the wording this replaces ("any mutation that moves
+rows") reads as "any write to the transactions table", and two separate reviews
+reported those four hooks as stale-count bugs on the strength of it (issue
+#170).
+_Avoid_: "moves rows", "touches transactions" (both name a superset of the six).
 
 **Rule move**:
 Re-homing a **Matching Rule** from the Issuer that owns it onto another one, in

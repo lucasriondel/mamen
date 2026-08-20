@@ -211,10 +211,10 @@ const winnerFor = (row: MatchRow, compiled: ReadonlyArray<CompiledRule>): Rule |
  * invalidate the transactions cache without the rules one.
  *
  * The same six-field list, in the same words, is in `packages/api/CONTEXT.md`
- * (**Owned-count input set**). `packages/web/CONTEXT.md` holds the
- * cache-invalidation rule that follows from it and still words it as "any
- * mutation that moves rows" — the superset this comment exists to narrow; issue
- * #170 replaces that wording with this list.
+ * (**Owned-count input set**) and — since issue #170 replaced the "any mutation
+ * that moves rows" superset this comment exists to narrow — in
+ * `packages/web/CONTEXT.md`, which holds the cache-invalidation rule that
+ * follows from it.
  */
 export const derive = (
   rows: ReadonlyArray<Transaction>,

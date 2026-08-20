@@ -6,8 +6,8 @@ import { describe, expect, it } from "vitest";
  * looks for it: the derivation itself and this package's glossary (issue #166).
  *
  * The count is derived on every read, from six things and nothing else. Read
- * loosely — or read only from `packages/web/CONTEXT.md`, which words the rule as
- * "any mutation that moves rows" — that invites one specific false positive: the
+ * loosely — as the cache-invalidation rule on the web side once put it, "any
+ * mutation that moves rows" — that invites one specific false positive: the
  * belief that a write changing how a transaction is *displayed or aggregated*
  * (transfer linking, category override, recap exclusion) also changes what a
  * rule owns. It does not, and two separate reviews have now derived and refuted
@@ -95,11 +95,11 @@ describe("the Owned count's input set", () => {
     expect(docCommentAbove(MATCHER, "type MatchRow =")).toContain("input set");
   });
 
-  it("dates its cross-package claim by naming the ticket that lands the web half", () => {
-    // `packages/web/CONTEXT.md` still words the rule as "any mutation that moves
-    // rows"; issue #170 replaces it with this list. Until it does, a present-tense
-    // "the same words are over there" is the one sentence here that isn't true —
-    // so the reference names the ticket instead, and stays true either way.
+  it("dates its cross-package claim by naming the ticket that landed the web half", () => {
+    // Issue #170 replaced "any mutation that moves rows" in
+    // `packages/web/CONTEXT.md` with this list, so the cross-package claim is
+    // true in the present tense now. The ticket stays named: it is what a
+    // reader follows to see which wording was replaced, and why.
     expect(deriveDoc).toContain("#170");
   });
 });
