@@ -220,7 +220,8 @@ describe("the api service", () => {
     // A default would be a published encryption key (ADR 0011), and a value
     // that changes per run makes every stored credential unreadable — the
     // failure DEPLOY.md warns about, arriving without anyone rotating anything.
-    // biome-ignore lint/suspicious/noTemplateCurlyInString: compose's own interpolation syntax, which is the subject here
+    // The `${…}` below is compose's own interpolation syntax, not a template
+    // literal — it is the text the file is required to carry.
     expect(env("api").TOKEN_ENCRYPTION_KEY).toBe("${TOKEN_ENCRYPTION_KEY:-}");
   });
 
@@ -258,7 +259,7 @@ describe("the web service", () => {
     // docker's DNS answers for, and the port is whatever the api listens on.
     expect(env("web").API_UPSTREAM).toBe(`api:${env("api").PORT}`);
     expect(read("packages/web/nginx.conf.template")).toContain(
-      // biome-ignore lint/suspicious/noTemplateCurlyInString: nginx's envsubst placeholder, read as text
+      // nginx's envsubst placeholder, read as text rather than interpolated
       "${API_UPSTREAM}",
     );
   });

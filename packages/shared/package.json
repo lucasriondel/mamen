@@ -16,7 +16,10 @@
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "lint": "oxlint -c ../../.oxlintrc.json .",
+    "format": "oxfmt \"**/*.{ts,tsx}\"",
+    "format:check": "oxfmt --check \"**/*.{ts,tsx}\""
   },
   "dependencies": {
     "@effect/platform": "0.96.2",

@@ -36,7 +36,7 @@ function SpendSectionSkeleton() {
       </header>
       <ul className="flex flex-col divide-y divide-gousse-line">
         {ROW_WIDTHS.map((width, index) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: a static placeholder list — never reordered, and the widths repeat
+          // Index key: a static placeholder list — never reordered, and the widths repeat
           <SpendRowSkeleton key={index} nameWidth={width} />
         ))}
       </ul>

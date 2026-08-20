@@ -11,9 +11,16 @@ import { describe, expect, it } from "vitest";
  * The check is the tool itself rather than a restatement of it. A test that
  * listed the rules, or counted findings, would pass on the day someone adds a
  * file that breaks a rule the list forgot; running `oxlint` and `oxfmt --check`
- * over the repo is the same question CI would ask, asked from inside the suite
- * that already runs. Until the cutover ticket puts these on CI directly, this is
- * where a regression is caught.
+ * over the repo is the same question CI asks, asked from inside the suite that
+ * already runs.
+ *
+ * Since the cutover (issue #138) CI asks it directly, through `bun run lint` and
+ * `bun run format:check` — but those are turbo tasks, and turbo only visits
+ * **workspace packages**. The `.ts` outside `packages/` (`.sandcastle/`, the
+ * repo's own agent tooling) is reached by no package task, so this file is what
+ * covers it, and it runs the tools from the repo root for exactly that reason.
+ * The formatter is given the same `**\/*.{ts,tsx}` glob the packages use, so the
+ * two are asking one question over two scopes rather than two questions.
  *
  * Both tools read their own rc file at the repo root, so nothing about the rules
  * or the ignore lists is repeated here — `oxlint-oxfmt-config.test.ts` owns
@@ -69,7 +76,7 @@ describe("oxfmt over the whole repo", () => {
     // `--check` prints `<path> (<n>ms)` once per file it would rewrite, around
     // a few lines of narration. Only the file lines are kept — matched by their
     // shape rather than by listing the narration, which is the tool's to change.
-    const unformatted = lines(run("oxfmt", "--check", ".")).filter((line) =>
+    const unformatted = lines(run("oxfmt", "--check", "**/*.{ts,tsx}")).filter((line) =>
       /^\S+ \(\d+m?s\)$/.test(line),
     );
 

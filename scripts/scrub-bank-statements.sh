@@ -12,7 +12,8 @@
 #
 #       428eecabb1b690b415e06f76315fc218314c1481
 #
-#   Alongside them, `feat: add biome` also committed a dev SQLite database.
+#   Alongside them, the commit that first added a linter (490b72c) also
+#   committed a dev SQLite database.
 #   Its .db and .db-shm blobs hold schema only, but packages/server/mamen.db-wal
 #   is 3 MB of uncheckpointed writes carrying the same transactions as the CSV:
 #   counterparty names, amounts, dates. It is a trace of the same statement, so

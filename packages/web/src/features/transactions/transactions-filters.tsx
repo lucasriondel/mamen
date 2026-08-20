@@ -236,8 +236,8 @@ function TransactionsSearchInput({ value, onChange }: TransactionsSearchInputPro
   // Reflect external changes to the applied term (Clear, history nav) into the
   // field. `value ?? ""` compared to `text` avoids clobbering in-flight typing.
   const applied = value ?? "";
-  // biome-ignore lint/correctness/useExhaustiveDependencies: sync only on the
-  // applied value; `text` is intentionally excluded so typing isn't overwritten.
+  // Sync only on the applied value; `text` is deliberately not a dependency, so
+  // typing is not overwritten by the effect that mirrors the prop in.
   useEffect(() => {
     setText(applied);
   }, [applied]);

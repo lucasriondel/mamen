@@ -16,7 +16,10 @@
     "test:watch": "vitest",
     "emit-openapi": "bun run scripts/emit-openapi.ts",
     "seed:demo": "bun run scripts/seed-demo.ts",
-    "openapi:check": "bun run scripts/emit-openapi.ts --check"
+    "openapi:check": "bun run scripts/emit-openapi.ts --check",
+    "lint": "oxlint -c ../../.oxlintrc.json .",
+    "format": "oxfmt \"**/*.{ts,tsx}\"",
+    "format:check": "oxfmt --check \"**/*.{ts,tsx}\""
   },
   "dependencies": {
     "@ai-sdk/anthropic": "1.2.12",

@@ -65,8 +65,8 @@ no authentication of any kind — see [SECURITY.md](SECURITY.md).
 - [React](https://react.dev) 19, [Vite](https://vite.dev),
   [TanStack](https://tanstack.com) Router / Query / Table / Virtual,
   [Tailwind](https://tailwindcss.com) v4, [Base UI](https://base-ui.com)
-- [Vitest](https://vitest.dev) for tests, [Biome](https://biomejs.dev) for lint
-  and formatting
+- [Vitest](https://vitest.dev) for tests, [oxlint](https://oxc.rs) and oxfmt for
+  lint and formatting
 
 ## Packages
 
@@ -210,7 +210,11 @@ empty unless the API lives somewhere other than the same origin.
 bun run typecheck
 bun run test
 bun run lint
+bun run format:check
 ```
+
+Each is a turbo task fanned out over every package, and each is a step CI runs
+by the same name. `bun run format` rewrites the tree instead of reporting on it.
 
 `bun run build` builds every package; `bun run --filter @mamen/web build`
 produces the SPA bundle alone.

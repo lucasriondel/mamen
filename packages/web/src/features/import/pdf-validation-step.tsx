@@ -154,7 +154,7 @@ function ExtractedRows({
           </thead>
           <tbody>
             {extracted.map((tx, index) => (
-              // biome-ignore lint/suspicious/noArrayIndexKey: rows are edited in place by index; there is no stable id
+              // Index key: rows are edited in place by index; there is no stable id
               <tr key={index} className="border-gousse-line border-t">
                 <td className="px-2 py-1">
                   <input
