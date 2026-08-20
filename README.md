@@ -8,8 +8,22 @@ It is a self-hosted, single-user tool built for its author's own bank exports �
 not a product, not multi-tenant, and not something you can sign up for. The
 whole state is one SQLite file.
 
-<!-- TODO: screenshots. The transactions table and the recap are the two
-     surfaces worth showing. -->
+<!-- Both frames of each pair are captured from the demo stack over the seeded
+     demo database, in one run: `.claude/skills/demo-screenshots/SKILL.md`. -->
+
+**Transactions** — every imported row, curated in place.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/transactions-dark.webp">
+  <img alt="The Transactions table: filters across the top, then rows showing date, account, issuer, the raw bank label, category and amount." src="docs/screenshots/transactions-light.webp">
+</picture>
+
+**Recap** — where the money went, by category and by issuer.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/recap-dark.webp">
+  <img alt="The Recap screen for a calendar year: internal transfers and excluded rows reported above two donut breakdowns, share by category and share by issuer, over a month-by-month earnings and spending chart." src="docs/screenshots/recap-light.webp">
+</picture>
 
 ## What it does
 
@@ -189,6 +203,12 @@ one, PDF import is the only thing that stops working, and it says so.
 The seeder runs on every `demo:up` and replaces the rows it owns, so tearing the
 stack down and bringing it back gives the same app, with the same figures on the
 same dates. It is not a deploy path: `docker-compose.yml`, below, is that one.
+
+The images at the top of this file are taken from it by `bun run demo:shots`,
+which drives a browser over the two surfaces in both colour schemes and writes
+`docs/screenshots/`. The whole procedure — prerequisites, the teardown trap, and
+the ways a capture goes wrong — is
+[`.claude/skills/demo-screenshots/SKILL.md`](.claude/skills/demo-screenshots/SKILL.md).
 
 ### Ports
 
