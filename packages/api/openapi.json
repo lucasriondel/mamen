@@ -8718,7 +8718,8 @@
         "type": "object",
         "required": [
           "transactions",
-          "declaredTotals"
+          "declaredTotals",
+          "verdict"
         ],
         "properties": {
           "transactions": {
@@ -8729,6 +8730,9 @@
           },
           "declaredTotals": {
             "$ref": "#/components/schemas/DeclaredTotals"
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/FormatVerdict"
           }
         },
         "additionalProperties": false
@@ -8765,6 +8769,25 @@
           },
           "credit": {
             "type": "number"
+          }
+        },
+        "additionalProperties": false
+      },
+      "FormatVerdict": {
+        "type": "object",
+        "required": [
+          "matched",
+          "missingColumns"
+        ],
+        "properties": {
+          "matched": {
+            "type": "boolean"
+          },
+          "missingColumns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "additionalProperties": false

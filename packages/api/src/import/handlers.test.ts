@@ -26,7 +26,13 @@ import { claudeCodeStoredTokenLayer, claudeCodeTestLayer } from "./test";
 // operations (5 Débit → negative, 1 Crédit → positive) plus the statement's
 // printed `TOTAL DES OPÉRATIONS`. The debits sum to the declared 1929,71 and
 // the single salary credit is the declared 1947,26 — the shape #45 reconciles.
+// `missingColumns` is the model's half of the **format verdict** (issue #188):
+// which of the columns the chosen format declares this statement did not carry.
+// Nothing missing here — the canned answer is the CCF statement read against the
+// CCF format, which is the matching case every test below but the mismatch ones
+// wants.
 const CCF_OBJECT = {
+  missingColumns: [] as readonly string[],
   transactions: [
     { date: "2026-01-03", amount: -6.99, rawIssuerString: "CB AMAZON" },
     { date: "2026-01-08", amount: -89.9, rawIssuerString: "PRLV EDF ENERGIE" },
@@ -356,6 +362,95 @@ describe("import endpoints", () => {
           });
         }),
       ),
+    );
+  });
+
+  /**
+   * Issue #188 — the result carries a **format verdict**: whether the statement
+   * matched the **Statement Format** it was read against, and which expected
+   * columns it was missing.
+   *
+   * Both verdicts are driven from the same stub, because the difference between
+   * them is one field of the model's answer and the whole point is that the
+   * endpoint turns that field into something the wizard can branch on.
+   */
+  describe("the format verdict", () => {
+    /** The canned CCF answer, with the model reporting these columns missing. */
+    const reporting =
+      (missingColumns: readonly string[]): SpawnHandler =>
+      () =>
+        Effect.succeed({
+          stdout: okEnvelope({ ...CCF_OBJECT, missingColumns }),
+          stderr: "",
+          exitCode: 0,
+        });
+
+    it.effect("matches when the statement carries every column the format declares", () =>
+      Effect.gen(function* () {
+        const client = yield* HttpApiClient.make(Api);
+        const result = yield* client.import.extractPdf({ payload: yield* pdfUpload() });
+
+        assert.isTrue(result.verdict.matched);
+        assert.deepStrictEqual([...result.verdict.missingColumns], []);
+      }).pipe(Effect.provide(httpLiveWith(reporting([])))),
+    );
+
+    // The rows still come back. The endpoint *reports* the mismatch; what to do
+    // about a wrong format is the wizard's branch, not a refusal here — and a
+    // 502 would tell the user extraction failed, which is not what happened.
+    it.effect("reports the expected columns the statement was missing, and the rows too", () =>
+      Effect.gen(function* () {
+        const client = yield* HttpApiClient.make(Api);
+        const result = yield* client.import.extractPdf({ payload: yield* pdfUpload() });
+
+        assert.isFalse(result.verdict.matched);
+        assert.deepStrictEqual([...result.verdict.missingColumns], ["Débit", "Crédit"]);
+        assert.strictEqual(result.transactions.length, 6);
+      }).pipe(Effect.provide(httpLiveWith(reporting(["Débit", "Crédit"])))),
+    );
+
+    /**
+     * The verdict reports on the **expected** columns — the ones the user's own
+     * format declares. A name from anywhere else is not one of them, so it is
+     * dropped rather than shown: putting a column the format never mentioned in
+     * front of the user would send them looking for a mapping they cannot have
+     * got wrong, and would fail a format that is in fact correct.
+     */
+    it.effect("never names a column the chosen format does not declare", () =>
+      Effect.gen(function* () {
+        const client = yield* HttpApiClient.make(Api);
+        const result = yield* client.import.extractPdf({ payload: yield* pdfUpload() });
+
+        assert.deepStrictEqual([...result.verdict.missingColumns], ["Débit"]);
+      }).pipe(Effect.provide(httpLiveWith(reporting(["Solde", "Débit"])))),
+    );
+
+    // Case and surrounding space are how a model writes a name, not what the
+    // name is. A format that is right about the statement must not be failed
+    // over a capital letter — and what comes back is the *format's* spelling,
+    // since that is the word the user typed and will go looking for.
+    it.effect("reads a differently-spelled column as the one the format declares", () =>
+      Effect.gen(function* () {
+        const client = yield* HttpApiClient.make(Api);
+        const result = yield* client.import.extractPdf({ payload: yield* pdfUpload() });
+
+        assert.isFalse(result.verdict.matched);
+        assert.deepStrictEqual([...result.verdict.missingColumns], ["Débit"]);
+      }).pipe(Effect.provide(httpLiveWith(reporting([" DÉBIT "])))),
+    );
+
+    // A format may declare no columns at all, and then there is nothing to miss:
+    // the verdict is a match, whatever the model chose to say.
+    it.effect("matches a format that declares no columns", () =>
+      Effect.gen(function* () {
+        const client = yield* HttpApiClient.make(Api);
+        const result = yield* client.import.extractPdf({
+          payload: yield* pdfUpload({ columns: [] }),
+        });
+
+        assert.isTrue(result.verdict.matched);
+        assert.deepStrictEqual([...result.verdict.missingColumns], []);
+      }).pipe(Effect.provide(httpLiveWith(reporting(["Débit"])))),
     );
   });
 

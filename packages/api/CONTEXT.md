@@ -294,6 +294,28 @@ for the same reason the bytes do — a prompt builder is a pure function and
 looking a format up is a database read, so `import/extract.ts` resolves it and
 hands the list over. A format declaring none produces no block at all: an empty
 heading tells the model the statement carries nothing.
+The task's **output** is `ExtractionOutput`, not the endpoint's `ExtractPdfResult`
+(issue #188): the model answers with the rows, the totals and `missingColumns` —
+the declared columns it could not find — and never with the conclusion drawn from
+them. Required, not defaulted: a silence folded into "everything matched" is the
+silent wrongness the verdict exists to end.
+
+**Format verdict**:
+`ExtractPdfResult.verdict` — `{ matched, missingColumns }`, the PDF counterpart
+of the CSV path's header fingerprint (issue #188). The user chooses which format
+reads a file and can choose wrong; until this was reported, the wrong choice came
+back as plausible rows and the only backstop was reading every line of
+side-by-side validation *after* deciding to import.
+The fold is `import/extract.ts`'s (`verdictOf`), and it reads off the **declared**
+list rather than the model's answer: a column the format never declared is
+dropped (the verdict reports on the *expected* columns), the names come back in
+the format's own spelling and order, comparison is trimmed and case-folded so a
+`" DÉBIT "` does not fail a format that fits, and a format declaring no columns
+matches whatever the model says. `matched` is `missingColumns` being empty —
+derived rather than asked for, so the two halves cannot contradict each other.
+A mismatch is **reported, never raised**: the rows still come back and the status
+is still 200. What to do about a wrong format is the wizard's branch, and a 502
+would say extraction failed, which is not what happened.
 
 **Extraction takes a format**:
 `POST /import/extract-pdf` takes `formatId` alongside the file, and is therefore

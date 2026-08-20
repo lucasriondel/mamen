@@ -611,6 +611,82 @@ describe("wizardReducer — PDF extraction path", () => {
     expect(state.rows).toEqual([]);
     expect(canPreview({ ...state, accountId: 5 as AccountId })).toBe(false);
   });
+
+  /**
+   * The **format verdict** (issue #188). Extraction reports whether the statement
+   * actually carried the columns the chosen **Statement Format** declares, and a
+   * mismatch is neither a success nor a failure: the request worked, and the
+   * answer is that the wrong format was chosen.
+   *
+   * So it gets its own action rather than being folded into either. A mismatch
+   * kept off **side-by-side validation** — the user finds out *before* committing
+   * rather than by reading every line afterwards — while the file stays in hand,
+   * which is what makes choosing again cost no second upload.
+   */
+  describe("a statement that did not match its format", () => {
+    const PDF = new File([], "statement.pdf", { type: "application/pdf" });
+    const extracting = wizardReducer(withAccount, { type: "extract-start", file: PDF });
+    const mismatched = wizardReducer(extracting, {
+      type: "extract-mismatch",
+      missingColumns: ["Débit", "Crédit"],
+    });
+
+    it("reports which expected columns the statement was missing", () => {
+      expect(mismatched.mismatch).toEqual({ missingColumns: ["Débit", "Crédit"] });
+      expect(mismatched.extracting).toBe(false);
+      // Not an error: nothing failed, and the drop zone is not the answer.
+      expect(mismatched.error).toBeNull();
+    });
+
+    it("keeps the upload, so choosing again costs no second one", () => {
+      expect(mismatched.file).toBe(PDF);
+      expect(mismatched.fileName).toBe("statement.pdf");
+      expect(mismatched.source).toBe("pdf");
+    });
+
+    // The rows the model did read still came back over the wire, and they are
+    // deliberately not seated: rows read against the wrong format are what the
+    // verdict exists to keep out of validation.
+    it("seats no rows for validation", () => {
+      expect(mismatched.extracted).toBeNull();
+      expect(mismatched.declaredTotals).toBeNull();
+      expect(mismatched.rowIds).toEqual([]);
+      expect(mismatched.step).toBe("upload");
+      expect(canPreview(mismatched)).toBe(false);
+      expect(wizardReducer(mismatched, { type: "go-to-preview" }).step).toBe("upload");
+    });
+
+    it("is cleared by the next attempt", () => {
+      expect(wizardReducer(mismatched, { type: "extract-start", file: PDF }).mismatch).toBeNull();
+    });
+
+    it("is cleared by a CSV taking the PDF's place", () => {
+      const state = wizardReducer(mismatched, {
+        type: "file-parsed",
+        fileName: "statement.csv",
+        headers: HEADERS,
+        rows: ROWS,
+      });
+
+      expect(state.mismatch).toBeNull();
+    });
+
+    it("is cleared by a refused drop", () => {
+      expect(wizardReducer(mismatched, { type: "file-error", message: "No." }).mismatch).toBeNull();
+    });
+
+    // The verdict names columns of a format belonging to the *old* account, and
+    // that account's formats are not this one's — the same reason the chosen
+    // format is dropped here.
+    it("is cleared by a change of account", () => {
+      const state = wizardReducer(mismatched, {
+        type: "select-account",
+        accountId: 9 as AccountId,
+      });
+
+      expect(state.mismatch).toBeNull();
+    });
+  });
 });
 
 /** Three CSV rows, so a per-row id list is distinguishable from a per-file one. */

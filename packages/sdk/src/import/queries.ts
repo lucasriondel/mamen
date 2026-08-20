@@ -15,8 +15,11 @@ import { Client, runQuery } from "../runtime";
  * issue #185: it is what tells the model which columns the statement carries, so
  * there is no call that omits it and no default for it to fall back on.
  *
- * It resolves to the extracted transactions plus the statement's declared
- * totals, or rejects with a contract tagged error: `InvalidFileType`, `NotFound`
+ * It resolves to the extracted transactions, the statement's declared totals and
+ * the **format verdict** — whether the statement actually carried the columns
+ * that format declares, and which it did not (issue #188). A mismatch resolves
+ * like any other answer rather than rejecting: nothing failed, and the caller
+ * branches on it. It rejects only with a contract tagged error: `InvalidFileType`, `NotFound`
  * (no PDF format under that id), the collapsed `ExtractionFailed`, or
  * `AiProviderNotConfigured` — the one a caller can act on, which is why it is its
  * own tag and not folded into the collapse (issue #122).

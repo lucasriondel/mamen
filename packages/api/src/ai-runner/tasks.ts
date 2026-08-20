@@ -1,5 +1,6 @@
-import { type AiTask, ExtractPdfResult } from "@mamen/shared/contract";
+import { type AiTask, DeclaredTotals, ExtractedTransaction } from "@mamen/shared/contract";
 import type { TaskSpec } from "ai-task-runner-effect";
+import { Schema } from "effect";
 import { effectSchemaCodec } from "./codec";
 import { extractionPrompt, HOSTED_EXTRACTION_INSTRUCTION, hostedExtractionPrompt } from "./prompt";
 
@@ -43,12 +44,35 @@ export interface ExtractPdfInput {
   readonly columns: readonly string[];
 }
 
+/**
+ * What the model is asked to answer with — the rows, the statement's declared
+ * totals, and **the declared columns it could not find** (issue #188).
+ *
+ * Deliberately *not* `ExtractPdfResult`, which is what the **endpoint** answers
+ * with. The two differ by exactly one thing and it is the point of the ticket:
+ * the model reports an observation (a column is not on this statement), and
+ * whether that adds up to a **format verdict** of "matched" is folded from it
+ * server-side. Asking the model for both would be two answers to one question,
+ * and a `matched: true` beside a list of missing columns is a contradiction only
+ * a human reading the JSON would catch.
+ *
+ * `missingColumns` is **required**: a silence folded into "everything matched"
+ * is the silent wrongness this work exists to end, and the schema travels to the
+ * model as the tool's own input schema, so a required field is one the provider
+ * enforces. An answer without it fails the run loudly and retryably.
+ */
+export class ExtractionOutput extends Schema.Class<ExtractionOutput>("ExtractionOutput")({
+  transactions: Schema.Array(ExtractedTransaction),
+  declaredTotals: DeclaredTotals,
+  missingColumns: Schema.Array(Schema.String),
+}) {}
+
 /** The one media type extraction accepts, and the one it declares to a vendor. */
 const PDF_MEDIA_TYPE = "application/pdf";
 
 export const AI_TASK_TABLE = {
   "extract-pdf": {
-    output: effectSchemaCodec(ExtractPdfResult),
+    output: effectSchemaCodec(ExtractionOutput),
     // Unchanged from the direct-CLI path (issue #44): the model opens the
     // staged PDF itself with its own `Read` tool, which is why the prompt names
     // the absolute path and why `Read` is the one allowed tool.

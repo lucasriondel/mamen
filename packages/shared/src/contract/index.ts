@@ -68,6 +68,7 @@ export {
   ExtractedTransaction,
   ExtractionFailed,
   ExtractPdfResult,
+  FormatVerdict,
   ImportGroup,
   MAX_PDF_BYTES,
   PdfUpload,

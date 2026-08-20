@@ -84,6 +84,30 @@ export type WizardState = {
    * and on every action that empties the step.
    */
   pendingPdf: File | null;
+  /**
+   * The **format verdict** on the last extraction, when it came back a
+   * *mismatch*: the statement did not carry the columns the chosen **Statement
+   * Format** declares, and these are the ones it was missing (issue #188).
+   * `null` whenever the last extraction matched, and until there has been one.
+   *
+   * A mismatch is neither a success nor a failure, which is why it is its own
+   * piece of state rather than a shade of {@link WizardState.error}: the request
+   * worked, and the answer is that the wrong format was chosen. Nothing about it
+   * is retryable, so the drop zone is the wrong thing to send the user back to.
+   *
+   * What it holds out is **side-by-side validation**. The rows the model read
+   * against the wrong format do come back over the wire and are deliberately not
+   * seated: the whole point of the verdict is that the user finds out *before*
+   * committing rather than by reading every line afterwards. The file stays in
+   * hand ({@link WizardState.file}), so answering the question again costs no
+   * second upload.
+   *
+   * An object rather than a bare list, so "did it match" and "which columns" stay
+   * separate questions — a mismatch always names at least one column today, and
+   * an empty array would otherwise have to mean both nothing-missing and
+   * no-verdict-yet.
+   */
+  mismatch: { readonly missingColumns: readonly string[] } | null;
   headers: readonly string[];
   rows: ReadonlyArray<Record<string, string>>;
   /**
@@ -227,6 +251,13 @@ export type WizardAction =
   /** Extraction failed — surface the error and stay on the upload step. */
   | { type: "extract-error"; message: string }
   /**
+   * Extraction ran and reported that the statement does **not** match the
+   * **Statement Format** it was read against (issue #188), naming the expected
+   * columns it could not find. The rows are not seated: the user is asked to
+   * settle the format rather than shown rows read against the wrong one.
+   */
+  | { type: "extract-mismatch"; missingColumns: readonly string[] }
+  /**
    * Edit one **extracted transaction** in place (side-by-side validation): patch
    * any of its date / amount / raw issuer. Whatever the table holds at commit is
    * what commits.
@@ -254,6 +285,7 @@ export const initialWizardState: WizardState = {
   fileName: null,
   file: null,
   pendingPdf: null,
+  mismatch: null,
   headers: [],
   rows: [],
   formatId: null,
@@ -382,6 +414,8 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         fileName: action.fileName,
         file: null,
         pendingPdf: null,
+        // Whatever a PDF's format turned out not to match, it was not this file.
+        mismatch: null,
         headers: action.headers,
         rows: action.rows,
         // Undecided until `detect-format` lands: the account's formats are a
@@ -420,6 +454,7 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         source: null,
         file: null,
         pendingPdf: null,
+        mismatch: null,
         headers: [],
         rows: [],
         formatId: null,
@@ -468,6 +503,9 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         // draft for another — and the step that would save it is the commit,
         // which now belongs to somewhere else.
         draftFormat: null,
+        // The verdict names the columns of a format the *other* account owns, so
+        // it has nothing to say about the formats now on offer.
+        mismatch: null,
         // Whatever step it was authored on is not a step this import is on any
         // more; the file has to be decided against the new account's formats
         // first, which happens back on the upload step.
@@ -482,6 +520,8 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         file: action.file,
         pendingPdf: action.file,
         error: null,
+        // A verdict is about the file that was extracted, and this is another one.
+        mismatch: null,
         // The same clearing a PDF drop does — the file in hand is this one, and
         // a prior CSV's rows must not be previewable behind the question.
         headers: [],
@@ -529,6 +569,10 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         // The wait, if there was one, is over: this file's format is settled and
         // the request is on its way.
         pendingPdf: null,
+        // The last verdict was on the last attempt. Cleared here rather than on
+        // each outcome, since every outcome — success, failure, mismatch — passes
+        // through this one action first.
+        mismatch: null,
         extracting: true,
         extracted: null,
         declaredTotals: null,
@@ -559,6 +603,25 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         // success has nothing left to wait for: it lands on the validation view
         // rather than parking the user on the upload step to pick one.
         step: "preview",
+      };
+    case "extract-mismatch":
+      // The request succeeded and the answer is that the format is wrong, so
+      // this clears what a success would have seated and sets no error. The file
+      // and its name stay: the user is being asked which format reads *this*
+      // statement, and it is still in hand.
+      return {
+        ...state,
+        mismatch: { missingColumns: action.missingColumns },
+        extracting: false,
+        // Rows read against the wrong format are exactly what the verdict is
+        // for. Nothing reaches side-by-side validation until the format is
+        // settled — which is what `canPreview` reads off `extracted`.
+        extracted: null,
+        declaredTotals: null,
+        extractionMs: null,
+        rowIds: [],
+        skippedRows: [],
+        error: null,
       };
     case "extract-error":
       return {

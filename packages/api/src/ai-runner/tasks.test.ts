@@ -2,7 +2,7 @@ import { assert, describe, it } from "@effect/vitest";
 import { AI_TASKS, ExtractPdfResult } from "@mamen/shared/contract";
 import { Effect } from "effect";
 import { extractionPrompt } from "./prompt";
-import { AI_TASK_TABLE } from "./tasks";
+import { AI_TASK_TABLE, ExtractionOutput } from "./tasks";
 
 /**
  * The **task table** (issue #121) — one row, PDF extraction. What is worth a
@@ -156,16 +156,92 @@ describe("the format's declared columns", () => {
   });
 });
 
+/**
+ * Issue #188 — the model reports whether the statement it read actually carries
+ * the columns the chosen format declares. The columns reaching the prompt (#185)
+ * are what make the question askable at all: until they did, there was nothing
+ * for a statement to match or fail to match.
+ *
+ * The model is asked for the *observation* — which declared columns it could not
+ * find — and never for the conclusion. Whether that counts as a match is the
+ * server's fold (`import/extract.ts`), which is what keeps the two halves of the
+ * verdict from contradicting each other.
+ */
+describe("the format-match verdict", () => {
+  const VERDICT_HEADING = "FORMAT MATCH";
+
+  it("asks which of the declared columns the statement does not carry", () => {
+    const prompt = extract.cliPrompt(INPUT);
+
+    assert.include(prompt, VERDICT_HEADING);
+    assert.include(prompt, "missingColumns");
+  });
+
+  // Same reasoning as the columns themselves: a hosted vendor and the local CLI
+  // read the *same* statement, so a verdict asked of one only would make the
+  // answer depend on which vendor the user happens to have chosen.
+  it("is asked of the hosted column too, from the same copy", () => {
+    const rules = rulesOf(extract.hostedPrompt(INPUT).text);
+
+    assert.include(rules, VERDICT_HEADING);
+    assert.strictEqual(rules, rulesOf(extract.cliPrompt(INPUT)));
+  });
+
+  // The field is required in the answer, so it is asked for unconditionally —
+  // unlike the columns block, which says nothing when there is nothing to say.
+  it("is asked for even when the format declares no columns", () => {
+    assert.include(extract.cliPrompt({ ...INPUT, columns: [] }), VERDICT_HEADING);
+  });
+
+  // A mismatch is a *report*, not a refusal: the rows still come back, and what
+  // to do about the wrong format is the user's decision in the wizard.
+  it("asks for the rows either way, so a mismatch is reported rather than obeyed", () => {
+    assert.include(extract.cliPrompt(INPUT), "Extract the operations either way");
+  });
+});
+
 describe("the output contract", () => {
-  it.effect("is the existing extraction result class", () =>
+  it.effect("is the rows, the totals and the columns the model could not find", () =>
     Effect.gen(function* () {
       const decoded = yield* extract.output.decode({
         transactions: [{ date: "2026-01-15", amount: 1947.26, rawIssuerString: "VIR ACME" }],
         declaredTotals: { debit: 0, credit: 1947.26 },
+        missingColumns: ["Débit"],
       });
 
-      assert.instanceOf(decoded, ExtractPdfResult);
+      assert.instanceOf(decoded, ExtractionOutput);
       assert.strictEqual(decoded.transactions[0].amount, 1947.26);
+      assert.deepStrictEqual([...decoded.missingColumns], ["Débit"]);
     }),
   );
+
+  /**
+   * `missingColumns` is **required**, not defaulted to empty. An answer that
+   * omits it is not an answer to the question this ticket asks — and folding a
+   * silence into "everything matched" would restore exactly the silent wrongness
+   * the verdict exists to end. The schema goes to the model as the tool's own
+   * input schema, so a required field is one the provider enforces; a missing one
+   * fails loudly and retryably (`ExtractionFailed`, 502).
+   */
+  it.effect("refuses an answer that reports no verdict at all", () =>
+    Effect.gen(function* () {
+      const issues = yield* Effect.flip(
+        extract.output.decode({
+          transactions: [],
+          declaredTotals: { debit: 0, credit: 0 },
+        }),
+      );
+
+      // `decode`'s error channel is the adapter's `unknown`; what it actually
+      // carries is the `ArrayFormatter` issues, as `codec.test.ts` pins.
+      const [first] = issues as ReadonlyArray<{ readonly path: ReadonlyArray<PropertyKey> }>;
+      assert.deepStrictEqual([...first.path], ["missingColumns"]);
+    }),
+  );
+
+  // The contract class the *endpoint* answers with is a different shape: it
+  // carries the folded verdict, which the model is never asked for.
+  it("is not the endpoint's own result class", () => {
+    assert.notStrictEqual(ExtractionOutput, ExtractPdfResult as unknown);
+  });
 });
