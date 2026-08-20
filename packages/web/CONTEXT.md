@@ -45,8 +45,11 @@ _Avoid_: Gate, lock (the zone is inert, not refusing).
 **Parser** (Statement Parser):
 A pluggable module that turns one bank's **CSV** row shape into transaction
 records. Declares a header fingerprint (`matches`) for auto-detection and a pure
-`parse(rows, ctx)` that maps raw rows to records. The registry runs papaparse
-once, then hands parsed rows to the selected parser. Green-Got is the first
+`parse(rows, ctx)` that maps raw rows to records, each naming the `sourceIndex`
+it was read from — a parser drops the rows its format won't import, so that join
+is the only way the preview can put a row's **stable row id** on the record it
+produced. The registry runs papaparse once, then hands parsed rows to the
+selected parser. Green-Got is the first
 parser. CSV-only by design — a PDF Statement has no headers and no synchronous
 parse; it goes through **PDF extraction** instead.
 _Avoid_: Adapter, mapper, importer.
@@ -90,14 +93,21 @@ visible warning banner on the validation view — the model probably dropped a r
 or picked up a balance/summary line as if it were an operation — but never
 blocks commit. The human review is the real backstop; this only tells them where
 to look.
+
+It sums **every** extracted row, **skipped rows** included, while the commit bar
+counts only the kept ones. The two counts answer different questions — did the
+model read the statement correctly, versus what is about to be written — and
+summing kept rows here would fire the banner on every deliberate skip until the
+user learned to ignore it. Counter-intuitive on purpose; not a bug to fix.
 _Avoid_: Validation (reserve for the whole review step), audit, gate.
 
 **Side-by-side validation**:
 The PDF-flavored preview step: the source **PDF** rendered on one side (native
 browser viewer via a blob-URL iframe — no pdfjs), the **extracted transactions**
-in an editable table on the other. The user corrects wrong values, deletes
-phantom rows, and adds missed ones (edit-in-place) before committing. The CSV
-path keeps its own plain-table preview; both converge on the same commit.
+in an editable table on the other. The user corrects wrong values, skips the
+phantom ones (a **skipped row**, since issue #192 — it used to delete them), and
+adds missed ones (edit-in-place) before committing. The CSV path keeps its own
+plain-table preview; both converge on the same commit.
 _Avoid_: Diff view, comparison.
 
 **Import**:
@@ -154,15 +164,20 @@ it writes nothing, stores nothing, and is gone when the wizard is.
 
 The **side-by-side validation** view used to delete a row outright instead, on
 the grounds that a PDF's rows are editable there anyway. That reasoning is
-retired by issue #190: a skipped row's inputs are inert, so deleting bought
+retired by issue #192: a skipped row's inputs are inert, so deleting bought
 nothing that skipping does not, and cost reversibility. Adding a row the
 extraction missed remains a separate control — it solves the opposite problem.
 _Avoid_: Excluded (reserved for **excluded from recap**), ignored, deselected.
-_Code note_: `skippedRows` on the wizard state. Still **ascending indices** into
-the previewed rows as of issue #191 — the **stable row ids** it will be keyed on
-are minted beside it but read by nothing yet. Either way it is cleared by another
-file, a parse error, another **Parser** or a new extraction: an index or an id
-that outlived the rows it named would hold out whichever row took its place.
+_Code note_: `skippedRows` on the wizard state — a set of **stable row ids**
+since issue #192, one identity model for both paths rather than the ascending
+indices the CSV path used to carry. It is cleared by another file, a parse error,
+another **Parser** or a new extraction: an id that outlived the rows it named
+would hold out whichever row took its place. Both previews read the rows a skip
+leaves through one pure helper, `import/kept-rows.ts` — the question is the same
+on both paths, and it answers in positions because each caller reads more than
+one list off it (the records to commit, the marks to count). The commit bar
+counts the rows a skip leaves; the **reconciliation check** deliberately does not
+(see its entry).
 
 **Stable row id**:
 The identity of one candidate row in the import wizard — minted when the row is
@@ -181,8 +196,9 @@ _Avoid_: key, index, position, uuid.
 _Code note_: `rowIds` + `nextRowId` on the wizard state, positional with `rows`
 (CSV) or `extracted` (PDF). Branded `RowId`, so the compiler refuses an index
 where an id belongs. On the CSV path they name papaparse's rows, not the
-**Parser**'s records — a parser drops rows it won't import, so joining an id to a
-record needs the parser to report each record's source row.
+**Parser**'s records — a parser drops rows it won't import, so the join is the
+parser's to report: `parse` returns a `ParsedRow` per record carrying the
+`sourceIndex` it was read from, and the preview reads the id off that.
 
 **Raw issuer string**:
 The unparsed counterparty text on a transaction (`rawIssuerString`, e.g.

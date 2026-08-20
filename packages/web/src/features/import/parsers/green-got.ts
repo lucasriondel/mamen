@@ -1,5 +1,5 @@
 import { importMonthKey } from "./month";
-import type { ParseContext, ParsedTransaction, StatementParser } from "./types";
+import type { ParseContext, ParsedRow, StatementParser } from "./types";
 
 /**
  * The columns that fingerprint a Green-Got CSV export. `matches` requires all of
@@ -34,28 +34,33 @@ export const greenGotParser: StatementParser = {
 
   matches: (headers) => REQUIRED_HEADERS.every((required) => headers.includes(required)),
 
-  parse: (rows, ctx: ParseContext): ParsedTransaction[] => {
-    const records: ParsedTransaction[] = [];
-    for (const row of rows) {
-      if (row.Statut !== COMPLETE) continue;
+  parse: (rows, ctx: ParseContext): ParsedRow[] => {
+    const parsed: ParsedRow[] = [];
+    rows.forEach((row, sourceIndex) => {
+      if (row.Statut !== COMPLETE) return;
 
       const date = new Date(row.Date);
       const magnitude = Number.parseFloat(row.Montant);
       const amount = row.Direction === "DEBIT" ? -magnitude : magnitude;
 
-      records.push({
-        accountId: ctx.accountId,
-        date,
-        amount,
-        rawIssuerString: row.Intitulé,
-        // The whole row, every key, in the bank's own words. A copy rather than
-        // the row itself so a caller reusing its parsed rows cannot see one of
-        // them mutated through a record it handed us.
-        rawSource: { ...row },
-        importMonth: importMonthKey(date),
-        importBatchId: ctx.importBatchId,
+      parsed.push({
+        // Which row this came from — the skip rule above makes the output
+        // shorter than the input, so the caller cannot work it out by counting.
+        sourceIndex,
+        record: {
+          accountId: ctx.accountId,
+          date,
+          amount,
+          rawIssuerString: row.Intitulé,
+          // The whole row, every key, in the bank's own words. A copy rather
+          // than the row itself so a caller reusing its parsed rows cannot see
+          // one of them mutated through a record it handed us.
+          rawSource: { ...row },
+          importMonth: importMonthKey(date),
+          importBatchId: ctx.importBatchId,
+        },
       });
-    }
-    return records;
+    });
+    return parsed;
   },
 };

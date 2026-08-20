@@ -246,29 +246,6 @@ describe("wizardReducer — PDF extraction path", () => {
     expect(state.extracted?.[1]).toBe(EXTRACTED[1]);
   });
 
-  it("deletes a phantom extracted row", () => {
-    const extracted = wizardReducer(
-      wizardReducer(withAccount, {
-        type: "extract-start",
-        file: new File([], "statement.pdf", { type: "application/pdf" }),
-      }),
-      {
-        type: "extract-success",
-        transactions: EXTRACTED,
-        declaredTotals: TOTALS,
-        extractionMs: 0,
-      },
-    );
-
-    const state = wizardReducer(extracted, {
-      type: "delete-extracted",
-      index: 0,
-    });
-
-    expect(state.extracted).toHaveLength(1);
-    expect(state.extracted?.[0]).toBe(EXTRACTED[1]);
-  });
-
   it("adds a blank extracted row for a missed operation", () => {
     const extracted = wizardReducer(
       wizardReducer(withAccount, {
@@ -334,64 +311,6 @@ describe("wizardReducer — PDF extraction path", () => {
   });
 });
 
-describe("wizardReducer — skipping previewed rows (CSV path)", () => {
-  const loaded = wizardReducer(withAccount, {
-    type: "file-parsed",
-    fileName: "statement.csv",
-    headers: HEADERS,
-    rows: ROWS,
-    detectedParserId: "green-got",
-  });
-
-  it("skips a previewed row and takes it back", () => {
-    let state = wizardReducer(loaded, { type: "skip-row", index: 2 });
-    expect(state.skippedRows).toEqual([2]);
-
-    state = wizardReducer(state, { type: "skip-row", index: 0 });
-    expect(state.skippedRows).toEqual([0, 2]);
-
-    state = wizardReducer(state, { type: "restore-row", index: 2 });
-    expect(state.skippedRows).toEqual([0]);
-  });
-
-  it("counts a row once however often it is skipped", () => {
-    const state = wizardReducer(wizardReducer(loaded, { type: "skip-row", index: 1 }), {
-      type: "skip-row",
-      index: 1,
-    });
-    expect(state.skippedRows).toEqual([1]);
-  });
-
-  it("restoring a row that was never skipped changes nothing", () => {
-    const state = wizardReducer(loaded, { type: "restore-row", index: 3 });
-    expect(state.skippedRows).toEqual([]);
-  });
-
-  // The indices name parsed records, and both of these mint a different set of
-  // them — a skip carried across would hold out whichever row landed at that
-  // position next.
-  it("clears the skipped rows when another file is parsed", () => {
-    const skipped = wizardReducer(loaded, { type: "skip-row", index: 0 });
-    const state = wizardReducer(skipped, {
-      type: "file-parsed",
-      fileName: "other.csv",
-      headers: HEADERS,
-      rows: ROWS,
-      detectedParserId: "green-got",
-    });
-    expect(state.skippedRows).toEqual([]);
-  });
-
-  it("clears the skipped rows when the parser changes", () => {
-    const skipped = wizardReducer(loaded, { type: "skip-row", index: 0 });
-    const state = wizardReducer(skipped, {
-      type: "select-parser",
-      parserId: "some-other-bank",
-    });
-    expect(state.skippedRows).toEqual([]);
-  });
-});
-
 /** Three CSV rows, so a per-row id list is distinguishable from a per-file one. */
 const CSV_ROWS = [
   { Statut: "COMPLETE", Date: "2026-01-01T00:00:00Z" },
@@ -430,10 +349,146 @@ const extractPdf = () =>
   );
 
 /**
+ * Which rows survive a commit, said the way a preview reads the state: the ids
+ * that were minted, minus the ones a skip names. This is the whole point of the
+ * ids — the answer is about rows, so the test asks about rows.
+ */
+const keptExtracted = (state: ReturnType<typeof extractPdf>) =>
+  state.rowIds
+    .map((id, index) => ({ id, row: state.extracted?.[index] }))
+    .filter(({ id }) => !state.skippedRows.includes(id))
+    .map(({ row }) => row);
+
+/**
+ * Skipping, keyed on **stable row ids** on both paths (issue #192 — the
+ * *contract* half of the expand–contract #191 opened). A skip names a row, not a
+ * position: the tests below say which row is held out, and the id form is what
+ * lets them keep saying it after the rows around it change.
+ */
+describe("wizardReducer — skipping previewed rows", () => {
+  it("skips a previewed CSV row and takes it back", () => {
+    const loaded = parseCsv();
+    const [first, , third] = loaded.rowIds;
+
+    let state = wizardReducer(loaded, { type: "skip-row", rowId: third });
+    expect(state.skippedRows).toEqual([third]);
+
+    state = wizardReducer(state, { type: "skip-row", rowId: first });
+    expect(state.skippedRows).toEqual([first, third]);
+
+    state = wizardReducer(state, { type: "restore-row", rowId: third });
+    expect(state.skippedRows).toEqual([first]);
+  });
+
+  it("skips an extracted PDF row and takes it back — the same action, the same shape", () => {
+    const extracted = extractPdf();
+    const [first] = extracted.rowIds;
+
+    const skipped = wizardReducer(extracted, { type: "skip-row", rowId: first });
+    expect(skipped.skippedRows).toEqual([first]);
+    expect(keptExtracted(skipped)).toEqual([PDF_ROWS[1]]);
+
+    const restored = wizardReducer(skipped, { type: "restore-row", rowId: first });
+    expect(restored.skippedRows).toEqual([]);
+    expect(keptExtracted(restored)).toEqual(PDF_ROWS);
+  });
+
+  // The phantom row the extraction read off a summary line used to be deleted
+  // here. It is skipped now: struck through, inert and one click from coming
+  // back — the same recourse the CSV path has always offered.
+  it("skips a phantom extracted row instead of deleting it", () => {
+    const extracted = extractPdf();
+
+    const state = wizardReducer(extracted, { type: "skip-row", rowId: extracted.rowIds[0] });
+
+    // Still on screen, still extracted — held out of the commit, not removed.
+    expect(state.extracted).toHaveLength(2);
+    expect(state.rowIds).toEqual(extracted.rowIds);
+    expect(keptExtracted(state)).toEqual([PDF_ROWS[1]]);
+  });
+
+  // The failure the ids exist to prevent: under ascending indices, a skip is a
+  // position, so anything that changes what sits at that position quietly holds
+  // out a different row.
+  it("names the same row after the rows around it change", () => {
+    const extracted = extractPdf();
+    const skipped = wizardReducer(extracted, { type: "skip-row", rowId: extracted.rowIds[1] });
+
+    const state = wizardReducer(skipped, { type: "add-extracted" });
+
+    expect(state.extracted).toHaveLength(3);
+    // The added row commits; the row that was skipped is still the one held out.
+    expect(keptExtracted(state)).toEqual([PDF_ROWS[0], state.extracted?.[2]]);
+  });
+
+  it("counts a row once however often it is skipped", () => {
+    const loaded = parseCsv();
+    const [, second] = loaded.rowIds;
+    const state = wizardReducer(wizardReducer(loaded, { type: "skip-row", rowId: second }), {
+      type: "skip-row",
+      rowId: second,
+    });
+    expect(state.skippedRows).toEqual([second]);
+  });
+
+  it("restoring a row that was never skipped changes nothing", () => {
+    const loaded = parseCsv();
+    const state = wizardReducer(loaded, { type: "restore-row", rowId: loaded.rowIds[0] });
+    expect(state.skippedRows).toEqual([]);
+  });
+
+  // Each of these mints a different set of candidate rows, and the counter never
+  // rewinds — so a skip carried across would name a row that no longer exists.
+  it("clears the skipped rows when another file is parsed", () => {
+    const skipped = wizardReducer(parseCsv(), { type: "skip-row", rowId: parseCsv().rowIds[0] });
+    const state = wizardReducer(skipped, {
+      type: "file-parsed",
+      fileName: "other.csv",
+      headers: HEADERS,
+      rows: CSV_ROWS,
+      detectedParserId: "green-got",
+    });
+    expect(state.skippedRows).toEqual([]);
+  });
+
+  it("clears the skipped rows when the parser changes", () => {
+    const loaded = parseCsv();
+    const skipped = wizardReducer(loaded, { type: "skip-row", rowId: loaded.rowIds[0] });
+    const state = wizardReducer(skipped, {
+      type: "select-parser",
+      parserId: "some-other-bank",
+    });
+    expect(state.skippedRows).toEqual([]);
+  });
+
+  it("clears the skipped rows when a new extraction starts and when one fails", () => {
+    const extracted = extractPdf();
+    const skipped = wizardReducer(extracted, { type: "skip-row", rowId: extracted.rowIds[0] });
+
+    expect(
+      wizardReducer(skipped, {
+        type: "extract-start",
+        file: new File([], "other.pdf", { type: "application/pdf" }),
+      }).skippedRows,
+    ).toEqual([]);
+
+    expect(wizardReducer(skipped, { type: "extract-error", message: "nope" }).skippedRows).toEqual(
+      [],
+    );
+  });
+
+  it("clears the skipped rows when a file drop fails", () => {
+    const loaded = parseCsv();
+    const skipped = wizardReducer(loaded, { type: "skip-row", rowId: loaded.rowIds[0] });
+    expect(wizardReducer(skipped, { type: "file-error", message: "nope" }).skippedRows).toEqual([]);
+  });
+});
+
+/**
  * The **stable row id** half of issue #191 — the *expand* of an expand–contract.
- * The ids sit beside the index-addressed `skippedRows`, which is untouched here:
- * nothing reads an id yet, so these tests state what the ids *are* (present,
- * unique, stable, cleared) rather than what anything does with them.
+ * Issue #192 closed it: `skippedRows` is keyed on these ids now, so the cases
+ * above say what is done with them and the ones below say what they *are*
+ * (present, unique, stable, cleared).
  */
 describe("wizardReducer — stable row ids", () => {
   it("mints one id per row parsed from a CSV", () => {
@@ -459,17 +514,18 @@ describe("wizardReducer — stable row ids", () => {
     expect(extracted.rowIds).not.toContain(state.rowIds[2]);
   });
 
-  // The counter is never rewound, so a removed row takes its id out of
-  // circulation with it. A `delete` that re-derived ids from the row count would
-  // hand the blank row the deleted row's id — two rows one skip could not tell
-  // apart, which is the whole reason the ids are not positions.
-  it("never hands an added row the id of one just deleted", () => {
+  // The counter is never rewound, so an id is spent once for the wizard's whole
+  // life. A blank row that re-derived its id from the row count could land on the
+  // id of a row already on screen — two rows one skip could not tell apart, which
+  // is the whole reason the ids are not positions.
+  it("never hands an added row an id already in circulation", () => {
     const extracted = extractPdf();
-    const deleted = wizardReducer(extracted, { type: "delete-extracted", index: 0 });
 
-    const state = wizardReducer(deleted, { type: "add-extracted" });
+    const state = wizardReducer(wizardReducer(extracted, { type: "add-extracted" }), {
+      type: "add-extracted",
+    });
 
-    expect(state.rowIds).not.toContain(extracted.rowIds[0]);
+    expect(state.rowIds).toHaveLength(4);
     expect(new Set(state.rowIds).size).toBe(state.rowIds.length);
   });
 
@@ -487,14 +543,6 @@ describe("wizardReducer — stable row ids", () => {
     });
 
     expect(state.rowIds).toEqual(extracted.rowIds);
-  });
-
-  it("drops the id of a deleted extracted row and leaves the others alone", () => {
-    const extracted = extractPdf();
-
-    const state = wizardReducer(extracted, { type: "delete-extracted", index: 0 });
-
-    expect(state.rowIds).toEqual([extracted.rowIds[1]]);
   });
 
   // The four points that clear `skippedRows` today. Each mints a different set of
@@ -568,14 +616,20 @@ describe("wizardReducer — stable row ids", () => {
     expect(extractPdf().rowIds).toEqual(extractPdf().rowIds);
   });
 
-  it("leaves the skipped rows as ascending indices, unread by any id", () => {
-    const state = wizardReducer(wizardReducer(parseCsv(), { type: "skip-row", index: 2 }), {
-      type: "skip-row",
-      index: 0,
-    });
+  // One identity model, not two: the skipped set holds ids off the same counter
+  // the rows carry, so nothing on this state is addressed by position any more.
+  it("holds skipped rows as ids drawn from the rows' own", () => {
+    const loaded = parseCsv();
+    const state = wizardReducer(
+      wizardReducer(loaded, { type: "skip-row", rowId: loaded.rowIds[2] }),
+      {
+        type: "skip-row",
+        rowId: loaded.rowIds[0],
+      },
+    );
 
-    expect(state.skippedRows).toEqual([0, 2]);
-    expect(state.rowIds).toHaveLength(CSV_ROWS.length);
+    expect(state.skippedRows).toEqual([loaded.rowIds[0], loaded.rowIds[2]]);
+    for (const id of state.skippedRows) expect(loaded.rowIds).toContain(id);
   });
 });
 

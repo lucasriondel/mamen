@@ -1,14 +1,16 @@
 import type { DeclaredTotals, ExtractedTransaction } from "@mamen/shared/contract";
-import { useEffect, useState } from "react";
+import { Undo2, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/format";
 import { AlreadyImportedMark } from "./already-imported-mark";
 import { CommitBar } from "./commit-bar";
 import { formatExtractionTime } from "./format-extraction-time";
+import { keptPositions } from "./kept-rows";
 import type { ParsedTransaction } from "./parsers/types";
 import { reconcile } from "./reconcile";
 import { useDuplicateFlags } from "./use-duplicate-flags";
-import type { WizardAction } from "./wizard-reducer";
+import type { RowId, WizardAction } from "./wizard-reducer";
 
 /** A `Date` as the `YYYY-MM-DD` value an `<input type="date">` expects (UTC). */
 function toDateInputValue(date: Date): string {
@@ -24,8 +26,8 @@ function fromDateInputValue(value: string): Date {
  * Step 2 (PDF path) — the **side-by-side validation** view, the heart of #34.
  * The source PDF renders in the browser's native viewer (a blob-URL iframe, no
  * pdfjs) on one side; the **extracted transactions** sit in an editable table on
- * the other. The user corrects wrong values, deletes phantom rows, and adds
- * missed ones in place — whatever the table holds at commit is what commits. A
+ * the other. The user corrects wrong values, skips the phantom ones, and adds
+ * missed ones in place — whatever the table keeps at commit is what commits. A
  * soft **reconciliation check** flags (never blocks) a sum mismatch against the
  * statement's **declared totals**. Commit runs the shared rail via {@link CommitBar}.
  *
@@ -36,13 +38,22 @@ function fromDateInputValue(value: string): Date {
  * hand (a resumed/handed-off state).
  *
  * A row that looks **already imported** is marked here too (issue #89) — this is
- * the preview where acting on the mark is one click, since every row already
- * carries the × that drops it from the commit. The rows are index-aligned with
- * `records` (each extracted row is enriched into exactly one), so one flag list
- * serves the table and the bar's count.
+ * the preview where acting on the mark is one click, since every row carries a
+ * **skip** that holds it out of the commit. The rows are index-aligned with
+ * `records` (each extracted row is enriched into exactly one) and with `rowIds`,
+ * so one index reads a row, its mark and the id a skip names it by.
+ *
+ * The two counts on this view deliberately disagree (issue #190). The bar counts
+ * the rows that will be *written*, so a skip takes a row out of it. The
+ * reconciliation check sums every *extracted* row, skipped ones included: it
+ * judges whether the model read the statement correctly, not whether the user
+ * chose to import all of it, and summing kept rows would fire the banner on every
+ * deliberate skip until the user learned to ignore it.
  */
 export function PdfValidationStep({
   records,
+  rowIds,
+  skippedRows,
   extracted,
   declaredTotals,
   file,
@@ -51,6 +62,10 @@ export function PdfValidationStep({
   dispatch,
 }: {
   records: readonly ParsedTransaction[];
+  /** Positional with `records` / `extracted`: the row id a skip names each by. */
+  rowIds: readonly RowId[];
+  /** The row ids the user held out of the commit. */
+  skippedRows: readonly RowId[];
   extracted: readonly ExtractedTransaction[];
   declaredTotals: DeclaredTotals;
   file: File;
@@ -59,8 +74,17 @@ export function PdfValidationStep({
   onBack: () => void;
   dispatch: (action: WizardAction) => void;
 }) {
+  const skipped = useMemo(() => new Set(skippedRows), [skippedRows]);
+  // Over every extracted row, skips included — see the note above.
   const recon = reconcile(records, declaredTotals);
+  // Flagged over all rows (the flags are positional with the table) but counted
+  // over the kept ones: the bar's line is about what this commit will write.
   const duplicates = useDuplicateFlags(records);
+  // The same call the CSV preview makes: a skip names a row the same way on both
+  // paths, so where the kept rows sit is one question with one answer.
+  const keep = keptPositions(rowIds, skipped);
+  const kept = keep.map((index) => records[index]);
+  const duplicateCount = keep.filter((index) => duplicates.flags[index]).length;
 
   return (
     <div className="flex flex-col gap-6">
@@ -72,12 +96,14 @@ export function PdfValidationStep({
         <PdfPane file={file} />
         <ExtractedRows
           extracted={extracted}
+          rowIds={rowIds}
+          skipped={skipped}
           duplicateFlags={duplicates.flags}
           dispatch={dispatch}
         />
       </div>
 
-      <CommitBar records={records} duplicateCount={duplicates.count} onBack={onBack} />
+      <CommitBar records={kept} duplicateCount={duplicateCount} onBack={onBack} />
     </div>
   );
 }
@@ -126,13 +152,27 @@ function PdfPane({ file }: { file: File }) {
   );
 }
 
-/** The editable extracted-rows table: edit in place, delete a row, add a row. */
+/**
+ * The editable extracted-rows table: edit in place, skip a row, add a row.
+ *
+ * Skipping replaced deleting (issue #192). A skipped row stays on screen struck
+ * through with every one of its inputs disabled, and one click puts it back —
+ * deleting bought nothing that skipping does not, and cost reversibility. The
+ * disabling is the part that earned the change: an edit to a row that will not
+ * commit is an edit thrown away.
+ */
 function ExtractedRows({
   extracted,
+  rowIds,
+  skipped,
   duplicateFlags,
   dispatch,
 }: {
   extracted: readonly ExtractedTransaction[];
+  /** Positional with `extracted`: the row id a skip names each row by. */
+  rowIds: readonly RowId[];
+  /** The row ids held out of the commit. */
+  skipped: ReadonlySet<RowId>;
   /** Positional with `extracted`: does this row look already imported? */
   duplicateFlags: readonly boolean[];
   dispatch: (action: WizardAction) => void;
@@ -154,67 +194,96 @@ function ExtractedRows({
             </tr>
           </thead>
           <tbody>
-            {extracted.map((tx, index) => (
-              // Index key: rows are edited in place by index; there is no stable id
-              <tr key={index} className="border-gousse-line border-t">
-                <td className="px-2 py-1">
-                  <input
-                    type="date"
-                    aria-label={`Date, row ${index + 1}`}
-                    value={toDateInputValue(tx.date)}
-                    onChange={(event) =>
-                      dispatch({
-                        type: "edit-extracted",
-                        index,
-                        patch: { date: fromDateInputValue(event.target.value) },
-                      })
-                    }
-                    className="w-full rounded-full border border-gousse-line bg-gousse-bg px-3 py-1 text-gousse-ink"
-                  />
-                </td>
-                <td className="px-2 py-1">
-                  <div className="flex flex-col items-start gap-1">
+            {extracted.map((tx, index) => {
+              const rowId = rowIds[index];
+              const isSkipped = skipped.has(rowId);
+              const position = index + 1;
+              // The row is still there and still says what it says — struck
+              // through, so the user sees what they have held out rather than
+              // watching it vanish.
+              const field = `w-full rounded-full border border-gousse-line bg-gousse-bg px-3 py-1 text-gousse-ink ${
+                isSkipped ? "line-through opacity-60" : ""
+              }`;
+              return (
+                <tr key={rowId} className="border-gousse-line border-t">
+                  <td className="px-2 py-1">
                     <input
-                      type="text"
-                      aria-label={`Raw issuer, row ${index + 1}`}
-                      value={tx.rawIssuerString}
+                      type="date"
+                      aria-label={`Date, row ${position}`}
+                      value={toDateInputValue(tx.date)}
+                      disabled={isSkipped}
                       onChange={(event) =>
                         dispatch({
                           type: "edit-extracted",
                           index,
-                          patch: { rawIssuerString: event.target.value },
+                          patch: { date: fromDateInputValue(event.target.value) },
                         })
                       }
-                      className="w-full rounded-full border border-gousse-line bg-gousse-bg px-3 py-1 text-gousse-ink"
+                      className={field}
                     />
-                    {duplicateFlags[index] ? <AlreadyImportedMark /> : null}
-                  </div>
-                </td>
-                <td className="px-2 py-1">
-                  <AmountInput
-                    label={`Amount, row ${index + 1}`}
-                    value={tx.amount}
-                    onChange={(amount) =>
-                      dispatch({
-                        type: "edit-extracted",
-                        index,
-                        patch: { amount },
-                      })
-                    }
-                  />
-                </td>
-                <td className="px-2 py-1 text-right">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Delete row ${index + 1}`}
-                    onClick={() => dispatch({ type: "delete-extracted", index })}
-                  >
-                    ✕
-                  </Button>
-                </td>
-              </tr>
-            ))}
+                  </td>
+                  <td className="px-2 py-1">
+                    <div className="flex flex-col items-start gap-1">
+                      <input
+                        type="text"
+                        aria-label={`Raw issuer, row ${position}`}
+                        value={tx.rawIssuerString}
+                        disabled={isSkipped}
+                        onChange={(event) =>
+                          dispatch({
+                            type: "edit-extracted",
+                            index,
+                            patch: { rawIssuerString: event.target.value },
+                          })
+                        }
+                        className={field}
+                      />
+                      {duplicateFlags[index] ? <AlreadyImportedMark /> : null}
+                      {isSkipped ? (
+                        <span className="whitespace-nowrap text-gousse-muted text-xs">
+                          Skipped — won't be imported
+                        </span>
+                      ) : null}
+                    </div>
+                  </td>
+                  <td className="px-2 py-1">
+                    <AmountInput
+                      label={`Amount, row ${position}`}
+                      value={tx.amount}
+                      disabled={isSkipped}
+                      onChange={(amount) =>
+                        dispatch({
+                          type: "edit-extracted",
+                          index,
+                          patch: { amount },
+                        })
+                      }
+                    />
+                  </td>
+                  <td className="px-2 py-1 text-right">
+                    {isSkipped ? (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Restore row ${position}`}
+                        onClick={() => dispatch({ type: "restore-row", rowId })}
+                      >
+                        <Undo2 size={14} aria-hidden />
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Skip row ${position}`}
+                        onClick={() => dispatch({ type: "skip-row", rowId })}
+                      >
+                        <X size={14} aria-hidden />
+                      </Button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -238,10 +307,13 @@ function ExtractedRows({
 function AmountInput({
   label,
   value,
+  disabled,
   onChange,
 }: {
   label: string;
   value: number;
+  /** True while the row is a **skipped row** — its fields are inert. */
+  disabled: boolean;
   onChange: (amount: number) => void;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
@@ -252,6 +324,7 @@ function AmountInput({
       inputMode="decimal"
       aria-label={label}
       value={draft ?? String(value)}
+      disabled={disabled}
       onChange={(event) => {
         const next = event.target.value;
         setDraft(next);
@@ -259,7 +332,9 @@ function AmountInput({
         if (Number.isFinite(n)) onChange(n);
       }}
       onBlur={() => setDraft(null)}
-      className="w-24 rounded-full border border-gousse-line bg-gousse-bg px-3 py-1 text-center text-gousse-ink tabular-nums"
+      className={`w-24 rounded-full border border-gousse-line bg-gousse-bg px-3 py-1 text-center text-gousse-ink tabular-nums ${
+        disabled ? "line-through opacity-60" : ""
+      }`}
     />
   );
 }

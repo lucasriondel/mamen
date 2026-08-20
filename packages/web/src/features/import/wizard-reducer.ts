@@ -16,10 +16,10 @@ export type WizardSource = "csv" | "pdf";
  * wizard's monotonic counter when the row is parsed from a CSV, extracted from a
  * PDF, or added blank for an operation the extraction missed (issue #190).
  *
- * Branded, because an id and a row *index* are both numbers and both live on
- * this state while `skippedRows` is still index-addressed. Confusing the two is
- * precisely how the preview skips one row and silently drops another, so the
- * compiler is asked to keep them apart rather than a naming convention.
+ * Branded, because an id and a row *index* are both numbers and the reducer
+ * still takes an index for an in-place edit. Confusing the two is precisely how
+ * the preview skips one row and silently drops another, so the compiler is asked
+ * to keep them apart rather than a naming convention.
  */
 export type RowId = number & { readonly __brand: "RowId" };
 
@@ -51,18 +51,25 @@ export type WizardState = {
   /** The extracted candidate rows once a PDF extraction succeeds; `null` otherwise. */
   extracted: readonly ExtractedTransaction[] | null;
   /**
-   * Which previewed rows the user held out of the commit, as ascending indices
-   * into the **parsed records** (epic #85, CSV path). Empty for a PDF, whose
-   * side-by-side view edits its **extracted transactions** directly.
+   * Which previewed rows the user held out of the commit, as a set of
+   * {@link RowId} (epic #85). One set for both paths since issue #192: a skip
+   * names a row rather than a position, so the CSV table and the PDF
+   * side-by-side hold rows out the same way and the reducer carries one identity
+   * model rather than two.
    *
-   * A skip is reversible and the row stays on screen struck through, unlike the
-   * PDF path's delete: a CSV preview is derived from the dropped file, so a row
-   * that vanished from it could only come back by dropping the file again.
+   * A skip is reversible and the row stays on screen struck through with its
+   * editable fields disabled. Nothing is ever removed from a preview: the point
+   * of a preview is that every row the statement holds is accounted for on
+   * screen, and a row that vanished could only come back by dropping the file
+   * again.
    *
-   * The indices name records, not CSV lines, so anything that mints a different
-   * set of records — another file, another parser — clears them.
+   * Held ascending, which is row order — ids come off a monotonic counter in the
+   * order the rows do.
+   *
+   * The ids name rows of *this* file read by *this* **Parser**, so anything that
+   * re-mints them clears the set with them.
    */
-  skippedRows: readonly number[];
+  skippedRows: readonly RowId[];
   /**
    * A **stable row id** per candidate row, positional with whichever array is
    * live: {@link WizardState.rows} on the CSV path, {@link WizardState.extracted}
@@ -70,16 +77,11 @@ export type WizardState = {
    * {@link WizardState.skippedRows} is cleared, so an id never outlives the row
    * it named.
    *
-   * Nothing reads these yet (issue #191): they are the *expand* half of moving
-   * `skippedRows` off indices, and they land alone because retyping row identity
-   * touches the reducer, both previews and every reducer test at once.
-   *
    * They name the rows *this state holds*, which on the CSV path is papaparse's
    * output — not the **Parser**'s records, which are a filtered subset of it (a
    * parser drops the rows it won't import, e.g. a non-`COMPLETE` `Statut`) and
-   * are derived outside the reducer. Joining an id to a record is the *contract*
-   * half's problem and needs the parser to say which row each record came from;
-   * it is not solvable positionally.
+   * are derived outside the reducer. The join is the parser's to report: `parse`
+   * returns each record's `sourceIndex`, and the preview reads the id off that.
    */
   rowIds: readonly RowId[];
   /**
@@ -139,18 +141,17 @@ export type WizardAction =
       index: number;
       patch: Partial<ExtractedTransaction>;
     }
-  /** Delete one extracted row (the phantom-row case) — dropped from the commit. */
-  | { type: "delete-extracted"; index: number }
   /** Append a blank extracted row (a missed operation the model didn't read). */
   | { type: "add-extracted" }
   /**
    * Hold one previewed row out of the commit — the recourse for a row marked
-   * **already imported** (epic #85). The row is not dropped from the preview,
-   * only from what commits.
+   * **already imported** (epic #85), and for the phantom row an extraction read
+   * off a summary line. The row is not dropped from the preview, only from what
+   * commits.
    */
-  | { type: "skip-row"; index: number }
+  | { type: "skip-row"; rowId: RowId }
   /** Put a skipped row back into the commit. */
-  | { type: "restore-row"; index: number };
+  | { type: "restore-row"; rowId: RowId };
 
 export const initialWizardState: WizardState = {
   step: "upload",
@@ -372,6 +373,9 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         extractionMs: null,
         error: action.message,
         rowIds: [],
+        // Nothing previewable is left behind the error, so there is no row a skip
+        // could still name — and since #192 a PDF's rows can carry skips too.
+        skippedRows: [],
       };
     case "edit-extracted": {
       if (state.extracted === null) return state;
@@ -382,16 +386,6 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         ),
       };
     }
-    case "delete-extracted": {
-      if (state.extracted === null) return state;
-      return {
-        ...state,
-        extracted: state.extracted.filter((_, index) => index !== action.index),
-        // The ids are positional with `extracted`, so the deleted row takes its
-        // own id with it rather than leaving the tail shifted under the wrong one.
-        rowIds: state.rowIds.filter((_, index) => index !== action.index),
-      };
-    }
     case "add-extracted": {
       const blank: ExtractedTransaction = {
         date: new Date(),
@@ -400,7 +394,7 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
       };
       // The one place ids are appended rather than replaced. Off the same
       // counter, so the blank row can never land on the id of a row this wizard
-      // has already shown — including one deleted a moment ago.
+      // has already shown — including one a skip is currently holding out.
       const minted = mintRowIds(state.nextRowId, 1);
       return {
         ...state,
@@ -410,18 +404,18 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
       };
     }
     case "skip-row": {
-      if (state.skippedRows.includes(action.index)) return state;
+      if (state.skippedRows.includes(action.rowId)) return state;
       return {
         ...state,
         // Kept ascending — the preview reads them as a set, so the order is for
-        // whoever reads the state, and row order is the order they are in.
-        skippedRows: [...state.skippedRows, action.index].sort((a, b) => a - b),
+        // whoever reads the state, and ascending ids are the rows in file order.
+        skippedRows: [...state.skippedRows, action.rowId].sort((a, b) => a - b),
       };
     }
     case "restore-row":
       return {
         ...state,
-        skippedRows: state.skippedRows.filter((index) => index !== action.index),
+        skippedRows: state.skippedRows.filter((rowId) => rowId !== action.rowId),
       };
     default:
       return state;

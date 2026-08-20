@@ -5,9 +5,10 @@ import { formatCurrency, formatMonth, formatShortDate } from "@/lib/format";
 import { AlreadyImportedMark } from "./already-imported-mark";
 import { distinctMonths } from "./commit";
 import { CommitBar } from "./commit-bar";
+import { keptPositions } from "./kept-rows";
 import type { ParsedTransaction } from "./parsers/types";
 import { useDuplicateFlags } from "./use-duplicate-flags";
-import type { WizardAction } from "./wizard-reducer";
+import type { RowId, WizardAction } from "./wizard-reducer";
 
 /**
  * Step 2 (CSV path) — the mandatory, never-skippable preview. Shows the detected
@@ -29,6 +30,7 @@ import type { WizardAction } from "./wizard-reducer";
  */
 export function PreviewStep({
   records,
+  rowIds,
   skippedRows,
   accountName,
   parserLabel,
@@ -36,24 +38,28 @@ export function PreviewStep({
   dispatch,
 }: {
   records: readonly ParsedTransaction[];
-  /** Indices into `records` the user held out of the commit (ascending). */
-  skippedRows: readonly number[];
+  /** Positional with `records`: the **stable row id** a skip names each row by. */
+  rowIds: readonly RowId[];
+  /** The row ids the user held out of the commit. */
+  skippedRows: readonly RowId[];
   accountName: string;
   parserLabel: string;
   onBack: () => void;
   dispatch: (action: WizardAction) => void;
 }) {
   const skipped = useMemo(() => new Set(skippedRows), [skippedRows]);
-  const kept = useMemo(() => records.filter((_, index) => !skipped.has(index)), [records, skipped]);
+  // Where the kept rows sit, asked once and read twice — the same call the
+  // **side-by-side validation** view makes, since a skip means the same thing on
+  // both paths (issue #192).
+  const keep = useMemo(() => keptPositions(rowIds, skipped), [rowIds, skipped]);
+  const kept = useMemo(() => keep.map((index) => records[index]), [keep, records]);
   const months = distinctMonths(kept);
 
   // Flagged over ALL rows — the flags are positional with `records`, which is
   // what the table renders — but counted over the kept ones only: the bar's line
   // is about what this commit is going to write.
   const duplicates = useDuplicateFlags(records);
-  const duplicateCount = duplicates.flags.filter(
-    (flag, index) => flag && !skipped.has(index),
-  ).length;
+  const duplicateCount = keep.filter((index) => duplicates.flags[index]).length;
 
   return (
     <div className="flex flex-col gap-6">
@@ -71,6 +77,7 @@ export function PreviewStep({
 
       <PreviewTable
         records={records}
+        rowIds={rowIds}
         duplicateFlags={duplicates.flags}
         skipped={skipped}
         dispatch={dispatch}
@@ -98,15 +105,18 @@ function Fact({ label, value }: { label: string; value: string }) {
  */
 function PreviewTable({
   records,
+  rowIds,
   duplicateFlags,
   skipped,
   dispatch,
 }: {
   records: readonly ParsedTransaction[];
+  /** Positional with `records`: the row id a skip names each row by. */
+  rowIds: readonly RowId[];
   /** Positional with `records`: does this row look already imported? */
   duplicateFlags: readonly boolean[];
-  /** Positional with `records`: is this row held out of the commit? */
-  skipped: ReadonlySet<number>;
+  /** The row ids held out of the commit. */
+  skipped: ReadonlySet<RowId>;
   dispatch: (action: WizardAction) => void;
 }) {
   return (
@@ -126,17 +136,20 @@ function PreviewTable({
             </tr>
           </thead>
           <tbody>
-            {records.map((record, index) => (
-              <PreviewRow
-                key={`${record.importBatchId}-${index}`}
-                record={record}
-                position={index + 1}
-                duplicate={duplicateFlags[index] === true}
-                skipped={skipped.has(index)}
-                onSkip={() => dispatch({ type: "skip-row", index })}
-                onRestore={() => dispatch({ type: "restore-row", index })}
-              />
-            ))}
+            {records.map((record, index) => {
+              const rowId = rowIds[index];
+              return (
+                <PreviewRow
+                  key={rowId}
+                  record={record}
+                  position={index + 1}
+                  duplicate={duplicateFlags[index] === true}
+                  skipped={skipped.has(rowId)}
+                  onSkip={() => dispatch({ type: "skip-row", rowId })}
+                  onRestore={() => dispatch({ type: "restore-row", rowId })}
+                />
+              );
+            })}
           </tbody>
         </table>
       </div>

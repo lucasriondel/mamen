@@ -12,7 +12,12 @@ import type { ParsedTransaction } from "./parsers/types";
 import { PdfValidationStep } from "./pdf-validation-step";
 import { PreviewStep } from "./preview-step";
 import { UploadStep } from "./upload-step";
-import { makeInitialWizardState, type WizardPrefill, wizardReducer } from "./wizard-reducer";
+import {
+  makeInitialWizardState,
+  type RowId,
+  type WizardPrefill,
+  wizardReducer,
+} from "./wizard-reducer";
 
 /**
  * Assemble the wizard's prefill from a grid handoff: the account chosen on the
@@ -59,8 +64,19 @@ export function ImportWizard({
   const accounts = (accountsQuery.data?.items ?? []) as readonly Account[];
   const reducedMotion = useReducedMotion() ?? false;
 
-  const records = useMemo<ParsedTransaction[]>(() => {
-    if (state.accountId === null) return [];
+  // The previewed rows and the **stable row id** each one is skipped by, kept
+  // positional with one another — the convention the duplicate flags already
+  // follow, so one index reads a row, its mark and its identity.
+  //
+  // On the PDF path the ids are already positional with the extracted rows. On
+  // the CSV path they are not: the ids name papaparse's rows and a **Parser**
+  // drops the ones the format won't import, so each record's id is read off the
+  // source row the parser reports rather than off its own position (issue #192).
+  const { records, rowIds } = useMemo<{
+    records: ParsedTransaction[];
+    rowIds: readonly RowId[];
+  }>(() => {
+    if (state.accountId === null) return { records: [], rowIds: [] };
     const ctx = {
       accountId: state.accountId,
       importBatchId: state.importBatchId,
@@ -68,17 +84,23 @@ export function ImportWizard({
     // PDF path: the extracted candidates rejoin the shared commit rail once
     // enriched with account/batch/month — no parser (the file has no headers).
     if (state.source === "pdf") {
-      return state.extracted ? enrichExtracted(state.extracted, ctx) : [];
+      if (!state.extracted) return { records: [], rowIds: [] };
+      return { records: enrichExtracted(state.extracted, ctx), rowIds: state.rowIds };
     }
     const parser = state.parserId ? getParserById(state.parserId) : undefined;
-    if (!parser) return [];
-    return parser.parse(state.rows, ctx);
+    if (!parser) return { records: [], rowIds: [] };
+    const parsed = parser.parse(state.rows, ctx);
+    return {
+      records: parsed.map(({ record }) => record),
+      rowIds: parsed.map(({ sourceIndex }) => state.rowIds[sourceIndex]),
+    };
   }, [
     state.source,
     state.extracted,
     state.parserId,
     state.accountId,
     state.rows,
+    state.rowIds,
     state.importBatchId,
   ]);
 
@@ -111,6 +133,8 @@ export function ImportWizard({
     stepContent = (
       <PdfValidationStep
         records={records}
+        rowIds={rowIds}
+        skippedRows={state.skippedRows}
         extracted={state.extracted}
         declaredTotals={state.declaredTotals}
         file={state.file}
@@ -123,6 +147,7 @@ export function ImportWizard({
     stepContent = (
       <PreviewStep
         records={records}
+        rowIds={rowIds}
         skippedRows={state.skippedRows}
         accountName={accountName}
         parserLabel={sourceLabel}

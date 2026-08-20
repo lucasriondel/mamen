@@ -39,7 +39,7 @@ describe("greenGotParser.matches", () => {
 });
 
 describe("greenGotParser.parse (shipped fixture)", () => {
-  const records = greenGotParser.parse(rows, ctx);
+  const records = greenGotParser.parse(rows, ctx).map((parsedRow) => parsedRow.record);
 
   it("emits one record per COMPLETE row and stamps the context", () => {
     expect(records.length).toBe(rows.length);
@@ -72,7 +72,7 @@ describe("greenGotParser.parse (shipped fixture)", () => {
 });
 
 describe("greenGotParser.parse keeps the raw source (issue #176)", () => {
-  const records = greenGotParser.parse(rows, ctx);
+  const records = greenGotParser.parse(rows, ctx).map((parsedRow) => parsedRow.record);
 
   it("archives the whole delivered row, verbatim", () => {
     // Compared against the papaparse row itself rather than a hand-written
@@ -102,7 +102,7 @@ describe("greenGotParser.parse keeps the raw source (issue #176)", () => {
   it("archives a copy, so a later edit of the record cannot rewrite the row", () => {
     const [first] = greenGotParser.parse(rows, ctx);
 
-    expect(first.rawSource).not.toBe(rows[0]);
+    expect(first.record.rawSource).not.toBe(rows[0]);
   });
 
   it("carries the columns the parser reads nothing from", () => {
@@ -124,14 +124,8 @@ describe("greenGotParser.parse (synthetic edge cases)", () => {
       Direction: "DEBIT",
       Intitulé: "JAN ROW",
     },
-    {
-      Statut: "COMPLETE",
-      Date: "2026-02-01T08:00:00.000Z",
-      Montant: "20",
-      Arrondi: "0",
-      Direction: "CREDIT",
-      Intitulé: "FEB ROW",
-    },
+    // Dropped, and dropped from the *middle*: a record's index in the output is
+    // one short of its row's from here on, which is the join the parser reports.
     {
       Statut: "PENDING",
       Date: "2026-02-02T08:00:00.000Z",
@@ -140,13 +134,30 @@ describe("greenGotParser.parse (synthetic edge cases)", () => {
       Direction: "DEBIT",
       Intitulé: "SKIP ME",
     },
+    {
+      Statut: "COMPLETE",
+      Date: "2026-02-01T08:00:00.000Z",
+      Montant: "20",
+      Arrondi: "0",
+      Direction: "CREDIT",
+      Intitulé: "FEB ROW",
+    },
   ];
 
-  const records = greenGotParser.parse(synthetic, ctx);
+  const parsedRows = greenGotParser.parse(synthetic, ctx);
+  const records = parsedRows.map((parsedRow) => parsedRow.record);
 
   it("imports only COMPLETE rows", () => {
     expect(records.length).toBe(2);
     expect(records.some((r) => r.rawIssuerString === "SKIP ME")).toBe(false);
+  });
+
+  // The parser drops rows, so a record's place in the output says nothing about
+  // which row it was read from. It reports that row itself, which is what lets
+  // the preview put the row's **stable row id** on the record it produced —
+  // positionally it would land the third row's id on the second record.
+  it("reports the source row each record was read from", () => {
+    expect(parsedRows.map((parsedRow) => parsedRow.sourceIndex)).toEqual([0, 2]);
   });
 
   it("splits a month boundary into the correct per-row months", () => {

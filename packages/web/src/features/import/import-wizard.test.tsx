@@ -260,9 +260,9 @@ describe("ImportWizard", () => {
 
     await user.click(screen.getByRole("button", { name: "Skip row 1" }));
 
-    // The row stays on screen — offering to take it back — and the count it was
-    // the whole of goes with it.
-    expect(screen.getByText("SHOP A")).toBeInTheDocument();
+    // The row stays on screen — struck through, offering to take it back — and
+    // the count it was the whole of goes with it.
+    expect(screen.getByText("SHOP A").className).toContain("line-through");
     expect(screen.getByRole("button", { name: "Restore row 1" })).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
 
@@ -291,6 +291,46 @@ describe("ImportWizard", () => {
     await user.click(screen.getByRole("button", { name: "Commit import" }));
     await waitFor(() => expect(bulkCreate).toHaveBeenCalledTimes(1));
     expect(bulkCreate.mock.calls[0][0]).toHaveLength(2);
+  });
+
+  // The **Parser** drops the rows the format won't import, so the previewed rows
+  // are a subset of the file's — and the **stable row ids** a skip names were
+  // minted against the file's. The parser reports which row each record came
+  // from, which is what keeps the click on the second previewed row from holding
+  // out the third line of the CSV (issue #192).
+  it("skips the row that was clicked when the parser dropped a line above it", async () => {
+    const user = userEvent.setup();
+    // A pending row sits between the two settled ones: Green-Got imports only
+    // COMPLETE, so the preview shows two rows out of three lines.
+    const withPending = [
+      '"Statut","Date","Montant","Direction","Intitulé"',
+      '"COMPLETE","2026-01-15T10:00:00.000Z","10","DEBIT","SHOP A"',
+      '"PENDING","2026-01-16T10:00:00.000Z","99","DEBIT","NOT SETTLED"',
+      '"COMPLETE","2026-02-03T10:00:00.000Z","20","CREDIT","SHOP B"',
+    ].join("\n");
+    renderWizard();
+
+    await chooseAccount(user);
+
+    await user.upload(
+      await screen.findByLabelText("CSV or PDF statement"),
+      new File([withPending], "statement.csv", { type: "text/csv" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Continue to preview" }));
+
+    expect(await screen.findByText("SHOP B")).toBeInTheDocument();
+    expect(screen.queryByText("NOT SETTLED")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Skip row 2" }));
+
+    expect(screen.getByText("SHOP B").className).toContain("line-through");
+    expect(screen.getByText("SHOP A").className).not.toContain("line-through");
+
+    await user.click(screen.getByRole("button", { name: "Commit import" }));
+    await waitFor(() => expect(bulkCreate).toHaveBeenCalledTimes(1));
+    const records = bulkCreate.mock.calls[0][0];
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({ rawIssuerString: "SHOP A" });
   });
 
   // A statement overlapping an already-imported month, but holding genuinely
@@ -562,6 +602,188 @@ describe("ImportWizard", () => {
     // The warning does not block commit.
     await user.click(screen.getByRole("button", { name: "Commit import" }));
     expect(await screen.findByText("Transactions page")).toBeInTheDocument();
+  });
+
+  // Issue #192: the side-by-side view skips a row rather than deleting it, the
+  // same reversible recourse the CSV preview has always offered. The row stays on
+  // screen struck through with its fields inert — which is what retired the
+  // deletion's stated reason ("a PDF's rows are editable there anyway").
+  it("skips a row on the side-by-side view instead of deleting it", async () => {
+    const user = userEvent.setup();
+    extractPdf.mockResolvedValue({
+      transactions: [
+        {
+          date: new Date("2026-01-15T10:00:00.000Z"),
+          amount: -10,
+          rawIssuerString: "SHOP A",
+        },
+        {
+          date: new Date("2026-02-03T10:00:00.000Z"),
+          amount: 20,
+          rawIssuerString: "SHOP B",
+        },
+      ],
+      declaredTotals: { debit: 10, credit: 20 },
+    });
+    renderWizard();
+
+    await chooseAccount(user);
+
+    await user.upload(
+      await screen.findByLabelText("CSV or PDF statement"),
+      new File(["%PDF-1.7"], "statement.pdf", { type: "application/pdf" }),
+    );
+
+    expect(await screen.findByTitle("PDF statement")).toBeInTheDocument();
+    // Deleting is gone — skipping subsumes it and is reversible.
+    expect(screen.queryByRole("button", { name: "Delete row 1" })).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Skip row 1" }));
+
+    // The row is still on screen, struck through, and every field it offers is
+    // inert: an edit to a row that will not commit is an edit thrown away.
+    const issuer = screen.getByLabelText("Raw issuer, row 1");
+    expect(issuer).toBeDisabled();
+    expect(issuer.className).toContain("line-through");
+    expect(screen.getByLabelText("Date, row 1")).toBeDisabled();
+    expect(screen.getByLabelText("Amount, row 1")).toBeDisabled();
+    expect(screen.getByText("Skipped — won't be imported")).toBeInTheDocument();
+
+    // Only the kept row commits.
+    await user.click(screen.getByRole("button", { name: "Commit import" }));
+    await waitFor(() => expect(bulkCreate).toHaveBeenCalledTimes(1));
+    const records = bulkCreate.mock.calls[0][0];
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({ rawIssuerString: "SHOP B" });
+  });
+
+  it("takes a skipped side-by-side row back, fields live again", async () => {
+    const user = userEvent.setup();
+    extractPdf.mockResolvedValue({
+      transactions: [
+        {
+          date: new Date("2026-01-15T10:00:00.000Z"),
+          amount: -10,
+          rawIssuerString: "SHOP A",
+        },
+      ],
+      declaredTotals: { debit: 10, credit: 0 },
+    });
+    renderWizard();
+
+    await chooseAccount(user);
+
+    await user.upload(
+      await screen.findByLabelText("CSV or PDF statement"),
+      new File(["%PDF-1.7"], "statement.pdf", { type: "application/pdf" }),
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Skip row 1" }));
+    await user.click(screen.getByRole("button", { name: "Restore row 1" }));
+
+    const issuer = screen.getByLabelText("Raw issuer, row 1");
+    expect(issuer).toBeEnabled();
+    expect(issuer.className).not.toContain("line-through");
+
+    // Restored means committed: the row is back in what will be written, and
+    // still editable on its way there.
+    await user.clear(issuer);
+    await user.type(issuer, "CORRECTED");
+    await user.click(screen.getByRole("button", { name: "Commit import" }));
+
+    await waitFor(() => expect(bulkCreate).toHaveBeenCalledTimes(1));
+    expect(bulkCreate.mock.calls[0][0]).toHaveLength(1);
+    expect(bulkCreate.mock.calls[0][0][0]).toMatchObject({ rawIssuerString: "CORRECTED" });
+  });
+
+  // The add-row control solves the opposite problem to skipping — the model
+  // missed an operation — so it survives the deletion's removal, and the row it
+  // mints is skippable like any other.
+  it("still adds a row the extraction missed, and it can be skipped like the rest", async () => {
+    const user = userEvent.setup();
+    extractPdf.mockResolvedValue({
+      transactions: [
+        {
+          date: new Date("2026-01-15T10:00:00.000Z"),
+          amount: -10,
+          rawIssuerString: "SHOP A",
+        },
+      ],
+      declaredTotals: { debit: 10, credit: 0 },
+    });
+    renderWizard();
+
+    await chooseAccount(user);
+
+    await user.upload(
+      await screen.findByLabelText("CSV or PDF statement"),
+      new File(["%PDF-1.7"], "statement.pdf", { type: "application/pdf" }),
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Add row" }));
+
+    const added = screen.getByLabelText("Raw issuer, row 2");
+    await user.type(added, "MISSED ROW");
+
+    // Skipping the row that *was* extracted leaves the added one, which is the
+    // proof the skip named a row rather than the position it was clicked at.
+    await user.click(screen.getByRole("button", { name: "Skip row 1" }));
+    expect(screen.getByLabelText("Raw issuer, row 2")).toBeEnabled();
+
+    await user.click(screen.getByRole("button", { name: "Commit import" }));
+    await waitFor(() => expect(bulkCreate).toHaveBeenCalledTimes(1));
+    const records = bulkCreate.mock.calls[0][0];
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({ rawIssuerString: "MISSED ROW" });
+  });
+
+  // The asymmetry the PRD calls out and a future reader will want to "fix": the
+  // bar counts what will be written, while the banner judges what the model read.
+  // Skipping a row must not make the extraction look wrong.
+  it("counts kept rows in the commit bar while the banner still sums every extracted row", async () => {
+    const user = userEvent.setup();
+    extractPdf.mockResolvedValue({
+      transactions: [
+        {
+          date: new Date("2026-01-15T10:00:00.000Z"),
+          amount: -10,
+          rawIssuerString: "SHOP A",
+        },
+        {
+          date: new Date("2026-01-16T10:00:00.000Z"),
+          amount: -20,
+          rawIssuerString: "SHOP B",
+        },
+      ],
+      declaredTotals: { debit: 30, credit: 0 },
+    });
+    // Both rows look already imported, so the bar's count is the one that moves.
+    listTransactions.mockResolvedValue({
+      items: [STORED_SHOP_A],
+      total: 1,
+      bundleMembers: [],
+    });
+    renderWizard();
+
+    await chooseAccount(user);
+
+    await user.upload(
+      await screen.findByLabelText("CSV or PDF statement"),
+      new File(["%PDF-1.7"], "statement.pdf", { type: "application/pdf" }),
+    );
+
+    // The upload step's own status line is gone by the time the view is up, so
+    // the notice is asked for by its text rather than by the `status` role.
+    expect(await screen.findByTitle("PDF statement")).toBeInTheDocument();
+    expect(await screen.findByText(/1 of these rows looks already imported/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Skip row 1" }));
+
+    // The marked row is held out, so the bar has nothing left to advise about…
+    await waitFor(() => expect(screen.queryByText(/looks already imported/)).toBeNull());
+    // …while reconciliation still sums both extracted rows against the declared
+    // 30 and stays silent. Summing only the kept row would cry wolf here.
+    expect(screen.queryByText(/Reconciliation mismatch/)).toBeNull();
   });
 
   it("shows no reconciliation banner when the sums reconcile", async () => {
