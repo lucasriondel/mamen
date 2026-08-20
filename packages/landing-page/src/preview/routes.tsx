@@ -1,6 +1,5 @@
-import { APP_BASE_PATH_SLASH } from "@mamen/shared/app-base-path";
 import { createRootRoute, createRoute, Outlet } from "@tanstack/react-router";
-import { DESCRIPTION, HEADING, LEAD, OPEN_APP, POINTS, SOURCE, SOURCE_URL, TITLE } from "../copy";
+import { ACTIONS, CONTRIBUTING, HERO, INSTALL, prerequisiteLabel, SITE } from "../content";
 
 /**
  * The landing page as React components on a TanStack router (issue #145).
@@ -16,6 +15,9 @@ import { DESCRIPTION, HEADING, LEAD, OPEN_APP, POINTS, SOURCE, SOURCE_URL, TITLE
  * no state and register no effects; the tree is rendered once, in Node, and the
  * result is static HTML with no script tag. A `useState` in this file would
  * typecheck, ship, and quietly do nothing.
+ *
+ * Every word comes from `src/content/` (issue #147) — this file decides
+ * elements and class names, and writes no sentence of its own.
  *
  * The stylesheet is linked at its source path — Vite's HTML pass rewrites it to
  * the hashed asset, exactly as it does for the root entry.
@@ -34,8 +36,8 @@ function Document() {
         <meta name="color-scheme" content="light dark" />
         <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f9f7f4" />
         <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0d0d0c" />
-        <meta name="description" content={DESCRIPTION} />
-        <title>{TITLE}</title>
+        <meta name="description" content={SITE.description} />
+        <title>{SITE.title}</title>
         <link rel="stylesheet" href="/src/styles.css" />
       </head>
       <body>
@@ -54,31 +56,114 @@ const indexRoute = createRoute({
 function LandingPage() {
   return (
     <main>
-      <h1>{HEADING}</h1>
+      <Hero />
+      <Install />
+      <Contributing />
+      <Actions />
+    </main>
+  );
+}
 
-      <p className="lead">{LEAD}</p>
+function Hero() {
+  return (
+    <header className="hero">
+      <h1>{HERO.heading}</h1>
+
+      <p className="lead">{HERO.lead}</p>
 
       <ul className="points">
-        {POINTS.map((point) => (
+        {HERO.points.map((point) => (
           <li key={point.term}>
             <strong>{point.term}</strong> {point.detail}
           </li>
         ))}
       </ul>
+    </header>
+  );
+}
 
-      <p className="actions">
-        {/* Plain anchors, not the router's `Link`: both destinations are
-            outside this router — the app under its own prefix, and GitHub —
-            and a client-side navigation has nothing to navigate to in a page
-            that ships no JavaScript. */}
-        <a className="cta" href={APP_BASE_PATH_SLASH}>
-          {OPEN_APP}
-        </a>
-        <a className="secondary" href={SOURCE_URL}>
-          {SOURCE}
-        </a>
+function Install() {
+  return (
+    <section className="install">
+      <h2>{INSTALL.heading}</h2>
+
+      <p className="section-lead">{INSTALL.lead}</p>
+
+      <ul className="prerequisites">
+        {INSTALL.prerequisites.map((prerequisite) => (
+          <li key={prerequisite.name}>
+            <a href={prerequisite.url}>{prerequisiteLabel(prerequisite)}</a> {prerequisite.detail}
+          </li>
+        ))}
+      </ul>
+
+      <ol className="steps">
+        {INSTALL.steps.map((step) => (
+          <li key={step.title}>
+            <h3>{step.title}</h3>
+            <p>{step.detail}</p>
+            {/* The commands as one block, newlines and all: `<pre>` is what
+                makes them copyable in the shape they are typed, and React
+                escapes the angle brackets the key placeholder carries. */}
+            <pre>
+              <code>{step.commands.join("\n")}</code>
+            </pre>
+          </li>
+        ))}
+      </ol>
+
+      <ul className="servers">
+        {INSTALL.servers.map((server) => (
+          <li key={server.name}>
+            <strong>{server.name}</strong> <code>{server.url}</code> {server.serves}
+          </li>
+        ))}
+      </ul>
+
+      <ul className="environment">
+        {INSTALL.environment.map((variable) => (
+          <li key={variable.variable}>
+            <code>{variable.variable}</code> {variable.detail}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function Contributing() {
+  return (
+    <section className="contributing">
+      <h2>{CONTRIBUTING.heading}</h2>
+
+      {CONTRIBUTING.body.map((paragraph) => (
+        <p key={paragraph}>{paragraph}</p>
+      ))}
+
+      <p>
+        <a href={CONTRIBUTING.link.href}>{CONTRIBUTING.link.label}</a>
       </p>
-    </main>
+    </section>
+  );
+}
+
+function Actions() {
+  return (
+    <p className="actions">
+      {/* Plain anchors, not the router's `Link`: every destination is outside
+          this router — the app under its own prefix, and GitHub — and a
+          client-side navigation has nothing to navigate to in a page that
+          ships no JavaScript. */}
+      {ACTIONS.map((action) => (
+        <a
+          key={action.href}
+          className={action.kind === "primary" ? "cta" : "secondary"}
+          href={action.href}
+        >
+          {action.label}
+        </a>
+      ))}
+    </p>
   );
 }
 

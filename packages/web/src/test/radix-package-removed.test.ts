@@ -54,9 +54,10 @@ const manifests: Array<[string, Manifest]> = [
 
 /**
  * Directories a source scan must never descend into: build output, dependency
- * trees, and `.claude`, whose worktrees are whole checkouts of other branches —
- * a hit there is that branch's copy of the file, not a path this repo builds or
- * deploys from.
+ * trees, and the `worktrees` dirs under `.claude` and `.sandcastle`, which are
+ * whole checkouts of other branches — a hit there is that branch's copy of the
+ * file, not a path this repo builds or deploys from. `.sandcastle` itself stays
+ * in scope: its tooling is tracked, and only `worktrees/` under it is ignored.
  */
 const PRUNED = new Set([
   ".claude",
@@ -67,6 +68,7 @@ const PRUNED = new Set([
   "graphify-out",
   "logs",
   "node_modules",
+  "worktrees",
 ]);
 
 /**

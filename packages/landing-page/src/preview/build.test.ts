@@ -27,7 +27,10 @@ const config = viteConfig as UserConfig;
 
 const input = config.build?.rollupOptions?.input as Record<string, string>;
 
-const stub = readFileSync(fileURLToPath(new URL(`../../${PREVIEW_ENTRY}`, import.meta.url)), "utf8");
+const stub = readFileSync(
+  fileURLToPath(new URL(`../../${PREVIEW_ENTRY}`, import.meta.url)),
+  "utf8",
+);
 
 const plugin = prerender();
 
