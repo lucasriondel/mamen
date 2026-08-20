@@ -2,12 +2,20 @@ import { readFileSync } from "node:fs";
 import type { AccountId } from "@mamen/shared/contract";
 import Papa from "papaparse";
 import { describe, expect, it } from "vitest";
-import { greenGotParser } from "./green-got";
+import { applyFormat } from "./apply-format";
+import { greenGotFormat } from "./formats";
+import { matchesHeaders } from "./registry";
 import type { ParseContext } from "./types";
 
-// Parse the shipped Green-Got fixture once (PRD "Seam 1" — the primary seam).
-// `parse` is pure, so no mocking: drive it with representative rows and assert
-// the emitted records.
+// Parse the shipped Green-Got fixture once (PRD "the applying seam" — the
+// primary seam). `applyFormat` is pure, so no mocking: drive it with the real
+// file and assert the emitted records.
+//
+// This suite was `green-got.test.ts`, the hand-written parser's. Its subject is
+// Green-Got rather than the module that used to embody it, so it survived the
+// parser and now holds the **Statement Format** record that replaced it to the
+// same claims, case for case. The record vocabulary's other branches — the ones
+// Green-Got does not exercise — are in `apply-format.test.ts`.
 //
 // The fixture is synthetic. It was a byte-identical copy of a real statement
 // until issue #108, which is why the names read as placeholders and every IBAN
@@ -28,18 +36,20 @@ const ctx: ParseContext = {
   importBatchId: "batch-abc",
 };
 
-describe("greenGotParser.matches", () => {
+describe("the Green-Got format's header fingerprint", () => {
   it("recognizes the Green-Got header fingerprint", () => {
-    expect(greenGotParser.matches(headers)).toBe(true);
+    expect(matchesHeaders(greenGotFormat, headers)).toBe(true);
   });
 
   it("rejects a foreign header set", () => {
-    expect(greenGotParser.matches(["Date", "Description", "Amount", "Balance"])).toBe(false);
+    expect(matchesHeaders(greenGotFormat, ["Date", "Description", "Amount", "Balance"])).toBe(
+      false,
+    );
   });
 });
 
-describe("greenGotParser.parse (shipped fixture)", () => {
-  const records = greenGotParser.parse(rows, ctx).map((parsedRow) => parsedRow.record);
+describe("the Green-Got format applied to the shipped fixture", () => {
+  const records = applyFormat(greenGotFormat, rows, ctx).map((parsedRow) => parsedRow.record);
 
   it("emits one record per COMPLETE row and stamps the context", () => {
     expect(records.length).toBe(rows.length);
@@ -65,14 +75,16 @@ describe("greenGotParser.parse (shipped fixture)", () => {
   });
 
   it("ignores Arrondi (round-up) — amount is Montant only", () => {
-    // Row index 2 has Montant 8.76 and Arrondi 0.24; the round-up must not
-    // leak into the amount.
+    // Row index 2 has Montant 8.76 and Arrondi 0.24; the round-up must not leak
+    // into the amount. No target maps `Arrondi`, so the archive is the only
+    // place it can appear.
     expect(records[2].amount).toBe(-8.76);
+    expect(records[2].rawSource?.Arrondi).toBe("0.24");
   });
 });
 
-describe("greenGotParser.parse keeps the raw source (issue #176)", () => {
-  const records = greenGotParser.parse(rows, ctx).map((parsedRow) => parsedRow.record);
+describe("the Green-Got format keeps the raw source (issue #176)", () => {
+  const records = applyFormat(greenGotFormat, rows, ctx).map((parsedRow) => parsedRow.record);
 
   it("archives the whole delivered row, verbatim", () => {
     // Compared against the papaparse row itself rather than a hand-written
@@ -85,9 +97,9 @@ describe("greenGotParser.parse keeps the raw source (issue #176)", () => {
   it("keeps the mapped columns too — mapped-ness is a rendering decision", () => {
     const raw = records[0].rawSource ?? {};
 
-    // Every column the parser already reads into a real field is still in the
+    // Every column the format already reads into a real field is still in the
     // archive: `Date` → `date`, `Montant`/`Direction` → `amount`, `Intitulé` →
-    // `rawIssuerString`, `Statut` → the skip rule.
+    // `rawIssuerString`, `Statut` → the row filter.
     expect(Object.keys(raw)).toEqual(
       expect.arrayContaining(["Statut", "Date", "Montant", "Direction", "Intitulé"]),
     );
@@ -100,13 +112,13 @@ describe("greenGotParser.parse keeps the raw source (issue #176)", () => {
   });
 
   it("archives a copy, so a later edit of the record cannot rewrite the row", () => {
-    const [first] = greenGotParser.parse(rows, ctx);
+    const [first] = applyFormat(greenGotFormat, rows, ctx);
 
     expect(first.record.rawSource).not.toBe(rows[0]);
   });
 
-  it("carries the columns the parser reads nothing from", () => {
-    // `Référence` is the one this ticket exists for in miniature: nothing maps
+  it("carries the columns the format reads nothing from", () => {
+    // `Référence` is the one issue #176 exists for in miniature: nothing maps
     // it today, and it is readable tomorrow without a re-import.
     const withReference = records.find((r) => r.rawSource?.Référence === "echeance pret");
 
@@ -114,8 +126,8 @@ describe("greenGotParser.parse keeps the raw source (issue #176)", () => {
   });
 });
 
-describe("greenGotParser.parse promotes the counterparty IBAN (issue #178)", () => {
-  const records = greenGotParser.parse(rows, ctx).map((parsedRow) => parsedRow.record);
+describe("the Green-Got format promotes the counterparty IBAN (issue #178)", () => {
+  const records = applyFormat(greenGotFormat, rows, ctx).map((parsedRow) => parsedRow.record);
 
   /** The fixture's first SEPA row — the ones that carry `IBAN du tiers` at all. */
   const sepaIndex = rows.findIndex((row) => row["IBAN du tiers"] !== "");
@@ -137,7 +149,7 @@ describe("greenGotParser.parse promotes the counterparty IBAN (issue #178)", () 
   });
 });
 
-describe("greenGotParser.parse normalises the counterparty IBAN (issue #178)", () => {
+describe("the Green-Got format normalises the counterparty IBAN (issue #178)", () => {
   // Assembled rather than written out, so this file carries no matchable account
   // number: the stored form first, then the way a bank prints it — grouped in
   // fours, and here lower-cased for good measure.
@@ -156,7 +168,7 @@ describe("greenGotParser.parse normalises the counterparty IBAN (issue #178)", (
     "IBAN du tiers": delivered,
   };
 
-  const [{ record }] = greenGotParser.parse([spaced], ctx);
+  const [{ record }] = applyFormat(greenGotFormat, [spaced], ctx);
 
   it("stores it upper-cased with whitespace stripped, like the account IBAN", () => {
     // The column exists to be *joined* against `accounts.iban`, which is stored
@@ -173,7 +185,7 @@ describe("greenGotParser.parse normalises the counterparty IBAN (issue #178)", (
   });
 });
 
-describe("greenGotParser.parse shape-checks the counterparty IBAN (PRD #175)", () => {
+describe("the Green-Got format shape-checks the counterparty IBAN (PRD #175)", () => {
   /** The record a one-row statement produces, given what that row's IBAN column holds. */
   const from = (tiers: string) => {
     const row: Record<string, string> = {
@@ -184,7 +196,7 @@ describe("greenGotParser.parse shape-checks the counterparty IBAN (PRD #175)", (
       Intitulé: "SOCIETE EXEMPLE SARL",
       "IBAN du tiers": tiers,
     };
-    return greenGotParser.parse([row], ctx)[0].record;
+    return applyFormat(greenGotFormat, [row], ctx)[0].record;
   };
 
   it("refuses a value that cannot be an IBAN, and leaves it in the archive", () => {
@@ -217,7 +229,7 @@ describe("greenGotParser.parse shape-checks the counterparty IBAN (PRD #175)", (
   });
 });
 
-describe("greenGotParser.parse (synthetic edge cases)", () => {
+describe("the Green-Got format on synthetic edge cases", () => {
   const synthetic: Record<string, string>[] = [
     {
       Statut: "COMPLETE",
@@ -228,7 +240,8 @@ describe("greenGotParser.parse (synthetic edge cases)", () => {
       Intitulé: "JAN ROW",
     },
     // Dropped, and dropped from the *middle*: a record's index in the output is
-    // one short of its row's from here on, which is the join the parser reports.
+    // one short of its row's from here on, which is the join `applyFormat`
+    // reports.
     {
       Statut: "PENDING",
       Date: "2026-02-02T08:00:00.000Z",
@@ -247,7 +260,7 @@ describe("greenGotParser.parse (synthetic edge cases)", () => {
     },
   ];
 
-  const parsedRows = greenGotParser.parse(synthetic, ctx);
+  const parsedRows = applyFormat(greenGotFormat, synthetic, ctx);
   const records = parsedRows.map((parsedRow) => parsedRow.record);
 
   it("imports only COMPLETE rows", () => {
@@ -255,9 +268,9 @@ describe("greenGotParser.parse (synthetic edge cases)", () => {
     expect(records.some((r) => r.rawIssuerString === "SKIP ME")).toBe(false);
   });
 
-  // The parser drops rows, so a record's place in the output says nothing about
-  // which row it was read from. It reports that row itself, which is what lets
-  // the preview put the row's **stable row id** on the record it produced —
+  // The row filter drops rows, so a record's place in the output says nothing
+  // about which row it was read from. It reports that row itself, which is what
+  // lets the preview put the row's **stable row id** on the record it produced —
   // positionally it would land the third row's id on the second record.
   it("reports the source row each record was read from", () => {
     expect(parsedRows.map((parsedRow) => parsedRow.sourceIndex)).toEqual([0, 2]);
@@ -271,7 +284,7 @@ describe("greenGotParser.parse (synthetic edge cases)", () => {
   it("still parses a file lacking the archived-only columns", () => {
     // These rows carry the fingerprint columns and nothing else. The archive is
     // read opportunistically, so it holds exactly what was delivered.
-    expect(greenGotParser.matches(Object.keys(synthetic[0]))).toBe(true);
+    expect(matchesHeaders(greenGotFormat, Object.keys(synthetic[0]))).toBe(true);
     expect(records[0].rawSource).toStrictEqual(synthetic[0]);
     // `IBAN du tiers` is read opportunistically too, so a file that never had
     // the column parses to a row that simply has no counterparty IBAN.

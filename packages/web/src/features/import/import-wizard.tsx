@@ -7,7 +7,8 @@ import { stepPresence } from "@/lib/motion";
 import { accountQueries } from "@/lib/sdk";
 import { enrichExtracted } from "./enrich-extracted";
 import { takeHandoff } from "./import-handoff";
-import { detectParser, getParserById } from "./parsers/registry";
+import { applyFormat } from "./parsers/apply-format";
+import { detectFormat, getFormatById } from "./parsers/registry";
 import type { ParsedTransaction } from "./parsers/types";
 import { PdfValidationStep } from "./pdf-validation-step";
 import { PreviewStep } from "./preview-step";
@@ -36,7 +37,7 @@ function readPrefill(initialAccountId?: AccountId): WizardPrefill | undefined {
             fileName: handoff.fileName,
             headers: handoff.headers,
             rows: handoff.rows,
-            detectedParserId: detectParser(handoff.headers)?.id ?? null,
+            detectedParserId: detectFormat(handoff.headers)?.id ?? null,
           },
         }
       : {}),
@@ -45,11 +46,11 @@ function readPrefill(initialAccountId?: AccountId): WizardPrefill | undefined {
 
 /**
  * The 3-step import wizard (PRD): (1) target account, then the file drop and its
- * **Parser** auto-detect, (2) mandatory preview, (3) commit → toast → navigate.
- * The account leads the step because a **Statement Format** is account-scoped
- * (issue #181). State is local (`useReducer`) — there is no global store. The
- * parsed records are derived from the chosen parser + rows so the preview and
- * commit share one source of truth.
+ * **Statement Format** auto-detect, (2) mandatory preview, (3) commit → toast →
+ * navigate. The account leads the step because a format is account-scoped (issue
+ * #181). State is local (`useReducer`) — there is no global store. The parsed
+ * records are derived from the chosen format + rows so the preview and commit
+ * share one source of truth.
  */
 export function ImportWizard({
   initialAccountId,
@@ -69,9 +70,10 @@ export function ImportWizard({
   // follow, so one index reads a row, its mark and its identity.
   //
   // On the PDF path the ids are already positional with the extracted rows. On
-  // the CSV path they are not: the ids name papaparse's rows and a **Parser**
-  // drops the ones the format won't import, so each record's id is read off the
-  // source row the parser reports rather than off its own position (issue #192).
+  // the CSV path they are not: the ids name papaparse's rows and the **Statement
+  // Format**'s row filter drops the ones it won't import, so each record's id is
+  // read off the source row `applyFormat` reports rather than off its own
+  // position (issue #192).
   const { records, rowIds } = useMemo<{
     records: ParsedTransaction[];
     rowIds: readonly RowId[];
@@ -87,9 +89,11 @@ export function ImportWizard({
       if (!state.extracted) return { records: [], rowIds: [] };
       return { records: enrichExtracted(state.extracted, ctx), rowIds: state.rowIds };
     }
-    const parser = state.parserId ? getParserById(state.parserId) : undefined;
-    if (!parser) return { records: [], rowIds: [] };
-    const parsed = parser.parse(state.rows, ctx);
+    // `parserId` names the chosen **Statement Format** — it keeps its name until
+    // formats become account-scoped records with branded ids (PRD #180).
+    const format = state.parserId ? getFormatById(state.parserId) : undefined;
+    if (!format) return { records: [], rowIds: [] };
+    const parsed = applyFormat(format, state.rows, ctx);
     return {
       records: parsed.map(({ record }) => record),
       rowIds: parsed.map(({ sourceIndex }) => state.rowIds[sourceIndex]),
@@ -108,7 +112,7 @@ export function ImportWizard({
     state.source === "pdf"
       ? "PDF extraction"
       : state.parserId
-        ? (getParserById(state.parserId)?.label ?? state.parserId)
+        ? (getFormatById(state.parserId)?.name ?? state.parserId)
         : "—";
 
   const accountName = accounts.find((account) => account.id === state.accountId)?.name ?? "—";

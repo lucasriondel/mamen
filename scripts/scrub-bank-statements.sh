@@ -104,10 +104,12 @@ DOOMED_PATHS=(
 # The path that survives, carrying different content.
 FIXTURE="packages/web/src/features/import/__fixtures__/green-got-sample.csv"
 
-# The parser that reads it. The fixture surviving as a *path* is not the
-# criterion — the criterion is that it is still the file the parser is tested
-# against, so the columns it must carry are read from here rather than copied.
-PARSER="packages/web/src/features/import/parsers/green-got.ts"
+# The Statement Format record that reads it. The fixture surviving as a *path*
+# is not the criterion — the criterion is that it is still the file the format is
+# tested against, so the columns it must carry are read from here rather than
+# copied. (This was the hand-written parser module until issue #182 replaced it
+# with the record; the header fingerprint it is read for is the same list.)
+FORMAT="packages/web/src/features/import/parsers/formats.ts"
 
 # ── arguments ────────────────────────────────────────────────────────────────
 
@@ -313,16 +315,17 @@ for path in "${DOOMED_PATHS[@]:1}"; do
 	fi
 done
 
-# The fixture is still a file the parser can read. Surviving as a *path* is not
-# enough: it exists so `green-got.test.ts` has a statement to parse, and a
-# header missing a column the parser fingerprints on — or a header with no rows
-# under it — satisfies every other check here while failing that test.
+# The fixture is still a file the format can read. Surviving as a *path* is not
+# enough: it exists so `formats.test.ts` has a statement to apply the Green-Got
+# format to, and a header missing a column the format fingerprints on — or a
+# header with no rows under it — satisfies every other check here while failing
+# that test.
 #
-# The columns are read out of the parser rather than listed here, so this checks
-# the agreement between two files instead of adding a third opinion.
+# The columns are read out of the format record rather than listed here, so this
+# checks the agreement between two files instead of adding a third opinion.
 check_fixture_is_readable() {
-	if ! git cat-file -e "HEAD:$PARSER" 2>/dev/null; then
-		fail "the parser at $PARSER is gone — the fixture's columns cannot be checked"
+	if ! git cat-file -e "HEAD:$FORMAT" 2>/dev/null; then
+		fail "the format record at $FORMAT is gone — the fixture's columns cannot be checked"
 		return
 	fi
 
@@ -333,10 +336,15 @@ check_fixture_is_readable() {
 	# where it starts — collecting every quoted string after it as a required
 	# column. This stops at the first `]` on or after the declaration, so both
 	# shapes read the same.
+	#
+	# Named `GREEN_GOT_HEADERS` rather than matched on a generic `HEADERS = [`:
+	# the fixture is a Green-Got export, and once a second format record lives in
+	# that file a loose pattern would `exit` on whichever array came first and
+	# check the fixture against another bank's columns.
 	required="$(
-		git show "HEAD:$PARSER" |
+		git show "HEAD:$FORMAT" |
 			awk '
-				/REQUIRED_HEADERS = \[/ { collecting = 1; sub(/.*REQUIRED_HEADERS = \[/, "") }
+				/GREEN_GOT_HEADERS = \[/ { collecting = 1; sub(/.*GREEN_GOT_HEADERS = \[/, "") }
 				collecting {
 					if (index($0, "]")) { sub(/\].*/, ""); print; exit }
 					print
@@ -348,7 +356,7 @@ check_fixture_is_readable() {
 	rows="$(git show "HEAD:$FIXTURE" | sed '1d' | grep -c '[^[:space:]]' || true)"
 
 	if [ -z "$required" ]; then
-		fail "$PARSER lists no required columns — this check would pass on anything"
+		fail "$FORMAT lists no required columns — this check would pass on anything"
 		return
 	fi
 
@@ -360,17 +368,17 @@ check_fixture_is_readable() {
 	EOF
 
 	if [ -n "$missing" ]; then
-		fail "the fixture is missing columns the parser requires:$missing"
+		fail "the fixture is missing columns the format requires:$missing"
 	elif [ "$rows" -eq 0 ]; then
-		fail "the fixture has a header and no rows — nothing for the parser to read"
+		fail "the fixture has a header and no rows — nothing for the format to read"
 	else
-		pass "the fixture still carries the parser's columns, over $rows rows"
+		pass "the fixture still carries the format's columns, over $rows rows"
 	fi
 }
 
 # The fixture path survives — with different content. A rewrite that took the
-# path out with the blob would pass every check above and leave the parser
-# untestable, so this is asserted rather than assumed.
+# path out with the blob would pass every check above and leave the Green-Got
+# format untestable, so this is asserted rather than assumed.
 if git cat-file -e "HEAD:$FIXTURE" 2>/dev/null; then
 	pass "the synthetic fixture survived the rewrite"
 	check_fixture_is_readable

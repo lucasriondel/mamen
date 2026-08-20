@@ -94,17 +94,19 @@ Not from the clone you rewrote in. The question is what `origin` now serves.
 ```sh
 git clone git@github.com:lucasriondel/mamen.git /tmp/mamen-check
 /tmp/mamen-check/scripts/scrub-bank-statements.sh --verify <N>
-cd /tmp/mamen-check && bun install && bun run --filter @mamen/web test green-got
+cd /tmp/mamen-check && bun install && bun run --filter @mamen/web test formats
 ```
 
 `--verify` checks the criteria against every ref the clone has, which includes
 the ~164 branches it holds as `refs/remotes/origin/*` — that is how a branch
 left behind on the old history shows up. `<N>` is the count from step 2.
 
-The parser test is the last criterion and the script cannot run it: the fixture
-has to still be a file `green-got.test.ts` can parse, not merely a path that
-survived. The script checks the columns and that there are rows under them; the
-test is what settles it.
+The format test is the last criterion and the script cannot run it: the fixture
+has to still be a file the Green-Got **Statement Format** can be applied to, not
+merely a path that survived. The script checks the columns and that there are
+rows under them; `parsers/formats.test.ts` is what settles it. (It was
+`green-got.test.ts` until issue #182 — the commits *behind* the rewrite still
+carry that name, which is why the note below keeps it.)
 
 Every line green is the ticket.
 

@@ -8,7 +8,7 @@ import { formatExtractionTime } from "./format-extraction-time";
 import { FormatPicker } from "./format-picker";
 import { InlineAccountSelect } from "./inline-account-select";
 import { parseCsvFile } from "./parse-file";
-import { detectParser } from "./parsers/registry";
+import { detectFormat } from "./parsers/registry";
 import { canAcceptFile, canPreview, type WizardAction, type WizardState } from "./wizard-reducer";
 
 /** Whether a dropped file is a PDF (by MIME or extension) — the async fork. */
@@ -102,7 +102,7 @@ export function UploadStep({
         fileName: file.name,
         headers,
         rows,
-        detectedParserId: detectParser(headers)?.id ?? null,
+        detectedParserId: detectFormat(headers)?.id ?? null,
       });
     } catch {
       dispatch({
