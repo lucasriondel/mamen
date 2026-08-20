@@ -456,10 +456,21 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()("api/Tran
     // The **derived** category expression (model A / ADR 0002): a manual row
     // keeps its own stored `categoryId`; a non-manual row reads its issuer's
     // `defaultCategoryId` (null when unmatched or the issuer has no default).
-    // One fragment, reused by the read projection, the count, AND the category
-    // filter — so the read and the filter can never disagree (the drift ADR
-    // 0002 records). Requires the `issuers` LEFT JOIN (`readFrom`) in scope.
-    const derivedCategory = sql`CASE WHEN t.manualCategory = 1 THEN t.categoryId ELSE i.defaultCategoryId END`;
+    // ONE definition, under whichever pair of aliases the query joins them —
+    // the read projection, the count and the category filter all reach it, so
+    // the read and the filter can never disagree (the drift ADR 0002 records),
+    // and so do the self-join projections below, where each leg reads through
+    // its OWN issuer. Alias-parameterised for the same reason
+    // `recapExclusionFor` is (issue #174): the fragment was alias-locked to
+    // `t`/`i`, so every query joining transactions under another alias had to
+    // hand-copy the `CASE` — three of them did, and the next edit to the rule
+    // would have had to land in four places.
+    const derivedCategoryFor = (row: "t" | "c" | "f", issuer: "i" | "ci" | "fi") =>
+      sql`CASE WHEN ${sql.literal(row)}.manualCategory = 1 THEN ${sql.literal(row)}.categoryId ELSE ${sql.literal(issuer)}.defaultCategoryId END`;
+
+    // The stored aliases, the shape everything in this file's own read path
+    // uses. Requires the `issuers` LEFT JOIN (`readFrom`) in scope.
+    const derivedCategory = derivedCategoryFor("t", "i");
 
     // The recap's fragments — **excluded from recap** (issues #67/#69, ADR
     // 0008), the **bundle-membership** rule (#68) and the single
@@ -471,14 +482,22 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()("api/Tran
     // projection and the `excludedFromRecap` filter read the SAME fragment, so
     // the row a filter selects and the row a projection shows can never
     // disagree about being excluded.
-    const { recapExclusion, isTransferLeg, isNotBundleMember, isRecapExcluded, countsTowardRecap } =
-      recapPredicates(sql);
+    const {
+      recapExclusion,
+      isTransferLeg,
+      isNotBundleMemberFor,
+      isNotBundleMember,
+      isRecapExcluded,
+      countsTowardRecap,
+    } = recapPredicates(sql);
 
     // The same expression under different table aliases, for the two
     // self-join projections below (`suggestTransfers`, `transferCandidates`):
     // each leg reads through its OWN issuer. Kept as one generator rather
     // than three hand-written copies — a candidate is the same row the list
     // projects, so the two reads must never disagree about whether it counts.
+    // `derivedCategoryFor` above is the same generator for the sibling rule,
+    // and the two are called on adjacent lines at every self-join site.
     const recapExclusionFor = (row: "c" | "f", issuer: "ci" | "fi") =>
       sql`CASE WHEN ${sql.literal(row)}.manualExcluded = 1 THEN ${sql.literal(row)}.excludedFromRecap ELSE COALESCE(${sql.literal(issuer)}.excludedFromRecap, 0) END`;
 
@@ -940,8 +959,13 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()("api/Tran
     // **bundle** or IS a **bundle parent**: the two groupings are mutually
     // exclusive, so offering a bundled row could only earn a 422. `kind` is
     // COALESCEd because a row written before the column reads as `bank`.
+    //
+    // The membership half is the SAME `isNotBundleMemberFor` the recap and the
+    // list read (issue #174), under this query's alias, not a second copy of
+    // it: a row the list treats as standing for itself is exactly a row this
+    // may offer as a leg.
     const transferEligibleFor = (a: "c" | "f") =>
-      sql`${sql.literal(a)}.transferGroupId IS NULL AND ${sql.literal(a)}.isRefund = 0 AND ${sql.literal(a)}.linkedRefundId IS NULL AND ${sql.literal(a)}.bundleId IS NULL AND COALESCE(${sql.literal(a)}.kind, 'bank') <> 'bundle'`;
+      sql`${sql.literal(a)}.transferGroupId IS NULL AND ${sql.literal(a)}.isRefund = 0 AND ${sql.literal(a)}.linkedRefundId IS NULL AND ${isNotBundleMemberFor(a)} AND COALESCE(${sql.literal(a)}.kind, 'bank') <> 'bundle'`;
 
     // Internal-transfer counterpart suggestions (PRD #48), computed in SQL so
     // they see the WHOLE dataset — not just a loaded page, the limit of the
@@ -972,7 +996,7 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()("api/Tran
       Request: TransactionId,
       Result: TransactionFromRow,
       execute: (id) =>
-        sql`SELECT c.id, c.accountId, c.date, c.amount, c.rawIssuerString, c.issuerId, CASE WHEN c.manualCategory = 1 THEN c.categoryId ELSE ci.defaultCategoryId END AS categoryId, c.manualCategory, c.manualIssuer, c.isRefund, c.linkedRefundId, c.transferGroupId, c.kind, c.bundleId, c.manualDate, c.anomalyFlags, c.isDuplicateExcluded, c.duplicateNote, ${recapExclusionFor("c", "ci")} AS excludedFromRecap, c.manualExcluded, c.notes, c.importedAt, c.importMonth, c.importBatchId
+        sql`SELECT c.id, c.accountId, c.date, c.amount, c.rawIssuerString, c.issuerId, ${derivedCategoryFor("c", "ci")} AS categoryId, c.manualCategory, c.manualIssuer, c.isRefund, c.linkedRefundId, c.transferGroupId, c.kind, c.bundleId, c.manualDate, c.anomalyFlags, c.isDuplicateExcluded, c.duplicateNote, ${recapExclusionFor("c", "ci")} AS excludedFromRecap, c.manualExcluded, c.notes, c.importedAt, c.importMonth, c.importBatchId
 						FROM transactions t
 						JOIN transactions c
 							ON c.id <> t.id
@@ -1010,7 +1034,7 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()("api/Tran
     // property of the *query*, not of a client-side filter some surface could
     // forget to apply.
     const candidateColumns = (a: "f" | "c", issuerAlias: "fi" | "ci", prefix: "f" | "t") =>
-      sql`${sql.literal(a)}.id AS ${sql.literal(prefix)}_id, ${sql.literal(a)}.accountId AS ${sql.literal(prefix)}_accountId, ${sql.literal(a)}.date AS ${sql.literal(prefix)}_date, ${sql.literal(a)}.amount AS ${sql.literal(prefix)}_amount, ${sql.literal(a)}.rawIssuerString AS ${sql.literal(prefix)}_rawIssuerString, ${sql.literal(a)}.issuerId AS ${sql.literal(prefix)}_issuerId, CASE WHEN ${sql.literal(a)}.manualCategory = 1 THEN ${sql.literal(a)}.categoryId ELSE ${sql.literal(issuerAlias)}.defaultCategoryId END AS ${sql.literal(prefix)}_categoryId, ${sql.literal(a)}.manualCategory AS ${sql.literal(prefix)}_manualCategory, ${sql.literal(a)}.manualIssuer AS ${sql.literal(prefix)}_manualIssuer, ${sql.literal(a)}.isRefund AS ${sql.literal(prefix)}_isRefund, ${sql.literal(a)}.linkedRefundId AS ${sql.literal(prefix)}_linkedRefundId, ${sql.literal(a)}.transferGroupId AS ${sql.literal(prefix)}_transferGroupId, ${sql.literal(a)}.kind AS ${sql.literal(prefix)}_kind, ${sql.literal(a)}.bundleId AS ${sql.literal(prefix)}_bundleId, ${sql.literal(a)}.manualDate AS ${sql.literal(prefix)}_manualDate, ${sql.literal(a)}.anomalyFlags AS ${sql.literal(prefix)}_anomalyFlags, ${sql.literal(a)}.isDuplicateExcluded AS ${sql.literal(prefix)}_isDuplicateExcluded, ${sql.literal(a)}.duplicateNote AS ${sql.literal(prefix)}_duplicateNote, ${recapExclusionFor(a, issuerAlias)} AS ${sql.literal(prefix)}_excludedFromRecap, ${sql.literal(a)}.manualExcluded AS ${sql.literal(prefix)}_manualExcluded, ${sql.literal(a)}.notes AS ${sql.literal(prefix)}_notes, ${sql.literal(a)}.importedAt AS ${sql.literal(prefix)}_importedAt, ${sql.literal(a)}.importMonth AS ${sql.literal(prefix)}_importMonth, ${sql.literal(a)}.importBatchId AS ${sql.literal(prefix)}_importBatchId`;
+      sql`${sql.literal(a)}.id AS ${sql.literal(prefix)}_id, ${sql.literal(a)}.accountId AS ${sql.literal(prefix)}_accountId, ${sql.literal(a)}.date AS ${sql.literal(prefix)}_date, ${sql.literal(a)}.amount AS ${sql.literal(prefix)}_amount, ${sql.literal(a)}.rawIssuerString AS ${sql.literal(prefix)}_rawIssuerString, ${sql.literal(a)}.issuerId AS ${sql.literal(prefix)}_issuerId, ${derivedCategoryFor(a, issuerAlias)} AS ${sql.literal(prefix)}_categoryId, ${sql.literal(a)}.manualCategory AS ${sql.literal(prefix)}_manualCategory, ${sql.literal(a)}.manualIssuer AS ${sql.literal(prefix)}_manualIssuer, ${sql.literal(a)}.isRefund AS ${sql.literal(prefix)}_isRefund, ${sql.literal(a)}.linkedRefundId AS ${sql.literal(prefix)}_linkedRefundId, ${sql.literal(a)}.transferGroupId AS ${sql.literal(prefix)}_transferGroupId, ${sql.literal(a)}.kind AS ${sql.literal(prefix)}_kind, ${sql.literal(a)}.bundleId AS ${sql.literal(prefix)}_bundleId, ${sql.literal(a)}.manualDate AS ${sql.literal(prefix)}_manualDate, ${sql.literal(a)}.anomalyFlags AS ${sql.literal(prefix)}_anomalyFlags, ${sql.literal(a)}.isDuplicateExcluded AS ${sql.literal(prefix)}_isDuplicateExcluded, ${sql.literal(a)}.duplicateNote AS ${sql.literal(prefix)}_duplicateNote, ${recapExclusionFor(a, issuerAlias)} AS ${sql.literal(prefix)}_excludedFromRecap, ${sql.literal(a)}.manualExcluded AS ${sql.literal(prefix)}_manualExcluded, ${sql.literal(a)}.notes AS ${sql.literal(prefix)}_notes, ${sql.literal(a)}.importedAt AS ${sql.literal(prefix)}_importedAt, ${sql.literal(a)}.importMonth AS ${sql.literal(prefix)}_importMonth, ${sql.literal(a)}.importBatchId AS ${sql.literal(prefix)}_importBatchId`;
 
     const transferCandidatesQuery = SqlSchema.findAll({
       Request: Schema.Void,
