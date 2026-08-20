@@ -1,4 +1,10 @@
-import type { AccountId, DeclaredTotals, ExtractedTransaction } from "@mamen/shared/contract";
+import type {
+  AccountId,
+  DeclaredTotals,
+  ExtractedTransaction,
+  StatementFormatId,
+} from "@mamen/shared/contract";
+import type { FormatDetection } from "./parsers/detect-format";
 
 /** The wizard's two interactive steps (commit is a transient action, not a step). */
 export type WizardStep = "upload" | "preview";
@@ -23,6 +29,22 @@ export type WizardSource = "csv" | "pdf";
  */
 export type RowId = number & { readonly __brand: "RowId" };
 
+/**
+ * Where the chosen **Statement Format** came from — and, when none was chosen,
+ * why not. `null` until there is a CSV with a verdict on it.
+ *
+ * The last two arms are the reason this is not a boolean. **Nothing matched**
+ * (the account has no format that fingerprints this file) and **several
+ * matched** (more than one does, equally specifically) are different facts, and
+ * one line covering both made an ambiguity read as the file being unrecognised
+ * (PRD #180). `manual` silences both: the user has answered the question the
+ * hint was asking.
+ *
+ * A format is set exactly under `detected` and `manual`; the other two leave it
+ * `null`, which is what keeps the wizard off the preview until someone decides.
+ */
+export type FormatSelection = "detected" | "manual" | "none" | "several";
+
 /** Local state for the 3-step import wizard (no global store — PRD). */
 export type WizardState = {
   step: WizardStep;
@@ -37,10 +59,17 @@ export type WizardState = {
   file: File | null;
   headers: readonly string[];
   rows: ReadonlyArray<Record<string, string>>;
-  /** The chosen parser id — auto-detected or manually picked; `null` until set. */
-  parserId: string | null;
-  /** Whether {@link parserId} came from auto-detection (vs a manual pick). */
-  autoDetected: boolean;
+  /**
+   * The chosen **Statement Format** — a row of the account's formats table
+   * (issue #184), auto-detected or manually picked; `null` until one is.
+   *
+   * Only the id: the record itself is the query's, and holding a copy here would
+   * be a second answer to "which format is this import using" that a refetch
+   * could contradict.
+   */
+  formatId: StatementFormatId | null;
+  /** How {@link formatId} was arrived at, and the picker's hint. */
+  formatSelection: FormatSelection | null;
   accountId: AccountId | null;
   /** Groups every row of this import together; regenerated per file. */
   importBatchId: string;
@@ -112,10 +141,16 @@ export type WizardAction =
       fileName: string;
       headers: readonly string[];
       rows: ReadonlyArray<Record<string, string>>;
-      detectedParserId: string | null;
     }
+  /**
+   * What detection made of the loaded CSV, once the account's formats are in
+   * hand. A second beat rather than part of `file-parsed`, because the formats
+   * are fetched: the file can be sitting in the wizard — dropped, or handed off
+   * by the accounts grid at mount — before the list that decides it arrives.
+   */
+  | { type: "detect-format"; detection: FormatDetection }
   | { type: "file-error"; message: string }
-  | { type: "select-parser"; parserId: string }
+  | { type: "select-format"; formatId: StatementFormatId }
   | { type: "select-account"; accountId: AccountId }
   | { type: "go-to-preview" }
   | { type: "back-to-upload" }
@@ -160,8 +195,8 @@ export const initialWizardState: WizardState = {
   file: null,
   headers: [],
   rows: [],
-  parserId: null,
-  autoDetected: false,
+  formatId: null,
+  formatSelection: null,
   accountId: null,
   importBatchId: "",
   error: null,
@@ -199,7 +234,6 @@ export type WizardPrefill = {
     fileName: string;
     headers: readonly string[];
     rows: ReadonlyArray<Record<string, string>>;
-    detectedParserId: string | null;
   };
 };
 
@@ -226,8 +260,9 @@ export function makeInitialWizardState(prefill?: WizardPrefill): WizardState {
           fileName: file.fileName,
           headers: file.headers,
           rows: file.rows,
-          parserId: file.detectedParserId,
-          autoDetected: file.detectedParserId !== null,
+          // No format: the account's formats have not been fetched at mount, so
+          // a handed-off statement lands undecided and `detect-format` settles
+          // it when the list arrives — the same beat a dropped file waits for.
           importBatchId: crypto.randomUUID(),
         }
       : {}),
@@ -252,15 +287,16 @@ export function canAcceptFile(state: WizardState): boolean {
 
 /**
  * Whether the upload step has everything it needs to move to the preview. The
- * account is required either way; a CSV also needs parsed rows + a picked parser,
- * while a PDF needs a settled extraction (rows in hand, not still extracting).
+ * account is required either way; a CSV also needs parsed rows + a chosen
+ * **Statement Format**, while a PDF needs a settled extraction (rows in hand,
+ * not still extracting).
  */
 export function canPreview(state: WizardState): boolean {
   if (state.accountId === null) return false;
   if (state.source === "pdf") {
     return state.extracted !== null && !state.extracting;
   }
-  return state.rows.length > 0 && state.parserId !== null;
+  return state.rows.length > 0 && state.formatId !== null;
 }
 
 /** Pure state machine for the import wizard. */
@@ -277,8 +313,10 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         file: null,
         headers: action.headers,
         rows: action.rows,
-        parserId: action.detectedParserId,
-        autoDetected: action.detectedParserId !== null,
+        // Undecided until `detect-format` lands: the account's formats are a
+        // query, and this file may have arrived before its result did.
+        formatId: null,
+        formatSelection: null,
         importBatchId: crypto.randomUUID(),
         error: null,
         // A CSV replacing a prior PDF drop clears the extraction state.
@@ -289,6 +327,14 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         // The indices named the previous file's records.
         skippedRows: [],
       };
+    case "detect-format":
+      // A detection result names *this* CSV's headers. It is dispatched from an
+      // effect, so a file replaced in the meantime — by a PDF, or by a drop that
+      // failed — has already taken its verdict's subject with it.
+      if (state.source !== "csv") return state;
+      return action.detection.outcome === "detected"
+        ? { ...state, formatId: action.detection.format.id, formatSelection: "detected" }
+        : { ...state, formatId: null, formatSelection: action.detection.outcome };
     case "file-error":
       // A failed drop must not leave a prior file previewable behind the error.
       // Clear both paths' loaded state so the wizard shows only the error and
@@ -300,8 +346,8 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         file: null,
         headers: [],
         rows: [],
-        parserId: null,
-        autoDetected: false,
+        formatId: null,
+        formatSelection: null,
         extracting: false,
         extracted: null,
         declaredTotals: null,
@@ -310,20 +356,34 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         // Nothing is previewable behind the error, so there is no row to name.
         rowIds: [],
       };
-    case "select-parser":
-      // Another parser reads the same file into different records, so an index
+    case "select-format":
+      // Another format reads the same file into different records, so an index
       // kept here would hold out whichever row landed at that position.
       return {
         ...state,
         // Re-minted, not emptied: the rows stay on screen and every one of them
-        // still needs an id — just not one a skip made under the old parser could
+        // still needs an id — just not one a skip made under the old format could
         // still name. The counter never rewinds, so the new ids can't collide.
         ...mintRowIds(state.nextRowId, state.rows.length),
-        parserId: action.parserId,
+        formatId: action.formatId,
+        // The user has answered; whatever detection had to say about this file
+        // is no longer the thing to tell them.
+        formatSelection: "manual",
         skippedRows: [],
       };
     case "select-account":
-      return { ...state, accountId: action.accountId };
+      if (action.accountId === state.accountId) return state;
+      // Formats belong to an account, so another account is another set of them
+      // — and a format the new account does not have is not a format this import
+      // may use. Cleared rather than re-checked, which puts the file back where
+      // a freshly parsed one is and lets `detect-format` answer again over the
+      // list that is now the right one.
+      return {
+        ...state,
+        accountId: action.accountId,
+        formatId: null,
+        formatSelection: null,
+      };
     case "go-to-preview":
       return canPreview(state) ? { ...state, step: "preview" } : state;
     case "back-to-upload":
@@ -341,11 +401,11 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         extractionMs: null,
         importBatchId: crypto.randomUUID(),
         error: null,
-        // A PDF replacing a prior CSV drop clears the parser state.
+        // A PDF replacing a prior CSV drop clears the format state.
         headers: [],
         rows: [],
-        parserId: null,
-        autoDetected: false,
+        formatId: null,
+        formatSelection: null,
         skippedRows: [],
         // No candidate rows until the extraction settles.
         rowIds: [],

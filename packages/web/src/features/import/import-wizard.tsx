@@ -1,14 +1,14 @@
-import type { Account, AccountId } from "@mamen/shared/contract";
+import type { Account, AccountId, StatementFormat } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { type ReactNode, useMemo, useReducer } from "react";
+import { type ReactNode, useEffect, useMemo, useReducer } from "react";
 import { PageLayout } from "@/components/page-layout";
 import { stepPresence } from "@/lib/motion";
-import { accountQueries } from "@/lib/sdk";
+import { accountQueries, statementFormatQueries } from "@/lib/sdk";
 import { enrichExtracted } from "./enrich-extracted";
 import { takeHandoff } from "./import-handoff";
 import { applyFormat } from "./parsers/apply-format";
-import { detectFormat, getFormatById } from "./parsers/registry";
+import { csvFormats, detectFormat } from "./parsers/detect-format";
 import type { ParsedTransaction } from "./parsers/types";
 import { PdfValidationStep } from "./pdf-validation-step";
 import { PreviewStep } from "./preview-step";
@@ -31,15 +31,11 @@ function readPrefill(initialAccountId?: AccountId): WizardPrefill | undefined {
   if (initialAccountId === undefined && handoff === null) return undefined;
   return {
     accountId: initialAccountId ?? null,
+    // No format on the way in: the account's formats are fetched, and at mount
+    // that request has not been made. The handed-off file lands undecided and is
+    // detected on the same beat a dropped one is (issue #184).
     ...(handoff
-      ? {
-          file: {
-            fileName: handoff.fileName,
-            headers: handoff.headers,
-            rows: handoff.rows,
-            detectedParserId: detectFormat(handoff.headers)?.id ?? null,
-          },
-        }
+      ? { file: { fileName: handoff.fileName, headers: handoff.headers, rows: handoff.rows } }
       : {}),
   };
 }
@@ -65,6 +61,40 @@ export function ImportWizard({
   const accounts = (accountsQuery.data?.items ?? []) as readonly Account[];
   const reducedMotion = useReducedMotion() ?? false;
 
+  // The account's **Statement Formats** (issue #184). Ordinary contract data the
+  // client fetches — web ADR 0001 stands, since the rows themselves never leave
+  // the browser. Scoped to the account, which is why it comes second: the
+  // account is settled before a file is taken (issue #181), so by the time there
+  // is anything to detect this has been asked for.
+  const formatsQuery = useQuery({
+    ...statementFormatQueries.list({ accountId: state.accountId ?? undefined }),
+    enabled: state.accountId !== null,
+  });
+  // The CSV ones only: a PDF format carries no header fingerprint, so it could
+  // only ever fail against a CSV — offering one is a guaranteed error.
+  const formats = useMemo(
+    () => csvFormats((formatsQuery.data?.items ?? []) as readonly StatementFormat[]),
+    [formatsQuery.data],
+  );
+
+  // Detection, once the file and the account's formats are both in hand. An
+  // effect because those two arrive independently: a dropped CSV parses in a
+  // moment, a grid handoff is there at mount, and the formats come off the
+  // network. `formatSelection` is what makes this run once per file — the
+  // reducer sets it on every verdict and on a manual pick, and clears it
+  // wherever the file or the account changes.
+  useEffect(() => {
+    if (state.source !== "csv" || state.headers.length === 0) return;
+    if (state.formatSelection !== null || formatsQuery.isPending) return;
+    dispatch({ type: "detect-format", detection: detectFormat(state.headers, formats) });
+  }, [state.source, state.headers, state.formatSelection, formats, formatsQuery.isPending]);
+
+  /** The record the preview and the commit are read through; `undefined` until picked. */
+  const selectedFormat = useMemo(
+    () => formats.find((format) => format.id === state.formatId),
+    [formats, state.formatId],
+  );
+
   // The previewed rows and the **stable row id** each one is skipped by, kept
   // positional with one another — the convention the duplicate flags already
   // follow, so one index reads a row, its mark and its identity.
@@ -89,11 +119,8 @@ export function ImportWizard({
       if (!state.extracted) return { records: [], rowIds: [] };
       return { records: enrichExtracted(state.extracted, ctx), rowIds: state.rowIds };
     }
-    // `parserId` names the chosen **Statement Format** — it keeps its name until
-    // formats become account-scoped records with branded ids (PRD #180).
-    const format = state.parserId ? getFormatById(state.parserId) : undefined;
-    if (!format) return { records: [], rowIds: [] };
-    const parsed = applyFormat(format, state.rows, ctx);
+    if (!selectedFormat) return { records: [], rowIds: [] };
+    const parsed = applyFormat(selectedFormat, state.rows, ctx);
     return {
       records: parsed.map(({ record }) => record),
       rowIds: parsed.map(({ sourceIndex }) => state.rowIds[sourceIndex]),
@@ -101,19 +128,14 @@ export function ImportWizard({
   }, [
     state.source,
     state.extracted,
-    state.parserId,
+    selectedFormat,
     state.accountId,
     state.rows,
     state.rowIds,
     state.importBatchId,
   ]);
 
-  const sourceLabel =
-    state.source === "pdf"
-      ? "PDF extraction"
-      : state.parserId
-        ? (getFormatById(state.parserId)?.name ?? state.parserId)
-        : "—";
+  const sourceLabel = state.source === "pdf" ? "PDF extraction" : (selectedFormat?.name ?? "—");
 
   const accountName = accounts.find((account) => account.id === state.accountId)?.name ?? "—";
 
@@ -124,7 +146,7 @@ export function ImportWizard({
 
   let stepContent: ReactNode = null;
   if (state.step === "upload") {
-    stepContent = <UploadStep state={state} dispatch={dispatch} />;
+    stepContent = <UploadStep formats={formats} state={state} dispatch={dispatch} />;
   } else if (
     state.accountId !== null &&
     state.source === "pdf" &&
@@ -147,7 +169,7 @@ export function ImportWizard({
         dispatch={dispatch}
       />
     );
-  } else if (state.accountId !== null && state.parserId !== null) {
+  } else if (state.accountId !== null && selectedFormat !== undefined) {
     stepContent = (
       <PreviewStep
         records={records}

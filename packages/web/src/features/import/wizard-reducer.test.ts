@@ -1,4 +1,4 @@
-import type { AccountId } from "@mamen/shared/contract";
+import type { AccountId, CsvStatementFormat, StatementFormatId } from "@mamen/shared/contract";
 import { describe, expect, it } from "vitest";
 import {
   canAcceptFile,
@@ -11,16 +11,48 @@ import {
 const HEADERS = ["Statut", "Date", "Montant", "Direction", "Intitulé"];
 const ROWS = [{ Statut: "COMPLETE", Date: "2026-01-01T00:00:00Z" }];
 
+/**
+ * A stored **Statement Format**, as the account's list hands it to the wizard
+ * (issue #184). The reducer never reads anything off one but its `id` — the
+ * detecting and the applying are both outside it — so the whole record is here
+ * only because the `detect-format` action carries the detection result verbatim.
+ */
+const FORMAT: CsvStatementFormat = {
+  id: 3 as StatementFormatId,
+  accountId: 5 as AccountId,
+  name: "Green-Got",
+  kind: "csv",
+  headers: HEADERS,
+  mapping: { date: "Date", rawIssuerString: "Intitulé", counterpartyIban: null },
+  rules: {
+    sign: { strategy: "signed-column", amountColumn: "Montant" },
+    dateOrder: "iso",
+    decimalSeparator: "dot",
+    filter: null,
+  },
+  createdAt: new Date("2026-01-01T00:00:00.000Z"),
+  updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+};
+
 /** The account is picked first now (issue #181) — every file case starts here. */
 const withAccount = wizardReducer(initialWizardState, {
   type: "select-account",
   accountId: 5 as AccountId,
 });
 
+/** An account and a parsed CSV, with detection not yet run over it. */
+const parsedCsv = wizardReducer(withAccount, {
+  type: "file-parsed",
+  fileName: "statement.csv",
+  headers: HEADERS,
+  rows: ROWS,
+});
+
 describe("wizardReducer", () => {
   it("starts on the upload step with nothing configured", () => {
     expect(initialWizardState.step).toBe("upload");
-    expect(initialWizardState.parserId).toBeNull();
+    expect(initialWizardState.formatId).toBeNull();
+    expect(initialWizardState.formatSelection).toBeNull();
     expect(initialWizardState.accountId).toBeNull();
   });
 
@@ -29,33 +61,71 @@ describe("wizardReducer", () => {
     expect(canAcceptFile(withAccount)).toBe(true);
   });
 
-  it("auto-selects the parser when the file is recognized", () => {
+  // A parsed file no longer arrives with a format on it: the account's formats
+  // are fetched (issue #184), so detection is a second beat that lands whenever
+  // that list does. Until it lands the file is loaded and undecided.
+  it("loads a parsed file with no format decided yet", () => {
     const state = wizardReducer(withAccount, {
       type: "file-parsed",
       fileName: "statement.csv",
       headers: HEADERS,
       rows: ROWS,
-      detectedParserId: "green-got",
     });
 
     expect(state.fileName).toBe("statement.csv");
     expect(state.rows).toBe(ROWS);
-    expect(state.parserId).toBe("green-got");
-    expect(state.autoDetected).toBe(true);
+    expect(state.formatId).toBeNull();
+    expect(state.formatSelection).toBeNull();
     expect(state.importBatchId).toMatch(/.+/);
   });
 
-  it("leaves the parser unset for a manual pick when unrecognized", () => {
-    const state = wizardReducer(withAccount, {
-      type: "file-parsed",
-      fileName: "unknown.csv",
-      headers: ["a", "b"],
-      rows: ROWS,
-      detectedParserId: null,
+  it("selects the detected format when exactly one fingerprint matched", () => {
+    const state = wizardReducer(parsedCsv, {
+      type: "detect-format",
+      detection: { outcome: "detected", format: FORMAT },
     });
 
-    expect(state.parserId).toBeNull();
-    expect(state.autoDetected).toBe(false);
+    expect(state.formatId).toBe(FORMAT.id);
+    expect(state.formatSelection).toBe("detected");
+  });
+
+  // The two hints the picker distinguishes are two *states*, not one failure:
+  // "nothing matched" is a file the account has no format for, "several matched"
+  // is an ambiguity only the user can settle. Both leave the format unset.
+  it("leaves the format unset when nothing matched", () => {
+    const state = wizardReducer(parsedCsv, {
+      type: "detect-format",
+      detection: { outcome: "none" },
+    });
+
+    expect(state.formatId).toBeNull();
+    expect(state.formatSelection).toBe("none");
+  });
+
+  it("leaves the format unset when several matched", () => {
+    const state = wizardReducer(parsedCsv, {
+      type: "detect-format",
+      detection: { outcome: "several" },
+    });
+
+    expect(state.formatId).toBeNull();
+    expect(state.formatSelection).toBe("several");
+  });
+
+  // Detection is fired from an effect, so its result can arrive after the user
+  // has replaced the CSV with a PDF. Applying it then would put a CSV format on
+  // a file that has no headers at all.
+  it("ignores a detection result once the CSV is gone", () => {
+    const pdf = wizardReducer(parsedCsv, {
+      type: "extract-start",
+      file: new File([], "statement.pdf", { type: "application/pdf" }),
+    });
+    const state = wizardReducer(pdf, {
+      type: "detect-format",
+      detection: { outcome: "detected", format: FORMAT },
+    });
+
+    expect(state).toBe(pdf);
   });
 
   // The ordering is the state machine's, not only the drop zone's: a **Statement
@@ -67,7 +137,6 @@ describe("wizardReducer", () => {
       fileName: "statement.csv",
       headers: HEADERS,
       rows: ROWS,
-      detectedParserId: "green-got",
     });
 
     expect(state).toBe(initialWizardState);
@@ -82,22 +151,30 @@ describe("wizardReducer", () => {
     expect(state).toBe(initialWizardState);
   });
 
-  it("records the account and then a manual parser choice", () => {
-    const state = wizardReducer(withAccount, {
-      type: "select-parser",
-      parserId: "green-got",
+  // A manual pick overrides whatever detection concluded — including a
+  // successful one, since the picker is on screen for every import rather than
+  // only when detection failed.
+  it("records the account and then a manual format choice", () => {
+    const detected = wizardReducer(parsedCsv, {
+      type: "detect-format",
+      detection: { outcome: "detected", format: FORMAT },
+    });
+    const state = wizardReducer(detected, {
+      type: "select-format",
+      formatId: 9 as StatementFormatId,
     });
 
     expect(state.accountId).toBe(5);
-    expect(state.parserId).toBe("green-got");
+    expect(state.formatId).toBe(9);
+    expect(state.formatSelection).toBe("manual");
   });
 
-  it("advances to preview only with a file, parser, and account", () => {
+  it("advances to preview only with a file, format, and account", () => {
     const ready = wizardReducer(
       {
         ...initialWizardState,
         rows: ROWS,
-        parserId: "green-got",
+        formatId: 3 as StatementFormatId,
         accountId: 5 as AccountId,
       },
       { type: "go-to-preview" },
@@ -105,10 +182,37 @@ describe("wizardReducer", () => {
     expect(ready.step).toBe("preview");
 
     const notReady = wizardReducer(
-      { ...initialWizardState, rows: ROWS, parserId: null, accountId: null },
+      { ...initialWizardState, rows: ROWS, formatId: null, accountId: null },
       { type: "go-to-preview" },
     );
     expect(notReady.step).toBe("upload");
+  });
+
+  // Formats are account-scoped, so the account changing under a loaded file
+  // changes which formats could read it — including out of existence.
+  it("drops the chosen format when the account changes", () => {
+    const detected = wizardReducer(parsedCsv, {
+      type: "detect-format",
+      detection: { outcome: "detected", format: FORMAT },
+    });
+    const state = wizardReducer(detected, { type: "select-account", accountId: 8 as AccountId });
+
+    expect(state.accountId).toBe(8);
+    expect(state.formatId).toBeNull();
+    expect(state.formatSelection).toBeNull();
+    // The file itself is untouched — it is the same statement, read against
+    // another account's formats.
+    expect(state.rows).toBe(ROWS);
+  });
+
+  it("leaves a chosen format alone when the same account is picked again", () => {
+    const detected = wizardReducer(parsedCsv, {
+      type: "detect-format",
+      detection: { outcome: "detected", format: FORMAT },
+    });
+    const state = wizardReducer(detected, { type: "select-account", accountId: 5 as AccountId });
+
+    expect(state).toBe(detected);
   });
 
   it("goes back to upload from preview", () => {
@@ -149,7 +253,6 @@ describe("wizardReducer — PDF extraction path", () => {
       fileName: "statement.csv",
       headers: HEADERS,
       rows: ROWS,
-      detectedParserId: "green-got",
     });
 
     const state = wizardReducer(fromCsv, {
@@ -163,7 +266,7 @@ describe("wizardReducer — PDF extraction path", () => {
     expect(state.importBatchId).toMatch(/.+/);
     // The prior CSV parse is wiped so it can't leak into the PDF preview.
     expect(state.rows).toEqual([]);
-    expect(state.parserId).toBeNull();
+    expect(state.formatId).toBeNull();
   });
 
   // Extraction can only have started with an account in hand, so a success has
@@ -330,7 +433,6 @@ const parseCsv = (rows = CSV_ROWS) =>
     fileName: "statement.csv",
     headers: HEADERS,
     rows,
-    detectedParserId: "green-got",
   });
 
 /** Drive the wizard through a whole PDF drop to a settled extraction. */
@@ -446,17 +548,16 @@ describe("wizardReducer — skipping previewed rows", () => {
       fileName: "other.csv",
       headers: HEADERS,
       rows: CSV_ROWS,
-      detectedParserId: "green-got",
     });
     expect(state.skippedRows).toEqual([]);
   });
 
-  it("clears the skipped rows when the parser changes", () => {
+  it("clears the skipped rows when the format changes", () => {
     const loaded = parseCsv();
     const skipped = wizardReducer(loaded, { type: "skip-row", rowId: loaded.rowIds[0] });
     const state = wizardReducer(skipped, {
-      type: "select-parser",
-      parserId: "some-other-bank",
+      type: "select-format",
+      formatId: 9 as StatementFormatId,
     });
     expect(state.skippedRows).toEqual([]);
   });
@@ -555,7 +656,6 @@ describe("wizardReducer — stable row ids", () => {
       fileName: "other.csv",
       headers: HEADERS,
       rows: CSV_ROWS,
-      detectedParserId: "green-got",
     });
 
     expect(second.rowIds).toHaveLength(CSV_ROWS.length);
@@ -571,11 +671,11 @@ describe("wizardReducer — stable row ids", () => {
     expect(state.rowIds).toEqual([]);
   });
 
-  it("mints a different set of ids when the parser changes", () => {
+  it("mints a different set of ids when the format changes", () => {
     const parsed = parseCsv();
     const state = wizardReducer(parsed, {
-      type: "select-parser",
-      parserId: "some-other-bank",
+      type: "select-format",
+      formatId: 9 as StatementFormatId,
     });
 
     // Re-minted rather than emptied: the rows are still on screen, so every one
@@ -645,37 +745,26 @@ describe("makeInitialWizardState", () => {
     expect(state.step).toBe("upload");
   });
 
-  it("pre-loads an already-parsed statement, auto-detected", () => {
+  // The handoff carries a parsed file, never a format: the account's formats are
+  // fetched, and at mount that request has not even been made. So a grid-driven
+  // open lands undecided and detection runs the moment the list arrives, exactly
+  // as a dropped file's does (issue #184).
+  it("pre-loads an already-parsed statement, with no format decided yet", () => {
     const state = makeInitialWizardState({
       accountId: 7 as AccountId,
       file: {
         fileName: "statement.csv",
         headers: HEADERS,
         rows: ROWS,
-        detectedParserId: "green-got",
       },
     });
 
     expect(state.fileName).toBe("statement.csv");
     expect(state.rows).toBe(ROWS);
-    expect(state.parserId).toBe("green-got");
-    expect(state.autoDetected).toBe(true);
+    expect(state.headers).toBe(HEADERS);
+    expect(state.formatId).toBeNull();
+    expect(state.formatSelection).toBeNull();
     expect(state.importBatchId).toMatch(/.+/);
-  });
-
-  it("leaves the parser unset when the handed-off file is unrecognized", () => {
-    const state = makeInitialWizardState({
-      accountId: 7 as AccountId,
-      file: {
-        fileName: "unknown.csv",
-        headers: ["a", "b"],
-        rows: ROWS,
-        detectedParserId: null,
-      },
-    });
-
-    expect(state.parserId).toBeNull();
-    expect(state.autoDetected).toBe(false);
   });
 
   // The grid always hands off both, so this is the invariant restated at the
@@ -688,14 +777,13 @@ describe("makeInitialWizardState", () => {
         fileName: "statement.csv",
         headers: HEADERS,
         rows: ROWS,
-        detectedParserId: "green-got",
       },
     });
 
     expect(state.accountId).toBeNull();
     expect(state.fileName).toBeNull();
     expect(state.rows).toEqual([]);
-    expect(state.parserId).toBeNull();
+    expect(state.formatId).toBeNull();
   });
 
   // The handoff arrives already parsed, so its rows never pass through
@@ -708,7 +796,6 @@ describe("makeInitialWizardState", () => {
         fileName: "statement.csv",
         headers: HEADERS,
         rows: [ROWS[0], ROWS[0]],
-        detectedParserId: "green-got",
       },
     });
 

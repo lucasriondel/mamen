@@ -299,6 +299,14 @@ repeated per package.
   changes its export earns a *new* one, so statements downloaded before the
   change keep a format that reads them. Nothing links a transaction to the
   format that produced it, and until editing exists nothing should.
+
+  The **CSV** import path reads the stored record in the browser (issue #184):
+  the client fetches the account's formats like any other contract data and
+  applies the chosen one locally, so web ADR 0001 stands — the statement's rows
+  still never leave the browser and there is no import endpoint. Because a bank
+  that changes its export earns a new format, the newer record's fingerprint is
+  a strict superset of the older's, and **the format requiring the most headers
+  wins** when several match.
   _Avoid_: adapter, mapper, importer, schema.
 
 - **Extracted transaction** — one candidate operation lifted from a PDF bank

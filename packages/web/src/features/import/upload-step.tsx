@@ -1,4 +1,4 @@
-import { type AccountId, MAX_PDF_BYTES } from "@mamen/shared/contract";
+import { type AccountId, type CsvStatementFormat, MAX_PDF_BYTES } from "@mamen/shared/contract";
 import { Link } from "@tanstack/react-router";
 import { type DragEvent, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,6 @@ import { formatExtractionTime } from "./format-extraction-time";
 import { FormatPicker } from "./format-picker";
 import { InlineAccountSelect } from "./inline-account-select";
 import { parseCsvFile } from "./parse-file";
-import { detectFormat } from "./parsers/registry";
 import { canAcceptFile, canPreview, type WizardAction, type WizardState } from "./wizard-reducer";
 
 /** Whether a dropped file is a PDF (by MIME or extension) — the async fork. */
@@ -26,16 +25,20 @@ function isPdf(file: File): boolean {
  * disabled, its drop handler a no-op — while {@link canAcceptFile} is false.
  *
  * Once a file is taken, the fork on file shape is unchanged. A **CSV** parses
- * in-browser (papaparse), auto-detects its **Parser** by header fingerprint, and
- * continues synchronously. A **PDF** uploads to `/import/extract-pdf` and shows a
- * loading state while the async extraction runs; on success the wizard lands
- * straight on the **side-by-side validation** view, since the account it was
- * waiting for was settled before the drop.
+ * in-browser (papaparse) and continues synchronously; which **Statement Format**
+ * reads it is settled by the wizard, against the account's stored formats. A
+ * **PDF** uploads to `/import/extract-pdf` and shows a loading state while the
+ * async extraction runs; on success the wizard lands straight on the
+ * **side-by-side validation** view, since the account it was waiting for was
+ * settled before the drop.
  */
 export function UploadStep({
+  formats,
   state,
   dispatch,
 }: {
+  /** The account's CSV formats — what the picker offers. */
+  formats: readonly CsvStatementFormat[];
   state: WizardState;
   dispatch: (action: WizardAction) => void;
 }) {
@@ -97,13 +100,9 @@ export function UploadStep({
   const handleCsv = async (file: File) => {
     try {
       const { headers, rows } = await parseCsvFile(file);
-      dispatch({
-        type: "file-parsed",
-        fileName: file.name,
-        headers,
-        rows,
-        detectedParserId: detectFormat(headers)?.id ?? null,
-      });
+      // Parsed, not yet decided: detection is the wizard's, over the account's
+      // stored formats, and it runs the moment that list is in hand (issue #184).
+      dispatch({ type: "file-parsed", fileName: file.name, headers, rows });
     } catch {
       dispatch({
         type: "file-error",
@@ -216,7 +215,9 @@ export function UploadStep({
             ) : null}
           </p>
 
-          {state.source === "csv" ? <FormatPicker state={state} dispatch={dispatch} /> : null}
+          {state.source === "csv" ? (
+            <FormatPicker formats={formats} state={state} dispatch={dispatch} />
+          ) : null}
         </div>
       ) : null}
 

@@ -46,16 +46,17 @@ _Avoid_: Gate, lock (the zone is inert, not refusing).
 Defined in [CONTEXT-MAP.md](../../CONTEXT-MAP.md) — it became a contract entity
 with a table of its own in issue #183, so it means the same thing here, in the
 contract and on the server.
-_Code note_: `parsers/format.ts` re-exports the vocabulary from the contract and
-adds the one thing the applying side needs that a stored row does not carry — an
-`id` that is a string, because the records this package can reach today are
-still literals in code (`parsers/formats.ts`, Green-Got). `FORMATS` becomes a
-query for one account's formats when the wizard starts reading the table, and
-this narrower type collapses into the contract's `CsvStatementFormat` at the
-same moment. The `kind` here is `csv` only: a PDF format declares expected
-columns rather than a fingerprint and is applied by **PDF extraction**, not by
-the **Parser**. `scripts/scrub-bank-statements.sh` reads `GREEN_GOT_HEADERS` out
-of `formats.ts` to check the fixture still carries the columns the format needs.
+_Code note_: the browser reads the **stored** record since issue #184 — the
+wizard fetches one account's formats through `statementFormatQueries.list` and
+applies the chosen one locally, so there is one vocabulary (the contract's) and
+web has no narrower copy of it. Web ADR 0001 is untouched by that: a format is
+ordinary contract data the client fetches, and the statement's rows still never
+leave the browser. `parsers/formats.ts` keeps Green-Got as a *reference* record
+rather than a registered one — nothing imports it at runtime, it drives the
+applying suite against the shipped fixture, and
+`scripts/scrub-bank-statements.sh` reads `GREEN_GOT_HEADERS` out of it to check
+the fixture still carries the columns the format needs. The real Green-Got is
+authored by a user through the UI (PRD #180 declines to seed it).
 
 **Parser** (Statement Parser):
 The code that **applies** a **Statement Format** to a **CSV**'s rows — not a
@@ -65,14 +66,42 @@ no I/O and no network (web ADR 0001). Each record names the `sourceIndex` it was
 read from, because the format's row filter drops rows it won't import, and that
 join is the only way the preview can put a row's **stable row id** on the record
 it produced. Detection is a separate pure function over the format records:
-`detectFormat(headers, candidates)` picks the sole format whose header
-fingerprint the file satisfies, and `null` when none or several do — the
-candidates being a parameter is what makes "several matched" reachable while one
-format is registered.
+`detectFormat(headers, formats)` in `parsers/detect-format.ts` answers with one
+of three verdicts — a format, **nothing matched**, or **several matched** — over
+the account's stored formats, which are its candidates rather than a
+module-level set.
+**The most specific match wins.** A bank that changes its export earns a *new*
+format rather than an edit to the old one (PRD #180), so the newer record's
+fingerprint is a strict superset of the older's: requiring the most headers is
+exactly "asked the most of this file", which reads a post-change file with the
+new format and a pre-change one with the old, neither asking the user. A genuine
+tie — two formats demanding as much of each other — is not guessed at.
 The wizard runs papaparse once, then applies the selected format. CSV-only by
 design — a PDF Statement has no headers and no synchronous parse; it goes through
-**PDF extraction** instead.
+**PDF extraction** instead, and a PDF format is never a detection candidate
+because it declares the columns to ask a model for rather than a fingerprint.
 _Avoid_: Adapter, mapper, importer.
+
+**Format picker**:
+The `<select>` on the upload step naming which **Statement Format** reads the
+dropped **CSV**. On screen for *every* CSV import since issue #184, not only
+when detection came up empty: detection **preselects**, and a user who
+disagrees with a successful detection needs the same control to say so. It
+lists exactly the account's `csv` formats — never a PDF one, which carries no
+fingerprint and could only ever fail against a CSV — and a manual pick silences
+whatever the hint below it was saying, because the user has answered the
+question it was asking.
+
+**Nothing matched** / **several matched**:
+The format picker's two hint states, and two different facts about the file.
+*Nothing matched* means no format the account holds fingerprints it; *several
+matched* means more than one does, equally specifically, and neither is more
+specific than the other. They were a single "Format not recognized" line before
+issue #184, which made the app understanding a file **twice over** read as not
+understanding it at all. Both leave the format unchosen and the preview out of
+reach — nothing is guessed at — and both are settled by the user picking.
+_Avoid_: Unrecognised, unsupported (for *several matched* — the file was
+recognised, more than once).
 
 **PDF extraction**:
 The server-side act of turning a **PDF** Statement into candidate transaction

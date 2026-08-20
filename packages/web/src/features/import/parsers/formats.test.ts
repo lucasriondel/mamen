@@ -4,7 +4,7 @@ import Papa from "papaparse";
 import { describe, expect, it } from "vitest";
 import { applyFormat } from "./apply-format";
 import { greenGotFormat } from "./formats";
-import { matchesHeaders } from "./registry";
+import { matchesHeaders } from "./detect-format";
 import type { ParseContext } from "./types";
 
 // Parse the shipped Green-Got fixture once (PRD "the applying seam" — the

@@ -36,6 +36,8 @@ export {
   secretKeys,
   secretMutations,
   secretQueries,
+  statementFormatKeys,
+  statementFormatQueries,
   type TransactionCountParams,
   type TransactionListParams,
   transactionKeys,

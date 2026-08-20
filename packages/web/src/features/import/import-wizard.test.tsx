@@ -9,6 +9,9 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { withShell } from "@/test/sidebar-shell";
+// The reference record, imported statically: it reads nothing but the contract's
+// types, so it is not one of the modules the SDK mock below has to precede.
+import { greenGotFormat } from "./parsers/formats";
 
 // A two-row Green-Got statement spanning a month boundary (Jan debit + Feb
 // credit) — the shape that used to cost the earlier month its rows, and that the
@@ -21,6 +24,50 @@ const CSV = [
 
 const ACCOUNTS = [{ id: 1, name: "Checking", type: "checking" }];
 
+/**
+ * The account's stored **Statement Formats** (issue #184). Green-Got is the
+ * reference record — the same one the applying suite drives against the shipped
+ * fixture — because the CSV above is a Green-Got export and these tests are
+ * about a user who has that format on their account.
+ *
+ * Kept per-case: which formats an account has is the whole subject of detection,
+ * so every case that cares says so.
+ */
+const OTHER_CSV_FORMAT = {
+  ...greenGotFormat,
+  id: 2,
+  name: "Other bank",
+  headers: ["Date", "Montant"],
+};
+const PDF_FORMAT = {
+  id: 3,
+  accountId: 1,
+  name: "Green-Got (PDF)",
+  kind: "pdf",
+  columns: ["Date", "Montant"],
+  mapping: greenGotFormat.mapping,
+  rules: greenGotFormat.rules,
+  createdAt: greenGotFormat.createdAt,
+  updatedAt: greenGotFormat.updatedAt,
+};
+/** A format for some other bank's export — nothing this file carries. */
+const FOREIGN_CSV_FORMAT = {
+  ...greenGotFormat,
+  id: 4,
+  name: "Another bank",
+  headers: ["Date", "Description", "Amount"],
+};
+/**
+ * Ties {@link OTHER_CSV_FORMAT}: it asks as much of the file, and asks for
+ * something else. Neither is the more specific, so neither wins.
+ */
+const TIED_CSV_FORMAT = {
+  ...greenGotFormat,
+  id: 5,
+  name: "Third bank",
+  headers: ["Date", "Direction"],
+};
+
 // SDK-boundary seam: mock the account read + the writes the wizard makes,
 // keeping the rest of the SDK (keys) real for invalidation. `transactionMutations`
 // is replaced wholesale rather than spread over: committing is purely additive
@@ -30,6 +77,9 @@ const bulkCreate = vi.fn();
 const extractPdf = vi.fn();
 // The per-month read behind the preview's already-imported marks (issue #89).
 const listTransactions = vi.fn();
+// The account's formats, which the CSV path reads instead of a compile-time
+// array (issue #184).
+const listFormats = vi.fn();
 
 vi.mock("@mamen/sdk", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@mamen/sdk")>();
@@ -45,6 +95,12 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
       list: (params: Record<string, unknown>) => ({
         queryKey: ["transactions", "list", params],
         queryFn: async () => listTransactions(params),
+      }),
+    },
+    statementFormatQueries: {
+      list: (params: Record<string, unknown>) => ({
+        queryKey: ["statement-formats", "list", params],
+        queryFn: async () => listFormats(params),
       }),
     },
     transactionMutations: {
@@ -106,10 +162,35 @@ async function chooseAccount(user: ReturnType<typeof userEvent.setup>) {
   await user.selectOptions(screen.getByLabelText("Target account"), "1");
 }
 
+/** Stand the account's formats up for one case. */
+function withFormats(...items: readonly unknown[]) {
+  listFormats.mockResolvedValue({ items, total: items.length });
+}
+
+/** Drop the Green-Got CSV into the account, the formats already stood up. */
+async function dropCsv(user: ReturnType<typeof userEvent.setup>) {
+  renderWizard();
+  await chooseAccount(user);
+  await user.upload(
+    await screen.findByLabelText("CSV or PDF statement"),
+    new File([CSV], "statement.csv", { type: "text/csv" }),
+  );
+}
+
+/** What the format picker is offering, in order, the placeholder included. */
+function offeredFormats(): (string | null)[] {
+  return within(screen.getByLabelText("Statement format"))
+    .getAllByRole("option")
+    .map((option) => option.textContent);
+}
+
 beforeEach(() => {
   bulkCreate.mockReset().mockResolvedValue([]);
   extractPdf.mockReset();
   listTransactions.mockReset().mockResolvedValue({ items: [], total: 0, bundleMembers: [] });
+  // The common case: the account has the Green-Got format the CSV above needs.
+  listFormats.mockReset();
+  withFormats(greenGotFormat);
 });
 
 /** A stored row the re-import cases compare against, as the list returns it. */
@@ -391,6 +472,107 @@ describe("ImportWizard", () => {
       name: "Continue to preview",
     });
     expect(continueButton).toBeEnabled();
+  });
+
+  // ---- The format picker (issue #184) ---------------------------------------
+  //
+  // The picker is on screen for **every** CSV import rather than only when
+  // detection failed: detection preselects, and a user who disagrees needs
+  // somewhere to say so. What it offers is the account's **CSV** formats.
+
+  it("lists the account's CSV formats and never its PDF ones", async () => {
+    const user = userEvent.setup();
+    // One account, three formats: two that fingerprint a CSV and one that
+    // declares the columns to ask a model for. A PDF format carries no
+    // fingerprint, so offering it for a CSV could only ever fail.
+    withFormats(greenGotFormat, OTHER_CSV_FORMAT, PDF_FORMAT);
+    await dropCsv(user);
+
+    // Both CSV formats fit the file; Green-Got asks the most of it, so it is the
+    // one preselected — and the picker is still there to say otherwise.
+    expect(await screen.findByText("Auto-detected.")).toBeInTheDocument();
+    expect(screen.getByLabelText("Statement format")).toHaveValue(String(greenGotFormat.id));
+    expect(offeredFormats()).toEqual(["Pick the statement format…", "Green-Got", "Other bank"]);
+  });
+
+  it("offers nothing and reports no match when the account's only format is a PDF one", async () => {
+    const user = userEvent.setup();
+    withFormats(PDF_FORMAT);
+    await dropCsv(user);
+
+    expect(
+      await screen.findByText(
+        "No saved format recognizes this file — pick the one to read it with.",
+      ),
+    ).toBeInTheDocument();
+    expect(offeredFormats()).toEqual(["Pick the statement format…"]);
+    expect(screen.getByRole("button", { name: "Continue to preview" })).toBeDisabled();
+  });
+
+  // **Nothing matched** — the account has formats, none of them fingerprints
+  // this file. The user picks one, and the wizard proceeds on their answer.
+  it("reports that nothing matched, and previews on the format the user picks", async () => {
+    const user = userEvent.setup();
+    withFormats(FOREIGN_CSV_FORMAT);
+    await dropCsv(user);
+
+    expect(
+      await screen.findByText(
+        "No saved format recognizes this file — pick the one to read it with.",
+      ),
+    ).toBeInTheDocument();
+    // Nothing is guessed at: no format chosen, so there is nothing to preview.
+    expect(screen.getByLabelText("Statement format")).toHaveValue("");
+    expect(screen.getByRole("button", { name: "Continue to preview" })).toBeDisabled();
+
+    await user.selectOptions(
+      screen.getByLabelText("Statement format"),
+      String(FOREIGN_CSV_FORMAT.id),
+    );
+
+    // The user has answered, so the hint stops asking the question.
+    expect(screen.queryByText(/No saved format recognizes this file/)).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Continue to preview" }));
+    expect(await screen.findByText("Another bank")).toBeInTheDocument();
+  });
+
+  // **Several matched** — a *different* fact from nothing matching, and it has
+  // to read as one. Both hints were one "not recognized" line before, which made
+  // the app understanding the file twice over look like not understanding it.
+  it("reports that several matched, in words nothing-matched does not use", async () => {
+    const user = userEvent.setup();
+    // A genuine tie: two formats demanding as much of the file as each other,
+    // neither more specific. Not something to guess at.
+    withFormats(OTHER_CSV_FORMAT, TIED_CSV_FORMAT);
+    await dropCsv(user);
+
+    expect(
+      await screen.findByText(
+        "More than one saved format matches this file — pick the one to read it with.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/No saved format recognizes this file/)).toBeNull();
+    // Both are offered — the ambiguity is the user's to settle.
+    expect(offeredFormats()).toEqual(["Pick the statement format…", "Other bank", "Third bank"]);
+    expect(screen.getByLabelText("Statement format")).toHaveValue("");
+    expect(screen.getByRole("button", { name: "Continue to preview" })).toBeDisabled();
+  });
+
+  it("previews under a format that overrides a successful detection", async () => {
+    const user = userEvent.setup();
+    withFormats(greenGotFormat, OTHER_CSV_FORMAT);
+    await dropCsv(user);
+
+    expect(await screen.findByText("Auto-detected.")).toBeInTheDocument();
+    await user.selectOptions(
+      screen.getByLabelText("Statement format"),
+      String(OTHER_CSV_FORMAT.id),
+    );
+    expect(screen.queryByText("Auto-detected.")).toBeNull();
+
+    // The override is what the preview names and what it reads the rows with.
+    await user.click(screen.getByRole("button", { name: "Continue to preview" }));
+    expect(await screen.findByText("Other bank")).toBeInTheDocument();
   });
 
   // With the account settled before the drop, a successful extraction has

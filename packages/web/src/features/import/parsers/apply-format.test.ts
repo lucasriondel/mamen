@@ -1,7 +1,11 @@
-import type { AccountId } from "@mamen/shared/contract";
+import type {
+  AccountId,
+  CsvStatementFormat,
+  StatementFormatId,
+  ValueRules,
+} from "@mamen/shared/contract";
 import { describe, expect, it } from "vitest";
 import { applyFormat } from "./apply-format";
-import type { StatementFormat, ValueRules } from "./format";
 import type { ParseContext } from "./types";
 
 /**
@@ -26,9 +30,10 @@ const ctx: ParseContext = { accountId: 7 as AccountId, importBatchId: "batch-abc
  * every position. Each case overrides only the rule it is about, so what the
  * case is testing is the whole of its own text.
  */
-function formatWith(rules: Partial<ValueRules>): StatementFormat {
+function formatWith(rules: Partial<ValueRules>): CsvStatementFormat {
   return {
-    id: "test",
+    id: 1 as StatementFormatId,
+    accountId: 7 as AccountId,
     name: "Test",
     kind: "csv",
     headers: ["Date", "Label", "Amount"],
@@ -46,12 +51,12 @@ function formatWith(rules: Partial<ValueRules>): StatementFormat {
 }
 
 /** The amounts a format reads out of the given rows, in output order. */
-function amounts(format: StatementFormat, rows: Record<string, string>[]): number[] {
+function amounts(format: CsvStatementFormat, rows: Record<string, string>[]): number[] {
   return applyFormat(format, rows, ctx).map(({ record }) => record.amount);
 }
 
 /** The dates, as ISO strings — `Invalid Date` included, so it can be asserted. */
-function dates(format: StatementFormat, rows: Record<string, string>[]): string[] {
+function dates(format: CsvStatementFormat, rows: Record<string, string>[]): string[] {
   return applyFormat(format, rows, ctx).map(({ record }) => record.date.toISOString());
 }
 

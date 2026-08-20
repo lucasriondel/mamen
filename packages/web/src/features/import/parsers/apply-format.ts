@@ -1,5 +1,10 @@
+import type {
+  CsvStatementFormat,
+  DateOrder,
+  DecimalSeparator,
+  SignRule,
+} from "@mamen/shared/contract";
 import { isPlausibleIban, normalizeIban } from "@/features/accounts/account-iban";
-import type { DateOrder, DecimalSeparator, SignRule, StatementFormat } from "./format";
 import { importMonthKey } from "./month";
 import type { ParseContext, ParsedRow } from "./types";
 
@@ -134,6 +139,13 @@ function counterpartyIbanOf(
  * Apply a **Statement Format** to raw CSV rows — the primary import seam, and
  * the successor to the hand-written parsers' `parse`.
  *
+ * The format is the stored entity itself (issue #184), fetched from the account
+ * it belongs to like any other contract data — web ADR 0001 stands, since the
+ * rows never leave the browser. `CsvStatementFormat` rather than the union: a
+ * PDF format declares the columns to ask a model for and is applied by **PDF
+ * extraction**, so handing one to a CSV parser is a type error rather than a
+ * `mapping.date` that reads a column no CSV has.
+ *
  * Pure: a format, the rows, and the context the file cannot supply go in;
  * records come out. No file I/O and no network, which is what keeps client-side
  * parsing (web ADR 0001) testable without standing anything up.
@@ -148,7 +160,7 @@ function counterpartyIbanOf(
  * columns the format maps decides what is *promoted*, never what is kept.
  */
 export function applyFormat(
-  format: StatementFormat,
+  format: CsvStatementFormat,
   rows: ReadonlyArray<Record<string, string>>,
   ctx: ParseContext,
 ): ParsedRow[] {
