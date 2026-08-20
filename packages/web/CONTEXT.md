@@ -254,8 +254,10 @@ The PDF-flavored preview step: the source **PDF** rendered on one side (native
 browser viewer via a blob-URL iframe — no pdfjs), the **extracted transactions**
 in an editable table on the other. The user corrects wrong values, skips the
 phantom ones (a **skipped row**, since issue #192 — it used to delete them), and
-adds missed ones (edit-in-place) before committing. The CSV path keeps its own
-plain-table preview; both converge on the same commit.
+adds missed ones (edit-in-place) before committing. The CSV path previews the
+same table on the same **candidate-table primitives** (PRD #190) — read-only
+cells, no add-row, no banner — so the two paths skip and filter identically; both
+converge on the same commit.
 _Avoid_: Diff view, comparison.
 _Code note_: the panel is a real table since issue #193 — TanStack Table over the
 **candidate-table primitives**, columns *skip | date | raw issuer | amount*, plus
@@ -318,10 +320,13 @@ A previewed row the user held out of the commit — the recourse for an **alread
 imported** mark, and the only thing that ever keeps a parsed row from being
 written (epic #85). Offered per row on both preview paths: the row is struck
 through and restorable, and its editable fields (where it has any) are disabled
-while it is skipped. On **side-by-side validation** the control is the table's
-skip checkbox (issue #193); the CSV preview still carries the icon-button pair
-until it adopts the same table (issue #194). A skip is a decision about *this* commit and nothing else:
-it writes nothing, stores nothing, and is gone when the wizard is.
+while it is skipped. The control is the table's skip checkbox on **both** paths —
+**side-by-side validation** since issue #193, the CSV preview since PRD #190's
+closing slice — replacing the × / undo-arrow pair that path used to carry:
+checked *is* skipped, so one control says the state and reverses it, and a
+mis-click costs the click that undoes it. A skip is a decision about *this*
+commit and nothing else: it writes nothing, stores nothing, and is gone when the
+wizard is.
 
 Since issue #195 a whole set can be skipped at once, from the checkbox in the
 table header — and it acts on **the rows on screen**, never on the ones a **row
@@ -388,19 +393,25 @@ rows — keyed on a database id, joining issuer and category, expanding bundles 
 and a candidate row has none of that. What is shared is the primitives and the
 pattern, not the component.
 _Avoid_: Reusing the transactions table, one preview behind capability flags.
-_Code note_: the PDF panel composes them today; the CSV preview follows in issue
-#194 and picks up the facets with them, since #195 put both in the shared hook
-rather than in the panel. The columns are memoised on `dispatch` alone and
-everything else a cell needs reaches it on the row — a cell closing over a fresh
-array per render gives the column list a new identity, which remounts the
-editable inputs and eats the keystroke being typed. The statement's own columns
-are the one thing derived from the rows, so they are held still by identity
-(`useStableList`): editing a *value* must not read as a change of *columns*.
+_Code note_: both previews compose them — `pdf-validation-step.tsx` since issue
+#193 and `preview-step.tsx` since PRD #190's closing slice, which picked up the
+**row facets** with them because #195 put the facets in the shared hook rather
+than in the panel. Neither preview names the statement's columns: they are read
+off the rows' **raw source** inside the hook, so one statement cannot be offered
+two different sets of filters depending on which path it arrived by. Each
+preview declares only its own columns, and the editable one memoises them on
+`dispatch` alone with everything else a cell needs reaching it on the row — a
+cell closing over a fresh array per render gives the column list a new identity,
+which remounts the editable inputs and eats the keystroke being typed. The
+read-only preview's cells close over nothing, so its list is built once. The
+statement's own columns are the one thing derived from the rows, so they are held
+still by identity (`useStableList`): editing a *value* must not read as a change
+of *columns*.
 
 **Row facet**:
 One of the statement's own columns offered as a filter above an import preview's
-table, listing the distinct values it prints and how many rows carry each (issue
-#195). Choosing a value narrows the table to the rows that print exactly it;
+table — *either* preview since PRD #190's closing slice — listing the distinct
+values it prints and how many rows carry each (issue #195). Choosing a value narrows the table to the rows that print exactly it;
 choosing several values of one column is an *or*, and narrowing two columns is an
 *and*. What makes the facets possible at all is the **raw source** — the cells as
 the bank printed them — which both import paths carry since issue #189. On the

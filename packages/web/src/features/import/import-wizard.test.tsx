@@ -323,6 +323,17 @@ function shownRows(): string[] {
     .map((input) => (input as HTMLInputElement).value);
 }
 
+/**
+ * The same question of the CSV preview's table, whose cells are text rather than
+ * inputs: the rows it is showing, by raw issuer, in table order.
+ */
+function shownCsvRows(): string[] {
+  return within(screen.getByRole("table"))
+    .getAllByRole("row")
+    .slice(1)
+    .map((row) => within(row).getAllByRole("cell")[2]?.textContent ?? "");
+}
+
 /** Narrow that table to one value of one of the statement's own columns. */
 async function chooseFacetValue(
   user: ReturnType<typeof userEvent.setup>,
@@ -559,12 +570,14 @@ describe("ImportWizard", () => {
       "1 of these rows looks already imported.",
     );
 
-    await user.click(screen.getByRole("button", { name: "Skip row 1" }));
+    await user.click(screen.getByRole("checkbox", { name: "Skip row 1" }));
 
-    // The row stays on screen — struck through, offering to take it back — and
-    // the count it was the whole of goes with it.
+    // The row stays on screen — struck through, saying so, and the box that held
+    // it out is the one that takes it back — and the count it was the whole of
+    // goes with it.
     expect(screen.getByText("SHOP A").className).toContain("line-through");
-    expect(screen.getByRole("button", { name: "Restore row 1" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Skip row 1" })).toBeChecked();
+    expect(screen.getByText("Skipped — won't be imported")).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
 
     await user.click(screen.getByRole("button", { name: "Commit import" }));
@@ -588,8 +601,11 @@ describe("ImportWizard", () => {
 
     await user.click(screen.getByRole("button", { name: "Continue to preview" }));
 
-    await user.click(await screen.findByRole("button", { name: "Skip row 2" }));
-    await user.click(screen.getByRole("button", { name: "Restore row 2" }));
+    // One control, both ways: unchecking the box that held the row out is what
+    // takes it back, so a mis-click costs the click that undoes it.
+    await user.click(await screen.findByRole("checkbox", { name: "Skip row 2" }));
+    await user.click(screen.getByRole("checkbox", { name: "Skip row 2" }));
+    expect(screen.getByRole("checkbox", { name: "Skip row 2" })).not.toBeChecked();
 
     await user.click(screen.getByRole("button", { name: "Commit import" }));
     await waitFor(() => expect(bulkCreate).toHaveBeenCalledTimes(1));
@@ -626,7 +642,7 @@ describe("ImportWizard", () => {
     expect(await screen.findByText("SHOP B")).toBeInTheDocument();
     expect(screen.queryByText("NOT SETTLED")).toBeNull();
 
-    await user.click(screen.getByRole("button", { name: "Skip row 2" }));
+    await user.click(screen.getByRole("checkbox", { name: "Skip row 2" }));
 
     expect(screen.getByText("SHOP B").className).toContain("line-through");
     expect(screen.getByText("SHOP A").className).not.toContain("line-through");
@@ -636,6 +652,171 @@ describe("ImportWizard", () => {
     const records = bulkCreate.mock.calls[0][0];
     expect(records).toHaveLength(1);
     expect(records[0]).toMatchObject({ rawIssuerString: "SHOP A" });
+  });
+
+  // PRD #190's last slice: the CSV preview is the *same* table as the
+  // side-by-side panel — TanStack Table over the shared **candidate-table
+  // primitives** — so the two import paths do not teach two habits. The columns
+  // are the three this view has always shown, read-only, behind the shared skip
+  // checkbox. This asserts the columns the user gets, not how they are built.
+  it("renders the previewed rows as a table, skip checkbox first", async () => {
+    const user = userEvent.setup();
+    renderWizard();
+
+    await chooseAccount(user);
+
+    await user.upload(
+      await screen.findByLabelText("CSV or PDF statement"),
+      new File([CSV], "statement.csv", { type: "text/csv" }),
+    );
+    expect(await screen.findByText("Auto-detected.")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Continue to preview" }));
+
+    const firstRow = (await screen.findByText("SHOP A")).closest("tr") as HTMLElement;
+    const table = firstRow.closest("table") as HTMLElement;
+    // The skip column's header carries no text: it is the select-all control
+    // itself, named for assistive tech like the per-row boxes are.
+    expect(
+      within(table)
+        .getAllByRole("columnheader")
+        .map((th) => th.textContent),
+    ).toEqual(["", "Date", "Raw issuer", "Amount"]);
+    expect(
+      within(table).getByRole("checkbox", { name: "Skip all shown rows" }),
+    ).toBeInTheDocument();
+
+    // The skip is a checkbox, not the × / undo-arrow pair this path used to
+    // carry: checked *is* skipped, so one control says the state and reverses
+    // it — the same control as the PDF panel's, not merely the same look.
+    const skip = within(table).getByRole("checkbox", { name: "Skip row 1" });
+    expect(skip).not.toBeChecked();
+    expect(screen.queryByRole("button", { name: "Skip row 1" })).toBeNull();
+    // It leads the row — whether the row belongs at all sits in front of the
+    // values it carries.
+    expect(skip.closest("td")).toBe(firstRow.firstElementChild);
+
+    // And nothing came along from the editable path: the CSV said what it said,
+    // so there is no input to type into and no row to add.
+    expect(within(table).queryAllByRole("textbox")).toHaveLength(0);
+    expect(screen.queryByRole("button", { name: "Add row" })).toBeNull();
+  });
+
+  /**
+   * PRD #190 closes on the CSV preview offering the same **row facets** as the
+   * side-by-side panel: the two paths must not teach two habits, and the facets
+   * come off the shared hook rather than off either preview, so one statement
+   * cannot be offered two different sets of filters depending on how it arrived.
+   *
+   * The CSV archive is the whole delivered row (issue #187), so a real export
+   * facets with no configuration at all — which is the claim these cases make.
+   */
+  describe("the CSV preview facets the same way", () => {
+    /**
+     * A wider Green-Got export: four settled rows, two columns whose values
+     * repeat (`Direction`, `Moyen de paiement`) and three that print a different
+     * value on every row. The two card payments are *not* adjacent, so a bulk
+     * skip made over the narrowed table has to name rows rather than the
+     * positions they were clicked at.
+     */
+    const WIDE_CSV = [
+      '"Statut","Date","Montant","Direction","Intitulé","Moyen de paiement"',
+      '"COMPLETE","2026-01-15T10:00:00.000Z","10","DEBIT","SHOP A","CARTE"',
+      '"COMPLETE","2026-01-16T10:00:00.000Z","20","DEBIT","SHOP B","VIREMENT"',
+      '"COMPLETE","2026-01-17T10:00:00.000Z","30","DEBIT","SHOP C","CARTE"',
+      '"COMPLETE","2026-02-03T10:00:00.000Z","40","CREDIT","SALAIRE","VIREMENT"',
+    ].join("\n");
+
+    /** Drop that export and reach the preview. */
+    async function dropWideCsv(user: ReturnType<typeof userEvent.setup>) {
+      renderWizard();
+      await chooseAccount(user);
+      await user.upload(
+        await screen.findByLabelText("CSV or PDF statement"),
+        new File([WIDE_CSV], "statement.csv", { type: "text/csv" }),
+      );
+      expect(await screen.findByText("Auto-detected.")).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Continue to preview" }));
+      expect(await screen.findByText("SHOP A")).toBeInTheDocument();
+    }
+
+    it("narrows to one value of the file's own column and skips exactly those rows", async () => {
+      const user = userEvent.setup();
+      await dropWideCsv(user);
+
+      await chooseFacetValue(user, "Moyen de paiement", "CARTE (2)");
+
+      expect(shownCsvRows()).toEqual(["SHOP A", "SHOP C"]);
+      // A narrowed table must not read as a short statement — the hidden rows
+      // are still going to commit.
+      expect(screen.getByText(/2 of 4 rows/)).toBeInTheDocument();
+
+      // One click holds out the rows on screen, and only those.
+      await user.click(screen.getByRole("checkbox", { name: "Skip all shown rows" }));
+      await user.click(screen.getByRole("button", { name: "Clear filters" }));
+      expect(screen.getByRole("checkbox", { name: "Skip row 1" })).toBeChecked();
+      expect(screen.getByRole("checkbox", { name: "Skip row 3" })).toBeChecked();
+      expect(screen.getByRole("checkbox", { name: "Skip row 2" })).not.toBeChecked();
+      expect(screen.getByRole("checkbox", { name: "Skip row 4" })).not.toBeChecked();
+
+      await user.click(screen.getByRole("button", { name: "Commit import" }));
+      await waitFor(() => expect(bulkCreate).toHaveBeenCalledTimes(1));
+      expect(
+        bulkCreate.mock.calls[0][0].map(
+          (record: { rawIssuerString: string }) => record.rawIssuerString,
+        ),
+      ).toEqual(["SHOP B", "SALAIRE"]);
+    });
+
+    it("commits the rows a filter is hiding — narrowing is not skipping", async () => {
+      const user = userEvent.setup();
+      await dropWideCsv(user);
+
+      await chooseFacetValue(user, "Moyen de paiement", "CARTE (2)");
+      expect(shownCsvRows()).toEqual(["SHOP A", "SHOP C"]);
+      // The count above the table is the other question — kept of parsed, what
+      // the commit will write — and a filter does not move it.
+      expect(screen.getByText("4")).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: "Commit import" }));
+      await waitFor(() => expect(bulkCreate).toHaveBeenCalledTimes(1));
+      expect(bulkCreate.mock.calls[0][0]).toHaveLength(4);
+    });
+
+    it("offers a filter only on the columns whose values repeat, and shows the one filtered on", async () => {
+      const user = userEvent.setup();
+      await dropWideCsv(user);
+
+      // Off the file itself, no setup: `Intitulé` prints a different value on
+      // every row, so a filter on it would hand the user their own statement
+      // back a row at a time.
+      expect(screen.getByRole("button", { name: "Filter by Direction" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Filter by Intitulé" })).toBeNull();
+
+      const table = screen.getByRole("table");
+      const headers = () =>
+        within(table)
+          .getAllByRole("columnheader")
+          .map((th) => th.textContent);
+      expect(headers()).toEqual(["", "Date", "Raw issuer", "Amount"]);
+
+      // Every delivered column is available to show, faceted or not — the point
+      // of the toggle is to read the value being filtered on — and none of the
+      // three that always show is in the list.
+      await user.click(screen.getByRole("button", { name: "Choose columns" }));
+      const menu = await screen.findByRole("menu", { name: "Toggle columns" });
+      expect(
+        within(menu)
+          .getAllByRole("menuitemcheckbox")
+          .map((item) => item.textContent),
+      ).toEqual(["Statut", "Date", "Montant", "Direction", "Intitulé", "Moyen de paiement"]);
+
+      await user.click(within(menu).getByRole("menuitemcheckbox", { name: "Moyen de paiement" }));
+
+      expect(headers()).toEqual(["", "Date", "Raw issuer", "Amount", "Moyen de paiement"]);
+      // In the bank's own words (ADR 0012), beside the parsed values.
+      expect(within(table).getAllByText("CARTE")).toHaveLength(2);
+    });
   });
 
   // A statement overlapping an already-imported month, but holding genuinely

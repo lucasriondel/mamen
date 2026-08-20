@@ -79,6 +79,29 @@ export function skipColumn<T>(): PreviewColumn<T> {
 }
 
 /**
+ * What a **skipped row** says for itself, in the cell carrying the operation
+ * label. Both previews said this in identical markup in the same place, so it is
+ * one component: a row cannot announce itself skipped one way on one path and
+ * another way on the other, any more than an **already imported** mark can.
+ */
+export function SkippedNote() {
+  return (
+    <span className="whitespace-nowrap text-gousse-muted text-xs">Skipped — won't be imported</span>
+  );
+}
+
+/**
+ * The strike a skipped row's own cells wear. The shell only marks the row
+ * `data-skipped` — what striking *means* differs between the previews (this is
+ * the text half; the editable panel also fades and disables its inputs) — so the
+ * cells ask for it, and they ask in one place rather than spelling the class out
+ * per column.
+ */
+export function strikeWhileSkipped(isSkipped: boolean): string {
+  return isSkipped ? "line-through" : "";
+}
+
+/**
  * The select-all control at the head of the skip column: it holds out **the rows
  * on screen**, and takes them back when they already are (issue #195).
  *

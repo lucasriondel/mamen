@@ -4,9 +4,10 @@ import type { ParsedTransaction } from "./parsers/types";
 import { useImportCommit } from "./use-import-commit";
 
 /**
- * The shared foot of both preview paths (CSV plain table and PDF side-by-side):
- * the Commit / Back buttons. Both sources converge on the same commit rail, so
- * this is the single place that owns the commit action.
+ * The shared foot of both preview paths (the CSV preview and PDF side-by-side —
+ * one table on the same primitives since PRD #190): the Commit / Back buttons.
+ * Both sources converge on the same commit rail, so this is the single place
+ * that owns the commit action.
  *
  * It carries no *warning* (issue #88). It used to show two per-month notices —
  * how many existing rows the commit would replace, and how many **bundles** it

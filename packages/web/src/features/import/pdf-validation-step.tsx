@@ -9,6 +9,7 @@ import {
   CandidateTable,
   type PreviewColumn,
   skipColumn,
+  SkippedNote,
   useCandidateTable,
 } from "./candidate-table";
 import type { CandidateRow } from "./candidate-rows";
@@ -262,11 +263,7 @@ function ExtractedRows({
                 className={fieldClass(isSkipped)}
               />
               {row.original.duplicate ? <AlreadyImportedMark /> : null}
-              {isSkipped ? (
-                <span className="whitespace-nowrap text-gousse-muted text-xs">
-                  Skipped — won't be imported
-                </span>
-              ) : null}
+              {isSkipped ? <SkippedNote /> : null}
             </div>
           );
         },
