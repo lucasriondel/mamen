@@ -366,6 +366,10 @@ export const bundleWrites = ({
         excludedFromRecap: 0,
         manualExcluded: 0,
         notes: null,
+        // A **bundle parent** is synthetic: no bank ever sent a row for it, so
+        // there is no **raw source** to keep. Null is the honest answer, and
+        // the same one a PDF-extracted row gives (issue #176).
+        rawSource: null,
         // The synthetic row entered the system now; its *date* is the
         // members' business, its import stamp is this write's.
         importedAt: now.toISOString(),

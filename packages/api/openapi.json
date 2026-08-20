@@ -2362,6 +2362,14 @@
                     "title": "maxLength(1000)",
                     "maxLength": 1000
                   },
+                  "rawSource": {
+                    "type": "object",
+                    "required": [],
+                    "properties": {},
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  },
                   "importedAt": {
                     "$ref": "#/components/schemas/Date"
                   },
@@ -3293,6 +3301,14 @@
                     "title": "maxLength(1000)",
                     "maxLength": 1000
                   },
+                  "rawSource": {
+                    "type": "object",
+                    "required": [],
+                    "properties": {},
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  },
                   "importedAt": {
                     "$ref": "#/components/schemas/Date"
                   },
@@ -3562,6 +3578,14 @@
                           "description": "a string at most 1000 character(s) long",
                           "title": "maxLength(1000)",
                           "maxLength": 1000
+                        },
+                        "rawSource": {
+                          "type": "object",
+                          "required": [],
+                          "properties": {},
+                          "additionalProperties": {
+                            "type": "string"
+                          }
                         },
                         "importedAt": {
                           "$ref": "#/components/schemas/Date"
@@ -7111,6 +7135,14 @@
             "description": "a string at most 1000 character(s) long",
             "title": "maxLength(1000)",
             "maxLength": 1000
+          },
+          "rawSource": {
+            "type": "object",
+            "required": [],
+            "properties": {},
+            "additionalProperties": {
+              "type": "string"
+            }
           },
           "importedAt": {
             "$ref": "#/components/schemas/Date"
