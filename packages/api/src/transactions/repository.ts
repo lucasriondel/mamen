@@ -774,6 +774,21 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()("api/Tran
     // REAL, so `SUM` over them is exact.
     const spentCents = sql`SUM(ROUND(-t.amount * 100))`;
 
+    // The trend's **bucket key** (issue #113), shared by both trend queries
+    // below the way `spentCents` is shared by the breakdowns above (issue
+    // #173): a cell of the composition sums into the point beside it only
+    // while the two agree on what a bucket *is*, so the derivation is stated
+    // once rather than copied into each `execute`.
+    //
+    // A `substr` of the ISO `date` TEXT, never a parsed date, so `"YYYY-MM"`
+    // and `"YYYY"` fall straight out of the same column every period bound is
+    // expressed over — the identical derivation `recapPeriodsQuery` uses for
+    // the picker's options. Granularity therefore costs one prefix length (7 or
+    // 4) and nothing else; it is `sql.literal` because it is a schema-validated
+    // enum of two values, never caller text.
+    const trendBucket = (granularity: TrendFilter["granularity"]) =>
+      sql`substr(t.date, 1, ${sql.literal(granularity === "year" ? "4" : "7")})`;
+
     // Spend per **issuer** over the whole filtered set — no page, no cap. The
     // `null` group is the rows with no issuer: unattributed spend is still
     // spend, so it comes back as its own bucket for the page to label
@@ -861,14 +876,8 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()("api/Tran
 
     // Earnings and spending per time bucket, both as **positive magnitudes** in
     // integer cents (the same discipline every other money sum here uses — three
-    // 0.10 € rows added as REALs give 0.30000000000000004).
-    //
-    // The bucket key is a `substr` of the ISO `date` TEXT, never a parsed date,
-    // so `"YYYY-MM"` and `"YYYY"` fall straight out of the same column every
-    // period bound is expressed over — the identical derivation
-    // `recapPeriodsQuery` uses for the picker's options. Granularity therefore
-    // costs one prefix length (7 or 4) and nothing else; it is `sql.literal`
-    // because it is a schema-validated enum of two values, never caller text.
+    // 0.10 € rows added as REALs give 0.30000000000000004). The bucket key is
+    // the shared `trendBucket` fragment, declared beside `spentCents` above.
     //
     // Only buckets holding at least one counted row come back: a gap in the
     // middle of a range is a real gap, and it is the client that decides whether
@@ -878,10 +887,8 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()("api/Tran
     const recapTrendQuery = SqlSchema.findAll({
       Request: Schema.Any as Schema.Schema<TrendFilter>,
       Result: RecapTrendPoint,
-      execute: (f) => {
-        const bucket = sql`substr(t.date, 1, ${sql.literal(f.granularity === "year" ? "4" : "7")})`;
-        return sql`SELECT ${bucket} AS bucket, COALESCE(SUM(CASE WHEN t.amount > 0 THEN ROUND(t.amount * 100) ELSE 0 END), 0) / 100.0 AS earned, COALESCE(SUM(CASE WHEN t.amount < 0 THEN ROUND(-t.amount * 100) ELSE 0 END), 0) / 100.0 AS spent ${readFrom} ${trendWhere(f)} GROUP BY bucket ORDER BY bucket ASC`;
-      },
+      execute: (f) =>
+        sql`SELECT ${trendBucket(f.granularity)} AS bucket, COALESCE(SUM(CASE WHEN t.amount > 0 THEN ROUND(t.amount * 100) ELSE 0 END), 0) / 100.0 AS earned, COALESCE(SUM(CASE WHEN t.amount < 0 THEN ROUND(-t.amount * 100) ELSE 0 END), 0) / 100.0 AS spent ${readFrom} ${trendWhere(f)} GROUP BY bucket ORDER BY bucket ASC`,
     });
 
     // The **composition** series: spending cut by bucket AND derived category
@@ -904,10 +911,8 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()("api/Tran
     const recapTrendByCategoryQuery = SqlSchema.findAll({
       Request: Schema.Any as Schema.Schema<TrendFilter>,
       Result: RecapTrendCategoryCell,
-      execute: (f) => {
-        const bucket = sql`substr(t.date, 1, ${sql.literal(f.granularity === "year" ? "4" : "7")})`;
-        return sql`SELECT ${bucket} AS bucket, ${derivedCategory} AS categoryId, ${spentCents} / 100.0 AS spent ${readFrom} ${spendWhere(f)} GROUP BY bucket, ${derivedCategory} ORDER BY bucket ASC, categoryId`;
-      },
+      execute: (f) =>
+        sql`SELECT ${trendBucket(f.granularity)} AS bucket, ${derivedCategory} AS categoryId, ${spentCents} / 100.0 AS spent ${readFrom} ${spendWhere(f)} GROUP BY bucket, ${derivedCategory} ORDER BY bucket ASC, categoryId`,
     });
 
     // The months the data covers, newest first — the period picker's options.
