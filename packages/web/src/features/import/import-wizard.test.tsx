@@ -336,6 +336,55 @@ describe("ImportWizard", () => {
     expect(await screen.findByText("Transactions page")).toBeInTheDocument();
   });
 
+  // Issue #187: what the account's **Statement Format** did not map is not lost
+  // on the way to the commit. The whole delivered row travels as **raw source**,
+  // and the counterparty IBAN is promoted out of the column the *format* names.
+  // Asserted at this seam rather than only at the applying one because the two
+  // ends of that claim are a stored record and a `bulkCreate` payload.
+  it("commits the whole delivered row as raw source, and the IBAN the format maps", async () => {
+    const user = userEvent.setup();
+    // Assembled rather than written out, so this file carries no matchable
+    // account number (issue #108): the stored form first, then the way a bank
+    // prints it — grouped in fours.
+    const stored = `FR7699999${"0".repeat(17)}3`;
+    const delivered = stored.replace(/(.{4})/g, "$1 ").trim();
+    // The Green-Got fingerprint plus three columns the format maps nothing to.
+    const wide = [
+      '"Statut","Date","Montant","Direction","Intitulé","Référence","Moyen de paiement","IBAN du tiers"',
+      `"COMPLETE","2026-01-15T10:00:00.000Z","10","DEBIT","SHOP A","echeance pret","SEPA","${delivered}"`,
+    ].join("\n");
+
+    renderWizard();
+    await chooseAccount(user);
+    await user.upload(
+      await screen.findByLabelText("CSV or PDF statement"),
+      new File([wide], "statement.csv", { type: "text/csv" }),
+    );
+    expect(await screen.findByText("Auto-detected.")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Continue to preview" }));
+    await user.click(await screen.findByRole("button", { name: "Commit import" }));
+
+    await waitFor(() => expect(bulkCreate).toHaveBeenCalledTimes(1));
+    const [record] = bulkCreate.mock.calls[0][0];
+
+    // Every key, in the bank's own words — the five the format reads and the
+    // three it does not, because mapped-ness is a rendering decision (ADR 0012).
+    expect(record.rawSource).toStrictEqual({
+      Statut: "COMPLETE",
+      Date: "2026-01-15T10:00:00.000Z",
+      Montant: "10",
+      Direction: "DEBIT",
+      Intitulé: "SHOP A",
+      Référence: "echeance pret",
+      "Moyen de paiement": "SEPA",
+      "IBAN du tiers": delivered,
+    });
+    // Promoted through `mapping.counterpartyIban` and normalised for the join
+    // against `accounts.iban`, while the archive keeps the delivered form.
+    expect(record.counterpartyIban).toBe(stored);
+  });
+
   // Issue #89: import is additive, so re-importing the same statement duplicates
   // it. The preview marks the rows that look already imported — and commits them
   // all the same, because removing a row is the user's call.

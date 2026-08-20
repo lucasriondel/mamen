@@ -80,6 +80,18 @@ The wizard runs papaparse once, then applies the selected format. CSV-only by
 design — a PDF Statement has no headers and no synchronous parse; it goes through
 **PDF extraction** instead, and a PDF format is never a detection candidate
 because it declares the columns to ask a model for rather than a fingerprint.
+**The mapping decides what is promoted, never what is kept** (issue #187). Every
+record carries the whole delivered row as **raw source** — a copy, every key
+included, the mapped ones too — so a column nothing reads today is readable
+tomorrow without a re-import. The **Counterparty IBAN** is reached through
+`mapping.counterpartyIban` rather than a column name the applying code knows, so
+a bank that calls that column something else still populates the field, and one
+that writes no counterparty account number says so with a `null` and imports all
+the same. A blank, an absent and an unpromotable value (`isPlausibleIban`) all
+come out **absent** rather than as an empty string, because "not given" gets one
+spelling — and the delivered form stays in the archive either way (ADR 0012).
+Nothing derives from the archive, which
+`src/test/raw-source-is-an-archive.test.ts` holds the whole repo to.
 _Avoid_: Adapter, mapper, importer.
 
 **Format picker**:
