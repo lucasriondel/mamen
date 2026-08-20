@@ -1,10 +1,15 @@
 # landing-page — glossary
 
-The public page served at the **site root** (issue #113). One HTML file and one
+The public page served at the **site root** (issue #113). HTML and one
 stylesheet, prerendered by Vite at build time and served by nginx from its own
-image — no framework, no runtime, nothing to hydrate. The whole package is
-`index.html` (a stub), `src/page.ts` (the page), `src/prerender.ts` (the Vite
-plugin that puts one into the other) and `src/styles.css`.
+image — no runtime, nothing to hydrate. The package is `index.html` (a stub),
+`src/page.ts` (the page), `src/copy.ts` (its words), `src/prerender.ts` (the
+Vite plugin that puts one into the other) and `src/styles.css`.
+
+Beside it, at a **preview route**, the same page rendered a second way: React
+components on a TanStack router, under `src/preview/` (issue #145). That is the
+expand half of an expand–contract; both renderers ship until the contract step
+picks one.
 
 It shares no domain vocabulary with the app: nothing here knows what a
 **transaction**, an **issuer** or a **bundle** is, and nothing should. The one
@@ -68,3 +73,33 @@ HTML entry on disk is a stub the plugin replaces wholesale, and the plugin runs
 `pre` so Vite's own HTML pass still rewrites the stylesheet to its hashed asset.
 _Avoid_: SSR, static site generation (nothing renders per request, and there is
 one page — no generator, no routes, no data).
+
+**Preview route**:
+`/preview/`, where the React renderer answers while it stands beside the string
+one (issue #145). Temporary by construction: the **expand** step of an
+expand–contract adds the new form without taking the old one away, so the site
+root keeps serving `src/page.ts` and every test written against it keeps
+passing. It is a second HTML entry (`preview/index.html`, another stub) built
+to `dist/preview/index.html`, which the existing `try_files … $uri/` and
+`index index.html` already resolve — the route needs no nginx block, and so
+none has to be taken back out. The contract step moves the React page to `/`
+and deletes this prefix, `src/page.ts` and this entry with it.
+_Avoid_: staging, beta (nothing is deployed separately or gated — it is one
+extra path on the same container).
+
+**Build-time React**:
+React and `@tanstack/react-router` are **devDependencies** here, and that is a
+statement rather than a technicality: `src/preview/render.tsx` runs the router
+on a memory history and `renderToStaticMarkup`s the tree in Node, so what
+reaches the image is HTML. No client entry, no hydration, no `<script>` — the
+built page is asserted to carry none. A runtime dependency on React would mean
+the browser assembling a page this package exists to serve finished.
+_Avoid_: SSR (there is no server rendering per request — the render happens once,
+at build).
+
+**Shared copy**:
+`src/copy.ts` — the page's words as data, read by both renderers. Two renderers
+holding the same sentences is exactly the drift expand–contract invites, so
+neither writes any of them: `src/preview/copy.test.ts` renders both and compares
+the text a reader sees. It keeps the contract step a swap of the renderer rather
+than a rewrite of the page.
