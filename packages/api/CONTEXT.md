@@ -128,8 +128,9 @@ to the transactions table", and two separate reviews have now concluded from it
 that the mutation hooks omitting the rules-cache invalidation were shipping
 stale counts. They are not: check a write against the field list mechanically
 instead of inferring from what "moves" means. `packages/web/CONTEXT.md` holds
-the cache-invalidation rule that follows from this list, still worded as that
-superset; issue #170 restates it in these six fields, in these words.
+the cache-invalidation rule that follows from this list, worded in these same
+six fields since issue #170 — a mutation writing any of them invalidates
+`ruleKeys.all`, and one writing none of them correctly does not.
 _Avoid_: "moves rows", "touches transactions" (both name a superset of the six).
 
 **Wire suite / repo suite**:
