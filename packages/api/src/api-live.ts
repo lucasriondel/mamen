@@ -12,6 +12,7 @@ import { IssuersLive } from "./issuers/handlers";
 import { RulesLive } from "./rules/handlers";
 import { SecretsLive } from "./secrets";
 import { SettingsLive } from "./settings/handlers";
+import { StatementFormatsLive } from "./statement-formats/handlers";
 import { SubscriptionsLive } from "./subscriptions/handlers";
 import { TransactionsLive } from "./transactions/handlers";
 
@@ -45,6 +46,7 @@ export const ApiLive = HttpApiBuilder.api(Api).pipe(
     RulesLive,
     SubscriptionsLive,
     SettingsLive,
+    StatementFormatsLive,
     SecretsLive,
     AiTasksLive,
     AppSettingsLive,

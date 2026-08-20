@@ -272,6 +272,35 @@ repeated per package.
   default, or override this row.
   _Avoid_: Uncategorised (reserve that for a real Category), none, null.
 
+- **Statement Format** — a stored, user-authored record of how to read one
+  bank's export — **data, not code** (PRD #180). It belongs to **one account**,
+  carries a required user-entered name, and is discriminated on `kind`: a `csv`
+  format declares the **headers that fingerprint** the file, a `pdf` format
+  declares the **columns to ask the model for**. It says which columns become
+  which transaction properties — a closed set of four (`date`, `amount`,
+  `rawIssuerString`, `counterpartyIban`), everything else being **raw source** —
+  and how their values are written: the sign convention (one signed column, a
+  direction column plus the value meaning debit, or separate debit/credit
+  columns), the date order, the decimal separator, and an optional one-column
+  row filter. Green-Got is one of these, not a module: `Direction` with `DEBIT`
+  meaning a debit, ISO dates, dot decimals, and a filter keeping only `Statut` =
+  `COMPLETE`.
+
+  Every rule is a **closed union** rather than an expression language, so each
+  case is a checked branch in the **Parser** and a fixed choice in the mapping
+  UI — adding a bank is filling one in, not writing a module, and the closed
+  unions *are* the validation (a rule outside them is a `400`, not a
+  hand-written error). The date order and the decimal separator are **never
+  auto-detected**: `03/04/2026` is unresolvable without knowing the bank, and a
+  guess corrupts data invisibly — the row still parses and is simply the wrong
+  day.
+
+  A format is **created and never edited or deleted** (issue #183): a bank that
+  changes its export earns a *new* one, so statements downloaded before the
+  change keep a format that reads them. Nothing links a transaction to the
+  format that produced it, and until editing exists nothing should.
+  _Avoid_: adapter, mapper, importer, schema.
+
 - **Extracted transaction** — one candidate operation lifted from a PDF bank
   statement by the extraction endpoint, before any account/batch/month is
   stamped: `{ date, amount, rawIssuerString }`. The field names mirror a

@@ -47,6 +47,26 @@ in sqlite — the storage row is the api package's business and may differ freel
 date-only / month / opaque strings stay `Schema.String`.
 _Avoid_: model, DTO, row.
 
+**Discriminated entity**:
+An **entity schema** that is a `Schema.Union` of two `Schema.Class`es on a `kind`
+literal rather than one class with a flag — `StatementFormat`, whose `csv` half
+declares the headers that fingerprint a file and whose `pdf` half declares the
+columns to ask a model for (issue #183). Worth the deviation only when the halves
+carry genuinely different *fields*: reading `format.headers` off a PDF format is
+then a type error rather than an `undefined` at runtime, and each half's create
+payload is a union member too, so a payload cannot name both lists or neither.
+
+It costs one thing, and the cost is invisible until it bites: `.addSuccess(schema,
+{ status })` does **not** work on a union. The framework splits a union into its
+members and caches each member schema by AST identity, so the first endpoint to
+return the entity fixes its members' status for every other one — a `create`
+declared `201` beside a `getById` silently answers `200`. The fix is a second
+union whose members are annotated (`CsvStatementFormat.annotations(...)`), which
+produces distinct ASTs. The api package's **wire suite** asserts both statuses
+together, because it is the *pair* that a shared annotation breaks.
+_Avoid_: polymorphic entity, subtype (nothing is inherited — they are two shapes
+sharing a name).
+
 **Create payload / Update payload**:
 The other two thirds of every resource's trio. `XCreate` omits what the server
 assigns (`id`, `createdAt`, `updatedAt`); `XUpdate` is `Schema.partial(XCreate)`

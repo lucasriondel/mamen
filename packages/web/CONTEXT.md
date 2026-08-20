@@ -43,32 +43,19 @@ front of a user who still owes one — the accounts grid always sends both.
 _Avoid_: Gate, lock (the zone is inert, not refusing).
 
 **Statement Format**:
-A record of how to read one bank's export — **data, not code** (PRD #180, issue
-#182). It names the headers that fingerprint the file, which columns become which
-transaction properties, and how the values are written: the sign convention, the
-date order, the decimal separator, and an optional row filter. Green-Got is one
-of these, not a module: a `Direction` column with `DEBIT` meaning a debit, ISO
-dates, dot decimals, and a filter keeping only `Statut` = `COMPLETE`.
-
-Every rule is a **closed union** rather than an expression language, so each case
-is a checked branch in the **Parser** and a fixed choice in the mapping UI that
-will author these — adding a bank is filling one in, not writing a module. The
-mapped target set is closed too (`date`, `amount`, `rawIssuerString`, and
-`counterpartyIban` once it exists); everything else the file carries is **raw
-source**, so mapping decides what is *promoted*, never what is kept.
-
-The date order and the decimal separator are **never auto-detected**: `03/04/2026`
-is unresolvable without knowing the bank, and a guess corrupts data invisibly —
-the row still parses and is simply the wrong day.
-_Avoid_: Adapter, mapper, importer, schema.
-_Code note_: `parsers/format.ts` holds the vocabulary, `parsers/formats.ts` the
-Green-Got record. Literals in code at this stage — they become rows of a
-user-authored, account-scoped table, at which point `FORMATS` becomes a query
-rather than a longer array. The `kind` discriminant is `csv` only for now; the
-PDF half declares expected columns instead of a fingerprint and lands with the
-endpoint that needs it. `scripts/scrub-bank-statements.sh` reads
-`GREEN_GOT_HEADERS` out of `formats.ts` to check the fixture still carries the
-columns the format needs.
+Defined in [CONTEXT-MAP.md](../../CONTEXT-MAP.md) — it became a contract entity
+with a table of its own in issue #183, so it means the same thing here, in the
+contract and on the server.
+_Code note_: `parsers/format.ts` re-exports the vocabulary from the contract and
+adds the one thing the applying side needs that a stored row does not carry — an
+`id` that is a string, because the records this package can reach today are
+still literals in code (`parsers/formats.ts`, Green-Got). `FORMATS` becomes a
+query for one account's formats when the wizard starts reading the table, and
+this narrower type collapses into the contract's `CsvStatementFormat` at the
+same moment. The `kind` here is `csv` only: a PDF format declares expected
+columns rather than a fingerprint and is applied by **PDF extraction**, not by
+the **Parser**. `scripts/scrub-bank-statements.sh` reads `GREEN_GOT_HEADERS` out
+of `formats.ts` to check the fixture still carries the columns the format needs.
 
 **Parser** (Statement Parser):
 The code that **applies** a **Statement Format** to a **CSV**'s rows — not a

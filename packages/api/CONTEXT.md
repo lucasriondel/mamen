@@ -74,6 +74,14 @@ boot, because that would resurrect deliberate deletions.
 per table, exported and reused by every query that reads it — including from
 other modules (the matching engine decodes rules and transactions through the
 repositories' codecs rather than its own).
+
+Storage may also be *narrower* than the wire, and `StatementFormatFromRow` is
+where that direction shows: a **Statement Format** always declares exactly one
+list of column names, so the table keeps one `declaredColumns` column and the
+codec folds it onto `headers` or `columns` according to `kind` — the two names
+the wire keeps apart because they are read for different reasons. A codec whose
+`encode` half is otherwise dead (the write path builds its row by hand) earns its
+own round-trip test for exactly this: nothing else exercises the inverse.
 _Avoid_: mapper, serializer.
 
 **Fragment**:
