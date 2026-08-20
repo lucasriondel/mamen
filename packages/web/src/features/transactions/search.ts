@@ -76,6 +76,18 @@ export interface TransactionsSearch {
    * asks for, so its off state is the absent filter.
    */
   kind?: "bundle";
+  /**
+   * The row whose **detail panel** is open beside the table (issue #154), by
+   * id. Not a filter — it narrows nothing, so it never reaches a query and
+   * never resets {@link TransactionsSearch.page}; the list underneath is the
+   * same list whether the panel is open or shut.
+   *
+   * It lives in the URL because the panel is a *place*: `/transactions?selected=123`
+   * is linkable, survives a reload, and is what `Escape` and the back button
+   * navigate out of. The full page at `/transactions/123` keeps its own address
+   * — the panel is beside it, not in place of it.
+   */
+  selected?: number;
   /** Date sort order; defaults to `desc` (newest-first), matching the SDK. */
   direction?: "asc" | "desc";
   /**
@@ -174,6 +186,15 @@ export function validateTransactionsSearch(search: Record<string, unknown>): Tra
   // and its off state is the absent filter rather than a second view.
   if (search.kind === "bundle") {
     result.kind = "bundle";
+  }
+
+  // The open panel's row (issue #154). A row id is a positive integer, and
+  // anything else names no row: the panel stays shut rather than opening on a
+  // read that can only fail. Unlike every field above it, this one is not a
+  // filter — it is dropped from nothing and resets nothing.
+  const selected = Number(search.selected);
+  if (search.selected !== "" && Number.isInteger(selected) && selected > 0) {
+    result.selected = selected;
   }
 
   if (search.direction === "asc" || search.direction === "desc") {

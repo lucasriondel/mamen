@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom";
-import { installMatchMedia } from "./prefers-color-scheme";
+import { installMatchMedia } from "./match-media";
 
 // jsdom ships neither `ResizeObserver` nor `Element.scrollIntoView`, both of
 // which cmdk touches while measuring and keeping the active item in view (PRD
@@ -57,9 +57,9 @@ if (!("revokeObjectURL" in URL)) {
 }
 
 // jsdom evaluates no media queries and ships no `matchMedia`, which `next-themes`
-// calls the moment its provider mounts. Since issue #143 the answer decides the
-// scheme whenever nothing is stored, so the stub is settable rather than a
-// constant "no" — see `test/prefers-color-scheme.ts`. It is installed
+// calls the moment its provider mounts — and, since issue #154, so does anything
+// that only exists at a given width. The stub answers both from settable state
+// rather than a constant "no" — see `test/match-media.ts`. It is installed
 // unconditionally: a test that states the OS preference must not be at the mercy
 // of whatever a future jsdom decides `matchMedia` returns by default.
 installMatchMedia();

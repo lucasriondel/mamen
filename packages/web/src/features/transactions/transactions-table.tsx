@@ -83,6 +83,24 @@ export interface TransactionsTableProps {
    * row's navigation, exactly as it does for the inline curation cells.
    */
   renderActions?: (transaction: Transaction) => React.ReactNode;
+  /**
+   * What opening a row *means* on this page (issue #154). Omitted — the scoped
+   * drill-downs, which have no panel to open into — a row click navigates to the
+   * standalone detail page, as every row click always did. The unscoped view
+   * passes a handler that opens the row in its **detail panel** instead, and
+   * withholds it again on a viewport too narrow to hold one.
+   *
+   * A prop rather than a branch on the scope: the table is shared by three
+   * pages, and a table that knew which of them it was in would have to be told
+   * again by the fourth.
+   */
+  onOpenTransaction?: (transaction: Transaction) => void;
+  /**
+   * The row currently open in that panel, by id — marked so the table says
+   * which row the surface beside it is about. Nothing is marked when no panel
+   * is open, which is every scoped page and every narrow viewport.
+   */
+  selectedId?: number;
 }
 
 const columnHelper = createColumnHelper<Transaction>();
@@ -157,6 +175,8 @@ export function TransactionsTable({
   onRowSelectionChange,
   bundleMembers = NO_BUNDLE_MEMBERS,
   renderActions,
+  onOpenTransaction,
+  selectedId,
 }: TransactionsTableProps) {
   // Selection only exists where something can be done with it (issue #68).
   const selectable = onRowSelectionChange !== undefined;
@@ -488,17 +508,37 @@ export function TransactionsTable({
               row.original.issuerId == null &&
               row.original.categoryId == null &&
               (row.original.notes == null || row.original.notes.trim() === "");
-            const openDetail = () =>
+            // The row the **detail panel** beside the table is showing (issue
+            // #154). A fourth `data-` mark rather than a fifth wash: it says
+            // *this row is what you are reading*, which is orthogonal to the
+            // three states above — an excluded row is still the open one — so
+            // it is drawn as an edge, not as a background that would have to
+            // win or lose against them.
+            const isSelected = selectedId != null && row.original.id === selectedId;
+            // Opening a row means the panel where there is one, and the
+            // standalone page everywhere else — a scoped drill-down, or a
+            // viewport too narrow to hold a panel beside the table.
+            const openDetail = () => {
+              if (onOpenTransaction != null) {
+                onOpenTransaction(row.original);
+                return;
+              }
               navigate({
                 to: "/transactions/$transactionId",
                 params: { transactionId: String(row.original.id) },
               });
+            };
             return (
               <TableRow
                 key={row.id}
                 data-excluded={isExcluded ? "true" : undefined}
                 data-kind={isBundleParent ? "bundle" : undefined}
                 data-bundle-member={isBundleMember ? "true" : undefined}
+                data-selected={isSelected ? "true" : undefined}
+                // The row is a link, and the place it leads to is open: that is
+                // what `aria-current` says. Not `"page"` — the panel is beside
+                // this page, not another one.
+                aria-current={isSelected ? "true" : undefined}
                 title={
                   isExcluded
                     ? "Excluded from your recap spend"
@@ -538,6 +578,17 @@ export function TransactionsTable({
                     "bg-gousse-accent/5 hover:bg-gousse-accent/10 focus-visible:bg-gousse-accent/10",
                   isExcluded &&
                     "bg-gousse-muted/10 text-gousse-muted hover:bg-gousse-muted/15 focus-visible:bg-gousse-muted/15",
+                  // The open row, marked along its leading edge (issue #154).
+                  // A bar rather than a fourth wash: "this is the row you are
+                  // reading" is orthogonal to the three states above — an
+                  // excluded row is still the open one — so it has to survive
+                  // whichever of them the row wears instead of queueing behind
+                  // them. Drawn as an inset shadow on the first *cell*: a `tr`
+                  // paints no shadow of its own under `border-collapse`, and an
+                  // inset one costs no layout, so the row does not shift 3px as
+                  // the panel opens and closes.
+                  isSelected &&
+                    "[&>td:first-child]:shadow-[inset_3px_0_0_0_rgb(var(--gousse-accent))]",
                 )}
               >
                 {row.getVisibleCells().map((cell) => {
