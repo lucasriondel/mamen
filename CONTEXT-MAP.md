@@ -897,8 +897,16 @@ repeated per package.
   provenance rather than as a second, contradicting **Derived category**. It
   means **as most recently delivered**: a re-import replaces it rather than
   preserving the first delivery, because the useful question is always what the
-  bank says about this row *now*. CSV-imported rows carry one; a row from PDF
-  extraction has no original row to keep and leaves it null.
+  bank says about this row *now*. **Both import paths carry one** (issue #189):
+  a CSV row archives the whole delivered row, and a PDF-extracted row archives
+  the cells the model returned, keyed by the columns its **Statement Format**
+  declares and written as the statement printed them — so `1 929,71` is kept as
+  written beside an `amount` of `1929.71`. A PDF row had none until the model
+  was told which columns to expect (issue #185), which is what turned an answer
+  into a row-shaped thing. A row with **nothing** to archive — one imported
+  before the archive existed, or one typed by hand in side-by-side validation —
+  carries null rather than `{}`, so the detail page shows nothing rather than an
+  empty block.
   See [ADR 0012](./docs/adr/0012-raw-source-is-an-archive-promotion-is-earned.md).
   _Avoid_: other metadata, extra fields, leftovers (all name it by what it
   lacks); raw row (the value is an object, not the delimited line).

@@ -100,12 +100,42 @@ describe("RawSourceSection", () => {
     expect(within(block()).queryByText("Category")).toBeNull();
   });
 
-  // Story 11/12: a PDF-extracted row, or anything imported before the archive
-  // existed, has no bank row to show. An empty block would look broken.
+  // Story 12: a row imported before the archive existed has no bank row to
+  // show, and neither has a row with nothing to archive — one the user typed in
+  // side-by-side validation, or one whose statement carried no cells. An empty
+  // block would look broken.
   it("renders nothing at all when the row carries no raw source", () => {
     const { container } = render(<RawSourceSection transaction={tx()} />);
 
     expect(container).toBeEmptyDOMElement();
+  });
+
+  /**
+   * Issue #189 — a **PDF-extracted** row has an archive too, and it renders the
+   * same way: the model returns the operation's own cells keyed by the columns
+   * the **Statement Format** declares, so the section has a row-shaped thing to
+   * show where until now it had nothing.
+   *
+   * The values are what the statement *printed*. `1 929,71` reads here as the
+   * bank wrote it while the transaction's own `amount` is `-1929.71` — the
+   * archive is provenance, the field is arithmetic, and ADR 0012 lets them
+   * disagree. Rendering the parsed value here would throw away the only thing
+   * this block is for.
+   */
+  it("shows a PDF-extracted row's cells, as the statement printed them", async () => {
+    const statement = {
+      Date: "20/01",
+      Valeur: "21/01",
+      Libellé: "PRLV SPOTIFY P2A34",
+      Débit: "1 929,71",
+    };
+    render(<RawSourceSection transaction={tx({ rawSource: statement, amount: -1929.71 })} />);
+    await expand();
+
+    const fields = within(block()).getAllByRole("term");
+    expect(fields.map((dt) => dt.textContent)).toEqual(Object.keys(statement));
+    expect(within(block()).getByText("1 929,71")).toBeVisible();
+    expect(within(block()).queryByText("-1929.71")).toBeNull();
   });
 
   // A column the bank sent empty is still a column it sent — the key stays, so

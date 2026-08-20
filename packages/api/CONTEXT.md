@@ -298,7 +298,26 @@ The task's **output** is `ExtractionOutput`, not the endpoint's `ExtractPdfResul
 (issue #188): the model answers with the rows, the totals and `missingColumns` —
 the declared columns it could not find — and never with the conclusion drawn from
 them. Required, not defaulted: a silence folded into "everything matched" is the
-silent wrongness the verdict exists to end.
+silent wrongness the verdict exists to end. Its rows are `ExtractedRow`, the
+model's own row, which differs from the endpoint's by requiring `rawSource`
+(issue #189) for the same reason.
+
+**A PDF row's raw source**:
+`ExtractedTransaction.rawSource` — each operation's own cells, keyed by the
+columns the chosen format declares and written **as the statement printed them**
+(issue #189, asked for by `ai-runner/prompt.ts`'s `THE ROW AS PRINTED`). Every
+other rule in that prompt says how to *read* a value; this one says not to, so
+`1 929,71` is archived as written beside an `amount` of `1929.71`. Issue #175
+excluded PDF rows on the premise that there is no original row to keep, and the
+declared columns (#185) made that premise false — a table of exactly those
+columns is row-shaped.
+Required of the model, folded by `import/extract.ts` (`rowOf`): an empty archive
+becomes **absent**, because `{}` and "nothing to keep" are one fact and the
+contract spells it one way. Same division as the verdict — the model reports what
+it saw, mamen draws the conclusion. Nothing derives from it
+([ADR 0012](../../docs/adr/0012-raw-source-is-an-archive-promotion-is-earned.md)),
+which `packages/web/src/test/raw-source-is-an-archive.test.ts` holds this package
+to as well.
 
 **Format verdict**:
 `ExtractPdfResult.verdict` — `{ matched, missingColumns }`, the PDF counterpart

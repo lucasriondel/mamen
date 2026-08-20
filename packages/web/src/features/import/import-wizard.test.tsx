@@ -1097,6 +1097,87 @@ describe("ImportWizard", () => {
     });
   });
 
+  /**
+   * Issue #189 — a PDF-extracted row reaches the commit carrying the archive the
+   * CSV path has had since #176, populated from the table the model returned.
+   *
+   * Asserted at this seam for the reason #187's CSV case is: the two ends of the
+   * claim are what the endpoint answered with and what `bulkCreate` is handed,
+   * and everything between them — the side-by-side view, the skip, the enrich —
+   * is where a row's archive would quietly get lost.
+   */
+  it("commits a PDF row's raw source, in the statement's own words", async () => {
+    const user = userEvent.setup();
+    extractPdf.mockResolvedValue({
+      verdict: MATCHED,
+      transactions: [
+        {
+          date: new Date("2026-01-15T10:00:00.000Z"),
+          amount: -10,
+          rawIssuerString: "SHOP A",
+          // The cells as the statement printed them: the French number survives
+          // beside the parsed `amount`, which is ADR 0012's division of labour.
+          rawSource: { Date: "15/01", Libellé: "SHOP A", Débit: "10,00" },
+        },
+      ],
+      declaredTotals: { debit: 10, credit: 0 },
+    });
+    renderWizard();
+
+    await chooseAccount(user);
+    await dropPdf(user);
+
+    expect(await screen.findByTitle("PDF statement")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Commit import" }));
+
+    await waitFor(() => expect(bulkCreate).toHaveBeenCalledTimes(1));
+    const [record] = bulkCreate.mock.calls[0][0];
+    expect(record.rawSource).toStrictEqual({
+      Date: "15/01",
+      Libellé: "SHOP A",
+      Débit: "10,00",
+    });
+    expect(record.amount).toBe(-10);
+  });
+
+  /**
+   * A row the user typed themselves has no bank row behind it, and a row whose
+   * archive the endpoint folded away (nothing to keep) has none either. Both
+   * commit with the key **absent** rather than as an empty object, which is what
+   * makes the detail page show nothing rather than an empty block of the bank's
+   * own words.
+   */
+  it("commits no raw source at all for a row that has nothing to archive", async () => {
+    const user = userEvent.setup();
+    extractPdf.mockResolvedValue({
+      verdict: MATCHED,
+      // As the endpoint answers for a row that archived nothing: no key.
+      transactions: [
+        {
+          date: new Date("2026-01-15T10:00:00.000Z"),
+          amount: -10,
+          rawIssuerString: "SHOP A",
+        },
+      ],
+      declaredTotals: { debit: 10, credit: 0 },
+    });
+    renderWizard();
+
+    await chooseAccount(user);
+    await dropPdf(user);
+
+    // And one the user adds by hand, which never had a statement row at all.
+    await user.click(await screen.findByRole("button", { name: "Add row" }));
+    await user.type(screen.getByLabelText("Raw issuer, row 2"), "MISSED ROW");
+
+    await user.click(screen.getByRole("button", { name: "Commit import" }));
+    await waitFor(() => expect(bulkCreate).toHaveBeenCalledTimes(1));
+
+    const records = bulkCreate.mock.calls[0][0];
+    expect(records).toHaveLength(2);
+    for (const record of records) expect(record).not.toHaveProperty("rawSource");
+  });
+
   // Issue #193: the panel is a real table now — TanStack Table over the shared
   // table and checkbox primitives — and the skip is a checkbox column in front of
   // the three columns the view has always shown. Nothing else moves: this asserts

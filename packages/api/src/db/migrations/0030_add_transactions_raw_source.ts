@@ -13,8 +13,10 @@ import { Effect } from "effect";
  *
  * Nullable with no default and **no backfill**. Every row imported before this
  * keeps null permanently — backfilling would require exactly the re-import this
- * work exists to make unnecessary — and a PDF-extracted row has no original row
- * to keep, so null is the ordinary resting state, not a half-filled one.
+ * work exists to make unnecessary — so null is a resting state rather than a
+ * half-filled one. It stays that for a row with nothing to keep: one a user
+ * typed by hand, and (until issue #189 gave the PDF path an archive of its own)
+ * every PDF-extracted row.
  *
  * No index: nothing derives from the archive. It is read only when a single row
  * is displayed, never filtered, searched or joined on — that restraint is the

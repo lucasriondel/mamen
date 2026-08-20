@@ -48,12 +48,24 @@ const PACKAGES = ["api", "sdk", "shared", "web"] as const;
  */
 const ARCHIVE_SITES = [
   {
+    path: "packages/api/src/ai-runner/prompt.ts",
+    role: "where a PDF row's archive is asked for: the cells, as printed",
+  },
+  {
+    path: "packages/api/src/ai-runner/tasks.ts",
+    role: "the model's own row, whose archive is required of it",
+  },
+  {
     path: "packages/api/src/db/migrations/0030_add_transactions_raw_source.ts",
     role: "the migration that adds the column",
   },
   {
     path: "packages/api/src/demo/dataset.ts",
     role: "authored demo rows, which have no bank row behind them",
+  },
+  {
+    path: "packages/api/src/import/extract.ts",
+    role: "the fold from the model's answer: an empty archive becomes absent",
   },
   {
     path: "packages/api/src/transactions/bundle-writes.ts",
@@ -64,8 +76,16 @@ const ARCHIVE_SITES = [
     role: "the row codec and the column lists — storage, in both directions",
   },
   {
+    path: "packages/shared/src/contract/import.ts",
+    role: "the field on an extracted row, which is how a PDF archive travels",
+  },
+  {
     path: "packages/shared/src/contract/transactions.ts",
     role: "the field itself",
+  },
+  {
+    path: "packages/web/src/features/import/enrich-extracted.ts",
+    role: "where a PDF row's archive joins the commit rail, carried not built",
   },
   {
     path: "packages/web/src/features/import/parsers/apply-format.ts",

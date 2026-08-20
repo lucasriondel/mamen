@@ -61,6 +61,31 @@ const ARCHIVED = {
 } as unknown as Transaction;
 
 /**
+ * A **PDF-extracted** row that kept its archive (issue #189). Until the model
+ * was told which columns the statement carries (#185), a PDF row had none — and
+ * the page's job is to render this one exactly like the CSV row above, in the
+ * statement's own words.
+ *
+ * Its `Débit` is the printed `1 929,71` while `amount` is `-1929.71`: the
+ * archive is what the statement said, not what mamen read out of it.
+ */
+const EXTRACTED = {
+  id: 700,
+  accountId: 1,
+  date: new Date("2026-01-20T00:00:00Z"),
+  amount: -1929.71,
+  rawIssuerString: "PRLV EDF ENERGIE",
+  importedAt: new Date(),
+  importMonth: "2026-01",
+  rawSource: {
+    Date: "20/01",
+    Valeur: "21/01",
+    Libellé: "PRLV EDF ENERGIE",
+    Débit: "1 929,71",
+  },
+} as unknown as Transaction;
+
+/**
  * A **bundle parent** (issue #72): the one row in the app that is only ever met
  * on this page, since members hide its own members from the list. It carries a
  * label and nothing else — no issuer, no category, no note — which is exactly
@@ -227,7 +252,9 @@ vi.mock("@mamen/sdk", () => ({
                   ? LEG
                   : id === ARCHIVED.id
                     ? ARCHIVED
-                    : undefined,
+                    : id === EXTRACTED.id
+                      ? EXTRACTED
+                      : undefined,
     }),
     list: (params: Record<string, unknown>) => ({
       queryKey: ["transactions", "list", params],
@@ -582,13 +609,34 @@ describe("TransactionDetailPage", () => {
       );
     });
 
-    // Story 11/12: a PDF-extracted row and every row imported before the archive
-    // existed carry none, and say nothing rather than show an empty block.
+    // Story 11/12: a row imported before the archive existed carries none, as
+    // does one with nothing to archive, and both say nothing rather than show an
+    // empty block.
     it("leaves the block out entirely for a row with no raw source", async () => {
       renderPage();
 
       await screen.findByRole("heading", { name: "Spotify" });
       expect(screen.queryByRole("button", { name: /bank's own words/i })).toBeNull();
+    });
+
+    /**
+     * Issue #189 — a **PDF-extracted** row reaches this page with an archive of
+     * its own, read off the table the model returned, and the block does not
+     * care which import path put it there.
+     *
+     * The printed `1 929,71` is what the statement said; the row's own amount is
+     * `-1929.71`. Both are on the page at once, which is the archive's whole
+     * job: provenance beside the field mamen computes from it.
+     */
+    it("shows a PDF-extracted row's statement columns, as printed", async () => {
+      const user = userEvent.setup();
+      renderPage(700);
+
+      await user.click(await screen.findByRole("button", { name: /bank's own words/i }));
+
+      expect(screen.getByText("Libellé")).toBeVisible();
+      expect(screen.getByText("Débit")).toBeVisible();
+      expect(screen.getByText("1 929,71")).toBeVisible();
     });
   });
 

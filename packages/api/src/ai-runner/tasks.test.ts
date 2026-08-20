@@ -200,11 +200,67 @@ describe("the format-match verdict", () => {
   });
 });
 
+/**
+ * Issue #189 — the model returns each operation's own cells, so a PDF row gets
+ * the **raw source** the CSV path has had since #176.
+ *
+ * The columns reaching the prompt (#185) are what makes this askable: until the
+ * model was told which columns the statement carries, there was no row-shaped
+ * thing to archive and issue #175 excluded PDF rows on exactly that premise. The
+ * cells are asked for in the statement's own words, and *as printed* — the
+ * archive is what the bank sent, not what mamen made of it.
+ */
+describe("the row's raw source", () => {
+  const ARCHIVE_HEADING = "THE ROW AS PRINTED";
+
+  it("asks for each row's own cells, keyed by the columns the format declares", () => {
+    const prompt = extract.cliPrompt(INPUT);
+
+    assert.include(prompt, ARCHIVE_HEADING);
+    assert.include(prompt, "rawSource");
+  });
+
+  // Same reasoning as the columns and the verdict: a hosted vendor and the local
+  // CLI read the *same* statement, so an archive asked of one only would make a
+  // row's provenance depend on which vendor the user happens to have chosen.
+  it("is asked of the hosted column too, from the same copy", () => {
+    const rules = rulesOf(extract.hostedPrompt(INPUT).text);
+
+    assert.include(rules, ARCHIVE_HEADING);
+    assert.strictEqual(rules, rulesOf(extract.cliPrompt(INPUT)));
+  });
+
+  /**
+   * The archive keeps the *delivered* form, which is the whole of its value: a
+   * French number is parsed into `amount` and left alone here, so what the
+   * statement printed survives beside what mamen read out of it. This is the
+   * same disagreement `counterpartyIban` has with the archive on the CSV path,
+   * and ADR 0012 calls it the division of labour.
+   */
+  it("asks for the cells exactly as printed, not parsed", () => {
+    assert.include(extract.cliPrompt(INPUT), "exactly as printed");
+  });
+
+  // Required in the answer, so it is asked for unconditionally — a format that
+  // declares no columns has nothing to key an archive by, and the only possible
+  // answer is an empty one.
+  it("is asked for even when the format declares no columns", () => {
+    assert.include(extract.cliPrompt({ ...INPUT, columns: [] }), ARCHIVE_HEADING);
+  });
+});
+
 describe("the output contract", () => {
   it.effect("is the rows, the totals and the columns the model could not find", () =>
     Effect.gen(function* () {
       const decoded = yield* extract.output.decode({
-        transactions: [{ date: "2026-01-15", amount: 1947.26, rawIssuerString: "VIR ACME" }],
+        transactions: [
+          {
+            date: "2026-01-15",
+            amount: 1947.26,
+            rawIssuerString: "VIR ACME",
+            rawSource: { Libellé: "VIR ACME", Crédit: "1 947,26" },
+          },
+        ],
         declaredTotals: { debit: 0, credit: 1947.26 },
         missingColumns: ["Débit"],
       });
@@ -212,6 +268,61 @@ describe("the output contract", () => {
       assert.instanceOf(decoded, ExtractionOutput);
       assert.strictEqual(decoded.transactions[0].amount, 1947.26);
       assert.deepStrictEqual([...decoded.missingColumns], ["Débit"]);
+    }),
+  );
+
+  /**
+   * Issue #189 — each row's cells come back keyed by the statement's own column
+   * names, with the values as the statement printed them. The parsed `amount`
+   * and the printed `Crédit` disagree on purpose: one is for arithmetic, the
+   * other is provenance.
+   */
+  it.effect("carries each row's own cells, in the statement's own words", () =>
+    Effect.gen(function* () {
+      const decoded = yield* extract.output.decode({
+        transactions: [
+          {
+            date: "2026-01-15",
+            amount: 1947.26,
+            rawIssuerString: "VIR ACME",
+            rawSource: { Libellé: "VIR ACME", Crédit: "1 947,26" },
+          },
+        ],
+        declaredTotals: { debit: 0, credit: 1947.26 },
+        missingColumns: [],
+      });
+
+      assert.deepStrictEqual(
+        { ...decoded.transactions[0].rawSource },
+        {
+          Libellé: "VIR ACME",
+          Crédit: "1 947,26",
+        },
+      );
+    }),
+  );
+
+  /**
+   * The archive is **required** of the model, for the reason `missingColumns`
+   * is: a silence would fold into "this row had nothing to keep", which is the
+   * very premise (#175's "there is no original row") this ticket exists to make
+   * false. The schema travels as the tool's own input schema, so a required
+   * field is one the provider enforces, and an answer without it fails loudly
+   * and retryably (`ExtractionFailed`, 502) rather than importing rows with no
+   * provenance.
+   */
+  it.effect("refuses a row that archives nothing at all", () =>
+    Effect.gen(function* () {
+      const issues = yield* Effect.flip(
+        extract.output.decode({
+          transactions: [{ date: "2026-01-15", amount: 1947.26, rawIssuerString: "VIR ACME" }],
+          declaredTotals: { debit: 0, credit: 1947.26 },
+          missingColumns: [],
+        }),
+      );
+
+      const [first] = issues as ReadonlyArray<{ readonly path: ReadonlyArray<PropertyKey> }>;
+      assert.deepStrictEqual([...first.path], ["transactions", 0, "rawSource"]);
     }),
   );
 

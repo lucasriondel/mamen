@@ -28,6 +28,8 @@ export const MAX_PDF_BYTES = 10 * 1024 * 1024;
  *   positive). French number format (`1 929,71`) is parsed to `1929.71`.
  * - `rawIssuerString` — the merged operation label (multi-line descriptions
  *   collapse into one string), the raw text a Matching Rule later matches on.
+ * - `rawSource` — the row's own cells, keyed by the statement's columns
+ *   (issue #189), threaded straight into `TransactionCreate.rawSource`.
  */
 export class ExtractedTransaction extends Schema.Class<ExtractedTransaction>(
   "ExtractedTransaction",
@@ -35,6 +37,30 @@ export class ExtractedTransaction extends Schema.Class<ExtractedTransaction>(
   date: Schema.Date,
   amount: Schema.Number,
   rawIssuerString: Schema.String,
+  /**
+   * The **raw source** of a PDF-extracted row (issue #189, PRD #180, ADR 0012) —
+   * the operation's own cells, keyed by the column names the chosen **Statement
+   * Format** declares, with the values as the statement printed them.
+   *
+   * Issue #175 gave the CSV path an archive and excluded the PDF path on the
+   * premise that there is no original row to keep. That premise stopped being
+   * true when the model was told which columns to expect (#185) and asked to
+   * return a table of exactly those: a returned table is row-shaped, and a row
+   * is what an archive keeps.
+   *
+   * Keys stay in the statement's own words, as on the CSV path — the same
+   * untranslated provenance the detail page renders. Values are what was
+   * printed, so `1 929,71` is archived as written while `amount` carries
+   * `1929.71`: the archive and the parsed field are free to disagree, which is
+   * exactly the division of labour ADR 0012 records.
+   *
+   * **Optional, and absent means nothing to archive** — a format that declares
+   * no columns, or a row the user typed themselves in side-by-side validation.
+   * Absent rather than `{}`, so the detail page shows nothing rather than an
+   * empty block. The model is asked for it unconditionally and the endpoint folds
+   * an empty answer to absent (`import/extract.ts`).
+   */
+  rawSource: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.String })),
 }) {}
 
 /**

@@ -31,23 +31,58 @@ import { claudeCodeStoredTokenLayer, claudeCodeTestLayer } from "./test";
 // Nothing missing here — the canned answer is the CCF statement read against the
 // CCF format, which is the matching case every test below but the mismatch ones
 // wants.
+// Each row also carries `rawSource` (issue #189): its own cells, keyed by the
+// columns the format declares and written the way the statement prints them —
+// which is why the archived `Débit` reads `6,99` beside a parsed `-6.99`.
 const CCF_OBJECT = {
   missingColumns: [] as readonly string[],
   transactions: [
-    { date: "2026-01-03", amount: -6.99, rawIssuerString: "CB AMAZON" },
-    { date: "2026-01-08", amount: -89.9, rawIssuerString: "PRLV EDF ENERGIE" },
+    {
+      date: "2026-01-03",
+      amount: -6.99,
+      rawIssuerString: "CB AMAZON",
+      rawSource: { Date: "03/01", Valeur: "03/01", Libellé: "CB AMAZON", Débit: "6,99" },
+    },
+    {
+      date: "2026-01-08",
+      amount: -89.9,
+      rawIssuerString: "PRLV EDF ENERGIE",
+      rawSource: { Date: "08/01", Valeur: "09/01", Libellé: "PRLV EDF ENERGIE", Débit: "89,90" },
+    },
     {
       date: "2026-01-12",
       amount: -152.34,
       rawIssuerString: "CB CARREFOUR MARKET PARIS",
+      rawSource: {
+        Date: "12/01",
+        Valeur: "12/01",
+        Libellé: "CB CARREFOUR MARKET PARIS",
+        Débit: "152,34",
+      },
     },
     {
       date: "2026-01-15",
       amount: 1947.26,
       rawIssuerString: "VIR SALAIRE ACME",
+      rawSource: {
+        Date: "15/01",
+        Valeur: "15/01",
+        Libellé: "VIR SALAIRE ACME",
+        Crédit: "1 947,26",
+      },
     },
-    { date: "2026-01-20", amount: -900, rawIssuerString: "VIR LOYER JANVIER" },
-    { date: "2026-01-27", amount: -780.48, rawIssuerString: "CB SNCF CONNECT" },
+    {
+      date: "2026-01-20",
+      amount: -900,
+      rawIssuerString: "VIR LOYER JANVIER",
+      rawSource: { Date: "20/01", Valeur: "20/01", Libellé: "VIR LOYER JANVIER", Débit: "900,00" },
+    },
+    {
+      date: "2026-01-27",
+      amount: -780.48,
+      rawIssuerString: "CB SNCF CONNECT",
+      rawSource: { Date: "27/01", Valeur: "27/01", Libellé: "CB SNCF CONNECT", Débit: "780,48" },
+    },
   ],
   declaredTotals: { debit: 1929.71, credit: 1947.26 },
 };
@@ -451,6 +486,124 @@ describe("import endpoints", () => {
         assert.isTrue(result.verdict.matched);
         assert.deepStrictEqual([...result.verdict.missingColumns], []);
       }).pipe(Effect.provide(httpLiveWith(reporting(["Débit"])))),
+    );
+  });
+
+  /**
+   * Issue #189 — a PDF-extracted row carries a **raw source**, populated from
+   * the table the model returned.
+   *
+   * This is the extraction seam of the claim: what the endpoint answers with is
+   * what the wizard threads into `TransactionCreate.rawSource`, so a row's
+   * archive either survives this boundary or does not exist. Issue #175 excluded
+   * PDF rows for want of an original row; the declared columns (#185) are what
+   * make a returned table into one.
+   */
+  describe("the row's raw source", () => {
+    /** The canned CCF answer, with these rows' archives replaced. */
+    const archiving =
+      (rawSources: ReadonlyArray<Record<string, string>>): SpawnHandler =>
+      () =>
+        Effect.succeed({
+          stdout: okEnvelope({
+            ...CCF_OBJECT,
+            transactions: CCF_OBJECT.transactions
+              .slice(0, rawSources.length)
+              .map((tx, index) => ({ ...tx, rawSource: rawSources[index] })),
+          }),
+          stderr: "",
+          exitCode: 0,
+        });
+
+    // Keys in the statement's own words, values as printed — so the archived
+    // `Débit` still reads `6,99` beside an `amount` of `-6.99`. That
+    // disagreement is the division of labour ADR 0012 records: the fields are
+    // for arithmetic, the archive is for provenance.
+    it.effect("comes back on each row, in the statement's own words", () =>
+      Effect.gen(function* () {
+        const client = yield* HttpApiClient.make(Api);
+        const result = yield* client.import.extractPdf({ payload: yield* pdfUpload() });
+
+        assert.deepStrictEqual(
+          { ...result.transactions[0].rawSource },
+          {
+            Date: "03/01",
+            Valeur: "03/01",
+            Libellé: "CB AMAZON",
+            Débit: "6,99",
+          },
+        );
+        assert.strictEqual(result.transactions[0].amount, -6.99);
+        assert.deepStrictEqual(
+          { ...result.transactions[3].rawSource },
+          {
+            Date: "15/01",
+            Valeur: "15/01",
+            Libellé: "VIR SALAIRE ACME",
+            Crédit: "1 947,26",
+          },
+        );
+      }).pipe(
+        Effect.provide(
+          httpLiveWith(() =>
+            Effect.succeed({
+              stdout: okEnvelope(CCF_OBJECT),
+              stderr: "",
+              exitCode: 0,
+            }),
+          ),
+        ),
+      ),
+    );
+
+    /**
+     * A row with nothing to archive carries **no** raw source rather than an
+     * empty one. The detail page renders the archive as a block of the bank's
+     * own words, and an empty block reads as a broken page rather than as "the
+     * statement said nothing" (issue #175's story 11). The model is required to
+     * answer, so `{}` is what "nothing" looks like on the way in; folding it to
+     * absent here is the endpoint's job, the same way the **format verdict** is.
+     */
+    it.effect("is absent, not empty, on a row that archives nothing", () =>
+      Effect.gen(function* () {
+        const client = yield* HttpApiClient.make(Api);
+        const result = yield* client.import.extractPdf({ payload: yield* pdfUpload() });
+
+        assert.notProperty(result.transactions[0], "rawSource");
+        // The row beside it is untouched: the fold is per row, not per answer.
+        assert.deepStrictEqual({ ...result.transactions[1].rawSource }, { Libellé: "PRLV EDF" });
+      }).pipe(Effect.provide(httpLiveWith(archiving([{}, { Libellé: "PRLV EDF" }])))),
+    );
+
+    /**
+     * The archive is required of the model. An answer omitting it is not an
+     * answer to the question, and defaulting it to empty would fold a silence
+     * into "this row had nothing to keep" — the very premise this ticket makes
+     * false. It fails the way every other unusable answer does: opaque, 502, and
+     * retryable.
+     */
+    it.effect("fails the run when the model archives nothing at all", () =>
+      Effect.gen(function* () {
+        const client = yield* HttpApiClient.make(Api);
+        const error = yield* client.import
+          .extractPdf({ payload: yield* pdfUpload() })
+          .pipe(Effect.flip);
+
+        assert.ok(error instanceof ExtractionFailed);
+      }).pipe(
+        Effect.provide(
+          httpLiveWith(() =>
+            Effect.succeed({
+              stdout: okEnvelope({
+                ...CCF_OBJECT,
+                transactions: [{ date: "2026-01-03", amount: -6.99, rawIssuerString: "CB AMAZON" }],
+              }),
+              stderr: "",
+              exitCode: 0,
+            }),
+          ),
+        ),
+      ),
     );
   });
 

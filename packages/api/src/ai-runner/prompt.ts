@@ -87,6 +87,48 @@ const FORMAT_MATCH = `FORMAT MATCH
 `;
 
 /**
+ * The **raw source** the model is asked to keep for each row (issue #189, PRD
+ * #180, ADR 0012) — the operation's own cells, as the statement printed them.
+ *
+ * The CSV path has archived the delivered row since #176, and issue #175
+ * excluded the PDF path on the premise that there is no original row to keep.
+ * The declared columns (#185) make that false: a model told which columns to
+ * expect returns a table of exactly those, and a table has rows.
+ *
+ * Two things it insists on, and both are the point of an archive:
+ *
+ * - **The statement's own words as keys.** The same untranslated provenance the
+ *   CSV archive keeps, so what the user reads back matches the statement they
+ *   downloaded.
+ * - **As printed as values.** Every other rule here says how to *read* a value —
+ *   fold the sign, parse the French number, merge the wrapped label. This one
+ *   says not to: `1 929,71` is archived as written while `amount` carries
+ *   `1929.71`. The two are allowed to disagree, and that disagreement is the
+ *   division of labour — the fields are for arithmetic, the archive is for
+ *   provenance.
+ *
+ * A blank cell is **omitted**, which is the one place this parts company with
+ * the CSV archive — there an empty column is still a column the bank sent, and
+ * the header row proves it. A statement line has cells only where something was
+ * printed, so asking for an empty string would be asking the model to report an
+ * absence it inferred, and reporting absences is what `missingColumns` is for.
+ *
+ * Unconditional, like the verdict and unlike the columns block: the field is
+ * required in the answer, so a format that declares no columns is asked for it
+ * too, where the only possible answer is an empty object.
+ */
+const ROW_ARCHIVE = `THE ROW AS PRINTED
+- For every operation you emit, also return \`rawSource\`: that row's own cells, as an
+  object keyed by the column names from the COLUMNS list above.
+- Use the statement's own words as keys — do not translate or rename them.
+- Values are the cell text **exactly as printed**, including French number formatting and
+  any leading zeros: this is a record of what the statement said, not of what you read
+  out of it. Put the parsed values in \`date\` and \`amount\` as the rules above say.
+- Omit a column this row leaves blank. Return an empty object if there is nothing to
+  record, and when no columns were listed above.
+`;
+
+/**
  * How to read a French bank statement, once. Shared verbatim by both prompts;
  * everything above it is transport-specific and everything in it is not — the
  * declared columns included, since a hosted vendor and the local CLI are being
@@ -128,8 +170,10 @@ DECLARED TOTALS
   total credit figure. Both are POSITIVE magnitudes exactly as printed (parse French
   numbers the same way). This is the bank's own total, not a sum you compute.
 
+${ROW_ARCHIVE}
 ${FORMAT_MATCH}
-Return only the structured object: the transactions, the declared totals and the missing columns.`;
+Return only the structured object: the transactions with their rows as printed, the declared
+totals and the missing columns.`;
 
 /** The CLI transport's prompt: the model opens the staged file itself. */
 export const extractionPrompt = (pdfPath: string, columns: readonly string[]): string =>
