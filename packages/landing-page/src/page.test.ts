@@ -12,7 +12,10 @@ import { renderPage } from "./page";
  * It is **prerendered** — `renderPage()` returns the finished markup and the
  * build writes it into `index.html`, so what nginx serves is a document, not a
  * shell waiting for JavaScript. That is why these assertions read the string
- * rather than a DOM: the string *is* the artifact.
+ * rather than a DOM: the string *is* the artifact. React renders it, in Node,
+ * at build time (issue #148); what that swap of renderer may not spend is any
+ * of the properties below, which is why this suite is the string page's own
+ * with the React renderer's folded into it.
  *
  * The one fact this page shares with the app is the prefix its link points at,
  * and it is derived from `APP_BASE_PATH` rather than written out — the whole
@@ -20,7 +23,7 @@ import { renderPage } from "./page";
  * reach.
  */
 
-const html = renderPage();
+const html = await renderPage();
 
 const source = (path: string) =>
   readFileSync(fileURLToPath(new URL(path, import.meta.url)), "utf8");
@@ -29,6 +32,12 @@ const source = (path: string) =>
 const hrefs = [...html.matchAll(/href="([^"]*)"/g)].map((m) => m[1] as string);
 
 describe("the landing page", () => {
+  it("carries the content React rendered, not an empty shell", () => {
+    // The point of the whole exercise: the components ran at build time, so
+    // the text is in the bytes a browser downloads.
+    expect(html).toMatch(/<h1[^>]*>mamen<\/h1>/);
+  });
+
   it("links into the app under its prefix", () => {
     // The link is the page's job: a visitor at the root has to be able to
     // reach the app, which is no longer at the root.
@@ -41,7 +50,7 @@ describe("the landing page", () => {
     // file is a fifth copy of the literal, in the one place whose whole job is
     // linking at it.
     expect(source("./content/actions.ts")).toMatch(/APP_BASE_PATH_SLASH/);
-    for (const file of ["./page.ts", "./content/actions.ts"]) {
+    for (const file of ["./page.tsx", "./content/actions.ts"]) {
       expect(source(file)).not.toContain(`"${APP_BASE_PATH}`);
       expect(source(file)).not.toContain(`'${APP_BASE_PATH}`);
     }
@@ -51,7 +60,7 @@ describe("the landing page", () => {
     // There is nothing to sign up for, so "run it yourself" is the offer —
     // and a guide missing a step is a reader stuck at a shell prompt.
     expect(html).toContain(`<h2>${INSTALL.heading}</h2>`);
-    expect(html.match(/<pre><code>/g)).toHaveLength(INSTALL.steps.length);
+    expect(html.match(/<pre>/g)).toHaveLength(INSTALL.steps.length);
     for (const step of INSTALL.steps) {
       expect(html).toContain(`<h3>${step.title}</h3>`);
     }
@@ -59,10 +68,11 @@ describe("the landing page", () => {
   });
 
   it("escapes the content instead of writing it through as markup", () => {
-    // Concatenation means this renderer escapes where React's would do it for
-    // free. The key placeholder is the case that bites: written through raw,
-    // its angle brackets are a tag the browser swallows, taking the half of
-    // the line that tells a reader what to generate with it.
+    // React escapes what it renders, so this is no longer a hand-written
+    // `escape()` under test — it is the property that made deleting one safe.
+    // The key placeholder is the case that bites: written through raw, its
+    // angle brackets are a tag the browser swallows, taking the half of the
+    // line that tells a reader what to generate with it.
     const placeholder = INSTALL.steps.flatMap((step) => step.commands).find((c) => c.includes("<"));
     expect(placeholder).toBeDefined();
     expect(html).not.toContain(placeholder);
@@ -94,7 +104,8 @@ describe("the landing page", () => {
   it("needs no JavaScript to say any of it", () => {
     // Prerendered means the text is in the bytes nginx sends. A `<script>`
     // here would mean the content is assembled in the browser, which is the
-    // thing this package exists not to do.
+    // thing this package exists not to do — and the property the port to React
+    // was not allowed to spend.
     expect(html).not.toMatch(/<script\b/);
   });
 
@@ -105,5 +116,12 @@ describe("the landing page", () => {
       expect(href.startsWith("/api")).toBe(false);
       expect(href.startsWith("/uploads")).toBe(false);
     }
+  });
+
+  it("links the stylesheet at its source path, for Vite to rewrite", () => {
+    // Vite's HTML pass turns this into the hashed asset. A `<style>` block
+    // instead would inline CSS into a document nginx serves `no-store`, so a
+    // repeat visitor would download it again on every page load.
+    expect(hrefs).toContain("/src/styles.css");
   });
 });

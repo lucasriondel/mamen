@@ -42,6 +42,21 @@ describe("the landing build", () => {
     expect(plugins.map((p) => p.name)).toContain("mamen:prerender-landing-page");
   });
 
+  it("takes no framework plugin, with React in the package", () => {
+    // React is here (issues #145, #148) and runs in Node, through the
+    // prerender hook. A framework plugin's job is the opposite one — a client
+    // entry, a refresh runtime, a bundle for a browser — and taking one is how
+    // this page would quietly acquire the script tag it exists without.
+    expect(plugins.map((p) => p.name)).toStrictEqual(["mamen:prerender-landing-page"]);
+  });
+
+  it("serves unknown paths the way nginx does: not by falling back to the page", () => {
+    // Vite's default treats a project as a single-page app and answers every
+    // unknown path with `index.html`; `nginx.conf` answers `=404`. A dev
+    // server that disagreed would show a deleted route still working.
+    expect(config.appType).toBe("mpa");
+  });
+
   it("proxies nothing", () => {
     // The app's nginx proxies `/api` and `/uploads`; this container serves
     // static files and nothing else. A proxy here would be a second, silent

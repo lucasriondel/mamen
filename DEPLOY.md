@@ -79,11 +79,15 @@ landing container proxies nothing, and those two paths reach the API only
 through the web container's nginx. That is the one routing mistake that reads as
 "the app is broken" rather than "the route is wrong".
 
-**Two images, not one.** The landing content is never copied into the web image
-and the app's dependencies are never installed in the landing image — someone
+**Two images, not one.** The landing content is never copied into the web image,
+and the app's tree never reaches the landing image that ships — someone
 self-hosting mamen builds the app, not the owner's public site, and the landing
 image builds out of the public npm registry with no credential at all. The two
-Dockerfiles are independent by design (issue #113).
+Dockerfiles are independent by design (issue #113). The landing build stage does
+install React and a router since issue #148, because that is what renders the
+page; it renders it in Node, that stage is thrown away, and what nginx serves is
+HTML with no JavaScript in it at all
+([ADR 0002](packages/landing-page/docs/adr/0002-react-renders-the-landing-page-at-build-time.md)).
 
 The browser only ever talks to one origin. `@mamen/sdk` leaves its base URL
 empty when `VITE_API_URL` is unset (`packages/sdk/src/runtime.ts`), so it calls

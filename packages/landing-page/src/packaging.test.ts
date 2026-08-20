@@ -54,6 +54,18 @@ describe("the landing package's dependencies", () => {
     expect(manifest.dependencies["@mamen/sdk"]).toBeUndefined();
   });
 
+  it("keeps its framework on the build side of the manifest", () => {
+    // The whole of what ADR 0002 reversed, and the line it kept: React and the
+    // router are here (issues #145, #148) and run in Node at build time. In
+    // `dependencies` they would be a claim that a browser needs them — which
+    // is what the app's manifest says about the same two names, and it is
+    // right about them.
+    for (const name of ["react", "react-dom", "@tanstack/react-router"]) {
+      expect(manifest.devDependencies[name]).toBeDefined();
+      expect(manifest.dependencies[name]).toBeUndefined();
+    }
+  });
+
   it("reaches its constants through the modules that import nothing", () => {
     for (const subpath of SHARED_SUBPATHS) {
       const target = sharedManifest.exports[subpath.replace("@mamen/shared", ".")];

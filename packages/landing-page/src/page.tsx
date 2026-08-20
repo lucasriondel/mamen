@@ -1,15 +1,30 @@
-import { createRootRoute, createRoute, Outlet } from "@tanstack/react-router";
-import { ACTIONS, CONTRIBUTING, HERO, INSTALL, prerequisiteLabel, SITE } from "../content";
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  Outlet,
+  RouterProvider,
+} from "@tanstack/react-router";
+import { renderToStaticMarkup } from "react-dom/server";
+import { ACTIONS, CONTRIBUTING, HERO, INSTALL, prerequisiteLabel, SITE } from "./content";
 
 /**
- * The landing page as React components on a TanStack router (issue #145).
+ * The public page served at the site root: React components on a TanStack
+ * router, rendered to finished HTML at build time (issues #145, #148).
+ *
+ * `renderPage()` is called by `src/prerender.ts` during the build and what it
+ * returns *is* `dist/index.html`, so nginx serves a document and the browser
+ * runs no JavaScript to read it. React is a **build-time** dependency here and
+ * never reaches the image — the half of the package's original zero-dependency
+ * decision that survived the port to a framework
+ * (`docs/adr/0002-react-renders-the-landing-page-at-build-time.md`).
  *
  * The root route renders the **whole document**, `<html>` down, because that is
- * the artifact: `src/preview/render.tsx` turns this tree into the finished HTML
- * a build writes, so anything the head must carry has to be part of the tree
- * rather than glued on around it. There is one child route — the page — and it
- * is a router rather than a lone component so that the shape the contract step
- * inherits is the one a second page can be added to.
+ * the artifact: anything the head must carry has to be part of the tree rather
+ * than glued on around it. There is one child route — the page — and it is a
+ * router rather than a lone component so that a second page can be added
+ * without restructuring this one.
  *
  * Nothing here runs in a browser. Components take no props from a loader, hold
  * no state and register no effects; the tree is rendered once, in Node, and the
@@ -17,10 +32,12 @@ import { ACTIONS, CONTRIBUTING, HERO, INSTALL, prerequisiteLabel, SITE } from ".
  * typecheck, ship, and quietly do nothing.
  *
  * Every word comes from `src/content/` (issue #147) — this file decides
- * elements and class names, and writes no sentence of its own.
+ * elements and class names, and writes no sentence of its own. It also escapes
+ * nothing by hand: React escapes what it renders, which is what retired the
+ * string renderer's own `escape()` and the class of bug it existed for.
  *
  * The stylesheet is linked at its source path — Vite's HTML pass rewrites it to
- * the hashed asset, exactly as it does for the root entry.
+ * the hashed asset in `dist` and the dev server serves the file directly.
  */
 
 const rootRoute = createRootRoute({
@@ -167,5 +184,33 @@ function Actions() {
   );
 }
 
-/** The tree the preview router is built from. */
-export const routeTree = rootRoute.addChildren([indexRoute]);
+/** The tree the router is built from. */
+const routeTree = rootRoute.addChildren([indexRoute]);
+
+/**
+ * The finished HTML document, as the build writes it.
+ *
+ * The router runs on a **memory history**: there is no browser here, and the
+ * one entry it is seeded with is the site root, so the tree resolves the way a
+ * request for `/` will.
+ *
+ * `renderToStaticMarkup`, not `renderToString`: the difference is the hydration
+ * markers, and there is nothing to hydrate. Nothing links a client entry into
+ * the document, so React stays a build-time dependency of this package.
+ *
+ * The doctype is prepended rather than rendered: it is not an element, so no
+ * React tree can carry it.
+ */
+export async function renderPage(): Promise<string> {
+  const router = createRouter({
+    routeTree,
+    history: createMemoryHistory({ initialEntries: ["/"] }),
+  });
+
+  // The tree is rendered synchronously below, so anything a route resolves on
+  // the way in has to be resolved first. Nothing here loads data today; a
+  // render that skipped this would start missing content the moment one does.
+  await router.load();
+
+  return `<!doctype html>\n${renderToStaticMarkup(<RouterProvider router={router} />)}\n`;
+}
