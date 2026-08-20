@@ -52,6 +52,41 @@ ${columns.map((column) => `  - "${column}"`).join("\n")}
 `;
 
 /**
+ * The **format verdict** the model is asked for (issue #188, PRD #180) — did
+ * this statement actually carry the columns the chosen **Statement Format**
+ * declares?
+ *
+ * The user picks which format reads a file, and can pick the wrong one. Until
+ * this was asked, nothing said so: the columns went into the prompt and rows came
+ * back regardless, so a wrong format read as a successful import and the only
+ * backstop was the user checking every line *after* deciding to commit.
+ *
+ * Three things it is careful about:
+ *
+ * - **The observation, never the conclusion.** The model is asked which declared
+ *   columns it could not find, and not whether that is a match — that fold is the
+ *   server's, and it is what keeps the verdict's two fields from contradicting.
+ * - **Only the declared columns.** A column name from anywhere else says nothing
+ *   about the format the user chose; the server drops it anyway, and asking for it
+ *   would invite a list of what the statement has *instead*, which is a different
+ *   (and later) question.
+ * - **Report, don't refuse.** The rows still come back. A mismatch is something the
+ *   wizard routes on, not a reason for the extraction to return nothing.
+ *
+ * Unconditional, unlike the columns block: the field is required in the answer,
+ * so it is asked for even when there is no list to check against — where the only
+ * possible answer is an empty one.
+ */
+const FORMAT_MATCH = `FORMAT MATCH
+- The user chose which statement format reads this file, and they may have chosen wrong.
+- Return \`missingColumns\`: every column named in the COLUMNS list above that this
+  statement does NOT actually carry. Return an empty array when it carries them all, and
+  when no columns were listed above.
+- Only ever name columns from that list. Do not report what the statement carries instead.
+- Extract the operations either way: this reports on the format, it does not stop the read.
+`;
+
+/**
  * How to read a French bank statement, once. Shared verbatim by both prompts;
  * everything above it is transport-specific and everything in it is not — the
  * declared columns included, since a hosted vendor and the local CLI are being
@@ -93,7 +128,8 @@ DECLARED TOTALS
   total credit figure. Both are POSITIVE magnitudes exactly as printed (parse French
   numbers the same way). This is the bank's own total, not a sum you compute.
 
-Return only the structured object: the array of transactions and the declared totals.`;
+${FORMAT_MATCH}
+Return only the structured object: the transactions, the declared totals and the missing columns.`;
 
 /** The CLI transport's prompt: the model opens the staged file itself. */
 export const extractionPrompt = (pdfPath: string, columns: readonly string[]): string =>

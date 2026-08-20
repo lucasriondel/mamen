@@ -126,6 +126,22 @@ prompt describing French statements in general is the guessing this work removed
 — building one from the file in front of the user is issue #186's step.
 _Avoid_: Parsing (reserved for CSV), OCR, scanning.
 
+**Format verdict**:
+What extraction says about the format it was given: whether the statement
+actually carried the columns that format declares, and which of them it did not
+(issue #188). The wizard **branches** on it — structured, not prose, for exactly
+that reason. A match continues to **side-by-side validation** as before; a
+mismatch does not, and its rows are dropped rather than seated: rows read against
+the wrong format are what the verdict is for.
+It is neither a success nor a failure, so it is its own piece of wizard state
+(`mismatch`) rather than a shade of `error` — the request worked, nothing is
+retryable, and the drop zone is the wrong thing to send the user back to. The
+file stays in hand, which puts the upload step's *which format reads this?*
+control back on screen for a second answer that costs no second upload; only the
+copy differs from the several-formats case, and it names the missing columns.
+Issue #186's mapping step is reached from here, for when none of the offered
+formats fit.
+
 **Extracted transaction**:
 One candidate record the model reads off a PDF Statement: `{ date, amount,
 rawIssuerString }` — the only PDF-observable fields. Not yet a saved

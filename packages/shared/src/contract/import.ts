@@ -49,13 +49,50 @@ export class DeclaredTotals extends Schema.Class<DeclaredTotals>("DeclaredTotals
 }) {}
 
 /**
- * Success payload for `extractPdf`: the candidate rows plus the statement's
- * declared totals. No database write happened — these are candidates the user
- * reviews and commits from the web side (issue #45).
+ * What extraction made of the **Statement Format** it was given (issue #188) —
+ * the PDF counterpart of the CSV path's header fingerprint.
+ *
+ * A PDF format declares the columns a bank's statement carries, and the user
+ * chooses which format reads a file. They can choose the wrong one, and until
+ * this verdict existed nothing said so: the model was told to expect columns the
+ * statement did not have and returned plausible rows anyway, which the user could
+ * only catch by reading every line of **side-by-side validation** — after the
+ * decision to import, rather than before it.
+ *
+ * - `matched` — whether the statement carried every column the format declares.
+ * - `missingColumns` — the ones it did not, in the format's own spelling and
+ *   order. Never a column the format does not declare: the field reports on the
+ *   *expected* columns, so a name from anywhere else has nothing to say about the
+ *   choice the user made.
+ *
+ * **Structured, not prose**, because the wizard *branches* on it: a mismatch
+ * routes into building a format rather than on to validation. Prose would make
+ * that branch a string match, and a model's sentence is not a stable API.
+ *
+ * The two fields cannot contradict one another — `matched` is `missingColumns`
+ * being empty, folded server-side from what the model reported (`import/
+ * extract.ts`). The model is asked only what it can see; the conclusion is
+ * mamen's.
+ */
+export class FormatVerdict extends Schema.Class<FormatVerdict>("FormatVerdict")({
+  matched: Schema.Boolean,
+  missingColumns: Schema.Array(Schema.String),
+}) {}
+
+/**
+ * Success payload for `extractPdf`: the candidate rows, the statement's declared
+ * totals, and the {@link FormatVerdict} on the format the rows were read
+ * against. No database write happened — these are candidates the user reviews
+ * and commits from the web side (issue #45).
+ *
+ * A mismatched verdict still carries whatever rows the model managed to read:
+ * the endpoint reports, and what to do about the wrong format is the wizard's
+ * decision (issue #188).
  */
 export class ExtractPdfResult extends Schema.Class<ExtractPdfResult>("ExtractPdfResult")({
   transactions: Schema.Array(ExtractedTransaction),
   declaredTotals: DeclaredTotals,
+  verdict: FormatVerdict,
 }) {}
 
 /**

@@ -104,8 +104,12 @@ what it *returns* have not.
 - **A new client-visible error.** `NotFound` joins `InvalidFileType`,
   `ExtractionFailed` and `AiProviderNotConfigured` on this endpoint.
 - The **structured mismatch verdict** — the model reporting that the statement did
-  not match the format it was given — is what this decision makes possible, and it
-  is issue #188's, not this one's.
+  not match the format it was given — is what this decision makes possible. It
+  landed in issue #188, one ticket later, as `ExtractPdfResult.verdict`: the model
+  is asked which declared columns it could not find, and `import/extract.ts` folds
+  that against the declared list into `{ matched, missingColumns }`. The
+  conclusion is the server's, never the model's, which is the same instinct as §2
+  — the stored record is the authority, and here so is the list it declares.
 
 ## Considered options
 

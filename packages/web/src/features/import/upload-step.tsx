@@ -52,9 +52,15 @@ function isPdf(file: File): boolean {
  * in-browser (papaparse) and continues synchronously; which **Statement Format**
  * reads it is settled by the wizard, against the account's stored formats. A
  * **PDF** uploads to `/import/extract-pdf` and shows a loading state while the
- * async extraction runs; on success the wizard lands straight on the
- * **side-by-side validation** view, since the account it was waiting for was
- * settled before the drop.
+ * async extraction runs; on a matched **format verdict** the wizard lands
+ * straight on the **side-by-side validation** view, since the account it was
+ * waiting for was settled before the drop.
+ *
+ * On a *mismatched* one it does not (issue #188). The statement did not carry
+ * the columns the chosen format declares, so the rows it produced were read
+ * against the wrong shape and are dropped rather than shown; the question of
+ * which format reads this file goes back to the user, with the upload still in
+ * hand ({@link awaitingFormat}).
  */
 export function UploadStep({
   formats,
@@ -106,10 +112,10 @@ export function UploadStep({
 
   /**
    * Which format the user picked for a PDF that is waiting on the question —
-   * `null` until they answer. Local rather than in the reducer: the *file* being
-   * held is a state of the import (`state.pendingPdf`) that the preview gate and
-   * every clearing action have to agree about, while a half-answered question is
-   * this control's own business and dies with it.
+   * `null` until they answer. Local rather than in the reducer: whether a file is
+   * waiting at all ({@link awaitingFormat}) is a state of the import that the
+   * preview gate and every clearing action have to agree about, while a
+   * half-answered question is this control's own business and dies with it.
    */
   const [chosenPdfFormat, setChosenPdfFormat] = useState<StatementFormatId | null>(null);
 
@@ -133,6 +139,20 @@ export function UploadStep({
     const startedAt = performance.now();
     try {
       const result = await importMutations.extractPdf(file, formatId);
+      // The **format verdict** (issue #188). A statement that did not carry the
+      // columns its format declares produced rows read against the wrong shape,
+      // so they are not seated: the question goes back to the user while the
+      // upload is still in hand. The answer they gave is dropped with it — the
+      // control starts empty, since re-sending the format that just failed is
+      // the one choice that cannot help.
+      if (!result.verdict.matched) {
+        setChosenPdfFormat(null);
+        dispatch({
+          type: "extract-mismatch",
+          missingColumns: result.verdict.missingColumns,
+        });
+        return;
+      }
       dispatch({
         type: "extract-success",
         transactions: result.transactions,
@@ -189,6 +209,27 @@ export function UploadStep({
     setNotConfigured(false);
     return isPdf(file) ? takePdf(file) : handleCsv(file);
   };
+
+  /**
+   * The PDF in hand that still needs a **Statement Format** said for it — and
+   * `null` whenever none is, which is every other state of this step.
+   *
+   * Two situations reach it and they ask the user the same thing. Either the
+   * account has several PDF formats and nobody has said which reads this file
+   * (issue #185), or one was chosen and extraction reported that the statement
+   * does not carry its columns (issue #188). Only the copy differs; the control,
+   * the list it offers and what happens on the button are identical, because in
+   * both the file is already here and the question is which format reads it.
+   *
+   * On the mismatch the file comes from `state.file` rather than `pendingPdf`:
+   * `pendingPdf` means *nothing has been sent anywhere*, and something has.
+   *
+   * Building a format from the statement in front of the user — the answer when
+   * none of the offered ones fit — is issue #186's mapping step. This is the
+   * state it will be reached from, and holding the file is what will let it read
+   * the statement without asking for the upload again.
+   */
+  const awaitingFormat = state.pendingPdf ?? (state.mismatch === null ? null : state.file);
 
   const onDrop = (event: DragEvent<HTMLElement>) => {
     event.preventDefault();
@@ -250,11 +291,23 @@ export function UploadStep({
         />
       </label>
 
-      {state.pendingPdf !== null ? (
+      {awaitingFormat !== null ? (
         <div className="flex flex-col gap-4 rounded-2xl border border-gousse-line bg-gousse-panel p-4">
           <p className="text-sm text-gousse-muted">
-            <span className="font-medium text-gousse-ink">{state.fileName}</span> — this account has
-            several PDF statement formats. Which one reads this statement?
+            <span className="font-medium text-gousse-ink">{state.fileName}</span>
+            {state.mismatch === null ? (
+              <>
+                {" "}
+                — this account has several PDF statement formats. Which one reads this statement?
+              </>
+            ) : (
+              <>
+                {" "}
+                — that format doesn't read this statement: it carries no{" "}
+                <span className="text-gousse-ink">{state.mismatch.missingColumns.join(", ")}</span>.
+                Pick the one that does — the file is still here.
+              </>
+            )}
           </p>
           <label className="flex flex-col gap-1 text-sm text-gousse-muted">
             Format
@@ -288,9 +341,8 @@ export function UploadStep({
                 // Both are non-null under the button's own guard, but they are
                 // read together here so the pair that travels is the pair the
                 // user answered about.
-                const file = state.pendingPdf;
-                if (file === null || chosenPdfFormat === null) return;
-                void handlePdf(file, chosenPdfFormat);
+                if (awaitingFormat === null || chosenPdfFormat === null) return;
+                void handlePdf(awaitingFormat, chosenPdfFormat);
               }}
             >
               Extract transactions

@@ -2,7 +2,8 @@ import { FileSystem, type Multipart, Path } from "@effect/platform";
 import {
   AiProviderNotConfigured,
   ExtractionFailed,
-  type ExtractPdfResult,
+  ExtractPdfResult,
+  FormatVerdict,
   InvalidFileType,
   NotFound,
   type StatementFormatId,
@@ -101,6 +102,39 @@ const declaredColumns = (
   });
 
 /**
+ * How a column name is compared — trimmed and case-folded.
+ *
+ * Case and surrounding space are how a model wrote a name down, not what the
+ * name is. A format that is right about the statement must not be reported as
+ * wrong because the answer came back `" DÉBIT "`.
+ */
+const columnKey = (column: string): string => column.trim().toLowerCase();
+
+/**
+ * The **format verdict** (issue #188): fold what the model observed into what
+ * the wizard branches on.
+ *
+ * The model is asked only which of the declared columns it could not find, and
+ * `matched` is that list being empty. Deriving it is what makes the two fields
+ * incapable of contradicting each other — a `matched: true` beside a list of
+ * missing columns is a state the wizard would have to have an opinion about, and
+ * there is no good one.
+ *
+ * Read off the **declared** list rather than off the model's answer, which does
+ * three things at once: a name the format never declared is dropped (the verdict
+ * reports on the *expected* columns — a column the user's format does not mention
+ * says nothing about the choice they made), the columns come back in the
+ * format's own spelling and order (the words the user typed, which is what they
+ * will go looking for), and a format declaring no columns matches whatever the
+ * model says, because there was nothing to miss.
+ */
+const verdictOf = (declared: readonly string[], reported: readonly string[]): FormatVerdict => {
+  const missing = new Set(reported.map(columnKey));
+  const missingColumns = declared.filter((column) => missing.has(columnKey(column)));
+  return new FormatVerdict({ matched: missingColumns.length === 0, missingColumns });
+};
+
+/**
  * Let the CLI read one directory, and change nothing else about it.
  *
  * The `Read`-only tool allowance is the task table's (`allowedTools`), but the
@@ -152,6 +186,11 @@ const allowRead =
  *    {@link ExtractionFailed}; the real tag is logged server-side. The one
  *    exception is {@link notConfigured}: a provider with no credential stored is
  *    the only failure here the client can do something about (issue #122).
+ * 6. Fold the columns the model could not find into the **format verdict**
+ *    ({@link verdictOf}, issue #188) and answer with it beside the rows. A
+ *    mismatch is *reported*, never raised: the rows the model did manage to read
+ *    still come back, and what to do about the wrong format is the wizard's
+ *    branch.
  *
  * Filesystem errors while staging the temp copy are infrastructure defects
  * (die → 500), never client-facing — the error channel stays the domain errors.
@@ -205,5 +244,12 @@ export const extractPdf = (
       ),
     );
 
-    return output;
+    // The model answered with the rows and the columns it could not find; the
+    // verdict on the *format* is folded from that against what the format
+    // declared, and it is the endpoint's answer rather than the model's.
+    return new ExtractPdfResult({
+      transactions: output.transactions,
+      declaredTotals: output.declaredTotals,
+      verdict: verdictOf(columns, output.missingColumns),
+    });
   }).pipe(Effect.scoped);

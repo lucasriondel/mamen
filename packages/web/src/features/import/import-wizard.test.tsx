@@ -98,6 +98,25 @@ const pdfFormat = (id: number, name: string, columns = ["Date", "Libellé", "Dé
 const csvFormat = (id: number, name: string) =>
   format({ id, name, kind: "csv", headers: ["Date", "Libellé", "Montant"] });
 
+/**
+ * The **format verdict** an extraction comes back with (issue #188) — the
+ * statement carried every column the chosen **Statement Format** declares.
+ *
+ * Every mocked extraction below says so, because everything downstream of the
+ * upload step assumes a format that fits. The mismatch is the exception and it
+ * says so where it is the subject. Written out per case rather than defaulted
+ * into the mock, since a fixture cast through `unknown` absorbs a new field
+ * silently: a verdict nobody stated would be `undefined`, which is not a
+ * verdict, and the branch would go untested in both directions.
+ */
+const MATCHED = { matched: true, missingColumns: [] };
+
+/** The other verdict: the statement is missing columns the format expects. */
+const mismatched = (...missingColumns: readonly string[]) => ({
+  matched: false,
+  missingColumns,
+});
+
 // SDK-boundary seam: mock the account read + the writes the wizard makes,
 // keeping the rest of the SDK (keys) real for invalidation. `transactionMutations`
 // is replaced wholesale rather than spread over: committing is purely additive
@@ -646,6 +665,7 @@ describe("ImportWizard", () => {
     // The extraction endpoint is mocked: dropping a PDF returns two candidate
     // rows (Jan debit + Feb credit) plus the statement's declared totals.
     extractPdf.mockResolvedValue({
+      verdict: MATCHED,
       transactions: [
         {
           date: new Date("2026-01-15T10:00:00.000Z"),
@@ -704,6 +724,7 @@ describe("ImportWizard", () => {
    */
   describe("the PDF path chooses a Statement Format first", () => {
     const EXTRACTION = {
+      verdict: MATCHED,
       transactions: [
         { date: new Date("2026-01-15T10:00:00.000Z"), amount: -10, rawIssuerString: "SHOP A" },
       ],
@@ -803,9 +824,108 @@ describe("ImportWizard", () => {
     });
   });
 
+  /**
+   * Issue #188 — extraction reports whether the statement actually matched the
+   * **Statement Format** it was read against, and the wizard *branches* on it.
+   *
+   * A match is what every other PDF case here already shows: straight on to
+   * **side-by-side validation**. A mismatch is the branch this suite adds — the
+   * user finds out before committing rather than by reading every line
+   * afterwards, and the statement they already uploaded stays in hand.
+   */
+  describe("the PDF path branches on the format verdict", () => {
+    const ROWS = [
+      { date: new Date("2026-01-15T10:00:00.000Z"), amount: -10, rawIssuerString: "SHOP A" },
+    ];
+
+    it("keeps a mismatched statement off validation and names the missing columns", async () => {
+      const user = userEvent.setup();
+      extractPdf.mockResolvedValue({
+        verdict: mismatched("Débit", "Crédit"),
+        transactions: ROWS,
+        declaredTotals: { debit: 10, credit: 0 },
+      });
+      renderWizard();
+
+      await chooseAccount(user);
+      await dropPdf(user);
+
+      await waitFor(() => expect(extractPdf).toHaveBeenCalledTimes(1));
+
+      // What is wrong, in the statement's own column names.
+      expect(await screen.findByText(/Débit, Crédit/)).toBeInTheDocument();
+
+      // Not validation, and not the retry an extraction *failure* would offer:
+      // nothing failed, the format is simply not the one that reads this file.
+      expect(screen.queryByTitle("PDF statement")).toBeNull();
+      expect(screen.queryByRole("alert")).toBeNull();
+      expect(screen.getByRole("button", { name: "Continue to preview" })).toBeDisabled();
+    });
+
+    // The whole point of holding the file: the second attempt is a *choice*, not
+    // a re-upload. The very object that was dropped is what travels again.
+    it("lets the user choose another format without losing the upload", async () => {
+      const user = userEvent.setup();
+      withFormats(pdfFormat(7, "CCF — old layout"), pdfFormat(8, "CCF — since 2026"));
+      extractPdf.mockResolvedValueOnce({
+        verdict: mismatched("Crédit"),
+        transactions: ROWS,
+        declaredTotals: { debit: 10, credit: 0 },
+      });
+      extractPdf.mockResolvedValue({
+        verdict: MATCHED,
+        transactions: ROWS,
+        declaredTotals: { debit: 10, credit: 0 },
+      });
+      renderWizard();
+
+      await chooseAccount(user);
+      const file = await dropPdf(user);
+
+      // First answer: format 7, and it does not read this statement.
+      await user.selectOptions(await screen.findByLabelText("PDF statement format"), "7");
+      await user.click(screen.getByRole("button", { name: "Extract transactions" }));
+      await waitFor(() => expect(extractPdf).toHaveBeenCalledTimes(1));
+      expect(await screen.findByText(/Crédit/)).toBeInTheDocument();
+
+      // Second answer: the other format, on the same file — no second drop.
+      await user.selectOptions(await screen.findByLabelText("PDF statement format"), "8");
+      await user.click(screen.getByRole("button", { name: "Extract transactions" }));
+
+      await waitFor(() => expect(extractPdf).toHaveBeenCalledTimes(2));
+      const [again, formatId] = extractPdf.mock.calls[1] as [File, unknown];
+      expect(again).toBe(file);
+      expect(formatId).toBe(8);
+
+      // And a matched verdict carries on exactly as it always did.
+      expect(await screen.findByTitle("PDF statement")).toBeInTheDocument();
+    });
+
+    // The sole-format account is the common case, and it is the one where a
+    // mismatch has the least to offer — so the file must still be held, ready
+    // for the format the user has yet to build (issue #186).
+    it("asks again even when the account's one PDF format is what failed", async () => {
+      const user = userEvent.setup();
+      extractPdf.mockResolvedValue({
+        verdict: mismatched("Débit"),
+        transactions: ROWS,
+        declaredTotals: { debit: 10, credit: 0 },
+      });
+      renderWizard();
+
+      await chooseAccount(user);
+      await dropPdf(user);
+
+      await waitFor(() => expect(extractPdf).toHaveBeenCalledTimes(1));
+      expect(await screen.findByLabelText("PDF statement format")).toBeInTheDocument();
+      expect(screen.getByText("statement.pdf", { exact: false })).toBeInTheDocument();
+    });
+  });
+
   it("renders the PDF beside editable rows and commits an in-place edit", async () => {
     const user = userEvent.setup();
     extractPdf.mockResolvedValue({
+      verdict: MATCHED,
       transactions: [
         {
           date: new Date("2026-01-15T10:00:00.000Z"),
@@ -858,6 +978,7 @@ describe("ImportWizard", () => {
   it("renders the side-by-side rows as a table, skip checkbox first", async () => {
     const user = userEvent.setup();
     extractPdf.mockResolvedValue({
+      verdict: MATCHED,
       transactions: [
         {
           date: new Date("2026-01-15T10:00:00.000Z"),
@@ -899,6 +1020,7 @@ describe("ImportWizard", () => {
   it("marks an already-imported row in the side-by-side validation view", async () => {
     const user = userEvent.setup();
     extractPdf.mockResolvedValue({
+      verdict: MATCHED,
       transactions: [
         {
           date: new Date("2026-01-15T10:00:00.000Z"),
@@ -945,6 +1067,7 @@ describe("ImportWizard", () => {
   it("reports how long the extraction took on the side-by-side view", async () => {
     const user = userEvent.setup();
     extractPdf.mockResolvedValue({
+      verdict: MATCHED,
       transactions: [
         {
           date: new Date("2026-01-15T10:00:00.000Z"),
@@ -977,6 +1100,7 @@ describe("ImportWizard", () => {
     // Extracted rows sum to 10 of debits, but the statement declares 50 — a
     // probable dropped row. The banner appears; commit is never blocked.
     extractPdf.mockResolvedValue({
+      verdict: MATCHED,
       transactions: [
         {
           date: new Date("2026-01-15T10:00:00.000Z"),
@@ -1009,6 +1133,7 @@ describe("ImportWizard", () => {
   it("skips a row on the side-by-side view instead of deleting it", async () => {
     const user = userEvent.setup();
     extractPdf.mockResolvedValue({
+      verdict: MATCHED,
       transactions: [
         {
           date: new Date("2026-01-15T10:00:00.000Z"),
@@ -1058,6 +1183,7 @@ describe("ImportWizard", () => {
   it("takes a skipped side-by-side row back, fields live again", async () => {
     const user = userEvent.setup();
     extractPdf.mockResolvedValue({
+      verdict: MATCHED,
       transactions: [
         {
           date: new Date("2026-01-15T10:00:00.000Z"),
@@ -1105,6 +1231,7 @@ describe("ImportWizard", () => {
   it("still adds a row the extraction missed, and it can be skipped like the rest", async () => {
     const user = userEvent.setup();
     extractPdf.mockResolvedValue({
+      verdict: MATCHED,
       transactions: [
         {
           date: new Date("2026-01-15T10:00:00.000Z"),
@@ -1146,6 +1273,7 @@ describe("ImportWizard", () => {
   it("counts kept rows in the commit bar while the banner still sums every extracted row", async () => {
     const user = userEvent.setup();
     extractPdf.mockResolvedValue({
+      verdict: MATCHED,
       transactions: [
         {
           date: new Date("2026-01-15T10:00:00.000Z"),
@@ -1192,6 +1320,7 @@ describe("ImportWizard", () => {
   it("shows no reconciliation banner when the sums reconcile", async () => {
     const user = userEvent.setup();
     extractPdf.mockResolvedValue({
+      verdict: MATCHED,
       transactions: [
         {
           date: new Date("2026-01-15T10:00:00.000Z"),

@@ -344,9 +344,29 @@ repeated per package.
   client-fixable, errors. Since issue #185 the endpoint takes the **Statement
   Format** to read the statement with, so it is **no longer account-agnostic** —
   a format belongs to one account, and its declared columns are what the model is
-  told the statement carries. See
+  told the statement carries. Since issue #188 the result also carries a **format
+  verdict** on whether the statement actually matched it. See
   [ADR 0005](./docs/adr/0005-pdf-extraction-runs-server-side.md) and
   [ADR 0014](./docs/adr/0014-pdf-extraction-is-account-aware-through-its-format.md).
+
+- **Format verdict** — what **PDF extraction** reports about the **Statement
+  Format** it was given: `{ matched, missingColumns }` — whether the statement
+  carried every column that format declares, and which expected ones it did not
+  (issue #188). The PDF counterpart of the CSV path's header fingerprint: a user
+  picks which format reads a file and can pick wrong, and without a verdict the
+  wrong pick comes back as plausible rows nobody questions until after they are
+  committed.
+  **Structured, never prose**, because the wizard *branches* on it: a match
+  continues to **side-by-side validation** unchanged, a mismatch does not — its
+  rows are dropped rather than shown, and the user is asked which format reads
+  the statement while the upload is still in hand. The model is asked only which
+  declared columns it could not find; `matched` is that list being empty, folded
+  server-side, so the two halves cannot contradict one another. `missingColumns`
+  only ever names columns the format declares, in the format's own words.
+  A mismatch is **reported, not raised** — the response is a 200 carrying a
+  verdict, not an `ExtractionFailed`: nothing failed.
+  _Avoid_: extraction error, validation failure (nothing was rejected and
+  nothing is retryable).
 
 - **Provider not configured** — `AiProviderNotConfigured` (501), the one
   extraction failure held **out of** the collapse into `ExtractionFailed`: the

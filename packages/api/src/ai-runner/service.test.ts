@@ -26,8 +26,11 @@ import { AiRunner } from "./service";
  * which no client ever sees.
  */
 
-/** A well-formed extraction payload — the shape `ExtractPdfResult` decodes. */
+/** A well-formed extraction payload — the shape `ExtractionOutput` decodes. */
 const PAYLOAD = {
+  // The model's half of the **format verdict** (issue #188): nothing missing,
+  // i.e. the statement carried every column its **Statement Format** declares.
+  missingColumns: [],
   transactions: [
     { date: "2026-01-03", amount: -6.99, rawIssuerString: "CB AMAZON" },
     {
