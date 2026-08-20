@@ -321,11 +321,14 @@ describe("the label/control rule", () => {
 describe("what the ox configs refuse to look at", () => {
   /**
    * The paths only the formatter excludes, because only the formatter would
-   * ever rewrite them: prose, and the standalone design mockups — single-file
-   * HTML with their whole stylesheet inline. oxlint has no opinion about any of
-   * them; it reads `.ts`/`.tsx`.
+   * ever rewrite them: prose. oxlint has no opinion about it; it reads
+   * `.ts`/`.tsx`.
+   *
+   * `docs/design` and the root `design/` used to be here too — standalone HTML
+   * mockups oxfmt rewrote thousands of lines of. Issue #151 deleted them rather
+   * than publishing them, so the exclusions went with them.
    */
-  const FORMATTER_ONLY = new Set(["**/*.md", "docs/design", "design"]);
+  const FORMATTER_ONLY = new Set(["**/*.md"]);
 
   it("is one list, kept in both, now that neither is derived from biome", () => {
     // biome.json used to be the anchor both were checked against. With it gone
@@ -360,14 +363,14 @@ describe("what the ox configs refuse to look at", () => {
     }
   });
 
-  it("keeps the design mockups off the formatter, wherever they sit", () => {
-    // Both directories, because the repo has two: `docs/design` and the root
-    // `design/`. The second is what a repo-wide `oxfmt .` was reformatting —
-    // thousands of lines of inline HTML nothing imports — until it was named
-    // here.
+  it("no longer excludes the design mockups, because there are none", () => {
+    // The inverse of the assertion this replaces. An exclusion for a path that
+    // does not exist is the same rot as a link to a deleted file: it tells the
+    // next reader the repo has design mockups somewhere, and it silently stops
+    // protecting anything the day the directory comes back under another name.
     for (const dir of ["docs/design", "design"]) {
-      expect(existsSync(`${ROOT}/${dir}`), dir).toBe(true);
-      expect(ignoresTree(oxfmtrc.ignorePatterns, dir), dir).toBe(true);
+      expect(existsSync(`${ROOT}/${dir}`), dir).toBe(false);
+      expect(ignoresTree(oxfmtrc.ignorePatterns, dir), dir).toBe(false);
     }
   });
 });

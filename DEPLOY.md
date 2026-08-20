@@ -412,6 +412,11 @@ The repository is private, and the flip is effectively irreversible: anything
 public may be cloned or indexed within minutes, so "it can always go private
 again" is true of the page and not of the content.
 
+The whole operation in order — branch pruning, the history scrub, the metadata,
+the clone checks and the flip — is
+[docs/operations/going-public.md](docs/operations/going-public.md). What follows
+is the short form of why each step is there.
+
 Before flipping, in order:
 
 1. **Confirm the history is clean — check, do not assume.** A real bank

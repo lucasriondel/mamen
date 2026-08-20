@@ -16,6 +16,14 @@ lives in `docs/upstream/`.
 The legacy `server` (Fastify API) and `web-api-legacy` (old web client) packages were deleted at
 the Effect API rework cutover (`docs/issues/0020-cutover.md`).
 
+Work that is designed but not yet built lives in `docs/specs/` — one document
+per piece, written against the code as it stands and superseded once the issue
+that implements it closes. `docs/issues/` and `docs/research/` are the finished
+record of the Effect API rework, kept for the reasoning rather than the plan;
+the live tracker is GitHub Issues (`docs/agents/issue-tracker.md`). Which of
+these directories a public clone carries, and why, is
+`docs/adr/0013-the-repository-publishes-how-it-is-built.md`.
+
 ## Cross-context terms
 
 These terms mean the same thing in every context — defined once here, not
