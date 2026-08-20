@@ -41,7 +41,12 @@ afterAll(() => server.close());
 
 // The URL the server actually bound, not the one it was asked for: `port: 0`
 // means the OS chooses, and `config.server.port` still reads back the request.
-const origin = (server.resolvedUrls?.local[0] as string).replace(/\/$/, "");
+// Cast away the `undefined` and every request below fails on a URL that reads
+// `undefined/preview/`, which names the wrong thing; say what went wrong here.
+const [local] = server.resolvedUrls?.local ?? [];
+if (local === undefined) throw new Error("the dev server bound no local URL");
+
+const origin = local.replace(/\/$/, "");
 
 const get = async (path: string) => {
   const response = await fetch(`${origin}${path}`);

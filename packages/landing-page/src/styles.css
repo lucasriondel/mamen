@@ -13,6 +13,8 @@
   --muted: #a1a1a1;
   --accent: #d8b26e;
   --line: #262626;
+  /* One step off the background, for the command blocks. */
+  --raised: #131313;
 }
 
 *,
@@ -71,6 +73,89 @@ h1 {
 .points strong {
   color: var(--fg);
   font-weight: 600;
+}
+
+/* The install guide (issue #147). Running mamen yourself is the only call to
+   action the page can honestly make, so the steps get the room to be read as
+   instructions rather than as a feature list. */
+
+h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.5rem;
+  letter-spacing: -0.02em;
+}
+
+h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+section {
+  margin: 0 0 2.5rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--line);
+}
+
+.section-lead {
+  margin: 0 0 1.5rem;
+  color: var(--muted);
+}
+
+.prerequisites,
+.servers,
+.environment {
+  margin: 0 0 1.5rem;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+}
+
+.prerequisites li,
+.servers li,
+.environment li {
+  margin: 0 0 0.5rem;
+}
+
+.steps {
+  margin: 0 0 1.5rem;
+  padding: 0 0 0 1.25rem;
+}
+
+.steps li {
+  margin: 0 0 1.5rem;
+}
+
+.steps p {
+  margin: 0 0 0.75rem;
+  color: var(--muted);
+}
+
+/* The commands. `pre` keeps the line breaks a reader would type, and the
+   horizontal scroll is deliberate: wrapping a command is how a copied line
+   becomes two. */
+pre {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--raised);
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  font-size: 0.875rem;
+}
+
+.servers code,
+.environment code {
+  color: var(--fg);
+}
+
+.contributing p {
+  margin: 0 0 1rem;
+  color: var(--muted);
 }
 
 .actions {

@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { APP_BASE_PATH, APP_BASE_PATH_SLASH } from "@mamen/shared/app-base-path";
 import { describe, expect, it } from "vitest";
+import { CONTRIBUTING, INSTALL } from "./content";
 import { renderPage } from "./page";
 
 /**
@@ -21,7 +22,8 @@ import { renderPage } from "./page";
 
 const html = renderPage();
 
-const source = readFileSync(fileURLToPath(new URL("./page.ts", import.meta.url)), "utf8");
+const source = (path: string) =>
+  readFileSync(fileURLToPath(new URL(path, import.meta.url)), "utf8");
 
 /** Every `href="…"` the page carries, in order. */
 const hrefs = [...html.matchAll(/href="([^"]*)"/g)].map((m) => m[1] as string);
@@ -34,11 +36,37 @@ describe("the landing page", () => {
   });
 
   it("reads the prefix from the constant rather than restating it", () => {
-    // A hand-written `/app` here is a fifth copy of the literal, in the one
-    // file whose whole content is a link to it.
-    expect(source).toMatch(/APP_BASE_PATH_SLASH/);
-    expect(source).not.toContain(`"${APP_BASE_PATH}`);
-    expect(source).not.toContain(`'${APP_BASE_PATH}`);
+    // The link is content, not markup, so it moved into the module that holds
+    // the page's destinations (issue #147). A hand-written `/app` in either
+    // file is a fifth copy of the literal, in the one place whose whole job is
+    // linking at it.
+    expect(source("./content/actions.ts")).toMatch(/APP_BASE_PATH_SLASH/);
+    for (const file of ["./page.ts", "./content/actions.ts"]) {
+      expect(source(file)).not.toContain(`"${APP_BASE_PATH}`);
+      expect(source(file)).not.toContain(`'${APP_BASE_PATH}`);
+    }
+  });
+
+  it("renders the install guide, which is the only call to action it has", () => {
+    // There is nothing to sign up for, so "run it yourself" is the offer —
+    // and a guide missing a step is a reader stuck at a shell prompt.
+    expect(html).toContain(`<h2>${INSTALL.heading}</h2>`);
+    expect(html.match(/<pre><code>/g)).toHaveLength(INSTALL.steps.length);
+    for (const step of INSTALL.steps) {
+      expect(html).toContain(`<h3>${step.title}</h3>`);
+    }
+    expect(html).toContain(`<h2>${CONTRIBUTING.heading}</h2>`);
+  });
+
+  it("escapes the content instead of writing it through as markup", () => {
+    // Concatenation means this renderer escapes where React's would do it for
+    // free. The key placeholder is the case that bites: written through raw,
+    // its angle brackets are a tag the browser swallows, taking the half of
+    // the line that tells a reader what to generate with it.
+    const placeholder = INSTALL.steps.flatMap((step) => step.commands).find((c) => c.includes("<"));
+    expect(placeholder).toBeDefined();
+    expect(html).not.toContain(placeholder);
+    expect(html).toContain((placeholder as string).replace(/</g, "&lt;").replace(/>/g, "&gt;"));
   });
 
   it("says what mamen is, and does not oversell it", () => {

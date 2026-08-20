@@ -3,7 +3,7 @@
 The public page served at the **site root** (issue #113). HTML and one
 stylesheet, prerendered by Vite at build time and served by nginx from its own
 image — no runtime, nothing to hydrate. The package is `index.html` (a stub),
-`src/page.ts` (the page), `src/copy.ts` (its words), `src/prerender.ts` (the
+`src/page.ts` (the page), `src/content/` (its words), `src/prerender.ts` (the
 Vite plugin that puts one into the other) and `src/styles.css`.
 
 Beside it, at a **preview route**, the same page rendered a second way: React
@@ -17,10 +17,11 @@ fact it shares with `@mamen/web` is the **path prefix** the app is served under
 (`packages/web/CONTEXT.md`), read from `@mamen/shared/app-base-path` so the link
 into the app cannot drift from where nginx puts it.
 
-The copy is provisional — this slice delivered the package, the build, the
-container and the routing; the real copy and design are a follow-up. What it may
-not do is oversell: mamen is single-user and self-hosted, there is nothing to
-sign up for, and a page implying otherwise is worse than no page.
+The words live in `src/content/` as typed data rather than in markup (issue
+#147), which is what lets a test hold the install guide to the README instead of
+a reader holding two documents side by side. What the copy may not do is
+oversell: mamen is single-user and self-hosted, there is nothing to sign up for,
+and a page implying otherwise is worse than no page.
 
 See [CONTEXT-MAP.md](../../CONTEXT-MAP.md) for the cross-context terms and
 [DEPLOY.md](../../DEPLOY.md) for how the two
@@ -97,9 +98,41 @@ the browser assembling a page this package exists to serve finished.
 _Avoid_: SSR (there is no server rendering per request — the render happens once,
 at build).
 
-**Shared copy**:
-`src/copy.ts` — the page's words as data, read by both renderers. Two renderers
-holding the same sentences is exactly the drift expand–contract invites, so
-neither writes any of them: `src/preview/copy.test.ts` renders both and compares
-the text a reader sees. It keeps the contract step a swap of the renderer rather
-than a rewrite of the page.
+**Content module**:
+One section of the page as typed data, under `src/content/` — the site's
+metadata, the hero, the install guide, the contributing note and the call to
+action, one module each (issue #147). Both renderers read them and neither
+writes a sentence of its own: two renderers holding the same words is exactly
+the drift expand–contract invites, so `src/preview/copy.test.ts` renders both,
+compares the text a reader sees, and bans a package file from restating any of
+it. It keeps the contract step a swap of the renderer rather than a rewrite of
+the page.
+It is **data, not markup**: nothing renders it — no markdown pass, no entities —
+so an asterisk meant as emphasis reaches the reader as an asterisk, and a
+backticked command reaches them with its backticks. `src/content/prose.test.ts`
+is that rule, walked over every string in the structure.
+_Avoid_: template, i18n bundle (there is one language and no substitution — a
+module is read as the value it is).
+
+**README sync**:
+The install guide is the README's install path *structured*, so the two can be
+reconciled by a test rather than by reading them side by side
+(`src/content/readme-sync.test.ts`): the same commands, in the same order, the
+prerequisites at the version the repo pins, the three dev-server URLs and the
+one variable with no default. The landing page is the document that goes stale —
+nobody re-reads it while changing a port — and structure is what makes the
+staleness fail a test run. A **command** therefore lives in its step's
+`commands` field, never inside a sentence: prose is compared loosely, a block a
+reader copies is compared literally.
+_Avoid_: docs generation (the README is not built from this, nor this from it —
+they are written separately and held equal).
+
+**Honest copy**:
+What the page may claim, which is less than a landing page usually does. mamen
+is single-user and self-hosted; there is nothing to sign up for, nothing to join
+and no service on offer, so the only call to action it has is the install guide.
+The shape came from a sibling project whose content documents a Google OAuth
+consent screen, its data sub-processors and an AI vendor's retention policy —
+none of which exist here, and carrying them over would describe a product that
+does not exist. Both halves are asserted, not just intended
+(`src/content/prose.test.ts`).

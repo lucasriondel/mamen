@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { APP_BASE_PATH } from "@mamen/shared/app-base-path";
 import { describe, expect, it } from "vitest";
 
@@ -65,7 +65,16 @@ describe("the landing package's dependencies", () => {
       expect(read(`../shared/${target.slice(2)}`)).not.toMatch(/^\s*import\b/m);
     }
 
-    const specifiers = ["src/page.ts", "vite.config.ts"].flatMap((file) =>
+    // Every file in the package, not a list of the ones that import today:
+    // the constants moved into `src/content/` with issue #147, and a guard
+    // naming its readers by hand would have gone quiet the moment they did.
+    const files = [
+      "vite.config.ts",
+      ...readdirSync("src", { recursive: true, encoding: "utf8" })
+        .filter((entry) => /\.tsx?$/.test(entry))
+        .map((entry) => `src/${entry}`),
+    ];
+    const specifiers = files.flatMap((file) =>
       [...read(file).matchAll(/from "(@mamen\/[^"]+)"/g)].map((m) => m[1]),
     );
     expect(specifiers).not.toStrictEqual([]);
