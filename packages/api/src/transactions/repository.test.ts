@@ -4259,4 +4259,103 @@ describe("TransactionRepo", () => {
       }).pipe(Effect.provide(RepoTest)),
     );
   });
+
+  // ADR 0002's guard, read across every path that projects a category (issue
+  // #174). The list reads the transactions table as `t`, the transfer
+  // suggestion reads its candidate as `c`, and the transfer-candidate read
+  // projects both legs of a pair under `f` and `c` — four aliases, one rule.
+  //
+  // Both fixtures set the stored `categoryId` and the issuer's default to
+  // DIFFERENT ids on purpose: with the two equal, both branches of the
+  // derivation return the same answer and a copy that picked the wrong one
+  // still passes. Asserted through the repository's public reads only — a test
+  // of the fragment itself would pass even if a call site stopped using it,
+  // which is the single failure this guard exists to catch.
+  describe("the derived category is one rule on every read path (ADR 0002, issue #174)", () => {
+    // Issuer 4 defaults to category 7, issuer 5 to category 8. Neither default
+    // matches the `categoryId` its rows store below.
+    const seedIssuers = Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      yield* sql`INSERT INTO issuers (id, name, defaultCategoryId, createdAt, firstSeen) VALUES (4, 'Spotify AB', 7, ${DATE.toISOString()}, ${DATE.toISOString()})`;
+      yield* sql`INSERT INTO issuers (id, name, defaultCategoryId, createdAt, firstSeen) VALUES (5, 'Carrefour', 8, ${DATE.toISOString()}, ${DATE.toISOString()})`;
+    });
+
+    /**
+     * One detected transfer pair, read through all three surfaces, each entry
+     * `[debit, credit]`: the list, the transfer-candidate read (each leg under
+     * its own self-join alias) and the transfer-suggestion read (each leg
+     * reached as the OTHER's counterpart).
+     */
+    const categoriesPerPath = (debitId: TransactionId, creditId: TransactionId) =>
+      Effect.gen(function* () {
+        const repo = yield* TransactionRepo;
+        const listed = new Map(
+          (yield* repo.list(listAll)).items.map((t) => [t.id as number, t.categoryId]),
+        );
+        const pair = (yield* repo.transferCandidates())[0];
+        const suggestedCredit = (yield* repo.suggestTransfers(debitId))[0];
+        const suggestedDebit = (yield* repo.suggestTransfers(creditId))[0];
+        return {
+          list: [listed.get(debitId), listed.get(creditId)],
+          candidates: [pair?.leg.categoryId, pair?.counterparts[0]?.transaction.categoryId],
+          suggestions: [suggestedDebit?.categoryId, suggestedCredit?.categoryId],
+        };
+      });
+
+    it.effect("a manual category outranks the issuer default on all three", () =>
+      Effect.gen(function* () {
+        const repo = yield* TransactionRepo;
+        yield* seedIssuers;
+        const debit = yield* repo.create(
+          make({
+            amount: -30,
+            issuerId: asIssuer(4),
+            categoryId: asCategory(9),
+            manualCategory: true,
+          }),
+        );
+        const credit = yield* repo.create(
+          make({
+            amount: 30,
+            accountId: asAccount(2),
+            issuerId: asIssuer(5),
+            categoryId: asCategory(11),
+            manualCategory: true,
+          }),
+        );
+
+        const seen = yield* categoriesPerPath(debit.id, credit.id);
+        const expected = [asCategory(9), asCategory(11)];
+        assert.deepStrictEqual(seen.list, expected);
+        assert.deepStrictEqual(seen.candidates, expected);
+        assert.deepStrictEqual(seen.suggestions, expected);
+      }).pipe(Effect.provide(RepoAndSqlTest)),
+    );
+
+    it.effect("without one, the issuer's default is inherited on all three", () =>
+      Effect.gen(function* () {
+        const repo = yield* TransactionRepo;
+        yield* seedIssuers;
+        // Both rows still carry a stored `categoryId`; with no manual flag it
+        // is inert, so a read that matched the column would report 9 and 11.
+        const debit = yield* repo.create(
+          make({ amount: -30, issuerId: asIssuer(4), categoryId: asCategory(9) }),
+        );
+        const credit = yield* repo.create(
+          make({
+            amount: 30,
+            accountId: asAccount(2),
+            issuerId: asIssuer(5),
+            categoryId: asCategory(11),
+          }),
+        );
+
+        const seen = yield* categoriesPerPath(debit.id, credit.id);
+        const expected = [asCategory(7), asCategory(8)];
+        assert.deepStrictEqual(seen.list, expected);
+        assert.deepStrictEqual(seen.candidates, expected);
+        assert.deepStrictEqual(seen.suggestions, expected);
+      }).pipe(Effect.provide(RepoAndSqlTest)),
+    );
+  });
 });
