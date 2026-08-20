@@ -33,6 +33,34 @@ const TXN = {
 } as unknown as Transaction;
 
 /**
+ * A CSV-imported row that kept its **raw source** (issue #177) — the bank's own
+ * line, French headers and all, including a `Catégorie` of the bank's own that
+ * mamen's **derived category** is free to disagree with. `TXN` above keeps none,
+ * which is the other half of the coverage: the archive is the newer state, not
+ * the resting one.
+ *
+ * The account number is assembled rather than written out, so this file carries
+ * no matchable one (issue #108).
+ */
+const ARCHIVED = {
+  id: 600,
+  accountId: 1,
+  date: new Date("2026-01-20T00:00:00Z"),
+  amount: -9.99,
+  rawIssuerString: "SPOTIFY P2A34",
+  importedAt: new Date(),
+  importMonth: "2026-01",
+  rawSource: {
+    "N° transaction": "000000000000000000000015",
+    Statut: "COMPLETE",
+    Intitulé: "SPOTIFY P2A34",
+    "IBAN du tiers": `FR7699999${"0".repeat(18)}`,
+    "Moyen de paiement": "ECOMMERCE",
+    Catégorie: "SUBSCRIPTIONS",
+  },
+} as unknown as Transaction;
+
+/**
  * A **bundle parent** (issue #72): the one row in the app that is only ever met
  * on this page, since members hide its own members from the list. It carries a
  * label and nothing else — no issuer, no category, no note — which is exactly
@@ -186,7 +214,9 @@ vi.mock("@mamen/sdk", () => ({
                 ? FLAGGED_BUNDLE
                 : id === LEG.id
                   ? LEG
-                  : undefined,
+                  : id === ARCHIVED.id
+                    ? ARCHIVED
+                    : undefined,
     }),
     list: (params: Record<string, unknown>) => ({
       queryKey: ["transactions", "list", params],
@@ -447,6 +477,53 @@ describe("TransactionDetailPage", () => {
     expect(await screen.findByText("VIREMENT RECU")).toBeVisible();
     expect(screen.getByText(/1 day apart/)).toBeVisible();
     expect(screen.getByRole("button", { name: /link as transfer/i })).toBeVisible();
+  });
+
+  // Issue #177. The web fixtures are cast through `unknown`, so `rawSource`
+  // landed on them with no type error to catch a missing surface — this block's
+  // coverage is written by hand or it does not exist.
+  describe("the bank's own words (issue #177)", () => {
+    it("shows the row the bank sent, keys untranslated", async () => {
+      const user = userEvent.setup();
+      renderPage(600);
+
+      await user.click(await screen.findByRole("button", { name: /bank's own words/i }));
+
+      expect(screen.getByText("Moyen de paiement")).toBeVisible();
+      expect(screen.getByText("N° transaction")).toBeVisible();
+      expect(screen.getByText("ECOMMERCE")).toBeVisible();
+    });
+
+    // Story 4: the bank's `Catégorie` is provenance, never a second Category
+    // contradicting the derived one. It is out of sight until the block is
+    // opened, and inside it when it is.
+    it("never surfaces the bank's Catégorie as a mamen field", async () => {
+      const user = userEvent.setup();
+      renderPage(600);
+
+      // mamen's own Category row is the picker, as on every other row.
+      const category = (await screen.findByText("Category")).closest("div") as HTMLElement;
+      expect(within(category).getByTitle("Set a category for this transaction")).toBeVisible();
+      expect(screen.queryByText("SUBSCRIPTIONS")).toBeNull();
+
+      await user.click(screen.getByRole("button", { name: /bank's own words/i }));
+
+      const bank = screen.getAllByText("SUBSCRIPTIONS");
+      expect(bank).toHaveLength(1);
+      expect(within(category).queryByText("SUBSCRIPTIONS")).toBeNull();
+      expect(bank[0]?.closest("section")).toBe(
+        screen.getByRole("heading", { name: /bank's own words/i }).closest("section"),
+      );
+    });
+
+    // Story 11/12: a PDF-extracted row and every row imported before the archive
+    // existed carry none, and say nothing rather than show an empty block.
+    it("leaves the block out entirely for a row with no raw source", async () => {
+      renderPage();
+
+      await screen.findByRole("heading", { name: "Spotify" });
+      expect(screen.queryByRole("button", { name: /bank's own words/i })).toBeNull();
+    });
   });
 
   // One group-level refusal here too, worded the same as the table's panel — a

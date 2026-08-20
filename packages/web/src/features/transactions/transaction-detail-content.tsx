@@ -12,6 +12,7 @@ import { CategoryPicker } from "./category-picker";
 import { DetailField } from "./detail-field";
 import { IssuerPicker } from "./issuer-picker";
 import { NotesPicker } from "./notes-picker";
+import { RawSourceSection } from "./raw-source-section";
 import { RecapExclusionSection } from "./recap-exclusion-section";
 import { TransferSection } from "./transfer-section";
 
@@ -260,6 +261,14 @@ export function TransactionDetailFields({
       <TransferSection transaction={txn} />
       <AnomalyFlagsSection flags={txn.anomalyFlags} />
       <ImportSection txn={txn} />
+      {/*
+       * Last, and collapsed (issue #177): the **raw source** is provenance for
+       * everything above it, so it belongs beside the other import facts — and
+       * it is a dozen columns of reference material, which is no way to end a
+       * page the user came to in order to curate three fields. Renders nothing
+       * at all when the row kept no bank line.
+       */}
+      <RawSourceSection transaction={txn} />
     </>
   );
 }
