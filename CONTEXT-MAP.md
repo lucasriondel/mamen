@@ -238,6 +238,17 @@ repeated per package.
   _Avoid_: staging, demo environment (both name something that stays up and
   that somebody's data could end up in).
 
+- **Published screenshots** — the four images the README displays, in
+  `docs/screenshots/`: Transactions and Recap, each as a **pair** — a light and
+  a dark frame of the same screen, which the reader's own colour scheme picks
+  between. A pair is the unit: both frames are taken in one run at the same
+  pinned viewport and compared on size, scroll offset and text before either is
+  written, because two frames that disagree read as a glitch rather than as a
+  theme. Taken from the **Demo stack** by the `demo-screenshots` skill
+  (`.claude/skills/demo-screenshots/`, issue #144), never from a real database.
+  _Avoid_: screenshot (singular, for one of a pair — it hides that its twin has
+  to be retaken with it).
+
 - **Issuer default category** — the Category an Issuer assigns to every
   transaction of its own that carries no **Category override**
   (`issuer.defaultCategoryId`). The bulk lever: changing it reclassifies the
