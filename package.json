@@ -20,6 +20,7 @@
     "demo:down": "docker compose -f docker-compose.demo.yml down --volumes --rmi local",
     "demo:shots": "bun .claude/skills/demo-screenshots/capture.ts",
     "landing:screenshots": "bun packages/landing-page/src/screenshots/sync.ts",
+    "landing:reconcile": "bun packages/landing-page/src/reconcile/reconcile.ts",
     "sandcastle": "bun .sandcastle/main.ts",
     "sandcastle:implement": "bun .sandcastle/implement/index.ts",
     "sandcastle:implement-review": "bun .sandcastle/implement-review/index.ts"
