@@ -1,4 +1,15 @@
 import { APP_BASE_PATH_SLASH } from "@mamen/shared/app-base-path";
+import {
+  DESCRIPTION,
+  HEADING,
+  LEAD,
+  OPEN_APP,
+  type Point,
+  POINTS,
+  SOURCE,
+  SOURCE_URL,
+  TITLE,
+} from "./copy";
 
 /**
  * The public page served at the site root.
@@ -17,14 +28,16 @@ import { APP_BASE_PATH_SLASH } from "@mamen/shared/app-base-path";
  * The stylesheet is referenced at its source path. Vite rewrites URLs it finds
  * in the HTML entry — that is the one rewriting it does — so the built page
  * carries the hashed asset and the dev server serves the file directly.
+ *
+ * The words themselves come from `src/copy.ts` rather than from this file:
+ * issue #145's expand step stands a second renderer (`src/preview/`) beside
+ * this one, drawing the same page in React, and two copies of the copy would
+ * drift inside a single commit.
  */
 
-const TITLE = "mamen — personal finance for one person's accounts";
-
-const DESCRIPTION =
-  "mamen is a self-hosted, single-user personal-finance app. Import your bank " +
-  "statements, curate the rows into issuers and categories, and read back " +
-  "where the money went.";
+/** One selling point, as this page's list writes it. */
+const point = ({ term, detail }: Point) =>
+  `<li>\n\t\t\t\t\t<strong>${term}</strong> ${detail}\n\t\t\t\t</li>`;
 
 /** The finished HTML document, as the build writes it. */
 export function renderPage(): string {
@@ -41,34 +54,17 @@ export function renderPage(): string {
 	</head>
 	<body>
 		<main>
-			<h1>mamen</h1>
+			<h1>${HEADING}</h1>
 
-			<p class="lead">
-				A personal-finance app for one person's own accounts. Import bank
-				statements, curate the raw rows into issuers and categories, and read
-				back where the money went.
-			</p>
+			<p class="lead">${LEAD}</p>
 
 			<ul class="points">
-				<li>
-					<strong>Self-hosted.</strong> The whole state is one SQLite file on a
-					machine you control.
-				</li>
-				<li>
-					<strong>Single-user.</strong> Built for its author's own bank exports
-					— not a product, and nothing to join.
-				</li>
-				<li>
-					<strong>Curated, not automatic.</strong> Matching rules assign
-					issuers; categories come off the issuer unless you override the row.
-				</li>
+				${POINTS.map(point).join("\n\t\t\t\t")}
 			</ul>
 
 			<p class="actions">
-				<a class="cta" href="${APP_BASE_PATH_SLASH}">Open the app</a>
-				<a class="secondary" href="https://github.com/lucasriondel/mamen"
-					>Source on GitHub</a
-				>
+				<a class="cta" href="${APP_BASE_PATH_SLASH}">${OPEN_APP}</a>
+				<a class="secondary" href="${SOURCE_URL}">${SOURCE}</a>
 			</p>
 		</main>
 	</body>

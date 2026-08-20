@@ -4,8 +4,10 @@
 # Independent of packages/web's Dockerfile on purpose (issue #113): the two are
 # separate images behind one reverse proxy, so the landing copy never rides
 # along in the app image and the app's dependency tree never rides along here.
-# Nothing below installs a framework — the build's whole output is one HTML file
-# and one stylesheet.
+# The build's whole output is HTML and one stylesheet: React and the router are
+# installed below (issue #145) but they run in Node, at build time, and nothing
+# of them is bundled for a browser — the image that ships carries no JavaScript
+# at all.
 #
 # Build context is the REPO ROOT (Dokploy: dockerContextPath `.`), because the
 # workspace install reads the root manifests and the lockfile.
@@ -25,12 +27,13 @@ COPY packages/shared/package.json ./packages/shared/
 COPY packages/landing-page/package.json ./packages/landing-page/
 
 # `--filter @mamen/landing-page` restricts the install to this package's
-# subgraph: vite, typescript, vitest, the `@mamen/shared` workspace link — and,
-# because a workspace dependency brings its own, shared's `effect`. What is
-# never resolved is the app itself: no React, no Tailwind, no TanStack, none of
-# the api's native modules. (The root manifest's own devDependencies — turbo,
-# biome — come along with any install here; verified by listing the tree.)
-# devDependencies are kept, unlike the api image: vite and tsc run the build.
+# subgraph: vite, typescript, vitest, react, `@tanstack/react-router`, the
+# `@mamen/shared` workspace link — and, because a workspace dependency brings
+# its own, shared's `effect`. What is never resolved is the app itself: no
+# Tailwind, no query client, none of the api's native modules. (The root
+# manifest's own devDependencies — turbo, biome — come along with any install
+# here; verified by listing the tree.) devDependencies are kept, unlike the api
+# image: vite, tsc and the prerenderer's React all run the build.
 #
 # None of it reaches the image that ships. This stage is thrown away and the
 # final one below copies two files out of it.
