@@ -4,15 +4,48 @@
    is smaller than the tooling that would generate it.
 
    Vite finds this through the `<link>` in the prerendered document and emits it
-   as a hashed asset, so the built page carries no inline style block. */
+   as a hashed asset, so the built page carries no inline style block.
+
+   The colours are the app's, restated (issue #146). A visitor who follows the
+   link into the app should not feel they changed product, so the ramp below is
+   the `--gousse-*` ramp: warm-tinted neutrals — red down to blue rather than a
+   pure grey — with mamen's blue accent, which tracks miel's, on top. Restated
+   is the operative word: the values are copied, not imported, because importing
+   them is the dependency the paragraph above rules out. `src/styles.test.ts`
+   reads the app's sheets and holds these against them, so the two copies cannot
+   drift in silence.
+
+   One value is not a copy. The app's light `--gousse-muted` is 4.1:1 on its own
+   background, which is fine for the short labels it carries there and not fine
+   for the paragraphs this page sets in it, so it is stepped down the same warm
+   ramp until it clears 4.5:1. Dark needs no such step.
+
+   Dark is a media query, not a class: the app resolves a stored choice with a
+   script before first paint, and this page ships no JavaScript at all, so the
+   reader's preference is the whole input. */
 
 :root {
-  color-scheme: dark;
-  --bg: #0a0a0a;
-  --fg: #ededed;
-  --muted: #a1a1a1;
-  --accent: #d8b26e;
-  --line: #262626;
+  color-scheme: light dark;
+  --bg: #f9f7f4;
+  --ink: #11100e;
+  --muted: #6b6b67;
+  --line: #e2ded7;
+  --accent: #2563eb;
+  /* One step off the background, for the command blocks. Stepped along the
+     same warm ramp as the rest, so a `pre` reads as a raised panel rather
+     than a grey patch. */
+  --raised: #f2efe9;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d0d0c;
+    --ink: #f5f5f2;
+    --muted: #9c9c96;
+    --line: #44423c;
+    --accent: #60a5fa;
+    --raised: #131311;
+  }
 }
 
 *,
@@ -25,7 +58,7 @@ body {
   margin: 0;
   padding: 4rem 1.5rem;
   background: var(--bg);
-  color: var(--fg);
+  color: var(--ink);
   font-family:
     ui-sans-serif,
     system-ui,
@@ -46,7 +79,7 @@ h1 {
   margin: 0 0 0.5rem;
   font-size: 3rem;
   letter-spacing: -0.03em;
-  color: var(--accent);
+  color: var(--ink);
 }
 
 .lead {
@@ -69,8 +102,144 @@ h1 {
 }
 
 .points strong {
-  color: var(--fg);
+  color: var(--ink);
   font-weight: 600;
+}
+
+/* The screenshots (issue #149). The heaviest thing the page ships and the
+   only part of it that shows the app rather than describing it, so they are
+   given the width the page can spare and nothing else changes for them.
+
+   The frames are captured at 2880×1800 — a 1440×900 app at a device scale
+   factor of 2 — and the tag carries that size so the browser can reserve the
+   box before the bytes land. Scaling them back down here is what makes them
+   sharp on a retina screen and, more importantly, what stops an intrinsic
+   width four times the reading column from deciding the width of the page. */
+
+.screenshots figure {
+  margin: 0 0 2rem;
+}
+
+.screenshots img {
+  display: block;
+  max-width: 100%;
+  /* The attribute pins the intrinsic height; without this the scaled frame
+     keeps it and the app comes out squashed. */
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+}
+
+.screenshots figcaption {
+  margin: 0.75rem 0 0;
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+
+.screenshots figcaption strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* Wider than the prose, where the screen has the room. A screenshot of a
+   1440-px app is readable in the 42rem reading column and considerably better
+   in 56rem, but the reading column is 42rem because that is how wide prose
+   wants to be — so the figures step out of it rather than the page widening.
+
+   The query is what keeps that safe: below 64rem the section is left in the
+   column, which is already the viewport minus the body's padding, so nothing
+   is ever pulled under the edge of a phone. 64rem is the narrowest viewport
+   where 56rem of figure plus that padding still fits, with room over. */
+@media (min-width: 64rem) {
+  .screenshots {
+    width: 56rem;
+    /* Centred on the column rather than auto-margined: a block wider than its
+       parent over-constrains `auto` to zero and would hang off one side. */
+    margin-left: -7rem;
+  }
+}
+
+/* The install guide (issue #147). Running mamen yourself is the only call to
+   action the page can honestly make, so the steps get the room to be read as
+   instructions rather than as a feature list. */
+
+h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.5rem;
+  letter-spacing: -0.02em;
+}
+
+h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+section {
+  margin: 0 0 2.5rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--line);
+}
+
+.section-lead {
+  margin: 0 0 1.5rem;
+  color: var(--muted);
+}
+
+.prerequisites,
+.servers,
+.environment {
+  margin: 0 0 1.5rem;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+}
+
+.prerequisites li,
+.servers li,
+.environment li {
+  margin: 0 0 0.5rem;
+}
+
+.steps {
+  margin: 0 0 1.5rem;
+  padding: 0 0 0 1.25rem;
+}
+
+.steps li {
+  margin: 0 0 1.5rem;
+}
+
+.steps p {
+  margin: 0 0 0.75rem;
+  color: var(--muted);
+}
+
+/* The commands. `pre` keeps the line breaks a reader would type, and the
+   horizontal scroll is deliberate: wrapping a command is how a copied line
+   becomes two. */
+pre {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--raised);
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  font-size: 0.875rem;
+}
+
+.servers code,
+.environment code {
+  color: var(--ink);
+}
+
+.contributing p {
+  margin: 0 0 1rem;
+  color: var(--muted);
 }
 
 .actions {
@@ -81,22 +250,42 @@ h1 {
   margin: 0;
 }
 
+/* The accent's job on this page: the colour a link is, and the ring a keyboard
+   gives whatever it lands on. Both are highlights. Nothing here is filled with
+   it — see `.cta`. */
 a {
   color: var(--accent);
 }
 
+a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 0.375rem;
+}
+
+/* The app's primary button, in plain CSS: an **ink**-filled pill with a
+   background-coloured label, not an accent-filled one. Blue is the highlight in
+   this design language, never the fill, and a call to action that got that
+   wrong would misrepresent the screen it opens. */
 .cta {
   display: inline-block;
   padding: 0.625rem 1.25rem;
-  border-radius: 0.5rem;
-  background: var(--accent);
+  border-radius: 9999px;
+  background: var(--ink);
   color: var(--bg);
-  font-weight: 600;
+  font-weight: 500;
   text-decoration: none;
 }
 
+/* `hover:bg-gousse-ink/90` over the page background, resolved statically — the
+   app's ink at 90% opacity is its ink mixed a tenth of the way to what is
+   behind it. */
 .cta:hover {
-  filter: brightness(1.1);
+  background: color-mix(in srgb, var(--ink) 90%, var(--bg));
+}
+
+.cta:active {
+  transform: scale(0.96);
 }
 
 .secondary {
@@ -105,12 +294,14 @@ a {
 }
 
 .secondary:hover {
-  color: var(--fg);
+  color: var(--ink);
 }
 
 @media (prefers-reduced-motion: no-preference) {
   .cta {
-    transition: filter 150ms ease;
+    transition:
+      background-color 150ms ease,
+      transform 150ms ease;
   }
 
   .secondary {

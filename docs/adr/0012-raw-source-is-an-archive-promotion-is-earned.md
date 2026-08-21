@@ -6,9 +6,11 @@
 
 ## Context
 
-The Green-Got CSV delivers thirteen columns. The parser maps four of them
-(`green-got.ts:31-50`): `Date`, `Montant` + `Direction` folded into a signed
-`amount`, and `Intitulé` into `rawIssuerString`. `Statut` is read as a filter.
+The Green-Got CSV delivers thirteen columns. The parser maps four of them (then
+`green-got.ts:31-50`; since issue #182 the same mapping is the Green-Got
+**Statement Format** record in `parsers/formats.ts`): `Date`, `Montant` +
+`Direction` folded into a signed `amount`, and `Intitulé` into
+`rawIssuerString`. `Statut` is read as a filter.
 The other eight — `N° transaction`, `Arrondi`, `Devise`, `IBAN du compte`,
 `IBAN du tiers`, `Moyen de paiement`, `Catégorie`, `Référence` — are dropped on
 the floor and are unrecoverable without the original file.
@@ -65,6 +67,27 @@ disagree with mamen's **Derived category**. Presented as a bare "Category" field
 it would read as a contradiction or a bug; presented under the bank's name it
 reads as provenance, which is what it is.
 
+**The import preview's row facets look at the archive, and that is not deriving
+from it** (issue #195). A statement's own columns become the filters above the
+preview table, so holding fifteen order-execution rows out of a Trade Republic
+import is two clicks. Read against the rule above, the distinction is what the
+cells are read *for*:
+
+- The rows are **not stored yet**. The facets help the user decide which of them
+  to store; nothing about a transaction already in the table is read.
+- **Nothing comes out of them but which rows are on screen.** No field is
+  populated from the archive, no total counts it, no matcher consults it, and
+  nothing a filter produces is persisted — a filter is gone with the wizard.
+- The **SQL half of the rule is untouched**: no query filters, groups, joins or
+  counts on the column, which is what
+  `packages/web/src/test/raw-source-is-an-archive.test.ts` still asserts. The
+  four preview files that name `rawSource` are listed there with their role, so
+  the reading above is a diff a reviewer can check rather than a claim.
+
+A durable *"always hold out this type"* rule is a different thing and is
+deliberately **not** this: it belongs to the **Statement Format**'s row filter,
+which reads the file's columns rather than the stored archive.
+
 ### 3. A value is promoted to a real column when a matcher needs to reach it
 
 `counterpartyIban` is promoted out of the archive into a real nullable column,
@@ -77,6 +100,17 @@ The criterion for promotion is narrow and mechanical: *a matcher cannot reach
 inside an opaque JSON bin sensibly.* Anything that only ever needs to be *looked
 at* stays in the archive. This keeps the column list from re-accreting all
 thirteen fields under the excuse that each might be handy.
+
+A promoted value is **shape-checked at the import edge**, and one that fails the
+check is simply not promoted — it stays in the archive with everything else.
+Banks write prose in `IBAN du tiers` (a dash, a masked card number, "not
+communicated"), and a matching column that holds a string which could not be an
+account number holds something only a second junk value could ever equal. The
+check is the account field's own (`isPlausibleIban`): shape only, never a
+per-country length table or the mod-97 checksum, so a statement from a bank
+mamen has never seen still imports. Nothing is lost by refusing, because the
+delivered value is archived either way — the archive is what makes a strict
+promotion edge affordable.
 
 `counterpartyIban` clears that bar because it joins against `accounts.iban` to
 mark an **IBAN-confirmed candidate**: a **transfer candidate** where one leg's
@@ -127,10 +161,24 @@ after this change.
 - **Rows imported before this change have `rawSource` null**, permanently. There
   is no backfill, because backfilling is the re-import this ADR is partly about
   making safe.
-- **PDF-extracted rows have no `rawSource`.** `ExtractedTransaction` is
-  `{date, amount, rawIssuerString}` — there is no original row to keep. Their
-  provenance question (which model, what confidence) is a different one and is
-  not answered here.
+- ~~**PDF-extracted rows have no `rawSource`.**~~ **Superseded by issue #189
+  (PRD #180).** This was written when `ExtractedTransaction` was
+  `{date, amount, rawIssuerString}` and the reason given was that there is no
+  original row to keep. **Statement Formats** made that premise false: since
+  issue #185 the model is told which columns the statement carries, and since
+  #189 it returns each operation's own cells beside the parsed fields, keyed by
+  those columns and written as the statement printed them. A returned table is
+  row-shaped, and a row is what an archive keeps — so a PDF row now carries one,
+  under the same rules as a CSV row's. The divergence from issue #175's stated
+  scope was raised on that issue rather than landed silently.
+
+  Nothing else in this ADR moves. The archive is still an archive on that path:
+  nothing derives from it, the model reports the cells and never a conclusion
+  about them, and a row with nothing to keep carries `rawSource` **absent**
+  rather than `{}` — the endpoint folds that, so the detail page shows nothing
+  instead of an empty block. The other provenance question a PDF row raises
+  (which model, what confidence) is still a different one and is still not
+  answered here.
 - **Re-import still doubles rows.** Accepted, and now written down rather than
   merely true.
 - **The archive will drift from the columns.** As values are promoted, the same

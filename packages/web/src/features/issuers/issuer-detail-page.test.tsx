@@ -9,8 +9,10 @@ import {
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { validateTransactionsSearch } from "@/features/transactions/search";
+import { validateIssuerDetailSearch } from "@/features/issuers/detail-search";
+import { pagedListParams } from "@/test/paged-list-params";
 import { COLLAPSED_SHELL, OPEN_SHELL, withShell } from "@/test/sidebar-shell";
+import { findNextPageButton, findSortButton } from "@/test/transactions-controls";
 
 // Mock the SDK seam (PRD): the page reads the issuer (`issuerQueries.getById`),
 // its transactions (`transactionQueries.list`) and its rules (`ruleQueries.list`
@@ -29,6 +31,13 @@ let issuersById: Record<number, Issuer>;
 let issuersList: Issuer[];
 let transactionsByIssuer: Record<number, Transaction[]>;
 let rulesByIssuer: Record<number, Rule[]>;
+/**
+ * The `total` the mocked list envelope reports, when a test wants one the
+ * fixture's own length can't give it. Undefined — the default — reports the
+ * rows handed back, so the count in the header matches them; a pagination test
+ * raises it so there is more than one page to move between.
+ */
+let listTotal: number | undefined;
 
 // A tiny two-level tree: two folders, each with leaves. Folders (parentId null)
 // are unselectable in the picker; leaves are the only assignable kind.
@@ -161,7 +170,7 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
           queryKey: ["transactions", "list", params],
           queryFn: async () => {
             const items = transactionsByIssuer[params.issuerId ?? -1] ?? [];
-            return { items, total: items.length };
+            return { items, total: listTotal ?? items.length };
           },
         };
       },
@@ -259,12 +268,14 @@ function makeRouter(initialEntry: string) {
     component: IssuersView,
   });
   // Mirrors the real route: the trailing slash (the `/` index route the page's
-  // `getRouteApi` addresses) and the transactions search schema its embedded
-  // transactions section reads its filters/sort/offset from.
+  // `getRouteApi` addresses) and the route's own search schema — the
+  // transactions filters/sort/page its embedded section reads, plus the `tab`
+  // this page adds. The shared transactions schema alone would leave `tab` an
+  // unvalidated pass-through here, which is exactly the gap issue #165 closes.
   const detailRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/issuers/$issuerId/",
-    validateSearch: validateTransactionsSearch,
+    validateSearch: validateIssuerDetailSearch,
     component: IssuerDetailPage,
   });
   return createRouter({
@@ -279,7 +290,11 @@ function makeRouter(initialEntry: string) {
  * in for it — open, unless a case is about the trigger itself.
  */
 function renderAt(initialEntry: string, shellValue = OPEN_SHELL) {
-  render(withShell(<RouterProvider router={makeRouter(initialEntry)} />, shellValue));
+  const router = makeRouter(initialEntry);
+  render(withShell(<RouterProvider router={router} />, shellValue));
+  // Returned so a case can read the URL the page navigated to — the tab and the
+  // filters are search params, so what lands in the URL *is* the behaviour.
+  return router;
 }
 
 beforeEach(() => {
@@ -310,7 +325,11 @@ beforeEach(() => {
     1: [txn(-10, "SPOTIFY P2A34"), txn(-5, "SPOTIFY AB")],
   };
   rulesByIssuer = { 1: [rule()] };
+  listTotal = undefined;
 });
+
+/** This harness's paged list params — see {@link pagedListParams}. */
+const pagedList = () => pagedListParams(listSpy);
 
 /** Open one of the detail page's panels by clicking its tab. */
 async function openTab(user: ReturnType<typeof userEvent.setup>, name: RegExp) {
@@ -397,6 +416,40 @@ describe("IssuerDetailPage", () => {
     // No click: the tab came from the URL, so a refresh or a shared link lands
     // on the panel the sender was looking at.
     expect(await screen.findByRole("heading", { name: "Matching Rules" })).toBeInTheDocument();
+  });
+
+  it("names the open panel in the URL", async () => {
+    const user = userEvent.setup();
+    const router = renderAt("/issuers/1");
+
+    await openTab(user, /Rules/);
+
+    await waitFor(() => expect(router.state.location.search).toMatchObject({ tab: "rules" }));
+  });
+
+  // The default panel is the one tab that stays *out* of the URL: `/issuers/1`
+  // and `?tab=transactions` would otherwise be two URLs for one view.
+  it("drops the parameter when switching back to the default panel", async () => {
+    const user = userEvent.setup();
+    const router = renderAt("/issuers/1?tab=rules");
+
+    await openTab(user, /Transactions/);
+
+    await waitFor(() => expect(router.state.location.search).not.toHaveProperty("tab"));
+    expect(router.state.location.searchStr).not.toContain("tab");
+  });
+
+  // Unlike the filter and sort handlers, switching panels is not a new query —
+  // it shows the same rows in a different pane, so page 2 stays page 2.
+  it("leaves the page number untouched when the panel changes", async () => {
+    const user = userEvent.setup();
+    const router = renderAt("/issuers/1?page=2");
+
+    await openTab(user, /Rules/);
+
+    await waitFor(() =>
+      expect(router.state.location.search).toMatchObject({ tab: "rules", page: 2 }),
+    );
   });
 
   it("renames the issuer inline, autosaving once typing settles", async () => {
@@ -686,5 +739,125 @@ describe("IssuerDetailPage", () => {
     await user.upload(await screen.findByLabelText("Issuer image"), big);
 
     expect(uploadImage).not.toHaveBeenCalled();
+  });
+
+  // ---- Sort and pagination (issue #168) -------------------------------------
+  //
+  // The controls belong to the shared transactions section, but the handlers
+  // answering them are this page's own, and each rewrites a URL whose scope is
+  // the issuer in the *path*. What is checked here is that the issuer is still
+  // on the query after the trip through the URL — a page 2 that quietly widened
+  // to every issuer's rows would look like an ordinary page of transactions.
+
+  it("toggles the date sort direction in the URL and in the scoped query", async () => {
+    const user = userEvent.setup();
+    const router = renderAt("/issuers/1");
+
+    await user.click(await findSortButton());
+
+    await waitFor(() => {
+      expect(router.state.location.search).toMatchObject({ direction: "asc" });
+    });
+    // Awaited in its own right: the URL is rewritten a beat before the
+    // re-render that re-runs the query off it, so asserting the two in one
+    // breath is a race.
+    await waitFor(() => {
+      expect(listSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ issuerId: 1, orderBy: "date", direction: "asc" }),
+      );
+    });
+  });
+
+  it("puts the page number — not the row offset — in the URL", async () => {
+    listTotal = 120;
+    const user = userEvent.setup();
+    const router = renderAt("/issuers/1");
+
+    await user.click(await findNextPageButton());
+
+    // The URL carries the human-readable page; the SDK still gets the offset it
+    // multiplies out to, and the issuer rides along with it.
+    await waitFor(() => {
+      expect(router.state.location.search).toMatchObject({ page: 2 });
+    });
+    expect(router.state.location.search).not.toHaveProperty("offset");
+    await waitFor(() => {
+      expect(listSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ issuerId: 1, offset: 50, limit: 50 }),
+      );
+    });
+  });
+
+  it("returns to the first page when a filter changes", async () => {
+    listTotal = 120;
+    const user = userEvent.setup();
+    const router = renderAt("/issuers/1?page=3");
+
+    await user.type(await screen.findByLabelText("Search transactions"), "p2a34");
+
+    // A narrower filter over a set that no longer reaches page 3 would leave
+    // the user on a page of nothing.
+    await waitFor(() => {
+      expect(router.state.location.search).toMatchObject({
+        search: "p2a34",
+        page: 1,
+      });
+    });
+    await waitFor(() => {
+      expect(pagedList()).toMatchObject({ issuerId: 1, offset: 0 });
+    });
+  });
+
+  it("returns to the first page when the sort direction changes", async () => {
+    listTotal = 120;
+    const user = userEvent.setup();
+    const router = renderAt("/issuers/1?page=3&direction=asc");
+
+    await user.click(await findSortButton());
+
+    // Page 3 of oldest-first is a different set of rows from page 3 of
+    // newest-first, so the reorder starts the reading over.
+    await waitFor(() => {
+      expect(router.state.location.search).toMatchObject({
+        direction: "desc",
+        page: 1,
+      });
+    });
+    await waitFor(() => {
+      expect(pagedList()).toMatchObject({ issuerId: 1, offset: 0 });
+    });
+  });
+
+  it("changes page without disturbing the rest of the search state", async () => {
+    listTotal = 120;
+    const user = userEvent.setup();
+    const router = renderAt("/issuers/1?accountId=1&search=spotify&direction=asc&page=2");
+
+    await user.click(await findNextPageButton());
+
+    await waitFor(() => {
+      expect(router.state.location.search).toMatchObject({ page: 3 });
+    });
+    // Every filter, and the sort, are exactly what they were — a page change is
+    // the one move that must NOT reset anything.
+    expect(router.state.location.search).toMatchObject({
+      accountId: [1],
+      search: "spotify",
+      direction: "asc",
+    });
+    // And the page is still this issuer's: the scope lives in the path, which
+    // the search-only rewrite leaves alone.
+    expect(router.state.location.pathname).toBe("/issuers/1");
+    await waitFor(() => {
+      expect(listSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          issuerId: 1,
+          accountId: [1],
+          search: "spotify",
+          direction: "asc",
+          offset: 100,
+        }),
+      );
+    });
   });
 });

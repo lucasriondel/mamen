@@ -46,6 +46,20 @@ describe("the package's own docs", () => {
     expect(existsSync("CONTEXT.md")).toBe(true);
   });
 
+  it("names files that exist", () => {
+    // The glossary opens by listing the package file by file, which is the
+    // part of it that rots: issue #147 moved the page's words into
+    // `src/content/` and left the entry describing the module they came from
+    // pointing at nothing. A reader who greps for the file it names finds no
+    // file and no reason to trust the rest of the paragraph.
+    const paths = [...read("CONTEXT.md").matchAll(/`(src\/[\w./-]+)`/g)].map((m) => m[1] as string);
+    expect(paths.length).toBeGreaterThan(5);
+
+    for (const path of paths) {
+      expect(existsSync(path), `CONTEXT.md names ${path}`).toBe(true);
+    }
+  });
+
   it("is deployable from what the operations doc says", () => {
     // The routing is the whole delivery here: an image nobody knows how to
     // point a domain at serves nothing. The runbook moved to the repo root

@@ -2362,6 +2362,17 @@
                     "title": "maxLength(1000)",
                     "maxLength": 1000
                   },
+                  "rawSource": {
+                    "type": "object",
+                    "required": [],
+                    "properties": {},
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  },
+                  "counterpartyIban": {
+                    "type": "string"
+                  },
                   "importedAt": {
                     "$ref": "#/components/schemas/Date"
                   },
@@ -3293,6 +3304,17 @@
                     "title": "maxLength(1000)",
                     "maxLength": 1000
                   },
+                  "rawSource": {
+                    "type": "object",
+                    "required": [],
+                    "properties": {},
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  },
+                  "counterpartyIban": {
+                    "type": "string"
+                  },
                   "importedAt": {
                     "$ref": "#/components/schemas/Date"
                   },
@@ -3562,6 +3584,17 @@
                           "description": "a string at most 1000 character(s) long",
                           "title": "maxLength(1000)",
                           "maxLength": 1000
+                        },
+                        "rawSource": {
+                          "type": "object",
+                          "required": [],
+                          "properties": {},
+                          "additionalProperties": {
+                            "type": "string"
+                          }
+                        },
+                        "counterpartyIban": {
+                          "type": "string"
                         },
                         "importedAt": {
                           "$ref": "#/components/schemas/Date"
@@ -5683,6 +5716,569 @@
         }
       }
     },
+    "/api/statement-formats": {
+      "get": {
+        "tags": [
+          "Statement formats"
+        ],
+        "operationId": "statementFormats.list",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/NumberFromString"
+            },
+            "required": false
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/NumberFromString"
+            },
+            "required": false
+          },
+          {
+            "name": "accountId",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/NumberFromString"
+            },
+            "required": false
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "total"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/components/schemas/CsvStatementFormat"
+                          },
+                          {
+                            "$ref": "#/components/schemas/PdfStatementFormat"
+                          }
+                        ]
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Statement formats"
+        ],
+        "operationId": "statementFormats.create",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "201": {
+            "description": "CsvStatementFormat",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/CsvStatementFormat"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PdfStatementFormat"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "required": [
+                      "accountId",
+                      "name",
+                      "mapping",
+                      "rules",
+                      "kind",
+                      "headers"
+                    ],
+                    "properties": {
+                      "accountId": {
+                        "type": "integer",
+                        "description": "an integer",
+                        "title": "int"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "mapping": {
+                        "type": "object",
+                        "required": [
+                          "date",
+                          "rawIssuerString",
+                          "counterpartyIban"
+                        ],
+                        "properties": {
+                          "date": {
+                            "type": "string"
+                          },
+                          "rawIssuerString": {
+                            "type": "string"
+                          },
+                          "counterpartyIban": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "rules": {
+                        "type": "object",
+                        "required": [
+                          "sign",
+                          "dateOrder",
+                          "decimalSeparator",
+                          "filter"
+                        ],
+                        "properties": {
+                          "sign": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "strategy",
+                                  "amountColumn"
+                                ],
+                                "properties": {
+                                  "strategy": {
+                                    "type": "string",
+                                    "enum": [
+                                      "signed-column"
+                                    ]
+                                  },
+                                  "amountColumn": {
+                                    "type": "string"
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "strategy",
+                                  "amountColumn",
+                                  "directionColumn",
+                                  "debitValue"
+                                ],
+                                "properties": {
+                                  "strategy": {
+                                    "type": "string",
+                                    "enum": [
+                                      "direction-column"
+                                    ]
+                                  },
+                                  "amountColumn": {
+                                    "type": "string"
+                                  },
+                                  "directionColumn": {
+                                    "type": "string"
+                                  },
+                                  "debitValue": {
+                                    "type": "string"
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "strategy",
+                                  "debitColumn",
+                                  "creditColumn"
+                                ],
+                                "properties": {
+                                  "strategy": {
+                                    "type": "string",
+                                    "enum": [
+                                      "debit-credit-columns"
+                                    ]
+                                  },
+                                  "debitColumn": {
+                                    "type": "string"
+                                  },
+                                  "creditColumn": {
+                                    "type": "string"
+                                  }
+                                },
+                                "additionalProperties": false
+                              }
+                            ]
+                          },
+                          "dateOrder": {
+                            "type": "string",
+                            "enum": [
+                              "iso",
+                              "day-first",
+                              "month-first"
+                            ]
+                          },
+                          "decimalSeparator": {
+                            "type": "string",
+                            "enum": [
+                              "dot",
+                              "comma"
+                            ]
+                          },
+                          "filter": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "column",
+                                  "equals"
+                                ],
+                                "properties": {
+                                  "column": {
+                                    "type": "string"
+                                  },
+                                  "equals": {
+                                    "type": "string"
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "csv"
+                        ]
+                      },
+                      "headers": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "accountId",
+                      "name",
+                      "mapping",
+                      "rules",
+                      "kind",
+                      "columns"
+                    ],
+                    "properties": {
+                      "accountId": {
+                        "type": "integer",
+                        "description": "an integer",
+                        "title": "int"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "mapping": {
+                        "type": "object",
+                        "required": [
+                          "date",
+                          "rawIssuerString",
+                          "counterpartyIban"
+                        ],
+                        "properties": {
+                          "date": {
+                            "type": "string"
+                          },
+                          "rawIssuerString": {
+                            "type": "string"
+                          },
+                          "counterpartyIban": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "rules": {
+                        "type": "object",
+                        "required": [
+                          "sign",
+                          "dateOrder",
+                          "decimalSeparator",
+                          "filter"
+                        ],
+                        "properties": {
+                          "sign": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "strategy",
+                                  "amountColumn"
+                                ],
+                                "properties": {
+                                  "strategy": {
+                                    "type": "string",
+                                    "enum": [
+                                      "signed-column"
+                                    ]
+                                  },
+                                  "amountColumn": {
+                                    "type": "string"
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "strategy",
+                                  "amountColumn",
+                                  "directionColumn",
+                                  "debitValue"
+                                ],
+                                "properties": {
+                                  "strategy": {
+                                    "type": "string",
+                                    "enum": [
+                                      "direction-column"
+                                    ]
+                                  },
+                                  "amountColumn": {
+                                    "type": "string"
+                                  },
+                                  "directionColumn": {
+                                    "type": "string"
+                                  },
+                                  "debitValue": {
+                                    "type": "string"
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "strategy",
+                                  "debitColumn",
+                                  "creditColumn"
+                                ],
+                                "properties": {
+                                  "strategy": {
+                                    "type": "string",
+                                    "enum": [
+                                      "debit-credit-columns"
+                                    ]
+                                  },
+                                  "debitColumn": {
+                                    "type": "string"
+                                  },
+                                  "creditColumn": {
+                                    "type": "string"
+                                  }
+                                },
+                                "additionalProperties": false
+                              }
+                            ]
+                          },
+                          "dateOrder": {
+                            "type": "string",
+                            "enum": [
+                              "iso",
+                              "day-first",
+                              "month-first"
+                            ]
+                          },
+                          "decimalSeparator": {
+                            "type": "string",
+                            "enum": [
+                              "dot",
+                              "comma"
+                            ]
+                          },
+                          "filter": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "column",
+                                  "equals"
+                                ],
+                                "properties": {
+                                  "column": {
+                                    "type": "string"
+                                  },
+                                  "equals": {
+                                    "type": "string"
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "pdf"
+                        ]
+                      },
+                      "columns": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/statement-formats/{id}": {
+      "get": {
+        "tags": [
+          "Statement formats"
+        ],
+        "operationId": "statementFormats.getById",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": {
+              "$ref": "#/components/schemas/NumberFromString"
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "CsvStatementFormat",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/CsvStatementFormat"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PdfStatementFormat"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NotFound",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFound"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        }
+      }
+    },
     "/api/secrets": {
       "get": {
         "tags": [
@@ -6393,6 +6989,16 @@
               }
             }
           },
+          "404": {
+            "description": "NotFound",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFound"
+                }
+              }
+            }
+          },
           "415": {
             "description": "InvalidFileType",
             "content": {
@@ -6433,7 +7039,8 @@
               "schema": {
                 "type": "object",
                 "required": [
-                  "file"
+                  "file",
+                  "formatId"
                 ],
                 "properties": {
                   "file": {
@@ -6445,6 +7052,9 @@
                     "title": "itemsCount(1)",
                     "minItems": 1,
                     "maxItems": 1
+                  },
+                  "formatId": {
+                    "$ref": "#/components/schemas/NumberFromString"
                   }
                 },
                 "additionalProperties": false
@@ -7112,6 +7722,17 @@
             "title": "maxLength(1000)",
             "maxLength": 1000
           },
+          "rawSource": {
+            "type": "object",
+            "required": [],
+            "properties": {},
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "counterpartyIban": {
+            "type": "string"
+          },
           "importedAt": {
             "$ref": "#/components/schemas/Date"
           },
@@ -7191,6 +7812,11 @@
           },
           "daysApart": {
             "type": "number"
+          },
+          "ibanConfirmedAccountId": {
+            "type": "integer",
+            "description": "an integer",
+            "title": "int"
           }
         },
         "additionalProperties": false
@@ -7403,6 +8029,402 @@
           },
           "value": {
             "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CsvStatementFormat": {
+        "type": "object",
+        "required": [
+          "id",
+          "accountId",
+          "name",
+          "kind",
+          "headers",
+          "mapping",
+          "rules",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "an integer",
+            "title": "int"
+          },
+          "accountId": {
+            "type": "integer",
+            "description": "an integer",
+            "title": "int"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "csv"
+            ]
+          },
+          "headers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "mapping": {
+            "type": "object",
+            "required": [
+              "date",
+              "rawIssuerString",
+              "counterpartyIban"
+            ],
+            "properties": {
+              "date": {
+                "type": "string"
+              },
+              "rawIssuerString": {
+                "type": "string"
+              },
+              "counterpartyIban": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "additionalProperties": false
+          },
+          "rules": {
+            "type": "object",
+            "required": [
+              "sign",
+              "dateOrder",
+              "decimalSeparator",
+              "filter"
+            ],
+            "properties": {
+              "sign": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "required": [
+                      "strategy",
+                      "amountColumn"
+                    ],
+                    "properties": {
+                      "strategy": {
+                        "type": "string",
+                        "enum": [
+                          "signed-column"
+                        ]
+                      },
+                      "amountColumn": {
+                        "type": "string"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "strategy",
+                      "amountColumn",
+                      "directionColumn",
+                      "debitValue"
+                    ],
+                    "properties": {
+                      "strategy": {
+                        "type": "string",
+                        "enum": [
+                          "direction-column"
+                        ]
+                      },
+                      "amountColumn": {
+                        "type": "string"
+                      },
+                      "directionColumn": {
+                        "type": "string"
+                      },
+                      "debitValue": {
+                        "type": "string"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "strategy",
+                      "debitColumn",
+                      "creditColumn"
+                    ],
+                    "properties": {
+                      "strategy": {
+                        "type": "string",
+                        "enum": [
+                          "debit-credit-columns"
+                        ]
+                      },
+                      "debitColumn": {
+                        "type": "string"
+                      },
+                      "creditColumn": {
+                        "type": "string"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "dateOrder": {
+                "type": "string",
+                "enum": [
+                  "iso",
+                  "day-first",
+                  "month-first"
+                ]
+              },
+              "decimalSeparator": {
+                "type": "string",
+                "enum": [
+                  "dot",
+                  "comma"
+                ]
+              },
+              "filter": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "required": [
+                      "column",
+                      "equals"
+                    ],
+                    "properties": {
+                      "column": {
+                        "type": "string"
+                      },
+                      "equals": {
+                        "type": "string"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "additionalProperties": false
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/Date"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/Date"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PdfStatementFormat": {
+        "type": "object",
+        "required": [
+          "id",
+          "accountId",
+          "name",
+          "kind",
+          "columns",
+          "mapping",
+          "rules",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "an integer",
+            "title": "int"
+          },
+          "accountId": {
+            "type": "integer",
+            "description": "an integer",
+            "title": "int"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "pdf"
+            ]
+          },
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "mapping": {
+            "type": "object",
+            "required": [
+              "date",
+              "rawIssuerString",
+              "counterpartyIban"
+            ],
+            "properties": {
+              "date": {
+                "type": "string"
+              },
+              "rawIssuerString": {
+                "type": "string"
+              },
+              "counterpartyIban": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "additionalProperties": false
+          },
+          "rules": {
+            "type": "object",
+            "required": [
+              "sign",
+              "dateOrder",
+              "decimalSeparator",
+              "filter"
+            ],
+            "properties": {
+              "sign": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "required": [
+                      "strategy",
+                      "amountColumn"
+                    ],
+                    "properties": {
+                      "strategy": {
+                        "type": "string",
+                        "enum": [
+                          "signed-column"
+                        ]
+                      },
+                      "amountColumn": {
+                        "type": "string"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "strategy",
+                      "amountColumn",
+                      "directionColumn",
+                      "debitValue"
+                    ],
+                    "properties": {
+                      "strategy": {
+                        "type": "string",
+                        "enum": [
+                          "direction-column"
+                        ]
+                      },
+                      "amountColumn": {
+                        "type": "string"
+                      },
+                      "directionColumn": {
+                        "type": "string"
+                      },
+                      "debitValue": {
+                        "type": "string"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "strategy",
+                      "debitColumn",
+                      "creditColumn"
+                    ],
+                    "properties": {
+                      "strategy": {
+                        "type": "string",
+                        "enum": [
+                          "debit-credit-columns"
+                        ]
+                      },
+                      "debitColumn": {
+                        "type": "string"
+                      },
+                      "creditColumn": {
+                        "type": "string"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "dateOrder": {
+                "type": "string",
+                "enum": [
+                  "iso",
+                  "day-first",
+                  "month-first"
+                ]
+              },
+              "decimalSeparator": {
+                "type": "string",
+                "enum": [
+                  "dot",
+                  "comma"
+                ]
+              },
+              "filter": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "required": [
+                      "column",
+                      "equals"
+                    ],
+                    "properties": {
+                      "column": {
+                        "type": "string"
+                      },
+                      "equals": {
+                        "type": "string"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "additionalProperties": false
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/Date"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/Date"
           }
         },
         "additionalProperties": false
@@ -7696,7 +8718,7 @@
         "type": "object",
         "required": [
           "transactions",
-          "declaredTotals"
+          "verdict"
         ],
         "properties": {
           "transactions": {
@@ -7707,6 +8729,9 @@
           },
           "declaredTotals": {
             "$ref": "#/components/schemas/DeclaredTotals"
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/FormatVerdict"
           }
         },
         "additionalProperties": false
@@ -7727,6 +8752,14 @@
           },
           "rawIssuerString": {
             "type": "string"
+          },
+          "rawSource": {
+            "type": "object",
+            "required": [],
+            "properties": {},
+            "additionalProperties": {
+              "type": "string"
+            }
           }
         },
         "additionalProperties": false
@@ -7743,6 +8776,25 @@
           },
           "credit": {
             "type": "number"
+          }
+        },
+        "additionalProperties": false
+      },
+      "FormatVerdict": {
+        "type": "object",
+        "required": [
+          "matched",
+          "missingColumns"
+        ],
+        "properties": {
+          "matched": {
+            "type": "boolean"
+          },
+          "missingColumns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "additionalProperties": false
@@ -7822,6 +8874,9 @@
     },
     {
       "name": "Settings"
+    },
+    {
+      "name": "Statement formats"
     },
     {
       "name": "Secrets"

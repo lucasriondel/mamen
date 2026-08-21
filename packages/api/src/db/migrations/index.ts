@@ -27,6 +27,9 @@ import dropAppSettingsLlm from "./0026_drop_app_settings_llm";
 import createEncryptedSecrets from "./0027_create_encrypted_secrets";
 import createAiTaskSettings from "./0028_create_ai_task_settings";
 import addAccountsIban from "./0029_add_accounts_iban";
+import addTransactionsRawSource from "./0030_add_transactions_raw_source";
+import addTransactionsCounterpartyIban from "./0031_add_transactions_counterparty_iban";
+import createStatementFormats from "./0032_create_statement_formats";
 
 /**
  * The migration set, keyed `NNNN_name` (the Migrator parses the numeric prefix
@@ -64,4 +67,7 @@ export const migrations = {
   "0027_create_encrypted_secrets": createEncryptedSecrets,
   "0028_create_ai_task_settings": createAiTaskSettings,
   "0029_add_accounts_iban": addAccountsIban,
+  "0030_add_transactions_raw_source": addTransactionsRawSource,
+  "0031_add_transactions_counterparty_iban": addTransactionsCounterpartyIban,
+  "0032_create_statement_formats": createStatementFormats,
 } as const;

@@ -1,11 +1,13 @@
+import type { StatementFormatCreate } from "@mamen/shared/contract";
 import { Button } from "@/components/ui/button";
 import type { ParsedTransaction } from "./parsers/types";
 import { useImportCommit } from "./use-import-commit";
 
 /**
- * The shared foot of both preview paths (CSV plain table and PDF side-by-side):
- * the Commit / Back buttons. Both sources converge on the same commit rail, so
- * this is the single place that owns the commit action.
+ * The shared foot of both preview paths (the CSV preview and PDF side-by-side —
+ * one table on the same primitives since PRD #190): the Commit / Back buttons.
+ * Both sources converge on the same commit rail, so this is the single place
+ * that owns the commit action.
  *
  * It carries no *warning* (issue #88). It used to show two per-month notices —
  * how many existing rows the commit would replace, and how many **bundles** it
@@ -24,11 +26,20 @@ import { useImportCommit } from "./use-import-commit";
 export function CommitBar({
   records,
   duplicateCount,
+  formatToCreate,
   onBack,
 }: {
   records: readonly ParsedTransaction[];
   /** How many of `records` look already imported (`useDuplicateFlags`). */
   duplicateCount: number;
+  /**
+   * The **Statement Format** the user built from this file, written by this
+   * button and by nothing else (issue #186). Saving a format and using it are
+   * one decision, and a draft saved anywhere earlier would outlive the imports
+   * nobody finished. Absent on the PDF path and on any import reading a stored
+   * format.
+   */
+  formatToCreate?: StatementFormatCreate | null;
   onBack: () => void;
 }) {
   const commit = useImportCommit();
@@ -41,7 +52,7 @@ export function CommitBar({
         <Button
           variant="primary"
           size="md"
-          onClick={() => commit.mutate({ records })}
+          onClick={() => commit.mutate({ records, format: formatToCreate ?? undefined })}
           // Nothing left to write — every previewed row was skipped (epic #85),
           // or the statement parsed to no rows at all. Committing would post an
           // empty batch and toast an import of nothing.

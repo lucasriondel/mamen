@@ -28,6 +28,12 @@ export { Client, runQuery } from "./runtime";
 export { secretKeys, secretMutations, secretQueries } from "./secrets/queries";
 export { settingKeys, settingMutations, settingQueries } from "./settings/queries";
 export {
+  type StatementFormatListParams,
+  statementFormatKeys,
+  statementFormatMutations,
+  statementFormatQueries,
+} from "./statement-formats/queries";
+export {
   type SubscriptionListParams,
   subscriptionKeys,
   subscriptionMutations,

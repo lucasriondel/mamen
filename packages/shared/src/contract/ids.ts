@@ -27,6 +27,9 @@ export type SubscriptionId = typeof SubscriptionId.Type;
 export const SettingId = Schema.Int.pipe(Schema.brand("SettingId"));
 export type SettingId = typeof SettingId.Type;
 
+export const StatementFormatId = Schema.Int.pipe(Schema.brand("StatementFormatId"));
+export type StatementFormatId = typeof StatementFormatId.Type;
+
 /**
  * Decodes a URL segment / query string ("42") into a branded id. Use for
  * `HttpApiSchema.param("id", numFromStr(AccountId))` path params and for

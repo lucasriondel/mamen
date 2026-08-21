@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { APP_BASE_PATH } from "@mamen/shared/app-base-path";
 import { describe, expect, it } from "vitest";
 
@@ -54,6 +54,18 @@ describe("the landing package's dependencies", () => {
     expect(manifest.dependencies["@mamen/sdk"]).toBeUndefined();
   });
 
+  it("keeps its framework on the build side of the manifest", () => {
+    // The whole of what ADR 0002 reversed, and the line it kept: React and the
+    // router are here (issues #145, #148) and run in Node at build time. In
+    // `dependencies` they would be a claim that a browser needs them — which
+    // is what the app's manifest says about the same two names, and it is
+    // right about them.
+    for (const name of ["react", "react-dom", "@tanstack/react-router"]) {
+      expect(manifest.devDependencies[name]).toBeDefined();
+      expect(manifest.dependencies[name]).toBeUndefined();
+    }
+  });
+
   it("reaches its constants through the modules that import nothing", () => {
     for (const subpath of SHARED_SUBPATHS) {
       const target = sharedManifest.exports[subpath.replace("@mamen/shared", ".")];
@@ -65,7 +77,16 @@ describe("the landing package's dependencies", () => {
       expect(read(`../shared/${target.slice(2)}`)).not.toMatch(/^\s*import\b/m);
     }
 
-    const specifiers = ["src/page.ts", "vite.config.ts"].flatMap((file) =>
+    // Every file in the package, not a list of the ones that import today:
+    // the constants moved into `src/content/` with issue #147, and a guard
+    // naming its readers by hand would have gone quiet the moment they did.
+    const files = [
+      "vite.config.ts",
+      ...readdirSync("src", { recursive: true, encoding: "utf8" })
+        .filter((entry) => /\.tsx?$/.test(entry))
+        .map((entry) => `src/${entry}`),
+    ];
+    const specifiers = files.flatMap((file) =>
       [...read(file).matchAll(/from "(@mamen\/[^"]+)"/g)].map((m) => m[1]),
     );
     expect(specifiers).not.toStrictEqual([]);

@@ -16,6 +16,14 @@ lives in `docs/upstream/`.
 The legacy `server` (Fastify API) and `web-api-legacy` (old web client) packages were deleted at
 the Effect API rework cutover (`docs/issues/0020-cutover.md`).
 
+Work that is designed but not yet built lives in `docs/specs/` — one document
+per piece, written against the code as it stands and superseded once the issue
+that implements it closes. `docs/issues/` and `docs/research/` are the finished
+record of the Effect API rework, kept for the reasoning rather than the plan;
+the live tracker is GitHub Issues (`docs/agents/issue-tracker.md`). Which of
+these directories a public clone carries, and why, is
+`docs/adr/0013-the-repository-publishes-how-it-is-built.md`.
+
 ## Cross-context terms
 
 These terms mean the same thing in every context — defined once here, not
@@ -238,6 +246,17 @@ repeated per package.
   _Avoid_: staging, demo environment (both name something that stays up and
   that somebody's data could end up in).
 
+- **Published screenshots** — the four images the README displays, in
+  `docs/screenshots/`: Transactions and Recap, each as a **pair** — a light and
+  a dark frame of the same screen, which the reader's own colour scheme picks
+  between. A pair is the unit: both frames are taken in one run at the same
+  pinned viewport and compared on size, scroll offset and text before either is
+  written, because two frames that disagree read as a glitch rather than as a
+  theme. Taken from the **Demo stack** by the `demo-screenshots` skill
+  (`.claude/skills/demo-screenshots/`, issue #144), never from a real database.
+  _Avoid_: screenshot (singular, for one of a pair — it hides that its twin has
+  to be retaken with it).
+
 - **Issuer default category** — the Category an Issuer assigns to every
   transaction of its own that carries no **Category override**
   (`issuer.defaultCategoryId`). The bulk lever: changing it reclassifies the
@@ -253,6 +272,49 @@ repeated per package.
   default, or override this row.
   _Avoid_: Uncategorised (reserve that for a real Category), none, null.
 
+- **Statement Format** — a stored, user-authored record of how to read one
+  bank's export — **data, not code** (PRD #180). It belongs to **one account**,
+  carries a required user-entered name, and is discriminated on `kind`: a `csv`
+  format declares the **headers that fingerprint** the file, a `pdf` format
+  declares the **columns to ask the model for**. It says which columns become
+  which transaction properties — a closed set of four (`date`, `amount`,
+  `rawIssuerString`, `counterpartyIban`), everything else being **raw source** —
+  and how their values are written: the sign convention (one signed column, a
+  direction column plus the value meaning debit, or separate debit/credit
+  columns), the date order, the decimal separator, and an optional one-column
+  row filter. Green-Got is one of these, not a module: `Direction` with `DEBIT`
+  meaning a debit, ISO dates, dot decimals, and a filter keeping only `Statut` =
+  `COMPLETE`.
+
+  Every rule is a **closed union** rather than an expression language, so each
+  case is a checked branch in the **Parser** and a fixed choice in the mapping
+  UI — adding a bank is filling one in, not writing a module, and the closed
+  unions *are* the validation (a rule outside them is a `400`, not a
+  hand-written error). The date order and the decimal separator are **never
+  auto-detected**: `03/04/2026` is unresolvable without knowing the bank, and a
+  guess corrupts data invisibly — the row still parses and is simply the wrong
+  day.
+
+  A format is **created and never edited or deleted** (issue #183): a bank that
+  changes its export earns a *new* one, so statements downloaded before the
+  change keep a format that reads them. Nothing links a transaction to the
+  format that produced it, and until editing exists nothing should.
+
+  The **CSV** import path reads the stored record in the browser (issue #184):
+  the client fetches the account's formats like any other contract data and
+  applies the chosen one locally, so web ADR 0001 stands — the statement's rows
+  still never leave the browser and there is no import endpoint. Because a bank
+  that changes its export earns a new format, the newer record's fingerprint is
+  a strict superset of the older's, and **the format requiring the most headers
+  wins** when several match.
+
+  A format is **authored by the user, against a file** (issue #186): when no
+  stored one applies, the import wizard's **mapping step** offers to build one
+  from the statement in front of them, and the commit that writes the rows
+  writes the format. Nothing seeds one — Green-Got included — so the feature's
+  first real use is its first end-to-end test.
+  _Avoid_: adapter, mapper, importer, schema.
+
 - **Extracted transaction** — one candidate operation lifted from a PDF bank
   statement by the extraction endpoint, before any account/batch/month is
   stamped: `{ date, amount, rawIssuerString }`. The field names mirror a
@@ -266,11 +328,31 @@ repeated per package.
   _Avoid_: parsed transaction, imported transaction (nothing is imported until
   the user commits, issue #45).
 
+  **Every operation row comes back**, a second product's included (PRD #180,
+  amendment 1). One statement file can carry two accounts — a real Trade
+  Republic statement prints a `Compte PEA` and a `Compte courant` — and nothing
+  tells the model which one the import is for, so a rule that dropped "other
+  accounts" as noise discarded half the document on a guess. Only **balance and
+  summary lines** are excluded now: a row is dropped for what it *is*, never for
+  which product it belongs to, and *which rows belong in the ledger* is the
+  user's decision afterwards, in the import table's **row facets**. A row the
+  model never returned is one no facet can give back. When the statement prints
+  its operations under a product heading and the chosen **Statement Format**
+  declares a column for it, that heading rides each row's **raw source** — which
+  is what makes the product a facet at all.
+
 - **Declared totals** — the statement's own printed `TOTAL DES OPÉRATIONS`
   figures, echoed back beside the extracted rows (`{ debit, credit }`, both
   positive magnitudes exactly as printed). Not a sum the server computes — the
   bank's own total, carried so the review/commit step can reconcile the
-  extracted rows against what the statement declared.
+  extracted rows against what the statement declared. **Optional**: a statement
+  that prints no totals line declares none (a Trade Republic statement prints no
+  `TOTAL DES OPÉRATIONS`), the model answers `null`, the endpoint answers with
+  the field absent, and the **reconciliation check** runs no check at all rather
+  than reconciling against an assumed zero (issue #196). A per-product
+  `SYNTHÈSE` block is **not** that line: a file covering several products prints
+  one each and no single total over them all, so adding them together would fire
+  a false mismatch on every such import.
 
 - **Server-side extraction** — PDF import extracts candidates on the API server,
   not in the browser: the OAuth token stays a server secret and the model reads
@@ -283,9 +365,34 @@ repeated per package.
   in a **transient temp dir** deleted on every exit path — nothing persists, no
   row is written.
   The whole extraction failure taxonomy collapses to a single client-visible
-  **`ExtractionFailed`** (real tag logged server-side); `InvalidFileType` and
-  **`AiProviderNotConfigured`** are the two other, client-fixable, errors. See
-  [ADR 0005](./docs/adr/0005-pdf-extraction-runs-server-side.md).
+  **`ExtractionFailed`** (real tag logged server-side); `InvalidFileType`,
+  `NotFound` and **`AiProviderNotConfigured`** are the three other,
+  client-fixable, errors. Since issue #185 the endpoint takes the **Statement
+  Format** to read the statement with, so it is **no longer account-agnostic** —
+  a format belongs to one account, and its declared columns are what the model is
+  told the statement carries. Since issue #188 the result also carries a **format
+  verdict** on whether the statement actually matched it. See
+  [ADR 0005](./docs/adr/0005-pdf-extraction-runs-server-side.md) and
+  [ADR 0014](./docs/adr/0014-pdf-extraction-is-account-aware-through-its-format.md).
+
+- **Format verdict** — what **PDF extraction** reports about the **Statement
+  Format** it was given: `{ matched, missingColumns }` — whether the statement
+  carried every column that format declares, and which expected ones it did not
+  (issue #188). The PDF counterpart of the CSV path's header fingerprint: a user
+  picks which format reads a file and can pick wrong, and without a verdict the
+  wrong pick comes back as plausible rows nobody questions until after they are
+  committed.
+  **Structured, never prose**, because the wizard *branches* on it: a match
+  continues to **side-by-side validation** unchanged, a mismatch does not — its
+  rows are dropped rather than shown, and the user is asked which format reads
+  the statement while the upload is still in hand. The model is asked only which
+  declared columns it could not find; `matched` is that list being empty, folded
+  server-side, so the two halves cannot contradict one another. `missingColumns`
+  only ever names columns the format declares, in the format's own words.
+  A mismatch is **reported, not raised** — the response is a 200 carrying a
+  verdict, not an `ExtractionFailed`: nothing failed.
+  _Avoid_: extraction error, validation failure (nothing was rejected and
+  nothing is retryable).
 
 - **Provider not configured** — `AiProviderNotConfigured` (501), the one
   extraction failure held **out of** the collapse into `ExtractionFailed`: the
@@ -802,13 +909,29 @@ repeated per package.
   renaming keys would reintroduce the import-time guessing the archive exists to
   avoid. It is an **archive, not a competing source of truth** — nothing derives
   from it, and a value promoted to a real column (see **Counterparty IBAN**) is
-  free to disagree with its raw form. Its contents are the bank's own words and
+  free to disagree with its raw form. That "nothing" is held to the whole repo
+  by `packages/web/src/test/raw-source-is-an-archive.test.ts`: which files may
+  name it in code, and that no query ever filters, groups, joins or counts on it
+  — unlike the promoted column, which is exactly what promotion buys. The one
+  place the archive is *looked at* rather than displayed is the **row facets**
+  of an import preview (issue #195), and it is looking rather than deriving: the
+  rows are not stored yet, and all that comes out is which of them are on screen
+  while the user decides. Nothing populates a field from it, no total counts it,
+  and a filter is gone with the wizard. Its contents are the bank's own words and
   are labelled as such wherever shown, so Green-Got's `Catégorie` reads as
   provenance rather than as a second, contradicting **Derived category**. It
   means **as most recently delivered**: a re-import replaces it rather than
   preserving the first delivery, because the useful question is always what the
-  bank says about this row *now*. CSV-imported rows carry one; a row from PDF
-  extraction has no original row to keep and leaves it null.
+  bank says about this row *now*. **Both import paths carry one** (issue #189):
+  a CSV row archives the whole delivered row, and a PDF-extracted row archives
+  the cells the model returned, keyed by the columns its **Statement Format**
+  declares and written as the statement printed them — so `1 929,71` is kept as
+  written beside an `amount` of `1929.71`. A PDF row had none until the model
+  was told which columns to expect (issue #185), which is what turned an answer
+  into a row-shaped thing. A row with **nothing** to archive — one imported
+  before the archive existed, or one typed by hand in side-by-side validation —
+  carries null rather than `{}`, so the detail page shows nothing rather than an
+  empty block.
   See [ADR 0012](./docs/adr/0012-raw-source-is-an-archive-promotion-is-earned.md).
   _Avoid_: other metadata, extra fields, leftovers (all name it by what it
   lacks); raw row (the value is an object, not the delimited line).
@@ -825,7 +948,13 @@ repeated per package.
   one place a promoted column and the archive deliberately disagree, and that is
   the division of labour: the column is for matching, the archive is for
   provenance. Promoted out of the archive rather than left in it because a
-  matcher cannot reach inside an opaque JSON bin.
+  matcher cannot reach inside an opaque JSON bin. **Which column carries it is
+  the Statement Format's to name** (`mapping.counterpartyIban`), so a bank that
+  calls it something other than `IBAN du tiers` populates the field just the
+  same; a bank that writes no counterparty account number says so with a `null`
+  and its statements import with none. Absent, blank and *could not be an IBAN*
+  all come out null — "not given" gets one spelling, or a join has two shapes of
+  nothing to handle.
   _Avoid_: destination IBAN, payee IBAN (both directional); third-party IBAN.
 
 - **IBAN-confirmed candidate** — a **Transfer candidate** on which one leg's

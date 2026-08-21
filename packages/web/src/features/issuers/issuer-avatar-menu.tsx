@@ -91,7 +91,6 @@ export function IssuerAvatarMenu({
             Remove image
           </MenuItem>
         </MenuGroup>
-
       </MenuContent>
     </Menu>
   );

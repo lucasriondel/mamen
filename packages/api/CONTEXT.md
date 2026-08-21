@@ -74,6 +74,14 @@ boot, because that would resurrect deliberate deletions.
 per table, exported and reused by every query that reads it — including from
 other modules (the matching engine decodes rules and transactions through the
 repositories' codecs rather than its own).
+
+Storage may also be *narrower* than the wire, and `StatementFormatFromRow` is
+where that direction shows: a **Statement Format** always declares exactly one
+list of column names, so the table keeps one `declaredColumns` column and the
+codec folds it onto `headers` or `columns` according to `kind` — the two names
+the wire keeps apart because they are read for different reasons. A codec whose
+`encode` half is otherwise dead (the write path builds its row by hand) earns its
+own round-trip test for exactly this: nothing else exercises the inverse.
 _Avoid_: mapper, serializer.
 
 **Fragment**:
@@ -87,6 +95,14 @@ so a filter starts disagreeing with the value it filters on, or a warning counts
 a set the delete beneath it does not. When a new clause is needed, it goes in the
 fragment; if a rule has three hand-written copies, collapsing them to one
 fragment is the fix.
+
+Two fragments that look like one are named apart and carry their precondition,
+because the drift they invite is silent: the recap's `spentCents` negates every
+row and is correct only under a WHERE that has already filtered to debits, while
+`debitCents` / `creditCents` filter sign inside the aggregate for the queries
+whose WHERE says nothing about it (issue #167). Swapped, they report a refund as
+spending or an income line as zero — with no error and no failing behaviour test,
+which is why `recap-sums.test.ts` and `trend-bucket.test.ts` read the source.
 _Avoid_: helper, snippet, query builder.
 
 **SqlError boundary**:
@@ -109,17 +125,65 @@ data. Regex compiles in JS, never in SQL, so an invalid pattern becomes a
 recompute it triggers share one `withTransaction`, so the fallout is
 all-or-nothing.
 
-**Wire suite / repo suite**:
-The two test seams, one file each per resource. The **wire suite**
-(`handlers.test.ts`) stands the whole API up on an ephemeral Node server over a
-fresh `:memory:` database and drives it through the derived `HttpApiClient`, so
-every assertion round-trips the real encode/decode — it is where a status code,
-an error `_tag` and a **refusal reason** get pinned. The **repo suite**
-(`repository.test.ts`) drives the repository directly, which is where multi-row
-invariants and "what was actually written" are cheapest to state. A new rule
-usually earns one of each: the repo suite says the write is refused, the wire
-suite says the client is told so. Coverage is a real gate (90% lines/functions/
-statements, 85% branches, counting modules no test imports).
+The service is the **writes only**: every decision it acts on comes from a pure
+export of the same file — `derive`, `previewLists`, `deleteLists`, and (since
+issue #160) `issuerAssignmentDiff`, which says which rows a recompute has
+actually moved and therefore need an `UPDATE`. That last one is why a rule save
+that changes nothing rewrites nothing: the recompute derives the whole table
+every time, and the diff is the only thing between that and a table-wide
+rewrite. _Avoid_: deciding anything inside the service that the pure half could
+decide — a decision fused to its statement construction needs a database to
+test.
+
+**Owned-count input set**:
+The six things a **Matching Rule**'s **Owned count** (see CONTEXT-MAP.md) is
+derived from, stated where the derivation is — `derive` in
+`matching/issuer-matcher.ts`: **row existence**, `manualIssuer`,
+`rawIssuerString`, `amount`, `accountId`, and **the rule set** itself. Nothing
+else. The count is computed on every read and never stored (the `matchCount`
+column went in migration `0017_drop_rules_match_count`), so it is a function of
+those six as they stand now.
+
+The inverse is the load-bearing half: **a write touching none of the six cannot
+change an Owned count**. `transferGroupId` (transfer link / unlink / dismiss),
+`categoryId` / `manualCategory` (a category override), `excludedFromRecap` /
+`manualExcluded` (recap exclusion) and an issuer's own `excludedFromRecap` recap
+flag change how a row is *displayed or aggregated*; the matcher reads none of
+them. Read loosely — as "any write that moves rows" — that reads as "any write
+to the transactions table", and two separate reviews have now concluded from it
+that the mutation hooks omitting the rules-cache invalidation were shipping
+stale counts. They are not: check a write against the field list mechanically
+instead of inferring from what "moves" means. `packages/web/CONTEXT.md` holds
+the cache-invalidation rule that follows from this list, worded in these same
+six fields since issue #170 — a mutation writing any of them invalidates
+`ruleKeys.all`, and one writing none of them correctly does not.
+_Avoid_: "moves rows", "touches transactions" (both name a superset of the six).
+
+**Wire suite / repo suite / rule-module suite**:
+The three test seams. Two of them are per resource, one file each. The **wire
+suite** (`handlers.test.ts`) stands the whole API up on an ephemeral Node server
+over a fresh `:memory:` database and drives it through the derived
+`HttpApiClient`, so every assertion round-trips the real encode/decode — it is
+where a status code, an error `_tag` and a **refusal reason** get pinned. The
+**repo suite** (`repository.test.ts`) drives the repository directly, which is
+where multi-row invariants and "what was actually written" are cheapest to
+state. A new rule usually earns one of each: the repo suite says the write is
+refused, the wire suite says the client is told so. Coverage is a real gate (90%
+lines/functions/statements, 85% branches, counting modules no test imports).
+
+The third seam has no per-resource file because it is not per resource: a
+**rule-module suite** calls a pure decision module's exports directly, with no
+Effect runtime, no server and no database — `ai-tasks/kernel.test.ts` (the
+**save-time kernel**), `matching/issuer-matcher.test.ts` (the matching engine,
+issue #158) and `transactions/bundle-derivation.test.ts` among them. This is
+where a *decision matrix* belongs, and belongs **only**: at roughly a thousandth
+of the per-case cost of an HTTP round trip, the exhaustive version is nearly
+free, and it names the failure. Issue #161 retired nineteen matching-decision
+cases from `rules/handlers.test.ts` for exactly that reason — which rule wins a
+row was being asserted twice, once slowly. What the wire suite keeps for a rule
+module is the **wiring**: that the handler reaches the module, in a transaction,
+against the live tables, and returns its answer. _Avoid_: adding a decision case
+to a `handlers.test.ts` because that is where the feature's other tests are.
 
 **OpenAPI drift guard**:
 `openapi.json` is emitted from the contract by `scripts/emit-openapi.ts` and
@@ -222,6 +286,94 @@ what preserves the two-column Débit/Crédit layout the rules depend on (issue
 **one** copy of the extraction rules (`ai-runner/prompt.ts`), so the same
 statement cannot extract differently depending on the chosen vendor; the CLI
 prompt's own text is unchanged and `tasks.test.ts` holds it so.
+The **declared columns** of the chosen **Statement Format** are part of that one
+copy, not of either column (issue #185): both transports are being asked to read
+the same statement, so a columns block written into one of them would be exactly
+the drift the split exists to prevent. They arrive as `ExtractPdfInput.columns`
+for the same reason the bytes do — a prompt builder is a pure function and
+looking a format up is a database read, so `import/extract.ts` resolves it and
+hands the list over. A format declaring none produces no block at all: an empty
+heading tells the model the statement carries nothing.
+**Every operation row** is asked for, a second product's included (PRD #180,
+amendment 1): one statement file can carry two accounts — a Trade Republic
+statement prints a `Compte PEA` and a `Compte courant` — and the prompt never
+says which one the import is for, so the old *"this statement is for the
+current/cheque account only"* rule discarded half the document on a guess the
+model had no way to make. The exclusions are now about what a row **is** (a
+balance, a total, a per-product `SYNTHÈSE` block) and never about which product
+it belongs to; which rows enter the ledger is the user's decision afterwards, in
+the import table's **row facets** (#195), and a row the model never returned is
+one no facet can give back. The product is a *section heading* on that statement
+rather than a cell, so the model is told to attribute the heading to the rows
+printed beneath it — conditional on the format declaring a column for it, since
+the archive is keyed by the declared columns and a heading with nowhere to go is
+not a key the model may invent.
+The task's **output** is `ExtractionOutput`, not the endpoint's `ExtractPdfResult`
+(issue #188): the model answers with the rows, the totals and `missingColumns` —
+the declared columns it could not find — and never with the conclusion drawn from
+them. Required, not defaulted: a silence folded into "everything matched" is the
+silent wrongness the verdict exists to end. Its rows are `ExtractedRow`, the
+model's own row, which differs from the endpoint's by requiring `rawSource`
+(issue #189) for the same reason.
+Its `declaredTotals` is **required and nullable** (issue #196): not every
+statement prints a `TOTAL DES OPÉRATIONS` line, and the model must say which case
+it saw rather than stay silent about it. `import/extract.ts` folds the `null` to
+an absent field on `ExtractPdfResult`, so the client's reconciliation check skips
+instead of comparing the rows to an assumed zero — a zero pair stays a real
+declared total, since a statement can print one. A per-product `SYNTHÈSE` block
+is not the totals line: a file covering several products prints one each and no
+single total over them all, so the answer there is `null` rather than one block
+picked or several added up.
+
+**A PDF row's raw source**:
+`ExtractedTransaction.rawSource` — each operation's own cells, keyed by the
+columns the chosen format declares and written **as the statement printed them**
+(issue #189, asked for by `ai-runner/prompt.ts`'s `THE ROW AS PRINTED`). Every
+other rule in that prompt says how to *read* a value; this one says not to, so
+`1 929,71` is archived as written beside an `amount` of `1929.71`. Issue #175
+excluded PDF rows on the premise that there is no original row to keep, and the
+declared columns (#185) made that premise false — a table of exactly those
+columns is row-shaped.
+Required of the model, folded by `import/extract.ts` (`rowOf`): an empty archive
+becomes **absent**, because `{}` and "nothing to keep" are one fact and the
+contract spells it one way. Same division as the verdict — the model reports what
+it saw, mamen draws the conclusion. Nothing derives from it
+([ADR 0012](../../docs/adr/0012-raw-source-is-an-archive-promotion-is-earned.md)),
+which `packages/web/src/test/raw-source-is-an-archive.test.ts` holds this package
+to as well.
+
+**Format verdict**:
+`ExtractPdfResult.verdict` — `{ matched, missingColumns }`, the PDF counterpart
+of the CSV path's header fingerprint (issue #188). The user chooses which format
+reads a file and can choose wrong; until this was reported, the wrong choice came
+back as plausible rows and the only backstop was reading every line of
+side-by-side validation *after* deciding to import.
+The fold is `import/extract.ts`'s (`verdictOf`), and it reads off the **declared**
+list rather than the model's answer: a column the format never declared is
+dropped (the verdict reports on the *expected* columns), the names come back in
+the format's own spelling and order, comparison is trimmed and case-folded so a
+`" DÉBIT "` does not fail a format that fits, and a format declaring no columns
+matches whatever the model says. `matched` is `missingColumns` being empty —
+derived rather than asked for, so the two halves cannot contradict each other.
+A mismatch is **reported, never raised**: the rows still come back and the status
+is still 200. What to do about a wrong format is the wizard's branch, and a 502
+would say extraction failed, which is not what happened.
+
+**Extraction takes a format**:
+`POST /import/extract-pdf` takes `formatId` alongside the file, and is therefore
+**no longer account-agnostic** — a **Statement Format** belongs to one account,
+so naming one names the account ([ADR 0014](../../docs/adr/0014-pdf-extraction-is-account-aware-through-its-format.md),
+amending [ADR 0005](../../docs/adr/0005-pdf-extraction-runs-server-side.md)).
+The *id*, never the column list: what a bank's statement carries is the account's
+stored answer, so `import/extract.ts` reads it back through `StatementFormatRepo`
+rather than believing a body that could declare any columns it liked. A **CSV**
+format's id is refused as `NotFound` and not applied — its `headers` are a
+*fingerprint* (what a file must carry to be recognised), a different thing from
+the columns to ask a model for, and the lookup fails before a provider is
+reached. What has not changed is the answer: still candidates keyed to nothing,
+with account, batch and month stamped client-side at commit.
+_Avoid_: format detection (the model is never asked to pick the format as well as
+apply it — the choice is the user's, or arithmetic when there is exactly one).
 
 **Hosted document part**:
 The statement's bytes reach the task through `ExtractPdfInput.pdfBytes`, read by

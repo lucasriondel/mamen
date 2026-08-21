@@ -20,6 +20,19 @@ Issues live in GitHub Issues (`gh` CLI); external PRs are not a triage surface. 
 
 Default vocabulary — `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
 
+### Demo screenshots
+
+The README's images are captured from the demo stack by one procedure, teardown
+included. See `.claude/skills/demo-screenshots/SKILL.md`.
+
+### README and landing-page reconciliation
+
+The README and the public landing page have to tell a reader the same commands,
+steps, prerequisites and environment facts. `bun run landing:reconcile` diffs
+the two command sets; the pass around it — what must agree, what may differ, and
+what to do when the code moved under both — is
+`.claude/skills/readme-landing-sync/SKILL.md`.
+
 ### Domain docs
 
 Multi-context monorepo — `CONTEXT-MAP.md` at root points to per-package `CONTEXT.md`. See `docs/agents/domain.md`.

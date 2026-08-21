@@ -8,6 +8,7 @@ import { formatCurrency, formatShortDate } from "@/lib/format";
 import { accountQueries, transactionQueries } from "@/lib/sdk";
 import { cn, indexById } from "@/lib/utils";
 import { isTransferEligible, TRANSFER_REFUSED_BUNDLE_REASON } from "./grouping-eligibility";
+import { IbanConfirmedMark } from "./iban-confirmed-mark";
 import { TransferLegsSkeleton } from "./transfer-legs-skeleton";
 import { useTransfer } from "./use-transfer";
 import { dayGapLabel, toTransferPair, useTransferSuggestion } from "./use-transfer-candidates";
@@ -22,17 +23,24 @@ const GROUP_SCAN_LIMIT = 50;
  * `VIR SEPA VERS LIVRET A` usually settles it outright) and how many days apart
  * it is. A confirmed leg of an existing group needs neither — the pairing is
  * already decided — so both are omitted when `daysApart` is absent.
+ *
+ * An **IBAN-confirmed** suggestion (issue #179) carries the mark too, naming the
+ * account the bank's IBAN matched. It sits outside the link: it is evidence
+ * about *this pairing*, not a property of the row being linked to, and the
+ * pairing is still confirmed by the action beside it.
  */
 function LegRow({
   leg,
   accountsById,
   action,
   daysApart,
+  ibanConfirmedAccountId,
 }: {
   leg: Transaction;
   accountsById: ReadonlyMap<number, Account>;
   action?: ReactNode;
   daysApart?: number;
+  ibanConfirmedAccountId?: number;
 }) {
   return (
     <li className="flex items-center justify-between gap-3 rounded-xl border border-gousse-line px-3 py-2">
@@ -61,6 +69,9 @@ function LegRow({
           </span>
         ) : null}
       </Link>
+      {ibanConfirmedAccountId !== undefined ? (
+        <IbanConfirmedMark accountId={ibanConfirmedAccountId} accountsById={accountsById} />
+      ) : null}
       {action}
     </li>
   );
@@ -197,6 +208,7 @@ export function TransferSection({ transaction: txn }: { transaction: Transaction
                 leg={counterpart.transaction}
                 accountsById={accountsById}
                 daysApart={counterpart.daysApart}
+                ibanConfirmedAccountId={counterpart.ibanConfirmedAccountId}
                 action={
                   <Button
                     variant="secondary"

@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { APP_BASE_PATH } from "@mamen/shared/app-base-path";
 import { describe, expect, it } from "vitest";
 import {
@@ -33,6 +33,18 @@ import {
  */
 
 const read = (path: string) => readFileSync(path, "utf8");
+
+/**
+ * Every file a build reads: the config, and each source that is not a test or
+ * the topology module itself. These are the files a host name would reach a
+ * built page through.
+ */
+const BUILT = [
+  "vite.config.ts",
+  ...readdirSync("src", { recursive: true, encoding: "utf8" })
+    .filter((entry) => /\.tsx?$/.test(entry) && !entry.endsWith(".test.ts"))
+    .map((entry) => `src/${entry}`),
+].filter((file) => file !== "src/topology.ts");
 
 const paths = ROUTES.map((route) => route.path);
 const webPaths = ROUTES.filter((r) => r.container === "web").map((r) => r.path);
@@ -153,12 +165,21 @@ describe("the topology module", () => {
   it("is data, not runtime code: nothing that ships imports it", () => {
     // It reads `process.env` and names a host. Either would be a build-time
     // value baked into a page that deliberately has no JavaScript at all.
-    for (const file of ["src/page.ts", "src/prerender.ts", "vite.config.ts"]) {
-      expect(read(file)).not.toContain("topology");
+    //
+    // Every non-test source, not the three files that existed when this was
+    // written: the renderer changed name and extension at the contract step
+    // (issue #148), and a list naming `src/page.ts` would have gone quiet
+    // rather than red the day it did.
+    expect(BUILT.length).toBeGreaterThan(2);
+
+    for (const file of BUILT) {
+      expect(read(file), `${file} reads the topology`).not.toContain("topology");
     }
   });
 
   it("keeps the host out of the page", () => {
-    expect(read("src/page.ts")).not.toContain(DEFAULT_SITE_HOST);
+    for (const file of BUILT) {
+      expect(read(file), `${file} names the host`).not.toContain(DEFAULT_SITE_HOST);
+    }
   });
 });

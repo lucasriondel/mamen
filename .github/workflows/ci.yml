@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   check:
-    name: lint, typecheck, test
+    name: lint, format, typecheck, test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -49,5 +49,6 @@ jobs:
       # them carries `if:` or `continue-on-error` — the first red check ends the
       # run.
       - run: bun run lint
+      - run: bun run format:check
       - run: bun run typecheck
       - run: bun run test

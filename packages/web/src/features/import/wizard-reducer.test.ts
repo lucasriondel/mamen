@@ -1,5 +1,6 @@
-import type { AccountId } from "@mamen/shared/contract";
+import type { AccountId, CsvStatementFormat, StatementFormatId } from "@mamen/shared/contract";
 import { describe, expect, it } from "vitest";
+import { blankDraft } from "./parsers/format-draft";
 import {
   canAcceptFile,
   canPreview,
@@ -11,16 +12,48 @@ import {
 const HEADERS = ["Statut", "Date", "Montant", "Direction", "Intitulé"];
 const ROWS = [{ Statut: "COMPLETE", Date: "2026-01-01T00:00:00Z" }];
 
+/**
+ * A stored **Statement Format**, as the account's list hands it to the wizard
+ * (issue #184). The reducer never reads anything off one but its `id` — the
+ * detecting and the applying are both outside it — so the whole record is here
+ * only because the `detect-format` action carries the detection result verbatim.
+ */
+const FORMAT: CsvStatementFormat = {
+  id: 3 as StatementFormatId,
+  accountId: 5 as AccountId,
+  name: "Green-Got",
+  kind: "csv",
+  headers: HEADERS,
+  mapping: { date: "Date", rawIssuerString: "Intitulé", counterpartyIban: null },
+  rules: {
+    sign: { strategy: "signed-column", amountColumn: "Montant" },
+    dateOrder: "iso",
+    decimalSeparator: "dot",
+    filter: null,
+  },
+  createdAt: new Date("2026-01-01T00:00:00.000Z"),
+  updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+};
+
 /** The account is picked first now (issue #181) — every file case starts here. */
 const withAccount = wizardReducer(initialWizardState, {
   type: "select-account",
   accountId: 5 as AccountId,
 });
 
+/** An account and a parsed CSV, with detection not yet run over it. */
+const parsedCsv = wizardReducer(withAccount, {
+  type: "file-parsed",
+  fileName: "statement.csv",
+  headers: HEADERS,
+  rows: ROWS,
+});
+
 describe("wizardReducer", () => {
   it("starts on the upload step with nothing configured", () => {
     expect(initialWizardState.step).toBe("upload");
-    expect(initialWizardState.parserId).toBeNull();
+    expect(initialWizardState.formatId).toBeNull();
+    expect(initialWizardState.formatSelection).toBeNull();
     expect(initialWizardState.accountId).toBeNull();
   });
 
@@ -29,33 +62,71 @@ describe("wizardReducer", () => {
     expect(canAcceptFile(withAccount)).toBe(true);
   });
 
-  it("auto-selects the parser when the file is recognized", () => {
+  // A parsed file no longer arrives with a format on it: the account's formats
+  // are fetched (issue #184), so detection is a second beat that lands whenever
+  // that list does. Until it lands the file is loaded and undecided.
+  it("loads a parsed file with no format decided yet", () => {
     const state = wizardReducer(withAccount, {
       type: "file-parsed",
       fileName: "statement.csv",
       headers: HEADERS,
       rows: ROWS,
-      detectedParserId: "green-got",
     });
 
     expect(state.fileName).toBe("statement.csv");
     expect(state.rows).toBe(ROWS);
-    expect(state.parserId).toBe("green-got");
-    expect(state.autoDetected).toBe(true);
+    expect(state.formatId).toBeNull();
+    expect(state.formatSelection).toBeNull();
     expect(state.importBatchId).toMatch(/.+/);
   });
 
-  it("leaves the parser unset for a manual pick when unrecognized", () => {
-    const state = wizardReducer(withAccount, {
-      type: "file-parsed",
-      fileName: "unknown.csv",
-      headers: ["a", "b"],
-      rows: ROWS,
-      detectedParserId: null,
+  it("selects the detected format when exactly one fingerprint matched", () => {
+    const state = wizardReducer(parsedCsv, {
+      type: "detect-format",
+      detection: { outcome: "detected", format: FORMAT },
     });
 
-    expect(state.parserId).toBeNull();
-    expect(state.autoDetected).toBe(false);
+    expect(state.formatId).toBe(FORMAT.id);
+    expect(state.formatSelection).toBe("detected");
+  });
+
+  // The two hints the picker distinguishes are two *states*, not one failure:
+  // "nothing matched" is a file the account has no format for, "several matched"
+  // is an ambiguity only the user can settle. Both leave the format unset.
+  it("leaves the format unset when nothing matched", () => {
+    const state = wizardReducer(parsedCsv, {
+      type: "detect-format",
+      detection: { outcome: "none" },
+    });
+
+    expect(state.formatId).toBeNull();
+    expect(state.formatSelection).toBe("none");
+  });
+
+  it("leaves the format unset when several matched", () => {
+    const state = wizardReducer(parsedCsv, {
+      type: "detect-format",
+      detection: { outcome: "several" },
+    });
+
+    expect(state.formatId).toBeNull();
+    expect(state.formatSelection).toBe("several");
+  });
+
+  // Detection is fired from an effect, so its result can arrive after the user
+  // has replaced the CSV with a PDF. Applying it then would put a CSV format on
+  // a file that has no headers at all.
+  it("ignores a detection result once the CSV is gone", () => {
+    const pdf = wizardReducer(parsedCsv, {
+      type: "extract-start",
+      file: new File([], "statement.pdf", { type: "application/pdf" }),
+    });
+    const state = wizardReducer(pdf, {
+      type: "detect-format",
+      detection: { outcome: "detected", format: FORMAT },
+    });
+
+    expect(state).toBe(pdf);
   });
 
   // The ordering is the state machine's, not only the drop zone's: a **Statement
@@ -67,7 +138,6 @@ describe("wizardReducer", () => {
       fileName: "statement.csv",
       headers: HEADERS,
       rows: ROWS,
-      detectedParserId: "green-got",
     });
 
     expect(state).toBe(initialWizardState);
@@ -82,22 +152,30 @@ describe("wizardReducer", () => {
     expect(state).toBe(initialWizardState);
   });
 
-  it("records the account and then a manual parser choice", () => {
-    const state = wizardReducer(withAccount, {
-      type: "select-parser",
-      parserId: "green-got",
+  // A manual pick overrides whatever detection concluded — including a
+  // successful one, since the picker is on screen for every import rather than
+  // only when detection failed.
+  it("records the account and then a manual format choice", () => {
+    const detected = wizardReducer(parsedCsv, {
+      type: "detect-format",
+      detection: { outcome: "detected", format: FORMAT },
+    });
+    const state = wizardReducer(detected, {
+      type: "select-format",
+      formatId: 9 as StatementFormatId,
     });
 
     expect(state.accountId).toBe(5);
-    expect(state.parserId).toBe("green-got");
+    expect(state.formatId).toBe(9);
+    expect(state.formatSelection).toBe("manual");
   });
 
-  it("advances to preview only with a file, parser, and account", () => {
+  it("advances to preview only with a file, format, and account", () => {
     const ready = wizardReducer(
       {
         ...initialWizardState,
         rows: ROWS,
-        parserId: "green-got",
+        formatId: 3 as StatementFormatId,
         accountId: 5 as AccountId,
       },
       { type: "go-to-preview" },
@@ -105,10 +183,37 @@ describe("wizardReducer", () => {
     expect(ready.step).toBe("preview");
 
     const notReady = wizardReducer(
-      { ...initialWizardState, rows: ROWS, parserId: null, accountId: null },
+      { ...initialWizardState, rows: ROWS, formatId: null, accountId: null },
       { type: "go-to-preview" },
     );
     expect(notReady.step).toBe("upload");
+  });
+
+  // Formats are account-scoped, so the account changing under a loaded file
+  // changes which formats could read it — including out of existence.
+  it("drops the chosen format when the account changes", () => {
+    const detected = wizardReducer(parsedCsv, {
+      type: "detect-format",
+      detection: { outcome: "detected", format: FORMAT },
+    });
+    const state = wizardReducer(detected, { type: "select-account", accountId: 8 as AccountId });
+
+    expect(state.accountId).toBe(8);
+    expect(state.formatId).toBeNull();
+    expect(state.formatSelection).toBeNull();
+    // The file itself is untouched — it is the same statement, read against
+    // another account's formats.
+    expect(state.rows).toBe(ROWS);
+  });
+
+  it("leaves a chosen format alone when the same account is picked again", () => {
+    const detected = wizardReducer(parsedCsv, {
+      type: "detect-format",
+      detection: { outcome: "detected", format: FORMAT },
+    });
+    const state = wizardReducer(detected, { type: "select-account", accountId: 5 as AccountId });
+
+    expect(state).toBe(detected);
   });
 
   it("goes back to upload from preview", () => {
@@ -117,6 +222,204 @@ describe("wizardReducer", () => {
       { type: "back-to-upload" },
     );
     expect(state.step).toBe("upload");
+  });
+
+  /**
+   * Issue #185 — a PDF is extracted *against* a **Statement Format**, so when the
+   * account has more than one of them the file waits in the wizard while the user
+   * says which. Held in the state machine rather than in the upload step's local
+   * state, for the same reason the account gate is: "a file is in hand and
+   * nothing has been sent anywhere" is a state of the import, and the step that
+   * renders it is not the only thing that has to agree about it.
+   */
+  describe("a PDF waiting on a format choice", () => {
+    const PDF = new File([], "statement.pdf", { type: "application/pdf" });
+
+    it("holds the file without extracting anything", () => {
+      const state = wizardReducer(withAccount, { type: "pdf-awaits-format", file: PDF });
+
+      expect(state.pendingPdf).toBe(PDF);
+      expect(state.source).toBe("pdf");
+      expect(state.fileName).toBe("statement.pdf");
+      // Nothing is in flight and nothing came back: the spinner belongs to a
+      // request that has been made, and no request has been made.
+      expect(state.extracting).toBe(false);
+      expect(state.extracted).toBeNull();
+      expect(canPreview(state)).toBe(false);
+    });
+
+    it("clears any CSV state, as a PDF drop does", () => {
+      const fromCsv = wizardReducer(parsedCsv, {
+        type: "detect-format",
+        detection: { outcome: "detected", format: FORMAT },
+      });
+
+      const state = wizardReducer(fromCsv, { type: "pdf-awaits-format", file: PDF });
+
+      expect(state.rows).toEqual([]);
+      expect(state.formatId).toBeNull();
+      expect(state.formatSelection).toBeNull();
+    });
+
+    it("lets go of the file once its extraction starts", () => {
+      const waiting = wizardReducer(withAccount, { type: "pdf-awaits-format", file: PDF });
+      const state = wizardReducer(waiting, { type: "extract-start", file: PDF });
+
+      expect(state.pendingPdf).toBeNull();
+      expect(state.extracting).toBe(true);
+    });
+
+    it("lets go of the file when the drop is refused", () => {
+      const waiting = wizardReducer(withAccount, { type: "pdf-awaits-format", file: PDF });
+      const state = wizardReducer(waiting, { type: "file-error", message: "No." });
+
+      expect(state.pendingPdf).toBeNull();
+    });
+
+    // The same door the rest of the file waits at: without an account there is
+    // no set of formats to choose from in the first place.
+    it("is ignored while no account is chosen", () => {
+      const state = wizardReducer(initialWizardState, { type: "pdf-awaits-format", file: PDF });
+
+      expect(state).toBe(initialWizardState);
+    });
+  });
+
+  /**
+   * Issue #186 — when no format applies, the wizard walks the user into building
+   * one against the file in front of them. The draft lives here, in the state of
+   * the *import*, because it outlives the step that authors it: the preview
+   * reads the rows through it and the commit saves it.
+   */
+  describe("a Statement Format being built from the file", () => {
+    /** A draft with every answer the applying half needs, over `HEADERS`. */
+    const READY = {
+      ...blankDraft(),
+      name: "Green-Got",
+      mapping: { date: "Date", rawIssuerString: "Intitulé", counterpartyIban: null },
+      sign: { strategy: "signed-column" as const, amountColumn: "Montant" },
+      dateOrder: "iso" as const,
+      decimalSeparator: "dot" as const,
+    };
+
+    // The third route in, and the one the copy exists for: an account nobody has
+    // set up yet has not failed to recognise anything.
+    it("records that the account has no format of this kind at all", () => {
+      const state = wizardReducer(parsedCsv, {
+        type: "detect-format",
+        detection: { outcome: "no-formats" },
+      });
+
+      expect(state.formatId).toBeNull();
+      expect(state.formatSelection).toBe("no-formats");
+    });
+
+    it("opens the mapping step on a draft that declares nothing", () => {
+      const state = wizardReducer(parsedCsv, { type: "build-format" });
+
+      expect(state.step).toBe("mapping");
+      expect(state.draftFormat).toEqual(blankDraft());
+    });
+
+    // Reopening is editing, not restarting: a user who went to the preview and
+    // came back to fix the date order must find the rest of their answers.
+    it("reopens the draft it already has rather than blanking it", () => {
+      const drafted = wizardReducer(wizardReducer(parsedCsv, { type: "build-format" }), {
+        type: "update-format-draft",
+        patch: { name: "Green-Got" },
+      });
+      const state = wizardReducer({ ...drafted, step: "upload" }, { type: "build-format" });
+
+      expect(state.step).toBe("mapping");
+      expect(state.draftFormat?.name).toBe("Green-Got");
+    });
+
+    // Nothing to map against: the mapping step's whole subject is the file's real
+    // headers, and a PDF has none until extraction has run.
+    it("is ignored when there is no parsed CSV to map", () => {
+      const pdf = wizardReducer(withAccount, {
+        type: "extract-start",
+        file: new File([], "statement.pdf", { type: "application/pdf" }),
+      });
+
+      expect(wizardReducer(pdf, { type: "build-format" })).toBe(pdf);
+      expect(wizardReducer(withAccount, { type: "build-format" })).toBe(withAccount);
+    });
+
+    it("patches one answer at a time, leaving the others standing", () => {
+      const opened = wizardReducer(parsedCsv, { type: "build-format" });
+      const named = wizardReducer(opened, {
+        type: "update-format-draft",
+        patch: { name: "Green-Got" },
+      });
+      const state = wizardReducer(named, {
+        type: "update-format-draft",
+        patch: { dateOrder: "day-first" },
+      });
+
+      expect(state.draftFormat).toEqual({
+        ...blankDraft(),
+        name: "Green-Got",
+        dateOrder: "day-first",
+      });
+    });
+
+    it("ignores a patch when nothing is being drafted", () => {
+      expect(wizardReducer(parsedCsv, { type: "update-format-draft", patch: { name: "X" } })).toBe(
+        parsedCsv,
+      );
+    });
+
+    // The abandon path: the draft is never written anywhere but here, so letting
+    // go of it is all "leave nothing behind" takes.
+    it("throws the draft away and returns to the upload step", () => {
+      const drafted = { ...parsedCsv, step: "mapping" as const, draftFormat: READY };
+      const state = wizardReducer(drafted, { type: "discard-format-draft" });
+
+      expect(state.draftFormat).toBeNull();
+      expect(state.step).toBe("upload");
+      // The file is untouched — the user gave up on the format, not the import.
+      expect(state.rows).toBe(ROWS);
+    });
+
+    it("previews on a complete draft with no stored format chosen", () => {
+      const incomplete = {
+        ...parsedCsv,
+        draftFormat: { ...READY, decimalSeparator: null },
+      };
+      expect(canPreview(incomplete)).toBe(false);
+
+      const ready = { ...parsedCsv, draftFormat: READY };
+      expect(canPreview(ready)).toBe(true);
+      expect(wizardReducer(ready, { type: "go-to-preview" }).step).toBe("preview");
+    });
+
+    // An unnamed format cannot be saved, and the draft is saved by the very
+    // action that commits — so an unnamed draft cannot reach the preview either.
+    it("holds the preview back until the draft is named", () => {
+      expect(canPreview({ ...parsedCsv, draftFormat: { ...READY, name: "  " } })).toBe(false);
+    });
+
+    it.each([
+      [
+        "the user picks a stored format instead",
+        { type: "select-format", formatId: 9 as StatementFormatId } as const,
+      ],
+      [
+        "another file is parsed",
+        { type: "file-parsed", fileName: "b.csv", headers: HEADERS, rows: ROWS } as const,
+      ],
+      ["the account changes", { type: "select-account", accountId: 8 as AccountId } as const],
+      [
+        "a PDF takes the file's place",
+        { type: "extract-start", file: new File([], "s.pdf") } as const,
+      ],
+      ["the drop fails", { type: "file-error", message: "No." } as const],
+    ])("lets go of the draft when %s", (_when, action) => {
+      const drafted = { ...parsedCsv, draftFormat: READY };
+
+      expect(wizardReducer(drafted, action).draftFormat).toBeNull();
+    });
   });
 
   it("records a file parse error", () => {
@@ -149,7 +452,6 @@ describe("wizardReducer — PDF extraction path", () => {
       fileName: "statement.csv",
       headers: HEADERS,
       rows: ROWS,
-      detectedParserId: "green-got",
     });
 
     const state = wizardReducer(fromCsv, {
@@ -163,7 +465,7 @@ describe("wizardReducer — PDF extraction path", () => {
     expect(state.importBatchId).toMatch(/.+/);
     // The prior CSV parse is wiped so it can't leak into the PDF preview.
     expect(state.rows).toEqual([]);
-    expect(state.parserId).toBeNull();
+    expect(state.formatId).toBeNull();
   });
 
   // Extraction can only have started with an account in hand, so a success has
@@ -246,29 +548,6 @@ describe("wizardReducer — PDF extraction path", () => {
     expect(state.extracted?.[1]).toBe(EXTRACTED[1]);
   });
 
-  it("deletes a phantom extracted row", () => {
-    const extracted = wizardReducer(
-      wizardReducer(withAccount, {
-        type: "extract-start",
-        file: new File([], "statement.pdf", { type: "application/pdf" }),
-      }),
-      {
-        type: "extract-success",
-        transactions: EXTRACTED,
-        declaredTotals: TOTALS,
-        extractionMs: 0,
-      },
-    );
-
-    const state = wizardReducer(extracted, {
-      type: "delete-extracted",
-      index: 0,
-    });
-
-    expect(state.extracted).toHaveLength(1);
-    expect(state.extracted?.[0]).toBe(EXTRACTED[1]);
-  });
-
   it("adds a blank extracted row for a missed operation", () => {
     const extracted = wizardReducer(
       wizardReducer(withAccount, {
@@ -332,63 +611,400 @@ describe("wizardReducer — PDF extraction path", () => {
     expect(state.rows).toEqual([]);
     expect(canPreview({ ...state, accountId: 5 as AccountId })).toBe(false);
   });
+
+  /**
+   * The **format verdict** (issue #188). Extraction reports whether the statement
+   * actually carried the columns the chosen **Statement Format** declares, and a
+   * mismatch is neither a success nor a failure: the request worked, and the
+   * answer is that the wrong format was chosen.
+   *
+   * So it gets its own action rather than being folded into either. A mismatch
+   * kept off **side-by-side validation** — the user finds out *before* committing
+   * rather than by reading every line afterwards — while the file stays in hand,
+   * which is what makes choosing again cost no second upload.
+   */
+  describe("a statement that did not match its format", () => {
+    const PDF = new File([], "statement.pdf", { type: "application/pdf" });
+    const extracting = wizardReducer(withAccount, { type: "extract-start", file: PDF });
+    const mismatched = wizardReducer(extracting, {
+      type: "extract-mismatch",
+      missingColumns: ["Débit", "Crédit"],
+    });
+
+    it("reports which expected columns the statement was missing", () => {
+      expect(mismatched.mismatch).toEqual({ missingColumns: ["Débit", "Crédit"] });
+      expect(mismatched.extracting).toBe(false);
+      // Not an error: nothing failed, and the drop zone is not the answer.
+      expect(mismatched.error).toBeNull();
+    });
+
+    it("keeps the upload, so choosing again costs no second one", () => {
+      expect(mismatched.file).toBe(PDF);
+      expect(mismatched.fileName).toBe("statement.pdf");
+      expect(mismatched.source).toBe("pdf");
+    });
+
+    // The rows the model did read still came back over the wire, and they are
+    // deliberately not seated: rows read against the wrong format are what the
+    // verdict exists to keep out of validation.
+    it("seats no rows for validation", () => {
+      expect(mismatched.extracted).toBeNull();
+      expect(mismatched.declaredTotals).toBeNull();
+      expect(mismatched.rowIds).toEqual([]);
+      expect(mismatched.step).toBe("upload");
+      expect(canPreview(mismatched)).toBe(false);
+      expect(wizardReducer(mismatched, { type: "go-to-preview" }).step).toBe("upload");
+    });
+
+    it("is cleared by the next attempt", () => {
+      expect(wizardReducer(mismatched, { type: "extract-start", file: PDF }).mismatch).toBeNull();
+    });
+
+    it("is cleared by a CSV taking the PDF's place", () => {
+      const state = wizardReducer(mismatched, {
+        type: "file-parsed",
+        fileName: "statement.csv",
+        headers: HEADERS,
+        rows: ROWS,
+      });
+
+      expect(state.mismatch).toBeNull();
+    });
+
+    it("is cleared by a refused drop", () => {
+      expect(wizardReducer(mismatched, { type: "file-error", message: "No." }).mismatch).toBeNull();
+    });
+
+    // The verdict names columns of a format belonging to the *old* account, and
+    // that account's formats are not this one's — the same reason the chosen
+    // format is dropped here.
+    it("is cleared by a change of account", () => {
+      const state = wizardReducer(mismatched, {
+        type: "select-account",
+        accountId: 9 as AccountId,
+      });
+
+      expect(state.mismatch).toBeNull();
+    });
+  });
 });
 
-describe("wizardReducer — skipping previewed rows (CSV path)", () => {
-  const loaded = wizardReducer(withAccount, {
+/** Three CSV rows, so a per-row id list is distinguishable from a per-file one. */
+const CSV_ROWS = [
+  { Statut: "COMPLETE", Date: "2026-01-01T00:00:00Z" },
+  { Statut: "COMPLETE", Date: "2026-01-02T00:00:00Z" },
+  { Statut: "COMPLETE", Date: "2026-01-03T00:00:00Z" },
+];
+
+const PDF_ROWS = [
+  { date: new Date("2026-01-15T00:00:00Z"), amount: -10, rawIssuerString: "A" },
+  { date: new Date("2026-02-03T00:00:00Z"), amount: 20, rawIssuerString: "B" },
+];
+
+/** Drive the wizard to a parsed CSV — the CSV path's minting point. */
+const parseCsv = (rows = CSV_ROWS) =>
+  wizardReducer(withAccount, {
     type: "file-parsed",
     fileName: "statement.csv",
     headers: HEADERS,
-    rows: ROWS,
-    detectedParserId: "green-got",
+    rows,
   });
 
-  it("skips a previewed row and takes it back", () => {
-    let state = wizardReducer(loaded, { type: "skip-row", index: 2 });
-    expect(state.skippedRows).toEqual([2]);
+/** Drive the wizard through a whole PDF drop to a settled extraction. */
+const extractPdf = () =>
+  wizardReducer(
+    wizardReducer(withAccount, {
+      type: "extract-start",
+      file: new File([], "statement.pdf", { type: "application/pdf" }),
+    }),
+    {
+      type: "extract-success",
+      transactions: PDF_ROWS,
+      declaredTotals: { debit: 10, credit: 20 },
+      extractionMs: 0,
+    },
+  );
 
-    state = wizardReducer(state, { type: "skip-row", index: 0 });
-    expect(state.skippedRows).toEqual([0, 2]);
+/**
+ * Which rows survive a commit, said the way a preview reads the state: the ids
+ * that were minted, minus the ones a skip names. This is the whole point of the
+ * ids — the answer is about rows, so the test asks about rows.
+ */
+const keptExtracted = (state: ReturnType<typeof extractPdf>) =>
+  state.rowIds
+    .map((id, index) => ({ id, row: state.extracted?.[index] }))
+    .filter(({ id }) => !state.skippedRows.includes(id))
+    .map(({ row }) => row);
 
-    state = wizardReducer(state, { type: "restore-row", index: 2 });
-    expect(state.skippedRows).toEqual([0]);
+/**
+ * Skipping, keyed on **stable row ids** on both paths (issue #192 — the
+ * *contract* half of the expand–contract #191 opened). A skip names a row, not a
+ * position: the tests below say which row is held out, and the id form is what
+ * lets them keep saying it after the rows around it change.
+ */
+describe("wizardReducer — skipping previewed rows", () => {
+  it("skips a previewed CSV row and takes it back", () => {
+    const loaded = parseCsv();
+    const [first, , third] = loaded.rowIds;
+
+    let state = wizardReducer(loaded, { type: "skip-row", rowId: third });
+    expect(state.skippedRows).toEqual([third]);
+
+    state = wizardReducer(state, { type: "skip-row", rowId: first });
+    expect(state.skippedRows).toEqual([first, third]);
+
+    state = wizardReducer(state, { type: "restore-row", rowId: third });
+    expect(state.skippedRows).toEqual([first]);
+  });
+
+  it("skips an extracted PDF row and takes it back — the same action, the same shape", () => {
+    const extracted = extractPdf();
+    const [first] = extracted.rowIds;
+
+    const skipped = wizardReducer(extracted, { type: "skip-row", rowId: first });
+    expect(skipped.skippedRows).toEqual([first]);
+    expect(keptExtracted(skipped)).toEqual([PDF_ROWS[1]]);
+
+    const restored = wizardReducer(skipped, { type: "restore-row", rowId: first });
+    expect(restored.skippedRows).toEqual([]);
+    expect(keptExtracted(restored)).toEqual(PDF_ROWS);
+  });
+
+  // The phantom row the extraction read off a summary line used to be deleted
+  // here. It is skipped now: struck through, inert and one click from coming
+  // back — the same recourse the CSV path has always offered.
+  it("skips a phantom extracted row instead of deleting it", () => {
+    const extracted = extractPdf();
+
+    const state = wizardReducer(extracted, { type: "skip-row", rowId: extracted.rowIds[0] });
+
+    // Still on screen, still extracted — held out of the commit, not removed.
+    expect(state.extracted).toHaveLength(2);
+    expect(state.rowIds).toEqual(extracted.rowIds);
+    expect(keptExtracted(state)).toEqual([PDF_ROWS[1]]);
+  });
+
+  // The failure the ids exist to prevent: under ascending indices, a skip is a
+  // position, so anything that changes what sits at that position quietly holds
+  // out a different row.
+  it("names the same row after the rows around it change", () => {
+    const extracted = extractPdf();
+    const skipped = wizardReducer(extracted, { type: "skip-row", rowId: extracted.rowIds[1] });
+
+    const state = wizardReducer(skipped, { type: "add-extracted" });
+
+    expect(state.extracted).toHaveLength(3);
+    // The added row commits; the row that was skipped is still the one held out.
+    expect(keptExtracted(state)).toEqual([PDF_ROWS[0], state.extracted?.[2]]);
   });
 
   it("counts a row once however often it is skipped", () => {
-    const state = wizardReducer(wizardReducer(loaded, { type: "skip-row", index: 1 }), {
+    const loaded = parseCsv();
+    const [, second] = loaded.rowIds;
+    const state = wizardReducer(wizardReducer(loaded, { type: "skip-row", rowId: second }), {
       type: "skip-row",
-      index: 1,
+      rowId: second,
     });
-    expect(state.skippedRows).toEqual([1]);
+    expect(state.skippedRows).toEqual([second]);
   });
 
   it("restoring a row that was never skipped changes nothing", () => {
-    const state = wizardReducer(loaded, { type: "restore-row", index: 3 });
+    const loaded = parseCsv();
+    const state = wizardReducer(loaded, { type: "restore-row", rowId: loaded.rowIds[0] });
     expect(state.skippedRows).toEqual([]);
   });
 
-  // The indices name parsed records, and both of these mint a different set of
-  // them — a skip carried across would hold out whichever row landed at that
-  // position next.
+  // Each of these mints a different set of candidate rows, and the counter never
+  // rewinds — so a skip carried across would name a row that no longer exists.
   it("clears the skipped rows when another file is parsed", () => {
-    const skipped = wizardReducer(loaded, { type: "skip-row", index: 0 });
+    const skipped = wizardReducer(parseCsv(), { type: "skip-row", rowId: parseCsv().rowIds[0] });
     const state = wizardReducer(skipped, {
       type: "file-parsed",
       fileName: "other.csv",
       headers: HEADERS,
-      rows: ROWS,
-      detectedParserId: "green-got",
+      rows: CSV_ROWS,
     });
     expect(state.skippedRows).toEqual([]);
   });
 
-  it("clears the skipped rows when the parser changes", () => {
-    const skipped = wizardReducer(loaded, { type: "skip-row", index: 0 });
+  it("clears the skipped rows when the format changes", () => {
+    const loaded = parseCsv();
+    const skipped = wizardReducer(loaded, { type: "skip-row", rowId: loaded.rowIds[0] });
     const state = wizardReducer(skipped, {
-      type: "select-parser",
-      parserId: "some-other-bank",
+      type: "select-format",
+      formatId: 9 as StatementFormatId,
     });
     expect(state.skippedRows).toEqual([]);
+  });
+
+  it("clears the skipped rows when a new extraction starts and when one fails", () => {
+    const extracted = extractPdf();
+    const skipped = wizardReducer(extracted, { type: "skip-row", rowId: extracted.rowIds[0] });
+
+    expect(
+      wizardReducer(skipped, {
+        type: "extract-start",
+        file: new File([], "other.pdf", { type: "application/pdf" }),
+      }).skippedRows,
+    ).toEqual([]);
+
+    expect(wizardReducer(skipped, { type: "extract-error", message: "nope" }).skippedRows).toEqual(
+      [],
+    );
+  });
+
+  it("clears the skipped rows when a file drop fails", () => {
+    const loaded = parseCsv();
+    const skipped = wizardReducer(loaded, { type: "skip-row", rowId: loaded.rowIds[0] });
+    expect(wizardReducer(skipped, { type: "file-error", message: "nope" }).skippedRows).toEqual([]);
+  });
+});
+
+/**
+ * The **stable row id** half of issue #191 — the *expand* of an expand–contract.
+ * Issue #192 closed it: `skippedRows` is keyed on these ids now, so the cases
+ * above say what is done with them and the ones below say what they *are*
+ * (present, unique, stable, cleared).
+ */
+describe("wizardReducer — stable row ids", () => {
+  it("mints one id per row parsed from a CSV", () => {
+    const state = parseCsv();
+
+    expect(state.rowIds).toHaveLength(CSV_ROWS.length);
+    expect(new Set(state.rowIds).size).toBe(CSV_ROWS.length);
+  });
+
+  it("mints one id per row extracted from a PDF", () => {
+    const state = extractPdf();
+
+    expect(state.rowIds).toHaveLength(PDF_ROWS.length);
+    expect(new Set(state.rowIds).size).toBe(PDF_ROWS.length);
+  });
+
+  it("mints a fresh id for a blank added row, unique against every existing row", () => {
+    const extracted = extractPdf();
+    const state = wizardReducer(extracted, { type: "add-extracted" });
+
+    expect(state.rowIds).toHaveLength(3);
+    expect(state.rowIds.slice(0, 2)).toEqual(extracted.rowIds);
+    expect(extracted.rowIds).not.toContain(state.rowIds[2]);
+  });
+
+  // The counter is never rewound, so an id is spent once for the wizard's whole
+  // life. A blank row that re-derived its id from the row count could land on the
+  // id of a row already on screen — two rows one skip could not tell apart, which
+  // is the whole reason the ids are not positions.
+  it("never hands an added row an id already in circulation", () => {
+    const extracted = extractPdf();
+
+    const state = wizardReducer(wizardReducer(extracted, { type: "add-extracted" }), {
+      type: "add-extracted",
+    });
+
+    expect(state.rowIds).toHaveLength(4);
+    expect(new Set(state.rowIds).size).toBe(state.rowIds.length);
+  });
+
+  it("keeps a row's id through an in-place edit of its date, label and amount", () => {
+    const extracted = extractPdf();
+
+    const state = wizardReducer(extracted, {
+      type: "edit-extracted",
+      index: 0,
+      patch: {
+        date: new Date("2026-03-09T00:00:00Z"),
+        amount: -12,
+        rawIssuerString: "CORRECTED",
+      },
+    });
+
+    expect(state.rowIds).toEqual(extracted.rowIds);
+  });
+
+  // The four points that clear `skippedRows` today. Each mints a different set of
+  // candidate rows (or none at all), so an id surviving one would name a row that
+  // no longer exists — the failure mode the ids are being introduced to prevent.
+  it("mints a different set of ids when another file is parsed", () => {
+    const first = parseCsv();
+    const second = wizardReducer(first, {
+      type: "file-parsed",
+      fileName: "other.csv",
+      headers: HEADERS,
+      rows: CSV_ROWS,
+    });
+
+    expect(second.rowIds).toHaveLength(CSV_ROWS.length);
+    for (const id of second.rowIds) expect(first.rowIds).not.toContain(id);
+  });
+
+  it("clears the ids when a file drop fails", () => {
+    const state = wizardReducer(parseCsv(), {
+      type: "file-error",
+      message: "Couldn't read that file. Is it a valid CSV?",
+    });
+
+    expect(state.rowIds).toEqual([]);
+  });
+
+  it("mints a different set of ids when the format changes", () => {
+    const parsed = parseCsv();
+    const state = wizardReducer(parsed, {
+      type: "select-format",
+      formatId: 9 as StatementFormatId,
+    });
+
+    // Re-minted rather than emptied: the rows are still on screen, so every one
+    // of them still needs an id — just not the one a stale skip might name.
+    expect(state.rowIds).toHaveLength(CSV_ROWS.length);
+    for (const id of state.rowIds) expect(parsed.rowIds).not.toContain(id);
+  });
+
+  it("clears the ids when a new extraction starts, and re-mints them on success", () => {
+    const first = extractPdf();
+
+    const extracting = wizardReducer(first, {
+      type: "extract-start",
+      file: new File([], "other.pdf", { type: "application/pdf" }),
+    });
+    expect(extracting.rowIds).toEqual([]);
+
+    const second = wizardReducer(extracting, {
+      type: "extract-success",
+      transactions: PDF_ROWS,
+      declaredTotals: { debit: 10, credit: 20 },
+      extractionMs: 0,
+    });
+    for (const id of second.rowIds) expect(first.rowIds).not.toContain(id);
+  });
+
+  it("clears the ids when an extraction fails", () => {
+    const state = wizardReducer(extractPdf(), {
+      type: "extract-error",
+      message: "Couldn't read that PDF statement. Please try again.",
+    });
+
+    expect(state.rowIds).toEqual([]);
+  });
+
+  it("mints the same ids for the same actions, so the reducer stays fixture-driven", () => {
+    expect(parseCsv().rowIds).toEqual(parseCsv().rowIds);
+    expect(extractPdf().rowIds).toEqual(extractPdf().rowIds);
+  });
+
+  // One identity model, not two: the skipped set holds ids off the same counter
+  // the rows carry, so nothing on this state is addressed by position any more.
+  it("holds skipped rows as ids drawn from the rows' own", () => {
+    const loaded = parseCsv();
+    const state = wizardReducer(
+      wizardReducer(loaded, { type: "skip-row", rowId: loaded.rowIds[2] }),
+      {
+        type: "skip-row",
+        rowId: loaded.rowIds[0],
+      },
+    );
+
+    expect(state.skippedRows).toEqual([loaded.rowIds[0], loaded.rowIds[2]]);
+    for (const id of state.skippedRows) expect(loaded.rowIds).toContain(id);
   });
 });
 
@@ -404,37 +1020,26 @@ describe("makeInitialWizardState", () => {
     expect(state.step).toBe("upload");
   });
 
-  it("pre-loads an already-parsed statement, auto-detected", () => {
+  // The handoff carries a parsed file, never a format: the account's formats are
+  // fetched, and at mount that request has not even been made. So a grid-driven
+  // open lands undecided and detection runs the moment the list arrives, exactly
+  // as a dropped file's does (issue #184).
+  it("pre-loads an already-parsed statement, with no format decided yet", () => {
     const state = makeInitialWizardState({
       accountId: 7 as AccountId,
       file: {
         fileName: "statement.csv",
         headers: HEADERS,
         rows: ROWS,
-        detectedParserId: "green-got",
       },
     });
 
     expect(state.fileName).toBe("statement.csv");
     expect(state.rows).toBe(ROWS);
-    expect(state.parserId).toBe("green-got");
-    expect(state.autoDetected).toBe(true);
+    expect(state.headers).toBe(HEADERS);
+    expect(state.formatId).toBeNull();
+    expect(state.formatSelection).toBeNull();
     expect(state.importBatchId).toMatch(/.+/);
-  });
-
-  it("leaves the parser unset when the handed-off file is unrecognized", () => {
-    const state = makeInitialWizardState({
-      accountId: 7 as AccountId,
-      file: {
-        fileName: "unknown.csv",
-        headers: ["a", "b"],
-        rows: ROWS,
-        detectedParserId: null,
-      },
-    });
-
-    expect(state.parserId).toBeNull();
-    expect(state.autoDetected).toBe(false);
   });
 
   // The grid always hands off both, so this is the invariant restated at the
@@ -447,13 +1052,34 @@ describe("makeInitialWizardState", () => {
         fileName: "statement.csv",
         headers: HEADERS,
         rows: ROWS,
-        detectedParserId: "green-got",
       },
     });
 
     expect(state.accountId).toBeNull();
     expect(state.fileName).toBeNull();
     expect(state.rows).toEqual([]);
-    expect(state.parserId).toBeNull();
+    expect(state.formatId).toBeNull();
+  });
+
+  // The handoff arrives already parsed, so its rows never pass through
+  // `file-parsed` — they would start the wizard as the only candidate rows with
+  // no identity if the initializer didn't mint here too.
+  it("mints a stable row id for every handed-off row", () => {
+    const state = makeInitialWizardState({
+      accountId: 7 as AccountId,
+      file: {
+        fileName: "statement.csv",
+        headers: HEADERS,
+        rows: [ROWS[0], ROWS[0]],
+      },
+    });
+
+    expect(state.rowIds).toHaveLength(2);
+    expect(new Set(state.rowIds).size).toBe(2);
+    expect(state.nextRowId).toBeGreaterThan(Math.max(...state.rowIds));
+  });
+
+  it("mints no ids when there is no handed-off file", () => {
+    expect(makeInitialWizardState({ accountId: 7 as AccountId }).rowIds).toEqual([]);
   });
 });

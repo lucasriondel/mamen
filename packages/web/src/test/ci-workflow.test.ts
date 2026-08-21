@@ -12,10 +12,10 @@ import { parse } from "yaml";
  * a failure still shows a green tick. So the assertions here are about the
  * things that go quietly wrong:
  *
- * - **the checks are the repo's own.** `lint`, `typecheck` and `test` are root
- *   `package.json` scripts, and the workflow is required to invoke them by
- *   name. A CI file that spells the commands out itself drifts from what a
- *   developer runs the moment either side changes.
+ * - **the checks are the repo's own.** `lint`, `format:check`, `typecheck` and
+ *   `test` are root `package.json` scripts, and the workflow is required to
+ *   invoke them by name. A CI file that spells the commands out itself drifts
+ *   from what a developer runs the moment either side changes.
  * - **the toolchain is the pinned one.** `packageManager` is where this repo
  *   says which Bun it builds with; a version written a second time in YAML is a
  *   second source of truth, and the copy that is wrong is always the one nobody
@@ -101,14 +101,17 @@ describe("the CI workflow", () => {
     expect(push.branches).toContain(DEFAULT_BRANCH);
   });
 
-  it("runs lint, typecheck and tests through the root scripts", () => {
+  it("runs lint, formatting, typecheck and tests through the root scripts", () => {
     const scripts: Record<string, string> = JSON.parse(
       readFileSync(`${ROOT}/package.json`, "utf8"),
     ).scripts;
 
     // Derived from the manifest: a check that stops being a root script stops
-    // being something this workflow can claim to run.
-    for (const name of ["lint", "typecheck", "test"]) {
+    // being something this workflow can claim to run. `format:check` joined the
+    // list when lint and format moved onto turbo (issue #138) — until then
+    // formatting was enforced only by the suite, which is a gate a contributor
+    // meets last.
+    for (const name of ["lint", "format:check", "typecheck", "test"]) {
       expect(scripts).toHaveProperty(name);
       expect(commands()).toContain(`bun run ${name}`);
     }

@@ -106,6 +106,25 @@ describe("validateTransactionsSearch", () => {
     ).toBeUndefined();
   });
 
+  // The **detail panel**'s address (issue #154). Not a filter: it names one row
+  // to open beside the table, so it never reaches a query and never resets the
+  // page. Round-trips as a bare id, which is what a bookmarked panel is.
+  it("parses the selected row's id, from a string or a number", () => {
+    expect(validateTransactionsSearch({ selected: "123" }).selected).toBe(123);
+    expect(validateTransactionsSearch({ selected: 123 }).selected).toBe(123);
+  });
+
+  // A row id is a positive integer; anything else names no row, so the panel
+  // stays shut rather than opening on a read that can only fail.
+  it("drops a blank, non-numeric or non-positive selected id", () => {
+    expect(validateTransactionsSearch({}).selected).toBeUndefined();
+    expect(validateTransactionsSearch({ selected: "" }).selected).toBeUndefined();
+    expect(validateTransactionsSearch({ selected: "nope" }).selected).toBeUndefined();
+    expect(validateTransactionsSearch({ selected: 0 }).selected).toBeUndefined();
+    expect(validateTransactionsSearch({ selected: -4 }).selected).toBeUndefined();
+    expect(validateTransactionsSearch({ selected: 1.5 }).selected).toBeUndefined();
+  });
+
   it("only accepts asc/desc for direction", () => {
     expect(validateTransactionsSearch({ direction: "asc" }).direction).toBe("asc");
     expect(validateTransactionsSearch({ direction: "sideways" }).direction).toBe("desc");

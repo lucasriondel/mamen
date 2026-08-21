@@ -56,20 +56,18 @@ The web app is on <http://localhost:5070> and the API on
 
 ## Running the checks
 
-All three run from the repo root and cover every workspace:
+All four run from the repo root and cover every workspace — each is a turbo task
+fanned out over the packages, and each is a step CI runs by the same name:
 
 ```sh
 bun run typecheck
 bun run test
 bun run lint
+bun run format:check
 ```
 
-`bun run lint:fix` applies what Biome can fix on its own.
-
-**The formatter is oxfmt, not Biome.** The repo's `.ts`/`.tsx` is formatted by
-oxfmt's defaults (spaces, 100 columns); `biome.json` still says tabs/80, so
-`biome format` and `bun run lint`'s formatting complaints are wrong about every
-file and are expected to be. Run `bunx oxfmt .` and don't hand-format around it.
+`bun run format` is the writing half: it reformats every `.ts`/`.tsx` in place.
+Run it rather than hand-formatting around the check.
 
 A few things worth knowing before the first red run:
 
@@ -79,32 +77,23 @@ A few things worth knowing before the first red run:
   running `bun run --filter @mamen/api emit-openapi` and committing the result.
 - Tests never need the `claude` CLI or a real token — the API's suite provides a
   fake executor. Only the running server needs them.
-- `bun run lint` is red, and part of that is expected. Biome's *formatting*
-  complaints are now wrong about every file (see above) and its linter is red on
-  pre-existing errors in files nobody has got to. Compare the count before and
-  after your change rather than expecting zero, and leave every file you touch
-  clean.
+- `bun run lint` and `bun run format:check` are **green**, and are expected to
+  stay that way — leave every file you touch clean rather than comparing counts.
 
 ### The oxc toolchain
 
-`.oxlintrc.json` and `.oxfmtrc.json` configure [oxlint](https://oxc.rs) and
-oxfmt, which are replacing Biome:
+[oxlint](https://oxc.rs) and oxfmt are the only lint and format tools here.
+`.oxlintrc.json` and `.oxfmtrc.json` at the repo root configure them, and every
+package runs them against those two files — `oxlint -c ../../.oxlintrc.json .`
+and `oxfmt "**/*.{ts,tsx}"` — so there is one set of rules, not one per package.
 
-```sh
-bun run lint:ox
-bun run format:ox:check
-```
+Both are also **held green by the suite**: `oxc-clean.test.ts` runs each tool
+over the whole repo and fails on anything either reports, so a finding reaches
+you through `bun run test` whether or not you ran the tools yourself. That run is
+repo-wide rather than per-package on purpose — it is what covers the `.ts`
+outside `packages/`, which no turbo task visits.
 
-Both are **green and held there by the suite** — `oxc-clean.test.ts` runs each
-one over the repo and fails on anything either reports, so a finding reaches you
-through `bun run test` whether or not you ran the tools yourself. Neither script
-writes: reformat with `bunx oxfmt .`.
-
-Neither runs in CI yet, and the CI `lint` step is still Biome's — which is red on
-formatting until the cutover. That is the next ticket's, not something to work
-around here.
-
-Two rules are narrowed in `.oxlintrc.json`, each with the reason beside it. If
+Rules are narrowed in `.oxlintrc.json`, each with the reason beside it. If
 you need a third, the bar is that the rule is wrong about *this* codebase, and
 the comment is part of the change: a guard fails on a narrowing with no reason.
 A single deliberate exception is an `// oxlint-disable-next-line <rule> -- why`

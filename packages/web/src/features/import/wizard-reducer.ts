@@ -1,7 +1,22 @@
-import type { AccountId, DeclaredTotals, ExtractedTransaction } from "@mamen/shared/contract";
+import type {
+  AccountId,
+  DeclaredTotals,
+  ExtractedTransaction,
+  StatementFormatId,
+} from "@mamen/shared/contract";
+import type { FormatDetection } from "./parsers/detect-format";
+import { blankDraft, draftComplete, type FormatDraft } from "./parsers/format-draft";
 
-/** The wizard's two interactive steps (commit is a transient action, not a step). */
-export type WizardStep = "upload" | "preview";
+/**
+ * The wizard's interactive steps (commit is a transient action, not a step).
+ *
+ * `mapping` sits between the other two and is only ever reached when no
+ * **Statement Format** applies to the dropped CSV (issue #186) — nothing
+ * matched, several matched, or the account has none of this kind. It is not a
+ * step every import passes through, which is why the upload step still leads
+ * straight to the preview.
+ */
+export type WizardStep = "upload" | "mapping" | "preview";
 
 /**
  * Which file shape the dropped statement is. A **CSV** forks to the synchronous
@@ -10,6 +25,40 @@ export type WizardStep = "upload" | "preview";
  * (issue #45). `null` until a file is dropped.
  */
 export type WizardSource = "csv" | "pdf";
+
+/**
+ * A **stable row id** — the identity of one candidate row, minted from the
+ * wizard's monotonic counter when the row is parsed from a CSV, extracted from a
+ * PDF, or added blank for an operation the extraction missed (issue #190).
+ *
+ * Branded, because an id and a row *index* are both numbers and the reducer
+ * still takes an index for an in-place edit. Confusing the two is precisely how
+ * the preview skips one row and silently drops another, so the compiler is asked
+ * to keep them apart rather than a naming convention.
+ */
+export type RowId = number & { readonly __brand: "RowId" };
+
+/**
+ * Where the chosen **Statement Format** came from — and, when none was chosen,
+ * why not. `null` until there is a CSV with a verdict on it.
+ *
+ * The last two arms are the reason this is not a boolean. **Nothing matched**
+ * (the account has no format that fingerprints this file) and **several
+ * matched** (more than one does, equally specifically) are different facts, and
+ * one line covering both made an ambiguity read as the file being unrecognised
+ * (PRD #180). `manual` silences both: the user has answered the question the
+ * hint was asking.
+ *
+ * `no-formats` is the third of these — the account has no CSV format at all, so
+ * there is nothing this file could have failed against. It reads as a first
+ * import being set up rather than as a file being rejected (issue #186), and it
+ * is the only difference between the three routes into the mapping step.
+ *
+ * A format is set exactly under `detected` and `manual`; the other three leave
+ * it `null`, which is what keeps the wizard off the preview until someone
+ * decides.
+ */
+export type FormatSelection = "detected" | "manual" | "none" | "several" | "no-formats";
 
 /** Local state for the 3-step import wizard (no global store — PRD). */
 export type WizardState = {
@@ -23,12 +72,71 @@ export type WizardState = {
    * side-by-side) and until a PDF is dropped.
    */
   file: File | null;
+  /**
+   * A dropped **PDF** held back because the account has several PDF **Statement
+   * Formats** and the user has not said which reads this statement (issue #185).
+   * `null` whenever nothing is waiting — which is every case but that one, since
+   * an account with exactly one PDF format is extracted without an ask.
+   *
+   * It is state rather than a local in the upload step because it is a state of
+   * the *import*: a file is in hand and nothing has been sent anywhere. Clearing
+   * it is how "the request has been made" is said, so it goes on `extract-start`
+   * and on every action that empties the step.
+   */
+  pendingPdf: File | null;
+  /**
+   * The **format verdict** on the last extraction, when it came back a
+   * *mismatch*: the statement did not carry the columns the chosen **Statement
+   * Format** declares, and these are the ones it was missing (issue #188).
+   * `null` whenever the last extraction matched, and until there has been one.
+   *
+   * A mismatch is neither a success nor a failure, which is why it is its own
+   * piece of state rather than a shade of {@link WizardState.error}: the request
+   * worked, and the answer is that the wrong format was chosen. Nothing about it
+   * is retryable, so the drop zone is the wrong thing to send the user back to.
+   *
+   * What it holds out is **side-by-side validation**. The rows the model read
+   * against the wrong format do come back over the wire and are deliberately not
+   * seated: the whole point of the verdict is that the user finds out *before*
+   * committing rather than by reading every line afterwards. The file stays in
+   * hand ({@link WizardState.file}), so answering the question again costs no
+   * second upload.
+   *
+   * An object rather than a bare list, so "did it match" and "which columns" stay
+   * separate questions — a mismatch always names at least one column today, and
+   * an empty array would otherwise have to mean both nothing-missing and
+   * no-verdict-yet.
+   */
+  mismatch: { readonly missingColumns: readonly string[] } | null;
   headers: readonly string[];
   rows: ReadonlyArray<Record<string, string>>;
-  /** The chosen parser id — auto-detected or manually picked; `null` until set. */
-  parserId: string | null;
-  /** Whether {@link parserId} came from auto-detection (vs a manual pick). */
-  autoDetected: boolean;
+  /**
+   * The chosen **Statement Format** — a row of the account's formats table
+   * (issue #184), auto-detected or manually picked; `null` until one is.
+   *
+   * Only the id: the record itself is the query's, and holding a copy here would
+   * be a second answer to "which format is this import using" that a refetch
+   * could contradict.
+   */
+  formatId: StatementFormatId | null;
+  /** How {@link formatId} was arrived at, and the picker's hint. */
+  formatSelection: FormatSelection | null;
+  /**
+   * The **Statement Format** the user is building from this very file (issue
+   * #186), or `null` when they are not building one — which is every import an
+   * existing format reads.
+   *
+   * It lives in the import's state rather than in the mapping step's locals
+   * because it outlives that step: the preview reads the rows through it, and
+   * the commit is the one action that saves it. And it lives *only* here, so
+   * abandoning the import leaves nothing behind — an account never fills with
+   * drafts from imports nobody finished (PRD #180).
+   *
+   * Mutually exclusive with {@link formatId} in practice: picking a stored
+   * format drops the draft, and building one is what a user does when no stored
+   * format applies. The wizard reads the draft first where both could be set.
+   */
+  draftFormat: FormatDraft | null;
   accountId: AccountId | null;
   /** Groups every row of this import together; regenerated per file. */
   importBatchId: string;
@@ -39,19 +147,61 @@ export type WizardState = {
   /** The extracted candidate rows once a PDF extraction succeeds; `null` otherwise. */
   extracted: readonly ExtractedTransaction[] | null;
   /**
-   * Which previewed rows the user held out of the commit, as ascending indices
-   * into the **parsed records** (epic #85, CSV path). Empty for a PDF, whose
-   * side-by-side view edits its **extracted transactions** directly.
+   * Which previewed rows the user held out of the commit, as a set of
+   * {@link RowId} (epic #85). One set for both paths since issue #192: a skip
+   * names a row rather than a position, so the CSV table and the PDF
+   * side-by-side hold rows out the same way and the reducer carries one identity
+   * model rather than two.
    *
-   * A skip is reversible and the row stays on screen struck through, unlike the
-   * PDF path's delete: a CSV preview is derived from the dropped file, so a row
-   * that vanished from it could only come back by dropping the file again.
+   * A skip is reversible and the row stays on screen struck through with its
+   * editable fields disabled. Nothing is ever removed from a preview: the point
+   * of a preview is that every row the statement holds is accounted for on
+   * screen, and a row that vanished could only come back by dropping the file
+   * again.
    *
-   * The indices name records, not CSV lines, so anything that mints a different
-   * set of records — another file, another parser — clears them.
+   * Held ascending, which is row order — ids come off a monotonic counter in the
+   * order the rows do.
+   *
+   * The ids name rows of *this* file read by *this* **Parser**, so anything that
+   * re-mints them clears the set with them.
    */
-  skippedRows: readonly number[];
-  /** The statement's own declared totals, echoed by extraction (reconcile handle). */
+  skippedRows: readonly RowId[];
+  /**
+   * A **stable row id** per candidate row, positional with whichever array is
+   * live: {@link WizardState.rows} on the CSV path, {@link WizardState.extracted}
+   * on the PDF one. Minted alongside those rows and re-minted wherever
+   * {@link WizardState.skippedRows} is cleared, so an id never outlives the row
+   * it named.
+   *
+   * They name the rows *this state holds*, which on the CSV path is papaparse's
+   * output — not the **Parser**'s records, which are a filtered subset of it (a
+   * parser drops the rows it won't import, e.g. a non-`COMPLETE` `Statut`) and
+   * are derived outside the reducer. The join is the parser's to report: `parse`
+   * returns each record's `sourceIndex`, and the preview reads the id off that.
+   */
+  rowIds: readonly RowId[];
+  /**
+   * The next id the counter will hand out. Monotonic for the wizard's whole life
+   * — never rewound by a clear — so an id from a discarded file can never match a
+   * row of the next one.
+   *
+   * It lives in state rather than in a module-level counter so the reducer stays
+   * pure: the same actions from the same state always mint the same ids, which is
+   * what keeps the fixture-driven tests deterministic. A UUID or a content hash
+   * would not do — the first is not deterministic, and the second collides on the
+   * two identical rows a real statement is allowed to carry.
+   */
+  nextRowId: number;
+  /**
+   * The statement's own declared totals, echoed by extraction (reconcile handle).
+   *
+   * `null` on the CSV path and before any extraction settles — and also for a PDF
+   * whose statement **printed no totals line** (issue #196). The three are one
+   * state on purpose: each means there is nothing to reconcile the rows against,
+   * and the **reconciliation check** answers "no check" to all of them. Which is
+   * why nothing branches on this field to decide *which step* is up — that is
+   * what `extracted` says.
+   */
   declaredTotals: DeclaredTotals | null;
   /**
    * Wall-clock time the PDF extraction took, in milliseconds — measured
@@ -67,25 +217,61 @@ export type WizardAction =
       fileName: string;
       headers: readonly string[];
       rows: ReadonlyArray<Record<string, string>>;
-      detectedParserId: string | null;
     }
+  /**
+   * What detection made of the loaded CSV, once the account's formats are in
+   * hand. A second beat rather than part of `file-parsed`, because the formats
+   * are fetched: the file can be sitting in the wizard — dropped, or handed off
+   * by the accounts grid at mount — before the list that decides it arrives.
+   */
+  | { type: "detect-format"; detection: FormatDetection }
   | { type: "file-error"; message: string }
-  | { type: "select-parser"; parserId: string }
+  | { type: "select-format"; formatId: StatementFormatId }
   | { type: "select-account"; accountId: AccountId }
+  /**
+   * Build a **Statement Format** from the loaded CSV — the way out of all three
+   * no-format-applies routes (issue #186). Opens the mapping step on the draft
+   * already in hand, or on a blank one.
+   */
+  | { type: "build-format" }
+  /** Answer one question on the draft; the others stand. */
+  | { type: "update-format-draft"; patch: Partial<FormatDraft> }
+  /** Give up on building one — the draft is gone and nothing was saved. */
+  | { type: "discard-format-draft" }
   | { type: "go-to-preview" }
   | { type: "back-to-upload" }
+  /**
+   * A PDF was dropped into an account with **several** PDF **Statement Formats**
+   * — it waits here while the user says which one reads it. Nothing has been
+   * sent anywhere: the model is never asked to pick the format as well as apply
+   * it (PRD #180).
+   */
+  | { type: "pdf-awaits-format"; file: File }
   /** A PDF was dropped — extraction has started (spinner until it settles). */
   | { type: "extract-start"; file: File }
-  /** Extraction succeeded — candidate rows (+ declared totals) are in hand. */
+  /**
+   * Extraction succeeded — candidate rows (+ declared totals) are in hand.
+   *
+   * `declaredTotals: null` when the statement printed no totals line (issue
+   * #196): the rows are seated exactly as they would be otherwise, and only the
+   * **reconciliation check** notices.
+   */
   | {
       type: "extract-success";
       transactions: readonly ExtractedTransaction[];
-      declaredTotals: DeclaredTotals;
+      declaredTotals: DeclaredTotals | null;
       /** Wall-clock extraction time in ms, measured around the round-trip. */
       extractionMs: number;
     }
   /** Extraction failed — surface the error and stay on the upload step. */
   | { type: "extract-error"; message: string }
+  /**
+   * Extraction ran and reported that the statement does **not** match the
+   * **Statement Format** it was read against (issue #188), naming the expected
+   * columns it could not find. The rows are not seated: the user is asked to
+   * settle the format rather than shown rows read against the wrong one.
+   */
+  | { type: "extract-mismatch"; missingColumns: readonly string[] }
   /**
    * Edit one **extracted transaction** in place (side-by-side validation): patch
    * any of its date / amount / raw issuer. Whatever the table holds at commit is
@@ -96,28 +282,30 @@ export type WizardAction =
       index: number;
       patch: Partial<ExtractedTransaction>;
     }
-  /** Delete one extracted row (the phantom-row case) — dropped from the commit. */
-  | { type: "delete-extracted"; index: number }
   /** Append a blank extracted row (a missed operation the model didn't read). */
   | { type: "add-extracted" }
   /**
    * Hold one previewed row out of the commit — the recourse for a row marked
-   * **already imported** (epic #85). The row is not dropped from the preview,
-   * only from what commits.
+   * **already imported** (epic #85), and for the phantom row an extraction read
+   * off a summary line. The row is not dropped from the preview, only from what
+   * commits.
    */
-  | { type: "skip-row"; index: number }
+  | { type: "skip-row"; rowId: RowId }
   /** Put a skipped row back into the commit. */
-  | { type: "restore-row"; index: number };
+  | { type: "restore-row"; rowId: RowId };
 
 export const initialWizardState: WizardState = {
   step: "upload",
   source: null,
   fileName: null,
   file: null,
+  pendingPdf: null,
+  mismatch: null,
   headers: [],
   rows: [],
-  parserId: null,
-  autoDetected: false,
+  formatId: null,
+  formatSelection: null,
+  draftFormat: null,
   accountId: null,
   importBatchId: "",
   error: null,
@@ -126,7 +314,19 @@ export const initialWizardState: WizardState = {
   declaredTotals: null,
   extractionMs: null,
   skippedRows: [],
+  rowIds: [],
+  nextRowId: 1,
 };
+
+/**
+ * Take `count` ids off the counter. Returns the minted ids and the counter
+ * advanced past them — the caller spreads both into the next state, so the
+ * counter only ever moves forward.
+ */
+function mintRowIds(from: number, count: number): { rowIds: readonly RowId[]; nextRowId: number } {
+  const rowIds = Array.from({ length: count }, (_, offset) => (from + offset) as RowId);
+  return { rowIds, nextRowId: from + count };
+}
 
 /**
  * Seed values for a wizard opened from the accounts import grid (issue #36): the
@@ -143,7 +343,6 @@ export type WizardPrefill = {
     fileName: string;
     headers: readonly string[];
     rows: ReadonlyArray<Record<string, string>>;
-    detectedParserId: string | null;
   };
 };
 
@@ -163,12 +362,16 @@ export function makeInitialWizardState(prefill?: WizardPrefill): WizardState {
     // in front of a user who still owes the account it belongs to.
     ...(file && accountId != null
       ? {
+          // The handoff's rows are already parsed, so they never see
+          // `file-parsed` — this is their one chance to be given an identity.
+          ...mintRowIds(initialWizardState.nextRowId, file.rows.length),
           source: "csv" as const,
           fileName: file.fileName,
           headers: file.headers,
           rows: file.rows,
-          parserId: file.detectedParserId,
-          autoDetected: file.detectedParserId !== null,
+          // No format: the account's formats have not been fetched at mount, so
+          // a handed-off statement lands undecided and `detect-format` settles
+          // it when the list arrives — the same beat a dropped file waits for.
           importBatchId: crypto.randomUUID(),
         }
       : {}),
@@ -192,16 +395,25 @@ export function canAcceptFile(state: WizardState): boolean {
 }
 
 /**
- * Whether the upload step has everything it needs to move to the preview. The
- * account is required either way; a CSV also needs parsed rows + a picked parser,
- * while a PDF needs a settled extraction (rows in hand, not still extracting).
+ * Whether the wizard has everything it needs to move to the preview. The account
+ * is required either way; a CSV also needs parsed rows and a **Statement
+ * Format** to read them with, while a PDF needs a settled extraction (rows in
+ * hand, not still extracting).
+ *
+ * A format the user is *building* counts, once it is complete enough to save —
+ * name included, because the commit that writes the rows writes the format too
+ * (issue #186), and an unnamed one would be a record they could never tell apart
+ * from the next unnamed one.
  */
 export function canPreview(state: WizardState): boolean {
   if (state.accountId === null) return false;
   if (state.source === "pdf") {
     return state.extracted !== null && !state.extracting;
   }
-  return state.rows.length > 0 && state.parserId !== null;
+  if (state.rows.length === 0) return false;
+  return (
+    state.formatId !== null || (state.draftFormat !== null && draftComplete(state.draftFormat))
+  );
 }
 
 /** Pure state machine for the import wizard. */
@@ -211,13 +423,24 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
       if (!canAcceptFile(state)) return state;
       return {
         ...state,
+        // A fresh id per row of the new file; the old file's are gone with it.
+        ...mintRowIds(state.nextRowId, action.rows.length),
         source: "csv",
         fileName: action.fileName,
         file: null,
+        pendingPdf: null,
+        // Whatever a PDF's format turned out not to match, it was not this file.
+        mismatch: null,
         headers: action.headers,
         rows: action.rows,
-        parserId: action.detectedParserId,
-        autoDetected: action.detectedParserId !== null,
+        // Undecided until `detect-format` lands: the account's formats are a
+        // query, and this file may have arrived before its result did.
+        formatId: null,
+        formatSelection: null,
+        // A draft is built *against* a file, from its own headers — so another
+        // file is another draft, and this one is dropped rather than carried
+        // onto columns it may not have.
+        draftFormat: null,
         importBatchId: crypto.randomUUID(),
         error: null,
         // A CSV replacing a prior PDF drop clears the extraction state.
@@ -228,6 +451,14 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         // The indices named the previous file's records.
         skippedRows: [],
       };
+    case "detect-format":
+      // A detection result names *this* CSV's headers. It is dispatched from an
+      // effect, so a file replaced in the meantime — by a PDF, or by a drop that
+      // failed — has already taken its verdict's subject with it.
+      if (state.source !== "csv") return state;
+      return action.detection.outcome === "detected"
+        ? { ...state, formatId: action.detection.format.id, formatSelection: "detected" }
+        : { ...state, formatId: null, formatSelection: action.detection.outcome };
     case "file-error":
       // A failed drop must not leave a prior file previewable behind the error.
       // Clear both paths' loaded state so the wizard shows only the error and
@@ -237,22 +468,108 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         error: action.message,
         source: null,
         file: null,
+        pendingPdf: null,
+        mismatch: null,
         headers: [],
         rows: [],
-        parserId: null,
-        autoDetected: false,
+        formatId: null,
+        formatSelection: null,
+        // The file the draft was being built against is gone with the error.
+        draftFormat: null,
         extracting: false,
         extracted: null,
         declaredTotals: null,
         extractionMs: null,
         skippedRows: [],
+        // Nothing is previewable behind the error, so there is no row to name.
+        rowIds: [],
       };
-    case "select-parser":
-      // Another parser reads the same file into different records, so an index
+    case "select-format":
+      // Another format reads the same file into different records, so an index
       // kept here would hold out whichever row landed at that position.
-      return { ...state, parserId: action.parserId, skippedRows: [] };
+      return {
+        ...state,
+        // Re-minted, not emptied: the rows stay on screen and every one of them
+        // still needs an id — just not one a skip made under the old format could
+        // still name. The counter never rewinds, so the new ids can't collide.
+        ...mintRowIds(state.nextRowId, state.rows.length),
+        formatId: action.formatId,
+        // The user has answered; whatever detection had to say about this file
+        // is no longer the thing to tell them.
+        formatSelection: "manual",
+        // …and they answered with a format that already exists, so the one they
+        // were building is not the one this import uses — nor one to save.
+        draftFormat: null,
+        skippedRows: [],
+      };
     case "select-account":
-      return { ...state, accountId: action.accountId };
+      if (action.accountId === state.accountId) return state;
+      // Formats belong to an account, so another account is another set of them
+      // — and a format the new account does not have is not a format this import
+      // may use. Cleared rather than re-checked, which puts the file back where
+      // a freshly parsed one is and lets `detect-format` answer again over the
+      // list that is now the right one.
+      return {
+        ...state,
+        accountId: action.accountId,
+        formatId: null,
+        formatSelection: null,
+        // A format is saved *onto* an account, so a draft built for one is not a
+        // draft for another — and the step that would save it is the commit,
+        // which now belongs to somewhere else.
+        draftFormat: null,
+        // The verdict names the columns of a format the *other* account owns, so
+        // it has nothing to say about the formats now on offer.
+        mismatch: null,
+        // Whatever step it was authored on is not a step this import is on any
+        // more; the file has to be decided against the new account's formats
+        // first, which happens back on the upload step.
+        step: state.step === "mapping" ? "upload" : state.step,
+      };
+    case "pdf-awaits-format":
+      if (!canAcceptFile(state)) return state;
+      return {
+        ...state,
+        source: "pdf",
+        fileName: action.file.name,
+        file: action.file,
+        pendingPdf: action.file,
+        error: null,
+        // A verdict is about the file that was extracted, and this is another one.
+        mismatch: null,
+        // The same clearing a PDF drop does — the file in hand is this one, and
+        // a prior CSV's rows must not be previewable behind the question.
+        headers: [],
+        rows: [],
+        formatId: null,
+        formatSelection: null,
+        draftFormat: null,
+        extracting: false,
+        extracted: null,
+        declaredTotals: null,
+        extractionMs: null,
+        skippedRows: [],
+        rowIds: [],
+      };
+    case "build-format":
+      // The step's whole subject is the file's real headers, so there has to be
+      // a file with headers — a PDF has none until extraction has run, and its
+      // format is authored elsewhere.
+      if (state.source !== "csv" || state.headers.length === 0) return state;
+      return {
+        ...state,
+        step: "mapping",
+        // Reopening is editing: a user who came back to fix the date order must
+        // find the rest of their answers where they left them.
+        draftFormat: state.draftFormat ?? blankDraft(),
+      };
+    case "update-format-draft":
+      if (state.draftFormat === null) return state;
+      return { ...state, draftFormat: { ...state.draftFormat, ...action.patch } };
+    case "discard-format-draft":
+      // The draft was never written anywhere else, so letting go of it here is
+      // the whole of "abandoning leaves nothing behind" (PRD #180).
+      return { ...state, draftFormat: null, step: "upload" };
     case "go-to-preview":
       return canPreview(state) ? { ...state, step: "preview" } : state;
     case "back-to-upload":
@@ -264,22 +581,34 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         source: "pdf",
         fileName: action.file.name,
         file: action.file,
+        // The wait, if there was one, is over: this file's format is settled and
+        // the request is on its way.
+        pendingPdf: null,
+        // The last verdict was on the last attempt. Cleared here rather than on
+        // each outcome, since every outcome — success, failure, mismatch — passes
+        // through this one action first.
+        mismatch: null,
         extracting: true,
         extracted: null,
         declaredTotals: null,
         extractionMs: null,
         importBatchId: crypto.randomUUID(),
         error: null,
-        // A PDF replacing a prior CSV drop clears the parser state.
+        // A PDF replacing a prior CSV drop clears the format state.
         headers: [],
         rows: [],
-        parserId: null,
-        autoDetected: false,
+        formatId: null,
+        formatSelection: null,
+        // …the draft included: it was being built against those headers.
+        draftFormat: null,
         skippedRows: [],
+        // No candidate rows until the extraction settles.
+        rowIds: [],
       };
     case "extract-success":
       return {
         ...state,
+        ...mintRowIds(state.nextRowId, action.transactions.length),
         extracting: false,
         extracted: action.transactions,
         declaredTotals: action.declaredTotals,
@@ -290,6 +619,25 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         // rather than parking the user on the upload step to pick one.
         step: "preview",
       };
+    case "extract-mismatch":
+      // The request succeeded and the answer is that the format is wrong, so
+      // this clears what a success would have seated and sets no error. The file
+      // and its name stay: the user is being asked which format reads *this*
+      // statement, and it is still in hand.
+      return {
+        ...state,
+        mismatch: { missingColumns: action.missingColumns },
+        extracting: false,
+        // Rows read against the wrong format are exactly what the verdict is
+        // for. Nothing reaches side-by-side validation until the format is
+        // settled — which is what `canPreview` reads off `extracted`.
+        extracted: null,
+        declaredTotals: null,
+        extractionMs: null,
+        rowIds: [],
+        skippedRows: [],
+        error: null,
+      };
     case "extract-error":
       return {
         ...state,
@@ -298,6 +646,10 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         declaredTotals: null,
         extractionMs: null,
         error: action.message,
+        rowIds: [],
+        // Nothing previewable is left behind the error, so there is no row a skip
+        // could still name — and since #192 a PDF's rows can carry skips too.
+        skippedRows: [],
       };
     case "edit-extracted": {
       if (state.extracted === null) return state;
@@ -308,34 +660,36 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         ),
       };
     }
-    case "delete-extracted": {
-      if (state.extracted === null) return state;
-      return {
-        ...state,
-        extracted: state.extracted.filter((_, index) => index !== action.index),
-      };
-    }
     case "add-extracted": {
       const blank: ExtractedTransaction = {
         date: new Date(),
         amount: 0,
         rawIssuerString: "",
       };
-      return { ...state, extracted: [...(state.extracted ?? []), blank] };
+      // The one place ids are appended rather than replaced. Off the same
+      // counter, so the blank row can never land on the id of a row this wizard
+      // has already shown — including one a skip is currently holding out.
+      const minted = mintRowIds(state.nextRowId, 1);
+      return {
+        ...state,
+        extracted: [...(state.extracted ?? []), blank],
+        rowIds: [...state.rowIds, ...minted.rowIds],
+        nextRowId: minted.nextRowId,
+      };
     }
     case "skip-row": {
-      if (state.skippedRows.includes(action.index)) return state;
+      if (state.skippedRows.includes(action.rowId)) return state;
       return {
         ...state,
         // Kept ascending — the preview reads them as a set, so the order is for
-        // whoever reads the state, and row order is the order they are in.
-        skippedRows: [...state.skippedRows, action.index].sort((a, b) => a - b),
+        // whoever reads the state, and ascending ids are the rows in file order.
+        skippedRows: [...state.skippedRows, action.rowId].sort((a, b) => a - b),
       };
     }
     case "restore-row":
       return {
         ...state,
-        skippedRows: state.skippedRows.filter((index) => index !== action.index),
+        skippedRows: state.skippedRows.filter((rowId) => rowId !== action.rowId),
       };
     default:
       return state;

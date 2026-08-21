@@ -57,9 +57,23 @@ const day = (n: number) => new Date(`2026-03-${String(n).padStart(2, "0")}T00:00
 const byId = (rows: ReadonlyArray<{ id: number | null; spent: number; count: number }>) =>
   Object.fromEntries(rows.map((r) => [r.id ?? "none", r]));
 
+/**
+ * One IBAN per number, in the stored, normalised form. Assembled rather than
+ * written out, so this file carries no matchable account number (issue #108) —
+ * the reserved `99999` bank code is not one any bank was allocated.
+ */
+const ibanOf = (n: number) => `FR7699999${String(n).padStart(18, "0")}`;
+
+/** A **counterparty IBAN**, for the cases where only its presence matters. */
+const COUNTERPARTY_IBAN = ibanOf(0);
+
 /** The anomaly kinds standing on a row, in order. */
 const flagsOf = (txn: { anomalyFlags?: ReadonlyArray<{ type: string }> }) =>
   (txn.anomalyFlags ?? []).map((f) => f.type);
+
+/** The **IBAN-confirmed** mark on each of a leg's counterparts, in order. */
+const marks = (candidate: { counterparts: ReadonlyArray<{ ibanConfirmedAccountId?: number }> }) =>
+  candidate.counterparts.map((c) => c.ibanConfirmedAccountId);
 
 describe("TransactionFromRow storage codec", () => {
   // The row codec's `encode` is the storage inverse of the read path. It's the
@@ -100,6 +114,8 @@ describe("TransactionFromRow storage codec", () => {
       isDuplicateExcluded: true,
       duplicateNote: "dup",
       notes: "lunch with the team",
+      rawSource: { Intitulé: "ACME", "Moyen de paiement": "SEPA" },
+      counterpartyIban: COUNTERPARTY_IBAN,
       importedAt: DATE,
       importMonth: "2026-03",
       importBatchId: "batch-9",
@@ -111,6 +127,16 @@ describe("TransactionFromRow storage codec", () => {
     assert.strictEqual(row.issuerId, 3);
     assert.strictEqual(row.notes, "lunch with the team");
     assert.strictEqual(typeof row.anomalyFlags, "string");
+    // The **raw source** takes the same treatment: a JSON object in a TEXT
+    // column, keys in the bank's own words and unescaped by anything here.
+    assert.strictEqual(typeof row.rawSource, "string");
+    assert.deepStrictEqual(JSON.parse(row.rawSource ?? "null"), {
+      Intitulé: "ACME",
+      "Moyen de paiement": "SEPA",
+    });
+    // The promoted column is a plain string, stored exactly as handed over —
+    // normalising is the import edge's job, not the codec's (issue #178).
+    assert.strictEqual(row.counterpartyIban, COUNTERPARTY_IBAN);
     assert.deepStrictEqual(decode(row), full);
   });
 
@@ -133,6 +159,12 @@ describe("TransactionFromRow storage codec", () => {
     assert.strictEqual(row.manualIssuer, 0);
     assert.strictEqual(row.anomalyFlags, null);
     assert.strictEqual(row.notes, null);
+    // Null, not `"{}"`: a row with no archive and a row whose archive is empty
+    // would otherwise be two spellings of the same absence.
+    assert.strictEqual(row.rawSource, null);
+    // Null, not `""`: a card row carries no counterparty IBAN at all, and "not
+    // given" must not be storable a second way (issue #178).
+    assert.strictEqual(row.counterpartyIban, null);
     assert.strictEqual(row.importBatchId, null);
     // `kind` is the exception to the null → absent fold: the column is never
     // null, so an absent kind is stored as the `bank` it means and reads back
@@ -197,6 +229,114 @@ describe("TransactionRepo", () => {
       assert.strictEqual(created.importBatchId, undefined);
     }).pipe(Effect.provide(RepoTest)),
   );
+
+  describe("raw source (issue #176)", () => {
+    // The bank's own row, in the bank's own words — French keys, mapped and
+    // unmapped columns side by side. The account number is assembled rather
+    // than written out, so this file carries no matchable one (issue #108).
+    const archive: Record<string, string> = {
+      "N° transaction": "000000000000000000000015",
+      Statut: "COMPLETE",
+      Montant: "947.26",
+      Direction: "DEBIT",
+      Intitulé: "Paul Exemple",
+      "IBAN du tiers": `FR7699999${"0".repeat(18)}`,
+      "Moyen de paiement": "SEPA",
+      Catégorie: "TRANSFER",
+      Référence: "echeance pret",
+    };
+
+    it.effect("survives a create → read round trip unchanged", () =>
+      Effect.gen(function* () {
+        const repo = yield* TransactionRepo;
+        const created = yield* repo.create(make({ rawSource: archive }));
+
+        assert.deepStrictEqual({ ...created.rawSource }, archive);
+
+        // Through the projected read too, not only the write's `RETURNING *`:
+        // the archive has to be in `readColumns` or the list would drop it.
+        const fetched = yield* repo.getById(created.id);
+        assert.deepStrictEqual({ ...fetched.rawSource }, archive);
+      }).pipe(Effect.provide(RepoTest)),
+    );
+
+    it.effect("is absent — not an empty object — on a row created without one", () =>
+      Effect.gen(function* () {
+        const repo = yield* TransactionRepo;
+        const created = yield* repo.create(make());
+
+        assert.strictEqual(created.rawSource, undefined);
+        assert.strictEqual((yield* repo.getById(created.id)).rawSource, undefined);
+      }).pipe(Effect.provide(RepoTest)),
+    );
+
+    // The third read path, and the one that decodes the archive under a column
+    // alias rather than its own name: the candidate self-join projects every
+    // column twice, `f_`/`t_` prefixed. A leg reaching the wire with its archive
+    // still JSON *text* would be a decode that silently skipped this route.
+    it.effect("is decoded on a transfer-candidate leg, not handed back as JSON text", () =>
+      Effect.gen(function* () {
+        const repo = yield* TransactionRepo;
+        yield* repo.create(make({ amount: -947.26, accountId: asAccount(1), rawSource: archive }));
+        yield* repo.create(make({ amount: 947.26, accountId: asAccount(2) }));
+
+        const [candidate] = yield* repo.transferCandidates();
+
+        assert.deepStrictEqual({ ...candidate?.leg.rawSource }, archive);
+        // The other leg was created without one, so the null→absent fold has to
+        // hold on this route too.
+        assert.strictEqual(candidate?.counterparts[0]?.transaction.rawSource, undefined);
+      }).pipe(Effect.provide(RepoTest)),
+    );
+  });
+
+  describe("counterparty IBAN (issue #178)", () => {
+    it.effect("survives a create → read round trip unchanged", () =>
+      Effect.gen(function* () {
+        const repo = yield* TransactionRepo;
+        const created = yield* repo.create(make({ counterpartyIban: COUNTERPARTY_IBAN }));
+
+        assert.strictEqual(created.counterpartyIban, COUNTERPARTY_IBAN);
+
+        // Through the projected read too, not only the write's `RETURNING *`:
+        // the column has to be in `readColumns` or the list would drop it.
+        const fetched = yield* repo.getById(created.id);
+        assert.strictEqual(fetched.counterpartyIban, COUNTERPARTY_IBAN);
+      }).pipe(Effect.provide(RepoTest)),
+    );
+
+    it.effect("is absent — not an empty string — on a row created without one", () =>
+      Effect.gen(function* () {
+        const repo = yield* TransactionRepo;
+        const created = yield* repo.create(make());
+
+        assert.strictEqual(created.counterpartyIban, undefined);
+        assert.strictEqual((yield* repo.getById(created.id)).counterpartyIban, undefined);
+      }).pipe(Effect.provide(RepoTest)),
+    );
+
+    // The third read path, and the one the mark (#179) will be computed on: the
+    // candidate self-join projects every column twice, `f_`/`t_` prefixed. A leg
+    // reaching the wire without its IBAN would be a projection that silently
+    // skipped this route — and the join that earns this column its promotion
+    // starts from exactly these rows.
+    it.effect("rides a transfer-candidate leg, both ways round", () =>
+      Effect.gen(function* () {
+        const repo = yield* TransactionRepo;
+        yield* repo.create(
+          make({ amount: -947.26, accountId: asAccount(1), counterpartyIban: COUNTERPARTY_IBAN }),
+        );
+        yield* repo.create(make({ amount: 947.26, accountId: asAccount(2) }));
+
+        const [candidate] = yield* repo.transferCandidates();
+
+        assert.strictEqual(candidate?.leg.counterpartyIban, COUNTERPARTY_IBAN);
+        // The credit leg was created without one, so the null→absent fold has to
+        // hold on this route too.
+        assert.strictEqual(candidate?.counterparts[0]?.transaction.counterpartyIban, undefined);
+      }).pipe(Effect.provide(RepoTest)),
+    );
+  });
 
   it.effect("optional fields set on create round-trip through storage", () =>
     Effect.gen(function* () {
@@ -2166,9 +2306,9 @@ describe("TransactionRepo", () => {
         const { points, byCategory } = yield* repo.recapTrend({ granularity: "month" });
 
         assert.deepStrictEqual(byCategory, [
-          { bucket: "2026-06", categoryId: 7, spent: 10 },
-          { bucket: "2026-07", categoryId: 7, spent: 20 },
-          { bucket: "2026-07", categoryId: 8, spent: 5 },
+          { bucket: "2026-06", categoryId: asCategory(7), spent: 10 },
+          { bucket: "2026-07", categoryId: asCategory(7), spent: 20 },
+          { bucket: "2026-07", categoryId: asCategory(8), spent: 5 },
         ]);
 
         // Each bucket's cells sum to the `spent` on its trend point — the two
@@ -2202,7 +2342,9 @@ describe("TransactionRepo", () => {
         // ONE cell for the bucket, summing all three. Grouping by the bare
         // `categoryId` alias would resolve to the stored column and split the
         // issuer-derived rows into a second cell reporting the same id.
-        assert.deepStrictEqual(byCategory, [{ bucket: "2026-07", categoryId: 7, spent: 18 }]);
+        assert.deepStrictEqual(byCategory, [
+          { bucket: "2026-07", categoryId: asCategory(7), spent: 18 },
+        ]);
       }).pipe(Effect.provide(RepoAndSqlTest)),
     );
 
@@ -3901,6 +4043,180 @@ describe("TransactionRepo", () => {
         assert.deepStrictEqual(out, []);
       }).pipe(Effect.provide(RepoTest)),
     );
+
+    /**
+     * The **IBAN-confirmed** mark (issue #179): a candidate whose one leg's
+     * **counterparty IBAN** names the *other* leg's account, so the bank itself
+     * says where the money went. Derived with the candidate on every read and
+     * never stored (ADR 0010).
+     *
+     * These are the only candidate tests that need real `accounts` rows. Every
+     * other one above builds legs from bare account ids and inserts no account
+     * at all — the transactions table has no foreign key, so nothing forced the
+     * issue. The mark *joins* accounts, so it does, which is why this block runs
+     * on the harness variant that keeps the `SqlClient` reachable.
+     */
+    describe("IBAN-confirmed candidates (issue #179)", () => {
+      /** A real `accounts` row, with or without an IBAN on file. */
+      const account = (id: number, name: string, iban: string | null) =>
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+          yield* sql`INSERT INTO accounts (id, name, type, iban, createdAt, updatedAt) VALUES (${id}, ${name}, 'checking', ${iban}, ${DATE.toISOString()}, ${DATE.toISOString()})`;
+        });
+
+      it.effect("marks the pair when the debit's IBAN names the credit's account", () =>
+        Effect.gen(function* () {
+          const repo = yield* TransactionRepo;
+          yield* account(1, "Checking", ibanOf(1));
+          yield* account(2, "Savings", ibanOf(2));
+          yield* repo.create(
+            make({ amount: -30, accountId: asAccount(1), counterpartyIban: ibanOf(2) }),
+          );
+          yield* repo.create(make({ amount: 30, accountId: asAccount(2) }));
+
+          const out = yield* repo.transferCandidates();
+          // The mark names the account the IBAN matched — the credit's, since
+          // that is the account the debit named.
+          assert.deepStrictEqual(marks(out[0]), [asAccount(2)]);
+        }).pipe(Effect.provide(RepoAndSqlTest)),
+      );
+
+      // Either side satisfies it: only SEPA rows carry an IBAN, so requiring
+      // both would make the signal fire almost never, while one is conclusive.
+      it.effect("marks the pair when only the credit's IBAN names the debit's account", () =>
+        Effect.gen(function* () {
+          const repo = yield* TransactionRepo;
+          yield* account(1, "Checking", ibanOf(1));
+          yield* account(2, "Savings", ibanOf(2));
+          yield* repo.create(make({ amount: -30, accountId: asAccount(1) }));
+          yield* repo.create(
+            make({ amount: 30, accountId: asAccount(2), counterpartyIban: ibanOf(1) }),
+          );
+
+          const out = yield* repo.transferCandidates();
+          // Matched from the other direction, so the account named is the
+          // debit's — the one the credit's IBAN pointed at.
+          assert.deepStrictEqual(marks(out[0]), [asAccount(1)]);
+        }).pipe(Effect.provide(RepoAndSqlTest)),
+      );
+
+      it.effect("leaves the pair unmarked when neither leg names the other's account", () =>
+        Effect.gen(function* () {
+          const repo = yield* TransactionRepo;
+          yield* account(1, "Checking", ibanOf(1));
+          yield* account(2, "Savings", ibanOf(2));
+          yield* repo.create(make({ amount: -30, accountId: asAccount(1) }));
+          yield* repo.create(make({ amount: 30, accountId: asAccount(2) }));
+
+          const out = yield* repo.transferCandidates();
+          assert.deepStrictEqual(marks(out[0]), [undefined]);
+        }).pipe(Effect.provide(RepoAndSqlTest)),
+      );
+
+      // An account with no IBAN on file simply never satisfies the test, and
+      // its candidates behave exactly as they did before this feature.
+      it.effect("leaves the pair unmarked when the named account has no IBAN on file", () =>
+        Effect.gen(function* () {
+          const repo = yield* TransactionRepo;
+          yield* account(1, "Checking", ibanOf(1));
+          yield* account(2, "Savings", null);
+          yield* repo.create(
+            make({ amount: -30, accountId: asAccount(1), counterpartyIban: ibanOf(2) }),
+          );
+          yield* repo.create(make({ amount: 30, accountId: asAccount(2) }));
+
+          const out = yield* repo.transferCandidates();
+          assert.strictEqual(out.length, 1);
+          assert.deepStrictEqual(marks(out[0]), [undefined]);
+        }).pipe(Effect.provide(RepoAndSqlTest)),
+      );
+
+      // Both columns are plain nullable strings, so `""` is storable on either
+      // side, and two empty strings *are* equal in SQL. "Nothing on file" is
+      // not evidence that the bank named this account, whichever spelling of
+      // nothing the row happens to carry.
+      it.effect("leaves the pair unmarked when both IBANs are blank", () =>
+        Effect.gen(function* () {
+          const repo = yield* TransactionRepo;
+          yield* account(1, "Checking", ibanOf(1));
+          yield* account(2, "Savings", "");
+          yield* repo.create(make({ amount: -30, accountId: asAccount(1), counterpartyIban: "" }));
+          yield* repo.create(make({ amount: 30, accountId: asAccount(2) }));
+
+          const out = yield* repo.transferCandidates();
+          assert.strictEqual(out.length, 1);
+          assert.deepStrictEqual(marks(out[0]), [undefined]);
+        }).pipe(Effect.provide(RepoAndSqlTest)),
+      );
+
+      it.effect("leaves the pair unmarked when the IBANs differ", () =>
+        Effect.gen(function* () {
+          const repo = yield* TransactionRepo;
+          yield* account(1, "Checking", ibanOf(1));
+          yield* account(2, "Savings", ibanOf(2));
+          // A real IBAN, but a third party's — not either of these accounts.
+          yield* repo.create(
+            make({ amount: -30, accountId: asAccount(1), counterpartyIban: ibanOf(3) }),
+          );
+          yield* repo.create(make({ amount: 30, accountId: asAccount(2) }));
+
+          const out = yield* repo.transferCandidates();
+          assert.deepStrictEqual(marks(out[0]), [undefined]);
+        }).pipe(Effect.provide(RepoAndSqlTest)),
+      );
+
+      // The mark **labels, and never reorders**: a hidden sort key would make
+      // the list's order unexplainable, and the mark draws the eye on its own.
+      it.effect("leaves the ordering alone — closest date still leads", () =>
+        Effect.gen(function* () {
+          const repo = yield* TransactionRepo;
+          yield* account(1, "Checking", ibanOf(1));
+          yield* account(2, "Savings", ibanOf(2));
+          yield* account(3, "Joint", ibanOf(3));
+          // The debit names account 3, whose credit is the FARTHER of the two.
+          const debit = yield* repo.create(
+            make({
+              amount: -30,
+              accountId: asAccount(1),
+              date: day(10),
+              counterpartyIban: ibanOf(3),
+            }),
+          );
+          const near = yield* repo.create(
+            make({ amount: 30, accountId: asAccount(2), date: day(11) }),
+          );
+          const far = yield* repo.create(
+            make({ amount: 30, accountId: asAccount(3), date: day(14) }),
+          );
+
+          const out = yield* repo.transferCandidates();
+          assert.strictEqual(out[0].leg.id, debit.id);
+          assert.deepStrictEqual(
+            out[0].counterparts.map((c) => c.transaction.id),
+            [near.id, far.id],
+          );
+          // The marked one is still second: confidence labels, ranking is date.
+          assert.deepStrictEqual(marks(out[0]), [undefined, asAccount(3)]);
+        }).pipe(Effect.provide(RepoAndSqlTest)),
+      );
+
+      // mamen's confidence never overrides the user's refusal.
+      it.effect("keeps a dismissed pair excluded even when the IBANs match", () =>
+        Effect.gen(function* () {
+          const repo = yield* TransactionRepo;
+          yield* account(1, "Checking", ibanOf(1));
+          yield* account(2, "Savings", ibanOf(2));
+          const debit = yield* repo.create(
+            make({ amount: -30, accountId: asAccount(1), counterpartyIban: ibanOf(2) }),
+          );
+          const credit = yield* repo.create(make({ amount: 30, accountId: asAccount(2) }));
+
+          yield* repo.dismissTransferPairs([{ debitId: debit.id, creditId: credit.id }]);
+
+          assert.deepStrictEqual(yield* repo.transferCandidates(), []);
+        }).pipe(Effect.provide(RepoAndSqlTest)),
+      );
+    });
   });
 
   // **Dismissed pairs** (issue #91) — the user's refusal, the one thing the
@@ -4184,6 +4500,105 @@ describe("TransactionRepo", () => {
 
         assert.deepStrictEqual(yield* repo.transferCandidates(), []);
       }).pipe(Effect.provide(RepoTest)),
+    );
+  });
+
+  // ADR 0002's guard, read across every path that projects a category (issue
+  // #174). The list reads the transactions table as `t`, the transfer
+  // suggestion reads its candidate as `c`, and the transfer-candidate read
+  // projects both legs of a pair under `f` and `c` — four aliases, one rule.
+  //
+  // Both fixtures set the stored `categoryId` and the issuer's default to
+  // DIFFERENT ids on purpose: with the two equal, both branches of the
+  // derivation return the same answer and a copy that picked the wrong one
+  // still passes. Asserted through the repository's public reads only — a test
+  // of the fragment itself would pass even if a call site stopped using it,
+  // which is the single failure this guard exists to catch.
+  describe("the derived category is one rule on every read path (ADR 0002, issue #174)", () => {
+    // Issuer 4 defaults to category 7, issuer 5 to category 8. Neither default
+    // matches the `categoryId` its rows store below.
+    const seedIssuers = Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      yield* sql`INSERT INTO issuers (id, name, defaultCategoryId, createdAt, firstSeen) VALUES (4, 'Spotify AB', 7, ${DATE.toISOString()}, ${DATE.toISOString()})`;
+      yield* sql`INSERT INTO issuers (id, name, defaultCategoryId, createdAt, firstSeen) VALUES (5, 'Carrefour', 8, ${DATE.toISOString()}, ${DATE.toISOString()})`;
+    });
+
+    /**
+     * One detected transfer pair, read through all three surfaces, each entry
+     * `[debit, credit]`: the list, the transfer-candidate read (each leg under
+     * its own self-join alias) and the transfer-suggestion read (each leg
+     * reached as the OTHER's counterpart).
+     */
+    const categoriesPerPath = (debitId: TransactionId, creditId: TransactionId) =>
+      Effect.gen(function* () {
+        const repo = yield* TransactionRepo;
+        const listed = new Map(
+          (yield* repo.list(listAll)).items.map((t) => [t.id as number, t.categoryId]),
+        );
+        const pair = (yield* repo.transferCandidates())[0];
+        const suggestedCredit = (yield* repo.suggestTransfers(debitId))[0];
+        const suggestedDebit = (yield* repo.suggestTransfers(creditId))[0];
+        return {
+          list: [listed.get(debitId), listed.get(creditId)],
+          candidates: [pair?.leg.categoryId, pair?.counterparts[0]?.transaction.categoryId],
+          suggestions: [suggestedDebit?.categoryId, suggestedCredit?.categoryId],
+        };
+      });
+
+    it.effect("a manual category outranks the issuer default on all three", () =>
+      Effect.gen(function* () {
+        const repo = yield* TransactionRepo;
+        yield* seedIssuers;
+        const debit = yield* repo.create(
+          make({
+            amount: -30,
+            issuerId: asIssuer(4),
+            categoryId: asCategory(9),
+            manualCategory: true,
+          }),
+        );
+        const credit = yield* repo.create(
+          make({
+            amount: 30,
+            accountId: asAccount(2),
+            issuerId: asIssuer(5),
+            categoryId: asCategory(11),
+            manualCategory: true,
+          }),
+        );
+
+        const seen = yield* categoriesPerPath(debit.id, credit.id);
+        const expected = [asCategory(9), asCategory(11)];
+        assert.deepStrictEqual(seen.list, expected);
+        assert.deepStrictEqual(seen.candidates, expected);
+        assert.deepStrictEqual(seen.suggestions, expected);
+      }).pipe(Effect.provide(RepoAndSqlTest)),
+    );
+
+    it.effect("without one, the issuer's default is inherited on all three", () =>
+      Effect.gen(function* () {
+        const repo = yield* TransactionRepo;
+        yield* seedIssuers;
+        // Both rows still carry a stored `categoryId`; with no manual flag it
+        // is inert, so a read that matched the column would report 9 and 11.
+        const debit = yield* repo.create(
+          make({ amount: -30, issuerId: asIssuer(4), categoryId: asCategory(9) }),
+        );
+        const credit = yield* repo.create(
+          make({
+            amount: 30,
+            accountId: asAccount(2),
+            issuerId: asIssuer(5),
+            categoryId: asCategory(11),
+          }),
+        );
+
+        const seen = yield* categoriesPerPath(debit.id, credit.id);
+        const expected = [asCategory(7), asCategory(8)];
+        assert.deepStrictEqual(seen.list, expected);
+        assert.deepStrictEqual(seen.candidates, expected);
+        assert.deepStrictEqual(seen.suggestions, expected);
+      }).pipe(Effect.provide(RepoAndSqlTest)),
     );
   });
 });

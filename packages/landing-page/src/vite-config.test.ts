@@ -1,8 +1,10 @@
+import { resolve } from "node:path";
 import { APP_BASE_PATH } from "@mamen/shared/app-base-path";
 import { LANDING_PAGE_DEV_PORT, PORT_TAKEN_ELSEWHERE } from "@mamen/shared/ports";
 import type { Plugin, UserConfig } from "vite";
 import { describe, expect, it } from "vitest";
 import viteConfig from "../vite.config";
+import { SHIPPED_DIR, SHIPPED_URL_PREFIX } from "./screenshots/manifest";
 
 /**
  * The landing site's build, from the config that ships it.
@@ -40,6 +42,36 @@ describe("the landing build", () => {
 
   it("prerenders the page", () => {
     expect(plugins.map((p) => p.name)).toContain("mamen:prerender-landing-page");
+  });
+
+  it("takes no framework plugin, with React in the package", () => {
+    // React is here (issues #145, #148) and runs in Node, through the
+    // prerender hook. A framework plugin's job is the opposite one — a client
+    // entry, a refresh runtime, a bundle for a browser — and taking one is how
+    // this page would quietly acquire the script tag it exists without.
+    expect(plugins.map((p) => p.name)).toStrictEqual(["mamen:prerender-landing-page"]);
+  });
+
+  it("serves unknown paths the way nginx does: not by falling back to the page", () => {
+    // Vite's default treats a project as a single-page app and answers every
+    // unknown path with `index.html`; `nginx.conf` answers `=404`. A dev
+    // server that disagreed would show a deleted route still working.
+    expect(config.appType).toBe("mpa");
+  });
+
+  it("ships the screenshots as files, at the URLs the page names", () => {
+    // The one thing in `dist` that is not generated from `src`: Vite copies
+    // `public/` in verbatim, which is what turns a file in the shipped
+    // directory into the `/screenshots/…` URL the generated module points at
+    // (issue #149). Disabled, or a shipped directory outside it, and the
+    // deployed page carries four broken images with nothing else failing.
+    // `false` is the one value that turns the copy off; anything else is the
+    // directory, and leaving it unset means Vite's own `public`.
+    const publicDir = config.publicDir;
+    expect(publicDir).not.toBe(false);
+    // Paths are cwd-relative — vitest runs from the package root.
+    expect(SHIPPED_DIR.startsWith(`${resolve(publicDir || "public")}/`)).toBe(true);
+    expect(SHIPPED_DIR.endsWith(`${SHIPPED_URL_PREFIX}/`)).toBe(true);
   });
 
   it("proxies nothing", () => {

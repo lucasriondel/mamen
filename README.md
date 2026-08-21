@@ -8,8 +8,22 @@ It is a self-hosted, single-user tool built for its author's own bank exports �
 not a product, not multi-tenant, and not something you can sign up for. The
 whole state is one SQLite file.
 
-<!-- TODO: screenshots. The transactions table and the recap are the two
-     surfaces worth showing. -->
+<!-- Both frames of each pair are captured from the demo stack over the seeded
+     demo database, in one run: `.claude/skills/demo-screenshots/SKILL.md`. -->
+
+**Transactions** — every imported row, curated in place.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/transactions-dark.webp">
+  <img alt="The Transactions table: filters across the top, then rows showing date, account, issuer, the raw bank label, category and amount." src="docs/screenshots/transactions-light.webp">
+</picture>
+
+**Recap** — where the money went, by category and by issuer.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/recap-dark.webp">
+  <img alt="The Recap screen for a calendar year: internal transfers and excluded rows reported above two donut breakdowns, share by category and share by issuer, over a month-by-month earnings and spending chart." src="docs/screenshots/recap-light.webp">
+</picture>
 
 ## What it does
 
@@ -65,8 +79,8 @@ no authentication of any kind — see [SECURITY.md](SECURITY.md).
 - [React](https://react.dev) 19, [Vite](https://vite.dev),
   [TanStack](https://tanstack.com) Router / Query / Table / Virtual,
   [Tailwind](https://tailwindcss.com) v4, [Base UI](https://base-ui.com)
-- [Vitest](https://vitest.dev) for tests, [Biome](https://biomejs.dev) for lint
-  and formatting
+- [Vitest](https://vitest.dev) for tests, [oxlint](https://oxc.rs) and oxfmt for
+  lint and formatting
 
 ## Packages
 
@@ -76,7 +90,7 @@ no authentication of any kind — see [SECURITY.md](SECURITY.md).
 | `@mamen/api` | `packages/api` | Effect `HttpApi` server implementing the contract, over SQLite. |
 | `@mamen/sdk` | `packages/sdk` | Typed client derived from the contract, wired to TanStack Query. |
 | `@mamen/web` | `packages/web` | The React frontend. |
-| `@mamen/landing-page` | `packages/landing-page` | The public page at the site root. Prerendered static HTML, its own image, no framework. |
+| `@mamen/landing-page` | `packages/landing-page` | The public page at the site root. Its own image, serving HTML prerendered at build time — the browser runs no JavaScript to read it. |
 
 Dependencies run one way: `shared` ← `api`, `shared` ← `sdk` ← `web`. Nothing in
 `shared` may acquire a runtime dependency beyond `effect` and `@effect/platform`.
@@ -85,9 +99,10 @@ under — and depends on nothing else in the repo.
 
 ## Running it locally
 
-You need [Bun](https://bun.sh) — the repo pins `bun@1.3.4` — and, for PDF import,
-the [`claude` CLI](https://docs.claude.com/en/docs/claude-code/overview) on your
-`PATH`.
+You need [Bun](https://bun.sh) — the repo pins `bun@1.3.4` — and, for PDF import
+on its default provider, the
+[`claude` CLI](https://docs.claude.com/en/docs/claude-code/overview) on your
+`PATH`. Pick a hosted vendor in **Settings** instead and nothing needs the CLI.
 
 ```sh
 git clone https://github.com/lucasriondel/mamen.git
@@ -190,6 +205,15 @@ The seeder runs on every `demo:up` and replaces the rows it owns, so tearing the
 stack down and bringing it back gives the same app, with the same figures on the
 same dates. It is not a deploy path: `docker-compose.yml`, below, is that one.
 
+The images at the top of this file are taken from it by `bun run demo:shots`,
+which drives a browser over the two surfaces in both colour schemes and writes
+`docs/screenshots/`. The landing page shows the same four, from copies
+`bun run landing:screenshots` writes into `packages/landing-page/public/` — run
+it after every capture, or the deployed page keeps showing the previous ones.
+The whole procedure — prerequisites, the teardown trap, and the ways a capture
+goes wrong — is
+[`.claude/skills/demo-screenshots/SKILL.md`](.claude/skills/demo-screenshots/SKILL.md).
+
 ### Ports
 
 Every port mamen binds on the host, the reserved ones included. The numbers live
@@ -238,7 +262,17 @@ empty unless the API lives somewhere other than the same origin.
 bun run typecheck
 bun run test
 bun run lint
+bun run format:check
 ```
+
+Each is a turbo task fanned out over every package, and each is a step CI runs
+by the same name. `bun run format` rewrites the tree instead of reporting on it.
+
+This file and the landing page have to tell a reader the same commands, steps,
+prerequisites and environment facts. `bun run landing:reconcile` extracts both
+command sets and diffs them; the pass around it — what must agree, what may
+differ, and what to do when the code has moved under both — is
+[`.claude/skills/readme-landing-sync/SKILL.md`](.claude/skills/readme-landing-sync/SKILL.md).
 
 `bun run build` builds every package; `bun run --filter @mamen/web build`
 produces the SPA bundle alone.

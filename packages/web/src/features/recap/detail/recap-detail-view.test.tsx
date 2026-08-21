@@ -8,7 +8,9 @@ import {
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { pagedListParams } from "@/test/paged-list-params";
 import { COLLAPSED_SHELL, OPEN_SHELL, withShell } from "@/test/sidebar-shell";
+import { findNextPageButton, findSortButton } from "@/test/transactions-controls";
 import { validateRecapSearch } from "../search";
 import { RecapDetailView } from "./recap-detail-view";
 import { validateRecapDetailSearch } from "./search";
@@ -46,9 +48,15 @@ const TXNS = [
 
 // ---- SDK seam mock ----------------------------------------------------------
 
+/**
+ * The `total` the mocked list envelope reports. Defaults to the canned row; a
+ * pagination test raises it so there is more than one page to move between.
+ */
+let listTotal = TXNS.length;
+
 const listMock = vi.fn((params: Record<string, unknown>) => ({
   queryKey: ["transactions", "list", params],
-  queryFn: async () => ({ items: TXNS, total: TXNS.length }),
+  queryFn: async () => ({ items: TXNS, total: listTotal }),
 }));
 
 const countMock = vi.fn((params: Record<string, unknown>) => ({
@@ -146,21 +154,11 @@ function renderView(initialEntry: string, shellValue = OPEN_SHELL) {
 beforeEach(() => {
   listMock.mockClear();
   countMock.mockClear();
+  listTotal = TXNS.length;
 });
 
-/**
- * The params of the **paged** list call — the rows on screen. The section also
- * fires a wide month-scan (`limit: 1000`, the scope but none of the user's
- * filters) to build the month picker's options, so the last call is not
- * necessarily the one the table renders.
- */
-function pagedListParams(): Record<string, unknown> {
-  const call = listMock.mock.calls
-    .map(([params]) => params)
-    .findLast((params) => params.orderBy === "date");
-  if (call === undefined) throw new Error("no paged list call was made");
-  return call;
-}
+/** This harness's paged list params — see {@link pagedListParams}. */
+const pagedList = () => pagedListParams(listMock);
 
 describe("RecapDetailView", () => {
   // This page composed its own header and so rendered no trigger at all — the
@@ -232,7 +230,7 @@ describe("RecapDetailView", () => {
 
     expect(await screen.findByRole("heading", { name: /Unassigned/ })).toBeInTheDocument();
     expect(listMock).toHaveBeenCalledWith(expect.objectContaining({ issuerId: "none" }));
-    expect(pagedListParams()).not.toHaveProperty("startDate");
+    expect(pagedList()).not.toHaveProperty("startDate");
   });
 
   // The recap's picker is multi-select, so the whole selection must ride along —
@@ -283,6 +281,133 @@ describe("RecapDetailView", () => {
         by: "issuer",
         bucket: 10,
       });
+    });
+    // And the rows are re-asked for from the top of the narrowed set, still
+    // scoped to the bucket: a filter that no longer reaches page 3 would
+    // otherwise leave the user on a page of nothing.
+    await waitFor(() => {
+      expect(pagedList()).toMatchObject({ issuerId: 10, offset: 0 });
+    });
+  });
+
+  // ---- Sort and pagination (issue #168) -------------------------------------
+  //
+  // This page's URL carries more than the transactions view's: the target
+  // (`by`/`bucket`), the recap's period and its account selection. Every sort
+  // and page rewrite goes through that URL, so what is checked is that the
+  // pinned scope comes out the other side — a drill-down that quietly widened
+  // to the whole table on the second page would still look like a page of rows.
+
+  it("toggles the date sort direction in the URL and in the pinned query", async () => {
+    const user = userEvent.setup();
+    const router = renderView("/recap-detail?by=issuer&bucket=10&period=month&month=2026-07");
+
+    await user.click(await findSortButton());
+
+    await waitFor(() => {
+      expect(router.state.location.search).toMatchObject({
+        direction: "asc",
+        // The bucket and its period are what make this page one recap line.
+        by: "issuer",
+        bucket: 10,
+        period: "month",
+        month: "2026-07",
+      });
+    });
+    // Awaited in its own right: the URL is rewritten a beat before the
+    // re-render that re-runs the query off it, so asserting the two in one
+    // breath is a race.
+    await waitFor(() => {
+      expect(listMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderBy: "date",
+          direction: "asc",
+          issuerId: 10,
+          startDate: new Date("2026-07-01T00:00:00.000Z"),
+          endDate: new Date("2026-07-31T23:59:59.999Z"),
+        }),
+      );
+    });
+  });
+
+  it("puts the page number — not the row offset — in the URL", async () => {
+    listTotal = 120;
+    const user = userEvent.setup();
+    const router = renderView("/recap-detail?by=issuer&bucket=10&period=month&month=2026-07");
+
+    await user.click(await findNextPageButton());
+
+    await waitFor(() => {
+      expect(router.state.location.search).toMatchObject({ page: 2 });
+    });
+    expect(router.state.location.search).not.toHaveProperty("offset");
+    await waitFor(() => {
+      expect(listMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          issuerId: 10,
+          startDate: new Date("2026-07-01T00:00:00.000Z"),
+          offset: 50,
+          limit: 50,
+        }),
+      );
+    });
+  });
+
+  it("returns to the first page when the sort direction changes", async () => {
+    listTotal = 120;
+    const user = userEvent.setup();
+    const router = renderView("/recap-detail?by=issuer&bucket=10&period=all&direction=asc&page=3");
+
+    await user.click(await findSortButton());
+
+    // Page 3 of oldest-first is a different set of rows from page 3 of
+    // newest-first, so the reorder starts the reading over.
+    await waitFor(() => {
+      expect(router.state.location.search).toMatchObject({
+        direction: "desc",
+        page: 1,
+        bucket: 10,
+      });
+    });
+    await waitFor(() => {
+      expect(pagedList()).toMatchObject({ issuerId: 10, offset: 0 });
+    });
+  });
+
+  it("changes page without disturbing the rest of the search state", async () => {
+    listTotal = 120;
+    const user = userEvent.setup();
+    const router = renderView(
+      "/recap-detail?by=issuer&bucket=10&period=month&month=2026-07&accountIds=2&search=carrefour&direction=asc&page=2",
+    );
+
+    await user.click(await findNextPageButton());
+
+    await waitFor(() => {
+      expect(router.state.location.search).toMatchObject({ page: 3 });
+    });
+    // A page change is the one move that must reset nothing: the target, the
+    // period, the account selection, the filter and the sort all stand.
+    expect(router.state.location.search).toMatchObject({
+      by: "issuer",
+      bucket: 10,
+      period: "month",
+      month: "2026-07",
+      accountIds: [2],
+      search: "carrefour",
+      direction: "asc",
+    });
+    await waitFor(() => {
+      expect(listMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          issuerId: 10,
+          accountId: [2],
+          search: "carrefour",
+          direction: "asc",
+          startDate: new Date("2026-07-01T00:00:00.000Z"),
+          offset: 100,
+        }),
+      );
     });
   });
 

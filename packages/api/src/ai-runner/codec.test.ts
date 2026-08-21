@@ -1,9 +1,9 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { assert, describe, it } from "@effect/vitest";
-import { ExtractPdfResult } from "@mamen/shared/contract";
 import { Effect, Schema } from "effect";
 import { effectSchemaCodec } from "./codec";
+import { ExtractionOutput } from "./tasks";
 
 /**
  * The **Effect Schema codec adapter** (issue #121) — the whole reason zod does
@@ -21,7 +21,7 @@ const PACKAGES = fileURLToPath(new URL("../../../", import.meta.url));
 describe("the reason this adapter exists", () => {
   // The runner's task table wants an `ObjectCodec`, and its README reaches one
   // through `zod-to-json-schema`. mamen's contract is already Effect Schema
-  // throughout, so a zod copy of `ExtractPdfResult` would be a second
+  // throughout, so a zod copy of `ExtractionOutput` would be a second
   // definition of one contract with the drift between them as the bug. The
   // adapter is what makes that unnecessary, so the claim is a test.
   it("means no mamen package depends on zod", () => {
@@ -52,18 +52,19 @@ describe("the JSON schema handed to the model", () => {
   // its own `Schema` branch and deliberately does not on the codec branch — a
   // JSON Schema someone else built is not its to rewrite — so it is ours.
   it("has a top-level type, not a bare root $ref", () => {
-    const root = asObject(effectSchemaCodec(ExtractPdfResult).jsonSchema);
+    const root = asObject(effectSchemaCodec(ExtractionOutput).jsonSchema);
 
     assert.strictEqual(root.type, "object");
     assert.notProperty(root, "$ref");
   });
 
   it("keeps $defs, so the inner refs still resolve", () => {
-    const root = asObject(effectSchemaCodec(ExtractPdfResult).jsonSchema);
+    const root = asObject(effectSchemaCodec(ExtractionOutput).jsonSchema);
     const defs = asObject(root.$defs);
 
-    // `transactions` items still point at `#/$defs/ExtractedTransaction`.
-    assert.property(defs, "ExtractedTransaction");
+    // `transactions` items still point at `#/$defs/ExtractedRow` — the model's
+    // own row, whose archive is required (issue #189).
+    assert.property(defs, "ExtractedRow");
     assert.property(defs, "DeclaredTotals");
   });
 
@@ -78,15 +79,23 @@ describe("the JSON schema handed to the model", () => {
 describe("decoding the model's answer", () => {
   it.effect("re-decodes through the schema, transforms and all", () =>
     Effect.gen(function* () {
-      const decoded = yield* effectSchemaCodec(ExtractPdfResult).decode({
-        transactions: [{ date: "2026-01-03", amount: -6.99, rawIssuerString: "CB AMAZON" }],
+      const decoded = yield* effectSchemaCodec(ExtractionOutput).decode({
+        transactions: [
+          {
+            date: "2026-01-03",
+            amount: -6.99,
+            rawIssuerString: "CB AMAZON",
+            rawSource: { Libellé: "CB AMAZON", Débit: "6,99" },
+          },
+        ],
         declaredTotals: { debit: 6.99, credit: 0 },
+        missingColumns: [],
       });
 
       // The encoded side is what the model answers in (an ISO string); the
       // decoded side is the contract's own type. That transform is the reason
       // the decode half exists at all.
-      assert.instanceOf(decoded, ExtractPdfResult);
+      assert.instanceOf(decoded, ExtractionOutput);
       assert.instanceOf(decoded.transactions[0].date, Date);
       assert.strictEqual(decoded.transactions[0].date.toISOString().slice(0, 10), "2026-01-03");
     }),
@@ -97,7 +106,7 @@ describe("decoding the model's answer", () => {
       // `issues` reaches the caller untouched (it becomes
       // `ClaudeSchemaError.issues` / `TaskSchemaError.issues`), so it has to be
       // something a log line can print. A `ParseError` is not.
-      const issues = yield* effectSchemaCodec(ExtractPdfResult)
+      const issues = yield* effectSchemaCodec(ExtractionOutput)
         .decode({ transactions: "not an array" })
         .pipe(Effect.flip);
 

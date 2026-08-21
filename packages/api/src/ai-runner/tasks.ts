@@ -1,5 +1,6 @@
-import { type AiTask, ExtractPdfResult } from "@mamen/shared/contract";
+import { type AiTask, DeclaredTotals, ExtractedTransaction } from "@mamen/shared/contract";
 import type { TaskSpec } from "ai-task-runner-effect";
+import { Schema } from "effect";
 import { effectSchemaCodec } from "./codec";
 import { extractionPrompt, HOSTED_EXTRACTION_INSTRUCTION, hostedExtractionPrompt } from "./prompt";
 
@@ -31,18 +32,83 @@ export interface ExtractPdfInput {
    * because a prompt builder is a pure function and reading a file is not.
    */
   readonly pdfBytes: Uint8Array;
+  /**
+   * The columns the chosen **Statement Format** declares (issue #185) — what the
+   * user has told mamen this bank's statement is laid out like.
+   *
+   * It arrives as an input rather than being read here for the same reason the
+   * bytes do: a prompt builder is a pure function, and looking a format up is a
+   * database read. The handler resolves the format the request names and hands
+   * the list over.
+   */
+  readonly columns: readonly string[];
 }
+
+/**
+ * One row as the **model** answers with it (issue #189): an
+ * {@link ExtractedTransaction} whose archive is **required**.
+ *
+ * The endpoint's own row has it optional, because absent is what a row with
+ * nothing to keep carries; the model is never allowed to be the one that decides
+ * that. A silence folded into "this row had nothing" is the premise issue #175
+ * excluded PDF rows on, and making that premise false is the whole of this
+ * ticket — so the field travels to the provider as a required one in the tool's
+ * input schema, and an answer without it fails the run loudly and retryably.
+ *
+ * The fold from `{}` to absent is the server's, in `import/extract.ts`, for the
+ * same reason the **format verdict** is: the model reports what it saw, and what
+ * that adds up to is mamen's conclusion.
+ */
+export class ExtractedRow extends Schema.Class<ExtractedRow>("ExtractedRow")({
+  ...ExtractedTransaction.fields,
+  rawSource: Schema.Record({ key: Schema.String, value: Schema.String }),
+}) {}
+
+/**
+ * What the model is asked to answer with — the rows, the statement's declared
+ * totals, and **the declared columns it could not find** (issue #188).
+ *
+ * Deliberately *not* `ExtractPdfResult`, which is what the **endpoint** answers
+ * with. The two differ by exactly one thing and it is the point of the ticket:
+ * the model reports an observation (a column is not on this statement), and
+ * whether that adds up to a **format verdict** of "matched" is folded from it
+ * server-side. Asking the model for both would be two answers to one question,
+ * and a `matched: true` beside a list of missing columns is a contradiction only
+ * a human reading the JSON would catch.
+ *
+ * `missingColumns` is **required**: a silence folded into "everything matched"
+ * is the silent wrongness this work exists to end, and the schema travels to the
+ * model as the tool's own input schema, so a required field is one the provider
+ * enforces. An answer without it fails the run loudly and retryably.
+ */
+export class ExtractionOutput extends Schema.Class<ExtractionOutput>("ExtractionOutput")({
+  transactions: Schema.Array(ExtractedRow),
+  /**
+   * The statement's own totals line, or **`null` — this statement prints none**
+   * (issue #196).
+   *
+   * Required, and nullable rather than optional, for the reason `missingColumns`
+   * is required: the model must *say* which of the two it saw. An omitted field
+   * would be a silence, and the only ways to fold a silence are into totals
+   * nobody printed or into "no totals line" on a statement that has one — both
+   * silently wrong in the direction the client's reconciliation check reports on.
+   * A `null` is an observation; the endpoint folds it to an absent field
+   * (`import/extract.ts`), the same division of labour as the row archive.
+   */
+  declaredTotals: Schema.NullOr(DeclaredTotals),
+  missingColumns: Schema.Array(Schema.String),
+}) {}
 
 /** The one media type extraction accepts, and the one it declares to a vendor. */
 const PDF_MEDIA_TYPE = "application/pdf";
 
 export const AI_TASK_TABLE = {
   "extract-pdf": {
-    output: effectSchemaCodec(ExtractPdfResult),
+    output: effectSchemaCodec(ExtractionOutput),
     // Unchanged from the direct-CLI path (issue #44): the model opens the
     // staged PDF itself with its own `Read` tool, which is why the prompt names
     // the absolute path and why `Read` is the one allowed tool.
-    cliPrompt: (input: ExtractPdfInput) => extractionPrompt(input.pdfPath),
+    cliPrompt: (input: ExtractPdfInput) => extractionPrompt(input.pdfPath, input.columns),
     /**
      * The hosted column (issue #124). A vendor has no tools and no filesystem,
      * so the statement itself travels: the bytes as a document part, which is
@@ -56,7 +122,7 @@ export const AI_TASK_TABLE = {
      * review note, and `service.test.ts` asserts it at the seam.
      */
     hostedPrompt: (input: ExtractPdfInput) => ({
-      text: hostedExtractionPrompt(),
+      text: hostedExtractionPrompt(input.columns),
       document: { data: input.pdfBytes, mediaType: PDF_MEDIA_TYPE },
     }),
     hostedInstruction: HOSTED_EXTRACTION_INSTRUCTION,

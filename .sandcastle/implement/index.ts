@@ -42,7 +42,7 @@ import { notify } from "../helpers/notify.ts";
 import { planSchema } from "../helpers/plan.ts";
 import { createRtkTotals, readRtkGain } from "../helpers/rtk-gain.ts";
 import { createRunSummary, resolveRepoUrl } from "../helpers/run-summary.ts";
-import { MAX_ITERATIONS, MODEL, copyToWorktree, hooks } from "../helpers/run-config.ts";
+import { MAX_ITERATIONS, MODEL, copyToWorktree, hooks, timeouts } from "../helpers/run-config.ts";
 import {
   EXIT_CODE as SESSION_LIMIT_EXIT_CODE,
   isUnparseableSessionLimit,
@@ -138,6 +138,7 @@ try {
           sandbox: docker(),
           hooks,
           copyToWorktree,
+          timeouts,
         });
 
         try {

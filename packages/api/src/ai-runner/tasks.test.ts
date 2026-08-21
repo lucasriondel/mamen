@@ -2,7 +2,7 @@ import { assert, describe, it } from "@effect/vitest";
 import { AI_TASKS, ExtractPdfResult } from "@mamen/shared/contract";
 import { Effect } from "effect";
 import { extractionPrompt } from "./prompt";
-import { AI_TASK_TABLE } from "./tasks";
+import { AI_TASK_TABLE, ExtractionOutput } from "./tasks";
 
 /**
  * The **task table** (issue #121) — one row, PDF extraction. What is worth a
@@ -13,7 +13,10 @@ import { AI_TASK_TABLE } from "./tasks";
 
 const PDF_PATH = "/tmp/mamen-pdf-abc123/statement.pdf";
 const PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
-const INPUT = { pdfPath: PDF_PATH, pdfBytes: PDF_BYTES };
+
+/** The columns the chosen **Statement Format** declares (issue #185). */
+const COLUMNS = ["Date", "Valeur", "Libellé", "Débit", "Crédit"];
+const INPUT = { pdfPath: PDF_PATH, pdfBytes: PDF_BYTES, columns: COLUMNS };
 
 const extract = AI_TASK_TABLE["extract-pdf"];
 
@@ -37,7 +40,7 @@ describe("the CLI column", () => {
   // This ticket *moves* it and does not touch its wording, so the column is
   // asserted to be that prompt itself rather than a copy that could drift.
   it("is the existing extraction prompt, unchanged", () => {
-    assert.strictEqual(extract.cliPrompt(INPUT), extractionPrompt(PDF_PATH));
+    assert.strictEqual(extract.cliPrompt(INPUT), extractionPrompt(PDF_PATH, COLUMNS));
   });
 
   it("names the absolute path of the staged PDF", () => {
@@ -94,16 +97,406 @@ describe("the hosted column", () => {
   });
 });
 
+/**
+ * Issue #185 — the chosen **Statement Format**'s declared columns reach the
+ * model. This is the whole point of making the endpoint take a format: until it
+ * did, the prompt described French bank statements in general and the model
+ * worked the columns out for itself, which is how a statement it has no
+ * vocabulary for produces plausible rows that are silently wrong.
+ */
+describe("the format's declared columns", () => {
+  const COLUMN_HEADING = "COLUMNS THIS STATEMENT CARRIES";
+
+  it("names every column the chosen format declares", () => {
+    const prompt = extract.cliPrompt(INPUT);
+
+    assert.include(prompt, COLUMN_HEADING);
+    for (const column of COLUMNS) assert.include(prompt, `"${column}"`);
+  });
+
+  // In the *shared* rules, not above them: a hosted vendor is asked to read the
+  // same statement as the local CLI, and a columns block written into one column
+  // only would be exactly the silent drift the two-column split exists to
+  // prevent. Asserted through `rulesOf`, so it is the shared region that carries
+  // them rather than a second copy that happens to match today.
+  it("reaches the hosted column too, from the same copy", () => {
+    const rules = rulesOf(extract.hostedPrompt(INPUT).text);
+
+    assert.include(rules, COLUMN_HEADING);
+    for (const column of COLUMNS) assert.include(rules, `"${column}"`);
+    assert.strictEqual(rules, rulesOf(extract.cliPrompt(INPUT)));
+  });
+
+  // The columns say what the file is laid out like; they do not replace how its
+  // values are read. Every rule the extraction has always run on is still in the
+  // prompt beside them (issue #185's "existing extraction rules are preserved").
+  it("are added to the existing rules, not in place of them", () => {
+    const prompt = extract.cliPrompt(INPUT);
+
+    for (const section of [
+      "SIGN CONVENTION",
+      "DATE",
+      "NUMBERS (French format)",
+      "LABEL",
+      "ROWS TO EXCLUDE",
+      "DECLARED TOTALS",
+    ]) {
+      assert.include(prompt, section);
+    }
+  });
+
+  // A format may declare no columns at all — the contract's `columns` is an
+  // array and nothing makes it non-empty. An empty heading would be worse than
+  // no heading: it tells the model the statement carries nothing.
+  it("say nothing at all when the format declares none", () => {
+    const prompt = extract.cliPrompt({ ...INPUT, columns: [] });
+
+    assert.notInclude(prompt, COLUMN_HEADING);
+    assert.include(prompt, "SIGN CONVENTION");
+  });
+});
+
+/**
+ * PRD #180, amendment 1 — the extraction returns **every operation row**.
+ *
+ * The rule this replaces told the model that the statement was "for the
+ * current/cheque account only" and that anything belonging to another account
+ * was noise. A real Trade Republic statement is two products in one file — a
+ * `Compte PEA` and a `Compte courant` — so that rule discards half the document,
+ * and the model cannot know which half is "the" account: nothing in the prompt
+ * says which account the file is being imported into.
+ *
+ * The user is the one who decides which rows belong in their ledger, and they
+ * decide *after* the extraction, in the import table's row facets (#195). A row
+ * the model never returned is one they can never get back — which is why the
+ * exclusions are now about what a row **is** (a balance, a total) and never
+ * about which product it belongs to.
+ */
+describe("a statement covering more than one product", () => {
+  const EVERY_ROW_HEADING = "EVERY OPERATION ROW";
+
+  it("has every product's operations extracted, not one product's", () => {
+    const prompt = extract.cliPrompt(INPUT);
+
+    assert.include(prompt, EVERY_ROW_HEADING);
+    assert.include(prompt, "Emit the operations of ALL of them");
+  });
+
+  // The rule that made this impossible, gone rather than softened: while it
+  // stands, a model reading a two-product file is being told in one breath to
+  // return every row and to treat one of the products as noise.
+  it("no longer calls another product's rows noise", () => {
+    const prompt = extract.cliPrompt(INPUT);
+
+    assert.notInclude(prompt, "current/cheque account only");
+    assert.notInclude(prompt, "Livret A");
+  });
+
+  /**
+   * The product name is what the user filters on, and on this statement it is
+   * printed as a *section heading* rather than in a column of the table — so a
+   * row only carries it if the model attributes the heading to the rows beneath
+   * it. Conditional on the format declaring a column for it: the archive is
+   * keyed by the declared columns (#189), so a heading with nowhere to go is not
+   * a key the model may invent.
+   */
+  it("attributes the product heading to the rows printed under it", () => {
+    const prompt = extract.cliPrompt(INPUT);
+
+    assert.include(prompt, "product or account heading");
+    assert.include(prompt, "COLUMNS list");
+  });
+
+  // In the *shared* rules, like every other reading rule: one statement must not
+  // extract to different rows depending on which vendor the user chose.
+  it("is told to the hosted column too, from the same copy", () => {
+    const rules = rulesOf(extract.hostedPrompt(INPUT).text);
+
+    assert.include(rules, EVERY_ROW_HEADING);
+    assert.strictEqual(rules, rulesOf(extract.cliPrompt(INPUT)));
+  });
+
+  // What did *not* change: balances and totals are still not operations. The
+  // amendment narrows the exclusions to those two, it does not remove them.
+  it("still drops the balance and summary lines", () => {
+    const prompt = extract.cliPrompt(INPUT);
+
+    assert.include(prompt, "ROWS TO EXCLUDE");
+    assert.include(prompt, "Balance lines");
+    assert.include(prompt, "Summary lines");
+  });
+
+  /**
+   * The totals half of the same statement (with #196): its figures live in a
+   * per-product `SYNTHÈSE DU RELEVÉ DE COMPTE` block, and there are two of them.
+   * Adding them up would reconcile the import against a figure covering rows
+   * from a product the user may be holding out — a false mismatch on every
+   * import of a multi-product statement, which is worse than no check at all.
+   */
+  it("has no one total to declare, and is told to answer with none", () => {
+    const rules = rulesOf(extract.hostedPrompt(INPUT).text);
+
+    assert.include(rules, "SYNTHÈSE");
+    assert.include(rules, "`declaredTotals` to null");
+    assert.strictEqual(rules, rulesOf(extract.cliPrompt(INPUT)));
+  });
+});
+
+/**
+ * Issue #196 — the totals rule stops assuming there is a totals line. A Trade
+ * Republic statement prints none, and a model asked for a figure that is not on
+ * the page either invents one or reports zero; both read downstream as a
+ * statement whose rows do not add up.
+ *
+ * In the shared rules, like every other reading rule: a hosted vendor and the
+ * local CLI are being asked to read the same statement, and one column allowed
+ * to make totals up is the drift the two-column table exists to prevent.
+ */
+describe("a statement that prints no totals", () => {
+  it("is told to answer with no totals rather than invent them", () => {
+    const rules = rulesOf(extract.hostedPrompt(INPUT).text);
+
+    assert.include(rules, "no such line");
+    assert.include(rules, "`declaredTotals` to null");
+    // The two ways a model fills a field it cannot read, both refused: summing
+    // the operations (which would make the reconciliation check compare mamen's
+    // arithmetic to itself and always agree) and reporting zeroes (which would
+    // make it disagree with every row on the statement).
+    assert.include(rules, "Never add up the operations yourself");
+    assert.include(rules, "never report totals of 0");
+    assert.strictEqual(rules, rulesOf(extract.cliPrompt(INPUT)));
+  });
+});
+
+/**
+ * Issue #188 — the model reports whether the statement it read actually carries
+ * the columns the chosen format declares. The columns reaching the prompt (#185)
+ * are what make the question askable at all: until they did, there was nothing
+ * for a statement to match or fail to match.
+ *
+ * The model is asked for the *observation* — which declared columns it could not
+ * find — and never for the conclusion. Whether that counts as a match is the
+ * server's fold (`import/extract.ts`), which is what keeps the two halves of the
+ * verdict from contradicting each other.
+ */
+describe("the format-match verdict", () => {
+  const VERDICT_HEADING = "FORMAT MATCH";
+
+  it("asks which of the declared columns the statement does not carry", () => {
+    const prompt = extract.cliPrompt(INPUT);
+
+    assert.include(prompt, VERDICT_HEADING);
+    assert.include(prompt, "missingColumns");
+  });
+
+  // Same reasoning as the columns themselves: a hosted vendor and the local CLI
+  // read the *same* statement, so a verdict asked of one only would make the
+  // answer depend on which vendor the user happens to have chosen.
+  it("is asked of the hosted column too, from the same copy", () => {
+    const rules = rulesOf(extract.hostedPrompt(INPUT).text);
+
+    assert.include(rules, VERDICT_HEADING);
+    assert.strictEqual(rules, rulesOf(extract.cliPrompt(INPUT)));
+  });
+
+  // The field is required in the answer, so it is asked for unconditionally —
+  // unlike the columns block, which says nothing when there is nothing to say.
+  it("is asked for even when the format declares no columns", () => {
+    assert.include(extract.cliPrompt({ ...INPUT, columns: [] }), VERDICT_HEADING);
+  });
+
+  // A mismatch is a *report*, not a refusal: the rows still come back, and what
+  // to do about the wrong format is the user's decision in the wizard.
+  it("asks for the rows either way, so a mismatch is reported rather than obeyed", () => {
+    assert.include(extract.cliPrompt(INPUT), "Extract the operations either way");
+  });
+});
+
+/**
+ * Issue #189 — the model returns each operation's own cells, so a PDF row gets
+ * the **raw source** the CSV path has had since #176.
+ *
+ * The columns reaching the prompt (#185) are what makes this askable: until the
+ * model was told which columns the statement carries, there was no row-shaped
+ * thing to archive and issue #175 excluded PDF rows on exactly that premise. The
+ * cells are asked for in the statement's own words, and *as printed* — the
+ * archive is what the bank sent, not what mamen made of it.
+ */
+describe("the row's raw source", () => {
+  const ARCHIVE_HEADING = "THE ROW AS PRINTED";
+
+  it("asks for each row's own cells, keyed by the columns the format declares", () => {
+    const prompt = extract.cliPrompt(INPUT);
+
+    assert.include(prompt, ARCHIVE_HEADING);
+    assert.include(prompt, "rawSource");
+  });
+
+  // Same reasoning as the columns and the verdict: a hosted vendor and the local
+  // CLI read the *same* statement, so an archive asked of one only would make a
+  // row's provenance depend on which vendor the user happens to have chosen.
+  it("is asked of the hosted column too, from the same copy", () => {
+    const rules = rulesOf(extract.hostedPrompt(INPUT).text);
+
+    assert.include(rules, ARCHIVE_HEADING);
+    assert.strictEqual(rules, rulesOf(extract.cliPrompt(INPUT)));
+  });
+
+  /**
+   * The archive keeps the *delivered* form, which is the whole of its value: a
+   * French number is parsed into `amount` and left alone here, so what the
+   * statement printed survives beside what mamen read out of it. This is the
+   * same disagreement `counterpartyIban` has with the archive on the CSV path,
+   * and ADR 0012 calls it the division of labour.
+   */
+  it("asks for the cells exactly as printed, not parsed", () => {
+    assert.include(extract.cliPrompt(INPUT), "exactly as printed");
+  });
+
+  // Required in the answer, so it is asked for unconditionally — a format that
+  // declares no columns has nothing to key an archive by, and the only possible
+  // answer is an empty one.
+  it("is asked for even when the format declares no columns", () => {
+    assert.include(extract.cliPrompt({ ...INPUT, columns: [] }), ARCHIVE_HEADING);
+  });
+});
+
 describe("the output contract", () => {
-  it.effect("is the existing extraction result class", () =>
+  it.effect("is the rows, the totals and the columns the model could not find", () =>
     Effect.gen(function* () {
       const decoded = yield* extract.output.decode({
-        transactions: [{ date: "2026-01-15", amount: 1947.26, rawIssuerString: "VIR ACME" }],
+        transactions: [
+          {
+            date: "2026-01-15",
+            amount: 1947.26,
+            rawIssuerString: "VIR ACME",
+            rawSource: { Libellé: "VIR ACME", Crédit: "1 947,26" },
+          },
+        ],
         declaredTotals: { debit: 0, credit: 1947.26 },
+        missingColumns: ["Débit"],
       });
 
-      assert.instanceOf(decoded, ExtractPdfResult);
+      assert.instanceOf(decoded, ExtractionOutput);
       assert.strictEqual(decoded.transactions[0].amount, 1947.26);
+      assert.deepStrictEqual([...decoded.missingColumns], ["Débit"]);
     }),
   );
+
+  /**
+   * Issue #189 — each row's cells come back keyed by the statement's own column
+   * names, with the values as the statement printed them. The parsed `amount`
+   * and the printed `Crédit` disagree on purpose: one is for arithmetic, the
+   * other is provenance.
+   */
+  it.effect("carries each row's own cells, in the statement's own words", () =>
+    Effect.gen(function* () {
+      const decoded = yield* extract.output.decode({
+        transactions: [
+          {
+            date: "2026-01-15",
+            amount: 1947.26,
+            rawIssuerString: "VIR ACME",
+            rawSource: { Libellé: "VIR ACME", Crédit: "1 947,26" },
+          },
+        ],
+        declaredTotals: { debit: 0, credit: 1947.26 },
+        missingColumns: [],
+      });
+
+      assert.deepStrictEqual(
+        { ...decoded.transactions[0].rawSource },
+        {
+          Libellé: "VIR ACME",
+          Crédit: "1 947,26",
+        },
+      );
+    }),
+  );
+
+  /**
+   * The archive is **required** of the model, for the reason `missingColumns`
+   * is: a silence would fold into "this row had nothing to keep", which is the
+   * very premise (#175's "there is no original row") this ticket exists to make
+   * false. The schema travels as the tool's own input schema, so a required
+   * field is one the provider enforces, and an answer without it fails loudly
+   * and retryably (`ExtractionFailed`, 502) rather than importing rows with no
+   * provenance.
+   */
+  it.effect("refuses a row that archives nothing at all", () =>
+    Effect.gen(function* () {
+      const issues = yield* Effect.flip(
+        extract.output.decode({
+          transactions: [{ date: "2026-01-15", amount: 1947.26, rawIssuerString: "VIR ACME" }],
+          declaredTotals: { debit: 0, credit: 1947.26 },
+          missingColumns: [],
+        }),
+      );
+
+      const [first] = issues as ReadonlyArray<{ readonly path: ReadonlyArray<PropertyKey> }>;
+      assert.deepStrictEqual([...first.path], ["transactions", 0, "rawSource"]);
+    }),
+  );
+
+  /**
+   * Issue #196 — not every statement prints a `TOTAL DES OPÉRATIONS` line, and
+   * until this the model was asked for two figures that were not on the page.
+   * `null` is the answer for "there is no totals line", and it is a *required*
+   * null for the same reason `missingColumns` is required: a silence would be
+   * folded into an answer nobody gave. The endpoint turns it into an absent
+   * field, and the client's reconciliation check skips rather than reconciling
+   * against an assumed zero.
+   */
+  it.effect("takes null totals from a statement that prints none", () =>
+    Effect.gen(function* () {
+      const decoded = yield* extract.output.decode({
+        transactions: [],
+        declaredTotals: null,
+        missingColumns: [],
+      });
+
+      assert.strictEqual(decoded.declaredTotals, null);
+    }),
+  );
+
+  it.effect("refuses an answer that says nothing about the totals at all", () =>
+    Effect.gen(function* () {
+      const issues = yield* Effect.flip(
+        extract.output.decode({ transactions: [], missingColumns: [] }),
+      );
+
+      const [first] = issues as ReadonlyArray<{ readonly path: ReadonlyArray<PropertyKey> }>;
+      assert.deepStrictEqual([...first.path], ["declaredTotals"]);
+    }),
+  );
+
+  /**
+   * `missingColumns` is **required**, not defaulted to empty. An answer that
+   * omits it is not an answer to the question this ticket asks — and folding a
+   * silence into "everything matched" would restore exactly the silent wrongness
+   * the verdict exists to end. The schema goes to the model as the tool's own
+   * input schema, so a required field is one the provider enforces; a missing one
+   * fails loudly and retryably (`ExtractionFailed`, 502).
+   */
+  it.effect("refuses an answer that reports no verdict at all", () =>
+    Effect.gen(function* () {
+      const issues = yield* Effect.flip(
+        extract.output.decode({
+          transactions: [],
+          declaredTotals: { debit: 0, credit: 0 },
+        }),
+      );
+
+      // `decode`'s error channel is the adapter's `unknown`; what it actually
+      // carries is the `ArrayFormatter` issues, as `codec.test.ts` pins.
+      const [first] = issues as ReadonlyArray<{ readonly path: ReadonlyArray<PropertyKey> }>;
+      assert.deepStrictEqual([...first.path], ["missingColumns"]);
+    }),
+  );
+
+  // The contract class the *endpoint* answers with is a different shape: it
+  // carries the folded verdict, which the model is never asked for.
+  it("is not the endpoint's own result class", () => {
+    assert.notStrictEqual(ExtractionOutput, ExtractPdfResult as unknown);
+  });
 });

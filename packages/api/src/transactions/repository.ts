@@ -1,7 +1,7 @@
 import { SqlClient, SqlSchema } from "@effect/sql";
 import type { Fragment } from "@effect/sql/Statement";
 import {
-  type AccountId,
+  AccountId,
   AnomalyFlag,
   CategoryNotLeaf,
   NotFound,
@@ -34,9 +34,10 @@ import { recapPredicates } from "./recap-predicate";
  * `manualIssuer`, `isRefund`, `isDuplicateExcluded`, `excludedFromRecap`,
  * `manualExcluded`, `manualDate`) are sqlite `INTEGER`
  * 0/1, the FK columns and optional strings come back as `null` (not absent), and
- * `anomalyFlags` is a JSON-encoded TEXT blob (or `null`). {@link TransactionFromRow}
- * folds all of this into the wire `Transaction`: `null` → absent, `1` → `true`
- * (`0` → absent, matching the old `=== 1 ? true : undefined`), JSON → the array.
+ * `anomalyFlags` and `rawSource` are JSON-encoded TEXT blobs (or `null`).
+ * {@link TransactionFromRow} folds all of this into the wire `Transaction`:
+ * `null` → absent, `1` → `true` (`0` → absent, matching the old
+ * `=== 1 ? true : undefined`), JSON → the array / the object.
  */
 const TransactionRow = Schema.Struct({
   id: Schema.Number,
@@ -64,6 +65,8 @@ const TransactionRow = Schema.Struct({
   excludedFromRecap: Schema.Number,
   manualExcluded: Schema.Number,
   notes: Schema.NullOr(Schema.String),
+  rawSource: Schema.NullOr(Schema.String),
+  counterpartyIban: Schema.NullOr(Schema.String),
   importedAt: Schema.String,
   importMonth: Schema.String,
   importBatchId: Schema.NullOr(Schema.String),
@@ -71,6 +74,15 @@ const TransactionRow = Schema.Struct({
 
 /** The JSON-array codec used inside the `anomalyFlags` TEXT column. */
 const AnomalyFlagsJson = Schema.parseJson(Schema.Array(AnomalyFlag));
+
+/**
+ * The JSON-object codec used inside the `rawSource` TEXT column (issue #176) —
+ * the **raw source**, the bank's own row kept verbatim. The same storage shape
+ * `anomalyFlags` uses: JSON in TEXT, opaque to SQL, parsed and stringified here
+ * so the handlers only ever see the object. Untyped beyond string keys to string
+ * values, because the shape is the provider's and not ours to promise.
+ */
+const RawSourceJson = Schema.parseJson(Schema.Record({ key: Schema.String, value: Schema.String }));
 
 /**
  * A flag list as the column holds it: `null` when there are none, so a row that
@@ -122,6 +134,12 @@ export const TransactionFromRow = Schema.transform(TransactionRow, Transaction, 
     ...(row.excludedFromRecap === 1 ? { excludedFromRecap: true } : {}),
     ...(row.manualExcluded === 1 ? { manualExcluded: true } : {}),
     ...(row.notes !== null ? { notes: row.notes } : {}),
+    ...(row.rawSource !== null
+      ? { rawSource: Schema.decodeSync(RawSourceJson)(row.rawSource) }
+      : {}),
+    // A plain string column, so the ordinary null → absent fold: a card row
+    // carries no counterparty IBAN and reads back with the field missing.
+    ...(row.counterpartyIban !== null ? { counterpartyIban: row.counterpartyIban } : {}),
     importedAt: row.importedAt,
     importMonth: row.importMonth,
     ...(row.importBatchId !== null ? { importBatchId: row.importBatchId } : {}),
@@ -151,6 +169,8 @@ export const TransactionFromRow = Schema.transform(TransactionRow, Transaction, 
     excludedFromRecap: t.excludedFromRecap ? 1 : 0,
     manualExcluded: t.manualExcluded ? 1 : 0,
     notes: t.notes ?? null,
+    rawSource: t.rawSource !== undefined ? Schema.encodeSync(RawSourceJson)(t.rawSource) : null,
+    counterpartyIban: t.counterpartyIban ?? null,
     importedAt: t.importedAt,
     importMonth: t.importMonth,
     importBatchId: t.importBatchId ?? null,
@@ -193,6 +213,8 @@ const TransferCandidateRow = Schema.Struct({
   f_excludedFromRecap: Schema.Number,
   f_manualExcluded: Schema.Number,
   f_notes: Schema.NullOr(Schema.String),
+  f_rawSource: Schema.NullOr(Schema.String),
+  f_counterpartyIban: Schema.NullOr(Schema.String),
   f_importedAt: Schema.String,
   f_importMonth: Schema.String,
   f_importBatchId: Schema.NullOr(Schema.String),
@@ -217,10 +239,17 @@ const TransferCandidateRow = Schema.Struct({
   t_excludedFromRecap: Schema.Number,
   t_manualExcluded: Schema.Number,
   t_notes: Schema.NullOr(Schema.String),
+  t_rawSource: Schema.NullOr(Schema.String),
+  t_counterpartyIban: Schema.NullOr(Schema.String),
   t_importedAt: Schema.String,
   t_importMonth: Schema.String,
   t_importBatchId: Schema.NullOr(Schema.String),
   daysApart: Schema.Number,
+  // The **IBAN-confirmed** mark (issue #179), computed per pair: the id of the
+  // account one leg's counterparty IBAN named, or null when neither named the
+  // other's. Decoded through `AccountId` here rather than as a bare number, so
+  // the branded id the wire type wants comes out of the query already branded.
+  ibanConfirmedAccountId: Schema.NullOr(AccountId),
 });
 
 /**
@@ -253,6 +282,8 @@ const legFromRow = (row: typeof TransferCandidateRow.Type, prefix: "f" | "t"): T
     excludedFromRecap: pick("excludedFromRecap"),
     manualExcluded: pick("manualExcluded"),
     notes: pick("notes"),
+    rawSource: pick("rawSource"),
+    counterpartyIban: pick("counterpartyIban"),
     importedAt: pick("importedAt"),
     importMonth: pick("importMonth"),
     importBatchId: pick("importBatchId"),
@@ -285,6 +316,11 @@ const groupCandidates = (
       new TransferCounterpart({
         transaction: legFromRow(row, "t"),
         daysApart: row.daysApart,
+        // Null → absent, the fold every optional field on this payload uses:
+        // "no IBAN evidence" is the ordinary case and gets one spelling.
+        ...(row.ibanConfirmedAccountId !== null
+          ? { ibanConfirmedAccountId: row.ibanConfirmedAccountId }
+          : {}),
       }),
     );
   }
@@ -413,6 +449,8 @@ export type WriteRow = {
   excludedFromRecap: number;
   manualExcluded: number;
   notes: string | null;
+  rawSource: string | null;
+  counterpartyIban: string | null;
   importedAt: string;
   importMonth: string;
   importBatchId: string | null;
@@ -456,10 +494,21 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()("api/Tran
     // The **derived** category expression (model A / ADR 0002): a manual row
     // keeps its own stored `categoryId`; a non-manual row reads its issuer's
     // `defaultCategoryId` (null when unmatched or the issuer has no default).
-    // One fragment, reused by the read projection, the count, AND the category
-    // filter — so the read and the filter can never disagree (the drift ADR
-    // 0002 records). Requires the `issuers` LEFT JOIN (`readFrom`) in scope.
-    const derivedCategory = sql`CASE WHEN t.manualCategory = 1 THEN t.categoryId ELSE i.defaultCategoryId END`;
+    // ONE definition, under whichever pair of aliases the query joins them —
+    // the read projection, the count and the category filter all reach it, so
+    // the read and the filter can never disagree (the drift ADR 0002 records),
+    // and so do the self-join projections below, where each leg reads through
+    // its OWN issuer. Alias-parameterised for the same reason
+    // `recapExclusionFor` is (issue #174): the fragment was alias-locked to
+    // `t`/`i`, so every query joining transactions under another alias had to
+    // hand-copy the `CASE` — three of them did, and the next edit to the rule
+    // would have had to land in four places.
+    const derivedCategoryFor = (row: "t" | "c" | "f", issuer: "i" | "ci" | "fi") =>
+      sql`CASE WHEN ${sql.literal(row)}.manualCategory = 1 THEN ${sql.literal(row)}.categoryId ELSE ${sql.literal(issuer)}.defaultCategoryId END`;
+
+    // The stored aliases, the shape everything in this file's own read path
+    // uses. Requires the `issuers` LEFT JOIN (`readFrom`) in scope.
+    const derivedCategory = derivedCategoryFor("t", "i");
 
     // The recap's fragments — **excluded from recap** (issues #67/#69, ADR
     // 0008), the **bundle-membership** rule (#68) and the single
@@ -471,14 +520,22 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()("api/Tran
     // projection and the `excludedFromRecap` filter read the SAME fragment, so
     // the row a filter selects and the row a projection shows can never
     // disagree about being excluded.
-    const { recapExclusion, isTransferLeg, isNotBundleMember, isRecapExcluded, countsTowardRecap } =
-      recapPredicates(sql);
+    const {
+      recapExclusion,
+      isTransferLeg,
+      isNotBundleMemberFor,
+      isNotBundleMember,
+      isRecapExcluded,
+      countsTowardRecap,
+    } = recapPredicates(sql);
 
     // The same expression under different table aliases, for the two
     // self-join projections below (`suggestTransfers`, `transferCandidates`):
     // each leg reads through its OWN issuer. Kept as one generator rather
     // than three hand-written copies — a candidate is the same row the list
     // projects, so the two reads must never disagree about whether it counts.
+    // `derivedCategoryFor` above is the same generator for the sibling rule,
+    // and the two are called on adjacent lines at every self-join site.
     const recapExclusionFor = (row: "c" | "f", issuer: "ci" | "fi") =>
       sql`CASE WHEN ${sql.literal(row)}.manualExcluded = 1 THEN ${sql.literal(row)}.excludedFromRecap ELSE COALESCE(${sql.literal(issuer)}.excludedFromRecap, 0) END`;
 
@@ -687,7 +744,7 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()("api/Tran
     // (`RETURNING *`) echo the stored row verbatim, and the internal
     // `storedByIdQuery` reads the raw row so an update's merge never persists
     // a derived value.
-    const readColumns = sql`t.id, t.accountId, t.date, t.amount, t.rawIssuerString, t.issuerId, ${derivedCategory} AS categoryId, t.manualCategory, t.manualIssuer, t.isRefund, t.linkedRefundId, t.transferGroupId, t.kind, t.bundleId, t.manualDate, t.anomalyFlags, t.isDuplicateExcluded, t.duplicateNote, ${recapExclusion} AS excludedFromRecap, t.manualExcluded, t.notes, t.importedAt, t.importMonth, t.importBatchId`;
+    const readColumns = sql`t.id, t.accountId, t.date, t.amount, t.rawIssuerString, t.issuerId, ${derivedCategory} AS categoryId, t.manualCategory, t.manualIssuer, t.isRefund, t.linkedRefundId, t.transferGroupId, t.kind, t.bundleId, t.manualDate, t.anomalyFlags, t.isDuplicateExcluded, t.duplicateNote, ${recapExclusion} AS excludedFromRecap, t.manualExcluded, t.notes, t.rawSource, t.counterpartyIban, t.importedAt, t.importMonth, t.importBatchId`;
     const readFrom = sql`FROM transactions t LEFT JOIN issuers i ON t.issuerId = i.id`;
 
     // `Request: Schema.Any` skips a redundant re-decode: filters are already
@@ -734,7 +791,45 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()("api/Tran
     // `linkTransfer` and `createBundle` apply to comparing and summing money.
     // `ROUND(-t.amount * 100)` is a whole number of cents held exactly in a
     // REAL, so `SUM` over them is exact.
+    //
+    // **Requires a WHERE that has already filtered to debits** — it negates
+    // every row it is given, so a credit inside the set would *subtract* from
+    // the spend. Only for queries running under `spendWhere`, which states
+    // `t.amount < 0`; anywhere else it is `debitCents` below (issue #167).
     const spentCents = sql`SUM(ROUND(-t.amount * 100))`;
+
+    // The same figure for a query whose WHERE says nothing about sign, so the
+    // sign filter moves inside the aggregate: debit magnitudes summed, credits
+    // contributing 0 rather than cancelling them. **Safe under any WHERE** —
+    // that is the whole difference from `spentCents`, and why both are named
+    // here rather than pasted per call site, where the two forms look alike
+    // enough to swap (issue #167).
+    //
+    // `COALESCE(…, 0)` is part of the fragment because two of its three readers
+    // are single-row aggregates over a possibly empty set, where a bare `SUM`
+    // is SQL `NULL` and the line should read 0.
+    const debitCents = sql`COALESCE(SUM(CASE WHEN t.amount < 0 THEN ROUND(-t.amount * 100) ELSE 0 END), 0)`;
+
+    // The credit half the trend pairs with `debitCents`: income as a **positive
+    // magnitude**, debits contributing 0. Self-filtering for the same reason —
+    // `trendWhere` deliberately carries no sign clause — and **needs a WHERE
+    // that does not filter to debits**, or it reports 0 for every bucket.
+    const creditCents = sql`COALESCE(SUM(CASE WHEN t.amount > 0 THEN ROUND(t.amount * 100) ELSE 0 END), 0)`;
+
+    // The trend's **bucket key** (issue #113), shared by both trend queries
+    // below the way `spentCents` is shared by the breakdowns above (issue
+    // #173): a cell of the composition sums into the point beside it only
+    // while the two agree on what a bucket *is*, so the derivation is stated
+    // once rather than copied into each `execute`.
+    //
+    // A `substr` of the ISO `date` TEXT, never a parsed date, so `"YYYY-MM"`
+    // and `"YYYY"` fall straight out of the same column every period bound is
+    // expressed over — the identical derivation `recapPeriodsQuery` uses for
+    // the picker's options. Granularity therefore costs one prefix length (7 or
+    // 4) and nothing else; it is `sql.literal` because it is a schema-validated
+    // enum of two values, never caller text.
+    const trendBucket = (granularity: TrendFilter["granularity"]) =>
+      sql`substr(t.date, 1, ${sql.literal(granularity === "year" ? "4" : "7")})`;
 
     // Spend per **issuer** over the whole filtered set — no page, no cap. The
     // `null` group is the rows with no issuer: unattributed spend is still
@@ -775,7 +870,7 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()("api/Tran
       Request: Schema.Any as Schema.Schema<Filters>,
       Result: RecapTransfers,
       execute: (f) =>
-        sql`SELECT COALESCE(SUM(CASE WHEN t.amount < 0 THEN ROUND(-t.amount * 100) ELSE 0 END), 0) / 100.0 AS total, COUNT(*) AS count ${readFrom} WHERE ${sql.and([...buildConditions(f), isTransferLeg, sql`NOT ${isRecapExcluded}`, isNotBundleMember])}`,
+        sql`SELECT ${debitCents} / 100.0 AS total, COUNT(*) AS count ${readFrom} WHERE ${sql.and([...buildConditions(f), isTransferLeg, sql`NOT ${isRecapExcluded}`, isNotBundleMember])}`,
     });
 
     // The spend held out of the breakdowns by an exclusion decision (issue
@@ -802,7 +897,7 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()("api/Tran
       Request: Schema.Any as Schema.Schema<Filters>,
       Result: RecapExcluded,
       execute: (f) =>
-        sql`SELECT COALESCE(SUM(CASE WHEN t.amount < 0 THEN ROUND(-t.amount * 100) ELSE 0 END), 0) / 100.0 AS total, COUNT(*) AS count ${readFrom} WHERE ${sql.and([...buildConditions(f), isRecapExcluded, isNotBundleMember])}`,
+        sql`SELECT ${debitCents} / 100.0 AS total, COUNT(*) AS count ${readFrom} WHERE ${sql.and([...buildConditions(f), isRecapExcluded, isNotBundleMember])}`,
     });
 
     // The **trend**'s WHERE (issue #113): the caller's filters AND the single
@@ -823,14 +918,11 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()("api/Tran
 
     // Earnings and spending per time bucket, both as **positive magnitudes** in
     // integer cents (the same discipline every other money sum here uses — three
-    // 0.10 € rows added as REALs give 0.30000000000000004).
-    //
-    // The bucket key is a `substr` of the ISO `date` TEXT, never a parsed date,
-    // so `"YYYY-MM"` and `"YYYY"` fall straight out of the same column every
-    // period bound is expressed over — the identical derivation
-    // `recapPeriodsQuery` uses for the picker's options. Granularity therefore
-    // costs one prefix length (7 or 4) and nothing else; it is `sql.literal`
-    // because it is a schema-validated enum of two values, never caller text.
+    // 0.10 € rows added as REALs give 0.30000000000000004). The bucket key is
+    // the shared `trendBucket` fragment, and the two halves are the shared
+    // `creditCents` / `debitCents` — the self-filtering sums, because
+    // `trendWhere` below carries no sign clause for them to lean on. All three
+    // are declared beside `spentCents` above.
     //
     // Only buckets holding at least one counted row come back: a gap in the
     // middle of a range is a real gap, and it is the client that decides whether
@@ -840,10 +932,8 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()("api/Tran
     const recapTrendQuery = SqlSchema.findAll({
       Request: Schema.Any as Schema.Schema<TrendFilter>,
       Result: RecapTrendPoint,
-      execute: (f) => {
-        const bucket = sql`substr(t.date, 1, ${sql.literal(f.granularity === "year" ? "4" : "7")})`;
-        return sql`SELECT ${bucket} AS bucket, COALESCE(SUM(CASE WHEN t.amount > 0 THEN ROUND(t.amount * 100) ELSE 0 END), 0) / 100.0 AS earned, COALESCE(SUM(CASE WHEN t.amount < 0 THEN ROUND(-t.amount * 100) ELSE 0 END), 0) / 100.0 AS spent ${readFrom} ${trendWhere(f)} GROUP BY bucket ORDER BY bucket ASC`;
-      },
+      execute: (f) =>
+        sql`SELECT ${trendBucket(f.granularity)} AS bucket, ${creditCents} / 100.0 AS earned, ${debitCents} / 100.0 AS spent ${readFrom} ${trendWhere(f)} GROUP BY bucket ORDER BY bucket ASC`,
     });
 
     // The **composition** series: spending cut by bucket AND derived category
@@ -862,14 +952,12 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()("api/Tran
     // reporting the derived id — splitting one category into several rows for
     // the same bucket, which the client would draw as two bands of one thing.
     // The by-category breakdown groups by the same expression for the same
-    // reason; `bucket` is safe to name because nothing else is called that.
+    // reason.
     const recapTrendByCategoryQuery = SqlSchema.findAll({
       Request: Schema.Any as Schema.Schema<TrendFilter>,
       Result: RecapTrendCategoryCell,
-      execute: (f) => {
-        const bucket = sql`substr(t.date, 1, ${sql.literal(f.granularity === "year" ? "4" : "7")})`;
-        return sql`SELECT ${bucket} AS bucket, ${derivedCategory} AS categoryId, ${spentCents} / 100.0 AS spent ${readFrom} ${spendWhere(f)} GROUP BY bucket, ${derivedCategory} ORDER BY bucket ASC, categoryId`;
-      },
+      execute: (f) =>
+        sql`SELECT ${trendBucket(f.granularity)} AS bucket, ${derivedCategory} AS categoryId, ${spentCents} / 100.0 AS spent ${readFrom} ${spendWhere(f)} GROUP BY bucket, ${derivedCategory} ORDER BY bucket ASC, categoryId`,
     });
 
     // The months the data covers, newest first — the period picker's options.
@@ -940,8 +1028,13 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()("api/Tran
     // **bundle** or IS a **bundle parent**: the two groupings are mutually
     // exclusive, so offering a bundled row could only earn a 422. `kind` is
     // COALESCEd because a row written before the column reads as `bank`.
+    //
+    // The membership half is the SAME `isNotBundleMemberFor` the recap and the
+    // list read (issue #174), under this query's alias, not a second copy of
+    // it: a row the list treats as standing for itself is exactly a row this
+    // may offer as a leg.
     const transferEligibleFor = (a: "c" | "f") =>
-      sql`${sql.literal(a)}.transferGroupId IS NULL AND ${sql.literal(a)}.isRefund = 0 AND ${sql.literal(a)}.linkedRefundId IS NULL AND ${sql.literal(a)}.bundleId IS NULL AND COALESCE(${sql.literal(a)}.kind, 'bank') <> 'bundle'`;
+      sql`${sql.literal(a)}.transferGroupId IS NULL AND ${sql.literal(a)}.isRefund = 0 AND ${sql.literal(a)}.linkedRefundId IS NULL AND ${isNotBundleMemberFor(a)} AND COALESCE(${sql.literal(a)}.kind, 'bank') <> 'bundle'`;
 
     // Internal-transfer counterpart suggestions (PRD #48), computed in SQL so
     // they see the WHOLE dataset — not just a loaded page, the limit of the
@@ -972,7 +1065,7 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()("api/Tran
       Request: TransactionId,
       Result: TransactionFromRow,
       execute: (id) =>
-        sql`SELECT c.id, c.accountId, c.date, c.amount, c.rawIssuerString, c.issuerId, CASE WHEN c.manualCategory = 1 THEN c.categoryId ELSE ci.defaultCategoryId END AS categoryId, c.manualCategory, c.manualIssuer, c.isRefund, c.linkedRefundId, c.transferGroupId, c.kind, c.bundleId, c.manualDate, c.anomalyFlags, c.isDuplicateExcluded, c.duplicateNote, ${recapExclusionFor("c", "ci")} AS excludedFromRecap, c.manualExcluded, c.notes, c.importedAt, c.importMonth, c.importBatchId
+        sql`SELECT c.id, c.accountId, c.date, c.amount, c.rawIssuerString, c.issuerId, ${derivedCategoryFor("c", "ci")} AS categoryId, c.manualCategory, c.manualIssuer, c.isRefund, c.linkedRefundId, c.transferGroupId, c.kind, c.bundleId, c.manualDate, c.anomalyFlags, c.isDuplicateExcluded, c.duplicateNote, ${recapExclusionFor("c", "ci")} AS excludedFromRecap, c.manualExcluded, c.notes, c.rawSource, c.counterpartyIban, c.importedAt, c.importMonth, c.importBatchId
 						FROM transactions t
 						JOIN transactions c
 							ON c.id <> t.id
@@ -1010,13 +1103,42 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()("api/Tran
     // property of the *query*, not of a client-side filter some surface could
     // forget to apply.
     const candidateColumns = (a: "f" | "c", issuerAlias: "fi" | "ci", prefix: "f" | "t") =>
-      sql`${sql.literal(a)}.id AS ${sql.literal(prefix)}_id, ${sql.literal(a)}.accountId AS ${sql.literal(prefix)}_accountId, ${sql.literal(a)}.date AS ${sql.literal(prefix)}_date, ${sql.literal(a)}.amount AS ${sql.literal(prefix)}_amount, ${sql.literal(a)}.rawIssuerString AS ${sql.literal(prefix)}_rawIssuerString, ${sql.literal(a)}.issuerId AS ${sql.literal(prefix)}_issuerId, CASE WHEN ${sql.literal(a)}.manualCategory = 1 THEN ${sql.literal(a)}.categoryId ELSE ${sql.literal(issuerAlias)}.defaultCategoryId END AS ${sql.literal(prefix)}_categoryId, ${sql.literal(a)}.manualCategory AS ${sql.literal(prefix)}_manualCategory, ${sql.literal(a)}.manualIssuer AS ${sql.literal(prefix)}_manualIssuer, ${sql.literal(a)}.isRefund AS ${sql.literal(prefix)}_isRefund, ${sql.literal(a)}.linkedRefundId AS ${sql.literal(prefix)}_linkedRefundId, ${sql.literal(a)}.transferGroupId AS ${sql.literal(prefix)}_transferGroupId, ${sql.literal(a)}.kind AS ${sql.literal(prefix)}_kind, ${sql.literal(a)}.bundleId AS ${sql.literal(prefix)}_bundleId, ${sql.literal(a)}.manualDate AS ${sql.literal(prefix)}_manualDate, ${sql.literal(a)}.anomalyFlags AS ${sql.literal(prefix)}_anomalyFlags, ${sql.literal(a)}.isDuplicateExcluded AS ${sql.literal(prefix)}_isDuplicateExcluded, ${sql.literal(a)}.duplicateNote AS ${sql.literal(prefix)}_duplicateNote, ${recapExclusionFor(a, issuerAlias)} AS ${sql.literal(prefix)}_excludedFromRecap, ${sql.literal(a)}.manualExcluded AS ${sql.literal(prefix)}_manualExcluded, ${sql.literal(a)}.notes AS ${sql.literal(prefix)}_notes, ${sql.literal(a)}.importedAt AS ${sql.literal(prefix)}_importedAt, ${sql.literal(a)}.importMonth AS ${sql.literal(prefix)}_importMonth, ${sql.literal(a)}.importBatchId AS ${sql.literal(prefix)}_importBatchId`;
+      sql`${sql.literal(a)}.id AS ${sql.literal(prefix)}_id, ${sql.literal(a)}.accountId AS ${sql.literal(prefix)}_accountId, ${sql.literal(a)}.date AS ${sql.literal(prefix)}_date, ${sql.literal(a)}.amount AS ${sql.literal(prefix)}_amount, ${sql.literal(a)}.rawIssuerString AS ${sql.literal(prefix)}_rawIssuerString, ${sql.literal(a)}.issuerId AS ${sql.literal(prefix)}_issuerId, ${derivedCategoryFor(a, issuerAlias)} AS ${sql.literal(prefix)}_categoryId, ${sql.literal(a)}.manualCategory AS ${sql.literal(prefix)}_manualCategory, ${sql.literal(a)}.manualIssuer AS ${sql.literal(prefix)}_manualIssuer, ${sql.literal(a)}.isRefund AS ${sql.literal(prefix)}_isRefund, ${sql.literal(a)}.linkedRefundId AS ${sql.literal(prefix)}_linkedRefundId, ${sql.literal(a)}.transferGroupId AS ${sql.literal(prefix)}_transferGroupId, ${sql.literal(a)}.kind AS ${sql.literal(prefix)}_kind, ${sql.literal(a)}.bundleId AS ${sql.literal(prefix)}_bundleId, ${sql.literal(a)}.manualDate AS ${sql.literal(prefix)}_manualDate, ${sql.literal(a)}.anomalyFlags AS ${sql.literal(prefix)}_anomalyFlags, ${sql.literal(a)}.isDuplicateExcluded AS ${sql.literal(prefix)}_isDuplicateExcluded, ${sql.literal(a)}.duplicateNote AS ${sql.literal(prefix)}_duplicateNote, ${recapExclusionFor(a, issuerAlias)} AS ${sql.literal(prefix)}_excludedFromRecap, ${sql.literal(a)}.manualExcluded AS ${sql.literal(prefix)}_manualExcluded, ${sql.literal(a)}.notes AS ${sql.literal(prefix)}_notes, ${sql.literal(a)}.rawSource AS ${sql.literal(prefix)}_rawSource, ${sql.literal(a)}.counterpartyIban AS ${sql.literal(prefix)}_counterpartyIban, ${sql.literal(a)}.importedAt AS ${sql.literal(prefix)}_importedAt, ${sql.literal(a)}.importMonth AS ${sql.literal(prefix)}_importMonth, ${sql.literal(a)}.importBatchId AS ${sql.literal(prefix)}_importBatchId`;
+
+    // The **IBAN-confirmed** mark (issue #179): the id of the account one leg's
+    // **counterparty IBAN** named, or null. The bank itself says which account
+    // the money reached, so a pairing carrying this is certain rather than
+    // probable — and the id is what lets the surface name the matched account
+    // instead of asserting confidence without evidence.
+    //
+    // Satisfied from **either** direction, hence the two branches: the debit
+    // naming the credit's account (the account named is the credit's), or the
+    // credit naming the debit's (the debit's). Only SEPA rows carry an IBAN at
+    // all, so requiring both would make the signal fire almost never, while one
+    // is already conclusive — an IBAN naming the exact counterpart account is
+    // not a coincidence. Order of the branches decides only which id is reported
+    // when both hold, and both name a true match.
+    //
+    // Both sides are normalised the same way (upper-case, unspaced) at the write
+    // edge, which is what makes a plain `=` the right comparison. The `IS NOT
+    // NULL` guards are not redundant: SQL equality against null is null, but an
+    // account with an empty-string IBAN would otherwise match a leg whose column
+    // is likewise empty, and "" is not evidence of anything.
+    //
+    // Nothing here touches the WHERE/ORDER BY — the mark **labels, and never
+    // reorders**. It is derived on every read with the candidate itself and
+    // never stored (ADR 0010).
+    const ibanConfirmedAccountId = sql`CASE
+							WHEN f.counterpartyIban IS NOT NULL AND ca.iban IS NOT NULL AND f.counterpartyIban <> '' AND f.counterpartyIban = ca.iban THEN c.accountId
+							WHEN c.counterpartyIban IS NOT NULL AND fa.iban IS NOT NULL AND c.counterpartyIban <> '' AND c.counterpartyIban = fa.iban THEN f.accountId
+							ELSE NULL
+						END`;
 
     const transferCandidatesQuery = SqlSchema.findAll({
       Request: Schema.Void,
       Result: TransferCandidateRow,
       execute: () =>
-        sql`SELECT ${candidateColumns("f", "fi", "f")}, ${candidateColumns("c", "ci", "t")}, CAST(ABS(julianday(c.date) - julianday(f.date)) AS INTEGER) AS daysApart
+        sql`SELECT ${candidateColumns("f", "fi", "f")}, ${candidateColumns("c", "ci", "t")}, CAST(ABS(julianday(c.date) - julianday(f.date)) AS INTEGER) AS daysApart, ${ibanConfirmedAccountId} AS ibanConfirmedAccountId
 						FROM transactions f
 						JOIN transactions c
 							ON f.amount < 0
@@ -1029,6 +1151,8 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()("api/Tran
 							AND NOT EXISTS (SELECT 1 FROM transfer_dismissals d WHERE d.debitId = f.id AND d.creditId = c.id)
 						LEFT JOIN issuers fi ON f.issuerId = fi.id
 						LEFT JOIN issuers ci ON c.issuerId = ci.id
+						LEFT JOIN accounts fa ON f.accountId = fa.id
+						LEFT JOIN accounts ca ON c.accountId = ca.id
 						ORDER BY ABS(julianday(c.date) - julianday(f.date)), f.id, c.id`,
     });
 
@@ -1178,6 +1302,10 @@ export class TransactionRepo extends Effect.Service<TransactionRepo>()("api/Tran
       excludedFromRecap: t.excludedFromRecap ? 1 : 0,
       manualExcluded: t.manualExcluded ? 1 : 0,
       notes: t.notes ?? null,
+      rawSource: t.rawSource !== undefined ? Schema.encodeSync(RawSourceJson)(t.rawSource) : null,
+      // Stored as handed over: normalisation is the import edge's job (the
+      // parser), so the repository never rewrites what a caller stated.
+      counterpartyIban: t.counterpartyIban ?? null,
       importedAt: t.importedAt.toISOString(),
       importMonth: t.importMonth,
       importBatchId: t.importBatchId ?? null,

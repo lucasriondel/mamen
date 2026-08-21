@@ -1,19 +1,34 @@
-import { Undo2, X } from "lucide-react";
+import type { StatementFormatCreate } from "@mamen/shared/contract";
+import { createColumnHelper } from "@tanstack/react-table";
 import { useMemo } from "react";
-import { Button } from "@/components/ui/button";
 import { formatCurrency, formatMonth, formatShortDate } from "@/lib/format";
 import { AlreadyImportedMark } from "./already-imported-mark";
+import { CandidateFilters } from "./candidate-filters";
+import {
+  CandidateTable,
+  type PreviewColumn,
+  skipColumn,
+  SkippedNote,
+  strikeWhileSkipped,
+  useCandidateTable,
+} from "./candidate-table";
+import type { CandidateRow } from "./candidate-rows";
 import { distinctMonths } from "./commit";
 import { CommitBar } from "./commit-bar";
+import { keptPositions } from "./kept-rows";
 import type { ParsedTransaction } from "./parsers/types";
 import { useDuplicateFlags } from "./use-duplicate-flags";
-import type { WizardAction } from "./wizard-reducer";
+import type { RowId, WizardAction } from "./wizard-reducer";
 
 /**
  * Step 2 (CSV path) — the mandatory, never-skippable preview. Shows the detected
  * format, target account, the month(s) found, and the row count, then a table of
- * the parsed rows, and the shared {@link CommitBar}. The PDF path uses its own
- * side-by-side validation view; both converge on the same commit rail.
+ * the parsed rows, and the shared {@link CommitBar}. The PDF path keeps its own
+ * side-by-side validation view — editable, with an add-row control and a
+ * reconciliation banner — but the *table* is the same one on the same
+ * **candidate-table primitives** since PRD #190's closing slice, so skipping and
+ * filtering read identically whichever file the user dropped. Both converge on
+ * the same commit rail.
  *
  * Rows that look **already imported** are marked (issue #89) and counted in the
  * bar, and each row carries a **skip** control (epic #85) — the recourse for a
@@ -29,31 +44,42 @@ import type { WizardAction } from "./wizard-reducer";
  */
 export function PreviewStep({
   records,
+  rowIds,
   skippedRows,
   accountName,
   parserLabel,
+  formatToCreate,
   onBack,
   dispatch,
 }: {
   records: readonly ParsedTransaction[];
-  /** Indices into `records` the user held out of the commit (ascending). */
-  skippedRows: readonly number[];
+  /** Positional with `records`: the **stable row id** a skip names each row by. */
+  rowIds: readonly RowId[];
+  /** The row ids the user held out of the commit. */
+  skippedRows: readonly RowId[];
   accountName: string;
   parserLabel: string;
+  /**
+   * The **Statement Format** built from this file, saved by the commit itself
+   * (issue #186); `null` for an import reading a stored one.
+   */
+  formatToCreate?: StatementFormatCreate | null;
   onBack: () => void;
   dispatch: (action: WizardAction) => void;
 }) {
   const skipped = useMemo(() => new Set(skippedRows), [skippedRows]);
-  const kept = useMemo(() => records.filter((_, index) => !skipped.has(index)), [records, skipped]);
+  // Where the kept rows sit, asked once and read twice — the same call the
+  // **side-by-side validation** view makes, since a skip means the same thing on
+  // both paths (issue #192).
+  const keep = useMemo(() => keptPositions(rowIds, skipped), [rowIds, skipped]);
+  const kept = useMemo(() => keep.map((index) => records[index]), [keep, records]);
   const months = distinctMonths(kept);
 
   // Flagged over ALL rows — the flags are positional with `records`, which is
   // what the table renders — but counted over the kept ones only: the bar's line
   // is about what this commit is going to write.
   const duplicates = useDuplicateFlags(records);
-  const duplicateCount = duplicates.flags.filter(
-    (flag, index) => flag && !skipped.has(index),
-  ).length;
+  const duplicateCount = keep.filter((index) => duplicates.flags[index]).length;
 
   return (
     <div className="flex flex-col gap-6">
@@ -61,6 +87,9 @@ export function PreviewStep({
         <Fact label="Format" value={parserLabel} />
         <Fact label="Account" value={accountName} />
         <Fact label="Months" value={months.map(formatMonth).join(", ")} />
+        {/* Kept of parsed — what the commit will write. The line the filters
+            carry ("Showing 2 of 4 rows") answers the other question, what is on
+            screen: a filtered-out row is hidden, not held out, and commits. */}
         <Fact
           label="Rows"
           value={
@@ -71,12 +100,18 @@ export function PreviewStep({
 
       <PreviewTable
         records={records}
+        rowIds={rowIds}
         duplicateFlags={duplicates.flags}
-        skipped={skipped}
+        skippedRows={skippedRows}
         dispatch={dispatch}
       />
 
-      <CommitBar records={kept} duplicateCount={duplicateCount} onBack={onBack} />
+      <CommitBar
+        records={kept}
+        duplicateCount={duplicateCount}
+        formatToCreate={formatToCreate}
+        onBack={onBack}
+      />
     </div>
   );
 }
@@ -91,122 +126,116 @@ function Fact({ label, value }: { label: string; value: string }) {
   );
 }
 
+const columnHelper = createColumnHelper<CandidateRow<ParsedTransaction>>();
+
 /**
  * The parsed rows, as they will be written. Read-only except for the skip: this
  * path has no editable values (the CSV said what it said), so the one decision
  * left is whether a row belongs in the import at all.
+ *
+ * The same table as **side-by-side validation** since PRD #190's last slice —
+ * TanStack Table over the shared **candidate-table primitives**
+ * ({@link useCandidateTable}), so both paths key on the row's **stable row id**,
+ * read their skips off row selection, and offer the statement's own columns as
+ * **row facets** and hidden columns. Two previews sharing primitives rather than
+ * one component behind capability flags: this one has no editable cell, no
+ * add-row control and no reconciliation banner, and none of that reaches it.
+ *
+ * The statement's columns are not named here. They are read off the rows' **raw
+ * source** inside the shared hook, so a CSV and a PDF of one statement cannot
+ * offer two different sets of filters.
+ *
+ * A skipped row stays where it was, struck through and saying so — it is not
+ * removed from the table. Removing it would leave the user no way back short of
+ * dropping the file again, and this is a preview: the point of it is that every
+ * row the statement holds is accounted for on screen.
  */
 function PreviewTable({
   records,
+  rowIds,
   duplicateFlags,
-  skipped,
+  skippedRows,
   dispatch,
 }: {
   records: readonly ParsedTransaction[];
+  /** Positional with `records`: the row id a skip names each row by. */
+  rowIds: readonly RowId[];
   /** Positional with `records`: does this row look already imported? */
   duplicateFlags: readonly boolean[];
-  /** Positional with `records`: is this row held out of the commit? */
-  skipped: ReadonlySet<number>;
+  /** The row ids held out of the commit. */
+  skippedRows: readonly RowId[];
   dispatch: (action: WizardAction) => void;
 }) {
+  /*
+   * The `header` and `cell` entries below are TanStack **renderers**, not
+   * components: the table calls them through `flexRender`, never as JSX — the
+   * same reason the side-by-side panel and the transactions grid disable this
+   * rule over their column definitions.
+   */
+  // oxlint-disable react/no-unstable-nested-components
+  const columns = useMemo<ReadonlyArray<PreviewColumn<ParsedTransaction>>>(
+    () => [
+      skipColumn<ParsedTransaction>(),
+      columnHelper.accessor((candidate) => candidate.row.date, {
+        id: "date",
+        header: "Date",
+        cell: ({ row }) => (
+          <span className={`tabular-nums ${strikeWhileSkipped(row.getIsSelected())}`}>
+            {formatShortDate(row.original.row.date)}
+          </span>
+        ),
+      }),
+      columnHelper.accessor((candidate) => candidate.row.rawIssuerString, {
+        id: "rawIssuer",
+        header: "Raw issuer",
+        cell: ({ row }) => (
+          <span className="flex flex-wrap items-center gap-2">
+            <span className={strikeWhileSkipped(row.getIsSelected())}>
+              {row.original.row.rawIssuerString}
+            </span>
+            {row.original.duplicate ? <AlreadyImportedMark /> : null}
+            {row.getIsSelected() ? <SkippedNote /> : null}
+          </span>
+        ),
+      }),
+      columnHelper.accessor((candidate) => candidate.row.amount, {
+        id: "amount",
+        header: () => <span className="block text-right">Amount</span>,
+        cell: ({ row }) => (
+          <span
+            className={`block text-right tabular-nums ${strikeWhileSkipped(row.getIsSelected())} ${
+              row.original.row.amount < 0 ? "text-gousse-high" : "text-gousse-low"
+            }`}
+          >
+            {formatCurrency(row.original.row.amount)}
+          </span>
+        ),
+      }),
+    ],
+    // A read-only cell closes over nothing, so the column list is built once and
+    // the table never sees a new column identity.
+    [],
+  );
+  // oxlint-enable react/no-unstable-nested-components
+
+  const { table, facets } = useCandidateTable({
+    rows: records,
+    rowIds,
+    duplicateFlags,
+    columns,
+    skippedRows,
+    dispatch,
+  });
+
   return (
-    <div className="overflow-hidden rounded-2xl border border-gousse-line">
+    <div className="flex flex-col gap-3 overflow-hidden rounded-2xl border border-gousse-line">
+      {/* Outside the scroll container: the filters say what the table below is
+          showing, so they must not scroll away from it (issue #195). */}
+      <CandidateFilters table={table} facets={facets} />
+
       <div className="max-h-[60vh] overflow-y-auto">
-        <table className="w-full text-sm">
-          <thead className="sticky top-0 bg-gousse-panel text-gousse-muted">
-            <tr>
-              <th className="px-3 py-2 text-left font-medium">Date</th>
-              <th className="px-3 py-2 text-left font-medium">Raw issuer</th>
-              <th className="px-3 py-2 text-right font-medium">Amount</th>
-              {/* The row-actions column: named for assistive tech rather than
-                  left blank, the same way the table columns elsewhere are. */}
-              <th className="px-3 py-2">
-                <span className="sr-only">Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {records.map((record, index) => (
-              <PreviewRow
-                key={`${record.importBatchId}-${index}`}
-                record={record}
-                position={index + 1}
-                duplicate={duplicateFlags[index] === true}
-                skipped={skipped.has(index)}
-                onSkip={() => dispatch({ type: "skip-row", index })}
-                onRestore={() => dispatch({ type: "restore-row", index })}
-              />
-            ))}
-          </tbody>
-        </table>
+        <CandidateTable table={table} />
       </div>
     </div>
-  );
-}
-
-/**
- * One previewed row. A skipped row stays where it was, struck through and saying
- * so — it is not removed from the table. Removing it would leave the user no way
- * back short of dropping the file again, and this is a preview: the point of it
- * is that every row the statement holds is accounted for on screen.
- */
-function PreviewRow({
-  record,
-  position,
-  duplicate,
-  skipped,
-  onSkip,
-  onRestore,
-}: {
-  record: ParsedTransaction;
-  /** The row's 1-based place in the table, as the controls name it. */
-  position: number;
-  duplicate: boolean;
-  skipped: boolean;
-  onSkip: () => void;
-  onRestore: () => void;
-}) {
-  const struck = skipped ? "line-through" : "";
-
-  return (
-    <tr className="border-gousse-line border-t">
-      <td className="px-3 py-2 text-gousse-ink">
-        <span className={`tabular-nums ${struck}`}>{formatShortDate(record.date)}</span>
-      </td>
-      <td className="px-3 py-2 text-gousse-ink">
-        <span className="flex flex-wrap items-center gap-2">
-          <span className={struck}>{record.rawIssuerString}</span>
-          {duplicate ? <AlreadyImportedMark /> : null}
-          {skipped ? (
-            <span className="whitespace-nowrap text-gousse-muted text-xs">
-              Skipped — won't be imported
-            </span>
-          ) : null}
-        </span>
-      </td>
-      <td
-        className={`px-3 py-2 text-right tabular-nums ${struck} ${
-          record.amount < 0 ? "text-gousse-high" : "text-gousse-low"
-        }`}
-      >
-        {formatCurrency(record.amount)}
-      </td>
-      <td className="px-3 py-2 text-right">
-        {skipped ? (
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={`Restore row ${position}`}
-            onClick={onRestore}
-          >
-            <Undo2 size={14} aria-hidden />
-          </Button>
-        ) : (
-          <Button variant="ghost" size="icon" aria-label={`Skip row ${position}`} onClick={onSkip}>
-            <X size={14} aria-hidden />
-          </Button>
-        )}
-      </td>
-    </tr>
   );
 }

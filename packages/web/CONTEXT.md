@@ -42,14 +42,117 @@ hand), and a grid handoff carrying no account is dropped rather than seated in
 front of a user who still owes one — the accounts grid always sends both.
 _Avoid_: Gate, lock (the zone is inert, not refusing).
 
+**Statement Format**:
+Defined in [CONTEXT-MAP.md](../../CONTEXT-MAP.md) — it became a contract entity
+with a table of its own in issue #183, so it means the same thing here, in the
+contract and on the server.
+_Code note_: the browser reads the **stored** record since issue #184 — the
+wizard fetches one account's formats through `statementFormatQueries.list` and
+applies the chosen one locally, so there is one vocabulary (the contract's) and
+web has no narrower copy of it. Web ADR 0001 is untouched by that: a format is
+ordinary contract data the client fetches, and the statement's rows still never
+leave the browser. `parsers/formats.ts` keeps Green-Got as a *reference* record
+rather than a registered one — nothing imports it at runtime, it drives the
+applying suite against the shipped fixture, and
+`scripts/scrub-bank-statements.sh` reads `GREEN_GOT_HEADERS` out of it to check
+the fixture still carries the columns the format needs. The real Green-Got is
+authored by a user through the UI (PRD #180 declines to seed it) — which is what
+the **mapping step** is for since issue #186.
+
 **Parser** (Statement Parser):
-A pluggable module that turns one bank's **CSV** row shape into transaction
-records. Declares a header fingerprint (`matches`) for auto-detection and a pure
-`parse(rows, ctx)` that maps raw rows to records. The registry runs papaparse
-once, then hands parsed rows to the selected parser. Green-Got is the first
-parser. CSV-only by design — a PDF Statement has no headers and no synchronous
-parse; it goes through **PDF extraction** instead.
+The code that **applies** a **Statement Format** to a **CSV**'s rows — not a
+module that embodies one bank. `applyFormat(format, rows, ctx)` is pure: a
+format, the rows and the context the file cannot supply go in, records come out,
+no I/O and no network (web ADR 0001). Each record names the `sourceIndex` it was
+read from, because the format's row filter drops rows it won't import, and that
+join is the only way the preview can put a row's **stable row id** on the record
+it produced. Detection is a separate pure function over the format records:
+`detectFormat(headers, formats)` in `parsers/detect-format.ts` answers with one
+of four verdicts — a format, **nothing matched**, **several matched**, or **no
+formats yet** — over the account's stored formats, which are its candidates
+rather than a module-level set. It applies to a **format draft** too
+(`parsers/format-draft.ts`), which is why `applyFormat` takes a `FormatToApply`
+— the mapping and the rules — rather than a whole stored record: a format being
+authored has no id to be applied by, and its live preview has to be the same
+reading the import will do.
+**The most specific match wins.** A bank that changes its export earns a *new*
+format rather than an edit to the old one (PRD #180), so the newer record's
+fingerprint is a strict superset of the older's: requiring the most headers is
+exactly "asked the most of this file", which reads a post-change file with the
+new format and a pre-change one with the old, neither asking the user. A genuine
+tie — two formats demanding as much of each other — is not guessed at.
+The wizard runs papaparse once, then applies the selected format. CSV-only by
+design — a PDF Statement has no headers and no synchronous parse; it goes through
+**PDF extraction** instead, and a PDF format is never a detection candidate
+because it declares the columns to ask a model for rather than a fingerprint.
+**The mapping decides what is promoted, never what is kept** (issue #187). Every
+record carries the whole delivered row as **raw source** — a copy, every key
+included, the mapped ones too — so a column nothing reads today is readable
+tomorrow without a re-import. The **Counterparty IBAN** is reached through
+`mapping.counterpartyIban` rather than a column name the applying code knows, so
+a bank that calls that column something else still populates the field, and one
+that writes no counterparty account number says so with a `null` and imports all
+the same. A blank, an absent and an unpromotable value (`isPlausibleIban`) all
+come out **absent** rather than as an empty string, because "not given" gets one
+spelling — and the delivered form stays in the archive either way (ADR 0012).
+Nothing derives from the archive, which
+`src/test/raw-source-is-an-archive.test.ts` holds the whole repo to.
 _Avoid_: Adapter, mapper, importer.
+
+**Format picker**:
+The `<select>` on the upload step naming which **Statement Format** reads the
+dropped **CSV**. On screen for *every* CSV import since issue #184, not only
+when detection came up empty: detection **preselects**, and a user who
+disagrees with a successful detection needs the same control to say so. It
+lists exactly the account's `csv` formats — never a PDF one, which carries no
+fingerprint and could only ever fail against a CSV — and a manual pick silences
+whatever the hint below it was saying, because the user has answered the
+question it was asking.
+
+**Nothing matched** / **several matched** / **no formats yet**:
+The format picker's three hint states, and three different facts. *Nothing
+matched* means no format the account holds fingerprints this file; *several
+matched* means more than one does, equally specifically, and neither is more
+specific than the other; *no formats yet* means the account has no CSV format at
+all, so nothing could have matched — an account whose only formats are PDF ones
+is here too. The first two were a single "Format not recognized" line before
+issue #184, which made the app understanding a file **twice over** read as not
+understanding it at all; the third was folded into *nothing matched* until issue
+#186, which made a brand-new account read as a rejection. All three leave the
+format unchosen and the preview out of reach — nothing is guessed at — and all
+three are settled either by the user picking or by the **mapping step**.
+_Avoid_: Unrecognised, unsupported (for *several matched* — the file was
+recognised, more than once); failed, rejected (for *no formats yet* — nothing
+was refused).
+
+**Mapping step**:
+The wizard step between upload and preview, reached only when no **Statement
+Format** applies to a dropped CSV — the three hint states above are its three
+routes, and they behave identically apart from the sentence at the top (issue
+#186). It shows the file's **real headers** as the choices and collects the
+format's name, the four mapped targets, the sign rule, the date order, the
+decimal separator and the optional row filter.
+
+It is **offered, not forced**: the picker stays on screen, so a user whose file
+one of their formats can read still picks it, and a detected format offers
+nothing to build at all.
+
+The **live preview** under the form parses the file's real rows through
+`applyFormat` — the same function the import runs, reached through
+`draftRules(draft)` — and re-reads them on every change. It is the only thing
+that makes a wrong date order or decimal separator visible before it becomes
+stored data: `03/04/2026` is a real date under either order and `1 929,71` a real
+number under either separator, so the wrongness is a plausible value rather than
+an error. Both are unanswered when the step opens, because a default here is a
+guess the user never made.
+
+The draft lives in `WizardState.draftFormat` and is written **only** by the
+commit, alongside the rows (`commitImport(records, format)`). Abandoning the
+import therefore leaves nothing behind, and the account never fills with drafts
+from imports nobody finished. The format is created *before* the rows: a failed
+create writes nothing and the retry is clean, where the other order would have
+the retry duplicate every transaction.
+_Avoid_: Wizard step 2 (the preview is that), column editor, schema builder.
 
 **PDF extraction**:
 The server-side act of turning a **PDF** Statement into candidate transaction
@@ -63,17 +166,53 @@ never persists server-side (temp dir is deleted after the call) and no issuer or
 category is assigned at this stage (those are derived post-commit by Matching
 Rules, as with CSV). The counterpart of a **Parser**, for the file shape a
 parser can't handle.
+Since issue #185 the upload carries the **Statement Format** to read the
+statement with, whose declared columns are what the model is told the file
+carries — so the wizard settles *which* format before it sends anything. With
+exactly one PDF format on the account that costs nothing: it is the only answer
+there is and it is used without an ask. With several, the file is held in wizard
+state (`pendingPdf`) and the user picks; the model is never asked to choose the
+format as well as apply it (PRD #180). With none, the drop is refused, because a
+prompt describing French statements in general is the guessing this work removed.
+The **mapping step** does not rescue this path: it builds a format from a file's
+real headers and previews its real rows, and a PDF has neither until extraction
+has already run — which is the extraction this account cannot do. Authoring a PDF
+format is the mismatch flow's (issue #188).
 _Avoid_: Parsing (reserved for CSV), OCR, scanning.
+
+**Format verdict**:
+What extraction says about the format it was given: whether the statement
+actually carried the columns that format declares, and which of them it did not
+(issue #188). The wizard **branches** on it — structured, not prose, for exactly
+that reason. A match continues to **side-by-side validation** as before; a
+mismatch does not, and its rows are dropped rather than seated: rows read against
+the wrong format are what the verdict is for.
+It is neither a success nor a failure, so it is its own piece of wizard state
+(`mismatch`) rather than a shade of `error` — the request worked, nothing is
+retryable, and the drop zone is the wrong thing to send the user back to. The
+file stays in hand, which puts the upload step's *which format reads this?*
+control back on screen for a second answer that costs no second upload; only the
+copy differs from the several-formats case, and it names the missing columns.
+Issue #186's mapping step is reached from here, for when none of the offered
+formats fit.
 
 **Extracted transaction**:
 One candidate record the model reads off a PDF Statement: `{ date, amount,
-rawIssuerString }` — the only PDF-observable fields. Not yet a saved
+rawIssuerString }` plus the row's **raw source**. Not yet a saved
 transaction: the user reviews and corrects it in the **side-by-side validation**
 view, then it is enriched (account, import batch, derived month) and committed
 through the same path as a CSV record. The `amount` is a single signed number
 folded from the statement's Débit/Crédit columns per the amount sign convention;
 the model resolves French number format and infers the year from the statement
 header, using the operation date (not the value date).
+Its archive is **carried, not built** (issue #189, `enrich-extracted.ts`): the
+only thing that ever saw the statement is the extraction, so the cells arrive
+from the endpoint keyed by the format's declared columns and as the statement
+printed them — the parsed `amount` and the archived `Débit` disagree on purpose
+(ADR 0012). A row with nothing to archive — one the endpoint folded to absent, or
+one the user added by hand in **side-by-side validation** — commits with the key
+absent rather than as `{}`, so the detail page shows nothing rather than an empty
+block.
 _Avoid_: Candidate, draft, row.
 
 **Declared totals**:
@@ -81,6 +220,13 @@ The debit and credit totals the statement itself prints on its summary line
 (CCF's `TOTAL DES OPÉRATIONS DU RELEVÉ`), returned alongside the **extracted
 transactions**. Not transactions — the statement's own arithmetic, extracted so
 the client can run a **reconciliation check**.
+
+**Not every statement prints them** (issue #196). A Trade Republic statement has
+no totals line at all, so extraction answers with none and the field arrives
+absent — never zeroed, because `{ debit: 0, credit: 0 }` is a total a statement
+can genuinely print and the check is entitled to compare against it. `null` on the
+wizard state is how "nothing to reconcile against" is spelled, and it is the same
+`null` a CSV import carries.
 _Avoid_: Sum, balance (balances are a different line).
 
 **Reconciliation check**:
@@ -90,15 +236,40 @@ visible warning banner on the validation view — the model probably dropped a r
 or picked up a balance/summary line as if it were an operation — but never
 blocks commit. The human review is the real backstop; this only tells them where
 to look.
+
+It sums **every** extracted row, **skipped rows** included, while the commit bar
+counts only the kept ones. The two counts answer different questions — did the
+model read the statement correctly, versus what is about to be written — and
+summing kept rows here would fire the banner on every deliberate skip until the
+user learned to ignore it. Counter-intuitive on purpose; not a bug to fix.
+
+A statement that declared no totals gets **no check** — `reconcile` answers
+`null`, and no banner is shown (issue #196). Not a passing check and not a
+mismatch against zero: there was nothing to compare. The rows are still reviewed,
+skipped and committed exactly as any other statement's.
 _Avoid_: Validation (reserve for the whole review step), audit, gate.
 
 **Side-by-side validation**:
 The PDF-flavored preview step: the source **PDF** rendered on one side (native
 browser viewer via a blob-URL iframe — no pdfjs), the **extracted transactions**
-in an editable table on the other. The user corrects wrong values, deletes
-phantom rows, and adds missed ones (edit-in-place) before committing. The CSV
-path keeps its own plain-table preview; both converge on the same commit.
+in an editable table on the other. The user corrects wrong values, skips the
+phantom ones (a **skipped row**, since issue #192 — it used to delete them), and
+adds missed ones (edit-in-place) before committing. The CSV path previews the
+same table on the same **candidate-table primitives** (PRD #190) — read-only
+cells, no add-row, no banner — so the two paths skip and filter identically; both
+converge on the same commit.
 _Avoid_: Diff view, comparison.
+_Code note_: the panel is a real table since issue #193 — TanStack Table over the
+**candidate-table primitives**, columns *skip | date | raw issuer | amount*, plus
+the statement's own columns hidden behind the toggle and the **row facets** above
+it (issue #195). The skip is a checkbox in front of the values rather than the
+pair of icon buttons it used to be: checked *is* skipped, so one control says the
+state and reverses it — and the same control in the header holds out every row on
+screen.
+The transactions grid is deliberately not reused, and the two previews stay two
+components — one is editable with an add-row control and a reconciliation banner,
+the other is neither, and collapsing them would mean one component steered by a
+handful of capability flags.
 
 **Import**:
 The result of committing a Statement for one account and one month, keyed
@@ -149,19 +320,133 @@ A previewed row the user held out of the commit — the recourse for an **alread
 imported** mark, and the only thing that ever keeps a parsed row from being
 written (epic #85). Offered per row on both preview paths: the row is struck
 through and restorable, and its editable fields (where it has any) are disabled
-while it is skipped. A skip is a decision about *this* commit and nothing else:
-it writes nothing, stores nothing, and is gone when the wizard is.
+while it is skipped. The control is the table's skip checkbox on **both** paths —
+**side-by-side validation** since issue #193, the CSV preview since PRD #190's
+closing slice — replacing the × / undo-arrow pair that path used to carry:
+checked *is* skipped, so one control says the state and reverses it, and a
+mis-click costs the click that undoes it. A skip is a decision about *this*
+commit and nothing else: it writes nothing, stores nothing, and is gone when the
+wizard is.
+
+Since issue #195 a whole set can be skipped at once, from the checkbox in the
+table header — and it acts on **the rows on screen**, never on the ones a **row
+facet** is hiding. That is the payoff: narrowing to `TYPE = Exécution d'ordre`
+and clicking once holds out fifteen rows that used to cost fifteen deletes. It
+takes them back the same way, which is what makes a mis-narrowed bulk skip cost
+one click rather than a re-import.
 
 The **side-by-side validation** view used to delete a row outright instead, on
 the grounds that a PDF's rows are editable there anyway. That reasoning is
-retired by issue #190: a skipped row's inputs are inert, so deleting bought
+retired by issue #192: a skipped row's inputs are inert, so deleting bought
 nothing that skipping does not, and cost reversibility. Adding a row the
 extraction missed remains a separate control — it solves the opposite problem.
 _Avoid_: Excluded (reserved for **excluded from recap**), ignored, deselected.
-_Code note_: `skippedRows` on the wizard state — a set of **stable row ids**,
-minted per candidate row from a counter in wizard state (issue #190). They name
-records rather than CSV lines or positions, so another file or another
-**Parser** clears them, and filtering the preview cannot skip the wrong row.
+_Code note_: `skippedRows` on the wizard state — a set of **stable row ids**
+since issue #192, one identity model for both paths rather than the ascending
+indices the CSV path used to carry. It is cleared by another file, a parse error,
+another **Parser** or a new extraction: an id that outlived the rows it named
+would hold out whichever row took its place. Both previews read the rows a skip
+leaves through one pure helper, `import/kept-rows.ts` — the question is the same
+on both paths, and it answers in positions because each caller reads more than
+one list off it (the records to commit, the marks to count). The commit bar
+counts the rows a skip leaves; the **reconciliation check** deliberately does not
+(see its entry).
+
+**Stable row id**:
+The identity of one candidate row in the import wizard — minted when the row is
+parsed from a CSV, extracted from a PDF, or added blank for an operation the
+extraction missed. Rows are about to be filtered and reordered on screen (issue
+#190), and a skip must name a row rather than a position, or narrowing the table
+silently holds out the wrong one.
+
+Ids come off a **monotonic counter kept in wizard state**, never a UUID and never
+a content hash. The counter is in state so the reducer stays pure and its tests
+stay fixture-driven — the same actions from the same state mint the same ids. A
+hash would be deterministic too, but it collides on the two identical rows a real
+statement is allowed to carry. The counter is never rewound, so an id from a
+discarded file cannot match a row of the next one.
+_Avoid_: key, index, position, uuid.
+_Code note_: `rowIds` + `nextRowId` on the wizard state, positional with `rows`
+(CSV) or `extracted` (PDF). Branded `RowId`, so the compiler refuses an index
+where an id belongs. On the CSV path they name papaparse's rows, not the
+**Parser**'s records — a **Statement Format**'s row filter drops rows it won't
+import, so the join is the **Parser**'s to report: `applyFormat` returns a
+`ParsedRow` per record carrying the `sourceIndex` it was read from, and the
+preview reads the id off that.
+
+**Candidate-table primitives**:
+What the two import previews share instead of a component (issue #193): row
+identity (`candidate-rows.ts` — the wizard's positional rows, ids and
+already-imported marks zipped into one `CandidateRow` per row, which is what
+TanStack's `getRowId` can answer with), selection (`use-skip-selection.ts` — **a
+selected row is a skipped row**, projected from `skippedRows` and dispatched back
+as `skip-row` / `restore-row`, so the table holds no copy of the decision),
+column visibility (`use-preview-column-visibility.ts` — state, not storage: an
+import preview's hideable columns are read off the statement in hand and a
+preference must not outlive the wizard, and they are hidden until asked for while
+the preview's own columns cannot be hidden at all), filtering (**row facets**,
+`facets.ts` + `candidate-filters.tsx`), and the shell + skip column that render
+them (`candidate-table.tsx`).
+
+The **transactions table** is not among them, on purpose. It renders persisted
+rows — keyed on a database id, joining issuer and category, expanding bundles —
+and a candidate row has none of that. What is shared is the primitives and the
+pattern, not the component.
+_Avoid_: Reusing the transactions table, one preview behind capability flags.
+_Code note_: both previews compose them — `pdf-validation-step.tsx` since issue
+#193 and `preview-step.tsx` since PRD #190's closing slice, which picked up the
+**row facets** with them because #195 put the facets in the shared hook rather
+than in the panel. Neither preview names the statement's columns: they are read
+off the rows' **raw source** inside the hook, so one statement cannot be offered
+two different sets of filters depending on which path it arrived by. Each
+preview declares only its own columns, and the editable one memoises them on
+`dispatch` alone with everything else a cell needs reaching it on the row — a
+cell closing over a fresh array per render gives the column list a new identity,
+which remounts the editable inputs and eats the keystroke being typed. The
+read-only preview's cells close over nothing, so its list is built once. The
+statement's own columns are the one thing derived from the rows, so they are held
+still by identity (`useStableList`): editing a *value* must not read as a change
+of *columns*.
+
+**Row facet**:
+One of the statement's own columns offered as a filter above an import preview's
+table — *either* preview since PRD #190's closing slice — listing the distinct
+values it prints and how many rows carry each (issue #195). Choosing a value narrows the table to the rows that print exactly it;
+choosing several values of one column is an *or*, and narrowing two columns is an
+*and*. What makes the facets possible at all is the **raw source** — the cells as
+the bank printed them — which both import paths carry since issue #189. On the
+PDF path it is also why the extraction returns **every operation row** of a
+two-product statement and attributes the product heading to the rows under it
+(PRD #180, amendment 1): a facet can only narrow rows the model actually
+returned, so holding out one product's operations is the user's choice here and
+never a decision taken during the read.
+
+A column is facet-eligible by a stated rule and by nothing else: its distinct
+values number **at most `FACET_VALUE_LIMIT` (12)** and **strictly fewer than the
+rows**. That takes a Trade Republic statement's operation type and product name
+and leaves its description and running balance; on the shipped Green-Got export
+it takes `Catégorie` (11 values over 40 rows) and leaves `Référence` (14) and
+`Intitulé` (25). No configuration, no setup, and a bank mamen has never seen gets
+its facets from the file it sent. A blank cell is **no value** — the same thing an
+omitted one is — so the two paths facet one statement identically.
+
+Facets are **exact-value, never substring**, which is deliberate: this control
+removes rows from an import, and over-matching drops the wrong ones silently.
+`Virement` and `Virement instantané` are two values, and the user picks the one
+they mean.
+
+They are **ephemeral**. Nothing outside the table reads or writes them, they are
+gone with the wizard, and a durable "always hold out this type" rule belongs to
+the **Statement Format**'s row filter — two mechanisms for one intent would
+compete.
+_Avoid_: Search, query, filter chip (a facet lists what is *there*, and matches
+whole values).
+_Code note_: `facets.ts` is pure and table-free — which columns become filters is
+a statement about the file, and it is tested as one. Each facet-eligible column
+is a real (hidden) table column with an exact-match `filterFn`, so a filter *is*
+a TanStack column filter: the row model the select-all acts over is then the
+filtered one for free. TanStack's own `arrIncludesSome` is a substring matcher
+and is deliberately not used.
 
 **Raw issuer string**:
 The unparsed counterparty text on a transaction (`rawIssuerString`, e.g.
@@ -192,13 +477,31 @@ rule.
 _Code note_: the entity is `Rule` in the contract/DB/SDK; "Matching Rule" is the
 user-facing name only. Each rule row shows its **owned count** (see
 [CONTEXT-MAP.md](../../CONTEXT-MAP.md)) worded as what it counts — "3
-transactions", never "3 matches". Because that count is derived from the
-transactions table, any mutation that moves rows must invalidate `ruleKeys.all`
-too, not just `transactionKeys.all` — an assignment, a removed manual pick, an
-import commit and every **bundle** mutation all change what a rule owns without
-touching a rule. Bundles count because the parent is an ordinary row carrying
-the user's label as its `rawIssuerString`, the string the matcher reads: making
-a bundle can hand a rule a row, dissolving one takes it back (issue #78).
+transactions", never "3 matches". That count is derived from the transactions
+table on every read, out of six inputs and nothing else (the
+**Owned-count input set**, `packages/api/CONTEXT.md`): **row existence**,
+`manualIssuer`, `rawIssuerString`, `amount`, `accountId`, and **the rule set**
+itself. A mutation writing any of the six must invalidate `ruleKeys.all` too,
+not just `transactionKeys.all` — an assignment, a removed manual pick, a bulk
+delete, an import commit and every **bundle** mutation all change what a rule
+owns without touching a rule. Bundles count because the parent is an ordinary
+row carrying the user's label as its `rawIssuerString`, the string the matcher
+reads: making a bundle can hand a rule a row, dissolving one takes it back
+(issue #78).
+
+The inverse is the load-bearing half: **a write touching none of the six cannot
+change an Owned count**. `transferGroupId` (transfer link / unlink / dismiss),
+`categoryId` / `manualCategory` (a category override), `excludedFromRecap` /
+`manualExcluded` (recap exclusion) and an issuer's own `excludedFromRecap` recap
+flag change how a row is *displayed or aggregated*, not what a rule owns — so
+`useTransfer`, `useCategoryOverride`, `useRecapExclusion` and the issuer lever
+`setExcludedFromRecap` correctly invalidate `transactionKeys.all` alone. Check a
+mutation against the field list mechanically instead of inferring from what
+"moves" means: read loosely, the wording this replaces ("any mutation that moves
+rows") reads as "any write to the transactions table", and two separate reviews
+reported those four hooks as stale-count bugs on the strength of it (issue
+#170).
+_Avoid_: "moves rows", "touches transactions" (both name a superset of the six).
 
 **Rule move**:
 Re-homing a **Matching Rule** from the Issuer that owns it onto another one, in
@@ -224,6 +527,24 @@ The warning informs and never blocks, and no conflict error was added to the
 contract. A move is also the one rule write whose outcome is invisible on the
 page you stay on — the row simply leaves — so it raises a **success** toast
 naming the target, departing from `useRuleMutations`' errors-only style.
+
+**IBAN-confirmed mark**:
+How an **IBAN-confirmed candidate** (see [CONTEXT-MAP.md](../../CONTEXT-MAP.md))
+looks (issue #179): one badge component, `iban-confirmed-mark.tsx`, rendered by
+all three surfaces that offer a pairing — the detail page's transfer section,
+the transactions table's suggestion popover, and the Transfers page's panel —
+so they cannot disagree about which pairing the bank vouched for. It **names the
+matched account**, because "mamen is confident" is worth nothing on its own: the
+account name is the evidence the user can check against their statement.
+_Avoid_: verified, validated (both suggest the pairing is already made); a tick
+glyph (the claim is *your bank said so*, not *mamen validated this* — hence
+`Landmark`).
+_Code note_: the mark rides the **counterpart**, not the leg — a debit matching
+three credits is confirmed against exactly one of them — and `indexCandidates`
+carries it into the reverse entry unchanged, since the account it names is the
+same whichever of the two rows is on screen. Absent is the ordinary case, not a
+refutation, so an unmarked candidate keeps every field and the same enabled
+action; and the mark never reorders, so the list stays closest-date first.
 
 **Amount sign convention**:
 `amount` is a single signed number. A CSV `DEBIT` (money leaving) is stored
@@ -373,6 +694,40 @@ so a view test wraps it in the stand-in from `test/sidebar-shell.tsx`
 
 _Avoid_: page header (the row is the *topbar*; `PageHeader` was a component and
 no longer exists), header (the `<header>` element is the topbar's markup).
+
+**Detail panel**:
+One transaction's detail **beside** the transactions table rather than in place
+of it (issue #154). Curating is a loop — read a row, name its issuer, pick a
+category, move on — and opening each row as its own page charged a full swap in
+each direction, with the row under work off screen while it was being worked on.
+
+The open row is a search param, `?selected=<id>`, so the panel is a *place*:
+linkable, reloadable, and what the back button navigates out of. It is
+deliberately **not a filter** — it enters no query key and resets no page, so
+opening, swapping and closing it leave the list exactly as it was. That is why
+`transactions-section.tsx` compares its selection scope by structural *value*
+rather than object identity: identity would read a new `selected` as a new page
+of rows and silently drop the user's ticks.
+
+It shows the **same** sections the standalone page does
+(`TransactionDetailFields`, read through `useTransactionDetail`), not a summary
+that links out — a summary would send the user to the page for anything real,
+which is the swap the panel exists to remove. Only the chrome differs: a close
+button for a back link, an `h2` for the page's `h1`, and a link to the full
+page. Focus follows the row in and is handed back to it on close, so the next
+row is one arrow key away.
+
+The **standalone page** at `/transactions/$transactionId` survives all of it: it
+is what links from elsewhere in the app point at, and it is where a row click
+goes below `xl` (1280px), where there is no room for a column beside the table.
+That width is a `useMediaQuery` (`lib/use-media-query.ts`) rather than a CSS
+class because the *click handler* has to know which of the two it is doing — a
+`hidden`/`block` pair cannot express that. The scoped drill-downs (a category's,
+an issuer's) have no panel at all, and say so by withholding
+`onOpenTransaction` from `TransactionsSection`.
+_Avoid_: transaction dialog / modal (nothing here is modal — the list stays live
+underneath, and the panel is a `complementary` landmark, not a dialog),
+transaction drawer (it does not slide over anything; it takes a column).
 
 **Account card**:
 One account as a single object on the accounts page: its swatch (still the

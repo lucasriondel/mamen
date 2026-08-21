@@ -49,6 +49,32 @@ describe("reconcile", () => {
       credit: 0,
     });
 
-    expect(result.ok).toBe(true);
+    expect(result?.ok).toBe(true);
+  });
+
+  /**
+   * Issue #196 — not every statement prints a totals line. A Trade Republic
+   * statement has no `TOTAL DES OPÉRATIONS`, so extraction returns none, and
+   * there is nothing here to check against. Answering "no check" rather than a
+   * reconciliation against zero is the whole point: totals of zero would read as
+   * a mismatch on every row the statement carries, on a statement that did
+   * nothing wrong.
+   */
+  it("runs no check at all when the statement declared no totals", () => {
+    expect(reconcile([row(-10), row(20)], null)).toBeNull();
+  });
+
+  it("runs no check when there are no rows either", () => {
+    expect(reconcile([], null)).toBeNull();
+  });
+
+  // Zero *is* a declared total when the statement printed it — a statement with
+  // no debits declares `0`, and rows summing to anything else is a real
+  // mismatch. Only an absent totals line skips the check.
+  it("still checks against a declared zero", () => {
+    const result = reconcile([row(-10)], { debit: 0, credit: 0 });
+
+    expect(result?.ok).toBe(false);
+    expect(result?.debitOk).toBe(false);
   });
 });

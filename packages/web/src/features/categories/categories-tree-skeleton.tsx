@@ -41,7 +41,7 @@ function CardSkeleton({ leaves }: { leaves: readonly string[] }) {
       <RowSkeleton nameWidth="w-32" indent={12} root />
       {leaves.map((width, index) => (
         <div
-          // biome-ignore lint/suspicious/noArrayIndexKey: a static placeholder list — never reordered, and two leaves may share a width
+          // Index key: a static placeholder list — never reordered, and two leaves may share a width
           key={index}
           className="border-gousse-line/45 border-t bg-gousse-ink/[0.022]"
         >
@@ -63,7 +63,7 @@ export function CategoriesTreeSkeleton() {
   return (
     <SkeletonScreen label="Loading categories…" className="flex flex-col gap-3">
       {CARDS.map((leaves, index) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: a static placeholder list — never reordered, and two roots may hold the same widths
+        // Index key: a static placeholder list — never reordered, and two roots may hold the same widths
         <CardSkeleton key={index} leaves={leaves} />
       ))}
     </SkeletonScreen>

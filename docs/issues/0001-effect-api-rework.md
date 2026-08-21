@@ -21,7 +21,7 @@ The REST contract is redesigned properly (composable list filters, typed error b
 
 - **Execution override**: this map carries execution, not just planning. Implementation tickets (scaffold, per-resource ports, cutover) live on the map; the map is done when the new API is live, tested, and the old packages are deleted.
 - Consult the `/effect-ts` skill every session that touches Effect code.
-- Runtime is Bun (workspace uses bun 1.3.4, turbo, biome, vitest).
+- Runtime is Bun (workspace uses bun 1.3.4, turbo, the repo's linter of the day, vitest).
 - Architecture decisions locked at charting: Effect HttpApi over Fastify; Effect Schema everywhere (zod killed); 3-package layout (shared = schemas + contract, api = server, sdk = client + tanstack-query); full `@effect/sql` rewrite of the repository layer; big-bang migration on a branch (frontend allowed to break, adapted later); integration-first testing through the SDK with an enforced coverage gate; contract redesigned freely.
 - Tracker conventions: `docs/agents/issue-tracker.md`.
 

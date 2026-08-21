@@ -10,6 +10,7 @@ import { IssuersGroup } from "./issuers";
 import { RulesGroup } from "./rules";
 import { SecretsGroup } from "./secrets";
 import { SettingsGroup } from "./settings";
+import { StatementFormatsGroup } from "./statement-formats";
 import { SubscriptionsGroup } from "./subscriptions";
 import { TransactionsGroup } from "./transactions";
 
@@ -28,6 +29,7 @@ export class Api extends HttpApi.make("mamen")
   .add(RulesGroup)
   .add(SubscriptionsGroup)
   .add(SettingsGroup)
+  .add(StatementFormatsGroup)
   .add(SecretsGroup)
   .add(AiTasksGroup)
   .add(AppSettingsGroup)

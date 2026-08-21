@@ -1,5 +1,3 @@
-// biome-ignore-all lint/a11y/useSemanticElements: a live region, not a form result — see below
-
 /**
  * Circular loading spinner — gousse's, vendored from the registry (ADR 0003) as
  * a dependency of `saved-flash` and `credential-tile`. A hand-rolled

@@ -14,12 +14,6 @@
     // `DEPLOY.md` and `README.md`; loosening those guards so a formatter can
     // repaginate a document is the wrong way round. `.ts`/`.tsx` is what issue
     // #135 set out to format.
-    "**/*.md",
-    // Standalone design mockups, not source: single-file HTML prototypes with
-    // their whole stylesheet and script inline. oxfmt rewrites ~4,000 lines
-    // across the two of them, none of it code anything imports or ships, and
-    // nothing here can tell whether the result still renders. Same reason the
-    // vendored paths above are excluded — the diff would be noise.
-    "docs/design"
+    "**/*.md"
   ]
 }

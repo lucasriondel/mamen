@@ -20,7 +20,7 @@ export function RulesListSkeleton() {
         <Skeleton className="h-1.5 flex-1 rounded-full" />
       </div>
       {ROW_WIDTHS.map((width, index) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: a static placeholder list — never reordered, and two rows may share a width
+        // Index key: a static placeholder list — never reordered, and two rows may share a width
         <div key={index} className="flex items-center gap-4 px-4 py-3">
           <Skeleton className="h-4 w-24 shrink-0" />
           <Skeleton className={`h-4 ${width} min-w-0 flex-1`} />

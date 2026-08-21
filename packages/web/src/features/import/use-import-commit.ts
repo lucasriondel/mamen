@@ -1,8 +1,9 @@
+import type { StatementFormatCreate } from "@mamen/shared/contract";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { formatMonth } from "@/lib/format";
-import { accountKeys, ruleKeys, transactionKeys } from "@/lib/sdk";
+import { accountKeys, ruleKeys, statementFormatKeys, transactionKeys } from "@/lib/sdk";
 import { toErrorMessage } from "@/lib/sdk-error";
 import { type CommitResult, commitImport } from "./commit";
 import type { ParsedTransaction } from "./parsers/types";
@@ -25,16 +26,30 @@ function successMessage(result: CommitResult): string {
  * The target account is not a variable of the mutation: every parsed row already
  * carries the `accountId` the wizard stamped it with, and with no month to
  * delete there is nothing left for the commit to scope.
+ *
+ * A **Statement Format** built in the mapping step travels as a second variable
+ * and is written by the same action (issue #186) — so the formats family is
+ * marked stale too, but only when there was one to save: the picker that would
+ * otherwise keep offering the account's old list is the one surface that has to
+ * hear about it.
  */
 export function useImportCommit() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
   return useMutation({
-    mutationFn: ({ records }: { records: readonly ParsedTransaction[] }) => commitImport(records),
-    onSuccess: (result) => {
+    mutationFn: ({
+      records,
+      format,
+    }: {
+      records: readonly ParsedTransaction[];
+      /** The format the user built from this file, if they built one. */
+      format?: StatementFormatCreate;
+    }) => commitImport(records, format),
+    onSuccess: (result, { format }) => {
       queryClient.invalidateQueries({ queryKey: transactionKeys.all });
       queryClient.invalidateQueries({ queryKey: accountKeys.all });
+      if (format) queryClient.invalidateQueries({ queryKey: statementFormatKeys.all });
       // A rule's `ownedCount` is derived from the live table (issue #63), and
       // the rows an import lands are claimed by whichever rules match them at
       // import time.

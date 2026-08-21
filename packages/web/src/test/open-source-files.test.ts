@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
  * agrees with (issue #110).
  *
  * The README this replaced was the stock `React + TypeScript + Vite` template:
- * it documented an ESLint config for a project that lints with Biome, in a
+ * it documented an ESLint config for a project that has never had one, in a
  * monorepo it never mentioned. That is the failure mode these tests are aimed
  * at — prose that was true of something else and rotted quietly, because
  * nothing reads a README on the way to a green build.
@@ -156,11 +156,15 @@ describe("README.md", () => {
     expect(README.trimStart().startsWith("# mamen")).toBe(true);
   });
 
-  it("names the linter the repo actually uses", () => {
-    // The template's whole body was ESLint configuration; this repo lints with
-    // Biome and has no ESLint config at all.
-    expect(rootManifest.devDependencies["@biomejs/biome"]).toBeDefined();
-    expect(README).toContain("Biome");
+  it("names the tools the repo actually lints and formats with", () => {
+    // The template's whole body was ESLint configuration; this repo has no
+    // ESLint config at all. Derived from the manifest so a toolchain swap
+    // (issue #138 was one) cannot leave the README naming the tool it dropped.
+    for (const tool of ["oxlint", "oxfmt"]) {
+      expect(rootManifest.devDependencies[tool], tool).toBeDefined();
+      expect(README, tool).toContain(tool);
+    }
+
     expect(README).not.toContain("ESLint");
   });
 
@@ -250,8 +254,8 @@ describe("LICENSE", () => {
 });
 
 describe("CONTRIBUTING.md", () => {
-  it("covers the three checks, and each is a real root script", () => {
-    for (const script of ["typecheck", "test", "lint"]) {
+  it("covers the four checks, and each is a real root script", () => {
+    for (const script of ["typecheck", "test", "lint", "format:check"]) {
       expect(rootScripts[script]).toBeDefined();
       expect(CONTRIBUTING).toContain(`bun run ${script}`);
     }

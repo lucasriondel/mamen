@@ -9,13 +9,21 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint -c ../../.oxlintrc.json .",
+    "format": "oxfmt \"**/*.{ts,tsx}\"",
+    "format:check": "oxfmt --check \"**/*.{ts,tsx}\""
   },
   "dependencies": {
     "@mamen/shared": "workspace:*"
   },
   "devDependencies": {
+    "@tanstack/react-router": "^1.158.4",
     "@types/node": "^24.10.1",
+    "@types/react": "^19.2.5",
+    "@types/react-dom": "^19.2.3",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
     "typescript": "~5.9.3",
     "vite": "^8.1.4",
     "vitest": "^4.0.18"

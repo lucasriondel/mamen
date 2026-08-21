@@ -33,6 +33,59 @@ const TXN = {
 } as unknown as Transaction;
 
 /**
+ * A CSV-imported row that kept its **raw source** (issue #177) — the bank's own
+ * line, French headers and all, including a `Catégorie` of the bank's own that
+ * mamen's **derived category** is free to disagree with. `TXN` above keeps none,
+ * which is the other half of the coverage: the archive is the newer state, not
+ * the resting one.
+ *
+ * The account number is assembled rather than written out, so this file carries
+ * no matchable one (issue #108).
+ */
+const ARCHIVED = {
+  id: 600,
+  accountId: 1,
+  date: new Date("2026-01-20T00:00:00Z"),
+  amount: -9.99,
+  rawIssuerString: "SPOTIFY P2A34",
+  importedAt: new Date(),
+  importMonth: "2026-01",
+  rawSource: {
+    "N° transaction": "000000000000000000000015",
+    Statut: "COMPLETE",
+    Intitulé: "SPOTIFY P2A34",
+    "IBAN du tiers": `FR7699999${"0".repeat(18)}`,
+    "Moyen de paiement": "ECOMMERCE",
+    Catégorie: "SUBSCRIPTIONS",
+  },
+} as unknown as Transaction;
+
+/**
+ * A **PDF-extracted** row that kept its archive (issue #189). Until the model
+ * was told which columns the statement carries (#185), a PDF row had none — and
+ * the page's job is to render this one exactly like the CSV row above, in the
+ * statement's own words.
+ *
+ * Its `Débit` is the printed `1 929,71` while `amount` is `-1929.71`: the
+ * archive is what the statement said, not what mamen read out of it.
+ */
+const EXTRACTED = {
+  id: 700,
+  accountId: 1,
+  date: new Date("2026-01-20T00:00:00Z"),
+  amount: -1929.71,
+  rawIssuerString: "PRLV EDF ENERGIE",
+  importedAt: new Date(),
+  importMonth: "2026-01",
+  rawSource: {
+    Date: "20/01",
+    Valeur: "21/01",
+    Libellé: "PRLV EDF ENERGIE",
+    Débit: "1 929,71",
+  },
+} as unknown as Transaction;
+
+/**
  * A **bundle parent** (issue #72): the one row in the app that is only ever met
  * on this page, since members hide its own members from the list. It carries a
  * label and nothing else — no issuer, no category, no note — which is exactly
@@ -75,6 +128,13 @@ const FLAGGED_BUNDLE = {
  * the recap, so nothing may also bundle it — the page has to say that where the
  * bundling action is, rather than let the user earn a 422.
  */
+/**
+ * A **counterparty IBAN** in its stored, normalised form (issue #178).
+ * Assembled rather than written out, so this file carries no matchable account
+ * number — `99999` is not an allocated French bank code (the leak scan, #108).
+ */
+const COUNTERPARTY_IBAN = `FR7699999${"0".repeat(17)}3`;
+
 const LEG = {
   id: 500,
   accountId: 1,
@@ -82,6 +142,10 @@ const LEG = {
   amount: -30,
   rawIssuerString: "VIREMENT COMPTE JOINT",
   transferGroupId: 500,
+  // A SEPA row, so the bank named the other party's account. Stated
+  // deliberately: these fixtures are cast through `unknown`, so a new contract
+  // field lands here silently and gets no coverage unless someone writes it.
+  counterpartyIban: COUNTERPARTY_IBAN,
   importedAt: new Date(),
   importMonth: "2026-03",
 } as unknown as Transaction;
@@ -186,7 +250,11 @@ vi.mock("@mamen/sdk", () => ({
                 ? FLAGGED_BUNDLE
                 : id === LEG.id
                   ? LEG
-                  : undefined,
+                  : id === ARCHIVED.id
+                    ? ARCHIVED
+                    : id === EXTRACTED.id
+                      ? EXTRACTED
+                      : undefined,
     }),
     list: (params: Record<string, unknown>) => ({
       queryKey: ["transactions", "list", params],
@@ -294,6 +362,17 @@ beforeEach(() => {
   dismissPairsMock.mockClear();
   candidateRows = [];
 });
+
+/**
+ * The value shown for one labelled detail row. The fields are a `<dl>` of
+ * term/definition pairs, so the label is the handle and the `dd` beside it is
+ * what the page actually shows — which is the only way to ask about an *absent*
+ * value, since several rows render the same muted em-dash at once.
+ */
+function fieldValue(label: string): HTMLElement {
+  const row = screen.getByText(label).closest("div") as HTMLElement;
+  return within(row).getByRole("definition");
+}
 
 describe("TransactionDetailPage", () => {
   // The last page to compose its own header, and so the last one with no way
@@ -430,6 +509,30 @@ describe("TransactionDetailPage", () => {
     expect(screen.getByRole("button", { name: /add to bundle/i })).toBeDisabled();
   });
 
+  // Issue #178. The value promoted out of the archive is an ordinary field on
+  // this page — no block, no label of its own invention — and it is printed the
+  // way the account card prints one, grouped in fours, because comparing it
+  // against a statement is the only thing anyone does with an IBAN.
+  it("shows the counterparty IBAN as an ordinary field", async () => {
+    renderPage(500);
+
+    await screen.findByRole("heading", { name: "VIREMENT COMPTE JOINT" });
+
+    const grouped = COUNTERPARTY_IBAN.replace(/(.{4})/g, "$1 ").trim();
+    expect(fieldValue("Counterparty IBAN")).toHaveTextContent(grouped);
+  });
+
+  // The common case, and the one a card row always takes: the bank named no
+  // other party, so the field renders the same muted em-dash every absent field
+  // on this page does rather than a blank or an empty string.
+  it("renders a muted em-dash when the row carries no counterparty IBAN", async () => {
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Spotify" });
+
+    expect(fieldValue("Counterparty IBAN")).toHaveTextContent("—");
+  });
+
   it("says so plainly when a row carries no anomaly", async () => {
     renderPage(300);
 
@@ -447,6 +550,94 @@ describe("TransactionDetailPage", () => {
     expect(await screen.findByText("VIREMENT RECU")).toBeVisible();
     expect(screen.getByText(/1 day apart/)).toBeVisible();
     expect(screen.getByRole("button", { name: /link as transfer/i })).toBeVisible();
+    // No IBAN evidence on this pair, and no mark — absence is the ordinary
+    // case, so an unmarked suggestion reads exactly as it always has.
+    expect(screen.queryByText(/IBAN-confirmed/)).toBeNull();
+  });
+
+  // The same mark the Transfers page and the table's panel show (issue #179):
+  // three surfaces read one cache entry, so they cannot disagree about which
+  // pairing the bank vouched for.
+  it("marks an IBAN-confirmed suggestion and names the matched account", async () => {
+    candidateRows = [
+      {
+        leg: TXN,
+        counterparts: [{ transaction: COUNTERPART, daysApart: 1, ibanConfirmedAccountId: 1 }],
+      },
+    ];
+    renderPage();
+
+    expect(await screen.findByText(/IBAN-confirmed · Checking/)).toBeVisible();
+    // It labels only — the pairing is still confirmed by the user's own click.
+    expect(screen.getByRole("button", { name: /link as transfer/i })).toBeVisible();
+  });
+
+  // Issue #177. The web fixtures are cast through `unknown`, so `rawSource`
+  // landed on them with no type error to catch a missing surface — this block's
+  // coverage is written by hand or it does not exist.
+  describe("the bank's own words (issue #177)", () => {
+    it("shows the row the bank sent, keys untranslated", async () => {
+      const user = userEvent.setup();
+      renderPage(600);
+
+      await user.click(await screen.findByRole("button", { name: /bank's own words/i }));
+
+      expect(screen.getByText("Moyen de paiement")).toBeVisible();
+      expect(screen.getByText("N° transaction")).toBeVisible();
+      expect(screen.getByText("ECOMMERCE")).toBeVisible();
+    });
+
+    // Story 4: the bank's `Catégorie` is provenance, never a second Category
+    // contradicting the derived one. It is out of sight until the block is
+    // opened, and inside it when it is.
+    it("never surfaces the bank's Catégorie as a mamen field", async () => {
+      const user = userEvent.setup();
+      renderPage(600);
+
+      // mamen's own Category row is the picker, as on every other row.
+      const category = (await screen.findByText("Category")).closest("div") as HTMLElement;
+      expect(within(category).getByTitle("Set a category for this transaction")).toBeVisible();
+      expect(screen.queryByText("SUBSCRIPTIONS")).toBeNull();
+
+      await user.click(screen.getByRole("button", { name: /bank's own words/i }));
+
+      const bank = screen.getAllByText("SUBSCRIPTIONS");
+      expect(bank).toHaveLength(1);
+      expect(within(category).queryByText("SUBSCRIPTIONS")).toBeNull();
+      expect(bank[0]?.closest("section")).toBe(
+        screen.getByRole("heading", { name: /bank's own words/i }).closest("section"),
+      );
+    });
+
+    // Story 11/12: a row imported before the archive existed carries none, as
+    // does one with nothing to archive, and both say nothing rather than show an
+    // empty block.
+    it("leaves the block out entirely for a row with no raw source", async () => {
+      renderPage();
+
+      await screen.findByRole("heading", { name: "Spotify" });
+      expect(screen.queryByRole("button", { name: /bank's own words/i })).toBeNull();
+    });
+
+    /**
+     * Issue #189 — a **PDF-extracted** row reaches this page with an archive of
+     * its own, read off the table the model returned, and the block does not
+     * care which import path put it there.
+     *
+     * The printed `1 929,71` is what the statement said; the row's own amount is
+     * `-1929.71`. Both are on the page at once, which is the archive's whole
+     * job: provenance beside the field mamen computes from it.
+     */
+    it("shows a PDF-extracted row's statement columns, as printed", async () => {
+      const user = userEvent.setup();
+      renderPage(700);
+
+      await user.click(await screen.findByRole("button", { name: /bank's own words/i }));
+
+      expect(screen.getByText("Libellé")).toBeVisible();
+      expect(screen.getByText("Débit")).toBeVisible();
+      expect(screen.getByText("1 929,71")).toBeVisible();
+    });
   });
 
   // One group-level refusal here too, worded the same as the table's panel — a

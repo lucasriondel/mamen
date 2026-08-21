@@ -8,6 +8,7 @@ import type { Fragment } from "@effect/sql/Statement";
 export interface RecapPredicates {
   readonly recapExclusion: Fragment;
   readonly isTransferLeg: Fragment;
+  readonly isNotBundleMemberFor: (alias: string) => Fragment;
   readonly isNotBundleMember: Fragment;
   readonly isRecapExcluded: Fragment;
   readonly countsTowardRecap: Fragment;
@@ -45,15 +46,23 @@ export const recapPredicates = (sql: SqlClient.SqlClient): RecapPredicates => {
   const isTransferLeg = sql`t.transferGroupId IS NOT NULL`;
 
   // The **bundle-membership** rule (issue #68), stated once here and read by
-  // BOTH `countsTowardRecap` below and `buildConditions`' list default — one
-  // fragment, two readers, so the recap and the list cannot come to mean
-  // different things by "this row stands for itself".
+  // `countsTowardRecap` below, `buildConditions`' list default and the
+  // transfer-eligibility predicate — one fragment, three readers, so the
+  // recap, the list and the transfer flows cannot come to mean different
+  // things by "this row stands for itself".
+  //
+  // Alias-parameterised (issue #174) because the transfer queries self-join
+  // transactions as `c` and `f`: the reader that could not say `t` was the one
+  // that had hand-copied the rule. `isNotBundleMember` below is this generator
+  // under the stored alias, so every existing reader is untouched.
   //
   // Written in the positive (`IS NULL`) rather than as `NOT (… IS NOT NULL)`
   // because it is an indexable constraint in that form: `idx_tx_bundleId`
   // exists for exactly this read (migration 0020), which is on the hot path of
   // every unfiltered list.
-  const isNotBundleMember = sql`t.bundleId IS NULL`;
+  const isNotBundleMemberFor = (alias: string) => sql`${sql.literal(alias)}.bundleId IS NULL`;
+
+  const isNotBundleMember = isNotBundleMemberFor("t");
 
   const isRecapExcluded = sql`(${recapExclusion} = 1 OR t.isDuplicateExcluded = 1)`;
 
@@ -92,6 +101,7 @@ export const recapPredicates = (sql: SqlClient.SqlClient): RecapPredicates => {
   return {
     recapExclusion,
     isTransferLeg,
+    isNotBundleMemberFor,
     isNotBundleMember,
     isRecapExcluded,
     countsTowardRecap,

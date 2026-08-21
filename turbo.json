@@ -1,5 +1,10 @@
 {
   "$schema": "https://v2-10-5.turborepo.dev/schema.json",
+  // Both rc files sit at the repo root, outside every package, so turbo cannot
+  // see them as a task input. Listed here they invalidate the whole cache: a
+  // rule added to `.oxlintrc.json` must not replay a green `lint` from before
+  // it existed.
+  "globalDependencies": [".oxlintrc.json", ".oxfmtrc.json"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
@@ -15,6 +20,19 @@
     },
     "typecheck": {
       "dependsOn": ["^build"]
+    },
+    // oxlint reads only the package's own files, so there is nothing to build
+    // first — and its verdict is a pure function of those files plus the rc,
+    // which is what turbo caches on.
+    "lint": {},
+    // `format` rewrites the tree: a cache hit would skip the write and report
+    // success over files it never opened. `format:check` is a verdict on the
+    // working tree as it is right now, which a replay cannot restate.
+    "format": {
+      "cache": false
+    },
+    "format:check": {
+      "cache": false
     }
   }
 }

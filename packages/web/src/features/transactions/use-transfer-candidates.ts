@@ -8,10 +8,17 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { transactionQueries } from "@/lib/sdk";
 
-/** One candidate counterpart of a row: the other leg, and how far apart they are. */
+/**
+ * One candidate counterpart of a row: the other leg, how far apart they are,
+ * and — when the pairing is **IBAN-confirmed** (issue #179) — the id of the
+ * account the bank's own IBAN named. Absent is the ordinary case: only SEPA rows
+ * carry an IBAN and an account may have none on file, so an unmarked counterpart
+ * is a candidate like any other.
+ */
 export type SuggestedCounterpart = {
   transaction: Transaction;
   daysApart: number;
+  ibanConfirmedAccountId?: number;
 };
 
 /** A row's outstanding transfer suggestion — the row plus its counterparts. */
@@ -73,13 +80,23 @@ export function indexCandidates(
   for (const candidate of candidates) {
     const leg = entryFor(candidate.leg);
     for (const counterpart of candidate.counterparts) {
+      // The **IBAN-confirmed** mark rides both directions unchanged (issue
+      // #179): it is evidence about the *pairing*, and the account it names is
+      // the one the bank's IBAN matched — which is the same account whichever
+      // of the two rows is being looked at.
+      const ibanConfirmed =
+        counterpart.ibanConfirmedAccountId !== undefined
+          ? { ibanConfirmedAccountId: counterpart.ibanConfirmedAccountId }
+          : {};
       leg.counterparts.push({
         transaction: counterpart.transaction,
         daysApart: counterpart.daysApart,
+        ...ibanConfirmed,
       });
       entryFor(counterpart.transaction).counterparts.push({
         transaction: candidate.leg,
         daysApart: counterpart.daysApart,
+        ...ibanConfirmed,
       });
     }
   }
