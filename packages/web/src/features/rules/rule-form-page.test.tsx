@@ -572,6 +572,47 @@ describe("RuleFormPage — create", () => {
     expect(screen.queryByRole("link", { name: /View transaction/ })).not.toBeInTheDocument();
   });
 
+  /*
+   * Issue #203. The grid is as tall as the rows a pattern claims, and a broad
+   * pattern (`a`, `.*`) claims thousands — at natural height that pushes Save
+   * and Cancel far below the fold and moves them on every debounce. The rows
+   * scroll inside a bounded frame instead, as the preview did before it became
+   * a table. The frame holds the rows *only*: the tab strip says which list is
+   * on screen and the summary is the sentence the save decision turns on, so
+   * neither may scroll away from it.
+   */
+  it("bounds the preview grid's height and scrolls the rows inside it", async () => {
+    previewRule.mockResolvedValue({
+      willMatch: [
+        txn({ id: 100 as Transaction["id"] }),
+        txn({ id: 101 as Transaction["id"], rawIssuerString: "AMAZON FR" }),
+        txn({ id: 102 as Transaction["id"], rawIssuerString: "AMAZON DE" }),
+      ],
+      willReassign: [],
+      manualCollisions: [],
+      skipped: false,
+    } satisfies RulePreviewResult);
+
+    const user = userEvent.setup();
+    renderAt("/issuers/1/rules/new");
+
+    await user.type(await screen.findByLabelText("Matching Rule pattern"), "a");
+
+    const frame = await screen.findByRole("region", { name: "Transactions" });
+    expect(frame.className).toContain("max-h-");
+    expect(frame.className).toContain("overflow-y-auto");
+    // The rows lead nowhere and take no tab stop (#197), so the frame itself is
+    // the keyboard's only way down the overflow.
+    expect(frame).toHaveAttribute("tabindex", "0");
+
+    // Every previewed row is inside the frame…
+    for (const row of screen.getAllByRole("row")) expect(frame).toContainElement(row);
+    // …and everything that says what they are is outside it.
+    expect(frame).not.toContainElement(screen.getByRole("tab", { name: /^Will match ?3$/ }));
+    expect(frame).not.toContainElement(screen.getByText(/3 transactions change issuer/));
+    expect(frame).not.toContainElement(screen.getByRole("button", { name: "Create rule" }));
+  });
+
   // The tab is a way of looking at the result, not a property of the result:
   // a refetch (every settled keystroke is one) must not bounce the reader back
   // to "Will match". The issuer ids differ across the two answers, so the

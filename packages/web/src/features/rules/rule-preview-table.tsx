@@ -29,6 +29,15 @@ function noop() {}
  */
 const PREVIEW_COLUMNS: VisibilityState = { excluded: false, notes: false };
 
+/**
+ * How tall a preview list may get before its rows scroll (issue #203). A dry-run
+ * returns *every* matching row, so this is the only thing standing between a
+ * broad pattern and a grid thousands of rows tall — which is the same job the
+ * `max-h-72` box around the old bespoke preview did, at the height the grid now
+ * needs: 24rem is the header plus seven rows, where 18rem was five.
+ */
+const PREVIEW_MAX_HEIGHT = "max-h-96";
+
 export interface RulePreviewTableProps {
   /** The rows of the selected preview list. */
   transactions: readonly Transaction[];
@@ -65,6 +74,13 @@ export interface RulePreviewTableProps {
  * bespoke lines this grid replaced led nowhere, which is what made adopting the
  * grid a new way to lose a rule. The inline curation cells stay: they act on
  * the row where they are, and stop their own clicks from reaching it.
+ *
+ * The rows are **bounded and scroll** inside their own frame
+ * ({@link PREVIEW_MAX_HEIGHT}, issue #203): the lists come back uncapped, so at
+ * natural height a broad pattern would push the form's Save and Cancel far below
+ * the fold and move them again on every debounce. Only the rows scroll — the tab
+ * strip above says which list this is and the summary below is the sentence the
+ * save decision turns on, so neither may scroll away from the rows it is about.
  */
 export function RulePreviewTable({
   transactions,
@@ -103,6 +119,7 @@ export function RulePreviewTable({
       columnVisibility={PREVIEW_COLUMNS}
       renderActions={renderActions}
       rowLinks={false}
+      maxHeight={PREVIEW_MAX_HEIGHT}
     />
   );
 }
