@@ -9,7 +9,7 @@ import { BackLink } from "@/components/back-link";
 import { PageLayout } from "@/components/page-layout";
 import { Empty } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsIndicator, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs";
+import { Tabs, TabsCount, TabsIndicator, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs";
 import { RulesSection } from "@/features/rules/rules-section";
 import type { TransactionFilterValues } from "@/features/transactions/transactions-filters";
 import {
@@ -297,12 +297,12 @@ function IssuerDetailContent({ issuer }: IssuerDetailContentProps) {
           <TabsTab value="transactions">
             <Receipt className="size-3.5" aria-hidden />
             Transactions
-            <TabCount>{referenceCount}</TabCount>
+            <TabsCount>{referenceCount}</TabsCount>
           </TabsTab>
           <TabsTab value="rules">
             <Ruler className="size-3.5" aria-hidden />
             Rules
-            <TabCount>{ruleCount}</TabCount>
+            <TabsCount>{ruleCount}</TabsCount>
           </TabsTab>
           <TabsIndicator />
         </TabsList>
@@ -325,14 +325,5 @@ function IssuerDetailContent({ issuer }: IssuerDetailContentProps) {
         </TabsPanel>
       </Tabs>
     </PageLayout>
-  );
-}
-
-/** The count beside a tab's label — a pill, so it reads as a badge not a word. */
-function TabCount({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="rounded-full bg-gousse-line/60 px-1.5 text-[11px] text-gousse-muted tabular-nums">
-      {children}
-    </span>
   );
 }

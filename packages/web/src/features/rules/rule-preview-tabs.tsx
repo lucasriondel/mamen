@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { TabsCount, TabsIndicator, TabsList, TabsTab } from "@/components/ui/tabs";
 
 /** Which of the preview's three lists is on screen. */
 export type PreviewTabId = "willMatch" | "willReassign" | "manualCollisions";
@@ -36,64 +36,46 @@ export const PREVIEW_TABS: ReadonlyArray<{
 ];
 
 export interface RulePreviewTabsProps {
-  active: PreviewTabId;
-  onSelect: (id: PreviewTabId) => void;
   /** How many rows each list holds, for the count pills. */
   counts: Readonly<Record<PreviewTabId, number>>;
 }
 
 /**
- * The preview's three lists as **tabs over one table**.
+ * The strip that switches the preview's three lists — the app's tab widget
+ * ({@link TabsList}), not a strip of buttons wearing `role="tab"`.
  *
  * Stacked, the three lists pushed the third below the fold and gave each an
  * arbitrary share of a fixed-height scroll box. As tabs they share the full
  * width — which is what lets the real transactions grid render here at all —
- * and the counts stay visible on the tab strip, so the blast radius is legible
+ * and the counts stay visible on the strip, so the blast radius is legible
  * without opening each list.
+ *
+ * It was hand-rolled once, and that is what issue #206 retired: `ui/tabs.tsx`
+ * exists to own the half a hand-rolled strip always gets wrong — the roving
+ * `tabIndex` (one stop for the whole strip rather than one per tab), the arrow
+ * keys, Home/End, and the `aria-controls`/`aria-labelledby` wiring to the panels
+ * — and a second tab widget with its own keyboard semantics is a keyboard user
+ * having to learn this page separately. Only the placement lives here: the strip
+ * is centred over the grid it switches, because it is the control for
+ * everything below it rather than a sentence trailing off to one side.
  *
  * A tab with no rows stays enabled: an empty **Manual collisions** is a fact
  * worth checking, and disabling it would make "none" indistinguishable from
  * "not loaded yet".
+ *
+ * The root and the panels are the caller's ({@link RulePreviewPanel}) — a
+ * `TabsList` outside a `Tabs` root has nothing to switch.
  */
-export function RulePreviewTabs({ active, onSelect, counts }: RulePreviewTabsProps) {
+export function RulePreviewTabs({ counts }: RulePreviewTabsProps) {
   return (
-    <div
-      role="tablist"
-      aria-label="Rule preview"
-      className="inline-flex gap-1 rounded-full border border-gousse-line bg-gousse-panel p-1"
-    >
-      {PREVIEW_TABS.map((tab) => {
-        const selected = tab.id === active;
-        return (
-          <button
-            key={tab.id}
-            type="button"
-            role="tab"
-            id={`rule-preview-tab-${tab.id}`}
-            aria-selected={selected}
-            aria-controls="rule-preview-panel"
-            className={cn(
-              "inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-gousse-accent",
-              selected
-                ? "bg-gousse-bg font-medium text-gousse-ink"
-                : "text-gousse-muted hover:text-gousse-ink",
-            )}
-            onClick={() => onSelect(tab.id)}
-          >
-            {tab.label}
-            <span
-              className={cn(
-                "rounded-full px-1.5 py-px text-[11px] font-semibold tabular-nums",
-                selected
-                  ? "bg-gousse-accent/15 text-gousse-accent"
-                  : "bg-gousse-line text-gousse-ink",
-              )}
-            >
-              {counts[tab.id]}
-            </span>
-          </button>
-        );
-      })}
-    </div>
+    <TabsList aria-label="Rule preview" className="justify-center">
+      {PREVIEW_TABS.map((tab) => (
+        <TabsTab key={tab.id} value={tab.id} className="text-xs">
+          {tab.label}
+          <TabsCount>{counts[tab.id]}</TabsCount>
+        </TabsTab>
+      ))}
+      <TabsIndicator />
+    </TabsList>
   );
 }

@@ -1,4 +1,4 @@
-import type { ComponentProps } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { Tabs as TabsPrimitive } from "@base-ui-components/react/tabs";
 import { cn } from "@/lib/utils";
 
@@ -58,6 +58,25 @@ export function TabsTab({ className, ...props }: ComponentProps<typeof TabsPrimi
       )}
       {...props}
     />
+  );
+}
+
+/**
+ * The count beside a tab's label — a pill, so it reads as a badge and not as a
+ * word in the label. Shared rather than re-styled per strip: both tabbed
+ * surfaces (the issuer detail page and the rule preview) count what is behind
+ * each tab, and a count that changed shape between them would read as counting
+ * something else.
+ *
+ * It does not restyle on selection. The ink of the label and the indicator
+ * already say which tab is open; a pill that changed colour too would compete
+ * with them for the same fact.
+ */
+export function TabsCount({ children }: { children: ReactNode }) {
+  return (
+    <span className="rounded-full bg-gousse-line/60 px-1.5 text-[11px] text-gousse-muted tabular-nums">
+      {children}
+    </span>
   );
 }
 

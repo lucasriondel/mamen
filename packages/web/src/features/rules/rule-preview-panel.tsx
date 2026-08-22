@@ -1,5 +1,6 @@
 import type { Issuer, RulePreviewResult, Transaction } from "@mamen/shared/contract";
 import { useState } from "react";
+import { Tabs, TabsPanel } from "@/components/ui/tabs";
 import { RulePreviewTable } from "./rule-preview-table";
 import { PREVIEW_TABS, type PreviewTabId, RulePreviewTabs } from "./rule-preview-tabs";
 
@@ -76,37 +77,39 @@ export function RulePreviewPanel({
     );
   }
 
-  const tab = PREVIEW_TABS.find((candidate) => candidate.id === active) ?? PREVIEW_TABS[0];
-  const rows = preview[tab.id];
-
   return (
     <div className="flex flex-col gap-3">
-      {/* Centred over the grid, with the description on its own line beneath:
-          the strip is the switch for everything below it, so it sits on the
-          page's axis rather than trailing a sentence off to one side. */}
-      <div className="flex flex-col items-center gap-1.5 text-center">
-        <RulePreviewTabs active={active} onSelect={setActive} counts={countsOf(preview)} />
-        {/* The heading the tab replaced, kept as the panel's accessible name so
-            the grid below is still announced as *which* list it is. */}
-        <h3 id="rule-preview-heading" className="sr-only">
-          {tab.label} ({rows.length})
-        </h3>
-        <p className="text-xs text-gousse-muted">{tab.description}</p>
-      </div>
-
-      <div
-        id="rule-preview-panel"
-        role="tabpanel"
-        aria-labelledby={`rule-preview-tab-${tab.id}`}
-        tabIndex={-1}
+      {/* Controlled, on this component's own state rather than the strip's own:
+          the `skipped` branch above returns before `Tabs`, so the strip is not
+          somewhere a choice can survive one. (It does not survive a *new*
+          pattern either — the form swaps the whole panel for a skeleton while
+          the next dry-run is in flight — but that is the form's remount, not
+          this strip's, and it predates the tabs.) */}
+      <Tabs
+        value={active}
+        onValueChange={(next) => setActive(next as PreviewTabId)}
+        className="flex flex-col gap-3"
       >
-        <RulePreviewTable
-          transactions={rows}
-          issuersById={issuersById}
-          emptyLabel="None."
-          renderActions={tab.id === "manualCollisions" ? renderManualAction : undefined}
-        />
-      </div>
+        <RulePreviewTabs counts={countsOf(preview)} />
+
+        {PREVIEW_TABS.map((tab) => (
+          <TabsPanel key={tab.id} value={tab.id} className="flex flex-col gap-3">
+            {/* The heading each tab replaced, kept so a reader walking the
+                headings is still told *which* list the grid below is. */}
+            <h3 className="sr-only">
+              {tab.label} ({preview[tab.id].length})
+            </h3>
+            <p className="text-center text-xs text-gousse-muted">{tab.description}</p>
+
+            <RulePreviewTable
+              transactions={preview[tab.id]}
+              issuersById={issuersById}
+              emptyLabel="None."
+              renderActions={tab.id === "manualCollisions" ? renderManualAction : undefined}
+            />
+          </TabsPanel>
+        ))}
+      </Tabs>
 
       <PreviewSummary preview={preview} />
     </div>
