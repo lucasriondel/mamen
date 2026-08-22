@@ -1,4 +1,5 @@
 import type { Account, Category, Issuer, Rule, Transaction } from "@mamen/shared/contract";
+import { PaginationDefaults } from "@mamen/shared/contract";
 import {
   createMemoryHistory,
   createRootRoute,
@@ -194,11 +195,17 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
       }),
     },
     ruleQueries: {
-      list: (params: { issuerId?: number }) => ({
+      // Paged like the server's: `limit`/`offset` cut the page, `total` reports
+      // the whole filtered set. The Rules tab's badge counts rules, so a mock
+      // that ignored the window could not tell a full read from a capped one
+      // (issue #198).
+      list: (params: { issuerId?: number; limit?: number; offset?: number }) => ({
         queryKey: ["rules", "list", params],
         queryFn: async () => {
-          const items = rulesByIssuer[params.issuerId ?? -1] ?? [];
-          return { items, total: items.length };
+          const all = rulesByIssuer[params.issuerId ?? -1] ?? [];
+          const offset = params.offset ?? PaginationDefaults.offset;
+          const limit = params.limit ?? PaginationDefaults.limit;
+          return { items: all.slice(offset, offset + limit), total: all.length };
         },
       }),
     },
@@ -408,6 +415,21 @@ describe("IssuerDetailPage", () => {
 
     expect(await screen.findByText("SPOTIFY.*")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Matching Rules" })).toBeInTheDocument();
+  });
+
+  it("counts every rule on the Rules tab, not the first page of them", async () => {
+    // 60 rules: the badge is a count of the whole set, and the section beneath
+    // it reads the same query — so a page-sized read would undercount both.
+    rulesByIssuer = {
+      1: Array.from({ length: 60 }, (_, i) =>
+        rule({ id: (100 + i) as Rule["id"], pattern: `SPOTIFY-${i}` }),
+      ),
+    };
+    renderAt("/issuers/1");
+
+    await waitFor(() =>
+      expect(screen.getByRole("tab", { name: /Rules/ })).toHaveTextContent("Rules60"),
+    );
   });
 
   it("opens straight onto the panel the URL names", async () => {

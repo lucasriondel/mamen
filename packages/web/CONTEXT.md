@@ -503,6 +503,30 @@ reported those four hooks as stale-count bugs on the strength of it (issue
 #170).
 _Avoid_: "moves rows", "touches transactions" (both name a superset of the six).
 
+**Rules coverage bar**:
+The line above the issuer detail page's rules table: how much of that issuer's
+history its **Matching Rules** actually account for. The numerator is the sum of
+the rules' **owned counts** (ownership is exclusive, so the sum never
+double-counts) and the denominator the issuer's *unfiltered* reference count —
+the same figure the delete guard reads, so the user's account / month / search
+filters must not narrow it. The remainder is named, and that is the point: a row
+carries this issuer because a rule won it or because someone picked it, so
+`total − ruleMatched` is exactly the **hand-assigned** set no rule will ever
+claim.
+_Code note_: naming the remainder is what makes the numerator's set load-bearing.
+The denominator is an unpaged count, so the numerator is summed over an unpaged
+list: an issuer's rules are read **whole** (`issuerRulesQuery`,
+`ISSUER_RULES_SCAN_LIMIT`), never a page, and the Rules tab's badge shares that
+one query so the two cannot disagree. Read a page at a time the bar reported
+every rule past the 50th as hand-assigned rows and the table dropped those rules
+with no page to turn (issue #198) — the same page-size cliff the issuer-table
+reads hit in #62, one resource over. Past the scan limit no bar is drawn at all:
+the envelope's `total` says the read fell short, and `RulesCoveragePartial` says
+so on screen rather than reporting a figure it cannot compute.
+_Avoid_: **month strip** progress (`3/6 months` on an account card is a
+different bar), match rate (the bar counts rows a rule *owns*, not rows it
+matched — see **Owned count**).
+
 **Rule move**:
 Re-homing a **Matching Rule** from the Issuer that owns it onto another one, in
 place on the issuer detail page (issue #94). The rule keeps its identity — its
