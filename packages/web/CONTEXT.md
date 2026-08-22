@@ -475,7 +475,13 @@ an issuer) before applying on save, as does a **rule move**. Assigns **only** an
 issuer — category flows through the issuer (**derived category**), never off the
 rule.
 _Code note_: the entity is `Rule` in the contract/DB/SDK; "Matching Rule" is the
-user-facing name only. Each rule row shows its **owned count** (see
+user-facing name only. The create/edit form's live preview is **read through, not
+reloaded**: the dry-run query keeps the previous answer on screen while the next
+one is in flight (`keepPreviousData`) and which of its three tabs is open is held
+by `RuleForm`, above the skeleton swap — every settled keystroke is a new query
+key, and the previewed rows' issuers are a *dependent* read, so a panel holding
+its own tab state comes back on "Will match" and bounces the reader off the list
+they were reading (issue #200). Each rule row shows its **owned count** (see
 [CONTEXT-MAP.md](../../CONTEXT-MAP.md)) worded as what it counts — "3
 transactions", never "3 matches". That count is derived from the transactions
 table on every read, out of six inputs and nothing else (the
