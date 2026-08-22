@@ -21,8 +21,14 @@ const MATCHER = readFileSync("src/matching/issuer-matcher.ts", "utf8");
 const CONTEXT = readFileSync("CONTEXT.md", "utf8");
 
 /**
- * The six inputs, in the exact words both documents must use — the same list
+ * The seven inputs, in the exact words both documents must use — the same list
  * `packages/web/CONTEXT.md` carries, so one phrasing spans both packages.
+ *
+ * `bundleId` is the odd one out and is listed anyway (issue #199): it decides
+ * not *who wins* a row but whether the row is **counted** at all, a **bundle
+ * member** being the one thing this app never counts. A reader checking a
+ * mutation against the list needs it there — bundling a row a rule owns lowers
+ * that rule's count without touching a rule or an issuer.
  */
 const INPUTS = [
   "row existence",
@@ -31,6 +37,7 @@ const INPUTS = [
   "`amount`",
   "`accountId`",
   "the rule set",
+  "`bundleId`",
 ] as const;
 
 /**
@@ -72,10 +79,15 @@ const glossaryEntry = (source: string, term: string): string => {
 describe("the Owned count's input set", () => {
   const deriveDoc = docCommentAbove(MATCHER, "export const derive = (");
 
-  it("is named at the derivation site, all six of it", () => {
+  it("is named at the derivation site, all seven of it", () => {
     for (const input of INPUTS) {
       expect(deriveDoc).toContain(input);
     }
+  });
+
+  it("says what `bundleId` does there — a bundle member is not counted", () => {
+    expect(deriveDoc).toMatch(/bundle member/i);
+    expect(deriveDoc).toContain("#199");
   });
 
   it("states the inverse: a write touching none of them moves nothing", () => {
@@ -107,7 +119,7 @@ describe("the Owned count's input set", () => {
 describe("the package glossary", () => {
   const entry = glossaryEntry(CONTEXT, "Owned-count input set");
 
-  it("carries the same six inputs, in the same words", () => {
+  it("carries the same seven inputs, in the same words", () => {
     for (const input of INPUTS) {
       expect(entry).toContain(input);
     }

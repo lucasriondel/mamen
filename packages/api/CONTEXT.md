@@ -136,15 +136,24 @@ decide — a decision fused to its statement construction needs a database to
 test.
 
 **Owned-count input set**:
-The six things a **Matching Rule**'s **Owned count** (see CONTEXT-MAP.md) is
+The seven things a **Matching Rule**'s **Owned count** (see CONTEXT-MAP.md) is
 derived from, stated where the derivation is — `derive` in
 `matching/issuer-matcher.ts`: **row existence**, `manualIssuer`,
-`rawIssuerString`, `amount`, `accountId`, and **the rule set** itself. Nothing
-else. The count is computed on every read and never stored (the `matchCount`
-column went in migration `0017_drop_rules_match_count`), so it is a function of
-those six as they stand now.
+`rawIssuerString`, `amount`, `accountId`, and **the rule set** itself, plus
+`bundleId`. Nothing else. The count is computed on every read and never stored
+(the `matchCount` column went in migration `0017_drop_rules_match_count`), so it
+is a function of those seven as they stand now.
 
-The inverse is the load-bearing half: **a write touching none of the six cannot
+`bundleId` is the one the *tally* applies rather than the derivation (issue
+#199): it decides not who wins a row but whether the row is **counted** at all.
+A **bundle member** never is — its **bundle parent** stands for it, the same rule
+`isNotBundleMember` states for every `list` and `count` — while a member is still
+matched and written like any other row, so dissolving a bundle returns it exactly
+as it was. The rules coverage bar divides a sum of Owned counts by
+`count({ issuerId })`, and a fraction whose halves count different populations is
+not a fraction.
+
+The inverse is the load-bearing half: **a write touching none of the seven cannot
 change an Owned count**. `transferGroupId` (transfer link / unlink / dismiss),
 `categoryId` / `manualCategory` (a category override), `excludedFromRecap` /
 `manualExcluded` (recap exclusion) and an issuer's own `excludedFromRecap` recap
@@ -155,9 +164,10 @@ that the mutation hooks omitting the rules-cache invalidation were shipping
 stale counts. They are not: check a write against the field list mechanically
 instead of inferring from what "moves" means. `packages/web/CONTEXT.md` holds
 the cache-invalidation rule that follows from this list, worded in these same
-six fields since issue #170 — a mutation writing any of them invalidates
+fields since issue #170 — a mutation writing any of them invalidates
 `ruleKeys.all`, and one writing none of them correctly does not.
-_Avoid_: "moves rows", "touches transactions" (both name a superset of the six).
+_Avoid_: "moves rows", "touches transactions" (both name a superset of the
+seven).
 
 **Wire suite / repo suite / rule-module suite**:
 The three test seams. Two of them are per resource, one file each. The **wire

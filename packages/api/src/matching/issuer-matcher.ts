@@ -155,8 +155,10 @@ const compile = (rules: ReadonlyArray<Rule>): CompiledSet => {
  * time a predicate is added.
  *
  * These three are the *per-row* part of the Owned count's input set; the whole
- * set (six things, with the two counter-example lists) is stated on
- * {@link derive}.
+ * set (seven things, with the two counter-example lists) is stated on
+ * {@link derive}. `bundleId` is not among them because it is no part of the
+ * match — it decides whether the row is counted, not who wins it
+ * ({@link isCounted}).
  */
 type MatchRow = Pick<typeof Transaction.Type, "rawIssuerString" | "amount" | "accountId">;
 
@@ -194,23 +196,29 @@ const winnerFor = (row: MatchRow, compiled: ReadonlyArray<CompiledRule>): Rule |
  * and commit paths call. Exported for direct unit reasoning; the feature's
  * behaviour is tested at the API boundary.
  *
- * **The Owned count's input set is this function's, and it is six things**
- * (issue #166): row existence, `manualIssuer`, `rawIssuerString`, `amount`,
- * `accountId`, and the rule set itself. The count is derived on every read
- * ({@link ownedCounts}) and never stored — the `matchCount` column went in
- * migration `0017_drop_rules_match_count` — so it is a function of those six as
- * they stand *now*, and of nothing else.
+ * **The Owned count's input set is seven things** (issue #166): the six this
+ * function reads — row existence, `manualIssuer`, `rawIssuerString`, `amount`,
+ * `accountId`, and the rule set itself — plus `bundleId`, which the tally
+ * applies rather than the derivation (issue #199). That last one decides not
+ * *who wins* a row but whether the row is counted at all: a **bundle member** is
+ * never counted, its **bundle parent** standing for it, exactly as in every
+ * `list` and `count` the app draws ({@link isCounted}). The count is derived on
+ * every read ({@link ownedCounts}) and never stored — the `matchCount` column
+ * went in migration `0017_drop_rules_match_count` — so it is a function of those
+ * seven as they stand *now*, and of nothing else.
  *
  * The inverse is the half worth writing down, because it has been derived and
- * refuted twice: **a write touching none of the six cannot change an Owned
+ * refuted twice: **a write touching none of the seven cannot change an Owned
  * count.** `transferGroupId` (transfer link / unlink / dismiss), `categoryId`
  * and `manualCategory` (a category override), `excludedFromRecap` and
  * `manualExcluded` (recap exclusion), and an issuer's own `excludedFromRecap`
  * recap flag all change how a row is *displayed or aggregated* — none is read
- * here, so none moves ownership, and the mutations confined to them correctly
- * invalidate the transactions cache without the rules one.
+ * here or by the tally, so none moves ownership, and the mutations confined to
+ * them correctly invalidate the transactions cache without the rules one. A
+ * bundle write is the counter-example that keeps the list honest: it moves a
+ * count without touching a rule, an issuer or a matched field.
  *
- * The same six-field list, in the same words, is in `packages/api/CONTEXT.md`
+ * The same field list, in the same words, is in `packages/api/CONTEXT.md`
  * (**Owned-count input set**) and — since issue #170 replaced the "any mutation
  * that moves rows" superset this comment exists to narrow — in
  * `packages/web/CONTEXT.md`, which holds the cache-invalidation rule that
@@ -246,17 +254,47 @@ export const derive = (
 };
 
 /**
- * Tally how many rows each rule *won*, keyed by rule id — every rule in `rules`
- * is present (a rule that won nothing maps to `0`, never a missing key). Manual
- * and unmatched outcomes carry no rule and so count for nobody.
+ * Whether a row is **counted** — the population every Owned count is over
+ * (issue #199). A **bundle member** is not: its **bundle parent** already stands
+ * for it, so counting both counts the same money twice. This is the JS-side
+ * statement of the `isNotBundleMember` rule the transactions repository applies
+ * by default to every `list` and `count` (`recap-predicate.ts`), and the two are
+ * one rule: the coverage bar divides an Owned count sum by
+ * `count({ issuerId })`, and a fraction whose halves count different populations
+ * is not a fraction.
+ *
+ * Ownership itself is decided over *every* row — a member is matched and written
+ * like any other, so dissolving a bundle returns it exactly as it was. Only the
+ * counting stops at the parent.
+ *
+ * The two dry-runs are therefore **not** narrowed by this: {@link previewLists}
+ * and {@link deleteLists} say what a save or a delete *would do*, and it does
+ * reach members. A rule can truthfully report `ownedCount: 0` while its delete
+ * preview names the member rows it is about to unmatch — a count is over a
+ * population, a consequence list is over what is written.
+ */
+const isCounted = (row: Transaction): boolean => row.bundleId == null;
+
+/**
+ * Tally how many **counted** rows each rule won, keyed by rule id — every rule
+ * in `rules` is present (a rule that won nothing maps to `0`, never a missing
+ * key). Manual and unmatched outcomes carry no rule and so count for nobody; a
+ * row {@link isCounted} rejects — a **bundle member** — counts for nobody
+ * either, though a rule did win it.
+ *
+ * `outcomes` are expected to be `derive`d from these same `rows`; an outcome for
+ * a row outside the set cannot be looked up and is counted.
  */
 const tally = (
+  rows: ReadonlyArray<Transaction>,
   outcomes: ReadonlyArray<MatchOutcome>,
   rules: ReadonlyArray<Rule>,
 ): Map<number, number> => {
   const counts = new Map<number, number>(rules.map((r) => [r.id as number, 0]));
+  const uncounted = new Set(rows.filter((r) => !isCounted(r)).map((r) => r.id as number));
   for (const o of outcomes) {
     if (o.matchedRuleId === null) continue;
+    if (uncounted.has(o.transactionId)) continue;
     counts.set(o.matchedRuleId, (counts.get(o.matchedRuleId) ?? 0) + 1);
   }
   return counts;
@@ -271,11 +309,15 @@ const tally = (
  * out-specifies the rule, a row is hand-assigned away, or a transaction is
  * deleted. The whole rule set must be passed even when only some rules' counts
  * are wanted: ownership is decided by specificity across every matching rule.
+ *
+ * Counted over the rows the app counts, not over the table: a **bundle member**
+ * is left out ({@link isCounted}), so bundling a row this rule owns lowers the
+ * count and dissolving the bundle raises it again (issue #199).
  */
 export const ownedCounts = (
   rows: ReadonlyArray<Transaction>,
   rules: ReadonlyArray<Rule>,
-): Map<number, number> => tally(derive(rows, rules).outcomes, rules);
+): Map<number, number> => tally(rows, derive(rows, rules).outcomes, rules);
 
 /**
  * One row's issuer as a recompute settled it, for a row whose stored issuer
@@ -557,7 +599,10 @@ export class IssuerMatcher extends Effect.Service<IssuerMatcher>()("api/IssuerMa
       if (writes.length > 0) {
         yield* Effect.all(writes, { discard: true });
       }
-      return tally(outcomes, rules);
+      // Every row is written; only the counted ones are counted (issue #199) —
+      // the same `tally` the read path reaches through {@link ownedCounts}, so a
+      // rule's count cannot mean one thing in a 201 body and another on reload.
+      return tally(rows, outcomes, rules);
     });
 
     /**

@@ -13,8 +13,9 @@ import { describe, expect, it } from "vitest";
  * the four hooks that correctly omit `ruleKeys.all` look like staleness bugs,
  * and two separate reviews reported them as exactly that.
  *
- * So the rule is the field list now (issue #166 put the same six on the API
- * side), and the inverse is written down rather than left to be re-derived. The
+ * So the rule is the field list now (issue #166 put the same fields on the API
+ * side, and issue #199 added `bundleId` to both), and the inverse is written
+ * down rather than left to be re-derived. The
  * assertions below hold the doc to both halves, and hold the hooks to the doc:
  * prose is the artefact here, and the failure mode is prose drifting off the
  * code it describes.
@@ -26,9 +27,12 @@ const CONTEXT = readFileSync("CONTEXT.md", "utf8");
 const API_CONTEXT = readFileSync("../api/CONTEXT.md", "utf8");
 
 /**
- * The six inputs, in the exact words both packages must use — the list
+ * The seven inputs, in the exact words both packages must use — the list
  * `packages/api/CONTEXT.md` and the matcher's `derive` already carry, so one
- * phrasing spans the whole repo.
+ * phrasing spans the whole repo. `bundleId` is the seventh (issue #199): it is
+ * applied by the tally rather than the derivation — a **bundle member** is won
+ * like any other row and never counted — so a bundle write moves an Owned count
+ * without touching a rule, an issuer or a matched field.
  */
 const INPUTS = [
   "row existence",
@@ -37,6 +41,7 @@ const INPUTS = [
   "`amount`",
   "`accountId`",
   "the rule set",
+  "`bundleId`",
 ] as const;
 
 /**
@@ -80,7 +85,7 @@ const mutationBlock = (source: string, name: string): string => {
 const entry = glossaryEntry(CONTEXT, "Matching Rule");
 
 describe("the owned-count invalidation rule", () => {
-  it("names the six inputs instead of leaning on 'moves rows'", () => {
+  it("names the seven inputs instead of leaning on 'moves rows'", () => {
     for (const input of INPUTS) {
       expect(entry).toContain(input);
     }
@@ -107,6 +112,13 @@ describe("the owned-count invalidation rule", () => {
     // `rawIssuerString` is the user's label — the string the matcher reads.
     expect(entry).toContain("the user's label as its `rawIssuerString`");
     expect(entry).toContain("#78");
+  });
+
+  it("names the other half of the bundle rule: a member is not counted", () => {
+    // The half that makes the coverage bar a fraction (issue #199) — the same
+    // claim `packages/api/CONTEXT.md` and the matcher's tally state.
+    expect(entry).toMatch(/bundle member\*{0,2} is not counted/i);
+    expect(entry).toContain("#199");
   });
 
   it("states the inverse, with the concrete non-triggering fields", () => {
@@ -139,7 +151,7 @@ describe("the owned-count invalidation rule", () => {
 describe("the API-side section it must agree with", () => {
   const apiEntry = glossaryEntry(API_CONTEXT, "Owned-count input set");
 
-  it("carries the same six inputs and the same counter-examples", () => {
+  it("carries the same seven inputs and the same counter-examples", () => {
     for (const phrase of [...INPUTS, ...NON_INPUTS]) {
       expect(apiEntry).toContain(phrase);
       expect(entry).toContain(phrase);
@@ -147,7 +159,7 @@ describe("the API-side section it must agree with", () => {
   });
 
   it("carries the same inverse sentence, word for word", () => {
-    const inverse = "a write touching none of the six cannot change an Owned count";
+    const inverse = "a write touching none of the seven cannot change an Owned count";
     expect(apiEntry).toContain(inverse);
     expect(entry).toContain(inverse);
   });

@@ -68,6 +68,12 @@ export class Rule extends Schema.Class<Rule>("Rule")({
  * matches — that was the old stored `matchCount`, which no rule created against
  * existing history ever accumulated, so every UI-created rule read "0 matches".
  * Read-only: no write payload carries it.
+ *
+ * Counted over the same population every `list` and `count` reports on: a
+ * **bundle member** is won like any other row but never counted, its parent
+ * standing for it (issue #199). The rules coverage bar divides a sum of these by
+ * `count({ issuerId })`, so the two must hold one rule about members between
+ * them.
  */
 export class RuleView extends Rule.extend<RuleView>("RuleView")({
   ownedCount: Schema.Number,

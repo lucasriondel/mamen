@@ -54,7 +54,12 @@ repeated per package.
   when a sibling rule out-specifies this one, a row is hand-assigned away, or a
   transaction is deleted. Supersedes the stored `matchCount` column, a lifetime
   tally of import-time wins that nothing displayed as such and that a rule
-  written against existing history never accumulated (issue #63).
+  written against existing history never accumulated (issue #63). It counts the
+  rows this app counts: a **bundle member** is won like any other row but never
+  counted, its **bundle parent** standing for it, so bundling a row a rule owns
+  lowers the count and dissolving the bundle raises it again (issue #199). That
+  is what lets the coverage bar put this number over the issuer's transaction
+  count, which hides members by the same rule.
   _Avoid_: match count (it is not a count of matches — a rule can match a row and
   lose it to a more specific rule).
 
@@ -866,10 +871,12 @@ repeated per package.
   _Avoid_: virtual transaction, container, header row, master.
 
 - **Bundle member** — a real bank row pointing at its **bundle parent** through
-  `bundleId`. Members are hidden from the top level of the transactions list and
-  from its signed total, since the parent already accounts for them and showing
-  both double-counts; they stay reachable by expanding the parent, and are shown
-  there for reading, not counted again. They travel with the page that holds
+  `bundleId`. Members are hidden from the top level of the transactions list,
+  from its signed total and from every **Owned count**, since the parent already
+  accounts for them and showing both double-counts; they stay reachable by
+  expanding the parent, and are shown there for reading, not counted again. A
+  member is still *matched* — it keeps deriving an issuer, so dissolving the
+  bundle returns it exactly as it was — it is only never counted. They travel with the page that holds
   their parent — the list envelope's own `bundleMembers` field, beside `items`
   rather than among them — so expanding costs no request and changes no total. Bundling never touches a member's own
   issuer, category or notes, so dissolving a bundle returns each member exactly

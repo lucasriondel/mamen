@@ -22,6 +22,13 @@ export interface RulesCoverageBarProps {
  * rule won it or because someone picked it, so `total - ruleMatched` is exactly
  * the set no rule will ever claim (`manualIssuer`). Naming it is the point —
  * it's the answer to "why didn't my rule pick these up".
+ *
+ * Both figures count **one population**, and that is a server-side invariant:
+ * `total` hides **bundle members** (the default under every `count`), so an
+ * `ownedCount` does too (issue #199). Counted on one side only, a rule whose
+ * rows had all been bundled reported `3 of 0` — which the clamp below drew as
+ * "0 of 0 matched" — and a mixed set over-reported coverage while understating
+ * the hand-assigned rows the remainder names.
  */
 export function RulesCoverageBar({ ruleMatched, total }: RulesCoverageBarProps) {
   // Clamped, not trusted: the two figures come from separate queries and can
