@@ -3,8 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import { useState } from "react";
-import { accountQueries, ruleQueries, transactionQueries } from "@/lib/sdk";
-import { RulesCoverageBar } from "./rules-coverage-bar";
+import { accountQueries, transactionQueries } from "@/lib/sdk";
+import { issuerRulesQuery } from "./issuer-rules-query";
+import { RulesCoverageBar, RulesCoveragePartial } from "./rules-coverage-bar";
 import { RulesListSkeleton } from "./rules-list-skeleton";
 import { RulesTableHead } from "./rules-table-head";
 import { RulesTableRow } from "./rules-table-row";
@@ -38,13 +39,22 @@ type Expansion = { ruleId: number; kind: "move" | "delete" };
  * is exclusive — one row has exactly one winning rule — so the sum never
  * double-counts.
  *
+ * The two figures must therefore cover the **same set**: the denominator is an
+ * unpaged count, so the numerator is summed over an unpaged list
+ * ({@link issuerRulesQuery}). Read a page at a time it under-counted by every
+ * rule past the 50th and reported their rows as hand-assigned (issue #198) —
+ * and the table dropped those rules with no page to turn to reach them.
+ *
  * Only one panel is open at a time across the whole list: two would leave
  * "Cancel" ambiguous.
  */
 export function RulesSection({ issuer }: RulesSectionProps) {
   const [expansion, setExpansion] = useState<Expansion | null>(null);
 
-  const rulesQuery = useQuery(ruleQueries.list({ issuerId: issuer.id }));
+  // The issuer's **whole** rule set, not a page of it — the table lists all of
+  // them and the bar sums all of them, so a page-sized read would drop rules
+  // off the bottom and skew the coverage figure by exactly those.
+  const rulesQuery = useQuery(issuerRulesQuery(issuer.id));
   const rules = (rulesQuery.data?.items ?? []) as readonly RuleView[];
 
   // Names for the account column. A rule's account matcher is stored as an id,
@@ -60,6 +70,13 @@ export function RulesSection({ issuer }: RulesSectionProps) {
   const total = totalQuery.data?.count ?? 0;
 
   const ruleMatched = rules.reduce((sum, rule) => sum + rule.ownedCount, 0);
+
+  // Did the read reach the end of the list? The envelope's `total` is the full
+  // filtered count, so a shortfall against the rows in hand is the one thing
+  // that can make `ruleMatched` a lie — and it is the numerator of a bar whose
+  // remainder is named "hand-assigned" (issue #198).
+  const ruleTotal = rulesQuery.data?.total ?? rules.length;
+  const listedEveryRule = rules.length >= ruleTotal;
 
   return (
     <div className="flex flex-col gap-3">
@@ -85,7 +102,11 @@ export function RulesSection({ issuer }: RulesSectionProps) {
         </p>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-gousse-line bg-gousse-panel">
-          <RulesCoverageBar ruleMatched={ruleMatched} total={total} />
+          {listedEveryRule ? (
+            <RulesCoverageBar ruleMatched={ruleMatched} total={total} />
+          ) : (
+            <RulesCoveragePartial listed={rules.length} ruleTotal={ruleTotal} />
+          )}
           {/* The table scrolls inside its own box rather than pushing the page
               sideways: six columns don't fit a narrow viewport, and the panel
               this sits in is already width-constrained by the tab strip. */}

@@ -66,6 +66,41 @@ export function RulesCoverageBar({ ruleMatched, total }: RulesCoverageBarProps) 
   );
 }
 
+export interface RulesCoveragePartialProps {
+  /** How many rules the read actually handed back. */
+  listed: number;
+  /** How many the issuer has — the list envelope's `total`. */
+  ruleTotal: number;
+}
+
+/**
+ * What stands in the coverage bar's place when the rules read **didn't reach
+ * the end of the list** (issue #198).
+ *
+ * The bar's numerator is a sum over the rules in hand, so a partial list
+ * under-counts it by exactly the rules it missed — and since the remainder is
+ * *named* "hand-assigned", the missing rules' rows would be reported as
+ * something they demonstrably are not. There is no honest bar to draw, so none
+ * is: the two figures say what is on screen and what is not, which is the one
+ * thing this state can state truthfully.
+ *
+ * Unreachable in practice — `ISSUER_RULES_SCAN_LIMIT` (`issuer-rules-query.ts`)
+ * is far past any real issuer's rule set. It exists because 50 was too, until
+ * it wasn't, and the failure that produced was silent.
+ */
+export function RulesCoveragePartial({ listed, ruleTotal }: RulesCoveragePartialProps) {
+  return (
+    // An `<output>`, not a `<p>` wearing `role="status"`: the element already
+    // means "the result of a calculation", which is the slot this stands in —
+    // and it is the block the bar's own `<meter>` is the other half of.
+    <output className="block border-b border-gousse-line bg-gousse-line/20 px-4 py-3 text-xs text-gousse-muted">
+      Showing <span className="tabular-nums">{listed}</span> of{" "}
+      <span className="tabular-nums">{ruleTotal}</span> Matching Rules — coverage isn’t reported
+      over a partial list.
+    </output>
+  );
+}
+
 /** One swatch-and-label pair in the bar's legend. */
 function LegendKey({ className, children }: { className: string; children: React.ReactNode }) {
   return (

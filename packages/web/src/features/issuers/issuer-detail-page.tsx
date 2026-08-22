@@ -10,18 +10,14 @@ import { PageLayout } from "@/components/page-layout";
 import { Empty } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsIndicator, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs";
+import { issuerRulesQuery } from "@/features/rules/issuer-rules-query";
 import { RulesSection } from "@/features/rules/rules-section";
 import type { TransactionFilterValues } from "@/features/transactions/transactions-filters";
 import {
   composeTransactionFilters,
   TransactionsSection,
 } from "@/features/transactions/transactions-section";
-import {
-  issuerQueries,
-  ruleQueries,
-  type TransactionCountParams,
-  transactionQueries,
-} from "@/lib/sdk";
+import { issuerQueries, type TransactionCountParams, transactionQueries } from "@/lib/sdk";
 import { cn } from "@/lib/utils";
 import type { IssuerDetailSearch } from "./detail-search";
 import { BUTTON_CLASS } from "./field-styles";
@@ -161,8 +157,12 @@ function IssuerDetailContent({ issuer }: IssuerDetailContentProps) {
   const net = netQuery.data?.total ?? 0;
   const filteredCount = netQuery.data?.count ?? 0;
 
-  const rulesQuery = useQuery(ruleQueries.list({ issuerId: issuer.id }));
-  const ruleCount = rulesQuery.data?.items?.length ?? 0;
+  // The same read the embedded `RulesSection` makes — one query key, so the
+  // badge and the table it labels can never disagree. The badge counts the
+  // envelope's `total` rather than the rows handed back: it is a count of the
+  // issuer's rules, and a page's length is a count of the page (issue #198).
+  const rulesQuery = useQuery(issuerRulesQuery(issuer.id));
+  const ruleCount = rulesQuery.data?.total ?? 0;
 
   // Every updater below is typed against *this route's* search — the shared
   // transactions params plus the `tab` this page adds — on both sides: `prev`

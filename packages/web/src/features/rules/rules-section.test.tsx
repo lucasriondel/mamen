@@ -5,6 +5,7 @@ import type {
   RulePreviewResult,
   Transaction,
 } from "@mamen/shared/contract";
+import { PaginationDefaults } from "@mamen/shared/contract";
 import {
   createMemoryHistory,
   createRootRoute,
@@ -29,6 +30,10 @@ const updateRule = vi.fn();
 const previewRule = vi.fn();
 
 let rulesByIssuer: Record<number, Rule[]>;
+// The envelope's `total` is the **full** filtered count, which the page of
+// items may not reach. Set to stand in for a rule set larger than one read asks
+// for, without materialising thousands of rows in jsdom.
+let ruleTotalOverride: number | null;
 let issuersList: Issuer[];
 let deletePreviewResult: RuleDeletePreviewResult;
 let previewResult: RulePreviewResult;
@@ -54,11 +59,20 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
   return {
     ...actual,
     ruleQueries: {
-      list: (params: { issuerId?: number }) => ({
+      // Paged like the server's: `limit`/`offset` cut the page and `total`
+      // reports the whole filtered set. A mock that handed back every row
+      // whatever was asked for could not tell a full read from a capped one
+      // (issue #198).
+      list: (params: { issuerId?: number; limit?: number; offset?: number }) => ({
         queryKey: ["rules", "list", params],
         queryFn: async () => {
-          const items = rulesByIssuer[params.issuerId ?? -1] ?? [];
-          return { items, total: items.length };
+          const all = rulesByIssuer[params.issuerId ?? -1] ?? [];
+          const offset = params.offset ?? PaginationDefaults.offset;
+          const limit = params.limit ?? PaginationDefaults.limit;
+          return {
+            items: all.slice(offset, offset + limit),
+            total: ruleTotalOverride ?? all.length,
+          };
         },
       }),
       deletePreview: (id: number) => ({
@@ -204,6 +218,7 @@ beforeEach(() => {
   toastSuccess.mockReset();
   toastError.mockReset();
   rulesByIssuer = { 1: [rule()], 2: [] };
+  ruleTotalOverride = null;
   // 3 of the issuer's 5 rows are won by the rule; the other 2 were hand-picked.
   issuerTransactionCount = 5;
   accountsList = [
@@ -273,6 +288,60 @@ describe("RulesSection — rule list", () => {
         name: "3 of 5 transactions matched by rules, 2 assigned by hand",
       }),
     ).toBeInTheDocument();
+  });
+
+  // An issuer with more rules than one default page holds. The list read is
+  // what the coverage bar sums, so a page-sized read reports the rules it
+  // missed as hand-assigned rows (issue #198).
+  function manyRules(count: number): Rule[] {
+    return Array.from({ length: count }, (_, i) =>
+      rule({
+        id: (100 + i) as Rule["id"],
+        pattern: `pattern-${i}`,
+        ownedCount: 1,
+      }),
+    );
+  }
+
+  it("sums every one of the issuer's rules, not the first page of them", async () => {
+    // 60 rules owning one row each, on an issuer with exactly 60 rows: fully
+    // covered, nothing hand-assigned. Read a page at a time it reads as 50.
+    rulesByIssuer = { 1: manyRules(60) };
+    issuerTransactionCount = 60;
+    renderSection();
+    await screen.findByText("pattern-0");
+
+    expect(
+      screen.getByRole("meter", {
+        name: "60 of 60 transactions matched by rules, 0 assigned by hand",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("renders the rules past the first page rather than dropping them", async () => {
+    rulesByIssuer = { 1: manyRules(60) };
+    issuerTransactionCount = 60;
+    renderSection();
+    await screen.findByText("pattern-0");
+
+    // The 51st rule is on screen and reachable — no page to turn, no rule left
+    // behind a cap nothing on the page mentions.
+    expect(screen.getByText("pattern-50")).toBeInTheDocument();
+    expect(screen.getByText("pattern-59")).toBeInTheDocument();
+  });
+
+  it("names the shortfall instead of reporting coverage over a partial list", async () => {
+    // More rules than any one read asks for. The bar cannot be computed from
+    // what is in hand, so it is not drawn: an under-counted numerator would
+    // report the missing rules' rows as hand-assigned.
+    ruleTotalOverride = 1200;
+    renderSection();
+    await screen.findByText("amazon");
+
+    expect(screen.queryByRole("meter")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      /Showing 1 of 1200 Matching Rules — coverage isn’t reported over a partial list/,
+    );
   });
 
   it("shows an empty state when the issuer has no rules", async () => {
