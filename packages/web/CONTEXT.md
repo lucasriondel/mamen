@@ -547,6 +547,24 @@ _Code note_: the same rule applies to any table put inside a form. The dry-run
 in the **rule move** panel is a pair of inert lists (`transaction-preview-list.tsx`)
 for the same reason, from before the grid was shared.
 
+**Its rows are height-bound and scroll** (issue #203), which is the one thing it
+adds. A dry-run returns *every* matching row — it is not a page — so a broad
+pattern (`a`, `.*`) over a few thousand transactions renders a grid thousands of
+rows tall, pushing Save and Cancel below the fold and moving them again on every
+debounce. `TransactionsTable` takes a `maxHeight` class for exactly this, and the
+frame that scrolls is a focusable, labelled region: the rows inside it are inert,
+so without a tab stop on the frame the overflow would be unreachable from the
+keyboard. The bound is on the **rows only** — the tab strip says which list is on
+screen and the summary is the sentence the save decision turns on, so neither
+scrolls away from the rows it describes (the same rule as the import preview's
+filters, issue #195).
+_Code note_: a table that **is** its page stays unbounded — it is already bounded
+by the page size it was read with, and a second frame would be a scrollbar inside
+a scrolling page. The API side is still uncapped on purpose: capping the lists
+would make the tab counts and the summary count different things, and the preview
+read has no order to take a "first N" from (`SELECT * FROM transactions`, then
+bucketed) — that is a contract change (totals beside the rows), not a height.
+
 **Rules coverage bar**:
 The line above the issuer detail page's rules table: how much of that issuer's
 history its **Matching Rules** actually account for. The numerator is the sum of

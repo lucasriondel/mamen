@@ -407,6 +407,17 @@ describe("TransactionsView", () => {
     );
   });
 
+  // The height bound of issue #203 belongs to the *embedded* grid — the rule
+  // preview, whose dry-run comes back uncapped inside a form. A table that **is**
+  // the page is already bounded by the page size it was read with, so a frame of
+  // its own would put a scrollbar in the middle of a scrolling page and a tab
+  // stop in front of the rows.
+  it("leaves the page's own grid unbounded", async () => {
+    await renderView();
+
+    expect(screen.queryByRole("region", { name: "Transactions" })).not.toBeInTheDocument();
+  });
+
   // The regression #62 exists for: an issuer whose id sorts outside the issuer
   // list's first page still names its rows, because the table asks for the ids
   // it is showing rather than reading the table and hoping.

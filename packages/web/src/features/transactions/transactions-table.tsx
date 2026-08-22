@@ -120,6 +120,25 @@ export interface TransactionsTableProps {
    * leads; this says *whether*.
    */
   rowLinks?: boolean;
+  /**
+   * A Tailwind `max-h-*` class capping the grid's height; its rows then scroll
+   * inside the frame (issue #203). Omitted — every page whose table *is* the
+   * page: there the grid is bounded by the page size it was read with, and a
+   * second bound would put a scrollbar inside a scrolling page.
+   *
+   * A caller passes one when the grid is a *part* of a surface rather than the
+   * surface itself, and the rows are not a page: the **Matching Rule** preview
+   * shows a dry-run that returns every matching row, so a broad pattern renders
+   * a grid thousands of rows tall and pushes the form's own controls below the
+   * fold. The class is the caller's because how much room there is to give is a
+   * fact about that surface, not about the grid.
+   *
+   * The frame that scrolls is a **labelled, focusable region**: a scroll
+   * container the keyboard cannot reach is content the keyboard cannot read,
+   * and where this is passed the rows themselves are inert (`rowLinks={false}`),
+   * so there is no tab stop inside it to scroll it by.
+   */
+  maxHeight?: string;
 }
 
 const columnHelper = createColumnHelper<Transaction>();
@@ -197,6 +216,7 @@ export function TransactionsTable({
   onOpenTransaction,
   selectedId,
   rowLinks = true,
+  maxHeight,
 }: TransactionsTableProps) {
   // Selection only exists where something can be done with it (issue #68).
   const selectable = onRowSelectionChange !== undefined;
@@ -449,8 +469,25 @@ export function TransactionsTable({
   const navigate = useNavigate();
   const SortIcon = direction === "asc" ? ArrowUp : ArrowDown;
 
+  const bounded = maxHeight !== undefined;
+
   return (
-    <div className="overflow-hidden rounded-2xl border border-gousse-line">
+    <div
+      // Bounded, the frame is what scrolls, so the border stays put around the
+      // rows moving inside it — the shape the rule preview had before it was a
+      // grid. Unbounded it clips nothing but its own corners, as before.
+      className={cn(
+        "rounded-2xl border border-gousse-line",
+        bounded ? `${maxHeight} overflow-y-auto` : "overflow-hidden",
+      )}
+      // A bounded frame is a scroll container, and one that cannot be focused
+      // cannot be scrolled by keyboard (WCAG 2.1.1) — the more so here, where the
+      // rows inside it are deliberately not tab stops (#197). Named, because a
+      // stop that announces nothing is a stop nobody knows they are on.
+      tabIndex={bounded ? 0 : undefined}
+      role={bounded ? "region" : undefined}
+      aria-label={bounded ? "Transactions" : undefined}
+    >
       <Table>
         <TableHeader>
           {table.getHeaderGroups().map((headerGroup) => (
