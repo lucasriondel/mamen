@@ -83,6 +83,8 @@ const row = (over: {
   accountId?: number;
   issuerId?: number;
   manualIssuer?: boolean;
+  bundleId?: number;
+  kind?: "bank" | "bundle";
 }): Transaction =>
   new Transaction({
     id: TransactionId.make(over.id),
@@ -92,6 +94,8 @@ const row = (over: {
     rawIssuerString: over.rawIssuerString ?? "AMAZON EU SARL",
     issuerId: over.issuerId === undefined ? undefined : asIssuer(over.issuerId),
     manualIssuer: over.manualIssuer,
+    bundleId: over.bundleId === undefined ? undefined : TransactionId.make(over.bundleId),
+    kind: over.kind,
     importedAt: IMPORTED,
     importMonth: "2026-07",
   });
@@ -597,6 +601,40 @@ describe("owned counts", () => {
   it("reads an empty rule set and an empty table as an empty tally", () => {
     assert.strictEqual(ownedCounts(rows, []).size, 0);
     assert.deepStrictEqual(ownedCounts([], [broad]), new Map([[1, 0]]));
+  });
+
+  // The counted population (issue #199). An Owned count is a count of
+  // transactions, and every count of transactions this app draws leaves the
+  // **bundle members** out: the parent already stands for them, so counting
+  // both counts the same money twice. The coverage bar puts this number over
+  // `transactions.count`, whose default does exactly that.
+  const bundled = [
+    row({ id: 1, rawIssuerString: "AMAZON EU" }),
+    row({ id: 2, rawIssuerString: "AMAZON MKTP", bundleId: 9 }),
+    row({ id: 3, rawIssuerString: "AMAZON PRIME", bundleId: 9 }),
+  ];
+
+  it("counts no bundle member — its parent already stands for it", () => {
+    assert.strictEqual(ownedCounts(bundled, [broad]).get(1), 1);
+  });
+
+  it("counts the bundle parent, which is an ordinary row to every reader", () => {
+    // The label the user gave the bundle is its `rawIssuerString`, so a rule can
+    // win a parent like any other row — and the parent is counted, being the row
+    // the list and the totals show (issue #78).
+    const parent = row({ id: 9, rawIssuerString: "Amazon weekend", kind: "bundle" });
+    assert.strictEqual(ownedCounts([parent, ...bundled], [broad]).get(1), 2);
+  });
+
+  it("still derives a member's issuer — the tally leaves it out, the matcher does not", () => {
+    // Dissolving the bundle must return each member exactly as it was, so a
+    // member keeps being matched and written. Nothing here may be "fixed" by
+    // filtering members out of `derive`.
+    assert.deepStrictEqual(derive(bundled, [broad]).outcomes, [
+      outcome(1, 10, 1),
+      outcome(2, 10, 1),
+      outcome(3, 10, 1),
+    ]);
   });
 });
 

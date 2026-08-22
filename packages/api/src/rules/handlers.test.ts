@@ -677,6 +677,48 @@ describe("rule owned counts", () => {
       );
     }).pipe(Effect.provide(HttpLive)),
   );
+
+  // The two sides of the coverage bar, in one case (issue #199). Its numerator
+  // is the sum of these counts and its denominator `transactions.count` scoped
+  // to the issuer — whose default hides **bundle members**, the parent standing
+  // for them. The numbers are only a fraction if both count one population, so
+  // they are asserted against each other rather than only against literals.
+  it.effect("counts the rows the issuer's transaction count counts, bundles and all", () =>
+    Effect.gen(function* () {
+      const client = yield* HttpApiClient.make(Api);
+      const first = yield* client.transactions.create({
+        payload: tx({ rawIssuerString: "AMAZON EU SARL", amount: -20 }),
+      });
+      const second = yield* client.transactions.create({
+        payload: tx({ rawIssuerString: "AMAZON FRESH", amount: -30 }),
+      });
+      // A third row stays loose. The other two go behind a parent labelled
+      // something the rule cannot match, so the bundle contributes nothing.
+      yield* client.transactions.create({
+        payload: tx({ rawIssuerString: "AMAZON PRIME", amount: -6.99 }),
+      });
+      yield* client.transactions.createBundle({
+        payload: { ids: [first.id, second.id], label: "Weekend away" },
+      });
+
+      const created = yield* client.rules.create({
+        payload: { issuerId: asIssuer(42), pattern: "AMAZON" },
+      });
+      const counted = yield* client.transactions.count({
+        urlParams: { issuerId: asIssuer(42) },
+      });
+
+      // The loose row, and only it: the members are hidden behind their parent
+      // on both sides of the fraction.
+      assert.strictEqual(counted.count, 1);
+      // The 201 body's count comes off the recompute, the re-read off a fresh
+      // derivation — the same population, or the bar's numerator outruns its
+      // denominator the moment a rule's rows are bundled.
+      assert.strictEqual(created.ownedCount, counted.count);
+      const reread = yield* client.rules.getById({ path: { id: created.id } });
+      assert.strictEqual(reread.ownedCount, counted.count);
+    }).pipe(Effect.provide(HttpLive)),
+  );
 });
 
 // The optional Value matcher (issue #42, ADR 0004): a rule with a `matchValue`

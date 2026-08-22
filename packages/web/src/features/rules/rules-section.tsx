@@ -39,11 +39,14 @@ type Expansion = { ruleId: number; kind: "move" | "delete" };
  * is exclusive — one row has exactly one winning rule — so the sum never
  * double-counts.
  *
- * The two figures must therefore cover the **same set**: the denominator is an
- * unpaged count, so the numerator is summed over an unpaged list
- * ({@link issuerRulesQuery}). Read a page at a time it under-counted by every
- * rule past the 50th and reported their rows as hand-assigned (issue #198) —
- * and the table dropped those rules with no page to turn to reach them.
+ * The two figures must therefore cover the **same set**, on both axes. The
+ * denominator is an unpaged count, so the numerator is summed over an unpaged
+ * list ({@link issuerRulesQuery}): read a page at a time it under-counted by
+ * every rule past the 50th and reported their rows as hand-assigned (issue
+ * #198), and the table dropped those rules with no page to turn to reach them.
+ * The denominator also hides **bundle members** — the parent stands for them —
+ * so an `ownedCount` leaves them out too, decided server-side in the tally
+ * rather than by anything on this page (issue #199).
  *
  * Only one panel is open at a time across the whole list: two would leave
  * "Cancel" ambiguous.
@@ -64,8 +67,9 @@ export function RulesSection({ issuer }: RulesSectionProps) {
   const accounts = (accountsQuery.data?.items ?? []) as readonly Account[];
 
   // The **unfiltered** count, matching the delete guard's: coverage asks "of
-  // everything pointing at this issuer, how much do rules account for", a
-  // question the user's account/month/search filters must not narrow.
+  // every row this issuer counts, how much do rules account for", a question
+  // the user's account/month/search filters must not narrow. Its default hides
+  // bundle members, which is why the sum below can be put over it (issue #199).
   const totalQuery = useQuery(transactionQueries.count({ issuerId: issuer.id }));
   const total = totalQuery.data?.count ?? 0;
 

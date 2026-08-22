@@ -498,18 +498,20 @@ its own tab state comes back on "Will match" and bounces the reader off the list
 they were reading (issue #200). Each rule row shows its **owned count** (see
 [CONTEXT-MAP.md](../../CONTEXT-MAP.md)) worded as what it counts — "3
 transactions", never "3 matches". That count is derived from the transactions
-table on every read, out of six inputs and nothing else (the
+table on every read, out of seven inputs and nothing else (the
 **Owned-count input set**, `packages/api/CONTEXT.md`): **row existence**,
 `manualIssuer`, `rawIssuerString`, `amount`, `accountId`, and **the rule set**
-itself. A mutation writing any of the six must invalidate `ruleKeys.all` too,
-not just `transactionKeys.all` — an assignment, a removed manual pick, a bulk
-delete, an import commit and every **bundle** mutation all change what a rule
-owns without touching a rule. Bundles count because the parent is an ordinary
-row carrying the user's label as its `rawIssuerString`, the string the matcher
-reads: making a bundle can hand a rule a row, dissolving one takes it back
-(issue #78).
+itself, plus `bundleId`. A mutation writing any of the seven must invalidate
+`ruleKeys.all` too, not just `transactionKeys.all` — an assignment, a removed
+manual pick, a bulk delete, an import commit and every **bundle** mutation all
+change what a rule owns without touching a rule. Bundles count twice over: the
+parent is an ordinary row carrying the user's label as its `rawIssuerString`, the
+string the matcher reads, so making a bundle can hand a rule a row and dissolving
+one takes it back (issue #78) — and a **bundle member** is not counted at all
+(issue #199), the parent standing for it exactly as it does in the transactions
+list, so bundling a row a rule owns lowers that rule's count.
 
-The inverse is the load-bearing half: **a write touching none of the six cannot
+The inverse is the load-bearing half: **a write touching none of the seven cannot
 change an Owned count**. `transferGroupId` (transfer link / unlink / dismiss),
 `categoryId` / `manualCategory` (a category override), `excludedFromRecap` /
 `manualExcluded` (recap exclusion) and an issuer's own `excludedFromRecap` recap
@@ -521,7 +523,8 @@ mutation against the field list mechanically instead of inferring from what
 rows") reads as "any write to the transactions table", and two separate reviews
 reported those four hooks as stale-count bugs on the strength of it (issue
 #170).
-_Avoid_: "moves rows", "touches transactions" (both name a superset of the six).
+_Avoid_: "moves rows", "touches transactions" (both name a superset of the
+seven).
 
 **Rule preview grid**:
 The dry-run under the **Matching Rule** form — its three lists (**will match**,
@@ -557,7 +560,12 @@ filters must not narrow it. The remainder is named, and that is the point: a row
 carries this issuer because a rule won it or because someone picked it, so
 `total − ruleMatched` is exactly the **hand-assigned** set no rule will ever
 claim.
-_Code note_: naming the remainder is what makes the numerator's set load-bearing.
+_Code note_: the two figures must cover **one population**, on both axes. The
+denominator hides **bundle members** (`isNotBundleMember`, the default under
+every `list` and `count`), so an Owned count does too — server-side, in the tally
+(issue #199). Counting them on one side only made a rule whose rows were all
+bundled read `3 of 0`, which the bar's own clamp then drew as `0 of 0`.
+Naming the remainder is what makes the numerator's set load-bearing.
 The denominator is an unpaged count, so the numerator is summed over an unpaged
 list: an issuer's rules are read **whole** (`issuerRulesQuery`,
 `ISSUER_RULES_SCAN_LIMIT`), never a page, and the Rules tab's badge shares that
