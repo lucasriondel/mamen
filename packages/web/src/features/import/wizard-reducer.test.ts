@@ -488,12 +488,12 @@ describe("wizardReducer — PDF extraction path", () => {
     expect(state.step).toBe("preview");
   });
 
-  it("records the extraction duration on success and clears it on a later error", () => {
+  it("records what the extraction returned on success and clears it on a later error", () => {
     const extracting = wizardReducer(withAccount, {
       type: "extract-start",
       file: new File([], "statement.pdf", { type: "application/pdf" }),
     });
-    expect(extracting.extractionMs).toBeNull();
+    expect(extracting.extraction).toBeNull();
 
     const extracted = wizardReducer(extracting, {
       type: "extract-success",
@@ -501,13 +501,44 @@ describe("wizardReducer — PDF extraction path", () => {
       declaredTotals: TOTALS,
       extractionMs: 8421,
     });
-    expect(extracted.extractionMs).toBe(8421);
+    expect(extracted.extraction).toEqual({ rowCount: EXTRACTED.length, ms: 8421 });
 
     const failed = wizardReducer(extracted, {
       type: "extract-error",
       message: "nope",
     });
-    expect(failed.extractionMs).toBeNull();
+    expect(failed.extraction).toBeNull();
+  });
+
+  /**
+   * Issue #202. The row count is a *report* on the extraction, so it is taken
+   * once and never recomputed: `extracted` is the live editable array and the
+   * actions below rewrite it. Counting it at render time had the summary line
+   * claim the model read rows the user had typed in themselves.
+   */
+  it("holds the extraction's row count against every edit to the rows below", () => {
+    const extracted = wizardReducer(
+      wizardReducer(withAccount, {
+        type: "extract-start",
+        file: new File([], "statement.pdf", { type: "application/pdf" }),
+      }),
+      {
+        type: "extract-success",
+        transactions: EXTRACTED,
+        declaredTotals: TOTALS,
+        extractionMs: 8421,
+      },
+    );
+
+    const edited = wizardReducer(
+      wizardReducer(wizardReducer(extracted, { type: "add-extracted" }), {
+        type: "add-extracted",
+      }),
+      { type: "edit-extracted", index: 0, patch: { amount: -999 } },
+    );
+
+    expect(edited.extracted).toHaveLength(EXTRACTED.length + 2);
+    expect(edited.extraction).toEqual({ rowCount: EXTRACTED.length, ms: 8421 });
   });
 
   it("keeps the dropped PDF file for the side-by-side blob-URL preview", () => {

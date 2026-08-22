@@ -434,13 +434,17 @@ export function UploadStep({
         <div className="flex flex-col gap-4 rounded-2xl border border-gousse-line bg-gousse-panel p-4">
           <p className="text-sm text-gousse-muted">
             <span className="font-medium text-gousse-ink">{state.fileName}</span> —{" "}
+            {/* The same snapshot the validation view reads (issue #202), not the
+                live `extracted` array: this line is seen on the way *back* from
+                that view, so by the time it is on screen the user may already
+                have added the operations the model missed. */}
             {state.source === "pdf"
-              ? `${state.extracted?.length ?? 0} transactions extracted`
+              ? `${state.extraction?.rowCount ?? 0} transactions extracted`
               : `${state.rows.length} rows`}
-            {state.source === "pdf" && state.extractionMs !== null ? (
+            {state.source === "pdf" && state.extraction !== null ? (
               <span className="text-gousse-muted">
                 {" "}
-                in {formatExtractionTime(state.extractionMs)}
+                in {formatExtractionTime(state.extraction.ms)}
               </span>
             ) : null}
           </p>
