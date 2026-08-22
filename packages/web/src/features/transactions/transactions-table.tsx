@@ -101,6 +101,25 @@ export interface TransactionsTableProps {
    * is open, which is every scoped page and every narrow viewport.
    */
   selectedId?: number;
+  /**
+   * Whether a row leads anywhere at all (issue #197). Defaults to `true` —
+   * every page whose table *is* the page, where opening a row is the point and
+   * the list is one back-navigation away.
+   *
+   * A caller passes `false` when leaving the surface would cost the user
+   * something it cannot give back: the **Matching Rule** preview grid sits
+   * inside an unsaved form, so following a row would unmount the form and
+   * discard every predicate typed into it, with no confirmation and nothing to
+   * come back to. An inert row is inert all the way down — no `role="link"`,
+   * no tab stop, no pointer cursor — because an affordance outliving its
+   * destination is worse than none. It keeps everything else a row is: its
+   * wash, its title, and the inline curation cells, which act on the row where
+   * they are rather than sending the reader anywhere.
+   *
+   * Mutually exclusive with `onOpenTransaction`, which says *where* a row
+   * leads; this says *whether*.
+   */
+  rowLinks?: boolean;
 }
 
 const columnHelper = createColumnHelper<Transaction>();
@@ -177,6 +196,7 @@ export function TransactionsTable({
   renderActions,
   onOpenTransaction,
   selectedId,
+  rowLinks = true,
 }: TransactionsTableProps) {
   // Selection only exists where something can be done with it (issue #68).
   const selectable = onRowSelectionChange !== undefined;
@@ -528,6 +548,19 @@ export function TransactionsTable({
                 params: { transactionId: String(row.original.id) },
               });
             };
+            // Only the row itself activates. React synthetic events bubble
+            // through the React tree, so a keystroke inside a curation cell's
+            // portalled popover (the notes textarea, a picker's search box)
+            // still reaches this handler — without this guard, typing a space
+            // there would be swallowed by `preventDefault` and navigate away
+            // mid-edit.
+            const openOnKey = (event: React.KeyboardEvent<HTMLTableRowElement>) => {
+              if (event.target !== event.currentTarget) return;
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                openDetail();
+              }
+            };
             return (
               <TableRow
                 key={row.id}
@@ -546,26 +579,20 @@ export function TransactionsTable({
                       ? "A bundle — expand it to see the transactions it stands for"
                       : undefined
                 }
-                onClick={openDetail}
-                onKeyDown={(event) => {
-                  // Only the row itself activates. React synthetic events
-                  // bubble through the React tree, so a keystroke inside a
-                  // curation cell's portalled popover (the notes textarea, a
-                  // picker's search box) still reaches this handler — without
-                  // this guard, typing a space there would be swallowed by
-                  // `preventDefault` and navigate away mid-edit.
-                  if (event.target !== event.currentTarget) return;
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    openDetail();
-                  }
-                }}
-                tabIndex={0}
+                // A row that leads nowhere (issue #197) carries none of the
+                // link's machinery: no handlers, no tab stop, no role and no
+                // name promising a destination.
+                onClick={rowLinks ? openDetail : undefined}
+                onKeyDown={rowLinks ? openOnKey : undefined}
+                tabIndex={rowLinks ? 0 : undefined}
                 // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- an `<a>` cannot be a `<tr>`, and wrapping every cell in one would make each row a dozen tab stops
-                role="link"
-                aria-label={`View transaction ${row.original.rawIssuerString}`}
+                role={rowLinks ? "link" : undefined}
+                aria-label={
+                  rowLinks ? `View transaction ${row.original.rawIssuerString}` : undefined
+                }
                 className={cn(
-                  "cursor-pointer transition-colors focus:outline-none focus-visible:bg-gousse-bg",
+                  "transition-colors",
+                  rowLinks && "cursor-pointer focus:outline-none focus-visible:bg-gousse-bg",
                   // Each tint has to restate hover/focus too: `TableRow`'s own
                   // `hover:bg-gousse-bg` would otherwise wash it away on hover.
                   // Written in the precedence order documented above; the three

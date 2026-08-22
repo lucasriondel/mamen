@@ -503,6 +503,30 @@ reported those four hooks as stale-count bugs on the strength of it (issue
 #170).
 _Avoid_: "moves rows", "touches transactions" (both name a superset of the six).
 
+**Rule preview grid**:
+The dry-run under the **Matching Rule** form — its three lists (**will match**,
+**will reassign**, **manual collisions**) as tabs over one table
+(`rule-preview-panel.tsx`, `rule-preview-table.tsx`). It is the app's *own*
+transactions grid, not a list of its own: the rows are ordinary transactions, so
+they read the way the same rows read everywhere else, down to the issuer cell's
+manual-assignment pin — which is what makes a manual collision legible as the
+thing it is. Two columns are hidden (`excluded`, `notes`): the rule is being
+judged on which rows it claims, and the levers that answer a different question
+would widen the grid past the form.
+
+**Its rows lead nowhere** (issue #197), which is the one thing it takes off the
+grid. The table is mounted inside an **unsaved form**, and following a row — the
+gesture a reader makes to check a row the rule claims — would unmount the form
+and discard every predicate typed into it, with no confirmation and nothing to
+come back to. So `TransactionsTable` is passed `rowLinks={false}` and the row
+carries none of the link's machinery: no handlers, no `role="link"`, no tab stop
+(every previewed row would otherwise stand between the pattern field and Save),
+no pointer cursor. An affordance that outlives its destination is worse than
+none. The inline curation cells stay: they act on the row where they are.
+_Code note_: the same rule applies to any table put inside a form. The dry-run
+in the **rule move** panel is a pair of inert lists (`transaction-preview-list.tsx`)
+for the same reason, from before the grid was shared.
+
 **Rule move**:
 Re-homing a **Matching Rule** from the Issuer that owns it onto another one, in
 place on the issuer detail page (issue #94). The rule keeps its identity — its
@@ -724,7 +748,9 @@ That width is a `useMediaQuery` (`lib/use-media-query.ts`) rather than a CSS
 class because the *click handler* has to know which of the two it is doing — a
 `hidden`/`block` pair cannot express that. The scoped drill-downs (a category's,
 an issuer's) have no panel at all, and say so by withholding
-`onOpenTransaction` from `TransactionsSection`.
+`onOpenTransaction` from `TransactionsSection`. `onOpenTransaction` says *where*
+a row leads; `rowLinks` says *whether* it leads anywhere — the one caller that
+passes `false` is the **rule preview grid**, whose form it would unmount.
 _Avoid_: transaction dialog / modal (nothing here is modal — the list stays live
 underneath, and the panel is a `complementary` landmark, not a dialog),
 transaction drawer (it does not slide over anything; it takes a column).

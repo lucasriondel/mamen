@@ -192,14 +192,23 @@ function makeRouter(initialEntry: string) {
     path: "/issuers/$issuerId/rules/$ruleId",
     component: EditRulePage,
   });
+  // Where a row of the app's transactions grid leads everywhere else — here so
+  // that a preview row following one would be visible rather than a 404 (#197).
+  const transactionRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/transactions/$transactionId",
+    component: () => <p>Transaction detail page</p>,
+  });
   return createRouter({
-    routeTree: rootRoute.addChildren([detailRoute, newRoute, editRoute]),
+    routeTree: rootRoute.addChildren([detailRoute, newRoute, editRoute, transactionRoute]),
     history: createMemoryHistory({ initialEntries: [initialEntry] }),
   });
 }
 
 function renderAt(initialEntry: string) {
-  render(withShell(<RouterProvider router={makeRouter(initialEntry)} />));
+  const router = makeRouter(initialEntry);
+  render(withShell(<RouterProvider router={router} />));
+  return router;
 }
 
 beforeEach(() => {
@@ -434,6 +443,75 @@ describe("RuleFormPage — create", () => {
     await user.click(removeButton);
 
     await waitFor(() => expect(removeManualIssuer).toHaveBeenCalledWith(200));
+  });
+
+  /*
+   * Issue #197. The preview grid is the app's own transactions table, whose
+   * rows are links to the transaction page — and it is mounted *inside an
+   * unsaved form*. Following one would unmount the form and take every
+   * predicate typed into it, with no confirmation and nothing to come back to,
+   * which is exactly the gesture a reader makes to check a row the rule
+   * claims. So a preview row is inert: not a link, not a tab stop, no
+   * destination at all.
+   */
+  it("does not follow a preview row away from the unsaved form", async () => {
+    previewRule.mockResolvedValue({
+      willMatch: [txn({ id: 100 as Transaction["id"] })],
+      willReassign: [],
+      manualCollisions: [],
+      skipped: false,
+    } satisfies RulePreviewResult);
+
+    const user = userEvent.setup();
+    const router = renderAt("/issuers/1/rules/new");
+
+    await user.type(await screen.findByLabelText("Matching Rule pattern"), "amazon");
+    await user.selectOptions(await screen.findByLabelText("Matching Rule account"), "2");
+    await user.selectOptions(screen.getByLabelText("Matching Rule direction"), "negative");
+    await user.type(screen.getByLabelText("Matching Rule value"), "12.5");
+
+    // Every predicate is debounced into the preview's query key, so the grid
+    // is remounted once per change; wait for the last of them to land before
+    // clicking, or the row clicked is one already detached from the document.
+    await waitFor(() =>
+      expect(previewRule).toHaveBeenLastCalledWith(
+        expect.objectContaining({ matchAccountId: 2, matchSign: "negative", matchValue: 12.5 }),
+      ),
+    );
+
+    // The row's Date cell — none of the row's own click targets, so a click
+    // there is a click on the row itself.
+    await user.click(await screen.findByText("10 Jan 2026"));
+
+    // Still on the form, with every unsaved predicate where the user left it.
+    expect(screen.queryByText("Transaction detail page")).not.toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/issuers/1/rules/new");
+    expect(screen.getByLabelText("Matching Rule pattern")).toHaveValue("amazon");
+    expect(screen.getByLabelText("Matching Rule account")).toHaveValue("2");
+    expect(screen.getByLabelText("Matching Rule direction")).toHaveValue("negative");
+    expect(screen.getByLabelText("Matching Rule value")).toHaveValue(12.5);
+  });
+
+  // The affordance goes with the destination: a row that leads nowhere must not
+  // announce itself as a link, nor take a tab stop on the way to the Save
+  // button — every previewed row would be one.
+  it("offers the preview rows as rows, not as links", async () => {
+    previewRule.mockResolvedValue({
+      willMatch: [txn({ id: 100 as Transaction["id"] })],
+      willReassign: [],
+      manualCollisions: [],
+      skipped: false,
+    } satisfies RulePreviewResult);
+
+    const user = userEvent.setup();
+    renderAt("/issuers/1/rules/new");
+
+    await user.type(await screen.findByLabelText("Matching Rule pattern"), "amazon");
+
+    const row = (await screen.findByText("10 Jan 2026")).closest("tr");
+    expect(row).not.toHaveAttribute("role", "link");
+    expect(row).not.toHaveAttribute("tabindex");
+    expect(screen.queryByRole("link", { name: /View transaction/ })).not.toBeInTheDocument();
   });
 
   it("warns when the pattern is an invalid regex", async () => {

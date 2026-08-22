@@ -56,6 +56,15 @@ export interface RulePreviewTableProps {
  * component owns, and a form that isn't previewing anything shouldn't fetch
  * them. A failed or pending read leaves the affected cell with its own
  * placeholder (the badge renders a dash), so the rows still render.
+ *
+ * The one thing the preview takes *off* the grid is the row link (issue #197).
+ * Everywhere else the table is the page, so opening a row costs a
+ * back-navigation; here it is mounted inside an unsaved form, and following a
+ * row — the very gesture a reader makes to check a row the rule claims — would
+ * unmount the form and silently discard every predicate typed into it. The
+ * bespoke lines this grid replaced led nowhere, which is what made adopting the
+ * grid a new way to lose a rule. The inline curation cells stay: they act on
+ * the row where they are, and stop their own clicks from reaching it.
  */
 export function RulePreviewTable({
   transactions,
@@ -93,6 +102,7 @@ export function RulePreviewTable({
       onToggleSort={noop}
       columnVisibility={PREVIEW_COLUMNS}
       renderActions={renderActions}
+      rowLinks={false}
     />
   );
 }
