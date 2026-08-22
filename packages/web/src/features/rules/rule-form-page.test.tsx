@@ -436,6 +436,105 @@ describe("RuleFormPage — create", () => {
     await waitFor(() => expect(removeManualIssuer).toHaveBeenCalledWith(200));
   });
 
+  // The tab is a way of looking at the result, not a property of the result:
+  // a refetch (every settled keystroke is one) must not bounce the reader back
+  // to "Will match". The issuer ids differ across the two answers, so the
+  // issuer lookup goes pending too — the panel really does unmount here.
+  it("keeps the chosen preview tab across a refetch", async () => {
+    previewRule.mockResolvedValue({
+      willMatch: [txn({ id: 100 as Transaction["id"] })],
+      willReassign: [],
+      manualCollisions: [
+        txn({
+          id: 200 as Transaction["id"],
+          manualIssuer: true,
+          issuerId: 2 as Transaction["issuerId"],
+        }),
+      ],
+      skipped: false,
+    } satisfies RulePreviewResult);
+
+    const user = userEvent.setup();
+    renderAt("/issuers/1/rules/new");
+
+    await user.type(await screen.findByLabelText("Matching Rule pattern"), "amazon");
+    await user.click(await screen.findByRole("tab", { name: /^Manual collisions ?1$/ }));
+    expect(screen.getByRole("tab", { name: /^Manual collisions ?1$/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+
+    previewRule.mockResolvedValue({
+      willMatch: [],
+      willReassign: [],
+      manualCollisions: [
+        txn({
+          id: 201 as Transaction["id"],
+          manualIssuer: true,
+          issuerId: 1 as Transaction["issuerId"],
+        }),
+      ],
+      skipped: false,
+    } satisfies RulePreviewResult);
+
+    await user.type(screen.getByLabelText("Matching Rule pattern"), "x");
+    await waitFor(() =>
+      expect(previewRule).toHaveBeenLastCalledWith(expect.objectContaining({ pattern: "amazonx" })),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole("tab", { name: /^Manual collisions ?1$/ })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      ),
+    );
+  });
+
+  // The rows the user is reading stay put while the next dry-run is in flight:
+  // no skeleton takes the grid's place on a keystroke.
+  it("keeps the previous preview on screen while the next one is in flight", async () => {
+    previewRule.mockResolvedValue({
+      willMatch: [txn({ id: 100 as Transaction["id"] })],
+      willReassign: [],
+      manualCollisions: [],
+      skipped: false,
+    } satisfies RulePreviewResult);
+
+    const user = userEvent.setup();
+    renderAt("/issuers/1/rules/new");
+
+    await user.type(await screen.findByLabelText("Matching Rule pattern"), "amazon");
+    expect(await screen.findByRole("tab", { name: /^Will match ?1$/ })).toBeInTheDocument();
+
+    let release: ((result: RulePreviewResult) => void) | null = null;
+    previewRule.mockImplementation(
+      () =>
+        new Promise<RulePreviewResult>((resolve) => {
+          release = resolve;
+        }),
+    );
+
+    await user.type(screen.getByLabelText("Matching Rule pattern"), "x");
+    await waitFor(() =>
+      expect(previewRule).toHaveBeenLastCalledWith(expect.objectContaining({ pattern: "amazonx" })),
+    );
+
+    expect(screen.getByRole("tab", { name: /^Will match ?1$/ })).toBeInTheDocument();
+    expect(screen.queryByText("Previewing this pattern…")).not.toBeInTheDocument();
+
+    // The deferred second dry-run lands: the panel follows it without ever
+    // having been replaced.
+    const resolveSecond = release as ((result: RulePreviewResult) => void) | null;
+    if (resolveSecond === null) throw new Error("the second preview never started");
+    resolveSecond({
+      willMatch: [txn({ id: 100 as Transaction["id"] }), txn({ id: 101 as Transaction["id"] })],
+      willReassign: [],
+      manualCollisions: [],
+      skipped: false,
+    });
+    expect(await screen.findByRole("tab", { name: /^Will match ?2$/ })).toBeInTheDocument();
+  });
+
   it("warns when the pattern is an invalid regex", async () => {
     const user = userEvent.setup();
     renderAt("/issuers/1/rules/new");

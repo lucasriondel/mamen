@@ -1,5 +1,4 @@
 import type { Issuer, RulePreviewResult, Transaction } from "@mamen/shared/contract";
-import { useState } from "react";
 import { RulePreviewTable } from "./rule-preview-table";
 import { PREVIEW_TABS, type PreviewTabId, RulePreviewTabs } from "./rule-preview-tabs";
 
@@ -37,6 +36,9 @@ export interface RulePreviewPanelProps {
   preview: RulePreviewResult;
   /** The issuers the previewed rows point at, resolved by id (#62). */
   issuersById: ReadonlyMap<number, Issuer>;
+  /** Which of the three lists is on screen — held by the caller, see below. */
+  activeTab: PreviewTabId;
+  onSelectTab: (id: PreviewTabId) => void;
   /** Per-row "remove manual issuer" action for the manual-collision rows. */
   renderManualAction?: (transaction: Transaction) => React.ReactNode;
 }
@@ -50,12 +52,18 @@ export interface RulePreviewPanelProps {
  * - **manual collisions** — rows matching the pattern but assigned by hand,
  *   left untouched by default (each offers a per-row remove action).
  *
- * Which tab is open is this component's own state: nothing outside it acts on
- * the choice, and it is a way of looking at one result rather than a property
- * of the rule being written. It deliberately does **not** follow the counts —
- * a tab that jumped to whichever list happened to be non-empty would move the
- * rows out from under a reader mid-keystroke, and the pattern field refetches
- * on every keystroke.
+ * Which tab is open is a way of looking at one result rather than a property of
+ * the rule being written — but it is held by the **caller**, not here (issue
+ * #200). Nothing outside acts on the choice; what the caller owns it for is
+ * that this component is unmounted by a refetch it must survive. The preview is
+ * dependent on a second read (the previewed rows' issuers, `useIssuerLookup`),
+ * so a dry-run naming issuers the last one didn't still swaps this panel for the
+ * skeleton for a beat — and `useState` here would come back on "Will match",
+ * bouncing a reader off the list they were reading on every keystroke.
+ *
+ * The tab deliberately does **not** follow the counts either: one that jumped to
+ * whichever list happened to be non-empty would move the rows out from under
+ * that same reader.
  *
  * When the pattern is an invalid regex the server reports `skipped`; all three
  * lists come back empty and we say so rather than showing three zeroes (story
@@ -64,10 +72,10 @@ export interface RulePreviewPanelProps {
 export function RulePreviewPanel({
   preview,
   issuersById,
+  activeTab,
+  onSelectTab,
   renderManualAction,
 }: RulePreviewPanelProps) {
-  const [active, setActive] = useState<PreviewTabId>("willMatch");
-
   if (preview.skipped) {
     return (
       <output className="text-sm text-gousse-high">
@@ -76,7 +84,7 @@ export function RulePreviewPanel({
     );
   }
 
-  const tab = PREVIEW_TABS.find((candidate) => candidate.id === active) ?? PREVIEW_TABS[0];
+  const tab = PREVIEW_TABS.find((candidate) => candidate.id === activeTab) ?? PREVIEW_TABS[0];
   const rows = preview[tab.id];
 
   return (
@@ -85,7 +93,7 @@ export function RulePreviewPanel({
           the strip is the switch for everything below it, so it sits on the
           page's axis rather than trailing a sentence off to one side. */}
       <div className="flex flex-col items-center gap-1.5 text-center">
-        <RulePreviewTabs active={active} onSelect={setActive} counts={countsOf(preview)} />
+        <RulePreviewTabs active={tab.id} onSelect={onSelectTab} counts={countsOf(preview)} />
         {/* The heading the tab replaced, kept as the panel's accessible name so
             the grid below is still announced as *which* list it is. */}
         <h3 id="rule-preview-heading" className="sr-only">

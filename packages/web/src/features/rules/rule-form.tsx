@@ -6,7 +6,7 @@ import type {
   RuleSign,
   Transaction,
 } from "@mamen/shared/contract";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { type FormEvent, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useIssuerLookup } from "@/features/issuers/use-issuer-lookup";
@@ -16,6 +16,7 @@ import { RulePatternMeta } from "./rule-pattern-meta";
 import { RulePredicateBar } from "./rule-predicate-bar";
 import { RulePreviewGridSkeleton } from "./rule-preview-grid-skeleton";
 import { RulePreviewPanel } from "./rule-preview-panel";
+import type { PreviewTabId } from "./rule-preview-tabs";
 import { useRuleMutations } from "./use-rule-mutations";
 
 /** How long the pattern field must be idle before the live preview refetches. */
@@ -150,6 +151,12 @@ export function RuleForm({ issuerId, rule, defaultPattern, onDone, onCancel }: R
     queryKey: ruleKeys.preview(previewInput),
     queryFn: () => ruleMutations.preview(previewInput),
     enabled: debouncedPattern.length > 0,
+    // Every settled predicate change is a new key, and without this each one
+    // would swap the whole panel for the skeleton mid-edit — the grid the user
+    // is reading torn down and rebuilt on a keystroke. The previous dry-run
+    // stays on screen while the next is in flight; it is advisory either way,
+    // and the save recomputes server-side (issue #200).
+    placeholderData: keepPreviousData,
   });
 
   // The issuers the previewed rows currently belong to, by the ids those rows
@@ -163,6 +170,14 @@ export function RuleForm({ issuerId, rule, defaultPattern, onDone, onCancel }: R
     ...(preview?.willReassign ?? []).map((t) => t.issuerId),
     ...(preview?.manualCollisions ?? []).map((t) => t.issuerId),
   ]);
+
+  // Which of the preview's three lists is on screen. It lives up here, above
+  // the skeleton swap, because the panel below is unmounted by the very
+  // refetches the choice has to survive: `keepPreviousData` holds the grid
+  // through the dry-run itself, but the issuer lookup is a *dependent* read, so
+  // an answer naming different issuers than the last one still shows the
+  // skeleton for a beat — and state inside the panel would not outlive it.
+  const [previewTab, setPreviewTab] = useState<PreviewTabId>("willMatch");
 
   const saving = create.isPending || update.isPending;
 
@@ -244,6 +259,8 @@ export function RuleForm({ issuerId, rule, defaultPattern, onDone, onCancel }: R
         <RulePreviewPanel
           preview={preview}
           issuersById={issuersById}
+          activeTab={previewTab}
+          onSelectTab={setPreviewTab}
           renderManualAction={(transaction) => (
             <Button
               variant="secondary"
