@@ -1,3 +1,4 @@
+import { SqlClient } from "@effect/sql";
 import { assert, describe, it } from "@effect/vitest";
 import { AccountId, NotFound } from "@mamen/shared/contract";
 import { Effect, Layer, Schema } from "effect";
@@ -6,7 +7,10 @@ import { AccountRepo } from "./repository";
 
 // The repository over a fresh `:memory:` DB. `AccountRepo.Default` needs a
 // SqlClient, provided by `DatabaseTest`; built per test for isolation.
-const RepoTest = AccountRepo.Default.pipe(Layer.provide(DatabaseTest));
+// `provideMerge` rather than `provide` so the SqlClient stays reachable: the
+// IBAN cases below assert on the *stored bytes*, which is where the join that
+// invariant exists for actually happens.
+const RepoTest = AccountRepo.Default.pipe(Layer.provideMerge(DatabaseTest));
 
 const asId = Schema.decodeSync(AccountId);
 
@@ -47,6 +51,61 @@ describe("AccountRepo", () => {
 
       const fetched = yield* repo.getById(created.id);
       assert.strictEqual(fetched.iban, IBAN);
+    }).pipe(Effect.provide(RepoTest)),
+  );
+
+  // The same account number as the bank prints it: grouped in fours and, since
+  // it was copied out of a web page, lower-case. Nothing about the *value*
+  // differs from `IBAN` above — only its spelling.
+  const GROUPED = "fr76 9999 9000 0112 3456 7890 189";
+
+  /** The `iban` column of the one account in the DB, as stored. */
+  const storedIban = Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    const rows = yield* sql<{ iban: string | null }>`SELECT iban FROM accounts`;
+    return rows[0]?.iban ?? null;
+  });
+
+  // The invariant the contract has always claimed, now enforced by the schema
+  // rather than by whichever client remembered to normalise (issue #201). The
+  // repository is exactly the caller that never did: it is reached by the
+  // handler with an already-decoded payload, but nothing stops a script or a
+  // seeder from calling it directly.
+  //
+  // Asserted on the column, not on the returned account: the **IBAN-confirmed**
+  // mark joins `transactions.counterpartyIban` against `accounts.iban` in SQL,
+  // so a value that only reads back normalised is a value that still misses.
+  it.effect("create stores an IBAN in the normalised form, whoever spelt it", () =>
+    Effect.gen(function* () {
+      const repo = yield* AccountRepo;
+      const created = yield* repo.create({ name: "Main", type: "checking", iban: GROUPED });
+
+      assert.strictEqual(created.iban, IBAN);
+      assert.strictEqual(yield* storedIban, IBAN);
+    }).pipe(Effect.provide(RepoTest)),
+  );
+
+  it.effect("update stores an IBAN in the normalised form too", () =>
+    Effect.gen(function* () {
+      const repo = yield* AccountRepo;
+      const created = yield* repo.create({ name: "Main", type: "checking" });
+
+      const set = yield* repo.update(created.id, { iban: GROUPED });
+      assert.strictEqual(set.iban, IBAN);
+      assert.strictEqual(yield* storedIban, IBAN);
+    }).pipe(Effect.provide(RepoTest)),
+  );
+
+  // "Not given" has one spelling — null — so an empty string never reaches the
+  // column. Two spellings of nothing is what makes an untouched edit form read
+  // as a change and spend a write.
+  it.effect("create folds a blank IBAN to null rather than storing an empty string", () =>
+    Effect.gen(function* () {
+      const repo = yield* AccountRepo;
+      const created = yield* repo.create({ name: "Main", type: "checking", iban: "" });
+
+      assert.strictEqual(created.iban, null);
+      assert.strictEqual(yield* storedIban, null);
     }).pipe(Effect.provide(RepoTest)),
   );
 

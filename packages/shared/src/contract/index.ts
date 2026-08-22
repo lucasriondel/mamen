@@ -52,6 +52,7 @@ export {
   TransferInvalid,
 } from "./errors";
 export { Health, HealthGroup } from "./health";
+export { normalizeIban, StoredIban } from "./iban";
 export {
   AccountId,
   CategoryId,

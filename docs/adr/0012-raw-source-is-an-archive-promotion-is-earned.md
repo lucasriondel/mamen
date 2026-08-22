@@ -96,6 +96,15 @@ normalised upper-case and space-stripped to match `accounts.iban` (migration
 deliberately disagree, and that is the division of labour: **the column is for
 matching, the archive is for provenance.**
 
+*Amended by issue #201*: that normalisation is now a **schema** on the account
+side — `StoredIban` in the contract, applied to `accounts.iban` in both
+directions, with migration 0033 converging the rows written before it. Nothing
+about this ADR changes; what changes is that the invariant the join rests on is
+enforced at the boundary rather than asserted in a doc comment and re-honoured by
+each client. `counterpartyIban` is still normalised **at the import edge**, which
+remains sound while the browser parser is its only writer — a second writer is
+what would make moving it to the same schema more than a tidy-up.
+
 The criterion for promotion is narrow and mechanical: *a matcher cannot reach
 inside an opaque JSON bin sensibly.* Anything that only ever needs to be *looked
 at* stays in the archive. This keeps the column list from re-accreting all

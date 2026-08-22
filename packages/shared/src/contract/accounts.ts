@@ -1,6 +1,7 @@
 import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema, OpenApi } from "@effect/platform";
 import { Schema } from "effect";
 import { NotFound } from "./errors";
+import { StoredIban } from "./iban";
 import { AccountId, numFromStr } from "./ids";
 import { Paged, Pagination } from "./pagination";
 
@@ -19,13 +20,19 @@ import { Paged, Pagination } from "./pagination";
  * IBAN on file. It is stored normalised (upper-case, no spaces) and only
  * shape-checked — never validated against the country register — so a statement
  * from a bank the app has never seen is still enterable.
+ *
+ * That normalisation is {@link StoredIban}, and it is the schema's job rather
+ * than a note to whoever writes the next client (issue #201): the value is
+ * normalised on the way in *and* on the way out, so an account number reaches
+ * the database in one spelling no matter who sent it. A blank folds to `null`
+ * for the same reason — "not given" is one value, not two.
  */
 export class Account extends Schema.Class<Account>("Account")({
   id: AccountId,
   name: Schema.String,
   type: Schema.Literal("checking", "savings", "credit_card", "other"),
   color: Schema.NullOr(Schema.String), // null = auto-derive from id
-  iban: Schema.NullOr(Schema.String), // null = not given
+  iban: StoredIban, // null = not given
   createdAt: Schema.Date,
   updatedAt: Schema.Date,
 }) {}

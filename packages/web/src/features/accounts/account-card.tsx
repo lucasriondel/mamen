@@ -56,7 +56,10 @@ export function AccountCard({ account, year, cells }: AccountCardProps) {
 
   const handleEdit = (changes: { name: string; iban: string | null }) => {
     // Nothing moved — close without spending a write. The IBAN is compared
-    // normalised on both sides, so re-grouping the same digits is not an edit.
+    // normalised on both sides, so re-grouping the same digits is not an edit:
+    // the form's side is `ibanPayload`, and the account's side is the contract's
+    // own `StoredIban` (issue #201) — which is what makes this an invariant
+    // rather than a hope about whoever wrote the account.
     if (changes.name === account.name && changes.iban === (account.iban ?? null)) {
       setEditing(false);
       return;
