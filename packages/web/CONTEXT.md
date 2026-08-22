@@ -817,7 +817,12 @@ value against the account's — which is an invariant rather than a hope since
 issue #201, the contract keeping `iban` in its **stored form** whoever wrote the
 account. The field itself is unchanged: it keeps the user's keystrokes as typed,
 normalises at submit and groups in fours for reading, so what is typed, what is
-stored and what is displayed stay three separate steps.
+stored and what is displayed stay three separate steps. **An open edit form is a
+draft the user owns**: it seeds from the account at mount and takes nothing from
+it afterwards, so a background refetch — a rename in another tab, another client
+— cannot reset the fields under someone's hands (issue #205). What re-seeds it is
+the card's `editing ? … : …`, which unmounts the form on close; the value-derived
+`key` that used to sit beside it added nothing to that and cost the draft.
 _Avoid_: account row (the flat list it replaced), import grid (deleted with it),
 rename form (the single-field form the edit form replaced).
 

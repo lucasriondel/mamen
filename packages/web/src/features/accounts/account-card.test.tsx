@@ -6,8 +6,9 @@ import {
   createRouter,
   RouterProvider,
 } from "@tanstack/react-router";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { monthCells } from "./month-grid";
 
@@ -75,15 +76,25 @@ function renderCard({
   const subject = account(overrides);
   const cells = monthCells(year, CURRENT_MONTH, (month) => imported.includes(month));
 
+  // The card's account is *state* here, not a constant, so a case can hand it
+  // the value a background refetch would deliver: the same prop, a new value,
+  // with the card left mounted (issue #205).
+  let publish: ((next: Account) => void) | undefined;
+  const Card = () => {
+    const [current, setCurrent] = useState(subject);
+    publish = setCurrent;
+    return (
+      <ul>
+        <AccountCard account={current} year={year} cells={cells} />
+      </ul>
+    );
+  };
+
   const rootRoute = createRootRoute();
   const cardRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/",
-    component: () => (
-      <ul>
-        <AccountCard account={subject} year={year} cells={cells} />
-      </ul>
-    ),
+    component: Card,
   });
   const importRoute = createRoute({
     getParentRoute: () => rootRoute,
@@ -101,7 +112,12 @@ function renderCard({
     history: createMemoryHistory({ initialEntries: ["/"] }),
   });
   render(<RouterProvider router={router} />);
-  return router;
+  return {
+    router,
+    /** What an invalidation's refetch does to the card: a changed `account`. */
+    refetched: (changes: Partial<Account>) =>
+      act(() => publish?.(account({ ...overrides, ...changes }))),
+  };
 }
 
 /** Open the card's `···` menu and return the user-event session. */
@@ -238,6 +254,49 @@ describe("AccountCard", () => {
     await waitFor(() =>
       expect(updateAccount).toHaveBeenCalledWith(1, { name: "Everyday", iban: null }),
     );
+  });
+
+  // A draft is the user's work, and a refetch is not an instruction to discard
+  // it: the form used to be keyed on the account's own name and IBAN, so any
+  // background invalidation that delivered a changed account remounted the open
+  // form and silently reset both fields to the server's values (issue #205).
+  it("keeps an in-progress draft when the account changes under the open form", async () => {
+    const { refetched } = renderCard({ iban: IBAN });
+    const user = await openMenu();
+
+    await user.click(await screen.findByRole("menuitem", { name: /Edit Everyday/ }));
+    const nameInput = await screen.findByLabelText("New account name");
+    await user.clear(nameInput);
+    await user.type(nameInput, "Holiday fund");
+    const ibanInput = screen.getByLabelText("Account IBAN");
+    await user.clear(ibanInput);
+    await user.type(ibanInput, OTHER_IBAN_TYPED);
+
+    // Renamed in another tab; some mutation invalidates the accounts list and
+    // the refetch lands mid-edit.
+    refetched({ name: "Renamed elsewhere" });
+
+    expect(screen.getByLabelText("New account name")).toHaveValue("Holiday fund");
+    expect(screen.getByLabelText("Account IBAN")).toHaveValue(OTHER_IBAN_TYPED);
+  });
+
+  // What re-seeds the form is the card's own `editing ? … : …`, which unmounts
+  // it on close — not the key that claimed to. An abandoned draft is gone.
+  it("re-seeds a reopened edit from the stored account, not the abandoned draft", async () => {
+    renderCard({ iban: IBAN });
+    const user = await openMenu();
+
+    await user.click(await screen.findByRole("menuitem", { name: /Edit Everyday/ }));
+    const nameInput = await screen.findByLabelText("New account name");
+    await user.clear(nameInput);
+    await user.type(nameInput, "Abandoned");
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    await user.click(await screen.findByRole("button", { name: "More actions for Everyday" }));
+    await user.click(await screen.findByRole("menuitem", { name: /Edit Everyday/ }));
+
+    expect(await screen.findByLabelText("New account name")).toHaveValue("Everyday");
+    expect(screen.getByLabelText("Account IBAN")).toHaveValue(IBAN_GROUPED);
   });
 
   it("deletes an account with no transactions", async () => {

@@ -43,6 +43,14 @@ export interface AccountCardProps {
  * as a disabled item, because the API's `remove` does not check for referencing
  * transactions and a guard that only exists in the menu's props is a guard one
  * refactor from being gone.
+ *
+ * The edit form carries **no `key`** (issue #205). It was keyed on the account's
+ * own name and IBAN to force a re-seed per open — but `editing ? … : …` already
+ * unmounts it on close, so the key bought nothing and cost the draft: any
+ * background invalidation that delivered a changed account (a rename in another
+ * tab, another client) remounted the open form and reset both fields under the
+ * user's hands. What is seeded is what was stored when the form opened, and
+ * everything after that is the user's.
  */
 export function AccountCard({ account, year, cells }: AccountCardProps) {
   const { edit, recolor, remove } = useAccountMutations();
@@ -78,10 +86,6 @@ export function AccountCard({ account, year, cells }: AccountCardProps) {
     <li className="flex flex-col gap-3.5 rounded-2xl border border-gousse-line bg-gousse-panel p-4">
       {editing ? (
         <AccountEditForm
-          // Remount per open, so the draft always re-seeds from the account —
-          // an edit cancelled and reopened starts from what is stored, not from
-          // what was abandoned.
-          key={`${account.name}|${account.iban ?? ""}`}
           account={account}
           pending={edit.isPending}
           onSubmit={handleEdit}

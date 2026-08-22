@@ -22,12 +22,15 @@ export interface AccountEditFormProps {
  * two invalidations and a frame where the card shows the new name beside the old
  * IBAN.
  *
- * Both fields are seeded from the account and both are sent on every submit, so
- * clearing the IBAN clears it on the server (`null`, not "unchanged"). The name
- * is still required — an account with no name is unusable — while an empty IBAN
- * is a legitimate answer, which is why only the former can block the submit. The
- * IBAN seeds in its *grouped* form: the user is about to read it against a
- * statement, and a 27-character run is exactly what they cannot check.
+ * Both fields are seeded from the account **once, at mount** — the caller mounts
+ * this only while its card is editing, so an open form is a draft the user owns
+ * and a later `account` prop (a background refetch's) does not reach into it
+ * (issue #205). Both are sent on every submit, so clearing the IBAN clears it on
+ * the server (`null`, not "unchanged"). The name is still required — an account
+ * with no name is unusable — while an empty IBAN is a legitimate answer, which is
+ * why only the former can block the submit. The IBAN seeds in its *grouped* form:
+ * the user is about to read it against a statement, and a 27-character run is
+ * exactly what they cannot check.
  */
 export function AccountEditForm({ account, pending, onSubmit, onCancel }: AccountEditFormProps) {
   const [name, setName] = useState(account.name);
