@@ -1508,6 +1508,60 @@ describe("ImportWizard", () => {
     );
   });
 
+  /**
+   * Issue #202: the summary is a report on the *extraction*, so nothing the user
+   * does to the table below may move it. Adding the operations the model missed
+   * is the sharpest case — those rows have no statement line behind them at all,
+   * and counting them would have the banner claim the model read rows the user
+   * typed in themselves.
+   */
+  it("keeps the extraction count at what was extracted when the user adds rows", async () => {
+    const user = userEvent.setup();
+    extractPdf.mockResolvedValue({
+      verdict: MATCHED,
+      transactions: [
+        {
+          date: new Date("2026-01-15T10:00:00.000Z"),
+          amount: -10,
+          rawIssuerString: "SHOP A",
+        },
+        {
+          date: new Date("2026-01-16T10:00:00.000Z"),
+          amount: -20,
+          rawIssuerString: "SHOP B",
+        },
+      ],
+      declaredTotals: { debit: 30, credit: 0 },
+    });
+    renderWizard();
+
+    await chooseAccount(user);
+    await dropPdf(user);
+
+    const summary = await screen.findByText(/transactions? extracted/);
+    expect(summary.textContent?.replace(/\s+/g, " ").trim()).toMatch(/^2 transactions extracted/);
+
+    const addRow = screen.getByRole("button", { name: "Add row" });
+    await user.click(addRow);
+    await user.click(addRow);
+
+    // The table grew — that is the edit landing…
+    expect(screen.getByLabelText("Raw issuer, row 4")).toBeInTheDocument();
+    // …and the claim about what the model read did not.
+    expect(summary.textContent?.replace(/\s+/g, " ").trim()).toMatch(/^2 transactions extracted/);
+
+    // The upload step makes the same claim about the same extraction, and since
+    // issue #181 it is only ever read on the way *back* — i.e. always after the
+    // edits. The two lines must not disagree.
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    // The steps cross-fade, so wait for the validation view to be gone rather
+    // than reading whichever paragraph is momentarily first.
+    await waitFor(() => expect(screen.queryByTitle("PDF statement")).toBeNull());
+    expect(screen.getByText(/transactions extracted/).textContent?.replace(/\s+/g, " ")).toContain(
+      "2 transactions extracted",
+    );
+  });
+
   it("warns on a reconciliation mismatch but still lets the user commit", async () => {
     const user = userEvent.setup();
     // Extracted rows sum to 10 of debits, but the statement declares 50 — a

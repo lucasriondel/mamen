@@ -243,6 +243,12 @@ model read the statement correctly, versus what is about to be written — and
 summing kept rows here would fire the banner on every deliberate skip until the
 user learned to ignore it. Counter-intuitive on purpose; not a bug to fix.
 
+It also sums the rows the user *added*, which is the other half of the same
+reasoning and the one place it parts from the extraction count above it (issue
+#202): that count reports the read as it happened and is frozen, while this check
+asks whether the rows now on screen add up to what the statement says — so
+supplying an operation the model dropped is exactly how a user clears the banner.
+
 A statement that declared no totals gets **no check** — `reconcile` answers
 `null`, and no banner is shown (issue #196). Not a passing check and not a
 mismatch against zero: there was nothing to compare. The rows are still reviewed,
@@ -258,6 +264,14 @@ adds missed ones (edit-in-place) before committing. The CSV path previews the
 same table on the same **candidate-table primitives** (PRD #190) — read-only
 cells, no add-row, no banner — so the two paths skip and filter identically; both
 converge on the same commit.
+
+The line at the top — *"N transactions extracted in Xs"* — is a report on the
+**extraction**, not on the table below it (issue #202). It is a snapshot taken
+when the extraction settled and it never moves again, because the array it used
+to be counted off is the *editable* one: adding the operations the model missed
+had this line claim the model read rows the user had typed in themselves. The
+upload step shows the same two figures on the way back and reads the same
+snapshot, so the two cannot disagree.
 _Avoid_: Diff view, comparison.
 _Code note_: the panel is a real table since issue #193 — TanStack Table over the
 **candidate-table primitives**, columns *skip | date | raw issuer | amount*, plus

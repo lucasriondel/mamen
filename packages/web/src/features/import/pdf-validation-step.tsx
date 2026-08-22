@@ -40,11 +40,12 @@ function fromDateInputValue(value: string): Date {
  * soft **reconciliation check** flags (never blocks) a sum mismatch against the
  * statement's **declared totals**. Commit runs the shared rail via {@link CommitBar}.
  *
- * The extraction's wall-clock duration is surfaced here rather than on the
- * upload step: the account is settled before the drop (issue #181), so a
- * successful extraction always lands straight on this view and the upload step's
- * copy is only ever seen on the way back. `null` whenever the timing is not in
- * hand (a resumed/handed-off state).
+ * What the extraction returned — its row count and its wall-clock duration — is
+ * surfaced here rather than on the upload step: the account is settled before the
+ * drop (issue #181), so a successful extraction always lands straight on this
+ * view and the upload step's copy is only ever seen on the way back. Both halves
+ * are read off the wizard's snapshot of the extraction rather than off the rows
+ * below, which the user is editing (issue #202).
  *
  * A row that looks **already imported** is marked here too (issue #89) — this is
  * the preview where acting on the mark is one click, since every row carries a
@@ -66,7 +67,7 @@ export function PdfValidationStep({
   extracted,
   declaredTotals,
   file,
-  extractionMs,
+  extraction,
   onBack,
   dispatch,
 }: {
@@ -79,8 +80,8 @@ export function PdfValidationStep({
   /** `null` when the statement printed no totals line — no check runs (#196). */
   declaredTotals: DeclaredTotals | null;
   file: File;
-  /** Wall-clock extraction time in ms; `null` when it was not measured. */
-  extractionMs: number | null;
+  /** What the extraction returned; `null` when none was recorded (issue #202). */
+  extraction: { readonly rowCount: number; readonly ms: number } | null;
   onBack: () => void;
   dispatch: (action: WizardAction) => void;
 }) {
@@ -102,7 +103,7 @@ export function PdfValidationStep({
     <div className="flex flex-col gap-6">
       {recon === null || recon.ok ? null : <ReconciliationBanner recon={recon} />}
 
-      <ExtractionSummary count={extracted.length} extractionMs={extractionMs} />
+      {extraction === null ? null : <ExtractionSummary extraction={extraction} />}
 
       <div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
         <PdfPane file={file} />
@@ -124,19 +125,23 @@ export function PdfValidationStep({
  * How many rows the model read, and how long it took. The count is of what was
  * *extracted*, not what is on screen now — the user's edits below change the
  * table, not what the extraction returned.
+ *
+ * Which is why it is handed the wizard's snapshot rather than the rows (issue
+ * #202): `extracted.length` grows every time the user adds an operation the model
+ * missed, so rendering it here had this line claim the extraction returned rows
+ * that were typed in after it had finished.
  */
 function ExtractionSummary({
-  count,
-  extractionMs,
+  extraction,
 }: {
-  count: number;
-  extractionMs: number | null;
+  extraction: { readonly rowCount: number; readonly ms: number };
 }) {
+  const { rowCount } = extraction;
   return (
     <p className="text-sm text-gousse-muted">
-      <span className="font-medium text-gousse-ink">{count}</span>{" "}
-      {count === 1 ? "transaction" : "transactions"} extracted
-      {extractionMs === null ? null : <> in {formatExtractionTime(extractionMs)}</>}
+      <span className="font-medium text-gousse-ink">{rowCount}</span>{" "}
+      {rowCount === 1 ? "transaction" : "transactions"} extracted in{" "}
+      {formatExtractionTime(extraction.ms)}
     </p>
   );
 }

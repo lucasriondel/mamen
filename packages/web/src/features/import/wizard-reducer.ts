@@ -204,11 +204,23 @@ export type WizardState = {
    */
   declaredTotals: DeclaredTotals | null;
   /**
-   * Wall-clock time the PDF extraction took, in milliseconds — measured
-   * client-side around the `/import/extract-pdf` round-trip. `null` for a CSV and
-   * until a PDF extraction settles successfully.
+   * What the last successful **PDF extraction** *returned* — how many rows the
+   * model read, and how long the round-trip took (measured client-side around
+   * `/import/extract-pdf`). `null` for a CSV and until a PDF extraction settles
+   * successfully.
+   *
+   * A snapshot, and deliberately not derived from {@link WizardState.extracted}
+   * (issue #202). That array is the *editable* one: **side-by-side validation**
+   * edits it in place and appends the operations the model missed, so counting it
+   * at render time had the summary line claim the extraction read rows the user
+   * had just typed in themselves. What was extracted stops being knowable the
+   * moment the first edit lands, so it is recorded while it is still true.
+   *
+   * One object rather than two sibling fields, so the halves cannot drift: they
+   * are one observation of one event, set together and cleared together by every
+   * action that retires the extraction they describe.
    */
-  extractionMs: number | null;
+  extraction: { readonly rowCount: number; readonly ms: number } | null;
 };
 
 export type WizardAction =
@@ -312,7 +324,7 @@ export const initialWizardState: WizardState = {
   extracting: false,
   extracted: null,
   declaredTotals: null,
-  extractionMs: null,
+  extraction: null,
   skippedRows: [],
   rowIds: [],
   nextRowId: 1,
@@ -447,7 +459,7 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         extracting: false,
         extracted: null,
         declaredTotals: null,
-        extractionMs: null,
+        extraction: null,
         // The indices named the previous file's records.
         skippedRows: [],
       };
@@ -479,7 +491,7 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         extracting: false,
         extracted: null,
         declaredTotals: null,
-        extractionMs: null,
+        extraction: null,
         skippedRows: [],
         // Nothing is previewable behind the error, so there is no row to name.
         rowIds: [],
@@ -547,7 +559,7 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         extracting: false,
         extracted: null,
         declaredTotals: null,
-        extractionMs: null,
+        extraction: null,
         skippedRows: [],
         rowIds: [],
       };
@@ -591,7 +603,7 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         extracting: true,
         extracted: null,
         declaredTotals: null,
-        extractionMs: null,
+        extraction: null,
         importBatchId: crypto.randomUUID(),
         error: null,
         // A PDF replacing a prior CSV drop clears the format state.
@@ -612,7 +624,7 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         extracting: false,
         extracted: action.transactions,
         declaredTotals: action.declaredTotals,
-        extractionMs: action.extractionMs,
+        extraction: { rowCount: action.transactions.length, ms: action.extractionMs },
         error: null,
         // Extraction could only have started with an account in hand, so a
         // success has nothing left to wait for: it lands on the validation view
@@ -633,7 +645,7 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         // settled — which is what `canPreview` reads off `extracted`.
         extracted: null,
         declaredTotals: null,
-        extractionMs: null,
+        extraction: null,
         rowIds: [],
         skippedRows: [],
         error: null,
@@ -644,7 +656,7 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         extracting: false,
         extracted: null,
         declaredTotals: null,
-        extractionMs: null,
+        extraction: null,
         error: action.message,
         rowIds: [],
         // Nothing previewable is left behind the error, so there is no row a skip
