@@ -6,17 +6,27 @@ import {
   type AccountUpdate,
   NotFound,
   Paged,
+  StoredIban,
 } from "@mamen/shared/contract";
 import { Clock, Effect, Option, Schema } from "effect";
 import { orDieSql } from "../db/errors";
 
-/** Row shape as stored in sqlite — timestamps are ISO-8601 TEXT. */
+/**
+ * Row shape as stored in sqlite — timestamps are ISO-8601 TEXT.
+ *
+ * `iban` is the contract's {@link StoredIban} rather than a bare string: this
+ * struct is what the insert below *encodes through*, so the column receives the
+ * normalised spelling however the caller wrote it. The update goes through
+ * `Account`, which carries the same schema. Both matter in SQL and not just at
+ * the read seam — the **IBAN-confirmed** mark compares this column against
+ * `transactions.counterpartyIban` in a query, on the bytes as stored.
+ */
 const AccountRow = Schema.Struct({
   id: Schema.Number,
   name: Schema.String,
   type: Schema.String,
   color: Schema.NullOr(Schema.String),
-  iban: Schema.NullOr(Schema.String),
+  iban: StoredIban,
   createdAt: Schema.String,
   updatedAt: Schema.String,
 });

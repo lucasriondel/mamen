@@ -936,25 +936,46 @@ repeated per package.
   _Avoid_: other metadata, extra fields, leftovers (all name it by what it
   lacks); raw row (the value is an object, not the delimited line).
 
+- **Stored form** (of an IBAN) — the one spelling an account number is kept in:
+  upper-case, every space and separator stripped, and `null` when there is
+  nothing to keep. It is a **schema, not a convention** (`StoredIban`, issue
+  #201): the contract normalises `accounts.iban` on the way in *and* on the way
+  out, so a curl, an SDK script or a future importer cannot store `fr76 1234…`
+  the way one could while the rule lived in the web client's submit handler.
+  **Normalise, never refuse** — a grouped IBAN is a real account number written
+  the way every bank prints it, so a transform rather than a filter; converging
+  is what the rule is for, and a `400` would be a different feature. Shape is
+  *not* checked here: what an IBAN may look like stays the loose, register-free
+  question the account field already answers (`isPlausibleIban`). A blank folds
+  to `null` because "not given" is one value — two spellings of nothing is what
+  made an untouched edit form read as a change. Rows written before the schema
+  are converged in place by migration 0033, since the join that motivates the
+  invariant happens in SQL, on the bytes as stored.
+  _Avoid_: canonical IBAN, cleaned IBAN (both suggest a validity judgement this
+  deliberately does not make); formatted (that is the *displayed* grouping, the
+  opposite direction).
+
 - **Counterparty IBAN** — the IBAN of **the other party** to a transaction
   (`counterpartyIban`, nullable), direction-agnostic: on a debit it is who was
   paid, on a credit it is who paid. It follows **Issuer** in being bidirectional
   by design — "destination IBAN" is the obvious wrong reading and would silently
   invert every credit row. Null is the common case: card rows carry no IBAN at
-  all, only SEPA and direct-debit rows do. Stored **normalised** — upper-case,
-  no spaces — identically to `accounts.iban`, because it exists to be *joined*
-  against it and an unnormalised value fails that join the first time a bank
-  spaces its IBANs. The raw delivered form stays in **Raw source**; this is the
-  one place a promoted column and the archive deliberately disagree, and that is
-  the division of labour: the column is for matching, the archive is for
-  provenance. Promoted out of the archive rather than left in it because a
-  matcher cannot reach inside an opaque JSON bin. **Which column carries it is
-  the Statement Format's to name** (`mapping.counterpartyIban`), so a bank that
-  calls it something other than `IBAN du tiers` populates the field just the
-  same; a bank that writes no counterparty account number says so with a `null`
-  and its statements import with none. Absent, blank and *could not be an IBAN*
-  all come out null — "not given" gets one spelling, or a join has two shapes of
-  nothing to handle.
+  all, only SEPA and direct-debit rows do. Kept in the same **stored form** as
+  `accounts.iban`, because it exists to be *joined* against it and an
+  unnormalised value fails that join the first time a bank spaces its IBANs —
+  though the two are enforced in different places: the account's is the
+  contract's schema, this one is normalised **at the import edge** by the
+  browser parser that is its only writer. The raw delivered form stays in
+  **Raw source**; this is the one place a promoted column and the archive
+  deliberately disagree, and that is the division of labour: the column is for
+  matching, the archive is for provenance. Promoted out of the archive rather
+  than left in it because a matcher cannot reach inside an opaque JSON bin.
+  **Which column carries it is the Statement Format's to name**
+  (`mapping.counterpartyIban`), so a bank that calls it something other than
+  `IBAN du tiers` populates the field just the same; a bank that writes no
+  counterparty account number says so with a `null` and its statements import
+  with none. Absent, blank and *could not be an IBAN* all come out null — "not
+  given" gets one spelling, or a join has two shapes of nothing to handle.
   _Avoid_: destination IBAN, payee IBAN (both directional); third-party IBAN.
 
 - **IBAN-confirmed candidate** — a **Transfer candidate** on which one leg's

@@ -741,7 +741,13 @@ them to delete`, permanent error copy explaining a disabled button nobody had
 pressed. The explanation now lives in the menu, beside the Delete it answers.
 The menu's first item is **Edit**, not *Rename*: the form it opens carries the
 name and the IBAN together, as one write — two writes would be two invalidations
-and a frame showing the new name beside the old IBAN.
+and a frame showing the new name beside the old IBAN. Saving an *unchanged* form
+spends no write, and the IBAN half of that check compares the field's normalised
+value against the account's — which is an invariant rather than a hope since
+issue #201, the contract keeping `iban` in its **stored form** whoever wrote the
+account. The field itself is unchanged: it keeps the user's keystrokes as typed,
+normalises at submit and groups in fours for reading, so what is typed, what is
+stored and what is displayed stay three separate steps.
 _Avoid_: account row (the flat list it replaced), import grid (deleted with it),
 rename form (the single-field form the edit form replaced).
 

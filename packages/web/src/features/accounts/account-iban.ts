@@ -1,6 +1,15 @@
+import { normalizeIban } from "@mamen/shared/contract";
+
 /**
- * IBAN normalisation and display, kept in one module so the create dialog, the
+ * IBAN display and shape-checking, kept in one module so the create dialog, the
  * edit form and the card all agree on what is stored versus what is shown.
+ *
+ * The **stored form** itself is not decided here any more (issue #201): it is
+ * the contract's, and `normalizeIban` is re-exported from there so this module
+ * still reads as the one place the app's IBAN rules live. What moved is the
+ * enforcement — the schema normalises every value crossing the wire, in both
+ * directions, so a client that forgets to call {@link ibanPayload} can no longer
+ * store a grouped account number the way any non-web caller used to.
  *
  * The rule is deliberately loose. An IBAN is at most 34 alphanumeric characters
  * starting with a two-letter country code, and the per-country lengths and the
@@ -26,10 +35,12 @@ const IBAN_SHAPE = /^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$/;
  * copy IBANs out of statements and banking apps, which group them in fours and
  * sometimes hyphenate them, so the same account typed twice would otherwise be
  * two different strings.
+ *
+ * Defined in the contract (`StoredIban`) and re-exported here: the schema and
+ * this module have to mean the same thing by "normalised", and two copies of one
+ * regex is how they would stop.
  */
-export function normalizeIban(input: string): string {
-  return input.replace(/[\s-]/g, "").toUpperCase();
-}
+export { normalizeIban };
 
 /**
  * The displayed form: groups of four, as every bank prints it. A 34-character

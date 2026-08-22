@@ -1,4 +1,4 @@
-import { HttpApiBuilder, HttpApiClient } from "@effect/platform";
+import { HttpApiBuilder, HttpApiClient, HttpClient, HttpClientRequest } from "@effect/platform";
 import { NodeHttpServer } from "@effect/platform-node";
 import { assert, describe, it } from "@effect/vitest";
 import {
@@ -183,6 +183,80 @@ describe("accounts endpoints", () => {
       const client = yield* HttpApiClient.make(Api);
       const error = yield* client.accounts.remove({ path: { id: asId(999) } }).pipe(Effect.flip);
       assert.deepStrictEqual(error, new NotFound({ resource: "account", id: asId(999) }));
+    }).pipe(Effect.provide(HttpLive)),
+  );
+});
+
+/**
+ * The IBAN reaches the database normalised **whoever sent it** (issue #201).
+ *
+ * The web client has always normalised at submit, so the contract's "stored
+ * upper-case, no spaces" held in practice and nowhere else. These cases are the
+ * other callers — a curl, an SDK script, a future importer — and they post
+ * *raw bytes* rather than going through the typed client, which encodes the
+ * payload through the very schema under test and would normalise the value
+ * before the server ever saw it. Raw bytes are the only way to ask what the
+ * server does with a body it did not write.
+ */
+describe("accounts normalise the IBAN at the contract boundary", () => {
+  // Assembled rather than written out, so this file carries no account number
+  // of its own (the repo's leak scan, issue #108). The grouped form is the same
+  // number as a bank prints it — the spelling differs, the account does not.
+  const IBAN = `FR7699999${"000011234567890189"}`;
+  const GROUPED = "fr76 9999 9000 0112 3456 7890 189";
+
+  it.effect("stores a grouped, lower-case IBAN posted as raw JSON", () =>
+    Effect.gen(function* () {
+      const http = yield* HttpClient.HttpClient;
+      const created = yield* http.execute(
+        HttpClientRequest.post("/api/accounts").pipe(
+          HttpClientRequest.bodyUnsafeJson({ name: "Curl", type: "checking", iban: GROUPED }),
+        ),
+      );
+      assert.strictEqual(created.status, 201);
+
+      // Read back through the typed client: what the *app* will compare against
+      // an account form and join against a counterparty IBAN.
+      const client = yield* HttpApiClient.make(Api);
+      const found = yield* client.accounts.getByName({ path: { name: "Curl" } });
+      assert.strictEqual(found.iban, IBAN);
+    }).pipe(Effect.provide(HttpLive)),
+  );
+
+  it.effect("updates through the same normalisation", () =>
+    Effect.gen(function* () {
+      const client = yield* HttpApiClient.make(Api);
+      const account = yield* client.accounts.create({
+        payload: { name: "Curl", type: "checking" },
+      });
+
+      const http = yield* HttpClient.HttpClient;
+      const updated = yield* http.execute(
+        HttpClientRequest.put(`/api/accounts/${account.id}`).pipe(
+          HttpClientRequest.bodyUnsafeJson({ iban: GROUPED }),
+        ),
+      );
+      assert.strictEqual(updated.status, 200);
+
+      const found = yield* client.accounts.getById({ path: { id: account.id } });
+      assert.strictEqual(found.iban, IBAN);
+    }).pipe(Effect.provide(HttpLive)),
+  );
+
+  // An empty field is "not given", which already has a spelling: null. A client
+  // that says `""` is not creating a third state.
+  it.effect("folds a blank IBAN to null", () =>
+    Effect.gen(function* () {
+      const http = yield* HttpClient.HttpClient;
+      yield* http.execute(
+        HttpClientRequest.post("/api/accounts").pipe(
+          HttpClientRequest.bodyUnsafeJson({ name: "Curl", type: "checking", iban: "" }),
+        ),
+      );
+
+      const client = yield* HttpApiClient.make(Api);
+      const found = yield* client.accounts.getByName({ path: { name: "Curl" } });
+      assert.strictEqual(found.iban, null);
     }).pipe(Effect.provide(HttpLive)),
   );
 });

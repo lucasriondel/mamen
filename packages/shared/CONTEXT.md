@@ -143,6 +143,32 @@ string on an entity `GET /app-settings` hands to any caller; PRD #115 deletes
 it.
 _Avoid_: input-only, transient (both suggest a lifetime rather than a direction).
 
+**Normalising field**:
+A field schema that is a `Schema.transform` **in both directions**, so a value
+crossing the wire is converged rather than merely described — `StoredIban`
+(`contract/iban.ts`), which upper-cases an IBAN, strips its separators and folds
+a blank to `null`, on `Account.iban` (issue #201). It exists for the invariant
+that is *contracted in prose and enforced nowhere*: the account IBAN was
+documented as stored upper-case and space-free, and the only thing making that
+true was the web client's submit handler — so every other caller stored the
+value as typed, and the SQL join it exists for missed silently.
+
+Both directions, deliberately. Decode is the server reading a body and any client
+reading a response; encode is a client writing one, and a decode-only transform
+would leave the SDK's derived client sending whatever it was handed. That is only
+safe because the function is **idempotent** — a value normalised twice is the
+value normalised once — so a wire round-trip cannot drift.
+
+A transform and not a `Schema.filter`: the point is convergence, so a spelling
+the contract does not like is *fixed*, not refused with a `400`. A filter is the
+right tool when the value is genuinely unacceptable (a `kind` that names no
+half); it is the wrong one when the caller merely wrote a real value the way a
+bank prints it. Storage written before the schema is not reached by any of this —
+converging it is a **migration**'s job, since the comparisons that motivate these
+invariants happen in SQL.
+_Avoid_: sanitised field, coerced field (both suggest distrust of the value
+rather than a choice of spelling); validator.
+
 **Leaf catalogue**:
 A **contract** module of plain data and predicates that imports nothing but
 `effect` — `contract/ai.ts`, the **AI provider** set with its labels, its
