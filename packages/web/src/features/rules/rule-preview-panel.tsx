@@ -1,4 +1,5 @@
 import type { Issuer, RulePreviewResult, Transaction } from "@mamen/shared/contract";
+import { Tabs, TabsPanel } from "@/components/ui/tabs";
 import { RulePreviewTable } from "./rule-preview-table";
 import { PREVIEW_TABS, type PreviewTabId, RulePreviewTabs } from "./rule-preview-tabs";
 
@@ -52,14 +53,21 @@ export interface RulePreviewPanelProps {
  * - **manual collisions** — rows matching the pattern but assigned by hand,
  *   left untouched by default (each offers a per-row remove action).
  *
+ * The strip and the panels are the app's own tab widget (`ui/tabs.tsx`, issue
+ * #206), so the keyboard semantics here are the ones every other tabbed surface
+ * has.
+ *
  * Which tab is open is a way of looking at one result rather than a property of
  * the rule being written — but it is held by the **caller**, not here (issue
  * #200). Nothing outside acts on the choice; what the caller owns it for is
  * that this component is unmounted by a refetch it must survive. The preview is
  * dependent on a second read (the previewed rows' issuers, `useIssuerLookup`),
  * so a dry-run naming issuers the last one didn't still swaps this panel for the
- * skeleton for a beat — and `useState` here would come back on "Will match",
- * bouncing a reader off the list they were reading on every keystroke.
+ * skeleton for a beat — and state held here, whether `useState` or the strip's
+ * own uncontrolled value, would come back on "Will match", bouncing a reader off
+ * the list they were reading on every keystroke. The `skipped` branch below
+ * returns before `Tabs` for the same reason: a choice cannot survive inside a
+ * subtree that does not render.
  *
  * The tab deliberately does **not** follow the counts either: one that jumped to
  * whichever list happened to be non-empty would move the rows out from under
@@ -84,37 +92,33 @@ export function RulePreviewPanel({
     );
   }
 
-  const tab = PREVIEW_TABS.find((candidate) => candidate.id === activeTab) ?? PREVIEW_TABS[0];
-  const rows = preview[tab.id];
-
   return (
     <div className="flex flex-col gap-3">
-      {/* Centred over the grid, with the description on its own line beneath:
-          the strip is the switch for everything below it, so it sits on the
-          page's axis rather than trailing a sentence off to one side. */}
-      <div className="flex flex-col items-center gap-1.5 text-center">
-        <RulePreviewTabs active={tab.id} onSelect={onSelectTab} counts={countsOf(preview)} />
-        {/* The heading the tab replaced, kept as the panel's accessible name so
-            the grid below is still announced as *which* list it is. */}
-        <h3 id="rule-preview-heading" className="sr-only">
-          {tab.label} ({rows.length})
-        </h3>
-        <p className="text-xs text-gousse-muted">{tab.description}</p>
-      </div>
-
-      <div
-        id="rule-preview-panel"
-        role="tabpanel"
-        aria-labelledby={`rule-preview-tab-${tab.id}`}
-        tabIndex={-1}
+      <Tabs
+        value={activeTab}
+        onValueChange={(next) => onSelectTab(next as PreviewTabId)}
+        className="flex flex-col gap-3"
       >
-        <RulePreviewTable
-          transactions={rows}
-          issuersById={issuersById}
-          emptyLabel="None."
-          renderActions={tab.id === "manualCollisions" ? renderManualAction : undefined}
-        />
-      </div>
+        <RulePreviewTabs counts={countsOf(preview)} />
+
+        {PREVIEW_TABS.map((tab) => (
+          <TabsPanel key={tab.id} value={tab.id} className="flex flex-col gap-3">
+            {/* The heading each tab replaced, kept so a reader walking the
+                headings is still told *which* list the grid below is. */}
+            <h3 className="sr-only">
+              {tab.label} ({preview[tab.id].length})
+            </h3>
+            <p className="text-center text-xs text-gousse-muted">{tab.description}</p>
+
+            <RulePreviewTable
+              transactions={preview[tab.id]}
+              issuersById={issuersById}
+              emptyLabel="None."
+              renderActions={tab.id === "manualCollisions" ? renderManualAction : undefined}
+            />
+          </TabsPanel>
+        ))}
+      </Tabs>
 
       <PreviewSummary preview={preview} />
     </div>

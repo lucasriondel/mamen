@@ -281,6 +281,64 @@ describe("RuleFormPage — create", () => {
     expect(await screen.findByText("Issuer detail page")).toBeInTheDocument();
   });
 
+  // The strip is the app's tab widget rather than three buttons wearing
+  // `role="tab"`: one stop in the page's Tab order, arrows to move inside it,
+  // Home/End to its ends, and the move separate from the selection (issue #206).
+  it("walks the preview tabs with the arrow keys, Home and End", async () => {
+    previewRule.mockResolvedValue({
+      willMatch: [txn({ id: 100 as Transaction["id"] })],
+      willReassign: [
+        txn({
+          id: 101 as Transaction["id"],
+          rawIssuerString: "AMZN MKTP",
+          issuerId: 2 as Transaction["issuerId"],
+        }),
+      ],
+      manualCollisions: [
+        txn({
+          id: 200 as Transaction["id"],
+          manualIssuer: true,
+          issuerId: 2 as Transaction["issuerId"],
+        }),
+      ],
+      skipped: false,
+    } satisfies RulePreviewResult);
+
+    const user = userEvent.setup();
+    renderAt("/issuers/1/rules/new");
+
+    await user.type(await screen.findByLabelText("Matching Rule pattern"), "amazon");
+
+    const match = await screen.findByRole("tab", { name: /^Will match ?1$/ });
+    const reassign = screen.getByRole("tab", { name: /^Will reassign ?1$/ });
+    const collisions = screen.getByRole("tab", { name: /^Manual collisions ?1$/ });
+
+    // Roving tabIndex: the whole strip is one stop, not one per tab.
+    expect(match).toHaveAttribute("tabindex", "0");
+    expect(reassign).toHaveAttribute("tabindex", "-1");
+    expect(collisions).toHaveAttribute("tabindex", "-1");
+
+    await user.click(match);
+    expect(match).toHaveFocus();
+
+    await user.keyboard("{ArrowRight}");
+    expect(reassign).toHaveFocus();
+    await user.keyboard("{End}");
+    expect(collisions).toHaveFocus();
+    await user.keyboard("{Home}");
+    expect(match).toHaveFocus();
+
+    // Moving is not choosing: the grid below doesn't churn under a reader
+    // arrowing along the strip, and the second key is what switches it.
+    await user.keyboard("{ArrowRight}");
+    expect(match).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByText(/AWS/)).not.toBeInTheDocument();
+
+    await user.keyboard("{Enter}");
+    expect(reassign).toHaveAttribute("aria-selected", "true");
+    expect(await screen.findByText(/AWS/)).toBeInTheDocument();
+  });
+
   it("threads matchValue into the preview and persists it on create", async () => {
     const user = userEvent.setup();
     renderAt("/issuers/1/rules/new");
