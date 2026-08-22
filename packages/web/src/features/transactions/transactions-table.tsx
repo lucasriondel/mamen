@@ -40,10 +40,27 @@ export interface TransactionsTableProps {
   issuersById: ReadonlyMap<number, Issuer>;
   /** Category lookup for the derived-category cell. */
   categoriesById: ReadonlyMap<number, Category>;
-  /** Current date sort order (server-driven). */
+  /**
+   * The order the rows are **actually in**, by date — stated on the Date column
+   * (`aria-sort`) and drawn as its arrow. A fact about the rows handed in, which
+   * every caller knows: the paged views read it back off the query they made,
+   * and a caller holding a whole list in hand has sorted it before passing it.
+   */
   direction: "asc" | "desc";
-  /** Toggle the date sort order (asc ⇄ desc). */
-  onToggleSort: () => void;
+  /**
+   * Toggle that order (asc ⇄ desc) — and, with it, whether the Date header is a
+   * **control** at all. Omitted, the header is plain text and the column merely
+   * says which way it runs (issue #204).
+   *
+   * Sorting is server-driven, so this re-asks the list query rather than
+   * reordering rows in place; a caller that has no query to re-ask has nothing
+   * to give here. The **rule preview grid** is one: its rows are a dry-run's
+   * answer, fixed until the pattern changes. A focusable button announced as a
+   * sort control that never responds is worse than no control — and worse than
+   * the arrow alone, which tells a sighted reader the same thing the `aria-sort`
+   * tells assistive tech, promising nothing.
+   */
+  onToggleSort?: () => void;
   /**
    * Which columns are hidden; a missing id means visible. Optional — a caller
    * that offers no columns menu (the category drill-down) omits both this and
@@ -182,7 +199,10 @@ function SelectCheckbox({
  * the token-styled `Table`
  * primitive. Sorting is server-driven: the Date header toggles `direction` in
  * the URL rather than reordering rows client-side, so the shown page always
- * matches the query. The Category column reads the row's *derived* `categoryId`
+ * matches the query. Where there is no query to re-ask — a caller handing in a
+ * whole list it has ordered itself — `onToggleSort` is omitted and the header
+ * states the order without offering to change it (issue #204).
+ * The Category column reads the row's *derived* `categoryId`
  * (computed through its issuer by the API) against `categoriesById`.
  *
  * Column visibility is controlled: the owner holds the state (persisted across
@@ -492,23 +512,42 @@ export function TransactionsTable({
         <TableHeader>
           {table.getHeaderGroups().map((headerGroup) => (
             <TableRow key={headerGroup.id}>
-              {headerGroup.headers.map((header) => (
-                <TableHead key={header.id}>
-                  {header.column.id === "date" ? (
-                    <button
-                      type="button"
-                      onClick={onToggleSort}
-                      aria-label={`Sort by date, currently ${direction}ending`}
-                      className="flex items-center gap-1 rounded-full font-medium text-gousse-muted outline-none transition-colors hover:text-gousse-ink focus-visible:ring-2 focus-visible:ring-gousse-accent"
-                    >
-                      {flexRender(header.column.columnDef.header, header.getContext())}
-                      <SortIcon size={14} />
-                    </button>
-                  ) : (
-                    flexRender(header.column.columnDef.header, header.getContext())
-                  )}
-                </TableHead>
-              ))}
+              {headerGroup.headers.map((header) => {
+                const label = flexRender(header.column.columnDef.header, header.getContext());
+                if (header.column.id !== "date")
+                  return <TableHead key={header.id}>{label}</TableHead>;
+                return (
+                  // Date is the one sorted column, so it is the one that says so
+                  // — on the header cell, whether or not the order can be
+                  // changed from here (issue #204). `aria-sort` is a property of
+                  // the column; the button below is an affordance over it, and
+                  // the two are not the same claim.
+                  <TableHead
+                    key={header.id}
+                    aria-sort={direction === "asc" ? "ascending" : "descending"}
+                  >
+                    {onToggleSort === undefined ? (
+                      // No query to re-ask ⇒ no control: the arrow draws the
+                      // order the `aria-sort` states, and nothing here is
+                      // focusable or clickable.
+                      <span className="flex items-center gap-1 font-medium text-gousse-muted">
+                        {label}
+                        <SortIcon size={14} aria-hidden />
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={onToggleSort}
+                        aria-label={`Sort by date, currently ${direction}ending`}
+                        className="flex items-center gap-1 rounded-full font-medium text-gousse-muted outline-none transition-colors hover:text-gousse-ink focus-visible:ring-2 focus-visible:ring-gousse-accent"
+                      >
+                        {label}
+                        <SortIcon size={14} />
+                      </button>
+                    )}
+                  </TableHead>
+                );
+              })}
             </TableRow>
           ))}
         </TableHeader>

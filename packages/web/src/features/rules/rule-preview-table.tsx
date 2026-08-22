@@ -10,14 +10,24 @@ import { indexById } from "@/lib/utils";
 const CATEGORY_SCAN_LIMIT = 200;
 
 /**
- * A preview is read newest-first, like every other list of transactions in the
- * app. It is a fixed order: the rows come back from a dry-run, not from a
- * query the Date header could re-ask, so the header's toggle has nothing to do.
+ * A preview reads newest-first, like every other list of transactions in the
+ * app — and is *put* in that order here (issue #204). The dry-run reads
+ * `SELECT * FROM transactions` with no `ORDER BY` and buckets the rows as it
+ * walks them, so a list arrives in insertion order: a January statement
+ * imported before a February one comes back January-first. The sort is total
+ * rather than a page's: the lists are uncapped, so every row the rule claims is
+ * already in hand.
+ *
+ * It is also a **fixed** order. The rows are a dry-run's answer, not a query the
+ * Date header could re-ask, so no toggle is offered — the header states the
+ * order and promises nothing (see `TransactionsTable`'s `onToggleSort`).
  */
 const PREVIEW_ORDER = "desc" as const;
 
-/** The Date header's toggle, inert here — see {@link PREVIEW_ORDER}. */
-function noop() {}
+/** Newest first, by date. Stable, so same-date rows keep the order they came in. */
+function newestFirst(transactions: readonly Transaction[]): readonly Transaction[] {
+  return [...transactions].sort((a, b) => b.date.getTime() - a.date.getTime());
+}
 
 /**
  * Columns the preview hides. The rule is being judged on **which rows it
@@ -75,6 +85,12 @@ export interface RulePreviewTableProps {
  * grid a new way to lose a rule. The inline curation cells stay: they act on
  * the row where they are, and stop their own clicks from reaching it.
  *
+ * The rows are put in **date order** here (issue #204, {@link PREVIEW_ORDER}):
+ * they arrive from the dry-run in insertion order, and the grid's Date header
+ * is the only thing on screen that could be read as saying otherwise. The
+ * header is left saying which way the rows run and nothing more — there is no
+ * query behind this list for a toggle to re-ask.
+ *
  * The rows are **bounded and scroll** inside their own frame
  * ({@link PREVIEW_MAX_HEIGHT}, issue #203): the lists come back uncapped, so at
  * natural height a broad pattern would push the form's Save and Cancel far below
@@ -100,6 +116,8 @@ export function RulePreviewTable({
     [categoriesQuery.data],
   );
 
+  const rows = useMemo(() => newestFirst(transactions), [transactions]);
+
   if (transactions.length === 0) {
     return (
       <p className="rounded-2xl border border-gousse-line px-4 py-6 text-center text-sm text-gousse-muted italic">
@@ -110,12 +128,11 @@ export function RulePreviewTable({
 
   return (
     <TransactionsTable
-      transactions={transactions}
+      transactions={rows}
       accountsById={accountsById}
       issuersById={issuersById}
       categoriesById={categoriesById}
       direction={PREVIEW_ORDER}
-      onToggleSort={noop}
       columnVisibility={PREVIEW_COLUMNS}
       renderActions={renderActions}
       rowLinks={false}

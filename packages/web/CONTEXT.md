@@ -568,6 +568,25 @@ would make the tab counts and the summary count different things, and the previe
 read has no order to take a "first N" from (`SELECT * FROM transactions`, then
 bucketed) — that is a contract change (totals beside the rows), not a height.
 
+**Its rows are sorted here, and its Date header is not a control** (issue #204).
+The dry-run reads `SELECT * FROM transactions` with no `ORDER BY` and buckets
+rows as it walks them, so a list arrives in **insertion order** — import a
+January statement and then a February one and the grid showed January first,
+under a header announcing "currently descending" whose toggle did nothing.
+`rule-preview-table.tsx` sorts each list newest-first before handing it to the
+grid: the lists are uncapped, so the whole population is in hand and the sort is
+total rather than a page's. `onToggleSort` is then omitted, which is what makes
+the header plain text plus an arrow — no button, no tab stop — while the column
+still states its order as `aria-sort` on the `th`. The order the rows are in is a
+property of the column; a control over it is a separate claim, and only a caller
+with a **query to re-ask** can honour it.
+_Code note_: the same reasoning has not been applied to the **bundle members**
+table (`bundle-section.tsx`), which still passes `onToggleSort={noop}` beside a
+truthful `MEMBER_ORDER` — its arrow is honest, its toggle is not. Client-side
+sorting stays out of `TransactionsTable` itself: for a paged view it would
+reorder one page and disagree with the query, so a caller that sorts does it to
+a list it holds whole, before passing it in.
+
 **Rules coverage bar**:
 The line above the issuer detail page's rules table: how much of that issuer's
 history its **Matching Rules** actually account for. The numerator is the sum of

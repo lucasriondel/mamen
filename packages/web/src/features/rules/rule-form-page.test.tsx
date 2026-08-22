@@ -613,6 +613,68 @@ describe("RuleFormPage — create", () => {
     expect(frame).not.toContainElement(screen.getByRole("button", { name: "Create rule" }));
   });
 
+  /*
+   * Issue #204. A dry-run reads `SELECT * FROM transactions` with no `ORDER BY`
+   * and buckets the rows as it walks them, so the lists come back in insertion
+   * order: import a January statement and then a February one and January is
+   * first. The grid reads newest-first like every other list of transactions in
+   * the app, so it orders what it is handed rather than trusting the arrival
+   * order — the whole list is in hand, so the sort is total.
+   */
+  it("shows the preview rows newest first, whatever order they arrive in", async () => {
+    previewRule.mockResolvedValue({
+      willMatch: [
+        txn({ id: 100 as Transaction["id"], date: new Date("2026-01-10") }),
+        txn({ id: 101 as Transaction["id"], date: new Date("2026-03-02") }),
+        txn({ id: 102 as Transaction["id"], date: new Date("2026-02-05") }),
+      ],
+      willReassign: [],
+      manualCollisions: [],
+      skipped: false,
+    } satisfies RulePreviewResult);
+
+    const user = userEvent.setup();
+    renderAt("/issuers/1/rules/new");
+
+    await user.type(await screen.findByLabelText("Matching Rule pattern"), "amazon");
+
+    await screen.findByText("02 Mar 2026");
+    // [0] is the header row.
+    const rows = screen.getAllByRole("row");
+    expect(rows[1]).toHaveTextContent("02 Mar 2026");
+    expect(rows[2]).toHaveTextContent("05 Feb 2026");
+    expect(rows[3]).toHaveTextContent("10 Jan 2026");
+  });
+
+  /*
+   * Issue #204, the other half. The Date header is the transactions view's
+   * *server* sort control: it re-asks the list query with the other direction.
+   * A preview is a dry-run's answer, not a query the form can re-ask, so there
+   * is nothing for a toggle here to do — and a focusable button announced as a
+   * sort control that never responds is worse than no control. The order is
+   * still stated, on the column, where a column's order belongs.
+   */
+  it("states the preview's order on the Date column without a control that does nothing", async () => {
+    previewRule.mockResolvedValue({
+      willMatch: [txn({ id: 100 as Transaction["id"] })],
+      willReassign: [],
+      manualCollisions: [],
+      skipped: false,
+    } satisfies RulePreviewResult);
+
+    const user = userEvent.setup();
+    renderAt("/issuers/1/rules/new");
+
+    await user.type(await screen.findByLabelText("Matching Rule pattern"), "amazon");
+
+    expect(await screen.findByText("10 Jan 2026")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Sort by date/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Date" })).toHaveAttribute(
+      "aria-sort",
+      "descending",
+    );
+  });
+
   // The tab is a way of looking at the result, not a property of the result:
   // a refetch (every settled keystroke is one) must not bounce the reader back
   // to "Will match". The issuer ids differ across the two answers, so the

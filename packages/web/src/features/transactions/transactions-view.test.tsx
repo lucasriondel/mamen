@@ -630,12 +630,26 @@ describe("TransactionsView", () => {
     const router = await renderView();
     const user = userEvent.setup();
 
+    // The order the rows are in is the column's own state (issue #204), stated
+    // here as well as on the control that changes it — this is the page whose
+    // query the control re-asks, so it has both.
+    expect(screen.getByRole("columnheader", { name: "Date" })).toHaveAttribute(
+      "aria-sort",
+      "descending",
+    );
+
     await user.click(screen.getByRole("button", { name: /sort by date/i }));
 
     await waitFor(() => {
       expect(router.state.location.search).toMatchObject({ direction: "asc" });
     });
     expect(listMock).toHaveBeenCalledWith(expect.objectContaining({ direction: "asc" }));
+    await waitFor(() =>
+      expect(screen.getByRole("columnheader", { name: "Date" })).toHaveAttribute(
+        "aria-sort",
+        "ascending",
+      ),
+    );
   });
 
   // A bookmark written before the account filter became a set carries a single
