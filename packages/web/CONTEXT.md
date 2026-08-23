@@ -338,9 +338,12 @@ after `useSidebarCollapsed`, down to reading storage once at mount and writing
 from an effect; unlike it, an *unset* preference stores nothing, which is what
 lets each step keep its own default. The divider is the ARIA **window splitter**:
 a focusable `separator` carrying `aria-valuenow`, moved by the arrow keys as
-well as by the pointer, since nothing else on the page moves it. Its position is
-asserted in the hook's own unit test rather than at the wizard seam — jsdom lays
-nothing out, so a pane's real width is unassertable there.
+well as by the pointer, since nothing else on the page moves it. How the position
+is *kept* is asserted in the hook's own unit test; that one drag answers for
+every step and for both paths is asserted at the wizard seam, through the
+divider's keyboard route — a step holding its own ratio would otherwise pass
+every case in that file. What stays unassertable anywhere is a pane's real width
+and the pointer drag itself, jsdom laying nothing out.
 
 **File pane**:
 The dropped CSV itself, on screen in the left pane of the **split view** while
@@ -360,7 +363,10 @@ a wrong **date order** is only ever visible in the second.
 **The whole file, never a sample.** A column whose first rows are blank or
 uniform is exactly the one a first page cannot settle, so there is no cap; the
 rows scroll inside the pane, vertically and sideways, so a bank that writes
-twenty columns does not push the table beside it off the page. Unvirtualized,
+twenty columns does not push the table beside it off the page. On *both* steps,
+and pinned on both: the reason belongs to the **mapping step**, where settling
+that column is what the user came to do, and the cap that a case on the preview
+step alone would miss is the one on the step that needs it least. Unvirtualized,
 knowingly: the import preview beside it already renders every row for the same
 reason, so this is that trade extended to one more table.
 _Avoid_: File preview (the import table beside it is the preview), raw view (the

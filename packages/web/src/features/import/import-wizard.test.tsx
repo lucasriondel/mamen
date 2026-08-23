@@ -3051,6 +3051,48 @@ describe("ImportWizard", () => {
       );
     });
 
+    /**
+     * The whole file here too, and this is the step the reason belongs to
+     * (PRD #208): a column whose first rows are blank or uniform is exactly the
+     * one a first page cannot settle, and settling it is what the user is here
+     * for. Sixty rows is well past every cap in this wizard — the live preview
+     * beside this pane stops at ten — so a sampled file pane could not pass.
+     */
+    it("lists every row of the file being mapped, however long it is", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      renderWizard();
+      await chooseAccount(user);
+      await user.upload(
+        await screen.findByLabelText("CSV or PDF statement"),
+        new File(
+          [
+            [
+              '"Date opération","Libellé","Débit","Crédit","Type"',
+              // The first rows say nothing about which column is which: `Type`
+              // is uniform until row 60, and `Crédit` is empty until then.
+              ...Array.from(
+                { length: 59 },
+                (_, index) => `"0${(index % 9) + 1}/04/2026","SHOP ${index + 1}","1,00","","CARTE"`,
+              ),
+              '"11/04/2026","SALAIRE","","2 500,00","VIREMENT"',
+            ].join("\n"),
+          ],
+          "long.csv",
+          { type: "text/csv" },
+        ),
+      );
+      await user.click(
+        await screen.findByRole("button", { name: "Build a format from this file" }),
+      );
+      await screen.findByLabelText("Format name");
+
+      const rows = fileRows("long.csv");
+      expect(rows).toHaveLength(60);
+      // The row that settles both columns, reachable because nothing was capped.
+      expect(rows[59]).toEqual(["11/04/2026", "SALAIRE", "", "2 500,00", "VIREMENT"]);
+    });
+
     // Every field the step has today, unchanged and all on the same side of the
     // divider: this ticket is the layout, and a form that lost a question to it
     // would be a format nobody can finish.
@@ -3577,6 +3619,138 @@ describe("ImportWizard", () => {
       await findImportTable();
       expect(pickControls()).toEqual([]);
       expect(screen.queryByText(/Click a column header/)).toBeNull();
+    });
+  });
+
+  /**
+   * PRD #208's closing promise, and the one no single ticket under it could
+   * keep: the divider is **the user's**, not the wizard's. Each of #210–#215 put
+   * a split on one more step; what is only true once all six are merged is that
+   * those splits are one preference rather than three layouts that happen to
+   * resemble each other.
+   *
+   * Where the position is *kept* is `use-split-ratio.test.ts`, and the pointer
+   * drag is driven through the divider's keyboard route — jsdom lays nothing
+   * out, so a real drag here would be arithmetic against a stubbed
+   * `getBoundingClientRect` (issue #210). What these cases assert is what
+   * neither of those seams can see: that the step the user moves the divider on
+   * and the step they arrive at are asking one place the same question. A step
+   * that held its ratio in its own state would pass every other case in this
+   * file and fail all of these.
+   */
+  describe("the divider the user set is the layout from then on", () => {
+    /** Move the divider the way a keyboard does — one arrow, one step of 5%. */
+    async function dragDivider(user: ReturnType<typeof userEvent.setup>, steps: number) {
+      await user.click(paneDivider());
+      await user.keyboard((steps < 0 ? "{ArrowLeft}" : "{ArrowRight}").repeat(Math.abs(steps)));
+    }
+
+    /**
+     * Until the first drag there is nothing stored, so each step shows the
+     * default *it* chose: the format form is a column of selects that asks for
+     * less room than the import table's own filters and skips do, and one number
+     * guessed for both would be worse than either.
+     */
+    it("shows each step the default it chose, until the user has dragged anything", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+
+      // The file is what is being read *from* here, so it takes the greater share.
+      expect(paneDivider()).toHaveAttribute("aria-valuenow", "60");
+
+      await mapFrenchColumns(user);
+      await user.click(screen.getByRole("button", { name: "Continue to preview" }));
+
+      // Two tables of the same rows, and the right one carries the decision.
+      await findImportTable();
+      expect(paneDivider()).toHaveAttribute("aria-valuenow", "50");
+    });
+
+    // And the moment they have, that stops being true: one drag answers for
+    // every step, which is the difference between a preference and a setting.
+    it("carries the position set on the format form through to the import table", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+
+      await dragDivider(user, 2);
+      expect(paneDivider()).toHaveAttribute("aria-valuenow", "70");
+
+      await mapFrenchColumns(user);
+      await user.click(screen.getByRole("button", { name: "Continue to preview" }));
+
+      // Not the 50 this step defaults to: the user has said where they want the
+      // divider, and a step that answered again would make the layout the
+      // wizard's back.
+      await findImportTable();
+      expect(paneDivider()).toHaveAttribute("aria-valuenow", "70");
+    });
+
+    // Across imports too, which is what remembering it is *for*: a layout
+    // preference outlives the import it was set during, where wizard state — the
+    // file, the skips, the filters — is discarded with it.
+    it("keeps it for the next import, the wizard's own state having gone", async () => {
+      const user = userEvent.setup();
+      await dropCsv(user);
+      expect(await screen.findByText("Auto-detected.")).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Continue to preview" }));
+      await findImportTable();
+
+      await dragDivider(user, -2);
+      expect(paneDivider()).toHaveAttribute("aria-valuenow", "40");
+
+      // Back to the drop zone and in with the next statement.
+      await user.click(screen.getByRole("button", { name: "Back" }));
+      await waitFor(() =>
+        expect(screen.queryByRole("separator", { name: "Resize the panes" })).toBeNull(),
+      );
+      await user.upload(
+        screen.getByLabelText("CSV or PDF statement"),
+        new File([CSV], "statement.csv", { type: "text/csv" }),
+      );
+      expect(await screen.findByText("Auto-detected.")).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Continue to preview" }));
+
+      await findImportTable();
+      expect(paneDivider()).toHaveAttribute("aria-valuenow", "40");
+    });
+
+    /**
+     * And across the two paths. **Side-by-side validation** is where this split
+     * came from and the CSV path is where PRD #208 took it; a user who drags the
+     * divider while reading a PDF statement has said the same thing about the
+     * layout as one who drags it beside a CSV, and the two paths must not feel
+     * like two applications.
+     */
+    it("holds one position across both paths, PDF and CSV alike", async () => {
+      const user = userEvent.setup();
+      extractPdf.mockResolvedValue({
+        verdict: MATCHED,
+        transactions: [
+          { date: new Date("2026-01-15T10:00:00.000Z"), amount: -10, rawIssuerString: "SHOP A" },
+        ],
+        declaredTotals: { debit: 10, credit: 0 },
+      });
+      renderWizard();
+      await chooseAccount(user);
+      await dropPdf(user);
+      await screen.findByTitle("PDF statement");
+
+      await dragDivider(user, 2);
+      expect(paneDivider()).toHaveAttribute("aria-valuenow", "70");
+
+      await user.click(screen.getByRole("button", { name: "Back" }));
+      await waitFor(() => expect(screen.queryByTitle("PDF statement")).toBeNull());
+      await user.upload(
+        screen.getByLabelText("CSV or PDF statement"),
+        new File([CSV], "statement.csv", { type: "text/csv" }),
+      );
+      expect(await screen.findByText("Auto-detected.")).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Continue to preview" }));
+
+      await findImportTable();
+      expect(paneDivider()).toHaveAttribute("aria-valuenow", "70");
     });
   });
 });
