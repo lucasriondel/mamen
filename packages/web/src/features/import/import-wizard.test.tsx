@@ -359,6 +359,9 @@ function previewedRows(): string[] {
 }
 
 beforeEach(() => {
+  // The split view's divider position outlives a wizard by design (issue #210),
+  // so it outlives a *case* too unless the storage behind it is cleared.
+  window.localStorage.clear();
   bulkCreate.mockReset().mockResolvedValue([]);
   extractPdf.mockReset();
   createFormat.mockReset().mockResolvedValue({ ...greenGotFormat, id: 12 });
@@ -1377,6 +1380,64 @@ describe("ImportWizard", () => {
     const records = bulkCreate.mock.calls[0][0];
     expect(records).toHaveLength(2);
     for (const record of records) expect(record).not.toHaveProperty("rawSource");
+  });
+
+  /**
+   * Issue #210 (PRD #208): the two panes are laid out by a shared split view
+   * with a divider the user can move, where the step used to hard-code a
+   * three-to-two grid nothing could resize.
+   *
+   * Asserted through the divider itself — a focusable separator that says where
+   * it is — rather than through the panes' widths: jsdom performs no layout, so
+   * a pane's real width is unassertable here and the keyboard route is the one
+   * a test can drive. Where the position is *kept* is `use-split-ratio.test.ts`;
+   * this case is about the control being on screen and answering.
+   */
+  it("splits the statement from the rows with a divider the user can move", async () => {
+    const user = userEvent.setup();
+    extractPdf.mockResolvedValue({
+      verdict: MATCHED,
+      transactions: [
+        {
+          date: new Date("2026-01-15T10:00:00.000Z"),
+          amount: -10,
+          rawIssuerString: "SHOP A",
+        },
+      ],
+      declaredTotals: { debit: 10, credit: 0 },
+    });
+    renderWizard();
+
+    await chooseAccount(user);
+    await dropPdf(user);
+
+    const statement = await screen.findByTitle("PDF statement");
+    const divider = screen.getByRole("separator", { name: "Resize the panes" });
+    const rows = screen.getByLabelText("Raw issuer, row 1");
+
+    // The statement is on one side of it and the rows on the other.
+    expect(divider.compareDocumentPosition(statement)).toBe(Node.DOCUMENT_POSITION_PRECEDING);
+    expect(divider.compareDocumentPosition(rows)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+
+    // Until the user moves it, the step's own default: the statement takes the
+    // greater part of the width, as the fixed grid gave it.
+    expect(divider).toHaveAttribute("aria-valuenow", "60");
+
+    // Focusing it must not move it — a click that lands on the divider is how
+    // the keyboard route is reached, not a drag to wherever the pointer was.
+    await user.click(divider);
+    expect(divider).toHaveFocus();
+    expect(divider).toHaveAttribute("aria-valuenow", "60");
+
+    await user.keyboard("{ArrowRight}");
+    expect(divider).toHaveAttribute("aria-valuenow", "65");
+
+    await user.keyboard("{ArrowLeft}{ArrowLeft}");
+    expect(divider).toHaveAttribute("aria-valuenow", "55");
+
+    // Both panes are still what they were: the layout moved, the content did not.
+    expect(statement).toBeInTheDocument();
+    expect(rows).toBeInTheDocument();
   });
 
   // Issue #193: the panel is a real table now — TanStack Table over the shared

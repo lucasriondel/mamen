@@ -1,6 +1,7 @@
 import type { DeclaredTotals, ExtractedTransaction } from "@mamen/shared/contract";
 import { createColumnHelper } from "@tanstack/react-table";
 import { useEffect, useMemo, useState } from "react";
+import { SplitView } from "@/components/split-view";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/format";
 import { AlreadyImportedMark } from "./already-imported-mark";
@@ -19,7 +20,17 @@ import { keptPositions } from "./kept-rows";
 import type { ParsedTransaction } from "./parsers/types";
 import { type Reconciliation, reconcile } from "./reconcile";
 import { useDuplicateFlags } from "./use-duplicate-flags";
+import { useSplitRatio } from "./use-split-ratio";
 import type { RowId, WizardAction } from "./wizard-reducer";
+
+/**
+ * What this step's split shows until the user has dragged anything — the
+ * three-to-two grid it replaced, as a ratio. A statement page is the thing
+ * being read *from*, so it takes the greater share; the rows are being read
+ * *against* it. A step whose right panel needs more room (the mapping form)
+ * names its own default, and the first drag replaces both.
+ */
+const PDF_SPLIT_DEFAULT = 0.6;
 
 /** A `Date` as the `YYYY-MM-DD` value an `<input type="date">` expects (UTC). */
 function toDateInputValue(date: Date): string {
@@ -39,6 +50,12 @@ function fromDateInputValue(value: string): Date {
  * missed ones in place — whatever the table keeps at commit is what commits. A
  * soft **reconciliation check** flags (never blocks) a sum mismatch against the
  * statement's **declared totals**. Commit runs the shared rail via {@link CommitBar}.
+ *
+ * The two sides are laid out by the shared {@link SplitView} since issue #210,
+ * where this step used to own a fixed `lg:grid-cols-[3fr_2fr]`: the divider
+ * between them is draggable and each pane scrolls on its own. Only the layout
+ * moved — the statement, the rows, the banner, the add-row control and the
+ * commit rail are exactly what they were.
  *
  * What the extraction returned — its row count and its wall-clock duration — is
  * surfaced here rather than on the upload step: the account is settled before the
@@ -85,6 +102,9 @@ export function PdfValidationStep({
   onBack: () => void;
   dispatch: (action: WizardAction) => void;
 }) {
+  // Where the user left the divider, which is chrome rather than import state:
+  // it is not in the reducer, so abandoning this import does not reset it.
+  const { ratio, setRatio } = useSplitRatio(PDF_SPLIT_DEFAULT);
   const skipped = useMemo(() => new Set(skippedRows), [skippedRows]);
   // Over every extracted row, skips included — see the note above. `null` back
   // means no check ran at all (the statement printed no totals), which is not a
@@ -105,16 +125,24 @@ export function PdfValidationStep({
 
       {extraction === null ? null : <ExtractionSummary extraction={extraction} />}
 
-      <div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
-        <PdfPane file={file} />
-        <ExtractedRows
-          extracted={extracted}
-          rowIds={rowIds}
-          skippedRows={skippedRows}
-          duplicateFlags={duplicates.flags}
-          dispatch={dispatch}
-        />
-      </div>
+      <SplitView
+        // Tall enough to read a statement page in, and the reason each pane has
+        // something to scroll *inside*: the two used to scroll as one column, so
+        // reaching the last extracted row carried the statement off the screen.
+        className="h-[85vh]"
+        ratio={ratio}
+        onRatioChange={setRatio}
+        left={<PdfPane file={file} />}
+        right={
+          <ExtractedRows
+            extracted={extracted}
+            rowIds={rowIds}
+            skippedRows={skippedRows}
+            duplicateFlags={duplicates.flags}
+            dispatch={dispatch}
+          />
+        }
+      />
 
       <CommitBar records={kept} duplicateCount={duplicateCount} onBack={onBack} />
     </div>
@@ -164,7 +192,9 @@ function PdfPane({ file }: { file: File }) {
     <iframe
       title="PDF statement"
       src={url ?? undefined}
-      className="h-[85vh] w-full rounded-2xl border border-gousse-line bg-gousse-panel"
+      // Its pane's full height, wherever the divider leaves that pane: the
+      // native viewer scrolls the document inside it (issue #210).
+      className="h-full w-full rounded-2xl border border-gousse-line bg-gousse-panel"
     />
   );
 }
@@ -310,12 +340,16 @@ function ExtractedRows({
   });
 
   return (
-    <div className="flex flex-col gap-3 overflow-hidden rounded-2xl border border-gousse-line">
+    <div className="flex h-full flex-col gap-3 overflow-hidden rounded-2xl border border-gousse-line">
       {/* Outside the scroll container: the filters say what the table below is
           showing, so they must not scroll away from it (issue #195). */}
       <CandidateFilters table={table} facets={facets} />
 
-      <div className="max-h-[85vh] overflow-y-auto">
+      {/* The rows are what scrolls, inside whatever height the pane has — so
+          the filters above and the add-row control below stay put, and the
+          statement in the other pane stays exactly where it was (issue #210).
+          `min-h-0` is what lets a flex child be shorter than its content. */}
+      <div className="min-h-0 flex-1 overflow-y-auto">
         <CandidateTable table={table} />
       </div>
 

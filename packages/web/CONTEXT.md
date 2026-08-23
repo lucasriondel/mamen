@@ -284,6 +284,43 @@ The transactions grid is deliberately not reused, and the two previews stay two
 components — one is editable with an add-row control and a reconciliation banner,
 the other is neither, and collapsing them would mean one component steered by a
 handful of capability flags.
+Since issue #210 the two sides are laid out by the **split view** rather than by
+a `lg:grid-cols-[3fr_2fr]` of this step's own: the panes are resizable and each
+scrolls on its own, and nothing else about the view moves.
+
+**Split view**:
+The two-pane layout the import wizard's post-upload steps are drawn in (issue
+#210, PRD #208): a left slot, a right slot, each its own scroll context, and a
+**divider** the user can drag between them. A layout primitive — it knows
+nothing about what is in either slot, and the **side-by-side validation** step's
+statement iframe is just what that path happens to put on the left.
+
+Each pane scrolling on its own is the behaviour, not a detail. The split used to
+scroll as one column, so reading down the extracted rows carried the statement
+off the top of the screen — the one thing a side-by-side view exists to prevent.
+
+Where the user leaves the divider is **chrome, not import state**. It is
+persisted to `localStorage` under one key and read by a hook of its own, never
+by the wizard reducer: that state describes the import in progress and is
+discarded with it, while a layout preference outlives both — so abandoning an
+import leaves the panes where the user put them, and so does leaving the wizard
+entirely. One stored ratio serves every step, because dragging is a preference
+rather than a per-screen setting; until the first drag each step shows **its own
+default** (the PDF step's is 60/40, the grid it replaced), and the first drag
+replaces both.
+_Avoid_: Panel (reserved for the **detail panel**), splitter, resizer, pane
+(fine for one side; the thing itself is the split view).
+_Code note_: `components/split-view.tsx`, controlled — `ratio` in and
+`onRatioChange` out — with `features/import/use-split-ratio.ts` holding the
+stored value and the 20–80% clamp (a pane dragged to nothing is content the
+user can neither see nor, the divider being the only way back, reach). Shaped
+after `useSidebarCollapsed`, down to reading storage once at mount and writing
+from an effect; unlike it, an *unset* preference stores nothing, which is what
+lets each step keep its own default. The divider is the ARIA **window splitter**:
+a focusable `separator` carrying `aria-valuenow`, moved by the arrow keys as
+well as by the pointer, since nothing else on the page moves it. Its position is
+asserted in the hook's own unit test rather than at the wizard seam — jsdom lays
+nothing out, so a pane's real width is unassertable there.
 
 **Import**:
 The result of committing a Statement for one account and one month, keyed
