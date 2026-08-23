@@ -1,10 +1,17 @@
 import type { DateOrder, DecimalSeparator, SignRule } from "@mamen/shared/contract";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { SplitView } from "@/components/split-view";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { formatCurrency, formatShortDate } from "@/lib/format";
+import { cn } from "@/lib/utils";
+import {
+  type ColumnField,
+  COLUMN_FIELD_BADGE,
+  columnFieldPatch,
+  columnFieldValue,
+} from "./column-fields";
 import { draftColumnMarks } from "./column-marks";
 import { CsvFileTable } from "./csv-file-table";
 import { draftComplete, type FormatDraft, draftRules } from "./parsers/format-draft";
@@ -70,6 +77,13 @@ function reasonCopy(reason: FormatSelection | null, fileName: string): string {
  * right one. The questions are the same questions — the user is simply no longer
  * answering them from memory of a file opened in another application.
  *
+ * Since issue #214 they can also be answered *from* it: beside each column
+ * select is a control that puts the file pane into **pick mode**, where the next
+ * header click assigns that column to that field. Someone who has found the
+ * right column by eye should not have to find its name again in a dropdown. Both
+ * routes run the one `assign` below, and the value lives in the select either
+ * way — the table is a second route to it, never a second source of truth.
+ *
  * The sentence at the top and the two buttons at the bottom stay *outside* the
  * split, where the other steps put their banners and their commit rail: they are
  * about the step rather than about either pane, and leaving the step is not a
@@ -116,6 +130,54 @@ export function MappingStep({
   // field moves its mark because this no longer names the old column.
   const marks = draftColumnMarks(draft);
 
+  // Which field, if any, the next header click answers (issue #214). One field
+  // at a time by construction — it is one slot, so opening a second pick closes
+  // the first, and the header the user clicks answers the question they last
+  // asked. The *field* is held rather than a handler, so the update below is
+  // always written against the draft as it stands at the moment of the click.
+  const [picking, setPicking] = useState<ColumnField | null>(null);
+
+  // The one update both routes run: the select's own change, and a header click
+  // in pick mode. Two spellings of "the date column is now this" are two things
+  // that can drift, and the table is a second route to one value rather than a
+  // second value.
+  const assign = (field: ColumnField, column: string) => {
+    update(columnFieldPatch(draft, field, column));
+    setActiveColumn(column === "" ? null : column);
+  };
+
+  const pickColumn = (header: string) => {
+    if (picking === null) return;
+    assign(picking, header);
+    setPicking(null);
+  };
+
+  // Escape leaves pick mode having assigned nothing — the way any transient
+  // surface is left, and the reason opening one is not a commitment. On the
+  // document because the click it is waiting for is in the *other* pane, so
+  // there is no one element focus can be assumed to be inside.
+  useEffect(() => {
+    if (picking === null) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setPicking(null);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [picking]);
+
+  // What every column select needs and none of them decides for itself: the
+  // choices, which field is picking, and the two ways an answer gets out.
+  const columns: ColumnPlumbing = {
+    headers,
+    draft,
+    picking,
+    // A second press closes it — the control that opened pick mode is the way
+    // back out of it, and closing assigns nothing.
+    onPick: (field) => setPicking((current) => (current === field ? null : field)),
+    onAssign: assign,
+    onActiveColumn: setActiveColumn,
+  };
+
   // Whether the draft can read the file yet. Asked of the same function the
   // parent applies, so the table appears exactly when there is something true to
   // put in it — not when a subset of the fields happens to be filled.
@@ -139,6 +201,8 @@ export function MappingStep({
             rows={rows}
             marks={marks}
             activeColumn={activeColumn}
+            pickingFor={picking === null ? null : COLUMN_FIELD_BADGE[picking]}
+            onPickColumn={pickColumn}
           />
         }
         right={
@@ -153,44 +217,19 @@ export function MappingStep({
                 />
               </Field>
 
-              <ColumnSelect
-                label="Operation date column"
-                headers={headers}
-                value={draft.mapping.date}
-                onActiveColumn={setActiveColumn}
-                onChange={(date) => update({ mapping: { ...draft.mapping, date } })}
-              />
-              <ColumnSelect
-                label="Operation label column"
-                headers={headers}
-                value={draft.mapping.rawIssuerString}
-                onActiveColumn={setActiveColumn}
-                onChange={(rawIssuerString) =>
-                  update({ mapping: { ...draft.mapping, rawIssuerString } })
-                }
-              />
+              <ColumnSelect field="date" label="Operation date column" {...columns} />
+              <ColumnSelect field="label" label="Operation label column" {...columns} />
               {/* Optional, and `null` is an *answer*: a bank that writes no
                   counterparty account number has to say so, or "carries none"
                   and "nobody got round to it" look alike in the stored record. */}
               <ColumnSelect
+                field="iban"
                 label="Counterparty IBAN column"
-                headers={headers}
-                value={draft.mapping.counterpartyIban ?? ""}
                 none="This bank writes none"
-                onActiveColumn={setActiveColumn}
-                onChange={(column) =>
-                  update({
-                    mapping: { ...draft.mapping, counterpartyIban: column === "" ? null : column },
-                  })
-                }
+                {...columns}
               />
 
-              <SignFields
-                headers={headers}
-                sign={draft.sign}
-                onActiveColumn={setActiveColumn}
-                onChange={(sign) => update({ sign })}
-              />
+              <SignFields onChange={(sign) => update({ sign })} {...columns} />
 
               {/* The two rules PRD #180 refuses to guess at. Both open
                   unanswered: a default here would be a choice the user never
@@ -230,16 +269,10 @@ export function MappingStep({
               {/* The optional row filter — one column equal to one value, which
                   is how "settled operations only" is said. */}
               <ColumnSelect
+                field="filter"
                 label="Only import rows where"
-                headers={headers}
-                value={draft.filter?.column ?? ""}
                 none="Import every row"
-                onActiveColumn={setActiveColumn}
-                onChange={(column) =>
-                  update({
-                    filter: column === "" ? null : { column, equals: draft.filter?.equals ?? "" },
-                  })
-                }
+                {...columns}
               />
               <Field label="…equals">
                 <Input
@@ -301,9 +334,17 @@ export function MappingStep({
 }
 
 /** One labelled control. The visible text *is* the control's name. */
-function Field({ label, children }: { label: string; children: ReactNode }) {
+function Field({
+  label,
+  className,
+  children,
+}: {
+  label: string;
+  className?: string;
+  children: ReactNode;
+}) {
   return (
-    <label className="flex flex-col gap-1 text-sm text-gousse-muted">
+    <label className={cn("flex flex-col gap-1 text-sm text-gousse-muted", className)}>
       {label}
       {children}
     </label>
@@ -311,54 +352,112 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 }
 
 /**
- * A `<select>` over the file's own headers. `none` makes the empty choice a real
- * answer ("this bank writes none", "import every row") rather than an unanswered
- * question; without it the placeholder is disabled and the user must choose.
+ * What every {@link ColumnSelect} on this step is handed, since none of it
+ * differs between them: the file's headers, the draft each reads its own answer
+ * out of, which field is in pick mode, and the ways an answer gets back.
+ */
+type ColumnPlumbing = {
+  headers: readonly string[];
+  draft: FormatDraft;
+  /** The field whose next header click is being waited for, or `null`. */
+  picking: ColumnField | null;
+  /** Open pick mode for a field — or close it, if it is the one already open. */
+  onPick: (field: ColumnField) => void;
+  onAssign: (field: ColumnField, column: string) => void;
+  onActiveColumn: (column: string | null) => void;
+};
+
+/**
+ * One column-valued question: a `<select>` over the file's own headers, and
+ * beside it the control that answers the same question from the file (issue
+ * #214).
+ *
+ * `none` makes the empty choice a real answer ("this bank writes none", "import
+ * every row") rather than an unanswered question; without it the placeholder is
+ * disabled and the user must choose.
+ *
+ * **The select is the value.** Both routes run `onAssign`, the field's own read
+ * and write live in `column-fields.ts`, and the table holds nothing — so what a
+ * header click does is put a value in this select, and the two can never
+ * disagree about what was chosen.
  *
  * It also says which column of the file the user is currently answering about,
  * so the pane opposite can mark it more strongly (issue #213): the one it names
  * when it is entered, the newly picked one the moment it is answered, and none
- * once the user has left it. `onActiveColumn` is required rather than optional
- * because a select that stayed silent would leave the previous field's column
- * lit while the user answered a different question.
+ * once the user has left it. `onActiveColumn` is not optional, because a select
+ * that stayed silent would leave the previous field's column lit while the user
+ * answered a different question.
  */
 function ColumnSelect({
+  field,
   label,
-  headers,
-  value,
   none,
-  onChange,
+  headers,
+  draft,
+  picking,
+  onPick,
+  onAssign,
   onActiveColumn,
-}: {
+}: ColumnPlumbing & {
+  field: ColumnField;
   label: string;
-  headers: readonly string[];
-  value: string;
   none?: string;
-  onChange: (column: string) => void;
-  onActiveColumn: (column: string | null) => void;
 }) {
+  const value = columnFieldValue(draft, field) ?? "";
+  const isPicking = picking === field;
+  const select = useRef<HTMLSelectElement>(null);
+
+  // When pick mode ends, the button the user was on stops existing — so hand
+  // focus back to the field that asked rather than dropping it on the body,
+  // which is where a keyboard user would otherwise have to start again.
+  const wasPicking = useRef(false);
+  useEffect(() => {
+    if (wasPicking.current && !isPicking) select.current?.focus();
+    wasPicking.current = isPicking;
+  }, [isPicking]);
+
   return (
-    <Field label={label}>
-      <Select
-        aria-label={label}
-        value={value}
-        onChange={(event) => {
-          onChange(event.target.value);
-          onActiveColumn(event.target.value === "" ? null : event.target.value);
-        }}
-        onFocus={() => onActiveColumn(value === "" ? null : value)}
-        onBlur={() => onActiveColumn(null)}
-      >
-        <option value="" disabled={none === undefined}>
-          {none ?? "Pick a column…"}
-        </option>
-        {headers.map((header) => (
-          <option key={header} value={header}>
-            {header}
+    <div className="flex items-end gap-2">
+      <Field label={label} className="min-w-0 flex-1">
+        <Select
+          ref={select}
+          aria-label={label}
+          value={value}
+          onChange={(event) => onAssign(field, event.target.value)}
+          onFocus={() => onActiveColumn(value === "" ? null : value)}
+          onBlur={() => onActiveColumn(null)}
+        >
+          <option value="" disabled={none === undefined}>
+            {none ?? "Pick a column…"}
           </option>
-        ))}
-      </Select>
-    </Field>
+          {headers.map((header) => (
+            <option key={header} value={header}>
+              {header}
+            </option>
+          ))}
+        </Select>
+      </Field>
+
+      {/* A toggle, said as one: the name stays put and `aria-pressed` carries
+          the state, so the way out of pick mode is the control that opened it.
+          Named for the field it fills rather than for the word on it, since
+          every one of them says the same word. */}
+      <Button
+        variant="secondary"
+        size="sm"
+        aria-pressed={isPicking}
+        aria-label={`Pick the ${COLUMN_FIELD_BADGE[field]} column from the file`}
+        className={cn("shrink-0", isPicking && "border-gousse-accent text-gousse-accent")}
+        onClick={() => {
+          onPick(field);
+          // The column this field already names stays lit while the user looks
+          // for the one they meant.
+          onActiveColumn(value === "" ? null : value);
+        }}
+      >
+        Pick
+      </Button>
+    </div>
   );
 }
 
@@ -388,19 +487,20 @@ function emptySign(strategy: SignRule["strategy"]): SignRule {
  * would be a stored answer to a question this format no longer asks.
  */
 function SignFields({
-  headers,
-  sign,
   onChange,
-  onActiveColumn,
-}: {
-  headers: readonly string[];
-  sign: SignRule;
+  ...columns
+}: ColumnPlumbing & {
   onChange: (sign: SignRule) => void;
-  /** Passed through to every column select this rule asks for (issue #213). */
-  onActiveColumn: (column: string | null) => void;
 }) {
+  // Read off the draft the column selects already have rather than passed a
+  // second time: two routes to `draft.sign` is one more than the rule has.
+  const sign = columns.draft.sign;
+
   return (
     <>
+      {/* The *strategy* answers how a row is read rather than which column it is
+          read from, so it marks nothing on the file and offers no pick control
+          — only the columns it goes on to ask for do. */}
       <Field label="How the amount is signed">
         <Select
           aria-label="How the amount is signed"
@@ -415,40 +515,16 @@ function SignFields({
 
       {sign.strategy === "debit-credit-columns" ? (
         <>
-          <ColumnSelect
-            label="Debit column"
-            headers={headers}
-            value={sign.debitColumn}
-            onActiveColumn={onActiveColumn}
-            onChange={(debitColumn) => onChange({ ...sign, debitColumn })}
-          />
-          <ColumnSelect
-            label="Credit column"
-            headers={headers}
-            value={sign.creditColumn}
-            onActiveColumn={onActiveColumn}
-            onChange={(creditColumn) => onChange({ ...sign, creditColumn })}
-          />
+          <ColumnSelect field="debit" label="Debit column" {...columns} />
+          <ColumnSelect field="credit" label="Credit column" {...columns} />
         </>
       ) : (
-        <ColumnSelect
-          label="Amount column"
-          headers={headers}
-          value={sign.amountColumn}
-          onActiveColumn={onActiveColumn}
-          onChange={(amountColumn) => onChange({ ...sign, amountColumn })}
-        />
+        <ColumnSelect field="amount" label="Amount column" {...columns} />
       )}
 
       {sign.strategy === "direction-column" ? (
         <>
-          <ColumnSelect
-            label="Direction column"
-            headers={headers}
-            value={sign.directionColumn}
-            onActiveColumn={onActiveColumn}
-            onChange={(directionColumn) => onChange({ ...sign, directionColumn })}
-          />
+          <ColumnSelect field="direction" label="Direction column" {...columns} />
           <Field label="Value meaning a debit">
             <Input
               aria-label="Value meaning a debit"

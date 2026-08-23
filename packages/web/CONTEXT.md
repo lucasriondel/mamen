@@ -159,7 +159,8 @@ where the other two steps put their banners and their commit rail.
 Since issue #213 each answer is also drawn on the file itself — see **column
 marks**. That is what turns nine selects into a picture, and what makes a bank
 that writes debit and credit as separate columns judgeable: both columns' values
-are on screen at once with the sign rule's choices marked on them.
+are on screen at once with the sign rule's choices marked on them. And since
+issue #214 each answer can be given *from* the file — see **pick mode**.
 
 The draft lives in `WizardState.draftFormat` and is written **only** by the
 commit, alongside the rows (`commitImport(records, format)`). Abandoning the
@@ -374,8 +375,9 @@ only the upload step is still a narrow column and it has no file to show.
 Named for the file it shows (`aria-label="statement.csv"`), which
 is what tells it apart from the import table now that the step carries two;
 `CandidateTable` takes a `label` for the same reason. It takes **column marks**
-on the mapping step and none on the preview step; the row highlight is #215, not
-this.
+and **pick mode** on the mapping step and neither on the preview step, where the
+mapping is settled and the file is there to read rows against; the row highlight
+is #215, not this.
 
 **Column marks**:
 The draft's mapping drawn over the **file pane** while a **Statement Format** is
@@ -406,12 +408,44 @@ Debit"`), because a badge and a tint are no use to a screen reader and "which
 column feeds the date" is what this pane exists to answer.
 _Avoid_: Column highlight (the **row highlight** is the other axis and another
 feature), legend, mapping overlay.
-_Code note_: `features/import/column-marks.ts` derives them (`ColumnMarks`, a
-header → labels map); `csv-file-table.tsx` renders them and carries
-`data-column-mark="mapped" | "active"` on every cell of a marked column — the
-named contract the tint is asserted through, jsdom laying out no colour. The
-mapping step holds the active column in component state rather than in the
-reducer: it is where the cursor is, not part of the import.
+_Code note_: `features/import/column-fields.ts` is the one list of the
+column-valued fields — each one's badge, the column the draft currently reads for
+it, and the patch that maps a column to it. `column-marks.ts` folds that list
+into a header → labels map (`ColumnMarks`); `csv-file-table.tsx` renders it and
+carries `data-column-mark="mapped" | "active"` on every cell of a marked
+column — the named contract the tint is asserted through, jsdom laying out no
+colour. The mapping step holds the active column in component state rather than
+in the reducer: it is where the cursor is, not part of the import.
+
+**Pick mode**:
+The file pane waiting for a header click, so that a column found by eye is
+assigned by clicking it rather than by finding its name again in a dropdown
+(issue #214, PRD #208). Beside every column select on the **mapping step** sits a
+control that opens it — `Pick the Date column from the file`, named for the
+**column mark** the field draws, since the word on all nine of them is the same
+`Pick`. While it is open every header of the **file pane** is a button that
+assigns its column to that field.
+
+**The select is still the value.** Both routes run one update (`columnFieldPatch`
+in `column-fields.ts`), so a picked column shows in the select and a column
+chosen in the select marks the file — the table is a second *route* to one value
+and never a second copy of it. That is also why only the column-valued fields
+offer it: date order, the decimal separator and the sign *strategy* answer **how**
+a row is read, and a header click could say nothing about them.
+
+**Opening it is not a commitment.** The pane says which field is waiting — a mode
+the user cannot see is a mode that eats their next click — and both ways out
+(Escape, or the control that opened it) assign nothing and change nothing. One
+field is in pick mode at a time, because it is one slot: opening a second closes
+the first, so the header the user clicks answers the question they last asked.
+_Avoid_: Column picker (the select is the picker), mapping mode, eyedropper.
+_Code note_: `mapping-step.tsx` holds the picking field — the *field*, never a
+captured handler, so the update is written against the draft as it stands at the
+moment of the click. The pick control is a toggle button (constant name,
+`aria-pressed`); the headers become real `<button>`s only while a field is
+asking, so the table is not twenty extra tab stops the rest of the time, and
+focus returns to the select when pick mode ends rather than being dropped on the
+body with the button that held it.
 
 **Import**:
 The result of committing a Statement for one account and one month, keyed

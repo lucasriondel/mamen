@@ -397,6 +397,37 @@ function columnMarks(column: number, file = "releve.csv"): (string | null)[] {
 }
 
 /**
+ * Which fields are offering to be answered from the table, by the name each
+ * marks its column with (issue #214) — `Date`, `Debit`, `Filter`.
+ *
+ * Read off the control's accessible name, the way the header names above are:
+ * the visible word is the same `Pick` on every one of them, so what tells them
+ * apart is what a screen reader hears.
+ */
+function pickControls(): string[] {
+  return screen
+    .queryAllByRole("button", { name: /^Pick the .+ column from the file$/ })
+    .map((button) =>
+      (button.getAttribute("aria-label") ?? "").replace(/^Pick the | column.*$/g, ""),
+    );
+}
+
+/** The control that opens pick mode for one field. */
+function pickControl(field: string): HTMLElement {
+  return screen.getByRole("button", { name: `Pick the ${field} column from the file` });
+}
+
+/** Open pick mode for a field and answer it by clicking one of the file's headers. */
+async function pickFromFile(
+  user: ReturnType<typeof userEvent.setup>,
+  field: string,
+  header: string,
+) {
+  await user.click(pickControl(field));
+  await user.click(screen.getByRole("button", { name: `Use ${header} as the ${field} column` }));
+}
+
+/**
  * The two halves of the **split view** on whichever post-upload step is on
  * screen: the file itself in the left pane, and the divider that separates it
  * from the work in the right one.
@@ -3118,6 +3149,238 @@ describe("ImportWizard", () => {
       await findImportTable();
       expect(fileHeaderNames()).toEqual(["Date opération", "Libellé", "Débit", "Crédit", "Type"]);
       expect(columnMarks(0)).toEqual([null, null, null]);
+    });
+  });
+
+  /**
+   * Issue #214 (PRD #208): a column found by eye is assigned by clicking its
+   * header, rather than by finding its name again in a dropdown.
+   *
+   * Beside each column select sits a control that puts the file pane into **pick
+   * mode**; the next header click answers that field. The select keeps the
+   * value — the table is a second route to it and never a second source of
+   * truth — so a picked column shows in the select, and a column chosen in the
+   * select is marked on the file exactly as before.
+   */
+  describe("assigning a column by clicking its header", () => {
+    it("assigns the clicked header to the field that opened pick mode, and the select shows it", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+
+      // Nothing is pickable until a field asks: the headers are headers.
+      expect(
+        screen.queryByRole("button", { name: "Use Date opération as the Date column" }),
+      ).toBeNull();
+
+      await pickFromFile(user, "Date", "Date opération");
+
+      // The value landed in the select, which is the only thing that holds it.
+      expect(screen.getByLabelText("Operation date column")).toHaveValue("Date opération");
+      // And the mapping is drawn on the file, exactly as it is when the select
+      // was used (issue #213) — the two routes cannot disagree.
+      expect(fileHeaderNames()[0]).toBe("Date opération — mapped to Date");
+      expect(columnMarks(0)).toEqual(["active", "active", "active"]);
+      // Pick mode closed behind the answer: the next click on the file means
+      // what it always meant.
+      expect(screen.queryByRole("button", { name: "Use Libellé as the Date column" })).toBeNull();
+    });
+
+    // A mode the user cannot see is a mode that eats their next click.
+    it("says on the file which field the next header click will answer", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+
+      expect(screen.queryByText(/Click a column header/)).toBeNull();
+
+      await user.click(pickControl("Label"));
+
+      const waiting = screen.getByText(/Click a column header to use it as the Label column/);
+      // On the file itself — the pane the click has to land in.
+      expect(paneDivider().compareDocumentPosition(waiting)).toBe(Node.DOCUMENT_POSITION_PRECEDING);
+      expect(pickControl("Label")).toHaveAttribute("aria-pressed", "true");
+    });
+
+    // Opening pick mode is not a commitment: both ways out leave the draft
+    // exactly as they found it.
+    it("assigns nothing when pick mode is left without a header", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+      await user.selectOptions(screen.getByLabelText("Operation date column"), "Date opération");
+
+      // Out through the control that opened it.
+      await user.click(pickControl("Date"));
+      await user.click(pickControl("Date"));
+
+      expect(screen.queryByText(/Click a column header/)).toBeNull();
+      expect(pickControl("Date")).toHaveAttribute("aria-pressed", "false");
+
+      // And out through Escape, the way any transient surface is left.
+      await user.click(pickControl("Date"));
+      await user.keyboard("{Escape}");
+
+      expect(screen.queryByText(/Click a column header/)).toBeNull();
+      expect(screen.queryByRole("button", { name: "Use Libellé as the Date column" })).toBeNull();
+      // The answer that was there before is the answer that is there after.
+      expect(screen.getByLabelText("Operation date column")).toHaveValue("Date opération");
+      expect(fileHeaderNames()[1]).toBe("Libellé");
+    });
+
+    // One click, one field: a second control taking over means the header the
+    // user clicks answers the question they last asked.
+    it("holds only one field in pick mode at a time", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+
+      await user.click(pickControl("Date"));
+      await user.click(pickControl("Label"));
+
+      expect(pickControl("Date")).toHaveAttribute("aria-pressed", "false");
+      expect(pickControl("Label")).toHaveAttribute("aria-pressed", "true");
+      expect(screen.queryByRole("button", { name: "Use Libellé as the Date column" })).toBeNull();
+
+      await user.click(screen.getByRole("button", { name: "Use Libellé as the Label column" }));
+
+      expect(screen.getByLabelText("Operation label column")).toHaveValue("Libellé");
+      expect(screen.getByLabelText("Operation date column")).toHaveValue("");
+    });
+
+    /**
+     * Only the questions that answer *which column* are answerable from the
+     * table. Date order, the decimal separator and the sign *strategy* answer
+     * **how** a row is read, and a header click could say nothing about them.
+     */
+    it("offers a pick control on the column-valued fields and nowhere else", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+
+      expect(pickControls()).toEqual(["Date", "Label", "IBAN", "Amount", "Filter"]);
+
+      // The columns a strategy reads are column-valued too — both halves of a
+      // debit/credit pair, which is the case the whole feature exists for.
+      await user.selectOptions(
+        screen.getByLabelText("How the amount is signed"),
+        "debit-credit-columns",
+      );
+      expect(pickControls()).toEqual(["Date", "Label", "IBAN", "Debit", "Credit", "Filter"]);
+
+      await user.selectOptions(
+        screen.getByLabelText("How the amount is signed"),
+        "direction-column",
+      );
+      expect(pickControls()).toEqual(["Date", "Label", "IBAN", "Amount", "Direction", "Filter"]);
+    });
+
+    // The second route is not a mouse-only one: the control is a tab stop after
+    // the select it belongs to, and the headers are buttons like any other.
+    it("opens pick mode and answers it from the keyboard", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+
+      screen.getByLabelText("Operation date column").focus();
+      await user.tab();
+      expect(pickControl("Date")).toHaveFocus();
+
+      await user.keyboard("{Enter}");
+      const header = screen.getByRole("button", { name: "Use Crédit as the Date column" });
+      header.focus();
+      await user.keyboard("{Enter}");
+
+      expect(screen.getByLabelText("Operation date column")).toHaveValue("Crédit");
+      // Focus comes back to the field that asked, rather than being dropped on
+      // the body when the header button it was on stops existing.
+      expect(screen.getByLabelText("Operation date column")).toHaveFocus();
+    });
+
+    /**
+     * The whole mapping answered from the table, and what is saved is what the
+     * selects say: the pick runs the same update the select dispatches, so the
+     * committed format cannot be a third thing.
+     */
+    it("builds a format entirely through the file, saving what the selects show", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+
+      await user.type(screen.getByLabelText("Format name"), "CCF");
+      await pickFromFile(user, "Date", "Date opération");
+      await pickFromFile(user, "Label", "Libellé");
+      await user.selectOptions(
+        screen.getByLabelText("How the amount is signed"),
+        "debit-credit-columns",
+      );
+      await pickFromFile(user, "Debit", "Débit");
+      await pickFromFile(user, "Credit", "Crédit");
+      await pickFromFile(user, "Filter", "Type");
+      await user.type(screen.getByLabelText("…equals"), "CARTE");
+      await user.selectOptions(screen.getByLabelText("Date order"), "day-first");
+      await user.selectOptions(screen.getByLabelText("Decimal separator"), "comma");
+
+      // Every answer is in the form, where the value lives.
+      expect(screen.getByLabelText("Debit column")).toHaveValue("Débit");
+      expect(screen.getByLabelText("Credit column")).toHaveValue("Crédit");
+      expect(screen.getByLabelText("Only import rows where")).toHaveValue("Type");
+      expect(previewedRows()).toEqual([expect.stringContaining("03 Apr 2026 | SHOP A")]);
+
+      await user.click(screen.getByRole("button", { name: "Continue to preview" }));
+      await user.click(await screen.findByRole("button", { name: "Commit import" }));
+
+      await waitFor(() => expect(createFormat).toHaveBeenCalledTimes(1));
+      expect(createFormat).toHaveBeenCalledWith(
+        expect.objectContaining({
+          mapping: {
+            date: "Date opération",
+            rawIssuerString: "Libellé",
+            counterpartyIban: null,
+          },
+          rules: expect.objectContaining({
+            sign: {
+              strategy: "debit-credit-columns",
+              debitColumn: "Débit",
+              creditColumn: "Crédit",
+            },
+            filter: { column: "Type", equals: "CARTE" },
+          }),
+        }),
+      );
+    });
+
+    // The row filter is two answers in one field, and only one of them is a
+    // column: re-picking the column is not a withdrawal of the value it is
+    // matched against.
+    it("keeps the value the filter matches when its column is re-picked", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+
+      await user.selectOptions(screen.getByLabelText("Only import rows where"), "Type");
+      await user.type(screen.getByLabelText("…equals"), "CARTE");
+
+      await pickFromFile(user, "Filter", "Libellé");
+
+      expect(screen.getByLabelText("Only import rows where")).toHaveValue("Libellé");
+      expect(screen.getByLabelText("…equals")).toHaveValue("CARTE");
+    });
+
+    // Pick mode belongs to *building* a format. On the preview step the mapping
+    // is settled and the file is there to read rows against, so a header is a
+    // header again.
+    it("offers no pick mode once the format is built", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+      await mapFrenchColumns(user);
+
+      await user.click(screen.getByRole("button", { name: "Continue to preview" }));
+
+      await findImportTable();
+      expect(pickControls()).toEqual([]);
+      expect(screen.queryByText(/Click a column header/)).toBeNull();
     });
   });
 });

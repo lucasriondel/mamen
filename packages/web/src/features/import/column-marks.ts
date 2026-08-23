@@ -1,3 +1,4 @@
+import { COLUMN_FIELD_BADGE, COLUMN_FIELDS, columnFieldValue } from "./column-fields";
 import type { FormatDraft } from "./parsers/format-draft";
 
 /**
@@ -21,50 +22,28 @@ export type ColumnMarks = ReadonlyMap<string, readonly string[]>;
  * marks read as decisions the user has made.
  *
  * A column may feed more than one field — a bank that writes its status in the
- * column it also filters on is perfectly ordinary — so the value is a list. The
- * labels are the form's own words shortened to a badge, not the draft's field
- * names: the user answered "Operation label column", and *Label* is that answer
- * said back.
+ * column it also filters on is perfectly ordinary — so the value is a list.
  *
- * Only the column-valued fields appear. Date order, decimal separator and the
+ * Only the {@link COLUMN_FIELDS} appear, and the same list is what the form
+ * offers a pick control on (issue #214): date order, decimal separator and the
  * sign *strategy* answer **how** a row is read rather than **which** column it
  * is read from, so they name nothing to mark — but the columns a strategy reads
  * do, which is what puts a badge on both halves of a debit/credit pair.
  */
 export function draftColumnMarks(draft: FormatDraft): ColumnMarks {
   const marks = new Map<string, string[]>();
-  // A blank column is an unanswered question and `null` an answered one ("this
-  // bank writes none"); neither marks anything, and both are the absence of a
-  // decision to draw.
-  const mark = (column: string | null | undefined, label: string) => {
-    if (column === null || column === undefined || column === "") return;
+
+  for (const field of COLUMN_FIELDS) {
+    // A blank column is an unanswered question, `null` an answered one ("this
+    // bank writes none") and `undefined` a question this draft is not asking;
+    // none of the three marks anything, all being the absence of a decision.
+    const column = columnFieldValue(draft, field);
+    if (column === null || column === undefined || column === "") continue;
+
     const already = marks.get(column);
-    if (already) already.push(label);
-    else marks.set(column, [label]);
-  };
-
-  mark(draft.mapping.date, "Date");
-  mark(draft.mapping.rawIssuerString, "Label");
-  mark(draft.mapping.counterpartyIban, "IBAN");
-
-  switch (draft.sign.strategy) {
-    case "signed-column":
-      mark(draft.sign.amountColumn, "Amount");
-      break;
-    case "direction-column":
-      mark(draft.sign.amountColumn, "Amount");
-      mark(draft.sign.directionColumn, "Direction");
-      break;
-    case "debit-credit-columns":
-      // The case the whole feature exists for: both columns marked, so the two
-      // can be judged against each other's values before a sign rule is
-      // committed to.
-      mark(draft.sign.debitColumn, "Debit");
-      mark(draft.sign.creditColumn, "Credit");
-      break;
+    if (already) already.push(COLUMN_FIELD_BADGE[field]);
+    else marks.set(column, [COLUMN_FIELD_BADGE[field]]);
   }
-
-  mark(draft.filter?.column, "Filter");
 
   return marks;
 }

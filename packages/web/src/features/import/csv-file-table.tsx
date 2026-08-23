@@ -13,6 +13,23 @@ import type { ColumnMarks } from "./column-marks";
  */
 type ColumnMark = "active" | "mapped" | undefined;
 
+/** The bank's own word for a column, and what the draft reads it as. */
+function HeaderName({ header, labels }: { header: string; labels: readonly string[] }) {
+  return (
+    <span className="inline-flex items-center gap-2">
+      {header}
+      {labels.map((label) => (
+        <span
+          key={label}
+          className="rounded-full bg-gousse-accent/10 px-2 py-0.5 font-medium text-gousse-accent text-xs"
+        >
+          {label}
+        </span>
+      ))}
+    </span>
+  );
+}
+
 function columnMark(mapped: boolean, active: boolean): ColumnMark {
   if (!mapped) return undefined;
   return active ? "active" : "mapped";
@@ -56,6 +73,12 @@ function columnTint(mark: ColumnMark): string | false {
  * derived from the draft, so this table holds no copy of the mapping and cannot
  * disagree with the form beside it. On the preview step nothing is being mapped
  * and none are passed, so the file reads exactly as it did before.
+ *
+ * **And answered from it, in pick mode** (issue #214): while a field is picking,
+ * every header is a button that assigns its column to that field, and the pane
+ * says so — a mode the user cannot see is a mode that eats their next click. The
+ * assignment goes back out through `onPickColumn`; nothing about the value is
+ * decided here, the form's select being the only thing that holds it.
  */
 export function CsvFileTable({
   fileName,
@@ -63,6 +86,8 @@ export function CsvFileTable({
   rows,
   marks,
   activeColumn = null,
+  pickingFor = null,
+  onPickColumn,
 }: {
   /** The dropped file's name — what the pane and its table are called. */
   fileName: string;
@@ -74,7 +99,14 @@ export function CsvFileTable({
   marks?: ColumnMarks;
   /** The header the field the user is currently in points at, marked more strongly. */
   activeColumn?: string | null;
+  /** The field waiting for a header click, by its badge (`"Date"`); `null` when none is. */
+  pickingFor?: string | null;
+  /** What a header click answers with — the header's own name, as the file writes it. */
+  onPickColumn?: (header: string) => void;
 }) {
+  // Pick mode needs somewhere to send the answer, so a caller that offers no
+  // handler cannot put the table into it by accident.
+  const picking = pickingFor !== null && onPickColumn !== undefined;
   // What the draft makes of each column, once for the whole table: its badges,
   // and which of the three marked states it is in.
   const columns = headers.map((header) => {
@@ -90,6 +122,16 @@ export function CsvFileTable({
         <span className="font-medium text-gousse-ink">{fileName}</span> — {rows.length}{" "}
         {rows.length === 1 ? "row" : "rows"}, as delivered
       </p>
+
+      {/* What the next click will mean, said where the click has to land. An
+          `<output>` — an implicit polite live region, the shape the rest of the
+          app says this in — rather than an alert: the user asked for this mode,
+          so it is the state of the pane and not an interruption. */}
+      {picking ? (
+        <output className="px-3 text-gousse-accent text-sm">
+          Click a column header to use it as the {pickingFor} column — Escape leaves it unchanged.
+        </output>
+      ) : null}
 
       {/* One scroller for both axes, so the header can stay stuck to the top of
           it while the rows move under it in either direction. The `ui/table`
@@ -126,17 +168,22 @@ export function CsvFileTable({
                     labels.length > 0 && "text-gousse-ink",
                   )}
                 >
-                  <span className="inline-flex items-center gap-2">
-                    {header}
-                    {labels.map((label) => (
-                      <span
-                        key={label}
-                        className="rounded-full bg-gousse-accent/10 px-2 py-0.5 font-medium text-gousse-accent text-xs"
-                      >
-                        {label}
-                      </span>
-                    ))}
-                  </span>
+                  {/* In pick mode the header *is* the control — a real button,
+                      so the route is a keyboard's as much as a pointer's, and
+                      one that exists only while a field is asking so the table
+                      is not twenty tab stops the rest of the time. */}
+                  {picking ? (
+                    <button
+                      type="button"
+                      aria-label={`Use ${header} as the ${pickingFor} column`}
+                      className="-mx-1 rounded-full px-1 outline-none hover:bg-gousse-accent/20 focus-visible:ring-2 focus-visible:ring-gousse-accent"
+                      onClick={() => onPickColumn?.(header)}
+                    >
+                      <HeaderName header={header} labels={labels} />
+                    </button>
+                  ) : (
+                    <HeaderName header={header} labels={labels} />
+                  )}
                 </TableHead>
               ))}
             </TableRow>
