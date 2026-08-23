@@ -305,10 +305,21 @@ export function useCandidateTable<T extends ArchivedRow>({
  *
  * The header is sticky, and the scroll container is the caller's: the two
  * previews cap their tables at different heights, one of them beside a PDF.
+ *
+ * The `label` is the caller's too, and it is not decoration: since issue #211
+ * both previews sit beside the dropped file, so "the table" on either path is
+ * two tables, and each one has to say which it is.
  */
-export function CandidateTable<T>({ table }: { table: TanStackTable<CandidateRow<T>> }) {
+export function CandidateTable<T>({
+  table,
+  label,
+}: {
+  table: TanStackTable<CandidateRow<T>>;
+  /** What this table is called — the accessible name of the grid itself. */
+  label: string;
+}) {
   return (
-    <Table>
+    <Table aria-label={label}>
       <TableHeader className="sticky top-0 bg-gousse-panel">
         {table.getHeaderGroups().map((headerGroup) => (
           <TableRow key={headerGroup.id}>

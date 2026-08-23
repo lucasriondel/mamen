@@ -1,6 +1,7 @@
 import type { StatementFormatCreate } from "@mamen/shared/contract";
 import { createColumnHelper } from "@tanstack/react-table";
 import { useMemo } from "react";
+import { SplitView } from "@/components/split-view";
 import { formatCurrency, formatMonth, formatShortDate } from "@/lib/format";
 import { AlreadyImportedMark } from "./already-imported-mark";
 import { CandidateFilters } from "./candidate-filters";
@@ -15,10 +16,24 @@ import {
 import type { CandidateRow } from "./candidate-rows";
 import { distinctMonths } from "./commit";
 import { CommitBar } from "./commit-bar";
+import { CsvFileTable } from "./csv-file-table";
 import { keptPositions } from "./kept-rows";
 import type { ParsedTransaction } from "./parsers/types";
 import { useDuplicateFlags } from "./use-duplicate-flags";
+import { useSplitRatio } from "./use-split-ratio";
 import type { RowId, WizardAction } from "./wizard-reducer";
+
+/**
+ * What this step's split shows until the user has dragged anything.
+ *
+ * Even, where the PDF path's is 60/40: a rendered statement page is a document
+ * being read *from* and wants the greater share, but here both panes are tables
+ * of the same rows, and the right one carries the filters, the skips and the
+ * decision. The mapping step's form asks for less room than this table does,
+ * which is why each step names its own default — and why the first drag
+ * replaces every one of them (issue #210).
+ */
+const CSV_SPLIT_DEFAULT = 0.5;
 
 /**
  * Step 2 (CSV path) — the mandatory, never-skippable preview. Shows the detected
@@ -41,6 +56,18 @@ import type { RowId, WizardAction } from "./wizard-reducer";
  * The facts above the table count the rows that will actually be written, so
  * skipping the only row of a month drops that month from the summary — what the
  * commit does is what the preview says.
+ *
+ * Since issue #211 the dropped file itself is on screen beside all this, in the
+ * shared {@link SplitView} the PDF path already uses: the statement's own rows
+ * on the left, this table on the right, a draggable divider between them. The
+ * table, its filters, its skips and the commit rail are exactly what they were —
+ * only the space they occupy changed. Reading a row against the line that
+ * produced it is what the PDF path has always offered and this one never did.
+ *
+ * The summary and the commit rail stay *outside* the split, where the PDF path
+ * puts its banner and its own rail: they are about the import rather than about
+ * either pane, and the moment that matters is not one to make the user find a
+ * scroll position for.
  */
 export function PreviewStep({
   records,
@@ -48,6 +75,9 @@ export function PreviewStep({
   skippedRows,
   accountName,
   parserLabel,
+  fileName,
+  headers,
+  rows,
   formatToCreate,
   onBack,
   dispatch,
@@ -59,6 +89,12 @@ export function PreviewStep({
   skippedRows: readonly RowId[];
   accountName: string;
   parserLabel: string;
+  /** The dropped file's name — what the pane beside the table is called. */
+  fileName: string;
+  /** The file's real header row, for the pane beside the table. */
+  headers: readonly string[];
+  /** Every row of the file, as delivered — the pane shows all of them. */
+  rows: ReadonlyArray<Record<string, string>>;
   /**
    * The **Statement Format** built from this file, saved by the commit itself
    * (issue #186); `null` for an import reading a stored one.
@@ -67,6 +103,9 @@ export function PreviewStep({
   onBack: () => void;
   dispatch: (action: WizardAction) => void;
 }) {
+  // Where the user left the divider — chrome rather than import state, so it is
+  // one position shared with the PDF path's split and it outlives this import.
+  const { ratio, setRatio } = useSplitRatio(CSV_SPLIT_DEFAULT);
   const skipped = useMemo(() => new Set(skippedRows), [skippedRows]);
   // Where the kept rows sit, asked once and read twice — the same call the
   // **side-by-side validation** view makes, since a skip means the same thing on
@@ -98,12 +137,23 @@ export function PreviewStep({
         />
       </dl>
 
-      <PreviewTable
-        records={records}
-        rowIds={rowIds}
-        duplicateFlags={duplicates.flags}
-        skippedRows={skippedRows}
-        dispatch={dispatch}
+      <SplitView
+        // Tall enough to read a statement in, and the reason each pane has
+        // something to scroll *inside*: a single scrolling column would carry
+        // the file off the top of the screen on the way down the rows (#210).
+        className="h-[85vh]"
+        ratio={ratio}
+        onRatioChange={setRatio}
+        left={<CsvFileTable fileName={fileName} headers={headers} rows={rows} />}
+        right={
+          <PreviewTable
+            records={records}
+            rowIds={rowIds}
+            duplicateFlags={duplicates.flags}
+            skippedRows={skippedRows}
+            dispatch={dispatch}
+          />
+        }
       />
 
       <CommitBar
@@ -228,13 +278,17 @@ function PreviewTable({
   });
 
   return (
-    <div className="flex flex-col gap-3 overflow-hidden rounded-2xl border border-gousse-line">
+    <div className="flex h-full flex-col gap-3 overflow-hidden rounded-2xl border border-gousse-line">
       {/* Outside the scroll container: the filters say what the table below is
           showing, so they must not scroll away from it (issue #195). */}
       <CandidateFilters table={table} facets={facets} />
 
-      <div className="max-h-[60vh] overflow-y-auto">
-        <CandidateTable table={table} />
+      {/* The rows are what scrolls, inside whatever height the divider leaves
+          this pane — so the filters above stay put and the file in the other
+          pane stays exactly where it was (issues #210, #211). `min-h-0` is what
+          lets a flex child be shorter than its content. */}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <CandidateTable table={table} label="Rows to import" />
       </div>
     </div>
   );

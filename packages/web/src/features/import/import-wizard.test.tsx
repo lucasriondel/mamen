@@ -324,11 +324,45 @@ function shownRows(): string[] {
 }
 
 /**
+ * The CSV preview's own table. Named since issue #211: the file itself is on
+ * screen beside it, so "the table" is two tables and a bare `getByRole` would
+ * find both.
+ */
+function importTable(): HTMLElement {
+  return screen.getByRole("table", { name: "Rows to import" });
+}
+
+/** The same, waited for: the step transition is animated, so it arrives a beat late. */
+function findImportTable(): Promise<HTMLElement> {
+  return screen.findByRole("table", { name: "Rows to import" });
+}
+
+/**
+ * The other table on the preview step since issue #211: the dropped file
+ * itself, in the left pane, named for the file it shows.
+ */
+function fileTable(name = "statement.csv"): HTMLElement {
+  return screen.getByRole("table", { name });
+}
+
+/** What that table says, cell by cell, in file order. */
+function fileRows(name?: string): string[][] {
+  return within(fileTable(name))
+    .getAllByRole("row")
+    .slice(1)
+    .map((row) =>
+      within(row)
+        .getAllByRole("cell")
+        .map((cell) => cell.textContent ?? ""),
+    );
+}
+
+/**
  * The same question of the CSV preview's table, whose cells are text rather than
  * inputs: the rows it is showing, by raw issuer, in table order.
  */
 function shownCsvRows(): string[] {
-  return within(screen.getByRole("table"))
+  return within(importTable())
     .getAllByRole("row")
     .slice(1)
     .map((row) => within(row).getAllByRole("cell")[2]?.textContent ?? "");
@@ -525,12 +559,14 @@ describe("ImportWizard", () => {
     await user.click(screen.getByRole("button", { name: "Continue to preview" }));
 
     // The January row is marked; the February one — genuinely new — is not.
-    const flaggedRow = (await screen.findByText("SHOP A")).closest("tr");
+    // Read inside the import table: the file itself is on screen beside it since
+    // issue #211, and it prints these same words.
+    const flaggedRow = (await within(await findImportTable()).findByText("SHOP A")).closest("tr");
     expect(flaggedRow).not.toBeNull();
     await waitFor(() =>
       expect(within(flaggedRow as HTMLElement).getByText("Already imported")).toBeInTheDocument(),
     );
-    const newRow = screen.getByText("SHOP B").closest("tr") as HTMLElement;
+    const newRow = within(importTable()).getByText("SHOP B").closest("tr") as HTMLElement;
     expect(within(newRow).queryByText("Already imported")).toBeNull();
 
     // The bar states the count, and the read was scoped to the account.
@@ -578,7 +614,7 @@ describe("ImportWizard", () => {
     // The row stays on screen — struck through, saying so, and the box that held
     // it out is the one that takes it back — and the count it was the whole of
     // goes with it.
-    expect(screen.getByText("SHOP A").className).toContain("line-through");
+    expect(within(importTable()).getByText("SHOP A").className).toContain("line-through");
     expect(screen.getByRole("checkbox", { name: "Skip row 1" })).toBeChecked();
     expect(screen.getByText("Skipped — won't be imported")).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
@@ -642,13 +678,16 @@ describe("ImportWizard", () => {
 
     await user.click(screen.getByRole("button", { name: "Continue to preview" }));
 
-    expect(await screen.findByText("SHOP B")).toBeInTheDocument();
-    expect(screen.queryByText("NOT SETTLED")).toBeNull();
+    expect(await within(await findImportTable()).findByText("SHOP B")).toBeInTheDocument();
+    // Not in the *import* table: the pending line is a row the format won't
+    // import. It is on screen in the file pane beside it (issue #211), which is
+    // where the user reads why it is missing here.
+    expect(within(importTable()).queryByText("NOT SETTLED")).toBeNull();
 
     await user.click(screen.getByRole("checkbox", { name: "Skip row 2" }));
 
-    expect(screen.getByText("SHOP B").className).toContain("line-through");
-    expect(screen.getByText("SHOP A").className).not.toContain("line-through");
+    expect(within(importTable()).getByText("SHOP B").className).toContain("line-through");
+    expect(within(importTable()).getByText("SHOP A").className).not.toContain("line-through");
 
     await user.click(screen.getByRole("button", { name: "Commit import" }));
     await waitFor(() => expect(bulkCreate).toHaveBeenCalledTimes(1));
@@ -676,8 +715,8 @@ describe("ImportWizard", () => {
 
     await user.click(screen.getByRole("button", { name: "Continue to preview" }));
 
-    const firstRow = (await screen.findByText("SHOP A")).closest("tr") as HTMLElement;
-    const table = firstRow.closest("table") as HTMLElement;
+    const table = await findImportTable();
+    const firstRow = within(table).getByText("SHOP A").closest("tr") as HTMLElement;
     // The skip column's header carries no text: it is the select-all control
     // itself, named for assistive tech like the per-row boxes are.
     expect(
@@ -740,7 +779,7 @@ describe("ImportWizard", () => {
       );
       expect(await screen.findByText("Auto-detected.")).toBeInTheDocument();
       await user.click(screen.getByRole("button", { name: "Continue to preview" }));
-      expect(await screen.findByText("SHOP A")).toBeInTheDocument();
+      expect(await within(await findImportTable()).findByText("SHOP A")).toBeInTheDocument();
     }
 
     it("narrows to one value of the file's own column and skips exactly those rows", async () => {
@@ -796,7 +835,7 @@ describe("ImportWizard", () => {
       expect(screen.getByRole("button", { name: "Filter by Direction" })).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Filter by Intitulé" })).toBeNull();
 
-      const table = screen.getByRole("table");
+      const table = importTable();
       const headers = () =>
         within(table)
           .getAllByRole("columnheader")
@@ -819,6 +858,126 @@ describe("ImportWizard", () => {
       expect(headers()).toEqual(["", "Date", "Raw issuer", "Amount", "Moyen de paiement"]);
       // In the bank's own words (ADR 0012), beside the parsed values.
       expect(within(table).getAllByText("CARTE")).toHaveLength(2);
+    });
+  });
+
+  /**
+   * Issue #211 (PRD #208): a CSV import that goes straight to the preview puts
+   * the *file* on screen beside the table — the statement's real headers and
+   * every one of its rows in the left pane of the split view #210 extracted, the
+   * import table in the right one.
+   *
+   * The user reviewing rows before committing can read a row against the line
+   * that produced it, which is what the PDF path has always offered and this one
+   * never did. No mapping badges and no row highlight yet: those are #213/#215,
+   * and this is the file being on screen at all.
+   */
+  describe("the dropped CSV beside the import table", () => {
+    it("shows the file's own headers and rows beside the import table", async () => {
+      const user = userEvent.setup();
+      await dropCsv(user);
+      expect(await screen.findByText("Auto-detected.")).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Continue to preview" }));
+
+      // The statement's real header row, in the file's own order — not the three
+      // columns the import table reads out of it.
+      const file = await screen.findByRole("table", { name: "statement.csv" });
+      expect(
+        within(file)
+          .getAllByRole("columnheader")
+          .map((th) => th.textContent),
+      ).toEqual(["Statut", "Date", "Montant", "Direction", "Intitulé"]);
+      // And the file's own words in its own spelling: the ISO stamp and the bare
+      // magnitude, not `15 Jan 2026` and `-€10.00`.
+      expect(fileRows()).toEqual([
+        ["COMPLETE", "2026-01-15T10:00:00.000Z", "10", "DEBIT", "SHOP A"],
+        ["COMPLETE", "2026-02-03T10:00:00.000Z", "20", "CREDIT", "SHOP B"],
+      ]);
+
+      // Beside, not above: the two are the panes of the split view, with the
+      // draggable divider #210 introduced between them.
+      const divider = screen.getByRole("separator", { name: "Resize the panes" });
+      expect(divider.compareDocumentPosition(file)).toBe(Node.DOCUMENT_POSITION_PRECEDING);
+      expect(divider.compareDocumentPosition(importTable())).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+
+      // The import table is untouched: the parsed rows, their skips and the
+      // commit rail all still there and still saying what they said.
+      expect(shownCsvRows()).toEqual(["SHOP A", "SHOP B"]);
+      expect(screen.getByRole("checkbox", { name: "Skip row 1" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Commit import" })).toBeInTheDocument();
+    });
+
+    // The whole file, never a first-page sample: a column whose first rows are
+    // blank or uniform is exactly the one a sample cannot settle. Sixty rows is
+    // well past every cap in this wizard (the mapping step's live preview stops
+    // at ten), so a capped table could not pass this.
+    it("lists every row of the file, however long it is", async () => {
+      const user = userEvent.setup();
+      const lines = Array.from(
+        { length: 60 },
+        (_, index) =>
+          `"COMPLETE","2026-01-${String((index % 28) + 1).padStart(2, "0")}T10:00:00.000Z","${
+            index + 1
+          }","DEBIT","SHOP ${index + 1}"`,
+      );
+      renderWizard();
+      await chooseAccount(user);
+      await user.upload(
+        await screen.findByLabelText("CSV or PDF statement"),
+        new File(
+          [['"Statut","Date","Montant","Direction","Intitulé"', ...lines].join("\n")],
+          "long.csv",
+          {
+            type: "text/csv",
+          },
+        ),
+      );
+      expect(await screen.findByText("Auto-detected.")).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Continue to preview" }));
+
+      await screen.findByRole("table", { name: "long.csv" });
+      const rows = fileRows("long.csv");
+      expect(rows).toHaveLength(60);
+      expect(rows[59]?.[4]).toBe("SHOP 60");
+    });
+
+    /**
+     * The file is the *file*, and the import table is what the **Statement
+     * Format** made of it. Green-Got imports only `COMPLETE` rows, so a pending
+     * line is missing from one and present in the other — which is the reading
+     * this feature exists for: the row that is not being imported is on screen,
+     * where the user can see why.
+     */
+    it("keeps the rows the format's filter dropped, which the import table does not", async () => {
+      const user = userEvent.setup();
+      const withPending = [
+        '"Statut","Date","Montant","Direction","Intitulé"',
+        '"COMPLETE","2026-01-15T10:00:00.000Z","10","DEBIT","SHOP A"',
+        '"PENDING","2026-01-16T10:00:00.000Z","99","DEBIT","NOT SETTLED"',
+      ].join("\n");
+      renderWizard();
+      await chooseAccount(user);
+      await user.upload(
+        await screen.findByLabelText("CSV or PDF statement"),
+        new File([withPending], "statement.csv", { type: "text/csv" }),
+      );
+      expect(await screen.findByText("Auto-detected.")).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Continue to preview" }));
+
+      await screen.findByRole("table", { name: "statement.csv" });
+      expect(fileRows().map((cells) => cells[4])).toEqual(["SHOP A", "NOT SETTLED"]);
+      expect(shownCsvRows()).toEqual(["SHOP A"]);
+    });
+
+    // The upload step is untouched (PRD #208): there is no file to show beside
+    // anything yet, so there is no split and nothing to drag.
+    it("leaves the upload step unsplit", async () => {
+      const user = userEvent.setup();
+      await dropCsv(user);
+      expect(await screen.findByText("Auto-detected.")).toBeInTheDocument();
+
+      expect(screen.queryByRole("table", { name: "statement.csv" })).toBeNull();
+      expect(screen.queryByRole("separator", { name: "Resize the panes" })).toBeNull();
     });
   });
 
@@ -849,7 +1008,7 @@ describe("ImportWizard", () => {
 
     await user.click(screen.getByRole("button", { name: "Continue to preview" }));
 
-    await screen.findByText("SHOP A");
+    await within(await findImportTable()).findByText("SHOP A");
     await waitFor(() => expect(listTransactions).toHaveBeenCalled());
     expect(screen.queryByText("Already imported")).toBeNull();
     expect(screen.queryByRole("status")).toBeNull();

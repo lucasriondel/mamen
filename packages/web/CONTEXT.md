@@ -292,8 +292,9 @@ scrolls on its own, and nothing else about the view moves.
 The two-pane layout the import wizard's post-upload steps are drawn in (issue
 #210, PRD #208): a left slot, a right slot, each its own scroll context, and a
 **divider** the user can drag between them. A layout primitive — it knows
-nothing about what is in either slot, and the **side-by-side validation** step's
-statement iframe is just what that path happens to put on the left.
+nothing about what is in either slot: the **side-by-side validation** step puts
+its statement iframe on the left, the CSV preview its **file pane** (issue
+#211), and the split view is told neither.
 
 Each pane scrolling on its own is the behaviour, not a detail. The split used to
 scroll as one column, so reading down the extracted rows carried the statement
@@ -306,8 +307,10 @@ discarded with it, while a layout preference outlives both — so abandoning an
 import leaves the panes where the user put them, and so does leaving the wizard
 entirely. One stored ratio serves every step, because dragging is a preference
 rather than a per-screen setting; until the first drag each step shows **its own
-default** (the PDF step's is 60/40, the grid it replaced), and the first drag
-replaces both.
+default** — the PDF step's is 60/40, the grid it replaced, and the CSV preview's
+is even, since both of its panes are tables of the same rows and the right one
+carries the filters, the skips and the decision — and the first drag replaces
+every one of them.
 _Avoid_: Panel (reserved for the **detail panel**), splitter, resizer, pane
 (fine for one side; the thing itself is the split view).
 _Code note_: `components/split-view.tsx`, controlled — `ratio` in and
@@ -321,6 +324,37 @@ a focusable `separator` carrying `aria-valuenow`, moved by the arrow keys as
 well as by the pointer, since nothing else on the page moves it. Its position is
 asserted in the hook's own unit test rather than at the wizard seam — jsdom lays
 nothing out, so a pane's real width is unassertable there.
+
+**File pane**:
+The dropped CSV itself, on screen in the left pane of the **split view** while
+the user works in the right one (issue #211, PRD #208): the statement's real
+header row and every one of its rows, as delivered. It is what lets a row be
+read against the line that produced it before it is skipped or committed —
+which is what **side-by-side validation** has always given the PDF path and the
+CSV path never had.
+
+A plain table of what the file says, and nothing more: the ISO stamp the bank
+wrote rather than `15 Jan 2026`, the bare magnitude rather than `-€10.00`. The
+parsed reading is the other pane's, and the two being different is the point —
+a wrong **date order** is only ever visible in the second.
+
+**The whole file, never a sample.** A column whose first rows are blank or
+uniform is exactly the one a first page cannot settle, so there is no cap; the
+rows scroll inside the pane, vertically and sideways, so a bank that writes
+twenty columns does not push the table beside it off the page. Unvirtualized,
+knowingly: the import preview beside it already renders every row for the same
+reason, so this is that trade extended to one more table.
+_Avoid_: File preview (the import table beside it is the preview), raw view (the
+pane is built from the *parsed* CSV, so a quoting or delimiter failure is as
+invisible here as it is anywhere), source panel.
+_Code note_: `features/import/csv-file-table.tsx`, fed the `headers` and `rows`
+the wizard already holds — nothing about the reducer, the parsing or the commit
+moved for it. The wizard shell drops its `max-w-3xl` cap on any step that shows
+a file beside the work — the CSV preview now as well as **side-by-side
+validation**, where the rule used to name the PDF step alone. Named for the file it shows (`aria-label="statement.csv"`), which
+is what tells it apart from the import table now that the step carries two;
+`CandidateTable` takes a `label` for the same reason. Mapping badges and the
+row highlight are #213 and #215, not this.
 
 **Import**:
 The result of committing a Statement for one account and one month, keyed

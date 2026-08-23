@@ -350,7 +350,7 @@ function ExtractedRows({
           statement in the other pane stays exactly where it was (issue #210).
           `min-h-0` is what lets a flex child be shorter than its content. */}
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <CandidateTable table={table} />
+        <CandidateTable table={table} label="Extracted transactions" />
       </div>
 
       <div className="px-2 pb-2">

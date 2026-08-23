@@ -192,9 +192,10 @@ export function ImportWizard({
 
   const accountName = accounts.find((account) => account.id === state.accountId)?.name ?? "—";
 
-  // The PDF validation step is a side-by-side (PDF beside editable rows) and
-  // needs the full width to show the statement clearly; every other step is a
-  // single narrow column and reads better capped. Widen only for that step.
+  // A step that puts the dropped file beside the work needs the full width to
+  // show both — the PDF path's **side-by-side validation**, and since issue #211
+  // the CSV preview beside the file it was read from. The upload step and the
+  // mapping step are still a single narrow column and read better capped.
   let wide = false;
 
   let stepContent: ReactNode = null;
@@ -238,6 +239,10 @@ export function ImportWizard({
       />
     );
   } else if (state.accountId !== null && activeFormat !== undefined) {
+    // The CSV preview, beside the file it read (issue #211). Only a CSV reaches
+    // here — a PDF drop clears the format and the rows both, so there is always
+    // a parsed file in hand to put in the left pane.
+    wide = true;
     stepContent = (
       <PreviewStep
         records={records}
@@ -245,6 +250,9 @@ export function ImportWizard({
         skippedRows={state.skippedRows}
         accountName={accountName}
         parserLabel={sourceLabel}
+        fileName={state.fileName ?? "this file"}
+        headers={state.headers}
+        rows={state.rows}
         formatToCreate={formatToCreate}
         onBack={() => dispatch({ type: "back-to-upload" })}
         dispatch={dispatch}
