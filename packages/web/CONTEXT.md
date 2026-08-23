@@ -376,8 +376,9 @@ Named for the file it shows (`aria-label="statement.csv"`), which
 is what tells it apart from the import table now that the step carries two;
 `CandidateTable` takes a `label` for the same reason. It takes **column marks**
 and **pick mode** on the mapping step and neither on the preview step, where the
-mapping is settled and the file is there to read rows against; the row highlight
-is #215, not this.
+mapping is settled and the file is there to read rows against; it takes the
+**row highlight** on the preview step and not on the mapping step, whose right
+pane is a form rather than a table of the same rows.
 
 **Column marks**:
 The draft's mapping drawn over the **file pane** while a **Statement Format** is
@@ -407,7 +408,8 @@ The mapping is **announced** from the header (`aria-label="Débit — mapped to
 Debit"`), because a badge and a tint are no use to a screen reader and "which
 column feeds the date" is what this pane exists to answer.
 _Avoid_: Column highlight (the **row highlight** is the other axis and another
-feature), legend, mapping overlay.
+feature — and it lives on the preview step, where nothing is being mapped),
+legend, mapping overlay.
 _Code note_: `features/import/column-fields.ts` is the one list of the
 column-valued fields — each one's badge, the column the draft currently reads for
 it, and the patch that maps a column to it. `column-marks.ts` folds that list
@@ -446,6 +448,47 @@ moment of the click. The pick control is a toggle button (constant name,
 asking, so the table is not twenty extra tab stops the rest of the time, and
 focus returns to the select when pick mode ends rather than being dropped on the
 body with the button that held it.
+
+**Row highlight**:
+Hovering a row of either pane of the CSV preview lights the row it is paired with
+in the other (issue #215, PRD #208). A parsed row and the line of the **file
+pane** it was read from are one row seen twice, and reading the second against
+the first is the decision the split view exists to support — a row about to be
+**skipped** can be checked against the line of the statement that produced it. It
+reads in both directions, because the user arrives from either side: from a
+parsed amount that looks wrong, or from a line they already know should not be
+imported.
+
+**The join is the row's stable row id, never its position.** A **Statement
+Format**'s row filter drops the lines it will not import, so the third parsed row
+can be the fourth line of the file; the ids are minted over papaparse's rows and
+each record carries the id of the line it was read from (`sourceIndex`), which is
+what that field is for. A line the filter dropped still declares its id and
+simply pairs with nothing — it produced no record, and saying so is the honest
+answer.
+
+**A named contract, not a hover style.** `:hover` on one table can say nothing
+about a row of the table beside it, so both panes state the identity in the DOM
+and the pair under the cursor says so; the tint is written against that. It is
+also what makes the pairing assertable at the wizard seam, jsdom laying out no
+colour — the same reason **column marks** carry one.
+
+**CSV-only.** A **PDF** is a rendered document with no addressable rows, so
+**side-by-side validation** declares no identities and promises no highlight. The
+CSV path is safe because its preview has no add-row control — only the PDF step
+dispatches `add-extracted` — so nothing appears on one side that was never on the
+other.
+_Avoid_: Row link, cross-selection (nothing is selected; the cursor is merely
+somewhere), sync scroll (the panes scroll independently, and that is deliberate).
+_Code note_: `features/import/row-highlight.ts` — `useRowHighlight()` is held by
+`preview-step.tsx` above both panes, since neither can know about the other, and
+it stays out of the wizard reducer for the reason the divider ratio does: where
+the cursor is is not part of what gets written. It hands each row
+`data-row-id` plus `data-row-highlight="true"` on the pair, and
+`ROW_HIGHLIGHT_TINT` is the one class both panes are styled through.
+`CsvFileTable` takes the *file's* ids (`sourceRowIds`, positional with its rows —
+not the record ids, which are a filtered subset in a different order) and
+`CandidateTable` an optional `highlight`; the PDF step passes neither.
 
 **Import**:
 The result of committing a Statement for one account and one month, keyed

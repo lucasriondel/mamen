@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/table";
 import { type CandidateRow, candidateRowKey, toCandidateRows } from "./candidate-rows";
 import { type ArchivedRow, type Facet, facetColumns, rawCell, rawSourcesOf } from "./facets";
+import { ROW_HIGHLIGHT_TINT, type RowHighlight } from "./row-highlight";
 import { usePreviewColumnVisibility } from "./use-preview-column-visibility";
 import { useSkipSelection } from "./use-skip-selection";
 import type { RowId, WizardAction } from "./wizard-reducer";
@@ -309,14 +310,23 @@ export function useCandidateTable<T extends ArchivedRow>({
  * The `label` is the caller's too, and it is not decoration: since issue #211
  * both previews sit beside the dropped file, so "the table" on either path is
  * two tables, and each one has to say which it is.
+ *
+ * A caller whose left pane is a table of the same rows hands over a
+ * {@link RowHighlight}, and each row then declares the **stable row id** the
+ * **file pane** knows it by so that hovering either lights both (issue #215).
+ * The PDF path hands over none: a rendered statement has no addressable rows, so
+ * there is nothing to pair with and nothing is promised.
  */
 export function CandidateTable<T>({
   table,
   label,
+  highlight,
 }: {
   table: TanStackTable<CandidateRow<T>>;
   /** What this table is called — the accessible name of the grid itself. */
   label: string;
+  /** The pairing with the file pane opposite; absent on a path with no file rows. */
+  highlight?: RowHighlight;
 }) {
   return (
     <Table aria-label={label}>
@@ -333,7 +343,12 @@ export function CandidateTable<T>({
       </TableHeader>
       <TableBody>
         {table.getRowModel().rows.map((row) => (
-          <TableRow key={row.id} data-skipped={row.getIsSelected() ? "true" : undefined}>
+          <TableRow
+            key={row.id}
+            className={ROW_HIGHLIGHT_TINT}
+            data-skipped={row.getIsSelected() ? "true" : undefined}
+            {...highlight?.row(row.original.rowId)}
+          >
             {row.getVisibleCells().map((cell) => (
               <TableCell key={cell.id}>
                 {flexRender(cell.column.columnDef.cell, cell.getContext())}

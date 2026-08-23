@@ -397,6 +397,50 @@ function columnMarks(column: number, file = "releve.csv"): (string | null)[] {
 }
 
 /**
+ * The body rows of one of the two panes, in the order they are drawn — what the
+ * **row highlight** cases hover, and what they read the contract off (issue
+ * #215).
+ */
+function bodyRows(table: HTMLElement): HTMLElement[] {
+  return within(table).getAllByRole("row").slice(1);
+}
+
+/** One of them, by its place among them — what a case hovers. */
+function bodyRow(table: HTMLElement, index: number): HTMLElement {
+  const row = bodyRows(table)[index];
+  if (row === undefined)
+    throw new Error(`no row ${index} in "${table.getAttribute("aria-label")}"`);
+  return row;
+}
+
+/** The **stable row id** a row of either pane declares, or `null` where it declares none. */
+function declaredRowIds(table: HTMLElement): (string | null)[] {
+  return bodyRows(table).map((row) => row.getAttribute("data-row-id"));
+}
+
+/**
+ * Which rows of a pane are lit, by the text in one of their cells.
+ *
+ * The highlight itself is a tint, and jsdom lays out no colour, so what is
+ * asserted is the named contract the tint is written against (PRD #208).
+ */
+function highlighted(table: HTMLElement, cell: number): string[] {
+  return bodyRows(table)
+    .filter((row) => row.getAttribute("data-row-highlight") === "true")
+    .map((row) => within(row).getAllByRole("cell")[cell]?.textContent ?? "");
+}
+
+/** The lit lines of the file pane, by the label the bank wrote (issue #215). */
+function highlightedFileLines(name?: string): string[] {
+  return highlighted(fileTable(name), 4);
+}
+
+/** The lit rows of the import table, by raw issuer — the column `shownCsvRows` reads. */
+function highlightedImportRows(): string[] {
+  return highlighted(importTable(), 2);
+}
+
+/**
  * Which fields are offering to be answered from the table, by the name each
  * marks its column with (issue #214) — `Date`, `Debit`, `Filter`.
  *
@@ -1063,6 +1107,158 @@ describe("ImportWizard", () => {
 
       expect(screen.queryByRole("table", { name: "statement.csv" })).toBeNull();
       expect(screen.queryByRole("separator", { name: "Resize the panes" })).toBeNull();
+    });
+  });
+
+  /**
+   * Issue #215, PRD #208 — the two panes are one statement read two ways, and
+   * hovering a row in either says which row of the other it is. A user about to
+   * skip a row can see the line that produced it; a user who knows a line should
+   * not be imported can see what it became.
+   *
+   * Asserted as the **named contract** both panes declare (`data-row-id`, and
+   * `data-row-highlight` on the pair under the cursor) rather than as a class:
+   * jsdom lays out no colour, so a hover style is unassertable here.
+   */
+  describe("hovering a row highlights its source line", () => {
+    /**
+     * A statement whose *first* line the Green-Got filter drops. Deliberate: a
+     * join that ran through a row's position rather than through the source row
+     * it reports would pair every parsed row with the line above the one it came
+     * from, and nothing would catch it if the dropped line were last.
+     */
+    const WITH_PENDING_FIRST = [
+      '"Statut","Date","Montant","Direction","Intitulé"',
+      '"PENDING","2026-01-14T10:00:00.000Z","99","DEBIT","NOT SETTLED"',
+      '"COMPLETE","2026-01-15T10:00:00.000Z","10","DEBIT","SHOP A"',
+      '"COMPLETE","2026-02-03T10:00:00.000Z","20","CREDIT","SHOP B"',
+    ].join("\n");
+
+    /** Drop a CSV and go straight through to the preview step, both panes up. */
+    async function previewCsv(user: ReturnType<typeof userEvent.setup>, csv = CSV) {
+      renderWizard();
+      await chooseAccount(user);
+      await user.upload(
+        await screen.findByLabelText("CSV or PDF statement"),
+        new File([csv], "statement.csv", { type: "text/csv" }),
+      );
+      expect(await screen.findByText("Auto-detected.")).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Continue to preview" }));
+      await findImportTable();
+      await screen.findByRole("table", { name: "statement.csv" });
+    }
+
+    it("lights the file's own line when a row of the import table is hovered", async () => {
+      const user = userEvent.setup();
+      await previewCsv(user);
+
+      await user.hover(bodyRow(importTable(), 1));
+
+      // The line that produced it, and only that line.
+      expect(highlightedFileLines()).toEqual(["SHOP B"]);
+      // And the row the cursor is on, so the pair reads as a pair.
+      expect(highlightedImportRows()).toEqual(["SHOP B"]);
+    });
+
+    it("lights the parsed row when a line of the file is hovered", async () => {
+      const user = userEvent.setup();
+      await previewCsv(user);
+
+      await user.hover(bodyRow(fileTable(), 0));
+
+      expect(highlightedImportRows()).toEqual(["SHOP A"]);
+      expect(highlightedFileLines()).toEqual(["SHOP A"]);
+    });
+
+    // Nothing is left lit behind the cursor: leaving a row leaves the pair.
+    it("clears the pair when the cursor leaves the row", async () => {
+      const user = userEvent.setup();
+      await previewCsv(user);
+
+      const row = bodyRow(importTable(), 0);
+      await user.hover(row);
+      await user.unhover(row);
+
+      expect(highlightedFileLines()).toEqual([]);
+      expect(highlightedImportRows()).toEqual([]);
+    });
+
+    /**
+     * The join runs through the source row each record reports, which is what
+     * that field is for: with the dropped line *first*, a positional join pairs
+     * `SHOP A` with `NOT SETTLED`.
+     */
+    it("pairs each parsed row with the line it came from where the filter dropped one", async () => {
+      const user = userEvent.setup();
+      await previewCsv(user, WITH_PENDING_FIRST);
+
+      expect(fileRows().map((cells) => cells[4])).toEqual(["NOT SETTLED", "SHOP A", "SHOP B"]);
+      expect(shownCsvRows()).toEqual(["SHOP A", "SHOP B"]);
+
+      await user.hover(bodyRow(importTable(), 0));
+      expect(highlightedFileLines()).toEqual(["SHOP A"]);
+
+      await user.hover(bodyRow(importTable(), 1));
+      expect(highlightedFileLines()).toEqual(["SHOP B"]);
+    });
+
+    // A line the format never read produced nothing, so it pairs with nothing.
+    it("lights nothing on the other side for a line the filter dropped", async () => {
+      const user = userEvent.setup();
+      await previewCsv(user, WITH_PENDING_FIRST);
+
+      await user.hover(bodyRow(fileTable(), 0));
+
+      expect(highlightedFileLines()).toEqual(["NOT SETTLED"]);
+      expect(highlightedImportRows()).toEqual([]);
+    });
+
+    // The identity itself, which is what makes the highlight a contract rather
+    // than a coincidence of two tables drawn in the same order.
+    it("declares one row identity across both panes", async () => {
+      const user = userEvent.setup();
+      await previewCsv(user, WITH_PENDING_FIRST);
+
+      const file = declaredRowIds(fileTable());
+      expect(file.filter((id) => id !== null)).toHaveLength(3);
+      // The parsed rows carry the ids of the lines they were read from — the
+      // dropped one's belongs to nothing on the other side.
+      expect(declaredRowIds(importTable())).toEqual([file[1], file[2]]);
+    });
+
+    // A skip is a decision about the row, not about which line it came from.
+    it("keeps the pairing when a row is skipped", async () => {
+      const user = userEvent.setup();
+      await previewCsv(user, WITH_PENDING_FIRST);
+
+      await user.click(screen.getByRole("checkbox", { name: "Skip row 1" }));
+      await user.hover(bodyRow(importTable(), 0));
+
+      expect(highlightedFileLines()).toEqual(["SHOP A"]);
+    });
+
+    /**
+     * The PDF path promises nothing of the kind: a rendered statement has no
+     * addressable rows, so its table declares no identities and there is nothing
+     * for a hover to pair with (PRD #208).
+     */
+    it("declares no row identities on the PDF path", async () => {
+      const user = userEvent.setup();
+      extractPdf.mockResolvedValue({
+        verdict: MATCHED,
+        transactions: [
+          { date: new Date("2026-01-15T10:00:00.000Z"), amount: -10, rawIssuerString: "SHOP A" },
+          { date: new Date("2026-02-03T10:00:00.000Z"), amount: 20, rawIssuerString: "SHOP B" },
+        ],
+        declaredTotals: { debit: 10, credit: 20 },
+      });
+      renderWizard();
+      await chooseAccount(user);
+      await dropPdf(user);
+
+      await screen.findByText(/transactions extracted/);
+      expect(document.querySelectorAll("[data-row-id]")).toHaveLength(0);
+      expect(document.querySelectorAll("[data-row-highlight]")).toHaveLength(0);
     });
   });
 

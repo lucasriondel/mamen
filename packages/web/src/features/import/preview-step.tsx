@@ -19,6 +19,7 @@ import { CommitBar } from "./commit-bar";
 import { CsvFileTable } from "./csv-file-table";
 import { keptPositions } from "./kept-rows";
 import type { ParsedTransaction } from "./parsers/types";
+import { type RowHighlight, useRowHighlight } from "./row-highlight";
 import { useDuplicateFlags } from "./use-duplicate-flags";
 import { useSplitRatio } from "./use-split-ratio";
 import type { RowId, WizardAction } from "./wizard-reducer";
@@ -78,6 +79,7 @@ export function PreviewStep({
   fileName,
   headers,
   rows,
+  sourceRowIds,
   formatToCreate,
   onBack,
   dispatch,
@@ -96,6 +98,15 @@ export function PreviewStep({
   /** Every row of the file, as delivered — the pane shows all of them. */
   rows: ReadonlyArray<Record<string, string>>;
   /**
+   * Positional with `rows`: the id of each *line of the file* (issue #215).
+   *
+   * Not `rowIds`, which names the parsed records — the format's row filter drops
+   * lines, so the two lists differ in length and in order, and it is exactly
+   * that difference the pairing has to survive. A record's id is the id of the
+   * line it was read from, which is what makes the join sound.
+   */
+  sourceRowIds: readonly RowId[];
+  /**
    * The **Statement Format** built from this file, saved by the commit itself
    * (issue #186); `null` for an import reading a stored one.
    */
@@ -106,6 +117,10 @@ export function PreviewStep({
   // Where the user left the divider — chrome rather than import state, so it is
   // one position shared with the PDF path's split and it outlives this import.
   const { ratio, setRatio } = useSplitRatio(CSV_SPLIT_DEFAULT);
+  // Which line of the file the cursor is on, or which parsed row — one fact,
+  // because they are the same row seen twice (issue #215). Held here, above both
+  // panes, since neither of them can know about the other.
+  const highlight = useRowHighlight();
   const skipped = useMemo(() => new Set(skippedRows), [skippedRows]);
   // Where the kept rows sit, asked once and read twice — the same call the
   // **side-by-side validation** view makes, since a skip means the same thing on
@@ -144,13 +159,22 @@ export function PreviewStep({
         className="h-[85vh]"
         ratio={ratio}
         onRatioChange={setRatio}
-        left={<CsvFileTable fileName={fileName} headers={headers} rows={rows} />}
+        left={
+          <CsvFileTable
+            fileName={fileName}
+            headers={headers}
+            rows={rows}
+            rowIds={sourceRowIds}
+            highlight={highlight}
+          />
+        }
         right={
           <PreviewTable
             records={records}
             rowIds={rowIds}
             duplicateFlags={duplicates.flags}
             skippedRows={skippedRows}
+            highlight={highlight}
             dispatch={dispatch}
           />
         }
@@ -205,6 +229,7 @@ function PreviewTable({
   rowIds,
   duplicateFlags,
   skippedRows,
+  highlight,
   dispatch,
 }: {
   records: readonly ParsedTransaction[];
@@ -214,6 +239,8 @@ function PreviewTable({
   duplicateFlags: readonly boolean[];
   /** The row ids held out of the commit. */
   skippedRows: readonly RowId[];
+  /** The pairing with the file pane opposite (issue #215). */
+  highlight: RowHighlight;
   dispatch: (action: WizardAction) => void;
 }) {
   /*
@@ -288,7 +315,7 @@ function PreviewTable({
           pane stays exactly where it was (issues #210, #211). `min-h-0` is what
           lets a flex child be shorter than its content. */}
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <CandidateTable table={table} label="Rows to import" />
+        <CandidateTable table={table} label="Rows to import" highlight={highlight} />
       </div>
     </div>
   );

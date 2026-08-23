@@ -1,6 +1,8 @@
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import type { ColumnMarks } from "./column-marks";
+import { ROW_HIGHLIGHT_TINT, type RowHighlight } from "./row-highlight";
+import type { RowId } from "./wizard-reducer";
 
 /**
  * How a column of the file is marked: `mapped` for one the draft reads, `active`
@@ -74,6 +76,13 @@ function columnTint(mark: ColumnMark): string | false {
  * disagree with the form beside it. On the preview step nothing is being mapped
  * and none are passed, so the file reads exactly as it did before.
  *
+ * **And paired with the parsed rows beside it** (issue #215): where the caller
+ * hands over the rows' **stable row ids** and the pairing, every line declares
+ * its identity and lights up with the record it produced. The join is the id,
+ * never the position — a line the format's filter dropped is on screen here and
+ * absent there, and lights nothing. A caller that hands over neither (the
+ * mapping step, whose right pane is a form) declares no identities at all.
+ *
  * **And answered from it, in pick mode** (issue #214): while a field is picking,
  * every header is a button that assigns its column to that field, and the pane
  * says so — a mode the user cannot see is a mode that eats their next click. The
@@ -84,6 +93,8 @@ export function CsvFileTable({
   fileName,
   headers,
   rows,
+  rowIds,
+  highlight,
   marks,
   activeColumn = null,
   pickingFor = null,
@@ -95,6 +106,10 @@ export function CsvFileTable({
   headers: readonly string[];
   /** Every row of it, keyed by header, as delivered. */
   rows: ReadonlyArray<Record<string, string>>;
+  /** Positional with `rows`: the **stable row id** each line is paired by (issue #215). */
+  rowIds?: readonly RowId[];
+  /** The pairing with the table opposite; absent where there is no table of rows to pair with. */
+  highlight?: RowHighlight;
   /** What each mapped column feeds, derived from the draft; absent when none is being built. */
   marks?: ColumnMarks;
   /** The header the field the user is currently in points at, marked more strongly. */
@@ -189,10 +204,15 @@ export function CsvFileTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {/* The rows have no identity of their own here — nothing selects,
-                edits or reorders them — so the position is the key. */}
+            {/* Keyed by position: nothing here selects, edits or reorders the
+                rows, and the **stable row id** below is a claim about which
+                *record* a line produced rather than a key for this table. */}
             {rows.map((row, index) => (
-              <TableRow key={index}>
+              <TableRow
+                key={index}
+                className={ROW_HIGHLIGHT_TINT}
+                {...highlight?.row(rowIds?.[index])}
+              >
                 {headers.map((header, column) => {
                   // The tint runs the height of the column, not just its
                   // header: what makes a mapping judgeable is the *values*

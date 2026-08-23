@@ -256,6 +256,11 @@ export function ImportWizard({
         fileName={state.fileName ?? "this file"}
         headers={state.headers}
         rows={state.rows}
+        // The ids of the *file's* lines, positional with `state.rows` — what the
+        // record ids above were read off through each record's `sourceIndex`,
+        // and what lets a hover on either pane find the other's row (issue
+        // #215).
+        sourceRowIds={state.rowIds}
         formatToCreate={formatToCreate}
         onBack={() => dispatch({ type: "back-to-upload" })}
         dispatch={dispatch}
