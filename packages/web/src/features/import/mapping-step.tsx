@@ -1,10 +1,11 @@
 import type { DateOrder, DecimalSeparator, SignRule } from "@mamen/shared/contract";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { SplitView } from "@/components/split-view";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { formatCurrency, formatShortDate } from "@/lib/format";
+import { draftColumnMarks } from "./column-marks";
 import { CsvFileTable } from "./csv-file-table";
 import { draftComplete, type FormatDraft, draftRules } from "./parsers/format-draft";
 import type { ParsedTransaction } from "./parsers/types";
@@ -104,6 +105,17 @@ export function MappingStep({
   const { ratio, setRatio } = useSplitRatio(MAPPING_SPLIT_DEFAULT);
   const update = (patch: Partial<FormatDraft>) => dispatch({ type: "update-format-draft", patch });
 
+  // Which column the file pane marks more strongly: the one the field the user
+  // is currently in points at (issue #213). Focus is the whole of it — a column
+  // select says which column it names when it is entered and again when it is
+  // answered, and says nothing on the way out — so this is a fact about where
+  // the cursor is rather than a second copy of the mapping, which is why it is
+  // component state and not the draft's.
+  const [activeColumn, setActiveColumn] = useState<string | null>(null);
+  // The badges themselves, derived from the draft on every render: remapping a
+  // field moves its mark because this no longer names the old column.
+  const marks = draftColumnMarks(draft);
+
   // Whether the draft can read the file yet. Asked of the same function the
   // parent applies, so the table appears exactly when there is something true to
   // put in it — not when a subset of the fields happens to be filled.
@@ -120,7 +132,15 @@ export function MappingStep({
         className="h-[85vh]"
         ratio={ratio}
         onRatioChange={setRatio}
-        left={<CsvFileTable fileName={fileName} headers={headers} rows={rows} />}
+        left={
+          <CsvFileTable
+            fileName={fileName}
+            headers={headers}
+            rows={rows}
+            marks={marks}
+            activeColumn={activeColumn}
+          />
+        }
         right={
           <div className="flex flex-col gap-6">
             <div className="flex flex-col gap-4 rounded-2xl border border-gousse-line bg-gousse-panel p-4">
@@ -137,12 +157,14 @@ export function MappingStep({
                 label="Operation date column"
                 headers={headers}
                 value={draft.mapping.date}
+                onActiveColumn={setActiveColumn}
                 onChange={(date) => update({ mapping: { ...draft.mapping, date } })}
               />
               <ColumnSelect
                 label="Operation label column"
                 headers={headers}
                 value={draft.mapping.rawIssuerString}
+                onActiveColumn={setActiveColumn}
                 onChange={(rawIssuerString) =>
                   update({ mapping: { ...draft.mapping, rawIssuerString } })
                 }
@@ -155,6 +177,7 @@ export function MappingStep({
                 headers={headers}
                 value={draft.mapping.counterpartyIban ?? ""}
                 none="This bank writes none"
+                onActiveColumn={setActiveColumn}
                 onChange={(column) =>
                   update({
                     mapping: { ...draft.mapping, counterpartyIban: column === "" ? null : column },
@@ -165,6 +188,7 @@ export function MappingStep({
               <SignFields
                 headers={headers}
                 sign={draft.sign}
+                onActiveColumn={setActiveColumn}
                 onChange={(sign) => update({ sign })}
               />
 
@@ -210,6 +234,7 @@ export function MappingStep({
                 headers={headers}
                 value={draft.filter?.column ?? ""}
                 none="Import every row"
+                onActiveColumn={setActiveColumn}
                 onChange={(column) =>
                   update({
                     filter: column === "" ? null : { column, equals: draft.filter?.equals ?? "" },
@@ -289,6 +314,13 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
  * A `<select>` over the file's own headers. `none` makes the empty choice a real
  * answer ("this bank writes none", "import every row") rather than an unanswered
  * question; without it the placeholder is disabled and the user must choose.
+ *
+ * It also says which column of the file the user is currently answering about,
+ * so the pane opposite can mark it more strongly (issue #213): the one it names
+ * when it is entered, the newly picked one the moment it is answered, and none
+ * once the user has left it. `onActiveColumn` is required rather than optional
+ * because a select that stayed silent would leave the previous field's column
+ * lit while the user answered a different question.
  */
 function ColumnSelect({
   label,
@@ -296,16 +328,27 @@ function ColumnSelect({
   value,
   none,
   onChange,
+  onActiveColumn,
 }: {
   label: string;
   headers: readonly string[];
   value: string;
   none?: string;
   onChange: (column: string) => void;
+  onActiveColumn: (column: string | null) => void;
 }) {
   return (
     <Field label={label}>
-      <Select aria-label={label} value={value} onChange={(event) => onChange(event.target.value)}>
+      <Select
+        aria-label={label}
+        value={value}
+        onChange={(event) => {
+          onChange(event.target.value);
+          onActiveColumn(event.target.value === "" ? null : event.target.value);
+        }}
+        onFocus={() => onActiveColumn(value === "" ? null : value)}
+        onBlur={() => onActiveColumn(null)}
+      >
         <option value="" disabled={none === undefined}>
           {none ?? "Pick a column…"}
         </option>
@@ -348,10 +391,13 @@ function SignFields({
   headers,
   sign,
   onChange,
+  onActiveColumn,
 }: {
   headers: readonly string[];
   sign: SignRule;
   onChange: (sign: SignRule) => void;
+  /** Passed through to every column select this rule asks for (issue #213). */
+  onActiveColumn: (column: string | null) => void;
 }) {
   return (
     <>
@@ -373,12 +419,14 @@ function SignFields({
             label="Debit column"
             headers={headers}
             value={sign.debitColumn}
+            onActiveColumn={onActiveColumn}
             onChange={(debitColumn) => onChange({ ...sign, debitColumn })}
           />
           <ColumnSelect
             label="Credit column"
             headers={headers}
             value={sign.creditColumn}
+            onActiveColumn={onActiveColumn}
             onChange={(creditColumn) => onChange({ ...sign, creditColumn })}
           />
         </>
@@ -387,6 +435,7 @@ function SignFields({
           label="Amount column"
           headers={headers}
           value={sign.amountColumn}
+          onActiveColumn={onActiveColumn}
           onChange={(amountColumn) => onChange({ ...sign, amountColumn })}
         />
       )}
@@ -397,6 +446,7 @@ function SignFields({
             label="Direction column"
             headers={headers}
             value={sign.directionColumn}
+            onActiveColumn={onActiveColumn}
             onChange={(directionColumn) => onChange({ ...sign, directionColumn })}
           />
           <Field label="Value meaning a debit">

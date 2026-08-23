@@ -358,6 +358,45 @@ function fileRows(name?: string): string[][] {
 }
 
 /**
+ * What each of that table's columns announces, in file order (issue #213).
+ *
+ * A column the draft maps says so from its header — `aria-label` where there is
+ * a mapping to announce, the bank's own word where there is not — so this is
+ * the picture the mapping draws, read the way a screen reader reads it.
+ */
+function fileHeaderNames(name = "releve.csv"): string[] {
+  return within(fileTable(name))
+    .getAllByRole("columnheader")
+    .map((th) => th.getAttribute("aria-label") ?? th.textContent ?? "");
+}
+
+/**
+ * One of those header cells, found by that same announced name — through
+ * `getByRole`, so the name above is the real accessible one and not a reading of
+ * an attribute.
+ */
+function fileHeader(name: string, file = "releve.csv"): HTMLElement {
+  return within(fileTable(file)).getByRole("columnheader", { name });
+}
+
+/**
+ * The mark the file pane carries down a whole column, header cell first — the
+ * named contract behind the tint, which jsdom lays out too little of to assert
+ * any other way (PRD #208).
+ */
+function columnMarks(column: number, file = "releve.csv"): (string | null)[] {
+  return within(fileTable(file))
+    .getAllByRole("row")
+    .map((row) => {
+      const cells = [
+        ...within(row).queryAllByRole("columnheader"),
+        ...within(row).queryAllByRole("cell"),
+      ];
+      return cells[column]?.getAttribute("data-column-mark") ?? null;
+    });
+}
+
+/**
  * The two halves of the **split view** on whichever post-upload step is on
  * screen: the file itself in the left pane, and the divider that separates it
  * from the work in the right one.
@@ -2882,6 +2921,203 @@ describe("ImportWizard", () => {
       expect(paneDivider().compareDocumentPosition(fileTable("releve.csv"))).toBe(
         Node.DOCUMENT_POSITION_PRECEDING,
       );
+    });
+  });
+
+  /**
+   * Issue #213 (PRD #208): while a format is being built, every column the draft
+   * maps is marked on the file itself — its header says what it feeds, and the
+   * column is tinted, more strongly for the field the user is currently in.
+   *
+   * Nine selects become a picture: instead of re-reading the form to recall what
+   * has been answered, the user sees the mapping laid over the statement. The
+   * marks are derived from the draft, so remapping a field moves its mark and
+   * clearing one removes it — there is no second copy to fall out of step.
+   */
+  describe("the draft's mapping marked on the file's columns", () => {
+    it("names on each mapped column what it feeds, and leaves the rest unmarked", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+
+      // Nothing answered yet, so nothing is claimed: the headers are the bank's
+      // words and only those.
+      expect(fileHeaderNames()).toEqual(["Date opération", "Libellé", "Débit", "Crédit", "Type"]);
+
+      await user.selectOptions(screen.getByLabelText("Operation date column"), "Date opération");
+      await user.selectOptions(screen.getByLabelText("Operation label column"), "Libellé");
+
+      // Announced from the header, not left to a badge and a tint (PRD #208).
+      expect(fileHeaderNames()).toEqual([
+        "Date opération — mapped to Date",
+        "Libellé — mapped to Label",
+        "Débit",
+        "Crédit",
+        "Type",
+      ]);
+      // And said in the header itself, as a badge naming the field.
+      expect(
+        within(fileHeader("Date opération — mapped to Date")).getByText("Date"),
+      ).toBeInTheDocument();
+    });
+
+    // The badge is on the header, but what makes a mapping judgeable is the
+    // values under it — so the mark runs the height of the column.
+    it("marks every cell of a mapped column and none of an unmapped one", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+
+      await user.selectOptions(screen.getByLabelText("Operation date column"), "Date opération");
+      await user.selectOptions(screen.getByLabelText("Operation label column"), "Libellé");
+
+      // Header cell then both rows, for the two mapped columns and one of the
+      // three the user has said nothing about.
+      expect(columnMarks(0)).toEqual(["mapped", "mapped", "mapped"]);
+      expect(columnMarks(4)).toEqual([null, null, null]);
+    });
+
+    /**
+     * The column the current answer points at is marked more strongly than the
+     * rest, and the emphasis follows the cursor: it is about where the user is,
+     * not about what they have answered.
+     */
+    it("marks the column of the field the user is in more strongly than the others", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+
+      await user.selectOptions(screen.getByLabelText("Operation date column"), "Date opération");
+      await user.selectOptions(screen.getByLabelText("Operation label column"), "Libellé");
+
+      // The label is the field just answered, so its column is the one lit.
+      expect(columnMarks(1)).toEqual(["active", "active", "active"]);
+      expect(columnMarks(0)).toEqual(["mapped", "mapped", "mapped"]);
+      expect(fileHeader("Libellé — mapped to Label")).toHaveAttribute("aria-current", "true");
+
+      // Back into the date field, answering nothing: the emphasis moves with
+      // the cursor and the label column stays merely mapped.
+      await user.click(screen.getByLabelText("Operation date column"));
+
+      expect(columnMarks(0)).toEqual(["active", "active", "active"]);
+      expect(columnMarks(1)).toEqual(["mapped", "mapped", "mapped"]);
+      expect(fileHeader("Date opération — mapped to Date")).toHaveAttribute("aria-current", "true");
+      expect(fileHeader("Libellé — mapped to Label")).not.toHaveAttribute("aria-current");
+    });
+
+    // Derived from the draft, so the table can never claim two columns feed one
+    // field: the old one is no longer named, and stops being marked.
+    it("moves a field's mark off the old column when it is remapped", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+      await user.selectOptions(screen.getByLabelText("Operation date column"), "Date opération");
+      expect(fileHeaderNames()[0]).toBe("Date opération — mapped to Date");
+
+      await user.selectOptions(screen.getByLabelText("Operation date column"), "Type");
+
+      expect(fileHeaderNames()).toEqual([
+        "Date opération",
+        "Libellé",
+        "Débit",
+        "Crédit",
+        "Type — mapped to Date",
+      ]);
+      expect(columnMarks(0)).toEqual([null, null, null]);
+    });
+
+    /**
+     * The IBAN column is optional, and "this bank writes none" is an *answer*
+     * — one that maps nothing, so it marks nothing.
+     */
+    it("marks the counterparty IBAN column when it is set, and nothing when the bank writes none", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+
+      await user.selectOptions(screen.getByLabelText("Counterparty IBAN column"), "Type");
+      expect(fileHeaderNames()[4]).toBe("Type — mapped to IBAN");
+
+      await user.selectOptions(screen.getByLabelText("Counterparty IBAN column"), [""]);
+
+      expect(fileHeaderNames()[4]).toBe("Type");
+      expect(columnMarks(4)).toEqual([null, null, null]);
+    });
+
+    /**
+     * The case the whole feature exists for: a bank that writes debit and credit
+     * as separate columns is judged by reading both columns' values at once,
+     * with the sign rule's choices marked on them.
+     */
+    it("marks both columns of a two-column sign rule, and clears them when the rule changes", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+      await mapFrenchColumns(user);
+
+      expect(fileHeaderNames()).toEqual([
+        "Date opération — mapped to Date",
+        "Libellé — mapped to Label",
+        "Débit — mapped to Debit",
+        "Crédit — mapped to Credit",
+        "Type",
+      ]);
+
+      // A strategy that reads one column no longer names either of them, and
+      // there is no stored copy of the mapping left saying otherwise.
+      await user.selectOptions(screen.getByLabelText("How the amount is signed"), "signed-column");
+
+      expect(fileHeaderNames()).toEqual([
+        "Date opération — mapped to Date",
+        "Libellé — mapped to Label",
+        "Débit",
+        "Crédit",
+        "Type",
+      ]);
+    });
+
+    // The row filter names a column like the rest of them, and "import every
+    // row" un-names it.
+    it("marks the row-filter column, and clears it when every row is imported", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+
+      await user.selectOptions(screen.getByLabelText("Only import rows where"), "Type");
+      expect(fileHeaderNames()[4]).toBe("Type — mapped to Filter");
+
+      await user.selectOptions(screen.getByLabelText("Only import rows where"), [""]);
+
+      expect(fileHeaderNames()[4]).toBe("Type");
+    });
+
+    // A column can answer two questions at once — a status column filtered on
+    // and read as the label is a real export — and the header says both.
+    it("names every field a single column feeds", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+
+      await user.selectOptions(screen.getByLabelText("Operation label column"), "Type");
+      await user.selectOptions(screen.getByLabelText("Only import rows where"), "Type");
+
+      expect(fileHeaderNames()[4]).toBe("Type — mapped to Label, Filter");
+    });
+
+    // The marks belong to *building* a format: on the preview step the mapping
+    // is settled and the file is there to read rows against, so it goes back to
+    // being the bank's own words and nothing else.
+    it("leaves the file's columns unmarked once the format is built", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+      await mapFrenchColumns(user);
+
+      await user.click(screen.getByRole("button", { name: "Continue to preview" }));
+
+      await findImportTable();
+      expect(fileHeaderNames()).toEqual(["Date opération", "Libellé", "Débit", "Crédit", "Type"]);
+      expect(columnMarks(0)).toEqual([null, null, null]);
     });
   });
 });

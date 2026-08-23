@@ -1,4 +1,28 @@
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
+import type { ColumnMarks } from "./column-marks";
+
+/**
+ * How a column of the file is marked: `mapped` for one the draft reads, `active`
+ * for the one the field the user is currently in points at, and nothing at all
+ * for a column nobody has mapped.
+ *
+ * A named contract rather than a class name (PRD #208). The tint itself is
+ * styling — jsdom lays out none of it — so `data-column-mark` is what says, of
+ * every cell of the column and of its header, which of the three it is in.
+ */
+type ColumnMark = "active" | "mapped" | undefined;
+
+function columnMark(mapped: boolean, active: boolean): ColumnMark {
+  if (!mapped) return undefined;
+  return active ? "active" : "mapped";
+}
+
+/** The tint that goes with it: stronger for the column being answered about. */
+function columnTint(mark: ColumnMark): string | false {
+  if (mark === undefined) return false;
+  return mark === "active" ? "bg-gousse-accent/15" : "bg-gousse-accent/[0.06]";
+}
 
 /**
  * The dropped CSV, exactly as it was delivered — its real header row and every
@@ -25,11 +49,20 @@ import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/compon
  * Unvirtualized, deliberately (PRD #208): a statement of a few thousand rows
  * renders that many rows here. The import table beside it already does the same
  * for the same reason, so this is the existing trade extended to one more table.
+ *
+ * **The mapping is drawn over it while one is being built** (issue #213): a
+ * column the draft reads carries a badge naming what it feeds and is tinted,
+ * more strongly for the field the user is currently in. The marks are handed in
+ * derived from the draft, so this table holds no copy of the mapping and cannot
+ * disagree with the form beside it. On the preview step nothing is being mapped
+ * and none are passed, so the file reads exactly as it did before.
  */
 export function CsvFileTable({
   fileName,
   headers,
   rows,
+  marks,
+  activeColumn = null,
 }: {
   /** The dropped file's name — what the pane and its table are called. */
   fileName: string;
@@ -37,7 +70,18 @@ export function CsvFileTable({
   headers: readonly string[];
   /** Every row of it, keyed by header, as delivered. */
   rows: ReadonlyArray<Record<string, string>>;
+  /** What each mapped column feeds, derived from the draft; absent when none is being built. */
+  marks?: ColumnMarks;
+  /** The header the field the user is currently in points at, marked more strongly. */
+  activeColumn?: string | null;
 }) {
+  // What the draft makes of each column, once for the whole table: its badges,
+  // and which of the three marked states it is in.
+  const columns = headers.map((header) => {
+    const labels = marks?.get(header) ?? [];
+    return { header, labels, mark: columnMark(labels.length > 0, header === activeColumn) };
+  });
+
   return (
     <div className="flex h-full flex-col gap-2 overflow-hidden rounded-2xl border border-gousse-line">
       {/* Outside the scroller, so the file being read stays named however far
@@ -63,9 +107,36 @@ export function CsvFileTable({
               {/* Keyed by position, not by name: two columns of a real export
                   can carry the same header, and a duplicate key is React's
                   problem where a duplicate column is the bank's. */}
-              {headers.map((header, index) => (
-                <TableHead key={index} className="whitespace-nowrap">
-                  {header}
+              {columns.map(({ header, labels, mark }, index) => (
+                <TableHead
+                  key={index}
+                  // The mapping is *announced*, not left to a badge and a
+                  // tint: a colour is no use to a screen reader, and "which
+                  // column feeds the date" is exactly what this pane is for.
+                  aria-label={
+                    labels.length > 0 ? `${header} — mapped to ${labels.join(", ")}` : undefined
+                  }
+                  // The one the current answer points at, said as the current
+                  // item of the set it is one of.
+                  aria-current={mark === "active" ? "true" : undefined}
+                  data-column-mark={mark}
+                  className={cn(
+                    "whitespace-nowrap",
+                    columnTint(mark),
+                    labels.length > 0 && "text-gousse-ink",
+                  )}
+                >
+                  <span className="inline-flex items-center gap-2">
+                    {header}
+                    {labels.map((label) => (
+                      <span
+                        key={label}
+                        className="rounded-full bg-gousse-accent/10 px-2 py-0.5 font-medium text-gousse-accent text-xs"
+                      >
+                        {label}
+                      </span>
+                    ))}
+                  </span>
                 </TableHead>
               ))}
             </TableRow>
@@ -75,11 +146,27 @@ export function CsvFileTable({
                 edits or reorders them — so the position is the key. */}
             {rows.map((row, index) => (
               <TableRow key={index}>
-                {headers.map((header, column) => (
-                  <TableCell key={column} className="whitespace-nowrap text-gousse-muted">
-                    {row[header] ?? ""}
-                  </TableCell>
-                ))}
+                {headers.map((header, column) => {
+                  // The tint runs the height of the column, not just its
+                  // header: what makes a mapping judgeable is the *values*
+                  // under it, so those are what has to be picked out. Read off
+                  // the header row's pass rather than re-derived here, which a
+                  // few-thousand-row statement would do a few thousand times.
+                  const mark = columns[column]?.mark;
+                  return (
+                    <TableCell
+                      key={column}
+                      data-column-mark={mark}
+                      className={cn(
+                        "whitespace-nowrap",
+                        mark === undefined ? "text-gousse-muted" : "text-gousse-ink",
+                        columnTint(mark),
+                      )}
+                    >
+                      {row[header] ?? ""}
+                    </TableCell>
+                  );
+                })}
               </TableRow>
             ))}
           </TableBody>

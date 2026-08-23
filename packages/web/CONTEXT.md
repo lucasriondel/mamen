@@ -156,6 +156,11 @@ of looking at the source settles the date order or the decimal separator. The
 sentence at the top and the two buttons at the bottom stay outside the split,
 where the other two steps put their banners and their commit rail.
 
+Since issue #213 each answer is also drawn on the file itself — see **column
+marks**. That is what turns nine selects into a picture, and what makes a bank
+that writes debit and credit as separate columns judgeable: both columns' values
+are on screen at once with the sign rule's choices marked on them.
+
 The draft lives in `WizardState.draftFormat` and is written **only** by the
 commit, alongside the rows (`commitImport(records, format)`). Abandoning the
 import therefore leaves nothing behind, and the account never fills with drafts
@@ -368,8 +373,45 @@ a file beside the work — the mapping step and the CSV preview as well as
 only the upload step is still a narrow column and it has no file to show.
 Named for the file it shows (`aria-label="statement.csv"`), which
 is what tells it apart from the import table now that the step carries two;
-`CandidateTable` takes a `label` for the same reason. Mapping badges and the
-row highlight are #213 and #215, not this.
+`CandidateTable` takes a `label` for the same reason. It takes **column marks**
+on the mapping step and none on the preview step; the row highlight is #215, not
+this.
+
+**Column marks**:
+The draft's mapping drawn over the **file pane** while a **Statement Format** is
+being built (issue #213, PRD #208): a column the draft reads carries a badge in
+its header naming what it feeds — *Date*, *Label*, *IBAN*, *Amount*, *Debit*,
+*Credit*, *Direction*, *Filter* — and the whole column is tinted, values
+included, since what settles a mapping is the values under the header rather than
+the header itself. Nine selects become a picture: the mapping is read off the
+statement instead of by re-reading the form.
+
+The column the **field the user is currently in** points at is marked more
+strongly than the rest. That is about where the cursor is, not about what has
+been answered — it follows focus, and a field with no answer yet points at
+nothing and marks nothing.
+
+**Derived from the draft, never stored.** There is no second copy of the mapping
+to keep in step with the form: remapping a field moves its mark because the
+derivation no longer names the old column, and clearing one (`null` IBAN, "import
+every row", a sign strategy that reads other columns) removes it for the same
+reason. An unmapped column is left plain, so the marks read as decisions the user
+has made. Only the column-valued fields mark anything — date order, decimal
+separator and the sign *strategy* answer **how** a row is read rather than
+**which** column it is read from — and one column may feed two fields, so a
+header can name both.
+
+The mapping is **announced** from the header (`aria-label="Débit — mapped to
+Debit"`), because a badge and a tint are no use to a screen reader and "which
+column feeds the date" is what this pane exists to answer.
+_Avoid_: Column highlight (the **row highlight** is the other axis and another
+feature), legend, mapping overlay.
+_Code note_: `features/import/column-marks.ts` derives them (`ColumnMarks`, a
+header → labels map); `csv-file-table.tsx` renders them and carries
+`data-column-mark="mapped" | "active"` on every cell of a marked column — the
+named contract the tint is asserted through, jsdom laying out no colour. The
+mapping step holds the active column in component state rather than in the
+reducer: it is where the cursor is, not part of the import.
 
 **Import**:
 The result of committing a Statement for one account and one month, keyed
