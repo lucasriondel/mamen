@@ -146,6 +146,16 @@ number under either separator, so the wrongness is a plausible value rather than
 an error. Both are unanswered when the step opens, because a default here is a
 guess the user never made.
 
+Since issue #212 the step is drawn in the **split view**: the **file pane** on
+the left, this form and its live preview on the right. The questions are the same
+questions — the user is simply no longer answering them from memory of a file
+opened in another application. The live preview stays rather than being replaced
+by the file view, because the two answer different questions: the raw rows say
+what the bank wrote, the preview says what the draft *reads* of it, and no amount
+of looking at the source settles the date order or the decimal separator. The
+sentence at the top and the two buttons at the bottom stay outside the split,
+where the other two steps put their banners and their commit rail.
+
 The draft lives in `WizardState.draftFormat` and is written **only** by the
 commit, alongside the rows (`commitImport(records, format)`). Abandoning the
 import therefore leaves nothing behind, and the account never fills with drafts
@@ -293,8 +303,8 @@ The two-pane layout the import wizard's post-upload steps are drawn in (issue
 #210, PRD #208): a left slot, a right slot, each its own scroll context, and a
 **divider** the user can drag between them. A layout primitive — it knows
 nothing about what is in either slot: the **side-by-side validation** step puts
-its statement iframe on the left, the CSV preview its **file pane** (issue
-#211), and the split view is told neither.
+its statement iframe on the left, the CSV preview and the **mapping step** their
+**file pane** (issues #211, #212), and the split view is told none of it.
 
 Each pane scrolling on its own is the behaviour, not a detail. The split used to
 scroll as one column, so reading down the extracted rows carried the statement
@@ -307,10 +317,11 @@ discarded with it, while a layout preference outlives both — so abandoning an
 import leaves the panes where the user put them, and so does leaving the wizard
 entirely. One stored ratio serves every step, because dragging is a preference
 rather than a per-screen setting; until the first drag each step shows **its own
-default** — the PDF step's is 60/40, the grid it replaced, and the CSV preview's
-is even, since both of its panes are tables of the same rows and the right one
-carries the filters, the skips and the decision — and the first drag replaces
-every one of them.
+default** — the PDF step's is 60/40, the grid it replaced; the **mapping step**'s
+is the same, since the file is what is being read *from* there and a column of
+selects needs no width; and the CSV preview's is even, since both of its panes
+are tables of the same rows and the right one carries the filters, the skips and
+the decision — and the first drag replaces every one of them.
 _Avoid_: Panel (reserved for the **detail panel**), splitter, resizer, pane
 (fine for one side; the thing itself is the split view).
 _Code note_: `components/split-view.tsx`, controlled — `ratio` in and
@@ -327,11 +338,13 @@ nothing out, so a pane's real width is unassertable there.
 
 **File pane**:
 The dropped CSV itself, on screen in the left pane of the **split view** while
-the user works in the right one (issue #211, PRD #208): the statement's real
-header row and every one of its rows, as delivered. It is what lets a row be
+the user works in the right one (issues #211 and #212, PRD #208): the statement's
+real header row and every one of its rows, as delivered. It is what lets a row be
 read against the line that produced it before it is skipped or committed —
 which is what **side-by-side validation** has always given the PDF path and the
-CSV path never had.
+CSV path never had — and, on the **mapping step**, what lets a column be picked
+by reading its values rather than by recalling them. One pane, both post-upload
+CSV steps, so the source is continuous across them.
 
 A plain table of what the file says, and nothing more: the ISO stamp the bank
 wrote rather than `15 Jan 2026`, the bare magnitude rather than `-€10.00`. The
@@ -350,8 +363,10 @@ invisible here as it is anywhere), source panel.
 _Code note_: `features/import/csv-file-table.tsx`, fed the `headers` and `rows`
 the wizard already holds — nothing about the reducer, the parsing or the commit
 moved for it. The wizard shell drops its `max-w-3xl` cap on any step that shows
-a file beside the work — the CSV preview now as well as **side-by-side
-validation**, where the rule used to name the PDF step alone. Named for the file it shows (`aria-label="statement.csv"`), which
+a file beside the work — the mapping step and the CSV preview as well as
+**side-by-side validation**, where the rule used to name the PDF step alone, so
+only the upload step is still a narrow column and it has no file to show.
+Named for the file it shows (`aria-label="statement.csv"`), which
 is what tells it apart from the import table now that the step carries two;
 `CandidateTable` takes a `label` for the same reason. Mapping badges and the
 row highlight are #213 and #215, not this.

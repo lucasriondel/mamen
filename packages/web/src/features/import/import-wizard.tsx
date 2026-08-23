@@ -193,19 +193,22 @@ export function ImportWizard({
   const accountName = accounts.find((account) => account.id === state.accountId)?.name ?? "—";
 
   // A step that puts the dropped file beside the work needs the full width to
-  // show both — the PDF path's **side-by-side validation**, and since issue #211
-  // the CSV preview beside the file it was read from. The upload step and the
-  // mapping step are still a single narrow column and read better capped.
+  // show both — the PDF path's **side-by-side validation**, the CSV preview
+  // beside the file it was read from (issue #211), and the mapping step beside
+  // the file it is being built from (issue #212). Only the upload step is still
+  // a single narrow column, and it has no file to show yet.
   let wide = false;
 
   let stepContent: ReactNode = null;
   if (state.step === "upload") {
     stepContent = <UploadStep formats={formats} state={state} dispatch={dispatch} />;
   } else if (state.step === "mapping" && state.draftFormat !== null) {
+    wide = true;
     stepContent = (
       <MappingStep
         fileName={state.fileName ?? "this file"}
         headers={state.headers}
+        rows={state.rows}
         reason={state.formatSelection}
         draft={state.draftFormat}
         records={records}

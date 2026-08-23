@@ -358,6 +358,21 @@ function fileRows(name?: string): string[][] {
 }
 
 /**
+ * The two halves of the **split view** on whichever post-upload step is on
+ * screen: the file itself in the left pane, and the divider that separates it
+ * from the work in the right one.
+ */
+function expectSplitWithFile(name = "statement.csv"): HTMLElement {
+  expect(screen.getByRole("separator", { name: "Resize the panes" })).toBeInTheDocument();
+  return fileTable(name);
+}
+
+/** The divider, for asking which side of it something is on. */
+function paneDivider(): HTMLElement {
+  return screen.getByRole("separator", { name: "Resize the panes" });
+}
+
+/**
  * The same question of the CSV preview's table, whose cells are text rather than
  * inputs: the rows it is showing, by raw issuer, in table order.
  */
@@ -2500,6 +2515,7 @@ describe("ImportWizard", () => {
         await screen.findByText(/This account has no CSV statement format yet/),
       ).toBeInTheDocument();
       expect(screen.queryByText(/recognizes/)).toBeNull();
+      expectSplitWithFile();
     });
 
     // Route two: the account has formats and none of them fingerprints the file.
@@ -2515,6 +2531,7 @@ describe("ImportWizard", () => {
       expect(
         await screen.findByText(/No saved format recognizes statement.csv/),
       ).toBeInTheDocument();
+      expectSplitWithFile();
     });
 
     // Route three: several matched. The user may still settle it with the
@@ -2531,6 +2548,7 @@ describe("ImportWizard", () => {
       expect(
         await screen.findByText(/More than one saved format matches statement.csv/),
       ).toBeInTheDocument();
+      expectSplitWithFile();
     });
 
     // An import a stored format already reads is untouched by all of this (PRD
@@ -2724,6 +2742,146 @@ describe("ImportWizard", () => {
       expect(records[0]).toMatchObject({ amount: -10, rawIssuerString: "SHOP A" });
       expect(records[1]).toMatchObject({ amount: 20, rawIssuerString: "SHOP B" });
       expect(await screen.findByText("Transactions page")).toBeInTheDocument();
+    });
+  });
+
+  /**
+   * Issue #212 (PRD #208): the **mapping step** moves into the split view too —
+   * the dropped file on the left, the format form and its **live preview** on
+   * the right. Someone building a format for a bank the app has never seen used
+   * to answer "which column holds the date" from memory of a statement opened in
+   * another application; now the rows they are answering about are beside the
+   * question.
+   *
+   * The live preview rows come with the form and stay: the raw rows say what the
+   * bank wrote, the preview says what the draft *reads* of it, and a wrong date
+   * order is only ever visible in the second.
+   */
+  describe("the dropped CSV beside the format form", () => {
+    it("shows the file's own headers and rows in the left pane, the form in the right", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+
+      // The French export's real header row, in the file's own order.
+      const file = await screen.findByRole("table", { name: "releve.csv" });
+      expect(
+        within(file)
+          .getAllByRole("columnheader")
+          .map((th) => th.textContent),
+      ).toEqual(["Date opération", "Libellé", "Débit", "Crédit", "Type"]);
+      // In the bank's own words: `03/04/2026` and `1 929,71`, neither of which
+      // settles the date order or the decimal separator — which is the whole
+      // reason the live preview stays.
+      expect(fileRows("releve.csv")).toEqual([
+        ["03/04/2026", "SHOP A", "1 929,71", "", "CARTE"],
+        ["11/04/2026", "SALAIRE", "", "2 500,00", "VIREMENT"],
+      ]);
+
+      // Beside, not above: the two are the panes of the split view.
+      expect(paneDivider().compareDocumentPosition(file)).toBe(Node.DOCUMENT_POSITION_PRECEDING);
+      expect(paneDivider().compareDocumentPosition(screen.getByLabelText("Format name"))).toBe(
+        Node.DOCUMENT_POSITION_FOLLOWING,
+      );
+    });
+
+    // Every field the step has today, unchanged and all on the same side of the
+    // divider: this ticket is the layout, and a form that lost a question to it
+    // would be a format nobody can finish.
+    it("keeps every field of the form in the right pane", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+      await user.selectOptions(
+        await screen.findByLabelText("How the amount is signed"),
+        "direction-column",
+      );
+
+      for (const label of [
+        "Format name",
+        "Operation date column",
+        "Operation label column",
+        "Counterparty IBAN column",
+        "How the amount is signed",
+        "Amount column",
+        "Direction column",
+        "Value meaning a debit",
+        "Date order",
+        "Decimal separator",
+        "Only import rows where",
+        "…equals",
+      ]) {
+        expect(paneDivider().compareDocumentPosition(screen.getByLabelText(label))).toBe(
+          Node.DOCUMENT_POSITION_FOLLOWING,
+        );
+      }
+    });
+
+    /**
+     * The live preview answers a question the raw file cannot, so it comes into
+     * the right pane with the form rather than being replaced by the file view.
+     * `03/04/2026` is a real date under either order and `1 929,71` a real
+     * number under either separator — the left pane says both and settles
+     * neither.
+     */
+    it("keeps the live preview beneath the form, still re-reading the file as the draft changes", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+      await mapFrenchColumns(user);
+
+      const preview = screen.getByRole("table", {
+        name: "Preview of the parsed rows",
+      });
+      expect(paneDivider().compareDocumentPosition(preview)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+      expect(previewedRows()[0]).toMatch(/-1\s?929,71/);
+
+      // A wrong date order is still visible, and only there.
+      await user.selectOptions(screen.getByLabelText("Date order"), "month-first");
+      expect(previewedRows()[0]).toContain("04 Mar 2026");
+      // …and a wrong decimal separator likewise.
+      await user.selectOptions(screen.getByLabelText("Decimal separator"), "dot");
+      expect(previewedRows()[0]).toMatch(/-1\s?929,00/);
+
+      // The file pane never moved through any of it: it reports, it does not read.
+      expect(fileRows("releve.csv")[0]).toEqual(["03/04/2026", "SHOP A", "1 929,71", "", "CARTE"]);
+    });
+
+    // The layout follows whether there is a file to show (PRD #208): back on the
+    // upload step there is none, so the split falls away with it.
+    it("drops the split on the way back to the upload step", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+      expectSplitWithFile("releve.csv");
+
+      await user.click(screen.getByRole("button", { name: "Discard this format" }));
+
+      expect(
+        await screen.findByRole("button", {
+          name: "Build a format from this file",
+        }),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("table", { name: "releve.csv" })).toBeNull();
+      expect(screen.queryByRole("separator", { name: "Resize the panes" })).toBeNull();
+    });
+
+    // And forward, the source is continuous: the same file in the same pane,
+    // with the import table where the form was.
+    it("keeps the file on screen on the way to the preview", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+      await mapFrenchColumns(user);
+      expectSplitWithFile("releve.csv");
+
+      await user.click(screen.getByRole("button", { name: "Continue to preview" }));
+
+      await findImportTable();
+      expect(fileRows("releve.csv").map((cells) => cells[1])).toEqual(["SHOP A", "SALAIRE"]);
+      expect(paneDivider().compareDocumentPosition(fileTable("releve.csv"))).toBe(
+        Node.DOCUMENT_POSITION_PRECEDING,
+      );
     });
   });
 });

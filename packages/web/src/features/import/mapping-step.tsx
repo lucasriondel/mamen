@@ -1,15 +1,30 @@
 import type { DateOrder, DecimalSeparator, SignRule } from "@mamen/shared/contract";
 import type { ReactNode } from "react";
+import { SplitView } from "@/components/split-view";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { formatCurrency, formatShortDate } from "@/lib/format";
+import { CsvFileTable } from "./csv-file-table";
 import { draftComplete, type FormatDraft, draftRules } from "./parsers/format-draft";
 import type { ParsedTransaction } from "./parsers/types";
+import { useSplitRatio } from "./use-split-ratio";
 import type { FormatSelection, WizardAction } from "./wizard-reducer";
 
 /** How many parsed rows the live preview shows before it stops listing them. */
 const PREVIEW_ROWS = 10;
+
+/**
+ * What this step's split shows until the user has dragged anything.
+ *
+ * Sixty-forty, the PDF step's ratio rather than the CSV preview's even one: the
+ * file is what is being read *from* here — the answer to "which column holds the
+ * label" is in its values — while the right pane holds a column of selects that
+ * needs no width at all. The preview step's two panes are both tables of the
+ * same rows, so it splits them evenly. The first drag replaces every one of
+ * these (issue #210).
+ */
+const MAPPING_SPLIT_DEFAULT = 0.6;
 
 /**
  * Why the user is here, in a sentence naming their own file.
@@ -47,10 +62,22 @@ function reasonCopy(reason: FormatSelection | null, fileName: string): string {
  * Nothing here is written anywhere. The draft lives in wizard state and is saved
  * by the action that commits the rows, so abandoning the import leaves the
  * account exactly as it was found.
+ *
+ * Since issue #212 the file itself is on screen while all this is answered, in
+ * the shared {@link SplitView} the other two post-upload views already use: the
+ * statement's own rows in the left pane, this form and its live preview in the
+ * right one. The questions are the same questions — the user is simply no longer
+ * answering them from memory of a file opened in another application.
+ *
+ * The sentence at the top and the two buttons at the bottom stay *outside* the
+ * split, where the other steps put their banners and their commit rail: they are
+ * about the step rather than about either pane, and leaving the step is not a
+ * moment to make the user find a scroll position for.
  */
 export function MappingStep({
   fileName,
   headers,
+  rows,
   reason,
   draft,
   records,
@@ -60,6 +87,8 @@ export function MappingStep({
   fileName: string;
   /** The dropped file's own header row — the choices, and later the fingerprint. */
   headers: readonly string[];
+  /** Every row of the file, as delivered — what the left pane shows. */
+  rows: ReadonlyArray<Record<string, string>>;
   /** Which of the three no-format-applies routes led here; decides the copy only. */
   reason: FormatSelection | null;
   draft: FormatDraft;
@@ -69,6 +98,10 @@ export function MappingStep({
   rowCount: number;
   dispatch: (action: WizardAction) => void;
 }) {
+  // Where the user left the divider — chrome rather than import state, so it is
+  // one position shared with the other two split steps and it outlives this
+  // import.
+  const { ratio, setRatio } = useSplitRatio(MAPPING_SPLIT_DEFAULT);
   const update = (patch: Partial<FormatDraft>) => dispatch({ type: "update-format-draft", patch });
 
   // Whether the draft can read the file yet. Asked of the same function the
@@ -80,117 +113,142 @@ export function MappingStep({
     <div className="flex flex-col gap-6">
       <p className="text-sm text-gousse-muted">{reasonCopy(reason, fileName)}</p>
 
-      <div className="flex flex-col gap-4 rounded-2xl border border-gousse-line bg-gousse-panel p-4">
-        <Field label="Format name">
-          <Input
-            aria-label="Format name"
-            value={draft.name}
-            placeholder="e.g. Green-Got"
-            onChange={(event) => update({ name: event.target.value })}
-          />
-        </Field>
+      <SplitView
+        // Tall enough to read a statement in, and the reason each pane has
+        // something to scroll *inside*: a single scrolling column would carry
+        // the file off the top of the screen on the way down the form (#210).
+        className="h-[85vh]"
+        ratio={ratio}
+        onRatioChange={setRatio}
+        left={<CsvFileTable fileName={fileName} headers={headers} rows={rows} />}
+        right={
+          <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-4 rounded-2xl border border-gousse-line bg-gousse-panel p-4">
+              <Field label="Format name">
+                <Input
+                  aria-label="Format name"
+                  value={draft.name}
+                  placeholder="e.g. Green-Got"
+                  onChange={(event) => update({ name: event.target.value })}
+                />
+              </Field>
 
-        <ColumnSelect
-          label="Operation date column"
-          headers={headers}
-          value={draft.mapping.date}
-          onChange={(date) => update({ mapping: { ...draft.mapping, date } })}
-        />
-        <ColumnSelect
-          label="Operation label column"
-          headers={headers}
-          value={draft.mapping.rawIssuerString}
-          onChange={(rawIssuerString) => update({ mapping: { ...draft.mapping, rawIssuerString } })}
-        />
-        {/* Optional, and `null` is an *answer*: a bank that writes no
-            counterparty account number has to say so, or "carries none" and
-            "nobody got round to it" look alike in the stored record. */}
-        <ColumnSelect
-          label="Counterparty IBAN column"
-          headers={headers}
-          value={draft.mapping.counterpartyIban ?? ""}
-          none="This bank writes none"
-          onChange={(column) =>
-            update({
-              mapping: { ...draft.mapping, counterpartyIban: column === "" ? null : column },
-            })
-          }
-        />
+              <ColumnSelect
+                label="Operation date column"
+                headers={headers}
+                value={draft.mapping.date}
+                onChange={(date) => update({ mapping: { ...draft.mapping, date } })}
+              />
+              <ColumnSelect
+                label="Operation label column"
+                headers={headers}
+                value={draft.mapping.rawIssuerString}
+                onChange={(rawIssuerString) =>
+                  update({ mapping: { ...draft.mapping, rawIssuerString } })
+                }
+              />
+              {/* Optional, and `null` is an *answer*: a bank that writes no
+                  counterparty account number has to say so, or "carries none"
+                  and "nobody got round to it" look alike in the stored record. */}
+              <ColumnSelect
+                label="Counterparty IBAN column"
+                headers={headers}
+                value={draft.mapping.counterpartyIban ?? ""}
+                none="This bank writes none"
+                onChange={(column) =>
+                  update({
+                    mapping: { ...draft.mapping, counterpartyIban: column === "" ? null : column },
+                  })
+                }
+              />
 
-        <SignFields headers={headers} sign={draft.sign} onChange={(sign) => update({ sign })} />
+              <SignFields
+                headers={headers}
+                sign={draft.sign}
+                onChange={(sign) => update({ sign })}
+              />
 
-        {/* The two rules PRD #180 refuses to guess at. Both open unanswered:
-            a default here would be a choice the user never made, and its
-            wrongness reads as a perfectly plausible date and a plausible
-            number. */}
-        <Field label="Date order">
-          <Select
-            aria-label="Date order"
-            value={draft.dateOrder ?? ""}
-            onChange={(event) => update({ dateOrder: event.target.value as DateOrder })}
-          >
-            <option value="" disabled>
-              How does this bank write dates?
-            </option>
-            <option value="iso">ISO — 2026-04-03</option>
-            <option value="day-first">Day first — 03/04/2026</option>
-            <option value="month-first">Month first — 04/03/2026</option>
-          </Select>
-        </Field>
+              {/* The two rules PRD #180 refuses to guess at. Both open
+                  unanswered: a default here would be a choice the user never
+                  made, and its wrongness reads as a perfectly plausible date
+                  and a plausible number. */}
+              <Field label="Date order">
+                <Select
+                  aria-label="Date order"
+                  value={draft.dateOrder ?? ""}
+                  onChange={(event) => update({ dateOrder: event.target.value as DateOrder })}
+                >
+                  <option value="" disabled>
+                    How does this bank write dates?
+                  </option>
+                  <option value="iso">ISO — 2026-04-03</option>
+                  <option value="day-first">Day first — 03/04/2026</option>
+                  <option value="month-first">Month first — 04/03/2026</option>
+                </Select>
+              </Field>
 
-        <Field label="Decimal separator">
-          <Select
-            aria-label="Decimal separator"
-            value={draft.decimalSeparator ?? ""}
-            onChange={(event) =>
-              update({ decimalSeparator: event.target.value as DecimalSeparator })
-            }
-          >
-            <option value="" disabled>
-              How does this bank write numbers?
-            </option>
-            <option value="dot">Dot — 1234.56</option>
-            <option value="comma">Comma — 1 234,56</option>
-          </Select>
-        </Field>
+              <Field label="Decimal separator">
+                <Select
+                  aria-label="Decimal separator"
+                  value={draft.decimalSeparator ?? ""}
+                  onChange={(event) =>
+                    update({ decimalSeparator: event.target.value as DecimalSeparator })
+                  }
+                >
+                  <option value="" disabled>
+                    How does this bank write numbers?
+                  </option>
+                  <option value="dot">Dot — 1234.56</option>
+                  <option value="comma">Comma — 1 234,56</option>
+                </Select>
+              </Field>
 
-        {/* The optional row filter — one column equal to one value, which is how
-            "settled operations only" is said. */}
-        <ColumnSelect
-          label="Only import rows where"
-          headers={headers}
-          value={draft.filter?.column ?? ""}
-          none="Import every row"
-          onChange={(column) =>
-            update({
-              filter: column === "" ? null : { column, equals: draft.filter?.equals ?? "" },
-            })
-          }
-        />
-        <Field label="…equals">
-          <Input
-            aria-label="…equals"
-            value={draft.filter?.equals ?? ""}
-            disabled={draft.filter === null}
-            placeholder="e.g. COMPLETE"
-            onChange={(event) =>
-              update({
-                filter:
-                  draft.filter === null ? null : { ...draft.filter, equals: event.target.value },
-              })
-            }
-          />
-        </Field>
-      </div>
+              {/* The optional row filter — one column equal to one value, which
+                  is how "settled operations only" is said. */}
+              <ColumnSelect
+                label="Only import rows where"
+                headers={headers}
+                value={draft.filter?.column ?? ""}
+                none="Import every row"
+                onChange={(column) =>
+                  update({
+                    filter: column === "" ? null : { column, equals: draft.filter?.equals ?? "" },
+                  })
+                }
+              />
+              <Field label="…equals">
+                <Input
+                  aria-label="…equals"
+                  value={draft.filter?.equals ?? ""}
+                  disabled={draft.filter === null}
+                  placeholder="e.g. COMPLETE"
+                  onChange={(event) =>
+                    update({
+                      filter:
+                        draft.filter === null
+                          ? null
+                          : { ...draft.filter, equals: event.target.value },
+                    })
+                  }
+                />
+              </Field>
+            </div>
 
-      {readable ? (
-        <PreviewOfDraft records={records} rowCount={rowCount} />
-      ) : (
-        <p className="text-sm text-gousse-muted">
-          Map the date, the label and the amount, and say how the dates and numbers are written —
-          the rows of your file will be read here as you go.
-        </p>
-      )}
+            {/* Beneath the form, still in the right pane. The raw rows opposite
+                say what the bank wrote; these say what the draft reads of it,
+                and a wrong date order or decimal separator is only ever visible
+                in the second (PRD #208). */}
+            {readable ? (
+              <PreviewOfDraft records={records} rowCount={rowCount} />
+            ) : (
+              <p className="text-sm text-gousse-muted">
+                Map the date, the label and the amount, and say how the dates and numbers are
+                written — the rows of your file will be read here as you go.
+              </p>
+            )}
+          </div>
+        }
+      />
 
       <div className="flex items-center gap-3">
         <Button
@@ -267,7 +325,12 @@ function emptySign(strategy: SignRule["strategy"]): SignRule {
     case "signed-column":
       return { strategy, amountColumn: "" };
     case "direction-column":
-      return { strategy, amountColumn: "", directionColumn: "", debitValue: "" };
+      return {
+        strategy,
+        amountColumn: "",
+        directionColumn: "",
+        debitValue: "",
+      };
     case "debit-credit-columns":
       return { strategy, debitColumn: "", creditColumn: "" };
   }
