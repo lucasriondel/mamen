@@ -44,8 +44,8 @@ function columnTint(mark: ColumnMark): string | false {
 }
 
 /**
- * The dropped CSV, exactly as it was delivered — its real header row and every
- * one of its rows (issue #211, PRD #208).
+ * The dropped statement's table, exactly as it was delivered — its real header
+ * row and every one of its rows (issue #211, PRD #208).
  *
  * The left pane of the import wizard's **split view**, opposite whatever the
  * user is working in: the import table on the preview step, and the format form
@@ -54,7 +54,13 @@ function columnTint(mark: ColumnMark): string | false {
  * is what lets a row be read against the line that produced it rather than
  * decided from the parsed output alone.
  *
- * Nothing is interpreted here. A cell is the string papaparse delivered, so the
+ * **Two things arrive here and it cannot tell them apart, which is the point**
+ * (issue #218): a CSV as papaparse delivered it, and a PDF statement's table as
+ * **discovery** transcribed it (issue #217). Both are the bank's own columns
+ * over string cells, so both are mapped, marked, picked from and paired the same
+ * way — one file pane rather than a CSV one and a PDF one that would drift.
+ *
+ * Nothing is interpreted here. A cell is the string it was delivered as, so the
  * ISO stamp the statement wrote is the ISO stamp on screen — the parsed reading
  * of it is the other pane's job, and the two being different is the point.
  *
@@ -89,7 +95,7 @@ function columnTint(mark: ColumnMark): string | false {
  * assignment goes back out through `onPickColumn`; nothing about the value is
  * decided here, the form's select being the only thing that holds it.
  */
-export function CsvFileTable({
+export function FileTable({
   fileName,
   headers,
   rows,

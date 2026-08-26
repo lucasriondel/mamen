@@ -124,6 +124,11 @@ const mismatched = (...missingColumns: readonly string[]) => ({
 // missing function.
 const bulkCreate = vi.fn();
 const extractPdf = vi.fn();
+// The **discovery extraction** (issue #217): the statement's table as printed,
+// asked for when the account has no PDF **Statement Format** to read it with. It
+// costs an AI run, so a case that asserts it was *not* called is asserting that
+// nothing was spent.
+const discoverPdf = vi.fn();
 // The **Statement Format** a mapping-step import authors (issue #186). It is
 // written by the commit and by nothing else, so a call to this outside one is
 // the "abandoning leaves a draft behind" bug.
@@ -169,6 +174,9 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
       // Both arguments are recorded: since issue #185 an extraction is run
       // *against* a format, and which id travelled is the assertion.
       extractPdf: (file: unknown, formatId: unknown) => extractPdf(file, formatId),
+      // The file and nothing else: discovery is what the user reaches for when
+      // there is no format to name (issue #217).
+      discoverPdf: (file: unknown) => discoverPdf(file),
     },
   };
 });
@@ -301,6 +309,34 @@ async function dropFrenchCsv(user: ReturnType<typeof userEvent.setup>) {
 /** Everything the French export needs, less whatever the case is about. */
 async function mapFrenchColumns(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText("Format name"), "CCF");
+  await user.selectOptions(screen.getByLabelText("Operation date column"), "Date opération");
+  await user.selectOptions(screen.getByLabelText("Operation label columns"), "Libellé");
+  await user.selectOptions(
+    screen.getByLabelText("How the amount is signed"),
+    "debit-credit-columns",
+  );
+  await user.selectOptions(screen.getByLabelText("Debit column"), "Débit");
+  await user.selectOptions(screen.getByLabelText("Credit column"), "Crédit");
+  await user.selectOptions(screen.getByLabelText("Date order"), "day-first");
+  await user.selectOptions(screen.getByLabelText("Decimal separator"), "comma");
+}
+
+/**
+ * Take the offer a PDF dropped on an account with no PDF format is given (issue
+ * #218) — the click that spends the discovery run — and wait for the mapping
+ * step it lands on.
+ */
+async function takeTheOffer(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(
+    await screen.findByRole("button", { name: "Build a format from this statement" }),
+  );
+  // The step transition is animated, so the form arrives a beat after the click.
+  await screen.findByLabelText("Format name");
+}
+
+/** Answer the whole form over the columns discovery transcribed. */
+async function mapDiscoveredColumns(user: ReturnType<typeof userEvent.setup>) {
+  await user.type(screen.getByLabelText("Format name"), "CCF (PDF)");
   await user.selectOptions(screen.getByLabelText("Operation date column"), "Date opération");
   await user.selectOptions(screen.getByLabelText("Operation label columns"), "Libellé");
   await user.selectOptions(
@@ -551,6 +587,7 @@ beforeEach(() => {
   window.localStorage.clear();
   bulkCreate.mockReset().mockResolvedValue([]);
   extractPdf.mockReset();
+  discoverPdf.mockReset();
   createFormat.mockReset().mockResolvedValue({ ...greenGotFormat, id: 12 });
   listTransactions.mockReset().mockResolvedValue({ items: [], total: 0, bundleMembers: [] });
   // The common case for both paths: the account has the Green-Got format the CSV
@@ -1602,10 +1639,11 @@ describe("ImportWizard", () => {
       expect(await screen.findByTitle("PDF statement")).toBeInTheDocument();
     });
 
-    // Nothing can be extracted against no format, and a generic prompt is the
-    // guessing this ticket removes — so the drop is refused, in the sentence the
-    // rest of the step already uses for a file it cannot take.
-    it("refuses the drop when the account has no PDF format at all", async () => {
+    // An account with no PDF format at all is no longer a refusal — it is the
+    // first import, and issue #218's offer is what it leads to. What stays true
+    // here is the half this describe is about: nothing is sent, because there is
+    // no format to send it against.
+    it("sends nothing when the account has no PDF format at all", async () => {
       const user = userEvent.setup();
       withFormats(csvFormat(1, "Green-Got"));
       renderWizard();
@@ -1613,9 +1651,7 @@ describe("ImportWizard", () => {
       await chooseAccount(user);
       await dropPdf(user);
 
-      expect(await screen.findByRole("alert")).toHaveTextContent(
-        "This account has no PDF statement format yet.",
-      );
+      expect(await screen.findByText("statement.pdf", { exact: false })).toBeInTheDocument();
       expect(extractPdf).not.toHaveBeenCalled();
       expect(screen.getByRole("button", { name: "Continue to preview" })).toBeDisabled();
     });
@@ -1716,6 +1752,342 @@ describe("ImportWizard", () => {
       await waitFor(() => expect(extractPdf).toHaveBeenCalledTimes(1));
       expect(await screen.findByLabelText("PDF statement format")).toBeInTheDocument();
       expect(screen.getByText("statement.pdf", { exact: false })).toBeInTheDocument();
+    });
+  });
+
+  /**
+   * Issue #218, under PRD #216 — **the first PDF import**. A user whose bank only
+   * exports PDFs used to be refused outright: no PDF **Statement Format** on the
+   * account, and no surface anywhere that could author one.
+   *
+   * The dead end becomes the CSV path's own story. The drop is *offered* a
+   * discovery extraction rather than refused; taking the offer transcribes the
+   * statement's table as printed (issue #217) and lands the user in the very
+   * mapping step a CSV reaches, with the discovered columns as the choices; the
+   * shared client-side pipeline reads the transcribed strings; and the commit
+   * saves a `kind: "pdf"` format with the rows it read.
+   */
+  describe("the first PDF import builds a format from the statement", () => {
+    /**
+     * What discovery makes of a French statement (issue #217): the table as
+     * printed — the bank's own column names, every cell a string, `1 929,71`
+     * still written the way the bank wrote it and a debit carrying no sign.
+     *
+     * The blank halves of the debit/credit pair are **absent** rather than empty,
+     * which is what the contract promises for a cell the row leaves blank.
+     */
+    const DISCOVERED = {
+      columns: ["Date opération", "Libellé", "Débit", "Crédit", "Type"],
+      rows: [
+        { "Date opération": "03/04/2026", Libellé: "SHOP A", Débit: "1 929,71", Type: "CARTE" },
+        {
+          "Date opération": "11/04/2026",
+          Libellé: "SALAIRE",
+          Crédit: "2 500,00",
+          Type: "VIREMENT",
+        },
+      ],
+      declaredTotals: { debit: 1929.71, credit: 2500 },
+    };
+
+    /** An account with no PDF format at all — the entry this ticket is about. */
+    async function dropOnAccountWithNoPdfFormat(user: ReturnType<typeof userEvent.setup>) {
+      withFormats(csvFormat(1, "Green-Got"));
+      renderWizard();
+      await chooseAccount(user);
+      return dropPdf(user);
+    }
+
+    // The refusal is gone, and what replaces it is an *offer*: the file is in
+    // hand, nothing has been sent, and the AI run happens because the user asked
+    // for it — a mistaken drop costs nothing (PRD #216, story 3).
+    it("offers to build a format from the statement instead of refusing the drop", async () => {
+      const user = userEvent.setup();
+      await dropOnAccountWithNoPdfFormat(user);
+
+      expect(
+        await screen.findByRole("button", { name: "Build a format from this statement" }),
+      ).toBeInTheDocument();
+      // The sentence that used to close this path off is nowhere on screen.
+      expect(screen.queryByText(/Import a CSV export from your bank instead/)).toBeNull();
+      expect(screen.queryByRole("alert")).toBeNull();
+      expect(discoverPdf).not.toHaveBeenCalled();
+      expect(extractPdf).not.toHaveBeenCalled();
+    });
+
+    // The click is what spends the run, and it spends it on the very file that
+    // was dropped — no second upload.
+    it("runs discovery on the dropped statement only once the offer is taken", async () => {
+      const user = userEvent.setup();
+      discoverPdf.mockResolvedValue(DISCOVERED);
+      const file = await dropOnAccountWithNoPdfFormat(user);
+
+      await takeTheOffer(user);
+
+      expect(discoverPdf).toHaveBeenCalledTimes(1);
+      expect(discoverPdf.mock.calls[0]?.[0]).toBe(file);
+      expect(extractPdf).not.toHaveBeenCalled();
+    });
+
+    // The discovered table *is* the mapping step's file pane: the bank's own
+    // column names as the choices, the transcribed cells under them.
+    it("lands on the mapping step over the discovered table", async () => {
+      const user = userEvent.setup();
+      discoverPdf.mockResolvedValue(DISCOVERED);
+      await dropOnAccountWithNoPdfFormat(user);
+      await takeTheOffer(user);
+
+      // The step reads as a first import being set up, and says which kind.
+      expect(screen.getByText(/This account has no PDF statement format yet/)).toBeInTheDocument();
+
+      const table = expectSplitWithFile("statement.pdf");
+      expect(
+        within(table)
+          .getAllByRole("columnheader")
+          .map((th) => th.textContent),
+      ).toEqual(["Date opération", "Libellé", "Débit", "Crédit", "Type"]);
+      // As printed: the blank half of the pair is blank, and nothing is parsed.
+      expect(fileRows("statement.pdf")).toEqual([
+        ["03/04/2026", "SHOP A", "1 929,71", "", "CARTE"],
+        ["11/04/2026", "SALAIRE", "", "2 500,00", "VIREMENT"],
+      ]);
+
+      // The choices are the discovered columns, and nothing invented.
+      expect(
+        within(screen.getByLabelText("Operation date column"))
+          .getAllByRole("option")
+          .map((option) => option.textContent),
+      ).toEqual(["Pick a column…", "Date opération", "Libellé", "Débit", "Crédit", "Type"]);
+    });
+
+    // The whole point of transcribing rather than extracting: the strings are
+    // read by the *client-side* pipeline, so date order, decimal separator and
+    // the sign rule are the user's answers and not the model's guesses.
+    it("reads the transcribed strings through the shared parsing pipeline", async () => {
+      const user = userEvent.setup();
+      discoverPdf.mockResolvedValue(DISCOVERED);
+      await dropOnAccountWithNoPdfFormat(user);
+      await takeTheOffer(user);
+      await mapDiscoveredColumns(user);
+
+      expect(previewedRows()).toEqual([
+        expect.stringContaining("03 Apr 2026 | SHOP A"),
+        expect.stringContaining("11 Apr 2026 | SALAIRE"),
+      ]);
+      expect(previewedRows()[0]).toMatch(/-1\s?929,71/);
+      expect(previewedRows()[1]).toMatch(/\+2\s?500,00/);
+
+      // Read month-first, the third of April is the fourth of March — the answer
+      // nothing but this preview could tell the user they had given.
+      await user.selectOptions(screen.getByLabelText("Date order"), "month-first");
+      expect(previewedRows()[0]).toContain("04 Mar 2026");
+    });
+
+    // The row filter applies to a transcribed table exactly as to a parsed file.
+    it("drops the rows the filter excludes from a discovered table", async () => {
+      const user = userEvent.setup();
+      discoverPdf.mockResolvedValue(DISCOVERED);
+      await dropOnAccountWithNoPdfFormat(user);
+      await takeTheOffer(user);
+      await mapDiscoveredColumns(user);
+
+      await user.selectOptions(screen.getByLabelText("Only import rows where"), "Type");
+      await user.type(screen.getByLabelText("…equals"), "CARTE");
+
+      expect(previewedRows()).toHaveLength(1);
+      expect(previewedRows()[0]).toContain("SHOP A");
+      expect(screen.getByText("1 of 2 rows will be imported.")).toBeInTheDocument();
+    });
+
+    // The discovered table is the click-to-assign surface too — the same marks,
+    // the same pick controls the CSV path has had since #213 and #214.
+    it("assigns a discovered column by clicking its header, and marks it on the table", async () => {
+      const user = userEvent.setup();
+      discoverPdf.mockResolvedValue(DISCOVERED);
+      await dropOnAccountWithNoPdfFormat(user);
+      await takeTheOffer(user);
+
+      await pickFromFile(user, "Date", "Date opération");
+
+      expect(screen.getByLabelText("Operation date column")).toHaveValue("Date opération");
+      expect(fileHeaderNames("statement.pdf")[0]).toBe("Date opération — mapped to Date");
+      expect(columnMarks(0, "statement.pdf")).toEqual(["active", "active", "active"]);
+    });
+
+    /**
+     * The acceptance criterion the whole ticket is for: a first-ever PDF import
+     * completes. One decision writes the format — `kind: "pdf"`, **every**
+     * discovered column, not the subset the mapping reads — and then the rows the
+     * user validated, with every unmapped column archived on each of them.
+     */
+    it("commits a pdf format over every discovered column, then the previewed rows", async () => {
+      const user = userEvent.setup();
+      discoverPdf.mockResolvedValue(DISCOVERED);
+      await dropOnAccountWithNoPdfFormat(user);
+      await takeTheOffer(user);
+      await mapDiscoveredColumns(user);
+
+      await user.click(screen.getByRole("button", { name: "Continue to preview" }));
+      await findImportTable();
+      // The preview is CSV-grade on this slice: the rows, their skips, and the
+      // format being built named above them.
+      expect(screen.getByText("CCF (PDF)")).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Commit import" }));
+
+      // The format first — and it declares the columns the *statement* carries.
+      await waitFor(() => expect(createFormat).toHaveBeenCalledTimes(1));
+      expect(createFormat).toHaveBeenCalledWith({
+        kind: "pdf",
+        accountId: 1,
+        name: "CCF (PDF)",
+        columns: ["Date opération", "Libellé", "Débit", "Crédit", "Type"],
+        mapping: {
+          date: "Date opération",
+          rawIssuerString: ["Libellé"],
+          counterpartyIban: null,
+        },
+        rules: {
+          sign: { strategy: "debit-credit-columns", debitColumn: "Débit", creditColumn: "Crédit" },
+          dateOrder: "day-first",
+          decimalSeparator: "comma",
+          filter: null,
+        },
+      });
+
+      // …then the rows, read the way the format says they are written.
+      await waitFor(() => expect(bulkCreate).toHaveBeenCalledTimes(1));
+      const records = bulkCreate.mock.calls[0][0];
+      expect(records).toHaveLength(2);
+      expect(records[0]).toMatchObject({
+        accountId: 1,
+        amount: -1929.71,
+        rawIssuerString: "SHOP A",
+        importMonth: "2026-04",
+      });
+      expect(records[1]).toMatchObject({ amount: 2500, rawIssuerString: "SALAIRE" });
+      // Every column the statement carried is archived, mapped or not — `Type`
+      // feeds nothing and is kept all the same (ADR 0012, PRD #216 story 15).
+      expect(records[0].rawSource).toEqual({
+        "Date opération": "03/04/2026",
+        Libellé: "SHOP A",
+        Débit: "1 929,71",
+        Type: "CARTE",
+      });
+
+      expect(await screen.findByText("Transactions page")).toBeInTheDocument();
+    });
+
+    // The preview is the CSV path's own, whole: the transcribed statement in the
+    // left pane, the rows that will be written in the right, and each row of one
+    // lighting its pair in the other (issue #215). Two panes, since the source
+    // PDF beside them is a later ticket.
+    it("puts the transcribed statement beside the import table in the preview", async () => {
+      const user = userEvent.setup();
+      discoverPdf.mockResolvedValue(DISCOVERED);
+      await dropOnAccountWithNoPdfFormat(user);
+      await takeTheOffer(user);
+      await mapDiscoveredColumns(user);
+      await user.click(screen.getByRole("button", { name: "Continue to preview" }));
+
+      const table = await findImportTable();
+      expect(expectSplitWithFile("statement.pdf")).toBeInTheDocument();
+      expect(shownCsvRows()).toEqual(["SHOP A", "SALAIRE"]);
+
+      await user.hover(bodyRow(table, 1));
+      expect(highlightedFileLines("statement.pdf")).toEqual(["VIREMENT"]);
+      expect(highlightedImportRows()).toEqual(["SALAIRE"]);
+    });
+
+    // Once the account has one, the feature costs nothing: the next statement
+    // from the same bank goes straight down the format-driven path.
+    it("goes through the saved format with no mapping step on the next statement", async () => {
+      const user = userEvent.setup();
+      extractPdf.mockResolvedValue({
+        verdict: MATCHED,
+        transactions: [
+          { date: new Date("2026-05-02T00:00:00.000Z"), amount: -12, rawIssuerString: "SHOP C" },
+        ],
+        declaredTotals: { debit: 12, credit: 0 },
+      });
+      withFormats(csvFormat(1, "Green-Got"), pdfFormat(9, "CCF (PDF)"));
+      renderWizard();
+      await chooseAccount(user);
+      await dropPdf(user);
+
+      await waitFor(() => expect(extractPdf).toHaveBeenCalledTimes(1));
+      expect(discoverPdf).not.toHaveBeenCalled();
+      expect(
+        screen.queryByRole("button", { name: "Build a format from this statement" }),
+      ).toBeNull();
+      // Straight to validation — no format form anywhere on the way.
+      expect(await screen.findByTitle("PDF statement")).toBeInTheDocument();
+      expect(screen.queryByLabelText("Format name")).toBeNull();
+    });
+
+    // Discovery fails the way extraction already does: the alert on the upload
+    // step, and nothing previewable behind it.
+    it("surfaces a discovery failure on the upload step", async () => {
+      const user = userEvent.setup();
+      discoverPdf.mockRejectedValue({ _tag: "ExtractionFailed" });
+      await dropOnAccountWithNoPdfFormat(user);
+
+      await user.click(
+        await screen.findByRole("button", { name: "Build a format from this statement" }),
+      );
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        /couldn't extract transactions from that PDF/i,
+      );
+      expect(screen.queryByLabelText("Format name")).toBeNull();
+      expect(screen.getByRole("button", { name: "Continue to preview" })).toBeDisabled();
+    });
+
+    // The one failure a retry cannot fix, so the alert carries the way to fix it.
+    it("sends the user to AI settings when discovery finds no credential stored", async () => {
+      const user = userEvent.setup();
+      discoverPdf.mockRejectedValue({ _tag: "AiProviderNotConfigured", provider: "claude-code" });
+      await dropOnAccountWithNoPdfFormat(user);
+
+      await user.click(
+        await screen.findByRole("button", { name: "Build a format from this statement" }),
+      );
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(/no credential stored/);
+      await user.click(screen.getByRole("link", { name: "Open AI settings" }));
+      expect(await screen.findByText("AI settings page")).toBeInTheDocument();
+    });
+
+    // A file with no transaction table is the file's problem, and saying which
+    // of the two happened is why the error has its own tag (issue #217).
+    it("names a statement that carries no transaction table", async () => {
+      const user = userEvent.setup();
+      discoverPdf.mockRejectedValue({ _tag: "NoTransactionTable" });
+      await dropOnAccountWithNoPdfFormat(user);
+
+      await user.click(
+        await screen.findByRole("button", { name: "Build a format from this statement" }),
+      );
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        /no transaction table we could read/i,
+      );
+    });
+
+    // A transcription costs a run, so going back to the form must not spend a
+    // second one: the table is already in hand.
+    it("reopens the mapping step from the discovered table without a second run", async () => {
+      const user = userEvent.setup();
+      discoverPdf.mockResolvedValue(DISCOVERED);
+      await dropOnAccountWithNoPdfFormat(user);
+      await takeTheOffer(user);
+
+      await user.click(screen.getByRole("button", { name: "Discard this format" }));
+      await user.click(
+        await screen.findByRole("button", { name: "Build a format from this statement" }),
+      );
+
+      expect(await screen.findByLabelText("Format name")).toBeInTheDocument();
+      expect(discoverPdf).toHaveBeenCalledTimes(1);
     });
   });
 

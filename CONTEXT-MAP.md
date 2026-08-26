@@ -399,6 +399,12 @@ repeated per package.
   the supervision #185's unsupervised guessing lacked. It spends the same **task
   choice** as extraction (there is no second **AI task** to configure), so a
   missing credential fails identically on both.
+  Since issue #218 the web side runs it, and it is **offered rather than
+  automatic**: an account with no PDF format shows *Build a format from this
+  statement* on the drop, and the click is what spends the run. What comes back
+  is seated as the wizard's headers and rows — which is the whole of how a PDF
+  joins the CSV machinery — and the commit saves a `kind: "pdf"` format declaring
+  **every** discovered column before it writes the rows.
   _Avoid_: format detection, auto-mapping (the model transcribes; assigning the
   columns to the transaction model is the user's act).
 

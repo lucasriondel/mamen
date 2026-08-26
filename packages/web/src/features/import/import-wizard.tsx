@@ -161,10 +161,15 @@ export function ImportWizard({
       accountId: state.accountId,
       importBatchId: state.importBatchId,
     };
-    // PDF path: the extracted candidates rejoin the shared commit rail once
-    // enriched with account/batch/month — no parser (the file has no headers).
-    if (state.source === "pdf") {
-      if (!state.extracted) return { records: [], rowIds: [] };
+    // Format-driven **PDF extraction**: the candidates come back typed, so they
+    // rejoin the shared commit rail once enriched with account/batch/month —
+    // no parser, there being no table of strings to read.
+    //
+    // A **discovered** PDF (issue #218) has no `extracted` and falls through to
+    // the branch below on purpose: its rows *are* a table of strings, read by
+    // the same `applyFormat` a CSV's are. Which is what makes the mapping step's
+    // live preview, the preview step's table and the commit one reading.
+    if (state.source === "pdf" && state.extracted !== null) {
       return { records: enrichExtracted(state.extracted, ctx), rowIds: state.rowIds };
     }
     if (!activeFormat) return { records: [], rowIds: [] };
@@ -184,11 +189,14 @@ export function ImportWizard({
   ]);
 
   // What the preview calls the format it read the rows with. A draft has no
-  // stored name to look up — it is named in the step that is building it.
+  // stored name to look up — it is named in the step that is building it — and
+  // it comes first on both paths since issue #218: a discovered PDF is read by a
+  // format the user is authoring, not by an extraction that answered for itself.
   const sourceLabel =
-    state.source === "pdf"
-      ? "PDF extraction"
-      : ((state.draftFormat?.name.trim() || selectedFormat?.name) ?? "—");
+    (state.draftFormat?.name.trim() ||
+      (state.source === "pdf" ? "PDF extraction" : undefined) ||
+      selectedFormat?.name) ??
+    "—";
 
   const accountName = accounts.find((account) => account.id === state.accountId)?.name ?? "—";
 

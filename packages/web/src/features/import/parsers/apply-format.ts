@@ -4,6 +4,7 @@ import {
   type DecimalSeparator,
   RAW_ISSUER_JOINER,
   type SignRule,
+  type StatementFormat,
 } from "@mamen/shared/contract";
 import { isPlausibleIban, normalizeIban } from "@/features/accounts/account-iban";
 import { importMonthKey } from "./month";
@@ -173,12 +174,22 @@ function counterpartyIbanOf(
  * *by* (issue #186). The live preview is then the real thing rather than a
  * second reading of the rules that could disagree with the import's.
  *
- * `kind` is part of it though nothing here branches on it: it is what keeps a
- * `PdfStatementFormat` — which carries a mapping and rules too — from being
- * assignable, so handing one to a CSV parser stays the type error issue #184
- * made it rather than a `mapping.date` that reads a column no CSV has.
+ * `kind` is carried though nothing here branches on it, and since issue #218 it
+ * admits **both** halves of the discriminant. What this function needs is a
+ * table of string rows keyed by column names, and a *discovered* PDF statement
+ * (issue #217) is exactly that — the bank's own columns, every cell as printed.
+ * So a PDF format's mapping and rules genuinely do read a table client-side now,
+ * which is what makes the two paths one pipeline rather than two.
+ *
+ * What it does not admit is a *stored* `PdfStatementFormat`'s rows: those come
+ * back typed from server extraction and never pass through here. The wizard
+ * narrows its stored formats to the CSV ones before it ever reaches this, so the
+ * only PDF-kinded value that arrives is the draft being authored against a
+ * discovered table.
  */
-export type FormatToApply = Pick<CsvStatementFormat, "kind" | "mapping" | "rules">;
+export type FormatToApply = Pick<CsvStatementFormat, "mapping" | "rules"> & {
+  kind: StatementFormat["kind"];
+};
 
 /**
  * Apply a **Statement Format** to raw CSV rows — the primary import seam, and

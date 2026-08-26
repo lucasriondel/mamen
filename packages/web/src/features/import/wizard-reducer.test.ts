@@ -294,7 +294,7 @@ describe("wizardReducer", () => {
   describe("a Statement Format being built from the file", () => {
     /** A draft with every answer the applying half needs, over `HEADERS`. */
     const READY = {
-      ...blankDraft(),
+      ...blankDraft("csv"),
       name: "Green-Got",
       mapping: { date: "Date", rawIssuerString: "Intitulé", counterpartyIban: null },
       sign: { strategy: "signed-column" as const, amountColumn: "Montant" },
@@ -318,7 +318,7 @@ describe("wizardReducer", () => {
       const state = wizardReducer(parsedCsv, { type: "build-format" });
 
       expect(state.step).toBe("mapping");
-      expect(state.draftFormat).toEqual(blankDraft());
+      expect(state.draftFormat).toEqual(blankDraft("csv"));
     });
 
     // Reopening is editing, not restarting: a user who went to the preview and
@@ -358,7 +358,7 @@ describe("wizardReducer", () => {
       });
 
       expect(state.draftFormat).toEqual({
-        ...blankDraft(),
+        ...blankDraft("csv"),
         name: "Green-Got",
         dateOrder: "day-first",
       });
@@ -755,6 +755,143 @@ const extractPdf = () =>
       extractionMs: 0,
     },
   );
+
+/**
+ * Issue #218, under PRD #216 — **the first PDF import**. The account has no PDF
+ * **Statement Format**, so nothing can be extracted against one; what happens
+ * instead is a **discovery extraction** (issue #217) that transcribes the
+ * statement's table, after which the wizard is on the very machinery a CSV runs.
+ *
+ * The tell that this is one pipeline and not two: what discovery seats is
+ * `headers` and `rows`, the same two fields a parsed CSV seats.
+ */
+describe("wizardReducer — the first PDF import", () => {
+  const PDF = new File([], "statement.pdf", { type: "application/pdf" });
+  const COLUMNS = ["Date opération", "Libellé", "Débit", "Crédit"];
+  const DISCOVERED = [
+    { "Date opération": "03/04/2026", Libellé: "SHOP A", Débit: "1 929,71" },
+    { "Date opération": "11/04/2026", Libellé: "SALAIRE", Crédit: "2 500,00" },
+  ];
+
+  /** The offer taken, the run away, and the table back. */
+  const discovered = () =>
+    wizardReducer(wizardReducer(withAccount, { type: "discover-start", file: PDF }), {
+      type: "discover-success",
+      columns: COLUMNS,
+      rows: DISCOVERED,
+      declaredTotals: { debit: 1929.71, credit: 2500 },
+    });
+
+  it("waits with the file in hand and sends nothing on the drop", () => {
+    const state = wizardReducer(withAccount, { type: "pdf-awaits-format", file: PDF });
+
+    // The same state an *ambiguity* parks in (issue #185): a PDF is here and
+    // nothing has been sent anywhere. What differs is only what the step offers.
+    expect(state.pendingPdf).toBe(PDF);
+    expect(state.extracting).toBe(false);
+    expect(canPreview(state)).toBe(false);
+  });
+
+  it("spends the wait on the offer being taken, not on the drop", () => {
+    const state = wizardReducer(
+      wizardReducer(withAccount, { type: "pdf-awaits-format", file: PDF }),
+      { type: "discover-start", file: PDF },
+    );
+
+    expect(state.extracting).toBe(true);
+    // Nothing is waiting any more: the request is away.
+    expect(state.pendingPdf).toBeNull();
+    expect(state.importBatchId).toMatch(/.+/);
+    expect(canPreview(state)).toBe(false);
+  });
+
+  it("seats the transcribed table as the file to map, and opens the mapping step", () => {
+    const state = discovered();
+
+    expect(state.extracting).toBe(false);
+    expect(state.step).toBe("mapping");
+    // The columns *are* the headers and the cells *are* the rows — which is what
+    // puts a PDF on the CSV path's file pane, marks, pick mode and parser.
+    expect(state.headers).toEqual(COLUMNS);
+    expect(state.rows).toEqual(DISCOVERED);
+    // Nothing typed came back, so there is nothing for the validation view to
+    // seat — the rows are strings and the format is what will read them.
+    expect(state.extracted).toBeNull();
+    expect(state.declaredTotals).toEqual({ debit: 1929.71, credit: 2500 });
+  });
+
+  it("opens a pdf-kinded draft, which is what decides the format that gets saved", () => {
+    expect(discovered().draftFormat).toEqual(blankDraft("pdf"));
+  });
+
+  it("names every transcribed row", () => {
+    const state = discovered();
+
+    expect(state.rowIds).toHaveLength(2);
+    expect(new Set(state.rowIds).size).toBe(2);
+    expect(state.nextRowId).toBeGreaterThan(Math.max(...state.rowIds));
+  });
+
+  // The preview gate reads a discovered table exactly as it reads a parsed CSV:
+  // rows, plus a format complete enough to save. There is no `extracted` to
+  // shortcut it, which is the whole difference from the format-driven path.
+  it("holds the preview back until the pdf draft is complete", () => {
+    const state = discovered();
+    expect(canPreview(state)).toBe(false);
+
+    const ready = {
+      ...state,
+      draftFormat: {
+        ...blankDraft("pdf"),
+        name: "CCF",
+        mapping: {
+          date: "Date opération",
+          rawIssuerString: ["Libellé"],
+          counterpartyIban: null,
+        },
+        sign: {
+          strategy: "debit-credit-columns" as const,
+          debitColumn: "Débit",
+          creditColumn: "Crédit",
+        },
+        dateOrder: "day-first" as const,
+        decimalSeparator: "comma" as const,
+      },
+    };
+    expect(canPreview(ready)).toBe(true);
+    expect(wizardReducer(ready, { type: "go-to-preview" }).step).toBe("preview");
+  });
+
+  // Coming back to the form must not spend a second run: the table is here, so
+  // `build-format` reopens the step over it rather than re-asking the model.
+  it("reopens the mapping step over the table already in hand", () => {
+    const abandoned = wizardReducer(discovered(), { type: "discard-format-draft" });
+    expect(abandoned.step).toBe("upload");
+    expect(abandoned.draftFormat).toBeNull();
+    // The transcription survives the draft that was built from it.
+    expect(abandoned.rows).toEqual(DISCOVERED);
+
+    const reopened = wizardReducer(abandoned, { type: "build-format" });
+    expect(reopened.step).toBe("mapping");
+    // …and the draft it opens is still the PDF half, because the file is.
+    expect(reopened.draftFormat).toEqual(blankDraft("pdf"));
+  });
+
+  it("leaves nothing previewable behind a failed discovery", () => {
+    const failed = wizardReducer(
+      wizardReducer(withAccount, { type: "discover-start", file: PDF }),
+      {
+        type: "extract-error",
+        message: "No.",
+      },
+    );
+
+    expect(failed.error).toBe("No.");
+    expect(failed.extracting).toBe(false);
+    expect(failed.rows).toEqual([]);
+    expect(canPreview(failed)).toBe(false);
+  });
+});
 
 /**
  * Which rows survive a commit, said the way a preview reads the state: the ids

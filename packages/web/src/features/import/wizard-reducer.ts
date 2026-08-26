@@ -11,10 +11,15 @@ import { blankDraft, draftComplete, type FormatDraft } from "./parsers/format-dr
  * The wizard's interactive steps (commit is a transient action, not a step).
  *
  * `mapping` sits between the other two and is only ever reached when no
- * **Statement Format** applies to the dropped CSV (issue #186) — nothing
+ * **Statement Format** applies to the dropped statement (issue #186) — nothing
  * matched, several matched, or the account has none of this kind. It is not a
  * step every import passes through, which is why the upload step still leads
  * straight to the preview.
+ *
+ * Since issue #218 a **PDF** reaches it too, once **discovery** has transcribed
+ * the statement's table: the account having no PDF format is the same "none of
+ * this kind" it has always meant, and what the step maps is the same table of
+ * the bank's own columns.
  */
 export type WizardStep = "upload" | "mapping" | "preview";
 
@@ -73,10 +78,16 @@ export type WizardState = {
    */
   file: File | null;
   /**
-   * A dropped **PDF** held back because the account has several PDF **Statement
-   * Formats** and the user has not said which reads this statement (issue #185).
-   * `null` whenever nothing is waiting — which is every case but that one, since
-   * an account with exactly one PDF format is extracted without an ask.
+   * A dropped **PDF** held back because nothing has settled which **Statement
+   * Format** reads it. `null` whenever nothing is waiting — which is every case
+   * but that one, since an account with exactly one PDF format is extracted
+   * without an ask.
+   *
+   * Two situations park here and they are the same fact. Either the account has
+   * several PDF formats and the user has not said which (issue #185), or it has
+   * **none at all** and the answer is one they have yet to build (issue #218).
+   * The step tells the two apart by the list it has; the state does not, because
+   * what it records is that a file is here and nothing has been sent.
    *
    * It is state rather than a local in the upload step because it is a state of
    * the *import*: a file is in hand and nothing has been sent anywhere. Clearing
@@ -253,10 +264,13 @@ export type WizardAction =
   | { type: "go-to-preview" }
   | { type: "back-to-upload" }
   /**
-   * A PDF was dropped into an account with **several** PDF **Statement Formats**
-   * — it waits here while the user says which one reads it. Nothing has been
-   * sent anywhere: the model is never asked to pick the format as well as apply
-   * it (PRD #180).
+   * A PDF was dropped and no **Statement Format** is settled for it — it waits
+   * here while that is answered. Nothing has been sent anywhere: the model is
+   * never asked to pick the format as well as apply it (PRD #180).
+   *
+   * The account has **several** PDF formats and the user must say which (issue
+   * #185), or **none** and the answer is one they have yet to build (issue
+   * #218). One action, because what it records is identical.
    */
   | { type: "pdf-awaits-format"; file: File }
   /** A PDF was dropped — extraction has started (spinner until it settles). */
@@ -277,6 +291,32 @@ export type WizardAction =
     }
   /** Extraction failed — surface the error and stay on the upload step. */
   | { type: "extract-error"; message: string }
+  /**
+   * The user took the offer to build a **Statement Format** from the PDF in hand
+   * (issue #218) — **discovery extraction** has started. The same spinner
+   * `extract-start` raises, because from the user's seat it is the same wait.
+   *
+   * A second action rather than a flag on `extract-start`: that one is a request
+   * made *against a format*, and this one is what happens when the account has
+   * none. What it seats is a table of strings to map, not rows to review.
+   */
+  | { type: "discover-start"; file: File }
+  /**
+   * Discovery succeeded — the statement's table **as printed** is in hand
+   * (issue #217), and the wizard opens the mapping step on it.
+   *
+   * The columns become the wizard's `headers` and the transcribed cells its
+   * `rows`, which is what puts a PDF on the very machinery a CSV runs: the same
+   * file pane, the same column marks and pick mode, the same `applyFormat` over
+   * the same client-side rules. The draft it opens is `kind: "pdf"`, which is
+   * all that tells the commit which half of the format union to write.
+   */
+  | {
+      type: "discover-success";
+      columns: readonly string[];
+      rows: ReadonlyArray<Record<string, string>>;
+      declaredTotals: DeclaredTotals | null;
+    }
   /**
    * Extraction ran and reported that the statement does **not** match the
    * **Statement Format** it was read against (issue #188), naming the expected
@@ -408,9 +448,13 @@ export function canAcceptFile(state: WizardState): boolean {
 
 /**
  * Whether the wizard has everything it needs to move to the preview. The account
- * is required either way; a CSV also needs parsed rows and a **Statement
- * Format** to read them with, while a PDF needs a settled extraction (rows in
- * hand, not still extracting).
+ * is required always, and nothing is ready while a request is still out.
+ *
+ * Beyond that the question is not "CSV or PDF" but **what is in hand**. A
+ * *format-driven* PDF extraction comes back typed and already read against the
+ * format that was chosen, so its rows are ready as they arrive. Everything else
+ * is a table of strings — a parsed CSV, or a **discovered** PDF statement (issue
+ * #218) — and a table needs rows *and* a format to read them with.
  *
  * A format the user is *building* counts, once it is complete enough to save —
  * name included, because the commit that writes the rows writes the format too
@@ -419,13 +463,29 @@ export function canAcceptFile(state: WizardState): boolean {
  */
 export function canPreview(state: WizardState): boolean {
   if (state.accountId === null) return false;
-  if (state.source === "pdf") {
-    return state.extracted !== null && !state.extracting;
-  }
+  if (state.extracting) return false;
+  // Rows a **format-driven extraction** returned are already typed and already
+  // reviewed against the format that read them; there is nothing left to map.
+  if (state.source === "pdf" && state.extracted !== null) return true;
+  // Everything else is a *table* — a parsed CSV, or a **discovered** PDF
+  // statement (issue #218) — and a table needs a format to be read with.
   if (state.rows.length === 0) return false;
   return (
     state.formatId !== null || (state.draftFormat !== null && draftComplete(state.draftFormat))
   );
+}
+
+/**
+ * Which half of the **Statement Format** union a draft authored now would be —
+ * read off the file in hand, never asked of the user.
+ *
+ * The dropped file decides it: a CSV's columns are a header row to fingerprint,
+ * a discovered PDF's are the columns to ask a model for next time. Nothing else
+ * about the two drafts differs, which is why this is the only place the question
+ * is put.
+ */
+function draftKind(state: WizardState): "csv" | "pdf" {
+  return state.source === "pdf" ? "pdf" : "csv";
 }
 
 /** Pure state machine for the import wizard. */
@@ -564,16 +624,18 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         rowIds: [],
       };
     case "build-format":
-      // The step's whole subject is the file's real headers, so there has to be
-      // a file with headers — a PDF has none until extraction has run, and its
-      // format is authored elsewhere.
-      if (state.source !== "csv" || state.headers.length === 0) return state;
+      // The step's whole subject is the file's real columns, so there has to be
+      // a file with some. A PDF has none until **discovery** has transcribed its
+      // table (issue #218), which is exactly what `discover-success` seats — so
+      // this is the way *back* into the step on that path, and never the way in:
+      // re-entering must not spend a second AI run.
+      if (state.headers.length === 0) return state;
       return {
         ...state,
         step: "mapping",
         // Reopening is editing: a user who came back to fix the date order must
         // find the rest of their answers where they left them.
-        draftFormat: state.draftFormat ?? blankDraft(),
+        draftFormat: state.draftFormat ?? blankDraft(draftKind(state)),
       };
     case "update-format-draft":
       if (state.draftFormat === null) return state;
@@ -649,6 +711,48 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         rowIds: [],
         skippedRows: [],
         error: null,
+      };
+    case "discover-start":
+      if (!canAcceptFile(state)) return state;
+      return {
+        ...state,
+        source: "pdf",
+        fileName: action.file.name,
+        file: action.file,
+        // The wait is over: the offer has been taken and the request is away.
+        pendingPdf: null,
+        mismatch: null,
+        extracting: true,
+        extracted: null,
+        declaredTotals: null,
+        extraction: null,
+        importBatchId: crypto.randomUUID(),
+        error: null,
+        // Nothing is transcribed yet, so nothing is mappable and nothing is
+        // previewable — including whatever a previous file left behind.
+        headers: [],
+        rows: [],
+        formatId: null,
+        formatSelection: null,
+        draftFormat: null,
+        skippedRows: [],
+        rowIds: [],
+      };
+    case "discover-success":
+      return {
+        ...state,
+        // The transcribed rows are this state's rows, so they are what the ids
+        // name — exactly as a parsed CSV's are.
+        ...mintRowIds(state.nextRowId, action.rows.length),
+        extracting: false,
+        headers: action.columns,
+        rows: action.rows,
+        declaredTotals: action.declaredTotals,
+        error: null,
+        // Straight into the mapping step: the account has no PDF format, which
+        // is why discovery ran at all, so there is nothing left to ask first.
+        step: "mapping",
+        draftFormat: blankDraft("pdf"),
       };
     case "extract-error":
       return {

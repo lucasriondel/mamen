@@ -17,7 +17,7 @@ import {
   type SingleColumnField,
 } from "./column-fields";
 import { draftColumnMarks } from "./column-marks";
-import { CsvFileTable } from "./csv-file-table";
+import { FileTable } from "./file-table";
 import { draftComplete, type FormatDraft, draftRules } from "./parsers/format-draft";
 import type { ParsedTransaction } from "./parsers/types";
 import { useSplitRatio } from "./use-split-ratio";
@@ -43,14 +43,27 @@ const MAPPING_SPLIT_DEFAULT = 0.8;
 /**
  * Why the user is here, in a sentence naming their own file.
  *
- * The three routes into this step behave identically and differ only in this
- * line (issue #186). An account nobody has set up yet has not *failed* to
- * recognise anything, and a first import that reads as a rejection is the dead
- * end this step exists to remove; an ambiguity is not a file the app could not
- * read, it is one it read twice over, so the offer there is a *new* format
- * rather than a replacement for the pick the user can still make.
+ * The routes into this step behave identically and differ only in this line
+ * (issue #186). An account nobody has set up yet has not *failed* to recognise
+ * anything, and a first import that reads as a rejection is the dead end this
+ * step exists to remove; an ambiguity is not a file the app could not read, it
+ * is one it read twice over, so the offer there is a *new* format rather than a
+ * replacement for the pick the user can still make.
+ *
+ * A **discovered PDF** (issue #218) has one route and one reason: the account
+ * has no PDF format, which is why discovery ran. Detection never had a verdict
+ * to give on it — there is no header row to fingerprint — so the `reason` above
+ * is `null` on that path and would otherwise read as "no saved format recognizes
+ * it", which is a failure that did not happen.
  */
-function reasonCopy(reason: FormatSelection | null, fileName: string): string {
+function reasonCopy(
+  reason: FormatSelection | null,
+  fileName: string,
+  kind: FormatDraft["kind"],
+): string {
+  if (kind === "pdf") {
+    return `This account has no PDF statement format yet. Build one from ${fileName} — the table below is that statement, transcribed — and it will be saved with this import.`;
+  }
   switch (reason) {
     case "no-formats":
       return `This account has no CSV statement format yet. Build one from ${fileName} and it will be saved with this import.`;
@@ -94,6 +107,13 @@ function reasonCopy(reason: FormatSelection | null, fileName: string): string {
  * split, where the other steps put their banners and their commit rail: they are
  * about the step rather than about either pane, and leaving the step is not a
  * moment to make the user find a scroll position for.
+ *
+ * Since issue #218 a **PDF** arrives here too, and nothing in this component
+ * knows it. What discovery hands over is the statement's table as printed (issue
+ * #217) — the bank's own columns over string cells — which is the same shape a
+ * parsed CSV is, so the same file pane, the same marks, the same pick mode and
+ * the same `applyFormat` read it. The only thing the draft's `kind` decides is
+ * the sentence at the top, and which half of the format union the commit writes.
  */
 export function MappingStep({
   fileName,
@@ -199,7 +219,7 @@ export function MappingStep({
 
   return (
     <div className="flex flex-col gap-6">
-      <p className="text-sm text-gousse-muted">{reasonCopy(reason, fileName)}</p>
+      <p className="text-sm text-gousse-muted">{reasonCopy(reason, fileName, draft.kind)}</p>
 
       <SplitView
         // Tall enough to read a statement in, and the reason each pane has
@@ -209,7 +229,7 @@ export function MappingStep({
         ratio={ratio}
         onRatioChange={setRatio}
         left={
-          <CsvFileTable
+          <FileTable
             fileName={fileName}
             headers={headers}
             rows={rows}

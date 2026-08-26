@@ -17,41 +17,47 @@ import { formatExtractionTime } from "./format-extraction-time";
 import { FormatPicker } from "./format-picker";
 import { InlineAccountSelect } from "./inline-account-select";
 import { parseCsvFile } from "./parse-file";
-import { canAcceptFile, canPreview, type WizardAction, type WizardState } from "./wizard-reducer";
+import {
+  canAcceptFile,
+  canPreview,
+  type WizardAction,
+  type WizardSource,
+  type WizardState,
+} from "./wizard-reducer";
 
 /**
- * What the user is told when the account they picked has no PDF **Statement
- * Format** at all. Extraction cannot run against no format — its whole job since
- * issue #185 is telling the model which columns the statement carries — and the
- * old behaviour, a prompt describing French statements in general, is exactly the
- * guessing this work removes. So the drop is refused rather than served by a
- * fallback that produces plausible-but-wrong rows.
+ * What the offer to build a format is called, on the file it is offered for.
  *
- * The mapping step (issue #186) does not rescue this path either: it builds a
- * format from a file's **real headers** and previews its **real rows**, and a
- * PDF has neither until an extraction has run — the very extraction there is no
- * format for. Authoring one for a PDF belongs to the mismatch flow (issue #188),
- * so this stays a refusal, and saying so plainly beats a spinner that resolves
- * into nonsense.
+ * A CSV is *a file* and a PDF is *the statement*, because on the PDF path the
+ * thing in hand is the bank's document and what is on screen beside the form is
+ * its transcribed table (issue #218) — "this file" would name the wrong one of
+ * the two. One constant either way, so the offer's two homes (the drop's own
+ * panel and the loaded-file panel below it) cannot come to say it differently.
  */
-const NO_PDF_FORMAT =
-  "This account has no PDF statement format yet. Import a CSV export from your bank instead.";
+function buildFormatLabel(source: WizardSource | null): string {
+  return source === "pdf" ? "Build a format from this statement" : "Build a format from this file";
+}
 
 /**
- * The way out of a CSV import no stored **Statement Format** applies to (issue
+ * The way out of an import no stored **Statement Format** applies to (issue
  * #186), and the state of the one being built.
  *
- * Offered rather than forced: all three routes here — nothing matched, several
- * matched, an account with no CSV format at all — leave the picker on screen, so
- * a user whose file *is* readable by something they already have can still say
- * so. The offer disappears the moment a format is chosen, which is why a routine
- * import never sees it (PRD #180: the feature costs nothing when it is not
- * needed).
+ * Offered rather than forced: all three CSV routes here — nothing matched,
+ * several matched, an account with no CSV format at all — leave the picker on
+ * screen, so a user whose file *is* readable by something they already have can
+ * still say so. The offer disappears the moment a format is chosen, which is why
+ * a routine import never sees it (PRD #180: the feature costs nothing when it is
+ * not needed).
  *
  * Once a draft exists it says so here, because the upload step is where the user
  * comes back to: the picker below shows nothing selected, and a wizard that let
  * them continue without explaining what it was about to import under would be
  * keeping the format it is going to save a secret.
+ *
+ * A **discovered PDF** reaches this too (issue #218), and that is the whole of
+ * why the offer here dispatches `build-format` rather than running discovery:
+ * the transcribed table is already in hand, so coming back to the form after
+ * discarding a draft must not spend a second AI run.
  */
 function BuildFormat({
   state,
@@ -84,7 +90,7 @@ function BuildFormat({
   return (
     <div>
       <Button variant="secondary" size="sm" onClick={() => dispatch({ type: "build-format" })}>
-        Build a format from this file
+        {buildFormatLabel(state.source)}
       </Button>
     </div>
   );
@@ -117,6 +123,13 @@ function isPdf(file: File): boolean {
  * against the wrong shape and are dropped rather than shown; the question of
  * which format reads this file goes back to the user, with the upload still in
  * hand ({@link awaitingFormat}).
+ *
+ * And where the account has **no PDF format at all** the drop is no longer
+ * refused (issue #218, PRD #216). The file waits in the same place a mismatch
+ * waits, and what the step offers instead of a picker is to build one from this
+ * statement — a **discovery extraction** that transcribes its table and hands
+ * the user the mapping step over it. Offered rather than run on the drop, so a
+ * mistaken drop spends nothing.
  */
 export function UploadStep({
   formats,
@@ -226,6 +239,49 @@ export function UploadStep({
     }
   };
 
+  /**
+   * The **first PDF import** (issue #218, PRD #216): transcribe the statement's
+   * table as printed, then hand the user the mapping step over it.
+   *
+   * Run from the offer's button and from nowhere else, which is what makes the
+   * AI call the user's decision — a mistaken drop costs nothing, because the
+   * drop itself sends nothing. It takes the file and no format, that absence
+   * being the whole of what tells it apart from {@link handlePdf}: there is no
+   * format on the account, which is the dead end this opens.
+   *
+   * Failures ride the extraction path's alert unchanged, the AI-settings link
+   * included — the same collapse, plus `NoTransactionTable` for the one failure
+   * that is about the file rather than the run.
+   */
+  const handleDiscover = async (file: File) => {
+    // Same pre-check, same reason as {@link handlePdf}: oversize is a framework
+    // error upstream, so it would otherwise reach the user as the generic retry.
+    if (file.size > MAX_PDF_BYTES) {
+      dispatch({
+        type: "file-error",
+        message: pdfExtractionErrorMessage({ _tag: "InvalidFileType" }),
+      });
+      return;
+    }
+    dispatch({ type: "discover-start", file });
+    try {
+      const result = await importMutations.discoverPdf(file);
+      dispatch({
+        type: "discover-success",
+        columns: result.columns,
+        // Every cell a string as printed: the date order, the decimal separator
+        // and the sign rule are the *user's* answers, given in the mapping step
+        // and applied by the same pipeline a CSV runs.
+        rows: result.rows,
+        // Absent whenever the statement printed no totals line (issue #196).
+        declaredTotals: result.declaredTotals ?? null,
+      });
+    } catch (error) {
+      setNotConfigured(aiProviderNotConfigured(error) !== null);
+      dispatch({ type: "extract-error", message: pdfExtractionErrorMessage(error) });
+    }
+  };
+
   const handleCsv = async (file: File) => {
     try {
       const { headers, rows } = await parseCsvFile(file);
@@ -247,15 +303,18 @@ export function UploadStep({
    * answer there is, so it is used without an ask. Several is a real question,
    * and it is the *user's* — the model is never asked to pick the format as well
    * as apply it, since it cannot then cleanly report a mismatch against a choice
-   * of its own (PRD #180). None is a refusal; see {@link NO_PDF_FORMAT}.
+   * of its own (PRD #180).
+   *
+   * **None used to be a refusal** and since issue #218 is not: the file is held
+   * exactly as an ambiguity is, and the panel offers to build a format from it
+   * instead of asking which one reads it. Both are "a PDF is in hand and nothing
+   * has been sent anywhere", which is what `pdf-awaits-format` has always meant
+   * — the account simply has no format to offer, so what it awaits is one that
+   * does not exist yet.
    */
   const takePdf = (file: File) => {
     const only = pdfFormats.length === 1 ? pdfFormats[0] : undefined;
     if (only) return handlePdf(file, only.id);
-    if (pdfFormats.length === 0) {
-      dispatch({ type: "file-error", message: NO_PDF_FORMAT });
-      return;
-    }
     setChosenPdfFormat(null);
     dispatch({ type: "pdf-awaits-format", file });
   };
@@ -288,6 +347,19 @@ export function UploadStep({
    * the statement without asking for the upload again.
    */
   const awaitingFormat = state.pendingPdf ?? (state.mismatch === null ? null : state.file);
+
+  /**
+   * Which of the two questions the waiting file is asking, since the account
+   * having no PDF format at all now waits here too (issue #218).
+   *
+   * **Which of these reads it** — a list to pick from, and extraction on the
+   * answer. **There is none, build one** — no list, and a **discovery
+   * extraction** on the answer. They are named apart rather than spelled inline
+   * because they are two screens' worth of copy and two different next actions,
+   * and `awaitingFormat !== null` says nothing about which.
+   */
+  const askingWhichFormat = awaitingFormat !== null && pdfFormats.length > 0;
+  const offeringFirstFormat = awaitingFormat !== null && pdfFormats.length === 0;
 
   const onDrop = (event: DragEvent<HTMLElement>) => {
     event.preventDefault();
@@ -349,7 +421,32 @@ export function UploadStep({
         />
       </label>
 
-      {awaitingFormat !== null ? (
+      {offeringFirstFormat ? (
+        // The **first PDF import** (issue #218). No format exists to pick, so
+        // there is nothing to ask — only something to offer, and taking it is
+        // what spends the AI run.
+        <div className="flex flex-col gap-4 rounded-2xl border border-gousse-line bg-gousse-panel p-4">
+          <p className="text-sm text-gousse-muted">
+            <span className="font-medium text-gousse-ink">{state.fileName}</span> — this account has
+            no PDF statement format yet. Build one from this statement and it will be saved with
+            this import.
+          </p>
+          <div>
+            <Button
+              variant="primary"
+              size="md"
+              onClick={() => {
+                if (awaitingFormat === null) return;
+                void handleDiscover(awaitingFormat);
+              }}
+            >
+              {buildFormatLabel("pdf")}
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {askingWhichFormat ? (
         <div className="flex flex-col gap-4 rounded-2xl border border-gousse-line bg-gousse-panel p-4">
           <p className="text-sm text-gousse-muted">
             <span className="font-medium text-gousse-ink">{state.fileName}</span>
@@ -438,10 +535,10 @@ export function UploadStep({
                 live `extracted` array: this line is seen on the way *back* from
                 that view, so by the time it is on screen the user may already
                 have added the operations the model missed. */}
-            {state.source === "pdf"
+            {state.extracted !== null
               ? `${state.extraction?.rowCount ?? 0} transactions extracted`
               : `${state.rows.length} rows`}
-            {state.source === "pdf" && state.extraction !== null ? (
+            {state.extracted !== null && state.extraction !== null ? (
               <span className="text-gousse-muted">
                 {" "}
                 in {formatExtractionTime(state.extraction.ms)}
@@ -449,12 +546,16 @@ export function UploadStep({
             ) : null}
           </p>
 
+          {/* A stored format to pick is a CSV-only question: the PDF path settles
+              which format reads a statement before it sends it anywhere, and a
+              discovered one has no stored format at all. */}
           {state.source === "csv" ? (
-            <>
-              <FormatPicker formats={formats} state={state} dispatch={dispatch} />
-              <BuildFormat state={state} dispatch={dispatch} />
-            </>
+            <FormatPicker formats={formats} state={state} dispatch={dispatch} />
           ) : null}
+          {/* The offer, on both paths since issue #218 — for a discovered PDF
+              this is the way *back* to the form, over the table already in
+              hand. */}
+          {state.rows.length > 0 ? <BuildFormat state={state} dispatch={dispatch} /> : null}
         </div>
       ) : null}
 

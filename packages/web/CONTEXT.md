@@ -17,9 +17,10 @@ transaction into a known issuer.
 **Statement**:
 One file exported from a bank, covering one account over a date range. The unit
 the user uploads. Comes in two shapes — a **CSV** (parsed in-browser by a
-**Parser**) or a **PDF** (turned into records by **PDF extraction**). Distinct
-from an Import — a single Statement can produce transactions across several
-import months.
+**Parser**) or a **PDF** (turned into records by **PDF extraction**, or, with no
+format to read it against, transcribed by **discovery extraction** and then
+parsed by the very same **Parser**). Distinct from an Import — a single Statement
+can produce transactions across several import months.
 _Avoid_: File, upload, export.
 
 **Account-first upload**:
@@ -81,10 +82,14 @@ fingerprint is a strict superset of the older's: requiring the most headers is
 exactly "asked the most of this file", which reads a post-change file with the
 new format and a pre-change one with the old, neither asking the user. A genuine
 tie — two formats demanding as much of each other — is not guessed at.
-The wizard runs papaparse once, then applies the selected format. CSV-only by
-design — a PDF Statement has no headers and no synchronous parse; it goes through
-**PDF extraction** instead, and a PDF format is never a detection candidate
-because it declares the columns to ask a model for rather than a fingerprint.
+The wizard runs papaparse once, then applies the selected format. What it applies
+to is a **table of string rows keyed by column names** — which a dropped CSV is,
+and which a **discovery extraction**'s transcribed statement is too since issue
+#218, so `FormatToApply` admits both halves of the format union. What still never
+reaches it is a *stored* PDF format's rows: those come back typed from **PDF
+extraction**, and a PDF format is never a **detection** candidate either, because
+it declares the columns to ask a model for rather than a fingerprint to match a
+file against.
 **The mapping decides what is promoted, never what is kept** (issue #187). Every
 record carries the whole delivered row as **raw source** — a copy, every key
 included, the mapped ones too — so a column nothing reads today is readable
@@ -127,11 +132,19 @@ was refused).
 
 **Mapping step**:
 The wizard step between upload and preview, reached only when no **Statement
-Format** applies to a dropped CSV — the three hint states above are its three
-routes, and they behave identically apart from the sentence at the top (issue
-#186). It shows the file's **real headers** as the choices and collects the
-format's name, the four mapped targets, the sign rule, the date order, the
+Format** applies to a dropped statement — the three hint states above are its
+three CSV routes, and they behave identically apart from the sentence at the top
+(issue #186). It shows the file's **real headers** as the choices and collects
+the format's name, the four mapped targets, the sign rule, the date order, the
 decimal separator and the optional row filter.
+
+Since issue #218 a **PDF** reaches it too, by a fourth route: the account has no
+PDF format, so **discovery extraction** transcribes the statement's table and
+the step opens over *that* — the bank's own columns as the choices, the
+transcribed cells under them. Nothing in the step knows which of the two it is
+looking at, because a discovered table and a parsed CSV are the same shape; the
+draft's `kind` decides the sentence at the top and which half of the format union
+the commit writes, and nothing else.
 
 It is **offered, not forced**: the picker stays on screen, so a user whose file
 one of their formats can read still picks it, and a detected format offers
@@ -188,13 +201,56 @@ carries — so the wizard settles *which* format before it sends anything. With
 exactly one PDF format on the account that costs nothing: it is the only answer
 there is and it is used without an ask. With several, the file is held in wizard
 state (`pendingPdf`) and the user picks; the model is never asked to choose the
-format as well as apply it (PRD #180). With none, the drop is refused, because a
-prompt describing French statements in general is the guessing this work removed.
-The **mapping step** does not rescue this path: it builds a format from a file's
-real headers and previews its real rows, and a PDF has neither until extraction
-has already run — which is the extraction this account cannot do. Authoring a PDF
-format is the mismatch flow's (issue #188).
+format as well as apply it (PRD #180). With none, the file waits in that same
+`pendingPdf` and the step offers **discovery extraction** instead of a picker
+(issue #218) — the drop used to be refused there.
 _Avoid_: Parsing (reserved for CSV), OCR, scanning.
+
+**Discovery extraction**:
+The other server-side act on a **PDF**, and the one that opens the **first PDF
+import** (issue #217, PRD #216): `POST /import/discover-pdf` takes a statement
+and **no format at all**, and answers with its transaction table *as printed* —
+every column in the bank's own words, every cell a string exactly as written,
+plus the **declared totals**. No **format verdict**, there being no expected
+columns to verdict against.
+
+It is a *transcription*, not an extraction, and the difference is who reads the
+values. **PDF extraction** hands back typed records the model decided; discovery
+hands back strings the *user's* format reads, through the same client-side
+pipeline a CSV runs — date order, decimal separator, sign rule, row filter. That
+is what makes asking a model for a formatless read acceptable again after issue
+#185 removed it: the answer is supervised, mapped against the statement beside
+it, and previewed before anything is written.
+
+The web side never runs it on a drop. The account having no PDF format shows an
+**offer** — *Build a format from this statement* — and the click is what spends
+the run, so a mistaken drop costs nothing (PRD #216, story 3). Its answer is
+seated as the wizard's `headers` and `rows`, which is precisely how a PDF joins
+the CSV machinery: the **mapping step** over the **file pane**, **column marks**,
+**pick mode**, the live preview, the CSV preview and one commit that writes a
+`kind: "pdf"` format before the rows. Coming back to the form after discarding
+a draft dispatches `build-format` over the table already in hand, never a second
+run.
+_Avoid_: Formatless extraction (what #185 removed was *unsupervised*, which this
+is not), auto-detection, guessing.
+
+**First PDF import**:
+The journey issue #218 opens, and the answer to a dead end: a user whose bank
+only exports PDFs could never make a first import, because extraction needs a
+**Statement Format** and no surface could author one. Drop → offer → **discovery
+extraction** → **mapping step** over the transcribed table → preview → commit,
+which saves the format and then the rows in one decision.
+
+The saved format's `columns` are **all** discovered columns, not the subset the
+mapping reads — the symmetric move to a CSV fingerprint being the whole header
+row, and what makes a bank dropping a column report a **format verdict** mismatch
+later. The mapping promotes its subset; every other column of every row is in
+the transaction's **raw source** (ADR 0012).
+
+Afterwards the account has a PDF format, so the next statement from that bank
+goes down the ordinary **PDF extraction** path with no mapping step: the feature
+costs nothing once it is set up.
+_Avoid_: PDF onboarding, setup wizard (it *is* the import), first run.
 
 **Format verdict**:
 What extraction says about the format it was given: whether the statement
@@ -346,14 +402,20 @@ every case in that file. What stays unassertable anywhere is a pane's real width
 and the pointer drag itself, jsdom laying nothing out.
 
 **File pane**:
-The dropped CSV itself, on screen in the left pane of the **split view** while
-the user works in the right one (issues #211 and #212, PRD #208): the statement's
-real header row and every one of its rows, as delivered. It is what lets a row be
-read against the line that produced it before it is skipped or committed —
+The dropped statement's own table, on screen in the left pane of the **split
+view** while the user works in the right one (issues #211 and #212, PRD #208):
+its real header row and every one of its rows, as delivered. It is what lets a
+row be read against the line that produced it before it is skipped or committed —
 which is what **side-by-side validation** has always given the PDF path and the
 CSV path never had — and, on the **mapping step**, what lets a column be picked
 by reading its values rather than by recalling them. One pane, both post-upload
-CSV steps, so the source is continuous across them.
+steps, so the source is continuous across them.
+
+**Two things arrive in it and it cannot tell them apart** (issue #218): a CSV as
+papaparse delivered it, and a PDF statement's table as **discovery extraction**
+transcribed it. Both are the bank's own columns over string cells, so both are
+marked, picked from and paired the same way — one file pane rather than a CSV one
+and a PDF one that would drift.
 
 A plain table of what the file says, and nothing more: the ISO stamp the bank
 wrote rather than `15 Jan 2026`, the bare magnitude rather than `-€10.00`. The
@@ -372,9 +434,10 @@ reason, so this is that trade extended to one more table.
 _Avoid_: File preview (the import table beside it is the preview), raw view (the
 pane is built from the *parsed* CSV, so a quoting or delimiter failure is as
 invisible here as it is anywhere), source panel.
-_Code note_: `features/import/csv-file-table.tsx`, fed the `headers` and `rows`
+_Code note_: `features/import/file-table.tsx`, fed the `headers` and `rows`
 the wizard already holds — nothing about the reducer, the parsing or the commit
-moved for it. The wizard shell drops its `max-w-3xl` cap on any step that shows
+moved for it. Named `csv-file-table.tsx` until issue #218 put a discovered PDF
+table through it. The wizard shell drops its `max-w-3xl` cap on any step that shows
 a file beside the work — the mapping step and the CSV preview as well as
 **side-by-side validation**, where the rule used to name the PDF step alone, so
 only the upload step is still a narrow column and it has no file to show.
@@ -419,7 +482,7 @@ legend, mapping overlay.
 _Code note_: `features/import/column-fields.ts` is the one list of the
 column-valued fields — each one's badge, the column the draft currently reads for
 it, and the patch that maps a column to it. `column-marks.ts` folds that list
-into a header → labels map (`ColumnMarks`); `csv-file-table.tsx` renders it and
+into a header → labels map (`ColumnMarks`); `file-table.tsx` renders it and
 carries `data-column-mark="mapped" | "active"` on every cell of a marked
 column — the named contract the tint is asserted through, jsdom laying out no
 colour. The mapping step holds the active column in component state rather than

@@ -17,7 +17,7 @@ import {
 import type { CandidateRow } from "./candidate-rows";
 import { distinctMonths } from "./commit";
 import { CommitBar } from "./commit-bar";
-import { CsvFileTable } from "./csv-file-table";
+import { FileTable } from "./file-table";
 import { keptPositions } from "./kept-rows";
 import type { ParsedTransaction } from "./parsers/types";
 import { type RowHighlight, useRowHighlight } from "./row-highlight";
@@ -161,7 +161,7 @@ export function PreviewStep({
         ratio={ratio}
         onRatioChange={setRatio}
         left={
-          <CsvFileTable
+          <FileTable
             fileName={fileName}
             headers={headers}
             rows={rows}
