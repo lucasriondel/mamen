@@ -169,6 +169,49 @@ const EVERY_ROW = `EVERY OPERATION ROW
 `;
 
 /**
+ * What is **not** an operation, shared verbatim by extraction and by discovery
+ * (issue #217).
+ *
+ * A balance line and a totals line are the two things a statement prints that
+ * look like rows and are not, and neither operation wants them: a transcription
+ * that carried `NOUVEAU SOLDE CRÉDITEUR` as a row would hand the user a row to
+ * import that is not a transaction, which is the same wrongness one step
+ * earlier. One copy, so the two operations cannot come to disagree about what a
+ * row is.
+ */
+const ROWS_TO_EXCLUDE = `ROWS TO EXCLUDE (do NOT emit these as transactions)
+- Balance lines: "ANCIEN SOLDE CRÉDITEUR", "NOUVEAU SOLDE CRÉDITEUR", any "SOLDE" line.
+  A running-balance COLUMN on an operation row does not make that row one: it is still an
+  operation, and its balance is simply another of its cells.
+- Summary lines: "TOTAL DES OPÉRATIONS", and per-product summary blocks such as
+  "SYNTHÈSE DU RELEVÉ DE COMPTE".
+- Nothing else. A row is excluded for what it IS — a balance, a total — and never for which
+  product or account it belongs to.
+`;
+
+/**
+ * The statement's own totals line (issue #196), shared verbatim for the same
+ * reason: `declaredTotals` is the same field, answering the same question, on
+ * both operations' outputs, and the client's **reconciliation check** reads it
+ * the same way whichever produced it. A second copy of the "never add them up
+ * yourself" rule is a second thing to keep in step, and the drift would show as
+ * a warning fired on a correctly-read statement.
+ */
+const DECLARED_TOTALS = `DECLARED TOTALS
+- Separately, read the statement's own "TOTAL DES OPÉRATIONS" line and return its two
+  printed figures as \`declaredTotals\`: \`debit\` = the total debit figure, \`credit\` = the
+  total credit figure. Both are POSITIVE magnitudes exactly as printed (parse French
+  numbers the same way). This is the bank's own total, not a sum you compute.
+- Not every statement prints one. If there is no such line, set \`declaredTotals\` to null.
+  Never add up the operations yourself to fill it in, and never report totals of 0 for a
+  statement that simply does not declare any — both would be your arithmetic presented as
+  the bank's.
+- A per-product "SYNTHÈSE" block is not that line. A file covering several products prints
+  one such block each and no single total over them all, so set \`declaredTotals\` to null
+  rather than picking one block or adding several together.
+`;
+
+/**
  * How to read a French bank statement, once. Shared verbatim by both prompts;
  * everything above it is transport-specific and everything in it is not — the
  * declared columns included, since a hosted vendor and the local CLI are being
@@ -199,28 +242,8 @@ LABEL
   multiple lines, MERGE them into a single string (collapse the wrapping into spaces).
 
 ${EVERY_ROW}
-ROWS TO EXCLUDE (do NOT emit these as transactions)
-- Balance lines: "ANCIEN SOLDE CRÉDITEUR", "NOUVEAU SOLDE CRÉDITEUR", any "SOLDE" line.
-  A running-balance COLUMN on an operation row does not make that row one: it is still an
-  operation, and its balance is simply another of its cells.
-- Summary lines: "TOTAL DES OPÉRATIONS", and per-product summary blocks such as
-  "SYNTHÈSE DU RELEVÉ DE COMPTE".
-- Nothing else. A row is excluded for what it IS — a balance, a total — and never for which
-  product or account it belongs to.
-
-DECLARED TOTALS
-- Separately, read the statement's own "TOTAL DES OPÉRATIONS" line and return its two
-  printed figures as \`declaredTotals\`: \`debit\` = the total debit figure, \`credit\` = the
-  total credit figure. Both are POSITIVE magnitudes exactly as printed (parse French
-  numbers the same way). This is the bank's own total, not a sum you compute.
-- Not every statement prints one. If there is no such line, set \`declaredTotals\` to null.
-  Never add up the operations yourself to fill it in, and never report totals of 0 for a
-  statement that simply does not declare any — both would be your arithmetic presented as
-  the bank's.
-- A per-product "SYNTHÈSE" block is not that line. A file covering several products prints
-  one such block each and no single total over them all, so set \`declaredTotals\` to null
-  rather than picking one block or adding several together.
-
+${ROWS_TO_EXCLUDE}
+${DECLARED_TOTALS}
 ${ROW_ARCHIVE}
 ${FORMAT_MATCH}
 Return only the structured object: the transactions with their rows as printed, the declared
@@ -258,3 +281,109 @@ ${extractionRules(columns)}`;
  */
 export const HOSTED_EXTRACTION_INSTRUCTION =
   "Extract the transactions from the attached bank statement PDF, following the rules above.";
+
+/**
+ * {@link EVERY_ROW}, worded for an operation that is discovering the columns
+ * too (issue #217).
+ *
+ * The rule is the same one and it is here twice because the *answer* differs:
+ * extraction may only record a product heading when the chosen format declares
+ * a column for it — a key the model may not invent — while discovery is
+ * building the column list, so the heading becomes a column of its own. What
+ * neither may do is choose which product belongs in the ledger; that is the
+ * user's, afterwards.
+ */
+const EVERY_DISCOVERED_ROW = `EVERY OPERATION ROW
+- One statement file may cover more than one product or account — a "Compte PEA" and a
+  "Compte courant", or a savings account printed after the current one.
+  Transcribe the operations of ALL of them, into the one table.
+- You have not been told which product this file is being imported into, so do not choose:
+  the user decides which rows belong in their ledger, after this, and a row you leave out is
+  one they can never get back.
+- When the statement prints its operations under a product or account heading, add a column
+  of your own for it — name it as the statement names the heading's kind, e.g. "Compte" —
+  and give every row printed beneath a heading that heading as its value.
+- If two products' tables are printed with different columns, \`columns\` is all of them
+  together; a row simply carries no cell for a column its own table does not print.
+`;
+
+/**
+ * The **discovery** rules (issue #217, PRD #216) — what to ask of a statement
+ * when there is no **Statement Format** to read it against.
+ *
+ * This is a *transcription*, and the difference from {@link extractionRules} is
+ * the whole ticket rather than a variation on it. There, mamen knows the columns
+ * and asks for the transaction model: a signed `amount`, an ISO `date`, a merged
+ * label. Here it knows nothing, so it asks for the table as the bank printed it
+ * and for nothing to be interpreted — which is what makes the answer
+ * *checkable*. Issue #185 removed formatless extraction because unsupervised
+ * guessing produced plausible-but-wrong rows; a transcription is the one thing
+ * the user can hold against the statement printed beside it, and mapping it is
+ * their act, in the mapping step, exactly as on the CSV path.
+ *
+ * So: every column, in the bank's own words; every cell a string as printed;
+ * nothing parsed, folded, renamed or invented. What it shares with extraction is
+ * shared verbatim — which rows are not operations ({@link ROWS_TO_EXCLUDE}) and
+ * the statement's own totals ({@link DECLARED_TOTALS}) — so the two operations
+ * cannot come to disagree about what a row is or about what the bank declared.
+ *
+ * Those totals are the one thing it parses, `declaredTotals` being a pair of
+ * numbers on both operations' outputs. The exception is spelled out right where
+ * the "exactly as printed" rule could be read as contradicting it.
+ */
+const DISCOVERY_RULES = `Transcribe this statement's transaction table exactly as it is printed. Follow these rules exactly:
+
+THE TABLE AS PRINTED
+- \`columns\`: every column header the operations table carries, left to right, in the
+  statement's own words. Do not translate them, do not rename them, do not merge two into
+  one, and do not leave one out because it looks unimportant — the user maps these to their
+  own fields afterwards, and a column you drop is one they can never map.
+- \`rows\`: one object per operation row, keyed by exactly those column headers.
+- Values are the cell text **exactly as printed**: \`1 929,71\` stays \`1 929,71\`, a Débit
+  keeps no minus sign, \`03/01\` stays \`03/01\` and is not given a year. Nothing here is
+  parsed, converted or folded — how to read these values is the user's own answer, given
+  after this, and a value you have already interpreted is one they cannot correct.
+- Every value is a string, including the ones that look like numbers or dates.
+- Omit a column this row leaves blank rather than writing an empty string.
+- A description wrapped over several printed lines is ONE cell: merge the lines into a
+  single string (collapse the wrapping into spaces). It is not two rows.
+
+NO TABLE
+- If this document carries no table of account operations at all — a payslip, a letter, a
+  contract, a scan of something else — set \`table\` to null and say nothing more.
+- Never invent columns or rows for a document that has none, and never answer with an empty
+  table instead: "there is no table here" is the answer, and it is a useful one.
+
+${EVERY_DISCOVERED_ROW}
+${ROWS_TO_EXCLUDE}
+${DECLARED_TOTALS}
+Those totals are the one exception to "exactly as printed": they are numbers, so a French
+\`1 929,71\` becomes \`1929.71\` there while the cells of the table keep it as written.
+
+Return only the structured object: the table as printed, and the declared totals.`;
+
+/** The CLI transport's discovery prompt: the model opens the staged file itself. */
+export const discoveryPrompt = (pdfPath: string): string =>
+  `You are transcribing the transaction table of a bank statement (relevé de compte) PDF.
+
+Use your Read tool to open and read the PDF at this absolute path:
+${pdfPath}
+
+${DISCOVERY_RULES}`;
+
+/**
+ * The hosted transport's discovery prompt — the same rules, and the same one
+ * paragraph of difference as the extraction pair: a vendor has no filesystem and
+ * no tools, so the statement travels as a document part instead of being named
+ * by a path on this machine.
+ */
+export const hostedDiscoveryPrompt = (): string =>
+  `You are transcribing the transaction table of a bank statement (relevé de compte) PDF.
+
+The statement is attached to the user's message as a PDF document. Read it directly — there is no file to open and no tool to call.
+
+${DISCOVERY_RULES}`;
+
+/** The discovery user turn the attached statement rides beside. */
+export const HOSTED_DISCOVERY_INSTRUCTION =
+  "Transcribe the transaction table of the attached bank statement PDF, following the rules above.";

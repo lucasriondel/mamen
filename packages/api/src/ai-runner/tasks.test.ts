@@ -2,7 +2,7 @@ import { assert, describe, it } from "@effect/vitest";
 import { AI_TASKS, ExtractPdfResult } from "@mamen/shared/contract";
 import { Effect } from "effect";
 import { extractionPrompt } from "./prompt";
-import { AI_TASK_TABLE, ExtractionOutput } from "./tasks";
+import { AI_TASK_TABLE, DiscoveryOutput, ExtractionOutput, RUN_TASK } from "./tasks";
 
 /**
  * The **task table** (issue #121) — one row, PDF extraction. What is worth a
@@ -23,14 +23,50 @@ const extract = AI_TASK_TABLE["extract-pdf"];
 /**
  * Everything from the rules heading on — the half of a prompt that says how to
  * read a statement, as opposed to the half that says how to get at one. The two
- * columns differ only above this line.
+ * columns of a row differ only above this line, and each row has its own first
+ * words: extraction opens on reading a statement, discovery on transcribing one.
  */
-const rulesOf = (prompt: string): string =>
-  prompt.slice(prompt.indexOf("Extract every real account operation"));
+const EXTRACTION_RULES_HEADING = "Extract every real account operation";
+const DISCOVERY_RULES_HEADING = "Transcribe this statement's transaction table";
 
-describe("the table covers the catalogue", () => {
-  it("has a row for every AI task, and no others", () => {
-    assert.deepStrictEqual(Object.keys(AI_TASK_TABLE).sort(), [...AI_TASKS]);
+const rulesOf = (prompt: string, heading = EXTRACTION_RULES_HEADING): string =>
+  prompt.slice(prompt.indexOf(heading));
+
+/**
+ * The table is a table of **runs** — a prompt and an output contract — while the
+ * catalogue is the vocabulary of **tasks** the user chooses a provider and model
+ * for. They were one list until discovery (issue #217), which adds a run without
+ * adding a choice: transcribing a statement with no format is PDF extraction
+ * without a format, and a second settings card would have asked the user for a
+ * distinction they do not make.
+ *
+ * So the invariant is now `RUN_TASK`, held in both directions — no run spends a
+ * choice nobody can make, and no choice sits on the settings page running
+ * nothing.
+ */
+describe("the table and the catalogue", () => {
+  it("has a row for every run, and no others", () => {
+    assert.deepStrictEqual(Object.keys(AI_TASK_TABLE).sort(), Object.keys(RUN_TASK).sort());
+  });
+
+  it("runs every row under a task the catalogue offers", () => {
+    for (const task of Object.values(RUN_TASK)) {
+      assert.include([...AI_TASKS], task);
+    }
+  });
+
+  it("leaves no task in the catalogue with nothing to run", () => {
+    const run = new Set<string>(Object.values(RUN_TASK));
+    for (const task of AI_TASKS) {
+      assert.isTrue(run.has(task), `no run spends the ${task} choice`);
+    }
+  });
+
+  // Discovery is the same file read a second way, so it spends the same stored
+  // choice — which is also what makes a missing credential fail *identically*
+  // on both operations, down to the task the error names.
+  it("runs discovery on the extraction choice", () => {
+    assert.strictEqual(RUN_TASK["discover-pdf"], RUN_TASK["extract-pdf"]);
   });
 });
 
@@ -499,4 +535,136 @@ describe("the output contract", () => {
   it("is not the endpoint's own result class", () => {
     assert.notStrictEqual(ExtractionOutput, ExtractPdfResult as unknown);
   });
+});
+
+/**
+ * The **discovery** row (issue #217, PRD #216) — the same statement, asked for
+ * with no **Statement Format** at all.
+ *
+ * What is worth pinning here is what a wrong row would break silently: that the
+ * question really is a *transcription* rather than the extraction question with
+ * the columns block missing, that the two transports differ in the one paragraph
+ * they are allowed to differ in, and that the model can say "there is no table
+ * here" — the answer the endpoint turns into `NoTransactionTable`.
+ */
+describe("the discovery row", () => {
+  const discover = AI_TASK_TABLE["discover-pdf"];
+  const DISCOVER_INPUT = { pdfPath: PDF_PATH, pdfBytes: PDF_BYTES };
+
+  it("asks for the table as printed, not for the transaction model", () => {
+    const prompt = discover.cliPrompt(DISCOVER_INPUT);
+
+    assert.include(prompt, "exactly as printed");
+    assert.include(prompt, "`columns`");
+    assert.include(prompt, "`rows`");
+    // The extraction question, and none of it: no sign to fold, no year to
+    // infer, no label to merge into a field the user has not mapped yet.
+    assert.notInclude(prompt, "SIGN CONVENTION");
+    assert.notInclude(prompt, "rawIssuerString");
+    assert.notInclude(prompt, "FORMAT MATCH");
+  });
+
+  // A column the model drops is one the user can never map, and one it renames
+  // is one they cannot recognise on the statement beside it.
+  it("asks for every column, in the bank's own words", () => {
+    const prompt = discover.cliPrompt(DISCOVER_INPUT);
+
+    assert.include(prompt, "in the\n  statement's own words");
+    assert.include(prompt, "do not leave one out");
+  });
+
+  /**
+   * The one failure discovery has of its own: a document that carries no
+   * operations table at all. The model is told to *say* so rather than to invent
+   * a table or answer with an empty one — an empty table would reach the user as
+   * a mapping step with nothing to map.
+   */
+  it("asks for a null table rather than an invented one", () => {
+    const prompt = discover.cliPrompt(DISCOVER_INPUT);
+
+    assert.include(prompt, "set `table` to null");
+    assert.include(prompt, "never answer with an empty\n  table instead");
+  });
+
+  // Shared verbatim with extraction, both of them: what a row is not, and what
+  // the bank declared. Asserted as the same text rather than as two texts that
+  // happen to agree today.
+  it("excludes the same rows extraction does, from the same copy", () => {
+    const balances = 'Balance lines: "ANCIEN SOLDE CRÉDITEUR"';
+    assert.include(discover.cliPrompt(DISCOVER_INPUT), balances);
+    assert.include(extract.cliPrompt(INPUT), balances);
+  });
+
+  it("reads the statement's declared totals by the same rules", () => {
+    const totals = "This is the bank's own total, not a sum you compute.";
+    assert.include(discover.cliPrompt(DISCOVER_INPUT), totals);
+    assert.include(extract.cliPrompt(INPUT), totals);
+  });
+
+  // The two columns, load-bearing for the same reason as extraction's: the CLI
+  // prompt names a path on this machine and a tool a vendor does not have.
+  it("keeps the CLI's path out of the hosted column", () => {
+    assert.include(discover.cliPrompt(DISCOVER_INPUT), PDF_PATH);
+    assert.notInclude(discover.hostedPrompt(DISCOVER_INPUT).text, PDF_PATH);
+    assert.notInclude(discover.hostedInstruction, PDF_PATH);
+  });
+
+  it("transcribes by exactly the CLI column's rules on a vendor too", () => {
+    assert.strictEqual(
+      rulesOf(discover.hostedPrompt(DISCOVER_INPUT).text, DISCOVERY_RULES_HEADING),
+      rulesOf(discover.cliPrompt(DISCOVER_INPUT), DISCOVERY_RULES_HEADING),
+    );
+  });
+
+  it("attaches the statement itself to the hosted turn", () => {
+    assert.deepStrictEqual(discover.hostedPrompt(DISCOVER_INPUT).document, {
+      data: PDF_BYTES,
+      mediaType: "application/pdf",
+    });
+  });
+
+  it("allows the Read tool and nothing else", () => {
+    assert.deepStrictEqual([...discover.allowedTools], ["Read"]);
+  });
+
+  /**
+   * The output contract: the table, or `null` — **required and nullable**, like
+   * extraction's `declaredTotals` and for the same reason. A silence could only
+   * be folded into a table nobody transcribed or into "no table" on a statement
+   * that has one, and the endpoint's one typed failure hangs off telling those
+   * two apart.
+   */
+  it.effect("decodes a transcribed table of string cells", () =>
+    Effect.gen(function* () {
+      const decoded = yield* discover.output.decode({
+        table: {
+          columns: ["Date", "Libellé", "Débit"],
+          rows: [{ Date: "03/01", Libellé: "CB AMAZON", Débit: "6,99" }],
+        },
+        declaredTotals: { debit: 1929.71, credit: 1947.26 },
+      });
+
+      assert.instanceOf(decoded, DiscoveryOutput);
+      assert.deepStrictEqual([...(decoded.table?.columns ?? [])], ["Date", "Libellé", "Débit"]);
+      // As printed: the comma survives the decode, because nothing here parses.
+      assert.strictEqual(decoded.table?.rows[0].Débit, "6,99");
+    }),
+  );
+
+  it.effect("takes a null table from a document that carries none", () =>
+    Effect.gen(function* () {
+      const decoded = yield* discover.output.decode({ table: null, declaredTotals: null });
+
+      assert.strictEqual(decoded.table, null);
+    }),
+  );
+
+  it.effect("refuses an answer that says nothing about the table at all", () =>
+    Effect.gen(function* () {
+      const issues = yield* Effect.flip(discover.output.decode({ declaredTotals: null }));
+
+      const [first] = issues as ReadonlyArray<{ readonly path: ReadonlyArray<PropertyKey> }>;
+      assert.deepStrictEqual([...first.path], ["table"]);
+    }),
+  );
 });

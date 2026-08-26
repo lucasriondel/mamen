@@ -1,11 +1,10 @@
 import { SqlClient } from "@effect/sql";
-import type { AiTask } from "@mamen/shared/contract";
 import { makeTaskRunner } from "ai-task-runner-effect";
 import { Effect, Option } from "effect";
 import { TaskProvider } from "../ai-tasks";
 import { readSecret } from "../secrets/repository";
 import { HostedTransport } from "./hosted";
-import { AI_TASK_TABLE } from "./tasks";
+import { AI_TASK_TABLE, type AiRun, RUN_TASK } from "./tasks";
 
 /**
  * The **AI runner** (issue #121, PRD #115) — mamen's one seam onto
@@ -54,9 +53,12 @@ export class AiRunner extends Effect.Service<AiRunner>()("api/AiRunner", {
     const runner = makeTaskRunner(
       AI_TASK_TABLE,
       {
-        // The table is keyed by `AiTask`, so its keys are the only strings the
-        // runner can pass back here.
-        resolve: (task) => tasks.resolve(task as AiTask),
+        // The table is keyed by `AiRun`, so its keys are the only strings the
+        // runner can pass back here — and each names the **AI task** whose
+        // stored provider and model it spends (`RUN_TASK`). Discovery runs on
+        // the extraction choice: same file, same vendor, one card on the
+        // settings page (issue #217).
+        resolve: (run) => tasks.resolve(RUN_TASK[run as AiRun]),
         credential: (vendor) =>
           readSecret(vendor).pipe(
             Effect.provideService(SqlClient.SqlClient, sql),

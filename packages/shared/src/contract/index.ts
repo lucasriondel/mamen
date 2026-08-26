@@ -66,13 +66,16 @@ export {
 } from "./ids";
 export {
   DeclaredTotals,
+  DiscoverPdfResult,
   ExtractedTransaction,
   ExtractionFailed,
   ExtractPdfResult,
   FormatVerdict,
   ImportGroup,
   MAX_PDF_BYTES,
+  NoTransactionTable,
   PdfUpload,
+  StatementUpload,
 } from "./import";
 export {
   Issuer,
