@@ -762,13 +762,13 @@ describe("ImportWizard", () => {
       "1 of these rows looks already imported.",
     );
 
-    await user.click(screen.getByRole("checkbox", { name: "Skip row 1" }));
+    await user.click(screen.getByRole("checkbox", { name: "Import row 1" }));
 
     // The row stays on screen — struck through, saying so, and the box that held
     // it out is the one that takes it back — and the count it was the whole of
     // goes with it.
     expect(within(importTable()).getByText("SHOP A").className).toContain("line-through");
-    expect(screen.getByRole("checkbox", { name: "Skip row 1" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Import row 1" })).not.toBeChecked();
     expect(screen.getByText("Skipped — won't be imported")).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
 
@@ -793,11 +793,11 @@ describe("ImportWizard", () => {
 
     await user.click(screen.getByRole("button", { name: "Continue to preview" }));
 
-    // One control, both ways: unchecking the box that held the row out is what
+    // One control, both ways: re-checking the box that held the row out is what
     // takes it back, so a mis-click costs the click that undoes it.
-    await user.click(await screen.findByRole("checkbox", { name: "Skip row 2" }));
-    await user.click(screen.getByRole("checkbox", { name: "Skip row 2" }));
-    expect(screen.getByRole("checkbox", { name: "Skip row 2" })).not.toBeChecked();
+    await user.click(await screen.findByRole("checkbox", { name: "Import row 2" }));
+    await user.click(screen.getByRole("checkbox", { name: "Import row 2" }));
+    expect(screen.getByRole("checkbox", { name: "Import row 2" })).toBeChecked();
 
     await user.click(screen.getByRole("button", { name: "Commit import" }));
     await waitFor(() => expect(bulkCreate).toHaveBeenCalledTimes(1));
@@ -837,7 +837,7 @@ describe("ImportWizard", () => {
     // where the user reads why it is missing here.
     expect(within(importTable()).queryByText("NOT SETTLED")).toBeNull();
 
-    await user.click(screen.getByRole("checkbox", { name: "Skip row 2" }));
+    await user.click(screen.getByRole("checkbox", { name: "Import row 2" }));
 
     expect(within(importTable()).getByText("SHOP B").className).toContain("line-through");
     expect(within(importTable()).getByText("SHOP A").className).not.toContain("line-through");
@@ -878,15 +878,17 @@ describe("ImportWizard", () => {
         .map((th) => th.textContent),
     ).toEqual(["", "Date", "Raw issuer", "Amount"]);
     expect(
-      within(table).getByRole("checkbox", { name: "Skip all shown rows" }),
+      within(table).getByRole("checkbox", { name: "Import all shown rows" }),
     ).toBeInTheDocument();
 
     // The skip is a checkbox, not the × / undo-arrow pair this path used to
-    // carry: checked *is* skipped, so one control says the state and reverses
-    // it — the same control as the PDF panel's, not merely the same look.
-    const skip = within(table).getByRole("checkbox", { name: "Skip row 1" });
-    expect(skip).not.toBeChecked();
-    expect(screen.queryByRole("button", { name: "Skip row 1" })).toBeNull();
+    // carry: checked *is* imported, so one control says the state and reverses
+    // it — the same control as the PDF panel's, not merely the same look. Every
+    // row starts checked, because the default is to import the file the user
+    // just handed over.
+    const skip = within(table).getByRole("checkbox", { name: "Import row 1" });
+    expect(skip).toBeChecked();
+    expect(screen.queryByRole("button", { name: "Import row 1" })).toBeNull();
     // It leads the row — whether the row belongs at all sits in front of the
     // values it carries.
     expect(skip.closest("td")).toBe(firstRow.firstElementChild);
@@ -946,13 +948,14 @@ describe("ImportWizard", () => {
       // are still going to commit.
       expect(screen.getByText(/2 of 4 rows/)).toBeInTheDocument();
 
-      // One click holds out the rows on screen, and only those.
-      await user.click(screen.getByRole("checkbox", { name: "Skip all shown rows" }));
+      // One click holds out the rows on screen, and only those: every row starts
+      // checked, so unchecking the header unchecks exactly the shown ones.
+      await user.click(screen.getByRole("checkbox", { name: "Import all shown rows" }));
       await user.click(screen.getByRole("button", { name: "Clear filters" }));
-      expect(screen.getByRole("checkbox", { name: "Skip row 1" })).toBeChecked();
-      expect(screen.getByRole("checkbox", { name: "Skip row 3" })).toBeChecked();
-      expect(screen.getByRole("checkbox", { name: "Skip row 2" })).not.toBeChecked();
-      expect(screen.getByRole("checkbox", { name: "Skip row 4" })).not.toBeChecked();
+      expect(screen.getByRole("checkbox", { name: "Import row 1" })).not.toBeChecked();
+      expect(screen.getByRole("checkbox", { name: "Import row 3" })).not.toBeChecked();
+      expect(screen.getByRole("checkbox", { name: "Import row 2" })).toBeChecked();
+      expect(screen.getByRole("checkbox", { name: "Import row 4" })).toBeChecked();
 
       await user.click(screen.getByRole("button", { name: "Commit import" }));
       await waitFor(() => expect(bulkCreate).toHaveBeenCalledTimes(1));
@@ -1056,7 +1059,7 @@ describe("ImportWizard", () => {
       // The import table is untouched: the parsed rows, their skips and the
       // commit rail all still there and still saying what they said.
       expect(shownCsvRows()).toEqual(["SHOP A", "SHOP B"]);
-      expect(screen.getByRole("checkbox", { name: "Skip row 1" })).toBeInTheDocument();
+      expect(screen.getByRole("checkbox", { name: "Import row 1" })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Commit import" })).toBeInTheDocument();
     });
 
@@ -1255,7 +1258,7 @@ describe("ImportWizard", () => {
       const user = userEvent.setup();
       await previewCsv(user, WITH_PENDING_FIRST);
 
-      await user.click(screen.getByRole("checkbox", { name: "Skip row 1" }));
+      await user.click(screen.getByRole("checkbox", { name: "Import row 1" }));
       await user.hover(bodyRow(importTable(), 0));
 
       expect(highlightedFileLines()).toEqual(["SHOP A"]);
@@ -1940,14 +1943,15 @@ describe("ImportWizard", () => {
         .map((th) => th.textContent),
     ).toEqual(["", "Date", "Raw issuer", "Amount"]);
     expect(
-      within(table).getByRole("checkbox", { name: "Skip all shown rows" }),
+      within(table).getByRole("checkbox", { name: "Import all shown rows" }),
     ).toBeInTheDocument();
 
     // The skip is a checkbox on the row, not the icon button it used to be:
-    // checked means skipped, so one control says the state and reverses it.
-    const skip = within(table).getByRole("checkbox", { name: "Skip row 1" });
-    expect(skip).not.toBeChecked();
-    expect(screen.queryByRole("button", { name: "Skip row 1" })).toBeNull();
+    // checked means imported, so one control says the state and reverses it, and
+    // a freshly extracted row starts checked.
+    const skip = within(table).getByRole("checkbox", { name: "Import row 1" });
+    expect(skip).toBeChecked();
+    expect(screen.queryByRole("button", { name: "Import row 1" })).toBeNull();
     // It leads the row — the decision about whether the row belongs at all sits
     // in front of the values it carries.
     expect(skip.closest("td")).toBe(rows.closest("tr")?.firstElementChild);
@@ -2153,7 +2157,7 @@ describe("ImportWizard", () => {
     // Deleting is gone — skipping subsumes it and is reversible.
     expect(screen.queryByRole("button", { name: "Delete row 1" })).toBeNull();
 
-    await user.click(screen.getByRole("checkbox", { name: "Skip row 1" }));
+    await user.click(screen.getByRole("checkbox", { name: "Import row 1" }));
 
     // The row is still on screen, struck through, and every field it offers is
     // inert: an edit to a row that will not commit is an edit thrown away.
@@ -2196,11 +2200,11 @@ describe("ImportWizard", () => {
 
     // One control both ways since issue #193: the checkbox that skipped the row
     // is the one that takes it back, so there is no second button to find.
-    const skip = await screen.findByRole("checkbox", { name: "Skip row 1" });
-    await user.click(skip);
-    expect(skip).toBeChecked();
+    const skip = await screen.findByRole("checkbox", { name: "Import row 1" });
     await user.click(skip);
     expect(skip).not.toBeChecked();
+    await user.click(skip);
+    expect(skip).toBeChecked();
 
     const issuer = screen.getByLabelText("Raw issuer, row 1");
     expect(issuer).toBeEnabled();
@@ -2249,7 +2253,7 @@ describe("ImportWizard", () => {
 
     // Skipping the row that *was* extracted leaves the added one, which is the
     // proof the skip named a row rather than the position it was clicked at.
-    await user.click(screen.getByRole("checkbox", { name: "Skip row 1" }));
+    await user.click(screen.getByRole("checkbox", { name: "Import row 1" }));
     expect(screen.getByLabelText("Raw issuer, row 2")).toBeEnabled();
 
     await user.click(screen.getByRole("button", { name: "Commit import" }));
@@ -2300,7 +2304,7 @@ describe("ImportWizard", () => {
     expect(await screen.findByTitle("PDF statement")).toBeInTheDocument();
     expect(await screen.findByText(/1 of these rows looks already imported/)).toBeInTheDocument();
 
-    await user.click(screen.getByRole("checkbox", { name: "Skip row 1" }));
+    await user.click(screen.getByRole("checkbox", { name: "Import row 1" }));
 
     // The marked row is held out, so the bar has nothing left to advise about…
     await waitFor(() => expect(screen.queryByText(/looks already imported/)).toBeNull());
@@ -2462,15 +2466,15 @@ describe("ImportWizard", () => {
       await dropFaceted(user);
 
       await chooseFacetValue(user, "TYPE", "Exécution d'ordre (2)");
-      await user.click(screen.getByRole("checkbox", { name: "Skip all shown rows" }));
+      await user.click(screen.getByRole("checkbox", { name: "Import all shown rows" }));
 
       // The two executions are held out — and they are rows 2 and 4 of the
       // statement, so the skip named rows rather than the first two positions.
       await user.click(screen.getByRole("button", { name: "Clear filters" }));
-      expect(screen.getByRole("checkbox", { name: "Skip row 2" })).toBeChecked();
-      expect(screen.getByRole("checkbox", { name: "Skip row 4" })).toBeChecked();
-      expect(screen.getByRole("checkbox", { name: "Skip row 1" })).not.toBeChecked();
-      expect(screen.getByRole("checkbox", { name: "Skip row 3" })).not.toBeChecked();
+      expect(screen.getByRole("checkbox", { name: "Import row 2" })).not.toBeChecked();
+      expect(screen.getByRole("checkbox", { name: "Import row 4" })).not.toBeChecked();
+      expect(screen.getByRole("checkbox", { name: "Import row 1" })).toBeChecked();
+      expect(screen.getByRole("checkbox", { name: "Import row 3" })).toBeChecked();
 
       await user.click(screen.getByRole("button", { name: "Commit import" }));
       await waitFor(() => expect(bulkCreate).toHaveBeenCalledTimes(1));
@@ -2485,20 +2489,21 @@ describe("ImportWizard", () => {
       const user = userEvent.setup();
       await dropFaceted(user);
 
-      // Everything is held out to begin with — the whole statement.
-      await user.click(screen.getByRole("checkbox", { name: "Skip all shown rows" }));
-      expect(screen.getByRole("checkbox", { name: "Skip row 1" })).toBeChecked();
+      // Everything is held out to begin with — the whole statement, unchecked in
+      // one click from the header.
+      await user.click(screen.getByRole("checkbox", { name: "Import all shown rows" }));
+      expect(screen.getByRole("checkbox", { name: "Import row 1" })).not.toBeChecked();
 
       // Narrow, then take the shown rows back: the rows a filter is hiding are
       // not the rows the user is looking at, and must not move.
       await chooseFacetValue(user, "TYPE", "Exécution d'ordre (2)");
-      await user.click(screen.getByRole("checkbox", { name: "Skip all shown rows" }));
+      await user.click(screen.getByRole("checkbox", { name: "Import all shown rows" }));
 
       await user.click(screen.getByRole("button", { name: "Clear filters" }));
-      expect(screen.getByRole("checkbox", { name: "Skip row 2" })).not.toBeChecked();
-      expect(screen.getByRole("checkbox", { name: "Skip row 4" })).not.toBeChecked();
-      expect(screen.getByRole("checkbox", { name: "Skip row 1" })).toBeChecked();
-      expect(screen.getByRole("checkbox", { name: "Skip row 3" })).toBeChecked();
+      expect(screen.getByRole("checkbox", { name: "Import row 2" })).toBeChecked();
+      expect(screen.getByRole("checkbox", { name: "Import row 4" })).toBeChecked();
+      expect(screen.getByRole("checkbox", { name: "Import row 1" })).not.toBeChecked();
+      expect(screen.getByRole("checkbox", { name: "Import row 3" })).not.toBeChecked();
     });
 
     it("offers every raw-source column as a hidden column, and never the three that always show", async () => {

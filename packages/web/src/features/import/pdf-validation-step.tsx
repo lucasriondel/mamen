@@ -9,7 +9,8 @@ import { CandidateFilters } from "./candidate-filters";
 import {
   CandidateTable,
   type PreviewColumn,
-  skipColumn,
+  importColumn,
+  isRowSkipped,
   SkippedNote,
   useCandidateTable,
 } from "./candidate-table";
@@ -255,7 +256,7 @@ function ExtractedRows({
   // oxlint-disable react/no-unstable-nested-components
   const columns = useMemo<ReadonlyArray<PreviewColumn<ExtractedTransaction>>>(
     () => [
-      skipColumn<ExtractedTransaction>(),
+      importColumn<ExtractedTransaction>(),
       columnHelper.accessor((candidate) => candidate.row.date, {
         id: "date",
         header: "Date",
@@ -264,7 +265,7 @@ function ExtractedRows({
             type="date"
             aria-label={`Date, row ${row.original.index + 1}`}
             value={toDateInputValue(row.original.row.date)}
-            disabled={row.getIsSelected()}
+            disabled={isRowSkipped(row)}
             onChange={(event) =>
               dispatch({
                 type: "edit-extracted",
@@ -272,7 +273,7 @@ function ExtractedRows({
                 patch: { date: fromDateInputValue(event.target.value) },
               })
             }
-            className={fieldClass(row.getIsSelected())}
+            className={fieldClass(isRowSkipped(row))}
           />
         ),
       }),
@@ -280,7 +281,7 @@ function ExtractedRows({
         id: "rawIssuer",
         header: "Raw issuer",
         cell: ({ row }) => {
-          const isSkipped = row.getIsSelected();
+          const isSkipped = isRowSkipped(row);
           return (
             <div className="flex flex-col items-start gap-1">
               <input
@@ -310,7 +311,7 @@ function ExtractedRows({
           <AmountInput
             label={`Amount, row ${row.original.index + 1}`}
             value={row.original.row.amount}
-            disabled={row.getIsSelected()}
+            disabled={isRowSkipped(row)}
             onChange={(amount) =>
               dispatch({
                 type: "edit-extracted",

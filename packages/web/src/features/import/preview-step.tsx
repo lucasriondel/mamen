@@ -8,7 +8,8 @@ import { CandidateFilters } from "./candidate-filters";
 import {
   CandidateTable,
   type PreviewColumn,
-  skipColumn,
+  importColumn,
+  isRowSkipped,
   SkippedNote,
   strikeWhileSkipped,
   useCandidateTable,
@@ -252,12 +253,12 @@ function PreviewTable({
   // oxlint-disable react/no-unstable-nested-components
   const columns = useMemo<ReadonlyArray<PreviewColumn<ParsedTransaction>>>(
     () => [
-      skipColumn<ParsedTransaction>(),
+      importColumn<ParsedTransaction>(),
       columnHelper.accessor((candidate) => candidate.row.date, {
         id: "date",
         header: "Date",
         cell: ({ row }) => (
-          <span className={`tabular-nums ${strikeWhileSkipped(row.getIsSelected())}`}>
+          <span className={`tabular-nums ${strikeWhileSkipped(isRowSkipped(row))}`}>
             {formatShortDate(row.original.row.date)}
           </span>
         ),
@@ -267,11 +268,11 @@ function PreviewTable({
         header: "Raw issuer",
         cell: ({ row }) => (
           <span className="flex flex-wrap items-center gap-2">
-            <span className={strikeWhileSkipped(row.getIsSelected())}>
+            <span className={strikeWhileSkipped(isRowSkipped(row))}>
               {row.original.row.rawIssuerString}
             </span>
             {row.original.duplicate ? <AlreadyImportedMark /> : null}
-            {row.getIsSelected() ? <SkippedNote /> : null}
+            {isRowSkipped(row) ? <SkippedNote /> : null}
           </span>
         ),
       }),
@@ -280,7 +281,7 @@ function PreviewTable({
         header: () => <span className="block text-right">Amount</span>,
         cell: ({ row }) => (
           <span
-            className={`block text-right tabular-nums ${strikeWhileSkipped(row.getIsSelected())} ${
+            className={`block text-right tabular-nums ${strikeWhileSkipped(isRowSkipped(row))} ${
               row.original.row.amount < 0 ? "text-gousse-high" : "text-gousse-low"
             }`}
           >
