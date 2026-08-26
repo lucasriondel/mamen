@@ -380,6 +380,28 @@ repeated per package.
   [ADR 0005](./docs/adr/0005-pdf-extraction-runs-server-side.md) and
   [ADR 0014](./docs/adr/0014-pdf-extraction-is-account-aware-through-its-format.md).
 
+- **Discovery extraction** — the other way a PDF statement is read: with **no
+  Statement Format at all**, transcribing the transaction table *as printed* —
+  every column under the bank's own labels, every cell a string, plus the
+  **declared totals** (issue #217, PRD #216). It is what makes a *first* PDF
+  import possible, an account with no format having nothing to name; the
+  discovered columns are then mapped in the shared mapping step and read by the
+  same client-side parsing pipeline the CSV path uses.
+  A **second operation** beside **server-side extraction**, never an optional
+  `formatId` on it: the two differ in prompt, in answer and in what they promise,
+  and folding them together would restore the "read it however you can" contract
+  issue #185 removed. It carries **no format verdict** — there are no expected
+  columns to verdict against — and a file with no transaction table is a typed
+  **`NoTransactionTable`** rather than an empty table, because an empty table
+  would reach the user as a mapping step with nothing to map.
+  It is *transcription*, not canonical extraction: nothing is parsed, folded or
+  renamed, which is what lets the user check it against the statement beside it —
+  the supervision #185's unsupervised guessing lacked. It spends the same **task
+  choice** as extraction (there is no second **AI task** to configure), so a
+  missing credential fails identically on both.
+  _Avoid_: format detection, auto-mapping (the model transcribes; assigning the
+  columns to the transaction model is the user's act).
+
 - **Format verdict** — what **PDF extraction** reports about the **Statement
   Format** it was given: `{ matched, missingColumns }` — whether the statement
   carried every column that format declares, and which expected ones it did not
@@ -432,7 +454,7 @@ repeated per package.
   _Avoid_: LLM client, AI service (it runs named tasks; it is not a wrapper
   around a model API).
 
-- **Task table** — every **AI task** as data: its output contract, the tools the
+- **Task table** — every **AI run** as data: its output contract, the tools the
   CLI may reach for, and **two prompt columns**, one per transport. Two, not one,
   and deliberately so: the CLI prompt runs with tools and may name things only
   this machine has — the absolute path of the staged PDF, which the model opens
@@ -473,7 +495,16 @@ repeated per package.
   the set worth offering, not the set that exists).
 
 - **AI task** — a job an **AI provider** and model can be chosen for. One member,
-  `extract-pdf`: pulling transactions out of an uploaded PDF bank statement.
+  `extract-pdf`: reading an uploaded PDF bank statement.
+  _Avoid_: confusing it with an **AI run**. A task is a *choice the user makes*
+  on the settings page; a run is a prompt and an output contract. They were the
+  same list until **discovery extraction**, which added a run and no choice.
+
+- **AI run** — one row of the **task table**: a question put to a model, with its
+  own prompts and its own output contract. Two of them, `extract-pdf` and
+  `discover-pdf`, and each names the **AI task** whose **task choice** it spends
+  — discovery spending extraction's, since it is the same statement read a second
+  way and not a second thing to configure.
 
 - **Task choice** — which **AI provider** and which of its models runs one **AI
   task**. One stored row per task, and an absent row means *the default*

@@ -272,8 +272,8 @@ configured**). The binary path and the timeout stay environment configuration:
 they are facts about the machine, not credentials.
 
 **Provider not configured**:
-`AiProviderNotConfigured` (501) — the single failure `import/extract.ts` holds
-**out of** the collapse into `ExtractionFailed`. Three upstream tags mean the
+`AiProviderNotConfigured` (501) — the single failure `import/pdf-run.ts` holds
+**out of** the collapse into `ExtractionFailed`, for both PDF operations. Three upstream tags mean the
 same thing to whoever uploaded the file (no Claude Code token; the runner finding
 no key for a hosted vendor; the resolver's `no-credential` refusal) and have the
 same answer — paste a credential — so they become one named error that names the
@@ -281,12 +281,20 @@ task and the provider. `TaskProviderRejected`'s *other* reasons are deliberately
 not folded in: a model the vendor does not serve is a different fix, and sending
 the user to store a key would send them to fix the wrong thing. Everything else
 still collapses, and the mapper answers `null` by default so that stays the rule
-rather than a list somebody has to keep exhaustive.
+rather than a list somebody has to keep exhaustive. It names `extract-pdf`
+whichever operation ran, because both spend that one **task choice** (issue
+#217): a **discovery extraction** that failed for want of a credential is fixed
+on exactly the same tile.
 
 **Task table**:
-`ai-runner/tasks.ts` — every **AI task** as data: the output contract, the CLI's
-tool allowance, and **two prompt columns**. Typed `Record<AiTask, TaskSpec<…>>`,
-so a task added to the catalogue does not compile until it has a row. The two
+`ai-runner/tasks.ts` — every **AI run** as data: the output contract, the CLI's
+tool allowance, and **two prompt columns**. Two rows since issue #217:
+`extract-pdf` and `discover-pdf`. Typed `Record<AiRun, TaskSpec<…>>` rather than
+by `AiTask`, which those were the same list until **discovery extraction** — a
+*run* is a prompt and an output contract, a **task** is a choice of provider and
+model on the settings page, and discovery adds one without the other. `RUN_TASK`
+is the link and is checked both ways (`tasks.test.ts`): no run spends a choice
+nobody can make, and no task sits on the settings page running nothing. The two
 columns are load-bearing: the CLI prompt names the absolute path of the staged
 PDF and tells the model to open it with its own `Read` tool, which a hosted
 vendor can neither act on nor be shown. The hosted column instead returns
@@ -384,6 +392,37 @@ reached. What has not changed is the answer: still candidates keyed to nothing,
 with account, batch and month stamped client-side at commit.
 _Avoid_: format detection (the model is never asked to pick the format as well as
 apply it — the choice is the user's, or arithmetic when there is exactly one).
+
+**Discovery extraction**:
+`POST /import/discover-pdf` (`import/discover.ts`, issue #217, PRD #216) — a
+statement read with **no Statement Format**, which is the state a *first* PDF
+import is in. It answers with the transaction table as printed: `columns` in the
+bank's own words and order, `rows` of string cells keyed by them, and the
+**declared totals**. No `formatId` on the way in, no **format verdict** on the
+way out, and nothing parsed — the client-side pipeline reads these strings once
+the user has mapped the columns, which is the same division of labour as the CSV
+path.
+A **second operation** beside `extractPdf`, not an optional field on it: the two
+differ in prompt, response and invariants, and an optional `formatId` would have
+re-opened the "read it however you can" contract issue #185 closed. What makes
+asking a model for a formatless read acceptable again is that this one is
+*supervised* — a transcription is checkable against the statement beside it,
+where the old canonical guess was not.
+Two folds are the endpoint's (`discover.ts`), the same shape as the verdict's: a
+model's `table: null` — and a table with no columns or no rows, which say the
+same thing — becomes `NoTransactionTable` (422), because an empty table would
+reach the user as a mapping step with nothing to map; and each row is re-keyed to
+the declared columns, so a cell filed under a name the header row does not carry
+is dropped rather than travelling as a column no format can declare. The cost is
+named: a real statement covering a period with no operations reads as "no
+transaction table".
+It runs the `discover-pdf` row of the **task table** under the **`extract-pdf`
+task's** stored choice, so there is no second card on the AI settings page and
+**provider-unconfigured fails identically** — same tag, same task, same provider.
+Staging, the `Read` allowance and the failure collapse are `import/pdf-run.ts`,
+shared with extraction: each is a promise about a bank statement, and a second
+operation quietly keeping the file would be a hole nobody reading either handler
+could see.
 
 **Hosted document part**:
 The statement's bytes reach the task through `ExtractPdfInput.pdfBytes`, read by

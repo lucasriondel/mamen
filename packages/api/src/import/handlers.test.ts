@@ -11,6 +11,7 @@ import {
   Api,
   ExtractionFailed,
   InvalidFileType,
+  NoTransactionTable,
   NotFound,
 } from "@mamen/shared/contract";
 import type { HostedGenerate } from "ai-task-runner-effect";
@@ -218,6 +219,20 @@ const pdfFormData = (
   const fd = new FormData();
   fd.append("file", new File([bytes], filename, { type: mime }));
   fd.append("formatId", String(formatId));
+  return fd;
+};
+
+/**
+ * A **discovery** upload (issue #217): the file, and **nothing else**. No
+ * `formatId`, because there is no format — that is the dead end that operation
+ * exists to open.
+ */
+const statementFormData = (
+  mime = "application/pdf",
+  bytes: Uint8Array<ArrayBuffer> = PDF_MAGIC,
+): FormData => {
+  const fd = new FormData();
+  fd.append("file", new File([bytes], "RLV_CHQ1_LUCAS_RIO_001.pdf", { type: mime }));
   return fd;
 };
 
@@ -1523,6 +1538,258 @@ describe("a hosted provider extracts the statement", () => {
         ),
       ),
       Effect.ensuring(restore),
+    );
+  });
+});
+
+/**
+ * **Discovery extraction** (issue #217, PRD #216) — the first PDF import, where
+ * the account has no **Statement Format** at all and therefore no columns to
+ * read the statement against.
+ *
+ * The operation transcribes the statement's transaction table *as printed*:
+ * every column under the bank's own labels, every cell a string, plus the
+ * statement's **declared totals**. It is deliberately a second operation rather
+ * than an optional `formatId` on `extractPdf` — the two differ in prompt, in
+ * response shape and in what they promise — so every test here posts a body
+ * carrying nothing but the file, against a database in which no format has been
+ * stored.
+ */
+describe("discoverPdf transcribes a statement with no format", () => {
+  /**
+   * The canned transcription the deep-fake `claude` returns: the CCF statement's
+   * table as the bank printed it. Values are strings — `6,99`, not `-6.99` —
+   * because nothing here is parsed; the client-side pipeline reads them once the
+   * user has mapped the columns.
+   *
+   * `table` is nullable in the model's answer, which is how it *says* the
+   * document carries no transaction table (see below); the rows and columns are
+   * inside it so that "there is no table" cannot be spelled two ways.
+   */
+  const CCF_TABLE = {
+    table: {
+      columns: ["Date", "Valeur", "Libellé", "Débit", "Crédit"],
+      rows: [
+        { Date: "03/01", Valeur: "03/01", Libellé: "CB AMAZON", Débit: "6,99" },
+        { Date: "15/01", Valeur: "15/01", Libellé: "VIR SALAIRE ACME", Crédit: "1 947,26" },
+      ],
+    },
+    declaredTotals: { debit: 1929.71, credit: 1947.26 },
+  };
+
+  /** The canned transcription, or a variation of it, on the CLI transport. */
+  const transcribing =
+    (object: unknown): SpawnHandler =>
+    () =>
+      Effect.succeed({ stdout: okEnvelope(object), stderr: "", exitCode: 0 });
+
+  // The shape, in full: the bank's own column labels in the order it printed
+  // them, one object per operation row keyed by those labels, and the
+  // statement's own totals line.
+  it.effect("returns every column as printed, and rows of strings keyed by them", () =>
+    Effect.gen(function* () {
+      const client = yield* HttpApiClient.make(Api);
+      const result = yield* client.import.discoverPdf({ payload: statementFormData() });
+
+      assert.deepStrictEqual([...result.columns], ["Date", "Valeur", "Libellé", "Débit", "Crédit"]);
+      assert.strictEqual(result.rows.length, 2);
+      assert.deepStrictEqual(
+        { ...result.rows[0] },
+        { Date: "03/01", Valeur: "03/01", Libellé: "CB AMAZON", Débit: "6,99" },
+      );
+      // As printed, not as read: the French number keeps its comma and the
+      // debit keeps no sign. Parsing is the client's, after the mapping.
+      assert.deepStrictEqual(
+        { ...result.rows[1] },
+        { Date: "15/01", Valeur: "15/01", Libellé: "VIR SALAIRE ACME", Crédit: "1 947,26" },
+      );
+      assert.deepStrictEqual(result.declaredTotals, { debit: 1929.71, credit: 1947.26 });
+    }).pipe(Effect.provide(httpLiveWith(transcribing(CCF_TABLE)))),
+  );
+
+  /**
+   * **No format verdict.** There are no expected columns to verdict against —
+   * the whole point of discovery is that the user has no format yet — so the
+   * field is not merely empty here, it does not exist. A `matched: true` would
+   * claim agreement with a format nobody chose.
+   */
+  it.effect("carries no format verdict, there being no format to judge", () =>
+    Effect.gen(function* () {
+      const client = yield* HttpApiClient.make(Api);
+      const result = yield* client.import.discoverPdf({ payload: statementFormData() });
+
+      assert.notProperty(result, "verdict");
+    }).pipe(Effect.provide(httpLiveWith(transcribing(CCF_TABLE)))),
+  );
+
+  /**
+   * A statement with no transaction table is a **typed error**, not a 200
+   * carrying an empty table. An empty table reads as "this bank prints no
+   * columns" and would put the user in a mapping step with nothing to map;
+   * naming the failure tells them the file is the problem (PRD #216, story 20).
+   *
+   * Three ways the model can say it, one answer — `null` is what it is asked
+   * for, and the two degenerate tables are what a model says instead when it
+   * answers the letter of the schema rather than the question.
+   */
+  const NOTHING_TO_TRANSCRIBE = [
+    { said: "there is no table", object: { table: null, declaredTotals: null } },
+    {
+      said: "a table with no columns",
+      object: { table: { columns: [], rows: [] }, declaredTotals: null },
+    },
+    {
+      said: "columns but not one row",
+      object: { table: { columns: ["Date", "Libellé"], rows: [] }, declaredTotals: null },
+    },
+  ] as const;
+
+  for (const answer of NOTHING_TO_TRANSCRIBE) {
+    it.effect(`fails with NoTransactionTable when the model says ${answer.said}`, () =>
+      Effect.gen(function* () {
+        const client = yield* HttpApiClient.make(Api);
+        const error = yield* client.import
+          .discoverPdf({ payload: statementFormData() })
+          .pipe(Effect.flip);
+
+        assert.ok(error instanceof NoTransactionTable);
+      }).pipe(Effect.provide(httpLiveWith(transcribing(answer.object)))),
+    );
+  }
+
+  /**
+   * The rows are keyed by the columns the table declares, and the endpoint holds
+   * itself to that: a cell the model filed under a name the header row does not
+   * carry is dropped, rather than travelling as a column no format can ever
+   * declare. Spelling is the model's — the column is the table's — so a cell
+   * under `" débit "` still lands under `Débit`, the same trimmed, case-folded
+   * reading the **format verdict** uses.
+   */
+  it.effect("keys every cell by a declared column, and drops one that is not", () =>
+    Effect.gen(function* () {
+      const client = yield* HttpApiClient.make(Api);
+      const result = yield* client.import.discoverPdf({ payload: statementFormData() });
+
+      assert.deepStrictEqual(
+        { ...result.rows[0] },
+        { Date: "03/01", Libellé: "CB AMAZON", Débit: "6,99" },
+      );
+    }).pipe(
+      Effect.provide(
+        httpLiveWith(
+          transcribing({
+            table: {
+              columns: ["Date", "Libellé", "Débit"],
+              rows: [{ Date: "03/01", Libellé: "CB AMAZON", " débit ": "6,99", Solde: "1 000,00" }],
+            },
+            declaredTotals: null,
+          }),
+        ),
+      ),
+    ),
+  );
+
+  // The same fold `extractPdf` makes (issue #196): a statement that prints no
+  // `TOTAL DES OPÉRATIONS` declares none, so the field is absent rather than a
+  // pair of zeroes the reconciliation banner would compare against.
+  it.effect("leaves the declared totals absent when the statement prints none", () =>
+    Effect.gen(function* () {
+      const client = yield* HttpApiClient.make(Api);
+      const result = yield* client.import.discoverPdf({ payload: statementFormData() });
+
+      assert.notProperty(result, "declaredTotals");
+      assert.strictEqual(result.rows.length, 2);
+    }).pipe(Effect.provide(httpLiveWith(transcribing({ ...CCF_TABLE, declaredTotals: null })))),
+  );
+
+  it.effect("rejects a non-PDF upload with InvalidFileType (415)", () =>
+    Effect.gen(function* () {
+      const client = yield* HttpApiClient.make(Api);
+      const error = yield* client.import
+        .discoverPdf({ payload: statementFormData("image/png") })
+        .pipe(Effect.flip);
+
+      assert.ok(error instanceof InvalidFileType);
+      assert.strictEqual(error.received, "image/png");
+    }).pipe(Effect.provide(httpLiveWith(transcribing(CCF_TABLE)))),
+  );
+
+  // Everything upstream still collapses to the opaque, retry-able 502 (ADR
+  // 0005) — discovery is a second operation, not a second failure taxonomy.
+  it.effect("collapses a spawn failure to ExtractionFailed (502)", () =>
+    Effect.gen(function* () {
+      const client = yield* HttpApiClient.make(Api);
+      const error = yield* client.import
+        .discoverPdf({ payload: statementFormData() })
+        .pipe(Effect.flip);
+
+      assert.ok(error instanceof ExtractionFailed);
+    }).pipe(
+      Effect.provide(
+        httpLiveWith(() =>
+          Effect.fail(new BadArgument({ module: "Command", method: "start", description: "boom" })),
+        ),
+      ),
+    ),
+  );
+
+  /**
+   * **Provider-unconfigured fails identically to `extractPdf`** — the same tag,
+   * the same task and the same provider, because discovery runs on the *same*
+   * stored choice: it is PDF extraction without a format, not a second thing for
+   * the user to configure. A second task in the catalogue would have put a
+   * second card on the AI settings page and made this error name a task the user
+   * has never seen.
+   */
+  it.effect("fails with AiProviderNotConfigured when no token has been pasted", () => {
+    let spawned = false;
+    return Effect.gen(function* () {
+      const client = yield* HttpApiClient.make(Api);
+      const error = yield* client.import
+        .discoverPdf({ payload: statementFormData() })
+        .pipe(Effect.flip);
+
+      assert.ok(error instanceof AiProviderNotConfigured);
+      assert.strictEqual(error.task, "extract-pdf");
+      assert.strictEqual(error.provider, "claude-code");
+      assert.isFalse(spawned);
+    }).pipe(
+      Effect.provide(
+        httpLiveWithStoredToken(() => {
+          spawned = true;
+          return Effect.succeed({
+            stdout: okEnvelope(CCF_TABLE),
+            stderr: "",
+            exitCode: 0,
+          });
+        }),
+      ),
+    );
+  });
+
+  // The **transient temp dir** is the endpoint's own, not the shared helper's
+  // by assumption: a handler that forgot `Effect.scoped` would leave the
+  // statement on disk after answering (ADR 0005).
+  it.effect("deletes the staged statement afterwards", () => {
+    let dir = "";
+    return Effect.gen(function* () {
+      const client = yield* HttpApiClient.make(Api);
+      yield* client.import.discoverPdf({ payload: statementFormData() });
+
+      assert.match(dir, /mamen-pdf-/);
+      assert.isFalse(existsSync(dir));
+    }).pipe(
+      Effect.provide(
+        httpLiveWith((input) => {
+          dir = stagedIn(input.args);
+          assert.isTrue(existsSync(`${dir}/statement.pdf`));
+          return Effect.succeed({
+            stdout: okEnvelope(CCF_TABLE),
+            stderr: "",
+            exitCode: 0,
+          });
+        }),
+      ),
     );
   });
 });

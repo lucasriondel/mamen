@@ -146,6 +146,62 @@ export class ExtractPdfResult extends Schema.Class<ExtractPdfResult>("ExtractPdf
 }) {}
 
 /**
+ * Success payload for `discoverPdf` (issue #217, PRD #216): the statement's
+ * transaction table **as printed**, plus the totals it declares. No database
+ * write happened and nothing is keyed to an account — the same promise
+ * `extractPdf` makes (ADR 0005).
+ *
+ * The three things it is, and one thing it is not:
+ *
+ * - `columns` — every column the table carries, in the bank's own words and in
+ *   the order it printed them. Not a mapping and not a guess at one: which
+ *   column holds the date is the user's answer, given in the mapping step
+ *   against the statement itself, exactly as on the CSV path.
+ * - `rows` — one object per operation row, keyed by those columns, **every cell
+ *   a string exactly as printed**. `1 929,71` stays `1 929,71` and a debit
+ *   carries no sign: date order, decimal separator and sign rules are the
+ *   client-side parsing pipeline's, run over these strings once the mapping
+ *   names the columns. A cell the row leaves blank is absent rather than empty.
+ * - `declaredTotals` — the statement's own totals line, **absent when it prints
+ *   none**, the same fold and for the same reason as
+ *   {@link ExtractPdfResult.declaredTotals} (issue #196).
+ * - **No {@link FormatVerdict}.** There are no expected columns to verdict
+ *   against — the account has no format, which is the dead end this operation
+ *   opens — so the field is missing rather than empty. A `matched: true` would
+ *   claim agreement with a format nobody chose.
+ *
+ * A result always carries at least one column and at least one row: a statement
+ * with no transaction table is {@link NoTransactionTable}, never an empty table.
+ */
+export class DiscoverPdfResult extends Schema.Class<DiscoverPdfResult>("DiscoverPdfResult")({
+  columns: Schema.Array(Schema.String),
+  rows: Schema.Array(Schema.Record({ key: Schema.String, value: Schema.String })),
+  declaredTotals: Schema.optional(DeclaredTotals),
+}) {}
+
+/**
+ * The uploaded PDF carries no transaction table this operation could transcribe
+ * (issue #217, PRD #216) — a payslip, a bank's marketing letter, a scan of
+ * nothing.
+ *
+ * A **typed error rather than an empty table**, because the two would be told
+ * apart nowhere else: a `DiscoverPdfResult` with no columns puts the user in a
+ * mapping step with nothing to map, and reads as "this bank prints no columns"
+ * rather than as "this file is not a statement". Naming it is what lets the
+ * wizard say which of the two happened, and the file is the one thing the user
+ * can do something about.
+ *
+ * 422 (Unprocessable Content): the request was well-formed and a PDF was really
+ * read — nothing failed upstream, so the retry-able 502 next door would be a
+ * lie, and a retry cannot turn this file into a statement.
+ */
+export class NoTransactionTable extends Schema.TaggedError<NoTransactionTable>()(
+  "NoTransactionTable",
+  {},
+  HttpApiSchema.annotations({ status: 422 }),
+) {}
+
+/**
  * Extraction failed for any reason the server couldn't turn into a useful
  * client action. The whole `claude-code-effect` failure taxonomy (spawn /
  * invocation / API / parse / timeout / schema) collapses to this single tag —
@@ -188,6 +244,29 @@ export const PdfUpload = HttpApiSchema.Multipart(
 );
 
 /**
+ * The multipart upload payload for `discoverPdf` (issue #217): the statement
+ * under `file`, and **nothing else**.
+ *
+ * No `formatId`, and that absence is the operation: discovery is what the user
+ * reaches for when the account has no **Statement Format** to name — the first
+ * PDF import, or a statement none of the saved formats fits. `extractPdf` keeps
+ * its mandatory one, so #185's contract is preserved rather than weakened by an
+ * optional field that would make "read against a format" a caller's choice.
+ *
+ * `maxParts` is 1 for the same reason it is 2 there: the parts this endpoint
+ * reads, and no others. The cap and the `application/pdf` allow-list are
+ * unchanged — the same {@link MAX_PDF_BYTES}, and the handler enforcing the MIME
+ * type as {@link InvalidFileType}.
+ */
+export const StatementUpload = HttpApiSchema.Multipart(
+  Schema.Struct({ file: Multipart.SingleFileSchema }),
+  {
+    maxFileSize: Option.some(MAX_PDF_BYTES),
+    maxParts: Option.some(1),
+  },
+);
+
+/**
  * Import group, prefix `/import`. The server-side half of PDF import: a single
  * `POST /import/extract-pdf` takes a PDF bank statement **and the Statement
  * Format to read it with**, and returns candidate transactions with no database
@@ -206,6 +285,20 @@ export const PdfUpload = HttpApiSchema.Multipart(
  * extraction failure taxonomy) and {@link AiProviderNotConfigured} (issue #122 —
  * the one extraction failure the client can act on, held out of the collapse
  * precisely so it can be told apart from a retry-able one).
+ *
+ * `discoverPdf` (issue #217, PRD #216) is the **second** operation, beside it
+ * rather than inside it: `POST /import/discover-pdf` takes a statement with no
+ * format at all and transcribes its table as printed. The two are separate
+ * because they differ in every part of the answer — discovery returns the bank's
+ * own columns and string cells and **no format verdict**, having nothing to
+ * verdict against — and because folding them into one endpoint would have made
+ * `formatId` optional, which is exactly the "read it however you can" contract
+ * issue #185 removed.
+ *
+ * It declares {@link InvalidFileType}, {@link NoTransactionTable} (the file
+ * carries no transaction table — the one failure that is about the *file*),
+ * {@link ExtractionFailed} and {@link AiProviderNotConfigured}. No
+ * {@link NotFound}: there is no format to look up, which is the point.
  */
 export class ImportGroup extends HttpApiGroup.make("import")
   .add(
@@ -214,6 +307,15 @@ export class ImportGroup extends HttpApiGroup.make("import")
       .addSuccess(ExtractPdfResult)
       .addError(InvalidFileType)
       .addError(NotFound)
+      .addError(ExtractionFailed)
+      .addError(AiProviderNotConfigured),
+  )
+  .add(
+    HttpApiEndpoint.post("discoverPdf")`/import/discover-pdf`
+      .setPayload(StatementUpload)
+      .addSuccess(DiscoverPdfResult)
+      .addError(InvalidFileType)
+      .addError(NoTransactionTable)
       .addError(ExtractionFailed)
       .addError(AiProviderNotConfigured),
   )
