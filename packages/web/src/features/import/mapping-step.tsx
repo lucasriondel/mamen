@@ -29,14 +29,16 @@ const PREVIEW_ROWS = 10;
 /**
  * What this step's split shows until the user has dragged anything.
  *
- * Sixty-forty, the PDF step's ratio rather than the CSV preview's even one: the
- * file is what is being read *from* here — the answer to "which column holds the
- * label" is in its values — while the right pane holds a column of selects that
- * needs no width at all. The preview step's two panes are both tables of the
- * same rows, so it splits them evenly. The first drag replaces every one of
+ * Eighty-twenty, the widest the divider goes at all ({@link MAX_SPLIT_RATIO}).
+ * The file is what is being read *from* here — the answer to "which column holds
+ * the label" is in its values, and a statement column of French labels or IBANs
+ * is only settled by seeing it untruncated — while the right pane holds a column
+ * of selects, each of which is as readable narrow as wide. The PDF step's
+ * sixty-forty and the CSV preview's even split both weigh two panes that carry
+ * comparable content; this step does not. The first drag replaces every one of
  * these (issue #210).
  */
-const MAPPING_SPLIT_DEFAULT = 0.6;
+const MAPPING_SPLIT_DEFAULT = 0.8;
 
 /**
  * Why the user is here, in a sentence naming their own file.

@@ -3832,8 +3832,9 @@ describe("ImportWizard", () => {
       withFormats();
       await dropFrenchCsv(user);
 
-      // The file is what is being read *from* here, so it takes the greater share.
-      expect(paneDivider()).toHaveAttribute("aria-valuenow", "60");
+      // The file is what is being read *from* here, so it takes nearly all of the
+      // width — the widest the divider goes at all.
+      expect(paneDivider()).toHaveAttribute("aria-valuenow", "80");
 
       await mapFrenchColumns(user);
       await user.click(screen.getByRole("button", { name: "Continue to preview" }));
@@ -3850,7 +3851,10 @@ describe("ImportWizard", () => {
       withFormats();
       await dropFrenchCsv(user);
 
-      await dragDivider(user, 2);
+      // Left, because this step opens at the widest the divider goes: dragging
+      // right from 80 would be clamped back to it, and a case whose value cannot
+      // move proves nothing about what is carried.
+      await dragDivider(user, -2);
       expect(paneDivider()).toHaveAttribute("aria-valuenow", "70");
 
       await mapFrenchColumns(user);
