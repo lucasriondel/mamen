@@ -74,7 +74,7 @@ const TIED_CSV_FORMAT = {
  * several it asks which — so those cases stand a list up per case as well, from
  * the builders below.
  */
-const MAPPING = { date: "Date", rawIssuerString: "Libellé", counterpartyIban: null };
+const MAPPING = { date: "Date", rawIssuerString: ["Libellé"], counterpartyIban: null };
 const RULES = {
   sign: { strategy: "debit-credit-columns", debitColumn: "Débit", creditColumn: "Crédit" },
   dateOrder: "day-first",
@@ -302,7 +302,7 @@ async function dropFrenchCsv(user: ReturnType<typeof userEvent.setup>) {
 async function mapFrenchColumns(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText("Format name"), "CCF");
   await user.selectOptions(screen.getByLabelText("Operation date column"), "Date opération");
-  await user.selectOptions(screen.getByLabelText("Operation label column"), "Libellé");
+  await user.selectOptions(screen.getByLabelText("Operation label columns"), "Libellé");
   await user.selectOptions(
     screen.getByLabelText("How the amount is signed"),
     "debit-credit-columns",
@@ -454,6 +454,30 @@ function pickControls(): string[] {
     .map((button) =>
       (button.getAttribute("aria-label") ?? "").replace(/^Pick the | column.*$/g, ""),
     );
+}
+
+/**
+ * The columns the **Label** reads, in the order they will be joined — the
+ * chips, which is where a list-valued field's answer is shown rather than in a
+ * select (PRD #208).
+ *
+ * Read off the list's own items, so the order asserted is the order drawn.
+ */
+function labelColumns(): string[] {
+  const list = screen.queryByRole("list", { name: "Label columns, in order" });
+  if (list === null) return [];
+  return (
+    within(list)
+      .getAllByRole("listitem")
+      // The chip carries its place in the list before its name; the assertion is
+      // about which columns and in what order, not about the numbering.
+      .map((item) => (item.textContent ?? "").replace(/^\d+/, "").replace(/×$/, "").trim())
+  );
+}
+
+/** Take one column back out of the Label, the way its chip offers. */
+async function removeLabelColumn(user: ReturnType<typeof userEvent.setup>, column: string) {
+  await user.click(screen.getByRole("button", { name: `Remove ${column} from the Label columns` }));
 }
 
 /** The control that opens pick mode for one field. */
@@ -2960,7 +2984,7 @@ describe("ImportWizard", () => {
 
       await user.type(await screen.findByLabelText("Format name"), "Green-Got");
       await user.selectOptions(screen.getByLabelText("Operation date column"), "Date");
-      await user.selectOptions(screen.getByLabelText("Operation label column"), "Intitulé");
+      await user.selectOptions(screen.getByLabelText("Operation label columns"), "Intitulé");
       await user.selectOptions(
         screen.getByLabelText("How the amount is signed"),
         "direction-column",
@@ -2987,7 +3011,7 @@ describe("ImportWizard", () => {
         // The fingerprint is the file's own header row, whole — not the subset
         // the mapping reads.
         headers: ["Statut", "Date", "Montant", "Direction", "Intitulé"],
-        mapping: { date: "Date", rawIssuerString: "Intitulé", counterpartyIban: null },
+        mapping: { date: "Date", rawIssuerString: ["Intitulé"], counterpartyIban: null },
         rules: {
           sign: {
             strategy: "direction-column",
@@ -3108,7 +3132,7 @@ describe("ImportWizard", () => {
       for (const label of [
         "Format name",
         "Operation date column",
-        "Operation label column",
+        "Operation label columns",
         "Counterparty IBAN column",
         "How the amount is signed",
         "Amount column",
@@ -3214,7 +3238,7 @@ describe("ImportWizard", () => {
       expect(fileHeaderNames()).toEqual(["Date opération", "Libellé", "Débit", "Crédit", "Type"]);
 
       await user.selectOptions(screen.getByLabelText("Operation date column"), "Date opération");
-      await user.selectOptions(screen.getByLabelText("Operation label column"), "Libellé");
+      await user.selectOptions(screen.getByLabelText("Operation label columns"), "Libellé");
 
       // Announced from the header, not left to a badge and a tint (PRD #208).
       expect(fileHeaderNames()).toEqual([
@@ -3238,7 +3262,7 @@ describe("ImportWizard", () => {
       await dropFrenchCsv(user);
 
       await user.selectOptions(screen.getByLabelText("Operation date column"), "Date opération");
-      await user.selectOptions(screen.getByLabelText("Operation label column"), "Libellé");
+      await user.selectOptions(screen.getByLabelText("Operation label columns"), "Libellé");
 
       // Header cell then both rows, for the two mapped columns and one of the
       // three the user has said nothing about.
@@ -3257,7 +3281,7 @@ describe("ImportWizard", () => {
       await dropFrenchCsv(user);
 
       await user.selectOptions(screen.getByLabelText("Operation date column"), "Date opération");
-      await user.selectOptions(screen.getByLabelText("Operation label column"), "Libellé");
+      await user.selectOptions(screen.getByLabelText("Operation label columns"), "Libellé");
 
       // The label is the field just answered, so its column is the one lit.
       expect(columnMarks(1)).toEqual(["active", "active", "active"]);
@@ -3367,7 +3391,7 @@ describe("ImportWizard", () => {
       withFormats();
       await dropFrenchCsv(user);
 
-      await user.selectOptions(screen.getByLabelText("Operation label column"), "Type");
+      await user.selectOptions(screen.getByLabelText("Operation label columns"), "Type");
       await user.selectOptions(screen.getByLabelText("Only import rows where"), "Type");
 
       expect(fileHeaderNames()[4]).toBe("Type — mapped to Label, Filter");
@@ -3400,6 +3424,151 @@ describe("ImportWizard", () => {
    * truth — so a picked column shows in the select, and a column chosen in the
    * select is marked on the file exactly as before.
    */
+  /**
+   * The **Label** is the one question several columns answer (PRD #208): banks
+   * split what a human reads as one label across a payee, a memo and a
+   * reference, and a format that could name only one of them would drop the
+   * rest.
+   *
+   * So its control is a list rather than a choice, and its pick mode stays open
+   * — the parts of a split label are found together. These hold that behaviour
+   * where the user meets it: the chips, their order, and the two ways back out.
+   */
+  describe("a label built from several of the file's columns", () => {
+    it("keeps every column picked, in the order they were picked", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+
+      await user.selectOptions(screen.getByLabelText("Operation label columns"), "Libellé");
+      await user.selectOptions(screen.getByLabelText("Operation label columns"), "Type");
+
+      expect(labelColumns()).toEqual(["Libellé", "Type"]);
+      // Both are marked on the file: one field, its badge in two places.
+      expect(fileHeaderNames()[1]).toBe("Libellé — mapped to Label");
+      expect(fileHeaderNames()[4]).toBe("Type — mapped to Label");
+    });
+
+    it("offers only the columns not already picked", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+
+      await user.selectOptions(screen.getByLabelText("Operation label columns"), "Libellé");
+
+      // The way to take a column back out is its own chip, so the select does
+      // not offer it a second time.
+      const options = within(screen.getByLabelText("Operation label columns"))
+        .getAllByRole("option")
+        .map((option) => option.textContent);
+      expect(options).not.toContain("Libellé");
+      expect(options).toContain("Type");
+    });
+
+    it("takes a column back out through its chip", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+
+      await user.selectOptions(screen.getByLabelText("Operation label columns"), "Libellé");
+      await user.selectOptions(screen.getByLabelText("Operation label columns"), "Type");
+      await removeLabelColumn(user, "Libellé");
+
+      expect(labelColumns()).toEqual(["Type"]);
+      // The mark goes with it — the derivation no longer names that column.
+      expect(fileHeaderNames()[1]).toBe("Libellé");
+    });
+
+    it("stays in pick mode so the parts of a split label are picked together", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+
+      await user.click(pickControl("Label"));
+      await user.click(screen.getByRole("button", { name: "Use Libellé as the Label column" }));
+
+      // Still open, unlike a single-column field, which closes on its answer.
+      expect(pickControl("Label")).toHaveAttribute("aria-pressed", "true");
+      await user.click(screen.getByRole("button", { name: "Use Type as the Label column" }));
+
+      expect(labelColumns()).toEqual(["Libellé", "Type"]);
+    });
+
+    it("takes a column back out when its header is clicked a second time", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+
+      await user.click(pickControl("Label"));
+      await user.click(screen.getByRole("button", { name: "Use Libellé as the Label column" }));
+      await user.click(screen.getByRole("button", { name: "Use Type as the Label column" }));
+      // The same gesture, undone: the way a toggle is expected to behave.
+      await user.click(screen.getByRole("button", { name: "Use Libellé as the Label column" }));
+
+      expect(labelColumns()).toEqual(["Type"]);
+    });
+
+    it("leaves pick mode by the control that opened it, having kept its answers", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+
+      await user.click(pickControl("Label"));
+      await user.click(screen.getByRole("button", { name: "Use Libellé as the Label column" }));
+      await user.click(pickControl("Label"));
+
+      expect(pickControl("Label")).toHaveAttribute("aria-pressed", "false");
+      expect(labelColumns()).toEqual(["Libellé"]);
+    });
+
+    it("refuses to read the file until the label names a column", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+      await mapFrenchColumns(user);
+
+      // Everything mapped: the preview is there.
+      expect(screen.queryByText(/will be read here as you go/)).toBeNull();
+
+      await removeLabelColumn(user, "Libellé");
+
+      // And gone with the label, which is required: a format that reads no
+      // label column produces rows with no identity.
+      expect(screen.getByText(/will be read here as you go/)).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Continue to preview" })).toBeDisabled();
+    });
+
+    it("joins the mapped columns in the preview, as the import will", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+      await mapFrenchColumns(user);
+      await user.selectOptions(screen.getByLabelText("Operation label columns"), "Type");
+
+      // The preview runs the very function the commit does, so what is read
+      // here is what will be stored.
+      expect(await screen.findByText("SHOP A - CARTE")).toBeTruthy();
+    });
+
+    it("saves the label's columns as the list the user built", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+      await mapFrenchColumns(user);
+      await user.selectOptions(screen.getByLabelText("Operation label columns"), "Type");
+      await user.click(screen.getByRole("button", { name: "Continue to preview" }));
+      await user.click(await screen.findByRole("button", { name: "Commit import" }));
+
+      await waitFor(() => {
+        expect(createFormat).toHaveBeenCalledWith(
+          expect.objectContaining({
+            mapping: expect.objectContaining({ rawIssuerString: ["Libellé", "Type"] }),
+          }),
+        );
+      });
+    });
+  });
+
   describe("assigning a column by clicking its header", () => {
     it("assigns the clicked header to the field that opened pick mode, and the select shows it", async () => {
       const user = userEvent.setup();
@@ -3482,7 +3651,9 @@ describe("ImportWizard", () => {
 
       await user.click(screen.getByRole("button", { name: "Use Libellé as the Label column" }));
 
-      expect(screen.getByLabelText("Operation label column")).toHaveValue("Libellé");
+      // The Label holds a list, so a picked column reads as a chip rather than
+      // as the select's value — the select goes on offering the columns left.
+      expect(labelColumns()).toEqual(["Libellé"]);
       expect(screen.getByLabelText("Operation date column")).toHaveValue("");
     });
 
@@ -3573,7 +3744,7 @@ describe("ImportWizard", () => {
         expect.objectContaining({
           mapping: {
             date: "Date opération",
-            rawIssuerString: "Libellé",
+            rawIssuerString: ["Libellé"],
             counterpartyIban: null,
           },
           rules: expect.objectContaining({

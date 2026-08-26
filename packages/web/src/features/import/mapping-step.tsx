@@ -11,6 +11,10 @@ import {
   COLUMN_FIELD_BADGE,
   columnFieldPatch,
   columnFieldValue,
+  columnFieldValues,
+  isMultiColumnField,
+  type MultiColumnField,
+  type SingleColumnField,
 } from "./column-fields";
 import { draftColumnMarks } from "./column-marks";
 import { CsvFileTable } from "./csv-file-table";
@@ -143,13 +147,21 @@ export function MappingStep({
   // second value.
   const assign = (field: ColumnField, column: string) => {
     update(columnFieldPatch(draft, field, column));
-    setActiveColumn(column === "" ? null : column);
+    // The column just named is the one the file marks more strongly — except
+    // when the click *removed* it from a list, where lighting it would say the
+    // opposite of what happened.
+    const removed = isMultiColumnField(field) && columnFieldValues(draft).includes(column);
+    setActiveColumn(column === "" || removed ? null : column);
   };
 
+  // A single-column field is answered by one click and its pick mode closes on
+  // the answer. The **Label** holds a list, so its mode stays open and each
+  // click adds a column — clicking a marked one again takes it back out. The way
+  // out is then the same two the user already has: the Pick toggle, or Escape.
   const pickColumn = (header: string) => {
     if (picking === null) return;
     assign(picking, header);
-    setPicking(null);
+    if (!isMultiColumnField(picking)) setPicking(null);
   };
 
   // Escape leaves pick mode having assigned nothing — the way any transient
@@ -218,7 +230,9 @@ export function MappingStep({
               </Field>
 
               <ColumnSelect field="date" label="Operation date column" {...columns} />
-              <ColumnSelect field="label" label="Operation label column" {...columns} />
+              {/* A list, not a choice: the parts of a label a bank split across
+                  columns, read in the order they were picked. */}
+              <ColumnList field="label" label="Operation label columns" {...columns} />
               {/* Optional, and `null` is an *answer*: a bank that writes no
                   counterparty account number has to say so, or "carries none"
                   and "nobody got round to it" look alike in the stored record. */}
@@ -399,7 +413,7 @@ function ColumnSelect({
   onAssign,
   onActiveColumn,
 }: ColumnPlumbing & {
-  field: ColumnField;
+  field: SingleColumnField;
   label: string;
   none?: string;
 }) {
@@ -457,6 +471,118 @@ function ColumnSelect({
       >
         Pick
       </Button>
+    </div>
+  );
+}
+
+/**
+ * One question answered by **several** columns: the ones picked so far, in the
+ * order they will be joined, and the control that adds another from the file.
+ *
+ * A chip list rather than a multi-select. The order is the answer — it is what
+ * the values are joined in — and a `<select multiple>` has none to offer;
+ * neither does it say what the joined result will read like, which is the whole
+ * question the user is answering. The chips are that sentence, and each one
+ * carries the way to take it back out.
+ *
+ * Its pick mode **stays open**: the columns of a split label are found together,
+ * and closing after each one would make the user re-open it for every part. The
+ * way out is the Pick toggle or Escape, both of which the single-column fields
+ * already taught.
+ *
+ * There is no empty choice. The label is required — a format that reads no
+ * column for it produces rows with no identity — so "none" is not an answer it
+ * has, and the list simply starts empty.
+ */
+function ColumnList({
+  field,
+  label,
+  draft,
+  headers,
+  picking,
+  onPick,
+  onAssign,
+  onActiveColumn,
+}: ColumnPlumbing & {
+  field: MultiColumnField;
+  label: string;
+}) {
+  const chosen = columnFieldValues(draft);
+  const isPicking = picking === field;
+  const pick = useRef<HTMLButtonElement>(null);
+
+  // Every column already picked is one the file cannot offer again from the
+  // select — it is in the list, and the way to remove it is its own chip.
+  const remaining = headers.filter((header) => !chosen.includes(header));
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-end gap-2">
+        <Field label={label} className="min-w-0 flex-1">
+          <Select
+            aria-label={label}
+            // Always the placeholder: this select *adds*, and a value left
+            // sitting in it would read as the answer rather than as the last
+            // thing added.
+            value=""
+            onChange={(event) => onAssign(field, event.target.value)}
+          >
+            <option value="" disabled>
+              {chosen.length === 0 ? "Pick a column…" : "Add another column…"}
+            </option>
+            {remaining.map((header) => (
+              <option key={header} value={header}>
+                {header}
+              </option>
+            ))}
+          </Select>
+        </Field>
+
+        <Button
+          ref={pick}
+          variant="secondary"
+          size="sm"
+          aria-pressed={isPicking}
+          aria-label={`Pick the ${COLUMN_FIELD_BADGE[field]} column from the file`}
+          className={cn("shrink-0", isPicking && "border-gousse-accent text-gousse-accent")}
+          onClick={() => {
+            onPick(field);
+            onActiveColumn(null);
+          }}
+        >
+          Pick
+        </Button>
+      </div>
+
+      {chosen.length > 0 ? (
+        // A list, said as one: the order is the answer, so it reads in order and
+        // each entry says its own place in it.
+        <ol
+          aria-label={`${COLUMN_FIELD_BADGE[field]} columns, in order`}
+          className="flex flex-wrap gap-1.5"
+        >
+          {chosen.map((column, index) => (
+            <li key={column}>
+              <span className="inline-flex items-center gap-1 rounded-full border border-gousse-line bg-gousse-panel py-0.5 pr-0.5 pl-2 text-xs text-gousse-text">
+                <span className="tabular-nums text-gousse-muted">{index + 1}</span>
+                {column}
+                <button
+                  type="button"
+                  aria-label={`Remove ${column} from the ${COLUMN_FIELD_BADGE[field]} columns`}
+                  className="rounded-full px-1 text-gousse-muted transition-colors hover:text-gousse-text"
+                  onMouseEnter={() => onActiveColumn(column)}
+                  onMouseLeave={() => onActiveColumn(null)}
+                  // The same patch a second pick of the column runs: one
+                  // definition of "take this column back out".
+                  onClick={() => onAssign(field, column)}
+                >
+                  &times;
+                </button>
+              </span>
+            </li>
+          ))}
+        </ol>
+      ) : null}
     </div>
   );
 }

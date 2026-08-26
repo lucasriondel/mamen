@@ -41,14 +41,42 @@ describe("statement-format vocabulary", () => {
 
   it("lets a bank that writes no counterparty IBAN say so, and only so", () => {
     const decode = Schema.decodeUnknownSync(ColumnMapping);
-    expect(decode({ date: "Date", rawIssuerString: "Label", counterpartyIban: null })).toEqual({
+    expect(decode({ date: "Date", rawIssuerString: ["Label"], counterpartyIban: null })).toEqual({
       date: "Date",
-      rawIssuerString: "Label",
+      rawIssuerString: ["Label"],
       counterpartyIban: null,
     });
     // Nullable, not optional: "this export carries none" and "nobody got round
     // to it" must not look alike in a stored row.
-    expect(() => decode({ date: "Date", rawIssuerString: "Label" })).toThrow();
+    expect(() => decode({ date: "Date", rawIssuerString: ["Label"] })).toThrow();
+  });
+
+  it("reads the label from as many columns as the bank split it across", () => {
+    const decode = Schema.decodeUnknownSync(ColumnMapping);
+    // The point of the list: a payee, a memo and a reference are one label to a
+    // human, and a format that could name only one of them would drop the rest.
+    expect(
+      decode({
+        date: "Date",
+        rawIssuerString: ["Payee", "Memo", "Reference"],
+        counterpartyIban: null,
+      }).rawIssuerString,
+    ).toEqual(["Payee", "Memo", "Reference"]);
+    // A list, and only a list — the single column the old shape held is now
+    // spelled as the one-element list it always meant.
+    expect(() =>
+      decode({ date: "Date", rawIssuerString: "Label", counterpartyIban: null }),
+    ).toThrow();
+  });
+
+  it("keeps the label the one target assembled from several columns", () => {
+    // Every other mapped field names one column. The asymmetry is the claim: a
+    // second list here is a change to the parser's join and to the mapping UI,
+    // and should have to be argued for.
+    const listValued = Object.entries(ColumnMapping.fields)
+      .filter(([, schema]) => String(schema.ast).includes("ReadonlyArray"))
+      .map(([name]) => name);
+    expect(listValued).toEqual(["rawIssuerString"]);
   });
 
   it("carries the three sign strategies real exports use", () => {
@@ -85,7 +113,7 @@ describe("StatementFormat kinds", () => {
     name: "Green-Got",
     kind: "csv",
     headers: ["Statut", "Date", "Montant"],
-    mapping: { date: "Date", rawIssuerString: "Intitulé", counterpartyIban: null },
+    mapping: { date: "Date", rawIssuerString: ["Intitulé"], counterpartyIban: null },
     rules: {
       sign: { strategy: "signed-column", amountColumn: "Montant" },
       dateOrder: "iso",

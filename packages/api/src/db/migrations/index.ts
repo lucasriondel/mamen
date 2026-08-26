@@ -31,6 +31,7 @@ import addTransactionsRawSource from "./0030_add_transactions_raw_source";
 import addTransactionsCounterpartyIban from "./0031_add_transactions_counterparty_iban";
 import createStatementFormats from "./0032_create_statement_formats";
 import normalizeAccountsIban from "./0033_normalize_accounts_iban";
+import statementFormatsLabelColumns from "./0034_statement_formats_label_columns";
 
 /**
  * The migration set, keyed `NNNN_name` (the Migrator parses the numeric prefix
@@ -72,4 +73,5 @@ export const migrations = {
   "0031_add_transactions_counterparty_iban": addTransactionsCounterpartyIban,
   "0032_create_statement_formats": createStatementFormats,
   "0033_normalize_accounts_iban": normalizeAccountsIban,
+  "0034_statement_formats_label_columns": statementFormatsLabelColumns,
 } as const;

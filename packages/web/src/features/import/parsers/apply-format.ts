@@ -1,8 +1,9 @@
-import type {
-  CsvStatementFormat,
-  DateOrder,
-  DecimalSeparator,
-  SignRule,
+import {
+  type CsvStatementFormat,
+  type DateOrder,
+  type DecimalSeparator,
+  RAW_ISSUER_JOINER,
+  type SignRule,
 } from "@mamen/shared/contract";
 import { isPlausibleIban, normalizeIban } from "@/features/accounts/account-iban";
 import { importMonthKey } from "./month";
@@ -89,6 +90,32 @@ function signedAmount(
         parseNumberOrZero(row[sign.debitColumn], separator)
       );
   }
+}
+
+/**
+ * The row's **issuer string**: the mapped columns read in the order the format
+ * names them and joined by {@link RAW_ISSUER_JOINER}.
+ *
+ * More than one column because banks split a label — a payee, a memo, a
+ * reference — and each part alone identifies nothing. The format's order is the
+ * user's, recorded as they assigned the columns, so a bank that writes the payee
+ * second reads that way round without the parser guessing.
+ *
+ * **Blank parts are dropped, not spaced over.** A memo column empty on half the
+ * file would otherwise leave a trailing joiner on those rows, and two rows from
+ * the same shop would stop looking alike to the issuer matching this string
+ * exists for. Positional stability has nothing to offer here: nobody reads this
+ * string by column, and the untouched columns are in the **raw source** anyway
+ * (ADR 0012).
+ *
+ * A missing column reads as blank and so drops out too, which is what a format
+ * naming a column its file no longer carries does.
+ */
+function rawIssuerStringOf(row: Record<string, string>, columns: readonly string[]): string {
+  return columns
+    .map((column) => row[column]?.trim() ?? "")
+    .filter((value) => value !== "")
+    .join(RAW_ISSUER_JOINER);
 }
 
 /**
@@ -194,7 +221,7 @@ export function applyFormat(
         accountId: ctx.accountId,
         date,
         amount: signedAmount(row, rules.sign, rules.decimalSeparator),
-        rawIssuerString: row[mapping.rawIssuerString],
+        rawIssuerString: rawIssuerStringOf(row, mapping.rawIssuerString),
         // A copy rather than the row itself, so a caller reusing its parsed rows
         // cannot see one of them mutated through a record it handed us.
         rawSource: { ...row },

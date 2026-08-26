@@ -26,7 +26,7 @@ function filled(over: Partial<FormatDraft> = {}): FormatDraft {
   return {
     ...blankDraft(),
     name: "Green-Got",
-    mapping: { date: "Date", rawIssuerString: "Intitulé", counterpartyIban: null },
+    mapping: { date: "Date", rawIssuerString: ["Intitulé"], counterpartyIban: null },
     sign: { strategy: "signed-column", amountColumn: "Montant" },
     dateOrder: "iso",
     decimalSeparator: "dot",
@@ -63,7 +63,7 @@ describe("when a draft is ready to parse", () => {
   it("is ready as soon as the mapping and the two rules are answered", () => {
     expect(draftRules(filled())).toEqual({
       kind: "csv",
-      mapping: { date: "Date", rawIssuerString: "Intitulé", counterpartyIban: null },
+      mapping: { date: "Date", rawIssuerString: ["Intitulé"], counterpartyIban: null },
       rules: {
         sign: { strategy: "signed-column", amountColumn: "Montant" },
         dateOrder: "iso",
@@ -88,9 +88,9 @@ describe("when a draft is ready to parse", () => {
     ["a decimal separator", { decimalSeparator: null }],
     [
       "a date column",
-      { mapping: { date: "", rawIssuerString: "Intitulé", counterpartyIban: null } },
+      { mapping: { date: "", rawIssuerString: ["Intitulé"], counterpartyIban: null } },
     ],
-    ["a label column", { mapping: { date: "Date", rawIssuerString: "", counterpartyIban: null } }],
+    ["a label column", { mapping: { date: "Date", rawIssuerString: [], counterpartyIban: null } }],
     ["an amount column", { sign: { strategy: "signed-column", amountColumn: "" } as const }],
   ])("parses nothing without %s", (_what, over) => {
     expect(draftRules(filled(over))).toBeNull();

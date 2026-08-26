@@ -119,12 +119,14 @@ export {
   DecimalSeparator,
   MappedTarget,
   PdfStatementFormat,
+  RAW_ISSUER_JOINER,
   RowFilter,
   SignRule,
   StatementFormat,
   StatementFormatCreate,
   StatementFormatListFilters,
   StatementFormatsGroup,
+  StatementFormatUpdate,
   ValueRules,
 } from "./statement-formats";
 export {

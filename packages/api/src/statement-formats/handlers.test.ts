@@ -30,7 +30,7 @@ const asId = Schema.decodeSync(StatementFormatId);
 
 const MAPPING = {
   date: "Date",
-  rawIssuerString: "Intitulé",
+  rawIssuerString: ["Intitulé"],
   counterpartyIban: "IBAN du tiers",
 } as const;
 

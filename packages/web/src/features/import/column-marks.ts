@@ -1,4 +1,4 @@
-import { COLUMN_FIELD_BADGE, COLUMN_FIELDS, columnFieldValue } from "./column-fields";
+import { COLUMN_FIELD_BADGE, COLUMN_FIELDS, columnFieldColumns } from "./column-fields";
 import type { FormatDraft } from "./parsers/format-draft";
 
 /**
@@ -22,7 +22,9 @@ export type ColumnMarks = ReadonlyMap<string, readonly string[]>;
  * marks read as decisions the user has made.
  *
  * A column may feed more than one field — a bank that writes its status in the
- * column it also filters on is perfectly ordinary — so the value is a list.
+ * column it also filters on is perfectly ordinary — so the value is a list. The
+ * converse now holds too: the **Label** reads several columns, each of which
+ * carries its badge, so one field may put its mark in several places.
  *
  * Only the {@link COLUMN_FIELDS} appear, and the same list is what the form
  * offers a pick control on (issue #214): date order, decimal separator and the
@@ -34,15 +36,13 @@ export function draftColumnMarks(draft: FormatDraft): ColumnMarks {
   const marks = new Map<string, string[]>();
 
   for (const field of COLUMN_FIELDS) {
-    // A blank column is an unanswered question, `null` an answered one ("this
-    // bank writes none") and `undefined` a question this draft is not asking;
-    // none of the three marks anything, all being the absence of a decision.
-    const column = columnFieldValue(draft, field);
-    if (column === null || column === undefined || column === "") continue;
-
-    const already = marks.get(column);
-    if (already) already.push(COLUMN_FIELD_BADGE[field]);
-    else marks.set(column, [COLUMN_FIELD_BADGE[field]]);
+    // Every field asked the same way, whether it names one column or a list:
+    // the unanswered ones name none, which is what keeps them off the file.
+    for (const column of columnFieldColumns(draft, field)) {
+      const already = marks.get(column);
+      if (already) already.push(COLUMN_FIELD_BADGE[field]);
+      else marks.set(column, [COLUMN_FIELD_BADGE[field]]);
+    }
   }
 
   return marks;

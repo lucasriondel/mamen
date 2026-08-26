@@ -39,7 +39,11 @@ import type { FormatToApply } from "./apply-format";
  */
 export type FormatDraft = {
   name: string;
-  /** `""` for a target the user has not mapped yet; `null` IBAN means none. */
+  /**
+   * `""` for a target the user has not mapped yet, `null` IBAN means none, and
+   * an **empty label list** is the label question still unanswered — a draft's
+   * spelling of "not yet", where a stored format's list is never empty.
+   */
   mapping: ColumnMapping;
   sign: SignRule;
   /** `null` until the user says — never defaulted, never detected. */
@@ -62,7 +66,7 @@ export type FormatDraft = {
 export function blankDraft(): FormatDraft {
   return {
     name: "",
-    mapping: { date: "", rawIssuerString: "", counterpartyIban: null },
+    mapping: { date: "", rawIssuerString: [], counterpartyIban: null },
     sign: { strategy: "signed-column", amountColumn: "" },
     dateOrder: null,
     decimalSeparator: null,
@@ -102,7 +106,9 @@ function signAnswered(sign: SignRule): boolean {
  */
 export function draftRules(draft: FormatDraft): FormatToApply | null {
   const { mapping, sign, dateOrder, decimalSeparator, filter } = draft;
-  if (mapping.date === "" || mapping.rawIssuerString === "") return null;
+  // The label is required and a list: no column named is the unanswered
+  // question, and a format that reads none produces rows with no identity.
+  if (mapping.date === "" || mapping.rawIssuerString.length === 0) return null;
   if (!signAnswered(sign)) return null;
   if (dateOrder === null || decimalSeparator === null) return null;
 

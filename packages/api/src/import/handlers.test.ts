@@ -231,7 +231,7 @@ const storePdfFormat = (columns: readonly string[] = CCF_COLUMNS) =>
         name: "CCF — relevé de compte",
         kind: "pdf",
         columns,
-        mapping: { date: "Date", rawIssuerString: "Libellé", counterpartyIban: null },
+        mapping: { date: "Date", rawIssuerString: ["Libellé"], counterpartyIban: null },
         rules: {
           sign: {
             strategy: "debit-credit-columns",
@@ -719,7 +719,7 @@ describe("import endpoints", () => {
           name: "Green-Got",
           kind: "csv",
           headers: ["Statut", "Date", "Montant", "Direction", "Intitulé"],
-          mapping: { date: "Date", rawIssuerString: "Intitulé", counterpartyIban: null },
+          mapping: { date: "Date", rawIssuerString: ["Intitulé"], counterpartyIban: null },
           rules: {
             sign: {
               strategy: "direction-column",
