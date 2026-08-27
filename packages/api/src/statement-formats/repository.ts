@@ -7,6 +7,7 @@ import {
   StatementFormat,
   type StatementFormatCreate,
   StatementFormatId,
+  type StatementFormatUpdate,
   ValueRules,
 } from "@mamen/shared/contract";
 import { Clock, Effect, Option, Schema } from "effect";
@@ -142,8 +143,8 @@ const requireOne = (
 
 /**
  * Fold a create payload into the columns the INSERT binds. `createdAt` and
- * `updatedAt` are the server's to stamp and are equal on a create — a format is
- * never edited, so they stay equal for the row's whole life.
+ * `updatedAt` are the server's to stamp and are equal on a create; they diverge
+ * the first time the format is renamed, which is the only edit there is.
  */
 const toWriteRow = (payload: StatementFormatCreate, now: string): WriteRow => ({
   accountId: payload.accountId,
@@ -163,11 +164,11 @@ const toWriteRow = (payload: StatementFormatCreate, now: string): WriteRow => ({
  * by-id lookup; there is no uniqueness constraint on the table, so a write's
  * `SqlError` collapses to a 500 defect ({@link orDieSql}) — no `Conflict`.
  *
- * Reads and one write, and no more: editing and deleting a format are out of
- * this PRD's scope. A bank that changes its export earns a **new** format, so
- * the statements downloaded before the change keep one that reads them, and what
- * a delete would mean for imports already made under a format is a question
- * nothing here answers yet.
+ * `update` is a **rename**, and deliberately not a general edit: a format's
+ * mapping is fixed at authoring time, because a bank that changes its export
+ * earns a **new** format and because nothing re-parses the rows an old mapping
+ * already produced. `remove` is a hard delete of the one row — no cascade,
+ * since a transaction stores no reference back to the format that parsed it.
  */
 export class StatementFormatRepo extends Effect.Service<StatementFormatRepo>()(
   "api/StatementFormatRepo",
@@ -212,6 +213,16 @@ export class StatementFormatRepo extends Effect.Service<StatementFormatRepo>()(
         execute: (row) => sql`INSERT INTO statement_formats ${sql.insert(row)} RETURNING *`,
       });
 
+      // A rename writes two columns and reads back the whole row, so the
+      // handler answers with the same entity shape `getById` does rather than
+      // with the caller's payload echoed back.
+      const renameQuery = SqlSchema.single({
+        Request: Schema.Any as Schema.Schema<{ id: number; name: string; updatedAt: string }>,
+        Result: StatementFormatFromRow,
+        execute: ({ id, name, updatedAt }) =>
+          sql`UPDATE statement_formats SET name = ${name}, updatedAt = ${updatedAt} WHERE id = ${id} RETURNING *`,
+      });
+
       const nowIso = Clock.currentTimeMillis.pipe(
         Effect.map((millis) => new Date(millis).toISOString()),
       );
@@ -237,7 +248,31 @@ export class StatementFormatRepo extends Effect.Service<StatementFormatRepo>()(
           orDieSql,
         );
 
-      return { list, getById, create } as const;
+      /**
+       * Rename one format. `getById` first so a missing id is the typed
+       * `NotFound` rather than a `SqlSchema.single` failure on an UPDATE that
+       * matched no row — the same order `remove` uses, and the same order the
+       * issuers repo uses for both.
+       */
+      const update = (id: typeof StatementFormatId.Type, changes: StatementFormatUpdate) =>
+        getById(id).pipe(
+          Effect.andThen(nowIso),
+          Effect.flatMap((now) => renameQuery({ id, name: changes.name, updatedAt: now })),
+          orDieSql,
+        );
+
+      /**
+       * Delete one format. No cascade and nothing to reassign: transactions
+       * imported under this format hold no reference to it, so the row is the
+       * whole of what goes.
+       */
+      const remove = (id: typeof StatementFormatId.Type) =>
+        getById(id).pipe(
+          Effect.flatMap(() => orDieSql(sql`DELETE FROM statement_formats WHERE id = ${id}`)),
+          Effect.asVoid,
+        );
+
+      return { list, getById, create, update, remove } as const;
     }),
   },
 ) {}
