@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import type { ColumnMarks } from "./column-marks";
@@ -94,6 +95,15 @@ function columnTint(mark: ColumnMark): string | false {
  * says so — a mode the user cannot see is a mode that eats their next click. The
  * assignment goes back out through `onPickColumn`; nothing about the value is
  * decided here, the form's select being the only thing that holds it.
+ *
+ * **And corrected in it, where what it shows is a transcription** (issue #220,
+ * PRD #216). A caller that hands over `onEditCell` makes every cell an input and
+ * says so in the line above the table; `onAddRow` puts an **Add row** control
+ * under it. Both are absent on every CSV path, which is the deliberate asymmetry
+ * the PRD names: a file said what it said, and only a model's reading of a
+ * statement can be wrong in a way the user is the authority on. Nothing is
+ * interpreted here either way — a cell is still the string it holds, and the
+ * pane opposite is still the one that reads it.
  */
 export function FileTable({
   fileName,
@@ -105,6 +115,8 @@ export function FileTable({
   activeColumn = null,
   pickingFor = null,
   onPickColumn,
+  onEditCell,
+  onAddRow,
 }: {
   /** The dropped file's name — what the pane and its table are called. */
   fileName: string;
@@ -124,6 +136,13 @@ export function FileTable({
   pickingFor?: string | null;
   /** What a header click answers with — the header's own name, as the file writes it. */
   onPickColumn?: (header: string) => void;
+  /**
+   * Correct one cell of a transcription (issue #220) — absent wherever what the
+   * pane shows is a file rather than a model's reading of one.
+   */
+  onEditCell?: (rowIndex: number, column: string, value: string) => void;
+  /** Append a row the transcription missed; absent where nothing may be added. */
+  onAddRow?: () => void;
 }) {
   // Pick mode needs somewhere to send the answer, so a caller that offers no
   // handler cannot put the table into it by accident.
@@ -141,7 +160,8 @@ export function FileTable({
           down its rows the user has gone. */}
       <p className="px-3 pt-3 text-sm text-gousse-muted">
         <span className="font-medium text-gousse-ink">{fileName}</span> — {rows.length}{" "}
-        {rows.length === 1 ? "row" : "rows"}, as delivered
+        {rows.length === 1 ? "row" : "rows"},{" "}
+        {onEditCell === undefined ? "as delivered" : "as transcribed — correct any cell"}
       </p>
 
       {/* What the next click will mean, said where the click has to land. An
@@ -236,7 +256,21 @@ export function FileTable({
                         columnTint(mark),
                       )}
                     >
-                      {row[header] ?? ""}
+                      {onEditCell === undefined ? (
+                        (row[header] ?? "")
+                      ) : (
+                        // Named by the bank's own word for the column and the
+                        // line it is on: what the user is fixing is "the label
+                        // on row three", and there is no room beside a cell for
+                        // a visible label saying so.
+                        <input
+                          type="text"
+                          aria-label={`${header}, row ${index + 1}`}
+                          value={row[header] ?? ""}
+                          onChange={(event) => onEditCell(index, header, event.target.value)}
+                          className="w-full min-w-32 rounded-full border border-gousse-line bg-gousse-bg px-3 py-1 text-gousse-ink"
+                        />
+                      )}
                     </TableCell>
                   );
                 })}
@@ -245,6 +279,17 @@ export function FileTable({
           </TableBody>
         </table>
       </div>
+
+      {/* Outside the scroller, so the control stays put however far down the
+          rows the user has gone — the same place the PDF path's has always
+          been, under the rows it appends to. */}
+      {onAddRow === undefined ? null : (
+        <div className="px-2 pb-2">
+          <Button variant="secondary" size="sm" onClick={onAddRow}>
+            Add row
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

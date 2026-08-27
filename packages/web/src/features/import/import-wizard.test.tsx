@@ -394,6 +394,14 @@ function fileRows(name?: string): string[][] {
 }
 
 /**
+ * One editable cell of a **transcription** (issue #220), named the way the pane
+ * names it: the bank's own word for the column, and the line it is on.
+ */
+function transcribedCell(column: string, row: number): HTMLElement {
+  return screen.getByLabelText(`${column}, row ${row}`);
+}
+
+/**
  * What each of that table's columns announces, in file order (issue #213).
  *
  * A column the draft maps says so from its header — `aria-label` where there is
@@ -455,15 +463,29 @@ function declaredRowIds(table: HTMLElement): (string | null)[] {
 }
 
 /**
- * Which rows of a pane are lit, by the text in one of their cells.
+ * Which rows of a pane are lit, by what one of their cells says.
  *
  * The highlight itself is a tint, and jsdom lays out no colour, so what is
  * asserted is the named contract the tint is written against (PRD #208).
+ *
+ * "What a cell says" is its text on every read-only pane and its input's value
+ * on the one editable one — the transcription beside a discovered PDF (issue
+ * #220), whose every cell is a field the user may correct. Which of the two a
+ * pane is has nothing to do with which rows are lit, so the reading is folded in
+ * here rather than making the highlight cases care.
  */
+function cellText(cell: HTMLElement): string {
+  const field = within(cell).queryByRole("textbox");
+  return field === null ? (cell.textContent ?? "") : (field as HTMLInputElement).value;
+}
+
 function highlighted(table: HTMLElement, cell: number): string[] {
   return bodyRows(table)
     .filter((row) => row.getAttribute("data-row-highlight") === "true")
-    .map((row) => within(row).getAllByRole("cell")[cell]?.textContent ?? "");
+    .map((row) => {
+      const target = within(row).getAllByRole("cell")[cell];
+      return target === undefined ? "" : cellText(target);
+    });
 }
 
 /** The lit lines of the file pane, by the label the bank wrote (issue #215). */
@@ -2088,6 +2110,207 @@ describe("ImportWizard", () => {
 
       expect(await screen.findByLabelText("Format name")).toBeInTheDocument();
       expect(discoverPdf).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  /**
+   * Issue #220, under PRD #216. A transcription can be wrong in ways a parsed
+   * file cannot, so the discovery preview is where it is *corrected and
+   * completed*: the statement pane holds the model's reading of each cell and
+   * every one of them is editable, an **Add row** control appends the operation
+   * it missed, and the soft **reconciliation check** cross-checks what is about
+   * to be imported against the totals the statement itself printed.
+   *
+   * The corrections land on the transcribed cells rather than on the parsed
+   * values, which is what keeps one reading of one table: `applyFormat` re-reads
+   * the corrected string, so the import table beside it, the commit and the row's
+   * **raw source** cannot come to disagree about what the statement says.
+   */
+  describe("correcting and completing a transcription in the preview", () => {
+    /** The same French statement #218 transcribes, and its printed totals. */
+    const DISCOVERED = {
+      columns: ["Date opération", "Libellé", "Débit", "Crédit", "Type"],
+      rows: [
+        { "Date opération": "03/04/2026", Libellé: "SHOP A", Débit: "1 929,71", Type: "CARTE" },
+        {
+          "Date opération": "11/04/2026",
+          Libellé: "SALAIRE",
+          Crédit: "2 500,00",
+          Type: "VIREMENT",
+        },
+      ],
+      declaredTotals: { debit: 1929.71, credit: 2500 },
+    };
+
+    /** Drop a PDF on an account with no PDF format, transcribe it, map it, preview it. */
+    async function previewTranscription(
+      user: ReturnType<typeof userEvent.setup>,
+      { filterOn }: { filterOn?: string } = {},
+    ) {
+      discoverPdf.mockResolvedValue(DISCOVERED);
+      withFormats(csvFormat(1, "Green-Got"));
+      renderWizard();
+      await chooseAccount(user);
+      await dropPdf(user);
+      await takeTheOffer(user);
+      await mapDiscoveredColumns(user);
+      if (filterOn !== undefined) {
+        await user.selectOptions(screen.getByLabelText("Only import rows where"), "Type");
+        await user.type(screen.getByLabelText("…equals"), filterOn);
+      }
+      await user.click(screen.getByRole("button", { name: "Continue to preview" }));
+      await findImportTable();
+    }
+
+    /** Retype one transcribed cell from scratch. */
+    async function correct(
+      user: ReturnType<typeof userEvent.setup>,
+      column: string,
+      row: number,
+      value: string,
+    ) {
+      await user.clear(transcribedCell(column, row));
+      if (value !== "") await user.type(transcribedCell(column, row), value);
+    }
+
+    /** What the import table makes of each row's amount, in table order. */
+    function importedAmounts(): string[] {
+      return within(importTable())
+        .getAllByRole("row")
+        .slice(1)
+        .map((row) => within(row).getAllByRole("cell")[3]?.textContent ?? "");
+    }
+
+    // The correction is to the *transcription*, so the archive carries it too:
+    // the bank's own words, as the user says the statement actually prints them
+    // (ADR 0012). Nothing else in the record is invented.
+    it("commits a corrected cell, in the statement's own words", async () => {
+      const user = userEvent.setup();
+      await previewTranscription(user);
+
+      await correct(user, "Libellé", 1, "SHOP AB");
+
+      expect(shownCsvRows()).toEqual(["SHOP AB", "SALAIRE"]);
+
+      await user.click(screen.getByRole("button", { name: "Commit import" }));
+
+      await waitFor(() => expect(bulkCreate).toHaveBeenCalledTimes(1));
+      const [first] = bulkCreate.mock.calls[0][0];
+      expect(first.rawIssuerString).toBe("SHOP AB");
+      expect(first.rawSource).toEqual({
+        "Date opération": "03/04/2026",
+        Libellé: "SHOP AB",
+        Débit: "1 929,71",
+        Type: "CARTE",
+      });
+    });
+
+    // A corrected string is read by the format the user just built — the decimal
+    // separator, the date order and the sign rule all apply to it, exactly as
+    // they do to the cells the model got right.
+    it("re-reads a corrected cell through the format the user built", async () => {
+      const user = userEvent.setup();
+      await previewTranscription(user);
+
+      await correct(user, "Débit", 1, "12,00");
+      expect(importedAmounts()[0]).toMatch(/-12,00/);
+
+      await correct(user, "Date opération", 1, "05/12/2026");
+      expect(shownCsvRows()).toEqual(["SHOP A", "SALAIRE"]);
+      expect(within(importTable()).getByText("05 Dec 2026")).toBeInTheDocument();
+    });
+
+    // The model missed an operation: the user types it in, and it commits with
+    // the rest. Its archive is what they supplied and nothing more.
+    it("commits a row the transcription missed", async () => {
+      const user = userEvent.setup();
+      await previewTranscription(user);
+
+      await user.click(screen.getByRole("button", { name: "Add row" }));
+
+      await correct(user, "Date opération", 3, "20/04/2026");
+      await correct(user, "Libellé", 3, "SHOP C");
+      await correct(user, "Débit", 3, "12,00");
+
+      expect(shownCsvRows()).toEqual(["SHOP A", "SALAIRE", "SHOP C"]);
+
+      await user.click(screen.getByRole("button", { name: "Commit import" }));
+
+      await waitFor(() => expect(bulkCreate).toHaveBeenCalledTimes(1));
+      const records = bulkCreate.mock.calls[0][0];
+      expect(records).toHaveLength(3);
+      expect(records[2]).toMatchObject({
+        amount: -12,
+        rawIssuerString: "SHOP C",
+        importMonth: "2026-04",
+      });
+      // Only what the user actually typed — no column of a statement line that
+      // never existed.
+      expect(records[2].rawSource).toEqual({
+        "Date opération": "20/04/2026",
+        Libellé: "SHOP C",
+        Débit: "12,00",
+      });
+    });
+
+    // An added row the format's own row filter would hide is an **Add row**
+    // control that does nothing, so the blank row is seeded to survive it.
+    it("shows an added row even when the format filters rows", async () => {
+      const user = userEvent.setup();
+      await previewTranscription(user, { filterOn: "CARTE" });
+
+      expect(shownCsvRows()).toEqual(["SHOP A"]);
+
+      await user.click(screen.getByRole("button", { name: "Add row" }));
+      await correct(user, "Libellé", 3, "SHOP C");
+
+      expect(shownCsvRows()).toEqual(["SHOP A", "SHOP C"]);
+      expect(transcribedCell("Type", 3)).toHaveValue("CARTE");
+    });
+
+    // The one automated cross-check on an AI-transcribed table (PRD #216, story
+    // 11). It is over the rows being **kept** — the import the user is about to
+    // make — so holding one out is exactly what makes the sums stop agreeing.
+    it("warns when the kept rows stop adding up to the declared totals", async () => {
+      const user = userEvent.setup();
+      await previewTranscription(user);
+
+      // As transcribed, the statement reconciles and nothing is said.
+      expect(screen.queryByText(/Reconciliation mismatch/)).toBeNull();
+
+      await user.click(screen.getByLabelText("Import row 2"));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(/Reconciliation mismatch/);
+      // It warns and never blocks.
+      expect(screen.getByRole("button", { name: "Commit import" })).toBeEnabled();
+
+      await user.click(screen.getByLabelText("Import row 2"));
+      expect(screen.queryByText(/Reconciliation mismatch/)).toBeNull();
+    });
+
+    // …and it moves with a correction, which is the other half of what it is for:
+    // a mistyped magnitude is exactly what the statement's own totals catch.
+    it("warns when a corrected amount stops matching the declared totals", async () => {
+      const user = userEvent.setup();
+      await previewTranscription(user);
+
+      await correct(user, "Débit", 1, "1 929,17");
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(/Reconciliation mismatch/);
+    });
+
+    // The deliberate asymmetry (PRD #216): the file said what it said, so there
+    // is nothing to correct and nothing to add on the CSV path.
+    it("leaves the CSV preview non-editable, with no add-row and no banner", async () => {
+      const user = userEvent.setup();
+      await dropFrenchCsv(user);
+      await mapFrenchColumns(user);
+      await user.click(screen.getByRole("button", { name: "Continue to preview" }));
+      await findImportTable();
+
+      expect(within(fileTable("releve.csv")).queryAllByRole("textbox")).toHaveLength(0);
+      expect(screen.queryByRole("button", { name: "Add row" })).toBeNull();
+      expect(screen.queryByRole("alert")).toBeNull();
     });
   });
 

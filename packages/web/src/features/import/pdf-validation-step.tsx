@@ -3,7 +3,6 @@ import { createColumnHelper } from "@tanstack/react-table";
 import { useEffect, useMemo, useState } from "react";
 import { SplitView } from "@/components/split-view";
 import { Button } from "@/components/ui/button";
-import { formatCurrency } from "@/lib/format";
 import { AlreadyImportedMark } from "./already-imported-mark";
 import { CandidateFilters } from "./candidate-filters";
 import {
@@ -19,7 +18,8 @@ import { CommitBar } from "./commit-bar";
 import { formatExtractionTime } from "./format-extraction-time";
 import { keptPositions } from "./kept-rows";
 import type { ParsedTransaction } from "./parsers/types";
-import { type Reconciliation, reconcile } from "./reconcile";
+import { reconcile } from "./reconcile";
+import { ReconciliationBanner } from "./reconciliation-banner";
 import { useDuplicateFlags } from "./use-duplicate-flags";
 import { useSplitRatio } from "./use-split-ratio";
 import type { RowId, WizardAction } from "./wizard-reducer";
@@ -122,7 +122,7 @@ export function PdfValidationStep({
 
   return (
     <div className="flex flex-col gap-6">
-      {recon === null || recon.ok ? null : <ReconciliationBanner recon={recon} />}
+      {recon === null || recon.ok ? null : <ReconciliationBanner recon={recon} rows="extracted" />}
 
       {extraction === null ? null : <ExtractionSummary extraction={extraction} />}
 
@@ -402,51 +402,5 @@ function AmountInput({
         disabled ? "line-through opacity-60" : ""
       }`}
     />
-  );
-}
-
-/**
- * The soft reconciliation warning: shown only when the extracted rows don't sum
- * to the declared totals. It points at where to look (a probable dropped row or
- * a summary line read as an operation) but never blocks commit.
- *
- * A statement that declared no totals never gets here — `reconcile` answers
- * `null` and there is nothing to show (issue #196).
- */
-function ReconciliationBanner({ recon }: { recon: Reconciliation }) {
-  return (
-    <div
-      role="alert"
-      className="flex flex-col gap-2 rounded-2xl border border-gousse-high bg-gousse-panel p-4 text-sm"
-    >
-      <p className="font-medium text-gousse-high">
-        Reconciliation mismatch — the extracted rows don't match the statement's declared totals.
-      </p>
-      <p className="text-gousse-muted">
-        A row may have been dropped, or a balance/summary line read as an operation. Review the rows
-        against the PDF — you can still commit.
-      </p>
-      <dl className="grid grid-cols-3 gap-x-4 gap-y-1 pt-1 text-gousse-ink">
-        <dt className="text-gousse-muted" />
-        <dt className="text-right text-gousse-muted">Extracted</dt>
-        <dt className="text-right text-gousse-muted">Declared</dt>
-
-        <dd className={recon.debitOk ? "" : "text-gousse-high"}>Debits</dd>
-        <dd className="text-right tabular-nums">
-          {formatCurrency(recon.extractedDebit, { signDisplay: false })}
-        </dd>
-        <dd className="text-right tabular-nums">
-          {formatCurrency(recon.declaredDebit, { signDisplay: false })}
-        </dd>
-
-        <dd className={recon.creditOk ? "" : "text-gousse-high"}>Credits</dd>
-        <dd className="text-right tabular-nums">
-          {formatCurrency(recon.extractedCredit, { signDisplay: false })}
-        </dd>
-        <dd className="text-right tabular-nums">
-          {formatCurrency(recon.declaredCredit, { signDisplay: false })}
-        </dd>
-      </dl>
-    </div>
   );
 }

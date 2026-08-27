@@ -250,6 +250,23 @@ the transaction's **raw source** (ADR 0012).
 Afterwards the account has a PDF format, so the next statement from that bank
 goes down the ordinary **PDF extraction** path with no mapping step: the feature
 costs nothing once it is set up.
+
+**Its preview is where the transcription is corrected and completed** (issue
+#220). Any transcribed cell is editable in the **file pane**, an **Add row**
+control appends an operation the model missed, and the **reconciliation check**
+runs over the **kept** rows against the statement's **declared totals** — warning
+only, never blocking. What the table holds at commit is what commits.
+
+Two consequences worth naming. A **hand-added row is seeded**, not blank
+(`parsers/blank-row.ts`): a date the format cannot read would take the preview
+down where every date is formatted, an empty single amount column reads as `NaN`,
+and a row the format's own filter drops is one the user cannot see — so the date,
+that amount column and the filter's value are written in the format's own
+vocabulary and everything else is left **absent**, the row's **raw source** being
+what the user actually supplied. And an **unreadable cell must render**, not
+throw: `readable-cell.ts` is the one place *Unreadable date* / *Unreadable amount*
+are spelled, shared with the **mapping step**'s live preview, because a cleared
+date is a state the table draws on every keystroke.
 _Avoid_: PDF onboarding, setup wizard (it *is* the import), first run.
 
 **Format verdict**:
@@ -325,6 +342,17 @@ A statement that declared no totals gets **no check** — `reconcile` answers
 `null`, and no banner is shown (issue #196). Not a passing check and not a
 mismatch against zero: there was nothing to compare. The rows are still reviewed,
 skipped and committed exactly as any other statement's.
+
+**The two PDF previews sum different rows, and the banner says which** (issue
+#220). Everything above is **side-by-side validation**'s: it asks whether the
+model read the statement correctly, so a **skipped row** is not a misreading and
+is counted. The **first PDF import**'s preview asks the other question — the user
+is *assembling* an import out of a transcription they may correct, complete and
+hold rows out of, so it sums the **kept** rows and holding one out is exactly
+what makes the sums stop agreeing (PRD #216, story 11). `reconcile` itself is
+agnostic; which rows go in is the call site's, and the banner names the column
+`Extracted` or `Importing` accordingly so neither reading can be mistaken for the
+other.
 _Avoid_: Validation (reserve for the whole review step), audit, gate.
 
 **Side-by-side validation**:
@@ -416,6 +444,16 @@ papaparse delivered it, and a PDF statement's table as **discovery extraction**
 transcribed it. Both are the bank's own columns over string cells, so both are
 marked, picked from and paired the same way — one file pane rather than a CSV one
 and a PDF one that would drift.
+
+**One of the two can be wrong, and on the preview step it is editable** (issue
+#220): a transcription is a model's reading of a statement, so every cell of it
+is a field the user may correct, an **Add row** control under the pane appends
+the operation it missed, and the line above says *as transcribed — correct any
+cell* where a file says *as delivered*. Absent on every CSV path and on the
+**mapping step**, which is the PRD's one deliberate asymmetry — a file said what
+it said. The correction goes to the transcribed *cell*, never to the parsed
+value: the pane opposite, the commit and each row's **raw source** are all
+`applyFormat` over these rows, so one correction moves all three together.
 
 A plain table of what the file says, and nothing more: the ISO stamp the bank
 wrote rather than `15 Jan 2026`, the bare magnitude rather than `-€10.00`. The

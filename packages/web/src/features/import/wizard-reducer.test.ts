@@ -891,6 +891,97 @@ describe("wizardReducer — the first PDF import", () => {
     expect(failed.rows).toEqual([]);
     expect(canPreview(failed)).toBe(false);
   });
+
+  /**
+   * Issue #220 — the transcription is *corrected and completed* here, on the
+   * table itself rather than on the records read off it, so that one reading of
+   * one table feeds the preview, the commit and each row's **raw source**.
+   */
+  describe("correcting the transcription", () => {
+    it("patches one cell of one row and leaves the rest as transcribed", () => {
+      const state = wizardReducer(discovered(), {
+        type: "edit-transcribed-cell",
+        index: 0,
+        column: "Libellé",
+        value: "SHOP AB",
+      });
+
+      expect(state.rows[0]).toEqual({
+        "Date opération": "03/04/2026",
+        Libellé: "SHOP AB",
+        Débit: "1 929,71",
+      });
+      expect(state.rows[1]).toEqual(DISCOVERED[1]);
+      // The ids name the same rows they named: correcting a cell is not a new
+      // file, so a skip made before the correction still holds out its row.
+      expect(state.rowIds).toEqual(discovered().rowIds);
+    });
+
+    // A column the model left off a row is written by naming it, which is how a
+    // blank half of a debit/credit pair is filled in.
+    it("writes a column the transcribed row did not carry", () => {
+      const state = wizardReducer(discovered(), {
+        type: "edit-transcribed-cell",
+        index: 1,
+        column: "Débit",
+        value: "12,00",
+      });
+
+      expect(state.rows[1]).toMatchObject({ Débit: "12,00", Crédit: "2 500,00" });
+    });
+
+    // The deliberate asymmetry (PRD #216): a CSV said what it said, and the app
+    // has no standing to rewrite it. Held here rather than only in the preview,
+    // because it is a property of the import and not of one component.
+    it("refuses to rewrite a parsed CSV's rows", () => {
+      const state = wizardReducer(parsedCsv, {
+        type: "edit-transcribed-cell",
+        index: 0,
+        column: "Statut",
+        value: "CANCELLED",
+      });
+
+      expect(state).toBe(parsedCsv);
+      expect(
+        wizardReducer(parsedCsv, { type: "add-transcribed-row", cells: { Statut: "COMPLETE" } }),
+      ).toBe(parsedCsv);
+    });
+
+    it("ignores a correction to a row that is not there", () => {
+      const state = discovered();
+      expect(
+        wizardReducer(state, {
+          type: "edit-transcribed-cell",
+          index: 9,
+          column: "Libellé",
+          value: "SHOP Z",
+        }),
+      ).toBe(state);
+    });
+
+    // The operation the model missed: appended to the table, named by an id off
+    // the same counter, so a skip made on an earlier row cannot follow it.
+    it("appends a row and names it with an id no earlier row has held", () => {
+      const before = discovered();
+      const state = wizardReducer(before, {
+        type: "add-transcribed-row",
+        cells: { "Date opération": "20/04/2026" },
+      });
+
+      expect(state.rows).toHaveLength(3);
+      expect(state.rows[2]).toEqual({ "Date opération": "20/04/2026" });
+      expect(state.rowIds).toHaveLength(3);
+      expect(state.rowIds.slice(0, 2)).toEqual(before.rowIds);
+      expect(before.rowIds).not.toContain(state.rowIds[2]);
+      expect(state.nextRowId).toBeGreaterThan(Math.max(...state.rowIds));
+    });
+
+    // Nothing has been transcribed, so there are no columns to write a row in.
+    it("appends nothing before there is a table", () => {
+      const waiting = wizardReducer(withAccount, { type: "discover-start", file: PDF });
+      expect(wizardReducer(waiting, { type: "add-transcribed-row", cells: {} })).toBe(waiting);
+    });
+  });
 });
 
 /**

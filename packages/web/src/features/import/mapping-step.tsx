@@ -4,7 +4,6 @@ import { SplitView } from "@/components/split-view";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { formatCurrency, formatShortDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
   type ColumnField,
@@ -20,6 +19,7 @@ import { draftColumnMarks } from "./column-marks";
 import { FileTable } from "./file-table";
 import { draftComplete, type FormatDraft, draftRules } from "./parsers/format-draft";
 import type { ParsedTransaction } from "./parsers/types";
+import { readableAmount, readableDate } from "./readable-cell";
 import { useSplitRatio } from "./use-split-ratio";
 import type { FormatSelection, WizardAction } from "./wizard-reducer";
 
@@ -726,9 +726,7 @@ function PreviewOfDraft({
             {shown.map((record, index) => (
               <tr key={index} className="border-gousse-line border-t">
                 <td className="px-3 py-2 tabular-nums text-gousse-ink">
-                  {Number.isNaN(record.date.getTime())
-                    ? "Unreadable date"
-                    : formatShortDate(record.date)}
+                  {readableDate(record.date)}
                 </td>
                 <td className="px-3 py-2 text-gousse-ink">{record.rawIssuerString}</td>
                 <td
@@ -736,9 +734,7 @@ function PreviewOfDraft({
                     record.amount < 0 ? "text-gousse-high" : "text-gousse-low"
                   }`}
                 >
-                  {Number.isNaN(record.amount)
-                    ? "Unreadable amount"
-                    : formatCurrency(record.amount)}
+                  {readableAmount(record.amount)}
                 </td>
               </tr>
             ))}

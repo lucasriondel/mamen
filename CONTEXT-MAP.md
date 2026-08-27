@@ -405,6 +405,12 @@ repeated per package.
   is seated as the wizard's headers and rows — which is the whole of how a PDF
   joins the CSV machinery — and the commit saves a `kind: "pdf"` format declaring
   **every** discovered column before it writes the rows.
+  Since issue #220 it is also **correctable**: a transcription is a *reading* of
+  a statement and can be wrong where a parsed file cannot, so the preview lets
+  the user fix any transcribed cell and add an operation the model missed, and
+  cross-checks what they end up importing against the **declared totals**. The
+  corrections land on the transcribed cells, so the same `applyFormat` re-reads
+  them and each row's **raw source** carries the statement's words as corrected.
   _Avoid_: format detection, auto-mapping (the model transcribes; assigning the
   columns to the transaction model is the user's act).
 

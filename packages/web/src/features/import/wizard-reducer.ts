@@ -337,6 +337,32 @@ export type WizardAction =
   /** Append a blank extracted row (a missed operation the model didn't read). */
   | { type: "add-extracted" }
   /**
+   * Correct one cell of a **transcribed** statement table (issue #220): the
+   * model read `SHOP A` where the statement prints `SHOP AB`, and the user says
+   * so in the statement's own words.
+   *
+   * It patches {@link WizardState.rows} — the transcription itself — rather than
+   * the parsed record, which is what keeps one reading of one table: the format
+   * re-reads the corrected string, so the import table, the commit and the row's
+   * **raw source** cannot come to disagree about what the statement says.
+   *
+   * Only a transcription is correctable. A CSV's rows are what the file
+   * delivered and the app has no standing to rewrite them (PRD #216), so this is
+   * ignored on that path — the guard is here rather than only in the preview,
+   * because "the file said what it said" is a property of the import.
+   */
+  | { type: "edit-transcribed-cell"; index: number; column: string; value: string }
+  /**
+   * Append one row to a **transcribed** statement table — an operation the model
+   * missed entirely (issue #220).
+   *
+   * The cells come from the caller because the blank that reads sensibly under
+   * *this* format is the format's to say: a row the format's own filter would
+   * hide, or whose date column it cannot read, is an **Add row** control that
+   * does nothing. See `blankRow`.
+   */
+  | { type: "add-transcribed-row"; cells: Record<string, string> }
+  /**
    * Hold one previewed row out of the commit — the recourse for a row marked
    * **already imported** (epic #85), and for the phantom row an extraction read
    * off a summary line. The row is not dropped from the preview, only from what
@@ -789,6 +815,35 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
       return {
         ...state,
         extracted: [...(state.extracted ?? []), blank],
+        rowIds: [...state.rowIds, ...minted.rowIds],
+        nextRowId: minted.nextRowId,
+      };
+    }
+    case "edit-transcribed-cell": {
+      // Only a transcription is correctable — see the action's own note.
+      if (state.source !== "pdf") return state;
+      if (state.rows[action.index] === undefined) return state;
+      return {
+        ...state,
+        rows: state.rows.map((row, index) =>
+          index === action.index ? { ...row, [action.column]: action.value } : row,
+        ),
+      };
+    }
+    case "add-transcribed-row": {
+      if (state.source !== "pdf") return state;
+      // The columns are the statement's, so there has to be a statement: an
+      // appended row on a table nobody has transcribed yet would be a row with
+      // no columns to write in.
+      if (state.headers.length === 0) return state;
+      // Off the same counter as every other row, so the new line can never land
+      // on the id of one this wizard has already shown — a skip included. The
+      // one other place ids are appended rather than replaced is `add-extracted`,
+      // and for the same reason.
+      const minted = mintRowIds(state.nextRowId, 1);
+      return {
+        ...state,
+        rows: [...state.rows, { ...action.cells }],
         rowIds: [...state.rowIds, ...minted.rowIds],
         nextRowId: minted.nextRowId,
       };

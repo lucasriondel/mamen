@@ -9,6 +9,7 @@ import { enrichExtracted } from "./enrich-extracted";
 import { takeHandoff } from "./import-handoff";
 import { MappingStep } from "./mapping-step";
 import { applyFormat, type FormatToApply } from "./parsers/apply-format";
+import { blankRow } from "./parsers/blank-row";
 import { csvFormats, detectFormat } from "./parsers/detect-format";
 import { draftCreate, draftRules } from "./parsers/format-draft";
 import type { ParsedTransaction } from "./parsers/types";
@@ -250,9 +251,16 @@ export function ImportWizard({
       />
     );
   } else if (state.accountId !== null && activeFormat !== undefined) {
-    // The CSV preview, beside the file it read (issue #211). Only a CSV reaches
-    // here — a PDF drop clears the format and the rows both, so there is always
-    // a parsed file in hand to put in the left pane.
+    // The preview, beside the table it read (issue #211): a dropped CSV, or a
+    // PDF statement **discovery** transcribed (issue #218) — the same step, the
+    // same two panes, since both are the bank's own columns over string cells.
+    //
+    // Which of the two it is decides one thing, and it is the whole of issue
+    // #220: a transcription is a *reading* of a statement and can be wrong, so
+    // its cells are correctable, an operation the model missed can be typed in,
+    // and the totals the statement printed are there to cross-check against. A
+    // file is none of those things and gets none of them.
+    const transcribed = state.source === "pdf";
     wide = true;
     stepContent = (
       <PreviewStep
@@ -270,8 +278,25 @@ export function ImportWizard({
         // #215).
         sourceRowIds={state.rowIds}
         formatToCreate={formatToCreate}
+        declaredTotals={transcribed ? state.declaredTotals : null}
         onBack={() => dispatch({ type: "back-to-upload" })}
         dispatch={dispatch}
+        onEditCell={
+          transcribed
+            ? (index, column, value) =>
+                dispatch({ type: "edit-transcribed-cell", index, column, value })
+            : undefined
+        }
+        // The blank line is written in *this* format's vocabulary, which is why
+        // it is minted here rather than in the reducer: what reads sensibly
+        // under a day-first debit/credit format with a row filter is not what
+        // reads sensibly under an ISO signed-column one.
+        onAddRow={
+          transcribed
+            ? () =>
+                dispatch({ type: "add-transcribed-row", cells: blankRow(activeFormat, new Date()) })
+            : undefined
+        }
       />
     );
   }

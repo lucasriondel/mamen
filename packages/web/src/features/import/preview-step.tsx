@@ -1,8 +1,8 @@
-import type { StatementFormatCreate } from "@mamen/shared/contract";
+import type { DeclaredTotals, StatementFormatCreate } from "@mamen/shared/contract";
 import { createColumnHelper } from "@tanstack/react-table";
 import { useMemo } from "react";
 import { SplitView } from "@/components/split-view";
-import { formatCurrency, formatMonth, formatShortDate } from "@/lib/format";
+import { formatMonth } from "@/lib/format";
 import { AlreadyImportedMark } from "./already-imported-mark";
 import { CandidateFilters } from "./candidate-filters";
 import {
@@ -20,6 +20,9 @@ import { CommitBar } from "./commit-bar";
 import { FileTable } from "./file-table";
 import { keptPositions } from "./kept-rows";
 import type { ParsedTransaction } from "./parsers/types";
+import { readableAmount, readableDate } from "./readable-cell";
+import { reconcile } from "./reconcile";
+import { ReconciliationBanner } from "./reconciliation-banner";
 import { type RowHighlight, useRowHighlight } from "./row-highlight";
 import { useDuplicateFlags } from "./use-duplicate-flags";
 import { useSplitRatio } from "./use-split-ratio";
@@ -70,6 +73,21 @@ const CSV_SPLIT_DEFAULT = 0.5;
  * puts its banner and its own rail: they are about the import rather than about
  * either pane, and the moment that matters is not one to make the user find a
  * scroll position for.
+ *
+ * **A transcription is corrected here** (issue #220, PRD #216). Since #218 a
+ * discovered PDF statement reaches this very step — the transcribed table in the
+ * left pane, the format's reading of it in the right — and there, unlike a CSV,
+ * the left pane can be *wrong*. So `onEditCell` and `onAddRow` turn the file
+ * pane into the place a wrong cell is fixed and a missed operation is typed in,
+ * and the statement's own **declared totals** raise the soft reconciliation
+ * banner above the split. All three are absent on the CSV path, which is the one
+ * deliberate asymmetry between them: a file said what it said.
+ *
+ * Corrections land on the *transcribed cells*, never on the parsed values, which
+ * is what keeps this step one reading of one table. The right pane, the commit
+ * and each row's **raw source** are all `applyFormat` over the rows in the left
+ * pane, so a corrected cell moves all three together and none of them can end up
+ * claiming something the others deny.
  */
 export function PreviewStep({
   records,
@@ -82,8 +100,11 @@ export function PreviewStep({
   rows,
   sourceRowIds,
   formatToCreate,
+  declaredTotals = null,
   onBack,
   dispatch,
+  onEditCell,
+  onAddRow,
 }: {
   records: readonly ParsedTransaction[];
   /** Positional with `records`: the **stable row id** a skip names each row by. */
@@ -112,8 +133,19 @@ export function PreviewStep({
    * (issue #186); `null` for an import reading a stored one.
    */
   formatToCreate?: StatementFormatCreate | null;
+  /**
+   * The totals the statement itself printed, echoed by **discovery** (issue
+   * #217). `null` on the CSV path — a file declares nothing — and for a
+   * statement that printed no totals line, which are one state on purpose:
+   * either way no check runs and no banner shows.
+   */
+  declaredTotals?: DeclaredTotals | null;
   onBack: () => void;
   dispatch: (action: WizardAction) => void;
+  /** Correct one transcribed cell; absent wherever the left pane is a file. */
+  onEditCell?: (rowIndex: number, column: string, value: string) => void;
+  /** Add an operation the transcription missed; absent for the same reason. */
+  onAddRow?: () => void;
 }) {
   // Where the user left the divider — chrome rather than import state, so it is
   // one position shared with the PDF path's split and it outlives this import.
@@ -136,8 +168,19 @@ export function PreviewStep({
   const duplicates = useDuplicateFlags(records);
   const duplicateCount = keep.filter((index) => duplicates.flags[index]).length;
 
+  // Over the **kept** rows, where **side-by-side validation** sums every
+  // extracted one (issue #196) — the two paths ask different questions and the
+  // banner says which it ran. Here the user is assembling the import out of a
+  // transcription they may correct, complete and hold rows out of, so what PRD
+  // #216 asks to be cross-checked against the statement is what they end up
+  // with: skipping a row *should* move these sums. `null` totals — every CSV,
+  // and a statement that printed none — mean no check ran and nothing shows.
+  const recon = reconcile(kept, declaredTotals);
+
   return (
     <div className="flex flex-col gap-6">
+      {recon === null || recon.ok ? null : <ReconciliationBanner recon={recon} rows="kept" />}
+
       <dl className="grid grid-cols-2 gap-x-6 gap-y-3 rounded-2xl border border-gousse-line bg-gousse-panel p-4 text-sm sm:grid-cols-4">
         <Fact label="Format" value={parserLabel} />
         <Fact label="Account" value={accountName} />
@@ -167,6 +210,8 @@ export function PreviewStep({
             rows={rows}
             rowIds={sourceRowIds}
             highlight={highlight}
+            onEditCell={onEditCell}
+            onAddRow={onAddRow}
           />
         }
         right={
@@ -259,7 +304,7 @@ function PreviewTable({
         header: "Date",
         cell: ({ row }) => (
           <span className={`tabular-nums ${strikeWhileSkipped(isRowSkipped(row))}`}>
-            {formatShortDate(row.original.row.date)}
+            {readableDate(row.original.row.date)}
           </span>
         ),
       }),
@@ -285,7 +330,7 @@ function PreviewTable({
               row.original.row.amount < 0 ? "text-gousse-high" : "text-gousse-low"
             }`}
           >
-            {formatCurrency(row.original.row.amount)}
+            {readableAmount(row.original.row.amount)}
           </span>
         ),
       }),
