@@ -13,10 +13,17 @@ import { cn } from "@/lib/utils";
  * (+ SidebarGroupLabel) / SidebarItem (nav row) / SidebarGlyph (icon slot) /
  * SidebarFooter, plus SidebarTrigger for the collapsed-state open button.
  *
- * The hue-driven row surfaces (hover fill, left active bar, glyph tint) live in
+ * The hue-driven row surfaces (hover fill, glyph tint, count tint) live in
  * `sidebar-chrome.css` — a single per-row `--hue` custom property feeds rest, hover and
  * active uniformly, which Tailwind can't express cleanly. Install that sheet
  * alongside this file or rows render flat.
+ *
+ * The active row is marked by a stroke on its right edge — a per-row `::after`
+ * in `sidebar-chrome.css`, pure CSS. Rows are full-bleed, so the stroke lands
+ * against the shell's `border-r` without any positioning script, scrolls with
+ * its row for free, and fades/grows in and out as `data-active` /
+ * `aria-current` come and go. `markHue` on a row recolors the stroke alone;
+ * `--mark-height` / `--mark-width` are the CSS-only knobs for its size.
  */
 
 /* ------------------------------------------------------------------ shells */
@@ -30,13 +37,17 @@ import { cn } from "@/lib/utils";
  * collapsed so its rows leave the tab order and the a11y tree.
  */
 const SHELL_BASE =
-  "flex h-full shrink-0 flex-col overflow-hidden border-r border-gousse-line bg-gousse-panel text-gousse-ink";
+  "sidebar-shell relative flex h-full shrink-0 flex-col overflow-hidden border-r border-gousse-line/60 bg-gousse-bg text-gousse-ink";
 
-/** Fixed inner width so children don't reflow while the shell's width animates. */
+/**
+ * Fixed inner width so children don't reflow while the shell's width animates.
+ * No horizontal padding of its own — rows are full-bleed (the hue wash runs
+ * edge to edge) and carry their inset themselves.
+ */
 function SidebarInner({ className, ...props }: ComponentProps<"div">) {
   return (
     <div
-      className={cn("flex h-full w-56 shrink-0 flex-col gap-4 px-3 py-4", className)}
+      className={cn("flex h-full w-62 shrink-0 flex-col pb-4.5 pt-5.5", className)}
       {...props}
     />
   );
@@ -60,8 +71,8 @@ export function Sidebar({
       data-collapsed={collapsed || undefined}
       className={cn(
         SHELL_BASE,
-        "group/sidebar w-56 transition-[width,opacity] duration-300 ease-out motion-reduce:transition-none",
-        collapsed ? "w-0 border-r-0 opacity-0" : "w-56 opacity-100",
+        "group/sidebar w-62 transition-[width,opacity] duration-300 ease-out motion-reduce:transition-none",
+        collapsed ? "w-0 border-r-0 opacity-0" : "w-62 opacity-100",
         className,
       )}
       {...props}
@@ -74,7 +85,7 @@ export function Sidebar({
 /**
  * Responsive sidebar shell. Two axes off one `collapsed` flag: mobile slides a
  * fixed overlay in with `translate-x` over a tappable scrim, desktop (`sm+`)
- * reflows the layout by animating the static column's width between 14rem and 0.
+ * reflows the layout by animating the static column's width between 15.5rem and 0.
  *
  * `onToggle` is what the scrim calls — pass the same handler the header's close
  * button and the `SidebarTrigger` use.
@@ -109,10 +120,10 @@ export function SidebarShell({
         data-collapsed={collapsed || undefined}
         className={cn(
           SHELL_BASE,
-          "group/sidebar fixed inset-y-0 left-0 z-[60] w-56 transition-[width,transform,opacity] duration-300 ease-out motion-reduce:transition-none sm:static sm:z-auto sm:translate-x-0",
+          "group/sidebar fixed inset-y-0 left-0 z-[60] w-62 transition-[width,transform,opacity] duration-300 ease-out motion-reduce:transition-none sm:static sm:z-auto sm:translate-x-0",
           collapsed
             ? "-translate-x-full sm:w-0 sm:border-r-0 sm:opacity-0"
-            : "translate-x-0 sm:w-56 sm:opacity-100",
+            : "translate-x-0 sm:w-62 sm:opacity-100",
           className,
         )}
         {...props}
@@ -128,7 +139,10 @@ export function SidebarShell({
 export function SidebarHeader({ className, ...props }: ComponentProps<"div">) {
   return (
     <div
-      className={cn("flex items-center justify-between pl-1.5", className)}
+      className={cn(
+        "flex items-center justify-between gap-2 pb-6.5 pl-5 pr-3.5",
+        className,
+      )}
       {...props}
     />
   );
@@ -142,14 +156,23 @@ export function SidebarHeader({ className, ...props }: ComponentProps<"div">) {
  * and the mark is usually an image the row can't recolor.
  */
 const TITLE_BASE =
-  "flex items-center gap-3 text-lg font-bold tracking-tight text-gousse-accent transition-opacity hover:opacity-80";
+  "flex items-center gap-2.5 text-base font-bold tracking-tight text-gousse-accent transition-opacity hover:opacity-80 active:opacity-70";
 
 /**
  * The mark's slot. Fixed square, so the name after it sits on one line whether
  * the slot is filled or empty. The mark decides its own size; the slot only
  * reserves the space and centers it.
  */
-const TITLE_MARK = "grid h-9 w-9 shrink-0 place-items-center overflow-hidden";
+const TITLE_MARK = "grid h-6.5 w-6.5 shrink-0 place-items-center overflow-hidden";
+
+/**
+ * Worn only while a mark is present: the radius clips a full-bleed logo image,
+ * and the hairline ring keeps it from reading as a sticker pasted on the flat
+ * panel. An empty slot stays invisible — a ring around nothing would paint a
+ * ghost square.
+ */
+const TITLE_MARK_FILLED =
+  "rounded-lg shadow-[0_0_0_1px_rgb(var(--gousse-ink)/0.07)]";
 
 /**
  * What `render` receives. Deliberately element-agnostic — a div-typed prop bag
@@ -211,7 +234,9 @@ export function SidebarTitle({
 }: SidebarTitleProps) {
   const body = (
     <>
-      <span className={TITLE_MARK}>{mark}</span>
+      <span className={cn(TITLE_MARK, mark != null && TITLE_MARK_FILLED)}>
+        {mark}
+      </span>
       {children}
     </>
   );
@@ -238,21 +263,21 @@ export function SidebarTitle({
 export function SidebarContent({ className, ...props }: ComponentProps<"div">) {
   return (
     <div
-      className={cn("sidebar-scroll flex-1 overflow-y-auto", className)}
+      className={cn("sidebar-scroll flex flex-1 flex-col gap-6 overflow-y-auto", className)}
       {...props}
     />
   );
 }
 
 export function SidebarGroup({ className, ...props }: ComponentProps<"nav">) {
-  return <nav className={cn("flex flex-col gap-0.5", className)} {...props} />;
+  return <nav className={cn("flex flex-col", className)} {...props} />;
 }
 
 export function SidebarGroupLabel({ className, ...props }: ComponentProps<"div">) {
   return (
     <div
       className={cn(
-        "px-2.5 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-gousse-muted",
+        "px-5.5 pb-2.5 text-[10.5px] font-medium uppercase tracking-[0.13em] text-gousse-muted/55",
         className,
       )}
       {...props}
@@ -260,11 +285,16 @@ export function SidebarGroupLabel({ className, ...props }: ComponentProps<"div">
   );
 }
 
+/**
+ * The hairline above the footer is inset to the rows' own padding rather than
+ * running border-to-border — a full-width rule would read as a second panel
+ * edge against the full-bleed rows.
+ */
 export function SidebarFooter({ className, ...props }: ComponentProps<"div">) {
   return (
     <div
       className={cn(
-        "mt-auto flex flex-col gap-0.5 border-t border-gousse-line/60 pt-3",
+        "relative mt-auto flex flex-col pt-4 before:absolute before:inset-x-5.5 before:top-0 before:h-px before:bg-gousse-line/70",
         className,
       )}
       {...props}
@@ -277,20 +307,26 @@ export function SidebarFooter({ className, ...props }: ComponentProps<"div">) {
 /**
  * The one class string every sidebar row wears, so the button flavour and the
  * link flavour can't drift apart. Hue-driven surfaces live in `.sidebar-row`
- * (sidebar-chrome.css); this covers layout, radius, typography and the press scale.
+ * (sidebar-chrome.css); this covers layout and typography.
  *
  * Exported because a consumer rendering its own row element — a router `NavLink`
  * with a function `className`, say — needs the exact same string.
  */
 const ROW_BASE =
-  "sidebar-row flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition-[background-color,color,box-shadow,transform] active:scale-[0.97]";
+  "sidebar-row flex h-8.5 w-full shrink-0 items-center gap-3 px-5.5 text-left text-sm transition-[background-color,color]";
 
+/**
+ * The label stays ink in every state — colour identifies, weight and ink rank.
+ * If the label took the hue too, a pale row (yellow, green) would read as
+ * disabled next to a dark one. The active row carries no shadow and no radius:
+ * the wash runs edge to edge, and the travelling mark does the announcing.
+ */
 export function sidebarRowClass(active: boolean, className?: string): string {
   return cn(
     ROW_BASE,
     active
-      ? "font-bold text-gousse-ink shadow-gousse-sm"
-      : "font-medium text-gousse-muted hover:text-gousse-ink",
+      ? "font-semibold text-gousse-ink"
+      : "font-normal text-gousse-muted hover:text-gousse-ink/85",
     className,
   );
 }
@@ -320,6 +356,14 @@ type SidebarItemOwnProps = {
   depth?: number;
   /** Row accent as an `r g b` triplet; drives the row's `--hue`. */
   hue?: string;
+  /**
+   * The active mark's color as an `r g b` triplet, when it should differ from
+   * the rest of the row. Defaults to `hue` (and so to the accent), which is
+   * what keeps the mark, the hover fill and the glyph tint reading as one
+   * color unless you deliberately split them. Only visible while the row is
+   * the active one.
+   */
+  markHue?: string;
   /** Tint the glyph with the hue at rest (used for category mailboxes). */
   tinted?: boolean;
   /** Collapsed state of the branch this row heads; rotates a `.sidebar-chevron`. */
@@ -365,6 +409,7 @@ export function SidebarItem({
   trailing,
   depth = 0,
   hue,
+  markHue,
   tinted,
   branchCollapsed,
   className,
@@ -375,9 +420,10 @@ export function SidebarItem({
 }: SidebarItemProps) {
   const rowStyle: CSSProperties = { ...style };
   if (hue) (rowStyle as Record<string, string>)["--hue"] = hue;
+  if (markHue) (rowStyle as Record<string, string>)["--mark-hue"] = markHue;
   // One step = the glyph slot + its gap, so a child's text sits directly under
   // its parent's text rather than drifting off on its own margin.
-  if (depth > 0) rowStyle.paddingLeft = `${0.625 + depth * 1.625}rem`;
+  if (depth > 0) rowStyle.paddingLeft = `${1.375 + depth * 1.75}rem`;
 
   const body = (
     <>

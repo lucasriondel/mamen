@@ -36,29 +36,37 @@ import { AppSidebar } from "./app-sidebar";
 
 /**
  * Every destination the sidebar offers, in the order it offers them, with the
- * Lucide id of the glyph that stands for it.
+ * Lucide id of the glyph that stands for it and the section it sits under.
  *
  * The glyph column is part of the destination and not an afterthought: a row is
  * scanned before it is read, so the mark is half of what tells two rows apart
  * (issue #126).
+ *
+ * The section column is `null` for Settings alone: it is rendered from the
+ * footer rather than either group, because it configures the app instead of
+ * naming one of its surfaces.
  */
 const DESTINATIONS = [
   // Not an arrow pair. `ArrowLeftRight` was `ArrowRightLeft` mirrored, so at
   // 16px this row and the one below it were the same row twice; the arrows stay
   // with the concept that genuinely is directional (issue #126).
-  ["Transactions", "/transactions", "receipt"],
-  ["Transfers", "/transfers", "arrow-right-left"],
+  ["Transactions", "/transactions", "receipt", "Money"],
+  ["Transfers", "/transfers", "arrow-right-left", "Money"],
   // `chart-pie` and `building2` are the ids Lucide draws under; `PieChart` and
   // `Building2` are the export names, and for the first of those the two differ.
-  ["Recap", "/recap", "chart-pie"],
-  ["Import", "/import", "upload"],
-  ["Accounts", "/accounts", "wallet"],
-  ["Issuers", "/issuers", "building2"],
-  ["Categories", "/categories", "folder-tree"],
-  // Last, and after a rule: settings is where the app is configured rather than
-  // where its money is looked at, so it sits below the feature surfaces.
-  ["Settings", "/settings", "settings"],
+  ["Recap", "/recap", "chart-pie", "Money"],
+  ["Import", "/import", "upload", "Data"],
+  ["Accounts", "/accounts", "wallet", "Data"],
+  ["Issuers", "/issuers", "building2", "Data"],
+  ["Categories", "/categories", "folder-tree", "Data"],
+  // Last, and below a rule: settings is where the app is configured rather than
+  // where its money is looked at, so it sits under the feature surfaces in the
+  // footer rather than in a group of its own.
+  ["Settings", "/settings", "settings", null],
 ] as const;
+
+/** The section headings, in order, as the panel renders them. */
+const SECTIONS = ["Money", "Data"] as const;
 
 /** Where the brand row goes: the app's root, which is its landing surface. */
 const LANDING = "/";
@@ -100,12 +108,15 @@ function renderSidebar(initialEntry = "/transactions", props: SidebarProps = {})
 }
 
 /**
- * The nav rows, in DOM order.
+ * Every destination row in the panel, in DOM order.
  *
- * Scoped to the group's `<nav>`: the brand row is a link too (#107), and it sits
- * in the header, outside it.
+ * Not scoped to a single `<nav>` any more: the nav is split into a Money group
+ * and a Data group, and Settings sits in the footer outside both. `.sidebar-row`
+ * is what the destinations share and the brand row does not — it is a link too
+ * (#107), but it wears the primitive's title class — so selecting on it spans
+ * every group and the footer while still leaving the brand out.
  */
-const navItems = () => within(screen.getByRole("navigation")).getAllByRole("link");
+const navItems = () => [...document.querySelectorAll<HTMLElement>("aside a.sidebar-row")];
 
 /** The brand row — a link on the app's name, at the top of the panel. */
 const brandRow = () => screen.getByRole("link", { name: "mamen" });
@@ -170,6 +181,45 @@ describe("AppSidebar", () => {
     expect(navItems().map((item) => [item.textContent, item.getAttribute("href")])).toStrictEqual(
       DESTINATIONS.map(([label, to]) => [label, to]),
     );
+  });
+
+  // The nav was one flat list of eight peers until the panel split it. The
+  // grouping is the navigation structure itself, so what is asserted is which
+  // rows landed under which heading — not merely that two headings render.
+  it("files every destination under its section, in order", async () => {
+    renderSidebar();
+
+    await waitFor(() => expect(navItems()).toHaveLength(DESTINATIONS.length));
+
+    // Each group is a named `<nav>`, so the heading is the region's accessible
+    // name and the rows under it are that region's own links.
+    const grouped = SECTIONS.map((section) => [
+      section,
+      within(screen.getByRole("navigation", { name: section }))
+        .getAllByRole("link")
+        .map((row) => row.textContent),
+    ]);
+
+    expect(grouped).toStrictEqual(
+      SECTIONS.map((section) => [
+        section,
+        DESTINATIONS.filter(([, , , belongs]) => belongs === section).map(([label]) => label),
+      ]),
+    );
+  });
+
+  it("renders each section's heading above its rows", async () => {
+    renderSidebar();
+
+    await waitFor(() => expect(navItems()).toHaveLength(DESTINATIONS.length));
+    // The heading is inside the `<nav>` it names, ahead of the first row —
+    // which is what makes it the region's accessible name rather than a label
+    // floating beside it.
+    for (const section of SECTIONS) {
+      const group = screen.getByRole("navigation", { name: section });
+      const heading = within(group).getByText(section);
+      expect(group.firstElementChild).toBe(heading);
+    }
   });
 
   it("marks the current route, and only it, as the current page", async () => {
@@ -284,12 +334,20 @@ describe("AppSidebar", () => {
     await waitFor(() => expect(navItems()).toHaveLength(DESTINATIONS.length));
     const settings = screen.getByRole("link", { name: "Settings" });
     expect(navItems().at(-1)).toBe(settings);
-    // With the footer gone, the scrolling content region is the last thing the
-    // shell renders — so the last row of the nav is the last row of the panel.
-    // `mt-auto` is the footer's own pin, and nothing wears it any more.
-    const shell = document.querySelector("aside");
-    expect(shell?.lastElementChild).toContainElement(settings);
-    expect(shell?.querySelector(".mt-auto")).toBeNull();
+    // Settings is in the footer, which is the shell's last child and pins
+    // itself with `mt-auto` — so the row stays at the bottom of the panel
+    // however short the nav above it is, rather than merely trailing the last
+    // row of Data. Both halves are asserted: the position, and the pin that
+    // holds it there once the content region stops filling the height.
+    // The footer is the last child of the shell's inner column, not of the
+    // `<aside>` itself — the shell wraps its regions in a fixed-width column so
+    // they don't reflow while the panel animates.
+    const column = document.querySelector("aside > *:last-child");
+    const footer = [...(column?.children ?? [])].at(-1);
+    expect(footer).toContainElement(settings);
+    expect(footer).toHaveClass("mt-auto");
+    // And it is outside the scrolling region, so it does not scroll away.
+    expect(settings.closest(".sidebar-scroll")).toBeNull();
   });
 
   it("leaves every row unhued, on the neutral resting surface", async () => {

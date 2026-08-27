@@ -228,9 +228,15 @@ describe("README.md", () => {
 
   it("names every navigation surface the app ships", () => {
     const sidebar = read("packages/web/src/components/app-sidebar.tsx");
-    const nav = sidebar.slice(sidebar.indexOf("NAV_LINKS"));
-    const labels = [...nav.matchAll(/label:\s*"([^"]+)"/g)].map((m) => m[1]);
+    const nav = sidebar.slice(sidebar.indexOf("NAV_SECTIONS"));
+    // A destination is a `label` that comes with a `to` — the nav is grouped
+    // now, so a bare `label:` is just as likely to be a section heading
+    // ("Money", "Data"), and those name no surface the README documents.
+    const labels = [...nav.matchAll(/to:\s*"[^"]+",\s*label:\s*"([^"]+)"/g)].map((m) => m[1]);
 
+    // Settings is declared apart from the groups, so it is matched separately
+    // rather than left out of the check it was covered by before.
+    expect(labels).toContain("Settings");
     expect(labels.length).toBeGreaterThan(0);
     for (const label of labels) expect(README).toContain(label);
   });

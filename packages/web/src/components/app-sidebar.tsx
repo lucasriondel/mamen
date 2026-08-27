@@ -15,7 +15,9 @@ import type { ComponentProps, ReactNode, Ref } from "react";
 import {
   SidebarClose,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarItem,
   SidebarShell,
@@ -106,14 +108,35 @@ interface NavLink {
   icon: LucideIcon;
 }
 
+interface NavSection {
+  /** The section heading, rendered through `SidebarGroupLabel`. */
+  label: string;
+  links: readonly NavLink[];
+}
+
 /**
- * The primary navigation surfaces, in sidebar order.
+ * The primary navigation surfaces, in sidebar order, under the two headings the
+ * nav is split by.
+ *
+ * The split is by *what a row is for*, not by what it operates on — every row
+ * here touches money in some sense, so that reading would put all eight in one
+ * group again. **Money** is where the money is looked at: the ledger, the
+ * transfers between accounts, the summary over both. **Data** is where the
+ * material behind those views is put in and maintained — the importer and the
+ * three reference lists it resolves rows against. A destination belongs to the
+ * group whose question it answers, which is why Recap sits with Transactions
+ * rather than with the lists it aggregates.
+ *
+ * Settings is in neither: it configures the app rather than naming a surface,
+ * and it is rendered from the footer below.
  *
  * **One glyph, one destination** (issue #126). A row is scanned before it is
  * read, so a glyph that names two rows costs the nav the only thing it offers
  * over a list of words. Mirrored twins count as one glyph: `ArrowLeftRight` and
  * `ArrowRightLeft` are the same drawing flipped, and at 16px nothing tells them
  * apart — which is why `Receipt` is here and the arrows are Transfers' alone.
+ * The rule holds across the groups, not within each: two sections do not make a
+ * repeated glyph readable, since the eye scans the panel as one column.
  *
  * The arrows staying there is the substantive half, and the app had already
  * decided it: `TransferBadge` marks a transfer row with `ArrowLeftRight` — the
@@ -123,18 +146,32 @@ interface NavLink {
  * could not keep it: the row was not merely hard to tell from its neighbour, it
  * was wearing the neighbour's meaning.
  */
-const NAV_LINKS: readonly NavLink[] = [
-  { to: "/transactions", label: "Transactions", icon: Receipt },
-  { to: "/transfers", label: "Transfers", icon: ArrowRightLeft },
-  { to: "/recap", label: "Recap", icon: PieChart },
-  { to: "/import", label: "Import", icon: Upload },
-  { to: "/accounts", label: "Accounts", icon: Wallet },
-  { to: "/issuers", label: "Issuers", icon: Building2 },
-  { to: "/categories", label: "Categories", icon: FolderTree },
-  // Below the feature surfaces: settings is where the app is configured, not
-  // where the money is looked at. One flat list still, per the group's note.
-  { to: "/settings", label: "Settings", icon: Settings },
+const NAV_SECTIONS: readonly NavSection[] = [
+  {
+    label: "Money",
+    links: [
+      { to: "/transactions", label: "Transactions", icon: Receipt },
+      { to: "/transfers", label: "Transfers", icon: ArrowRightLeft },
+      { to: "/recap", label: "Recap", icon: PieChart },
+    ],
+  },
+  {
+    label: "Data",
+    links: [
+      { to: "/import", label: "Import", icon: Upload },
+      { to: "/accounts", label: "Accounts", icon: Wallet },
+      { to: "/issuers", label: "Issuers", icon: Building2 },
+      { to: "/categories", label: "Categories", icon: FolderTree },
+    ],
+  },
 ];
+
+/**
+ * Settings, which the footer renders below the hairline rather than the content
+ * region: it configures the app instead of naming one of its surfaces, so it
+ * belongs to neither group above.
+ */
+const SETTINGS_LINK: NavLink = { to: "/settings", label: "Settings", icon: Settings };
 
 interface AppSidebarProps {
   /** Drives both axes of the shell: the mobile drawer and the desktop width. */
@@ -149,18 +186,19 @@ interface AppSidebarProps {
 }
 
 /**
- * The app's left navigation: the brand, then links to the feature surfaces. One
- * unlabelled `SidebarGroup` holds the whole nav — the destinations are a single
- * flat list, and splitting them into labelled sections would be new navigation
- * structure, not a migration.
+ * The app's left navigation: the brand, the feature surfaces under the two
+ * headings `NAV_SECTIONS` splits them by, then Settings pinned to the bottom.
  *
- * **No footer** (issue #127). It held the theme toggle, which now lives on
- * `/settings` with the app's other preferences: theme is a choice made once,
- * and the sidebar is the one piece of chrome every page pays for. `SidebarFooter`
- * draws a top border and pins itself with `mt-auto`, so an emptied one would
- * leave a rule floating at the bottom of the panel — it is dropped rather than
- * left childless, which is what makes `Settings`, already last in the list, the
- * bottom-most row.
+ * The nav was one unlabelled group until the panel carried eight peers with
+ * nothing to break the column; **Money** and **Data** name the two questions
+ * those rows answer, and `SidebarContent`'s `gap-6` is what separates them.
+ *
+ * **The footer is back, and holds Settings.** It last held the theme toggle,
+ * which moved to `/settings` (issue #127), and was dropped rather than left
+ * childless — an empty one would have floated its hairline at the bottom of the
+ * panel. With Settings in it the rule has something to divide again: the row
+ * configures the app rather than naming a surface, so it belongs outside both
+ * groups, and `mt-auto` keeps it at the bottom however short the nav gets.
  *
  * Rows are deliberately **unhued**. `SidebarItem`'s `hue` prop exists for
  * consumers whose rows carry their own colour — a label list, a category tree —
@@ -197,14 +235,38 @@ export function AppSidebar({ collapsed, onToggle, closeRef }: AppSidebarProps) {
         <SidebarClose ref={closeRef} onClick={onToggle} />
       </SidebarHeader>
       <SidebarContent>
-        <SidebarGroup>
-          {NAV_LINKS.map(({ to, label, icon: Icon }) => (
-            <SidebarLink key={to} to={to} icon={<Icon size={16} />} activeProps={{ active: true }}>
-              {label}
-            </SidebarLink>
-          ))}
-        </SidebarGroup>
+        {NAV_SECTIONS.map(({ label, links }) => (
+          // The heading labels the group it introduces, so it goes inside the
+          // `<nav>` rather than beside it: that gives each section an accessible
+          // name and leaves the panel with two named navigation regions instead
+          // of one anonymous one.
+          <SidebarGroup key={label} aria-label={label}>
+            <SidebarGroupLabel>{label}</SidebarGroupLabel>
+            {links.map(({ to, label: rowLabel, icon: Icon }) => (
+              <SidebarLink
+                key={to}
+                to={to}
+                icon={<Icon size={16} />}
+                activeProps={{ active: true }}
+              >
+                {rowLabel}
+              </SidebarLink>
+            ))}
+          </SidebarGroup>
+        ))}
       </SidebarContent>
+      {/* Pinned to the bottom by the primitive's own `mt-auto`, under the inset
+       * hairline it draws — so Settings sits apart from the two groups however
+       * short the nav is, rather than trailing the last row of Data. */}
+      <SidebarFooter>
+        <SidebarLink
+          to={SETTINGS_LINK.to}
+          icon={<SETTINGS_LINK.icon size={16} />}
+          activeProps={{ active: true }}
+        >
+          {SETTINGS_LINK.label}
+        </SidebarLink>
+      </SidebarFooter>
     </SidebarShell>
   );
 }
