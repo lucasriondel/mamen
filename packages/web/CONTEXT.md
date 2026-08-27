@@ -146,6 +146,16 @@ looking at, because a discovered table and a parsed CSV are the same shape; the
 draft's `kind` decides the sentence at the top and which half of the format union
 the commit writes, and nothing else.
 
+**On that route the step is three panes** (issue #219): the **statement pane**
+leftmost as reference, the transcribed table in the middle as the click-to-assign
+surface, this form and its live preview on the right. Nothing about the mapping
+moves — the middle pane is the same **file pane**, with the same **column marks**,
+the same **pick mode** and the same live preview opposite it — and the CSV path
+stays the two panes it has always been. What the arrangement buys is that the
+bank's words, the model's reading of them and what the draft makes of that
+reading are all on screen at once, which is the only way a transcription is
+checkable while it is being mapped.
+
 It is **offered, not forced**: the picker stays on screen, so a user whose file
 one of their formats can read still picks it, and a detected format offers
 nothing to build at all.
@@ -250,6 +260,12 @@ the transaction's **raw source** (ADR 0012).
 Afterwards the account has a PDF format, so the next statement from that bank
 goes down the ordinary **PDF extraction** path with no mapping step: the feature
 costs nothing once it is set up.
+
+**Its mapping step is three panes** (issue #219) — the **statement pane**, the
+transcribed table, the format form — so the transcription is mapped against the
+document it was read off rather than from memory of it. The preview after it
+stays two: correcting a cell there is an answer the user already has, and the
+statement has done its work by then.
 
 **Its preview is where the transcription is corrected and completed** (issue
 #220). Any transcribed cell is editable in the **file pane**, an **Add row**
@@ -396,6 +412,14 @@ nothing about what is in either slot: the **side-by-side validation** step puts
 its statement iframe on the left, the CSV preview and the **mapping step** their
 **file pane** (issues #211, #212), and the split view is told none of it.
 
+**Three panes are two splits, nested** (issue #219): the **mapping step** on the
+discovery path puts the **statement pane** on the left of an outer one and the
+whole two-pane mapping on its right. The primitive gains nothing — a slot that
+holds an iframe holds a split view — and what it buys is that the inner divider
+stays *the same divider* the CSV mapping step has, asking the same question of
+the same stored position, rather than a three-way layout in which no boundary
+means what it used to.
+
 Each pane scrolling on its own is the behaviour, not a detail. The split used to
 scroll as one column, so reading down the extracted rows carried the statement
 off the top of the screen — the one thing a side-by-side view exists to prevent.
@@ -408,10 +432,18 @@ import leaves the panes where the user put them, and so does leaving the wizard
 entirely. One stored ratio serves every step, because dragging is a preference
 rather than a per-screen setting; until the first drag each step shows **its own
 default** — the PDF step's is 60/40, the grid it replaced; the **mapping step**'s
-is the same, since the file is what is being read *from* there and a column of
-selects needs no width; and the CSV preview's is even, since both of its panes
+is 80/20, since the file is what is being read *from* there and a column of
+selects needs no width, dropping to 65/35 where a **statement pane** takes some
+of that width first; and the CSV preview's is even, since both of its panes
 are tables of the same rows and the right one carries the filters, the skips and
 the decision — and the first drag replaces every one of them.
+
+The **statement pane's own divider is the one exception**, and it is a second
+divider rather than a second opinion (issue #219). Only the three-pane mapping
+has it, so nothing else could share it, and one stored answer for both would have
+the pair adopt each other's position the next time the step opened. Its key is
+its own (`mamen:import:statement-ratio`) and its label with it — *Resize the
+statement pane*, since "the panes" would name either of the two on that screen.
 _Avoid_: Panel (reserved for the **detail panel**), splitter, resizer, pane
 (fine for one side; the thing itself is the split view).
 _Code note_: `components/split-view.tsx`, controlled — `ratio` in and
@@ -485,7 +517,36 @@ is what tells it apart from the import table now that the step carries two;
 and **pick mode** on the mapping step and neither on the preview step, where the
 mapping is settled and the file is there to read rows against; it takes the
 **row highlight** on the preview step and not on the mapping step, whose right
-pane is a form rather than a table of the same rows.
+pane is a form rather than a table of the same rows. Since issue #219 it is the
+*middle* pane on the discovery mapping step, with the **statement pane** beside
+it; nothing about the table changed for that, which is the claim its cases make.
+
+**Statement pane**:
+The source **PDF** itself, rendered by the browser's own viewer from a revocable
+blob URL — the left half of **side-by-side validation** since issue #34, and the
+leftmost of the **mapping step**'s three panes on the discovery path since issue
+#219. `features/import/pdf-pane.tsx`, one component for both, because the two
+steps show the same statement for the same reason and a second copy is a second
+place for the object URL to leak.
+
+It is **reference**, not a work surface: nothing is clicked, mapped or corrected
+in it. What earns it the room is that everything beside it — the transcribed
+table, the parsed rows — is a *model's reading* of that document, and a reading
+is only judgeable against the thing read. Without it a user correcting a
+**discovery extraction** was checking it from memory, or from the file opened in
+another application.
+
+**Only where there is a document to show.** A CSV was parsed by the browser and
+has no rendering, so the mapping step stays two panes on that path — the same
+asymmetry as the editable preview, and for the same reason. Which of the two it
+is, is a `File` handed in or `null`; the step decides its whole layout on that,
+and the wizard passes one only when the source is a PDF.
+_Avoid_: PDF viewer (it is the browser's, not ours), document preview,
+attachment.
+_Code note_: no pdfjs, and every `sandbox` value strict enough to satisfy the
+lint rule stops the native viewer running — hence the one disable on the
+`<iframe>`. jsdom renders none of it, so what the wizard's cases read is the
+frame's title (`PDF statement`) and which side of which divider it is on.
 
 **Column marks**:
 The draft's mapping drawn over the **file pane** while a **Statement Format** is

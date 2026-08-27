@@ -216,6 +216,12 @@ export function ImportWizard({
     stepContent = (
       <MappingStep
         fileName={state.fileName ?? "this file"}
+        // The statement the table below was transcribed from, on the one path
+        // that has one (issue #219): a **discovered** PDF is a model's reading
+        // of a document, and the document is what makes the reading checkable.
+        // A CSV holds no file here — the browser parsed it — so the step is the
+        // two panes it has always been.
+        statement={state.source === "pdf" ? state.file : null}
         headers={state.headers}
         rows={state.rows}
         reason={state.formatSelection}

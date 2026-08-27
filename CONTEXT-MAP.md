@@ -396,7 +396,9 @@ repeated per package.
   would reach the user as a mapping step with nothing to map.
   It is *transcription*, not canonical extraction: nothing is parsed, folded or
   renamed, which is what lets the user check it against the statement beside it —
-  the supervision #185's unsupervised guessing lacked. It spends the same **task
+  the supervision #185's unsupervised guessing lacked, and *beside it* is literal
+  since issue #219: the source PDF is the leftmost of the mapping step's three
+  panes, so the reading and the thing read are on screen together. It spends the same **task
   choice** as extraction (there is no second **AI task** to configure), so a
   missing credential fails identically on both.
   Since issue #218 the web side runs it, and it is **offered rather than

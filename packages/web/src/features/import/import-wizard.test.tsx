@@ -569,6 +569,15 @@ function paneDivider(): HTMLElement {
 }
 
 /**
+ * The *other* divider, on the one step that has two (issue #219): the one
+ * between the reference statement and the mapping beside it. Named apart from
+ * the shared one above, since "the panes" would name either of them.
+ */
+function statementDivider(): HTMLElement {
+  return screen.getByRole("separator", { name: "Resize the statement pane" });
+}
+
+/**
  * The same question of the CSV preview's table, whose cells are text rather than
  * inputs: the rows it is showing, by raw issuer, in table order.
  */
@@ -2110,6 +2119,160 @@ describe("ImportWizard", () => {
 
       expect(await screen.findByLabelText("Format name")).toBeInTheDocument();
       expect(discoverPdf).toHaveBeenCalledTimes(1);
+    });
+
+    /**
+     * Issue #219, under PRD #216 — **three-pane mapping**. What the middle table
+     * shows is a *model's reading* of a statement, and until now the statement
+     * itself was nowhere on screen while it was being mapped: the transcription
+     * had to be trusted, or checked in another application. The source PDF joins
+     * the step as the leftmost pane — the same blob-URL native viewer
+     * **side-by-side validation** renders — with the discovered table in the
+     * middle, still the click-to-assign surface, and the format form on the
+     * right.
+     *
+     * Two dividers, so two questions: how much room the statement takes, which
+     * only this layout asks, and how the table divides with the form, which is
+     * the divider the CSV mapping step already has and shares with every other
+     * step (PRD #208).
+     */
+    describe("the statement is beside the table it was transcribed from", () => {
+      /** Drop, transcribe, and land on the mapping step over the discovered table. */
+      async function mapADiscoveredStatement(user: ReturnType<typeof userEvent.setup>) {
+        discoverPdf.mockResolvedValue(DISCOVERED);
+        await dropOnAccountWithNoPdfFormat(user);
+        await takeTheOffer(user);
+      }
+
+      // The arrangement itself: three panes in the order the PRD names them,
+      // each divider with the pane it is about on one side of it.
+      it("renders the statement, the discovered table and the form, in that order", async () => {
+        const user = userEvent.setup();
+        await mapADiscoveredStatement(user);
+
+        // The statement as the browser renders it — the very pane the PDF path's
+        // validation view puts the file in.
+        const statement = await screen.findByTitle("PDF statement");
+        const table = fileTable("statement.pdf");
+        const form = screen.getByLabelText("Format name");
+
+        expect(statementDivider().compareDocumentPosition(statement)).toBe(
+          Node.DOCUMENT_POSITION_PRECEDING,
+        );
+        expect(statementDivider().compareDocumentPosition(table)).toBe(
+          Node.DOCUMENT_POSITION_FOLLOWING,
+        );
+        expect(paneDivider().compareDocumentPosition(table)).toBe(Node.DOCUMENT_POSITION_PRECEDING);
+        expect(paneDivider().compareDocumentPosition(form)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+      });
+
+      // The middle pane is what it was: the columns are still assigned by
+      // clicking its headers, the marks still land on it, and the draft's own
+      // reading of the rows is still opposite in the third pane.
+      it("keeps the middle table the click-to-assign surface, the live preview beside it", async () => {
+        const user = userEvent.setup();
+        await mapADiscoveredStatement(user);
+        await mapDiscoveredColumns(user);
+
+        await pickFromFile(user, "IBAN", "Type");
+
+        expect(screen.getByLabelText("Counterparty IBAN column")).toHaveValue("Type");
+        expect(fileHeaderNames("statement.pdf")[4]).toBe("Type — mapped to IBAN");
+        expect(columnMarks(4, "statement.pdf")).toEqual(["active", "active", "active"]);
+
+        // The parsed reading sits on the far side of the second divider, the
+        // statement on the far side of the first — which is the whole point of
+        // three panes: the bank's words, the transcription, and what the draft
+        // makes of it, all at once.
+        expect(previewedRows()).toEqual([
+          expect.stringContaining("03 Apr 2026 | SHOP A"),
+          expect.stringContaining("11 Apr 2026 | SALAIRE"),
+        ]);
+        const preview = screen.getByRole("table", { name: "Preview of the parsed rows" });
+        expect(paneDivider().compareDocumentPosition(preview)).toBe(
+          Node.DOCUMENT_POSITION_FOLLOWING,
+        );
+        expect(statementDivider().compareDocumentPosition(screen.getByTitle("PDF statement"))).toBe(
+          Node.DOCUMENT_POSITION_PRECEDING,
+        );
+      });
+
+      // Each divider opens where this arrangement wants it, and moving one says
+      // nothing about the other: they are two questions, not one control drawn
+      // twice.
+      it("moves the statement's divider without moving the one beside it", async () => {
+        const user = userEvent.setup();
+        await mapADiscoveredStatement(user);
+
+        // Three panes divide a width two used to, so the file/form split opens
+        // narrower here than the 80 the two-pane step chose.
+        expect(statementDivider()).toHaveAttribute("aria-valuenow", "40");
+        expect(paneDivider()).toHaveAttribute("aria-valuenow", "65");
+
+        await user.click(statementDivider());
+        await user.keyboard("{ArrowRight}");
+
+        expect(statementDivider()).toHaveAttribute("aria-valuenow", "45");
+        expect(paneDivider()).toHaveAttribute("aria-valuenow", "65");
+
+        // And each is found where it was left on the way back in. One stored
+        // position for the two would show here and nowhere else: within a single
+        // mount each divider holds its own state, so it is the *reading* that
+        // would have them adopt each other's.
+        await user.click(screen.getByRole("button", { name: "Discard this format" }));
+        await user.click(
+          await screen.findByRole("button", { name: "Build a format from this statement" }),
+        );
+        await screen.findByLabelText("Format name");
+
+        expect(statementDivider()).toHaveAttribute("aria-valuenow", "45");
+        expect(paneDivider()).toHaveAttribute("aria-valuenow", "65");
+      });
+
+      /**
+       * And the two are kept apart. The divider between the table and the form
+       * is the one PRD #208 made a *preference* — one drag answering for every
+       * step — so a drag on it here has to reach the CSV mapping step, while the
+       * statement's own divider, which no other step has, must not have written
+       * over it on the way.
+       */
+      it("carries the shared divider to the CSV path, the statement's own left behind", async () => {
+        const user = userEvent.setup();
+        await mapADiscoveredStatement(user);
+
+        await user.click(statementDivider());
+        await user.keyboard("{ArrowRight}");
+        await user.click(paneDivider());
+        await user.keyboard("{ArrowLeft}{ArrowLeft}");
+        expect(paneDivider()).toHaveAttribute("aria-valuenow", "55");
+
+        // Out of this import and in with a CSV nothing on the account reads.
+        await user.click(screen.getByRole("button", { name: "Discard this format" }));
+        await user.upload(
+          await screen.findByLabelText("CSV or PDF statement"),
+          new File([FRENCH_CSV], "releve.csv", { type: "text/csv" }),
+        );
+        await user.click(
+          await screen.findByRole("button", { name: "Build a format from this file" }),
+        );
+        await screen.findByLabelText("Format name");
+
+        // Two panes, the drag carried into them — and no statement to reference,
+        // so no divider offering to resize one.
+        expect(paneDivider()).toHaveAttribute("aria-valuenow", "55");
+        expect(screen.queryByRole("separator", { name: "Resize the statement pane" })).toBeNull();
+      });
+
+      // The asymmetry is deliberate and belongs to the PDF path alone: a CSV was
+      // read by the browser and has no rendering to check it against.
+      it("leaves CSV mapping two-pane", async () => {
+        const user = userEvent.setup();
+        await dropFrenchCsv(user);
+
+        expect(screen.queryByTitle("PDF statement")).toBeNull();
+        expect(screen.getAllByRole("separator", { name: /^Resize/ })).toHaveLength(1);
+        expect(paneDivider()).toHaveAttribute("aria-valuenow", "80");
+      });
     });
   });
 

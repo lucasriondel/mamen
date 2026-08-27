@@ -4,6 +4,7 @@ import {
   IMPORT_SPLIT_RATIO_STORAGE_KEY,
   MAX_SPLIT_RATIO,
   MIN_SPLIT_RATIO,
+  STATEMENT_SPLIT_RATIO_STORAGE_KEY,
   useSplitRatio,
 } from "./use-split-ratio";
 
@@ -75,6 +76,26 @@ describe("useSplitRatio", () => {
     // asking with its own fallback is answered with what they chose.
     expect(renderHook(() => useSplitRatio(FALLBACK)).result.current.ratio).toBe(0.35);
     expect(renderHook(() => useSplitRatio(0.5)).result.current.ratio).toBe(0.35);
+  });
+
+  /**
+   * A screen with *two* dividers on it — the three-pane mapping of issue #219 —
+   * asks two questions, and one stored answer would lock the pair together: a
+   * drag on either would jump the other, since both read the same key on the
+   * next render. So the reference pane's divider names a key of its own, and
+   * "one preference for the divider every step shares" survives a step that has
+   * a second one.
+   */
+  it("keeps a second divider's position apart from the shared one", () => {
+    const shared = renderHook(() => useSplitRatio(FALLBACK));
+    const statement = renderHook(() => useSplitRatio(0.4, STATEMENT_SPLIT_RATIO_STORAGE_KEY));
+
+    act(() => statement.result.current.setRatio(0.45));
+
+    expect(statement.result.current.ratio).toBe(0.45);
+    expect(shared.result.current.ratio).toBe(FALLBACK);
+    expect(window.localStorage.getItem(IMPORT_SPLIT_RATIO_STORAGE_KEY)).toBeNull();
+    expect(window.localStorage.getItem(STATEMENT_SPLIT_RATIO_STORAGE_KEY)).toBe("0.45");
   });
 
   it("persists a drag", () => {

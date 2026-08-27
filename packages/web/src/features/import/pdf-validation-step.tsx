@@ -1,6 +1,6 @@
 import type { DeclaredTotals, ExtractedTransaction } from "@mamen/shared/contract";
 import { createColumnHelper } from "@tanstack/react-table";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { SplitView } from "@/components/split-view";
 import { Button } from "@/components/ui/button";
 import { AlreadyImportedMark } from "./already-imported-mark";
@@ -18,6 +18,7 @@ import { CommitBar } from "./commit-bar";
 import { formatExtractionTime } from "./format-extraction-time";
 import { keptPositions } from "./kept-rows";
 import type { ParsedTransaction } from "./parsers/types";
+import { PdfPane } from "./pdf-pane";
 import { reconcile } from "./reconcile";
 import { ReconciliationBanner } from "./reconciliation-banner";
 import { useDuplicateFlags } from "./use-duplicate-flags";
@@ -172,31 +173,6 @@ function ExtractionSummary({
       {rowCount === 1 ? "transaction" : "transactions"} extracted in{" "}
       {formatExtractionTime(extraction.ms)}
     </p>
-  );
-}
-
-/** The source PDF in the browser's native viewer, via a revocable blob URL. */
-function PdfPane({ file }: { file: File }) {
-  const [url, setUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    const objectUrl = URL.createObjectURL(file);
-    setUrl(objectUrl);
-    return () => URL.revokeObjectURL(objectUrl);
-  }, [file]);
-
-  return (
-    // The src is a blob of the file the user just picked, rendered by the
-    // browser's own PDF viewer — and every sandbox value strict enough to
-    // satisfy the rule stops that viewer running.
-    // oxlint-disable-next-line react/iframe-missing-sandbox
-    <iframe
-      title="PDF statement"
-      src={url ?? undefined}
-      // Its pane's full height, wherever the divider leaves that pane: the
-      // native viewer scrolls the document inside it (issue #210).
-      className="h-full w-full rounded-2xl border border-gousse-line bg-gousse-panel"
-    />
   );
 }
 

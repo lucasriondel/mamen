@@ -19,8 +19,9 @@ import { draftColumnMarks } from "./column-marks";
 import { FileTable } from "./file-table";
 import { draftComplete, type FormatDraft, draftRules } from "./parsers/format-draft";
 import type { ParsedTransaction } from "./parsers/types";
+import { PdfPane } from "./pdf-pane";
 import { readableAmount, readableDate } from "./readable-cell";
-import { useSplitRatio } from "./use-split-ratio";
+import { STATEMENT_SPLIT_RATIO_STORAGE_KEY, useSplitRatio } from "./use-split-ratio";
 import type { FormatSelection, WizardAction } from "./wizard-reducer";
 
 /** How many parsed rows the live preview shows before it stops listing them. */
@@ -39,6 +40,30 @@ const PREVIEW_ROWS = 10;
  * these (issue #210).
  */
 const MAPPING_SPLIT_DEFAULT = 0.8;
+
+/**
+ * The same split's default when a **statement pane** shares the width with it
+ * (issue #219) — three panes dividing what two used to.
+ *
+ * Eighty-twenty of what is left after the statement would leave the form a
+ * thirteenth of the screen: a column of selects is readable narrow, but not that
+ * narrow, and the widest the divider goes is a poor answer once it is a share of
+ * a share. Sixty-five leaves the discovered table the greater part of the
+ * remainder and the form something to be read in. As ever, the first drag
+ * replaces it.
+ */
+const MAPPING_SPLIT_WITH_STATEMENT = 0.65;
+
+/**
+ * What the reference statement takes of the whole width until it is dragged.
+ *
+ * Less than the sixty **side-by-side validation** gives it, and for a different
+ * job: there the statement is what the rows are read *from*, here it is what the
+ * transcription is checked *against* while the work happens in the two panes
+ * beside it. Enough of the screen to read a statement page at the viewer's own
+ * zoom, and no more.
+ */
+const STATEMENT_SPLIT_DEFAULT = 0.4;
 
 /**
  * Why the user is here, in a sentence naming their own file.
@@ -114,9 +139,21 @@ function reasonCopy(
  * parsed CSV is, so the same file pane, the same marks, the same pick mode and
  * the same `applyFormat` read it. The only thing the draft's `kind` decides is
  * the sentence at the top, and which half of the format union the commit writes.
+ *
+ * Except that a PDF has one thing a CSV has not: **the statement itself** (issue
+ * #219). What the middle pane shows on that path is a model's *reading* of a
+ * document, and a reading can only be judged against the thing read — so the
+ * source file joins the step as a leftmost reference pane, in the very viewer
+ * **side-by-side validation** renders it in, and the two-pane split above becomes
+ * the right-hand side of a second one. Nothing about the mapping moves: the
+ * middle pane is the same file pane with the same marks, the same pick mode and
+ * the same live preview opposite it. A CSV passes no statement and the step is
+ * exactly the two panes it was — a file the browser parsed has no rendering to be
+ * checked against.
  */
 export function MappingStep({
   fileName,
+  statement,
   headers,
   rows,
   reason,
@@ -126,6 +163,12 @@ export function MappingStep({
   dispatch,
 }: {
   fileName: string;
+  /**
+   * The source **PDF** the table beside it was transcribed from, or `null` on
+   * every CSV path — which is also what decides whether this step is three panes
+   * or two.
+   */
+  statement: File | null;
   /** The dropped file's own header row — the choices, and later the fingerprint. */
   headers: readonly string[];
   /** Every row of the file, as delivered — what the left pane shows. */
@@ -142,7 +185,13 @@ export function MappingStep({
   // Where the user left the divider — chrome rather than import state, so it is
   // one position shared with the other two split steps and it outlives this
   // import.
-  const { ratio, setRatio } = useSplitRatio(MAPPING_SPLIT_DEFAULT);
+  const { ratio, setRatio } = useSplitRatio(
+    statement === null ? MAPPING_SPLIT_DEFAULT : MAPPING_SPLIT_WITH_STATEMENT,
+  );
+  // The other divider, and the only one on any step that is not the shared
+  // position: how much room the reference statement takes is a question no
+  // other step asks, and two dividers reading one entry would jump each other.
+  const statementSplit = useSplitRatio(STATEMENT_SPLIT_DEFAULT, STATEMENT_SPLIT_RATIO_STORAGE_KEY);
   const update = (patch: Partial<FormatDraft>) => dispatch({ type: "update-format-draft", patch });
 
   // Which column the file pane marks more strongly: the one the field the user
@@ -217,132 +266,156 @@ export function MappingStep({
   // put in it — not when a subset of the fields happens to be filled.
   const readable = draftRules(draft) !== null;
 
+  // The mapping itself: the table being mapped, and the form mapping it. The
+  // whole of the step on the CSV path, and the right-hand side of the statement
+  // split on the PDF one — so its height is its own only while it stands alone,
+  // and is the pane it was given otherwise.
+  const mapping = (
+    <SplitView
+      // Tall enough to read a statement in, and the reason each pane has
+      // something to scroll *inside*: a single scrolling column would carry
+      // the file off the top of the screen on the way down the form (#210).
+      // Nested, that height is the outer split's and this takes the pane.
+      className={statement === null ? "h-[85vh]" : "h-full"}
+      ratio={ratio}
+      onRatioChange={setRatio}
+      left={
+        <FileTable
+          fileName={fileName}
+          headers={headers}
+          rows={rows}
+          marks={marks}
+          activeColumn={activeColumn}
+          pickingFor={picking === null ? null : COLUMN_FIELD_BADGE[picking]}
+          onPickColumn={pickColumn}
+        />
+      }
+      right={
+        <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-4 rounded-2xl border border-gousse-line bg-gousse-panel p-4">
+            <Field label="Format name">
+              <Input
+                aria-label="Format name"
+                value={draft.name}
+                placeholder="e.g. Green-Got"
+                onChange={(event) => update({ name: event.target.value })}
+              />
+            </Field>
+
+            <ColumnSelect field="date" label="Operation date column" {...columns} />
+            {/* A list, not a choice: the parts of a label a bank split across
+                columns, read in the order they were picked. */}
+            <ColumnList field="label" label="Operation label columns" {...columns} />
+            {/* Optional, and `null` is an *answer*: a bank that writes no
+                counterparty account number has to say so, or "carries none"
+                and "nobody got round to it" look alike in the stored record. */}
+            <ColumnSelect
+              field="iban"
+              label="Counterparty IBAN column"
+              none="This bank writes none"
+              {...columns}
+            />
+
+            <SignFields onChange={(sign) => update({ sign })} {...columns} />
+
+            {/* The two rules PRD #180 refuses to guess at. Both open
+                unanswered: a default here would be a choice the user never
+                made, and its wrongness reads as a perfectly plausible date
+                and a plausible number. */}
+            <Field label="Date order">
+              <Select
+                aria-label="Date order"
+                value={draft.dateOrder ?? ""}
+                onChange={(event) => update({ dateOrder: event.target.value as DateOrder })}
+              >
+                <option value="" disabled>
+                  How does this bank write dates?
+                </option>
+                <option value="iso">ISO — 2026-04-03</option>
+                <option value="day-first">Day first — 03/04/2026</option>
+                <option value="month-first">Month first — 04/03/2026</option>
+              </Select>
+            </Field>
+
+            <Field label="Decimal separator">
+              <Select
+                aria-label="Decimal separator"
+                value={draft.decimalSeparator ?? ""}
+                onChange={(event) =>
+                  update({ decimalSeparator: event.target.value as DecimalSeparator })
+                }
+              >
+                <option value="" disabled>
+                  How does this bank write numbers?
+                </option>
+                <option value="dot">Dot — 1234.56</option>
+                <option value="comma">Comma — 1 234,56</option>
+              </Select>
+            </Field>
+
+            {/* The optional row filter — one column equal to one value, which
+                is how "settled operations only" is said. */}
+            <ColumnSelect
+              field="filter"
+              label="Only import rows where"
+              none="Import every row"
+              {...columns}
+            />
+            <Field label="…equals">
+              <Input
+                aria-label="…equals"
+                value={draft.filter?.equals ?? ""}
+                disabled={draft.filter === null}
+                placeholder="e.g. COMPLETE"
+                onChange={(event) =>
+                  update({
+                    filter:
+                      draft.filter === null
+                        ? null
+                        : { ...draft.filter, equals: event.target.value },
+                  })
+                }
+              />
+            </Field>
+          </div>
+
+          {/* Beneath the form, still in the right pane. The raw rows opposite
+              say what the bank wrote; these say what the draft reads of it,
+              and a wrong date order or decimal separator is only ever visible
+              in the second (PRD #208). */}
+          {readable ? (
+            <PreviewOfDraft records={records} rowCount={rowCount} />
+          ) : (
+            <p className="text-sm text-gousse-muted">
+              Map the date, the label and the amount, and say how the dates and numbers are written
+              — the rows of your file will be read here as you go.
+            </p>
+          )}
+        </div>
+      }
+    />
+  );
+
   return (
     <div className="flex flex-col gap-6">
       <p className="text-sm text-gousse-muted">{reasonCopy(reason, fileName, draft.kind)}</p>
 
-      <SplitView
-        // Tall enough to read a statement in, and the reason each pane has
-        // something to scroll *inside*: a single scrolling column would carry
-        // the file off the top of the screen on the way down the form (#210).
-        className="h-[85vh]"
-        ratio={ratio}
-        onRatioChange={setRatio}
-        left={
-          <FileTable
-            fileName={fileName}
-            headers={headers}
-            rows={rows}
-            marks={marks}
-            activeColumn={activeColumn}
-            pickingFor={picking === null ? null : COLUMN_FIELD_BADGE[picking]}
-            onPickColumn={pickColumn}
-          />
-        }
-        right={
-          <div className="flex flex-col gap-6">
-            <div className="flex flex-col gap-4 rounded-2xl border border-gousse-line bg-gousse-panel p-4">
-              <Field label="Format name">
-                <Input
-                  aria-label="Format name"
-                  value={draft.name}
-                  placeholder="e.g. Green-Got"
-                  onChange={(event) => update({ name: event.target.value })}
-                />
-              </Field>
-
-              <ColumnSelect field="date" label="Operation date column" {...columns} />
-              {/* A list, not a choice: the parts of a label a bank split across
-                  columns, read in the order they were picked. */}
-              <ColumnList field="label" label="Operation label columns" {...columns} />
-              {/* Optional, and `null` is an *answer*: a bank that writes no
-                  counterparty account number has to say so, or "carries none"
-                  and "nobody got round to it" look alike in the stored record. */}
-              <ColumnSelect
-                field="iban"
-                label="Counterparty IBAN column"
-                none="This bank writes none"
-                {...columns}
-              />
-
-              <SignFields onChange={(sign) => update({ sign })} {...columns} />
-
-              {/* The two rules PRD #180 refuses to guess at. Both open
-                  unanswered: a default here would be a choice the user never
-                  made, and its wrongness reads as a perfectly plausible date
-                  and a plausible number. */}
-              <Field label="Date order">
-                <Select
-                  aria-label="Date order"
-                  value={draft.dateOrder ?? ""}
-                  onChange={(event) => update({ dateOrder: event.target.value as DateOrder })}
-                >
-                  <option value="" disabled>
-                    How does this bank write dates?
-                  </option>
-                  <option value="iso">ISO — 2026-04-03</option>
-                  <option value="day-first">Day first — 03/04/2026</option>
-                  <option value="month-first">Month first — 04/03/2026</option>
-                </Select>
-              </Field>
-
-              <Field label="Decimal separator">
-                <Select
-                  aria-label="Decimal separator"
-                  value={draft.decimalSeparator ?? ""}
-                  onChange={(event) =>
-                    update({ decimalSeparator: event.target.value as DecimalSeparator })
-                  }
-                >
-                  <option value="" disabled>
-                    How does this bank write numbers?
-                  </option>
-                  <option value="dot">Dot — 1234.56</option>
-                  <option value="comma">Comma — 1 234,56</option>
-                </Select>
-              </Field>
-
-              {/* The optional row filter — one column equal to one value, which
-                  is how "settled operations only" is said. */}
-              <ColumnSelect
-                field="filter"
-                label="Only import rows where"
-                none="Import every row"
-                {...columns}
-              />
-              <Field label="…equals">
-                <Input
-                  aria-label="…equals"
-                  value={draft.filter?.equals ?? ""}
-                  disabled={draft.filter === null}
-                  placeholder="e.g. COMPLETE"
-                  onChange={(event) =>
-                    update({
-                      filter:
-                        draft.filter === null
-                          ? null
-                          : { ...draft.filter, equals: event.target.value },
-                    })
-                  }
-                />
-              </Field>
-            </div>
-
-            {/* Beneath the form, still in the right pane. The raw rows opposite
-                say what the bank wrote; these say what the draft reads of it,
-                and a wrong date order or decimal separator is only ever visible
-                in the second (PRD #208). */}
-            {readable ? (
-              <PreviewOfDraft records={records} rowCount={rowCount} />
-            ) : (
-              <p className="text-sm text-gousse-muted">
-                Map the date, the label and the amount, and say how the dates and numbers are
-                written — the rows of your file will be read here as you go.
-              </p>
-            )}
-          </div>
-        }
-      />
+      {statement === null ? (
+        mapping
+      ) : (
+        <SplitView
+          // The same height the two-pane step has, given to the outer split now:
+          // the mapping inside it takes whatever this pane is left with.
+          className="h-[85vh]"
+          ratio={statementSplit.ratio}
+          onRatioChange={statementSplit.setRatio}
+          // Named apart from the divider every step shares, because there are two
+          // of them on this screen and "the panes" would name either.
+          dividerLabel="Resize the statement pane"
+          left={<PdfPane file={statement} />}
+          right={mapping}
+        />
+      )}
 
       <div className="flex items-center gap-3">
         <Button
