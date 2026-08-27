@@ -65,12 +65,12 @@ describe("ColumnsToggle", () => {
     expect(onToggle).toHaveBeenCalledWith("account", false);
   });
 
-  it("offers 'Show all columns' only while something is hidden", async () => {
+  it("offers 'Show all' only while something is hidden", async () => {
     const user = userEvent.setup();
     const { onReset } = renderToggle({ issuer: false, category: false });
 
     await user.click(screen.getByRole("button", { name: /Choose columns/ }));
-    await user.click(screen.getByRole("button", { name: "Show all columns" }));
+    await user.click(screen.getByRole("button", { name: "Show all" }));
 
     expect(onReset).toHaveBeenCalledTimes(1);
   });
@@ -81,6 +81,6 @@ describe("ColumnsToggle", () => {
 
     await user.click(screen.getByRole("button", { name: "Choose columns" }));
 
-    expect(screen.queryByRole("button", { name: "Show all columns" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Show all" })).not.toBeInTheDocument();
   });
 });

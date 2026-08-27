@@ -335,10 +335,30 @@ async function renderView(initialEntry = "/transactions") {
  * (and this helper) clicks.
  */
 async function pickAccounts(user: ReturnType<typeof userEvent.setup>, names: readonly string[]) {
-  await user.click(screen.getByRole("button", { name: /All accounts/ }));
+  // The trigger carries `aria-label="Filter by account"`, which is its
+  // accessible name — the visible "All accounts" is the value it reports.
+  await user.click(screen.getByRole("button", { name: /Filter by account/ }));
   for (const name of names) {
     await user.click(await screen.findByLabelText(name));
   }
+}
+
+/**
+ * Pick a month in the **period** picker: open it, then click the month cell in
+ * the grid. The flat `<select>` of every distinct month became a year of cells
+ * (see `PeriodMonthGrid`), so a test aims at the cell rather than at an option.
+ */
+async function pickMonth(user: ReturnType<typeof userEvent.setup>, short: string, year?: number) {
+  await user.click(screen.getByRole("button", { name: /Filter by period/ }));
+  if (year != null) {
+    // The grid opens on the selection's year, or this one; page back if the
+    // month wanted is older.
+    while (Number(screen.getByRole("group", { name: "Year" }).textContent) > year) {
+      await user.click(screen.getByRole("button", { name: /Previous year/ }));
+    }
+  }
+  const grid = screen.getByRole("group", { name: "Month" });
+  await user.click(within(grid).getByRole("button", { name: short }));
 }
 
 beforeEach(() => {
@@ -497,7 +517,7 @@ describe("TransactionsView", () => {
     const user = userEvent.setup();
 
     await pickAccounts(user, ["Checking"]);
-    await user.selectOptions(screen.getByLabelText("Filter by month"), "2026-01");
+    await pickMonth(user, "Jan", 2026);
 
     await waitFor(() => {
       expect(router.state.location.search).toMatchObject({
@@ -531,9 +551,15 @@ describe("TransactionsView", () => {
     listTotal = listRows.length;
     await renderView();
 
-    const month = screen.getByLabelText("Filter by month");
-    expect(within(month).getByRole("option", { name: "Apr 2026" })).toBeInTheDocument();
-    expect(within(month).queryByRole("option", { name: "Mar 2026" })).toBeNull();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /Filter by period/ }));
+    const grid = screen.getByRole("group", { name: "Month" });
+
+    // The month the rows fall in is selectable; the one they were merely filed
+    // under is not — the cell stays in place and is disabled, so "no rows here"
+    // is legible rather than the month having silently vanished.
+    expect(within(grid).getByRole("button", { name: "Apr" })).toBeEnabled();
+    expect(within(grid).getByRole("button", { name: "Mar" })).toBeDisabled();
   });
 
   // **Excluded from recap** (issue #67): the filter is a three-way select, and
@@ -543,7 +569,12 @@ describe("TransactionsView", () => {
     const router = await renderView();
     const user = userEvent.setup();
 
-    await user.selectOptions(screen.getByLabelText("Filter by recap exclusion"), "excluded");
+    await user.click(
+      within(screen.getByRole("radiogroup", { name: "Filter by recap exclusion" })).getByRole(
+        "radio",
+        { name: "Excluded" },
+      ),
+    );
 
     await waitFor(() => {
       expect(router.state.location.search).toMatchObject({
@@ -555,7 +586,12 @@ describe("TransactionsView", () => {
     );
 
     // The other half is a filter too, not the absence of one.
-    await user.selectOptions(screen.getByLabelText("Filter by recap exclusion"), "counted");
+    await user.click(
+      within(screen.getByRole("radiogroup", { name: "Filter by recap exclusion" })).getByRole(
+        "radio",
+        { name: "Counted" },
+      ),
+    );
     await waitFor(() => {
       expect(router.state.location.search).toMatchObject({
         excludedFromRecap: false,

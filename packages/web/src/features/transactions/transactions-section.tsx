@@ -282,23 +282,29 @@ export function TransactionsSection({
     <div className="flex flex-col gap-6">
       {children}
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <TransactionsFilters
-          accounts={accounts}
-          months={months}
-          value={{
-            accountId: search.accountId,
-            importMonth: search.importMonth,
-            search: search.search,
-            uncurated: search.uncurated,
-            excludedFromRecap: search.excludedFromRecap,
-            isTransferLeg: search.isTransferLeg,
-            kind: search.kind,
-          }}
-          onChange={onFiltersChange}
-        />
-        {actions}
-      </div>
+      {/* `actions` goes *into* the bar rather than beside it: the columns menu
+          is one of the bar's controls (it narrows what the table shows, beside
+          the filters that narrow which rows it shows), and the rail is where
+          the icon-sized controls live. */}
+      <TransactionsFilters
+        accounts={accounts}
+        months={months}
+        value={{
+          accountId: search.accountId,
+          importMonth: search.importMonth,
+          // The date bounds reach the bar now, so the period picker can show a
+          // recap link's period instead of the bar silently applying one.
+          startDate: search.startDate,
+          endDate: search.endDate,
+          search: search.search,
+          uncurated: search.uncurated,
+          excludedFromRecap: search.excludedFromRecap,
+          isTransferLeg: search.isTransferLeg,
+          kind: search.kind,
+        }}
+        onChange={onFiltersChange}
+        actions={actions}
+      />
 
       {transactionsQuery.isError || issuersError ? (
         <Empty
