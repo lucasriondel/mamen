@@ -176,20 +176,15 @@ export function AppearancePicker({
             )}
           >
             <CategoryIcon name={icon} color={resolved} />
-            {/* The glyph already carries the **Resolved colour**, but a glyph
-                cannot say whether that colour is the category's own. The chip
-                can: **chosen** is a filled dot, **inherited** the same dot
-                hollowed and dashed — borrowed, not owned. Both paint the
-                resolved colour, because `color: null` is a reference to an
-                ancestor rather than a blank (ADR 0006). */}
+            {/* The glyph itself carries the **Resolved colour**, so the dot that
+                used to sit on its corner is gone. What the dot also carried —
+                whether that colour is the category's own or borrowed from an
+                ancestor (`color: null`, ADR 0006) — stays here as state for
+                tests and assistive tech to read, painted by nothing. */}
             <span
+              hidden
               data-appearance-color={resolved}
               data-appearance-inherited={color === null ? "" : undefined}
-              style={color === null ? { borderColor: resolved } : { backgroundColor: resolved }}
-              className={cn(
-                "-right-0.5 -bottom-0.5 absolute block size-2.5 rounded-full border",
-                color === null ? "border-dashed bg-gousse-panel" : "border-gousse-line",
-              )}
             />
           </button>
         }
