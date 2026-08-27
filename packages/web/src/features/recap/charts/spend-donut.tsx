@@ -76,12 +76,19 @@ export function SpendDonut({ rows, axis, period, accountIds }: SpendDonutProps) 
                 <Cell key={slice.key} fill={slice.color} />
               ))}
             </Pie>
-            <Tooltip cursor={false} content={<DonutTooltip />} />
+            <Tooltip
+              cursor={false}
+              content={<DonutTooltip />}
+              // The hole's total is an overlay painted after the chart, so it
+              // wins the default stacking order and shows through a tooltip
+              // parked over the ring. Lift the tooltip above it.
+              wrapperStyle={{ zIndex: 10 }}
+            />
           </PieChart>
         </ResponsiveContainer>
         {/* The hole carries the total — the one figure the ring itself cannot
             show, and the number every arc is a share of. */}
-        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+        <div className="pointer-events-none absolute inset-0 z-0 flex flex-col items-center justify-center">
           <span className="text-base font-semibold tabular-nums text-gousse-ink">
             {formatCurrency(total, { signDisplay: false })}
           </span>
@@ -112,6 +119,7 @@ function DonutTooltip({
   return (
     <ChartTooltip
       title={slice.name}
+      titleColor={slice.textColor}
       entries={[
         {
           label: `${formatShare(slice.share)} of spending`,

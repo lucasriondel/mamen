@@ -38,8 +38,21 @@ export const CATEGORICAL_VARS: readonly string[] = Array.from(
   (_, i) => `var(--chart-series-${i + 1})`,
 );
 
+/**
+ * The same eight slots at **text weight** — see the note in `chart-palette.css`.
+ * Six of the eight fills sit under 4.5:1 as small text on the light panel, so a
+ * series colour landing on type reads from here instead. Marks keep the fills.
+ */
+export const CATEGORICAL_TEXT_VARS: readonly string[] = Array.from(
+  { length: CATEGORICAL_SLOTS },
+  (_, i) => `var(--chart-series-${i + 1}-text)`,
+);
+
 /** The neutral the "Other" bucket and de-emphasised marks wear. */
 export const OTHER_COLOR = "var(--chart-other)";
+
+/** The "Other" neutral at text weight. */
+export const OTHER_TEXT_COLOR = "var(--chart-other-text)";
 
 /**
  * The two **diverging** poles of the earnings-vs-spending chart. Money in and
@@ -71,6 +84,19 @@ export const AXIS_COLOR = "var(--chart-axis)";
 export function seriesColorFor(slot: number | null): string {
   if (slot === null || slot < 0 || slot >= CATEGORICAL_SLOTS) return OTHER_COLOR;
   return CATEGORICAL_VARS[slot] as string;
+}
+
+/**
+ * The same slot's colour for painting **text** — the tooltip title of a
+ * single-series readout.
+ *
+ * Kept a separate accessor rather than a lightened filter over
+ * {@link seriesColorFor}, so a caller has to say which of the two it means: a
+ * fill on type is the failure this exists to prevent.
+ */
+export function seriesTextColorFor(slot: number | null): string {
+  if (slot === null || slot < 0 || slot >= CATEGORICAL_SLOTS) return OTHER_TEXT_COLOR;
+  return CATEGORICAL_TEXT_VARS[slot] as string;
 }
 
 /**

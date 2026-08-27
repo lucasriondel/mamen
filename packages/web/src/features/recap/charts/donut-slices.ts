@@ -1,5 +1,5 @@
 import type { SpendRow } from "../spend-rows";
-import { assignColorSlots, seriesColorFor } from "./chart-palette";
+import { assignColorSlots, seriesColorFor, seriesTextColorFor } from "./chart-palette";
 
 /**
  * How many named slices a donut shows before the rest fold into **Other**.
@@ -32,6 +32,12 @@ export type DonutSlice = {
   count: number;
   /** The CSS colour the arc is painted in — a `var(--chart-*)` role. */
   color: string;
+  /**
+   * The same hue at text weight, for the tooltip title. Separate from `color`
+   * because the arc fills are tuned against the panel as *marks*, and most of
+   * them fail the small-text contrast floor.
+   */
+  textColor: string;
   /**
    * The row this arc came from, when it is a single bucket — carried so the arc
    * can link to the same detail page its list row does. `undefined` on **Other**,
@@ -84,6 +90,7 @@ export function toDonutSlices(rows: readonly SpendRow[]): DonutSlice[] {
       share: row.spent / total,
       count: row.count,
       color: seriesColorFor(slots.get(key) ?? null),
+      textColor: seriesTextColorFor(slots.get(key) ?? null),
       row,
     };
   });
@@ -99,6 +106,7 @@ export function toDonutSlices(rows: readonly SpendRow[]): DonutSlice[] {
       share: value / total,
       count: tail.reduce((sum, row) => sum + row.count, 0),
       color: seriesColorFor(null),
+      textColor: seriesTextColorFor(null),
     });
   }
 
