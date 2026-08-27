@@ -474,8 +474,8 @@ describe("TransactionsView", () => {
       // The selection column (issue #68) leads and carries no text: its header
       // is the select-all checkbox, named for assistive tech by `aria-label`.
       "",
-      // Screen-reader-only header for the bundle expand column (issue #73).
-      "Expand",
+      // No expand column here (issue #73): this fixture holds no bundle parent,
+      // and a column that could not draw a chevron in any row is not rendered.
       "Date",
       "Account",
       "Issuer",

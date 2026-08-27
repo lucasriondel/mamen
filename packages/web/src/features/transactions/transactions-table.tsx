@@ -254,6 +254,10 @@ export function TransactionsTable({
     }
     return byParent;
   }, [bundleMembers]);
+  // Whether anything on this page can expand at all (issue #73). A page with no
+  // bundle parent has no chevron to draw in any row, so the column that would
+  // hold them is not rendered — see the column definition below.
+  const expandable = membersByParent.size > 0;
   // Every category's **Resolved colour**, in one pass over the tree: an
   // inheriting leaf's colour lives on an ancestor, so a row cannot resolve its
   // own. `categoriesById` is the whole (small) tree, ancestors included.
@@ -310,35 +314,47 @@ export function TransactionsTable({
       // a hit area of its own and the nested rows have a left edge to sit
       // under. Empty on every row that stands for nothing else, exactly as the
       // transfer-badge column is empty on every row that is not a leg.
-      columnHelper.display({
-        id: "expand",
-        // Header intentionally blank (screen-reader only): the column is a
-        // per-row control, not a labelled dimension of the data.
-        header: () => <span className="sr-only">Expand</span>,
-        cell: ({ row }) => {
-          // A member marks itself as one — the indent is what says "this row
-          // is here because of the row above it", not a colour of its own.
-          if (row.depth > 0)
-            return <CornerDownRight size={14} className="ml-2 text-gousse-muted" aria-hidden />;
-          if (!row.getCanExpand()) return null;
-          const expanded = row.getIsExpanded();
-          return (
-            <button
-              type="button"
-              onClick={row.getToggleExpandedHandler()}
-              aria-expanded={expanded}
-              aria-label={`${expanded ? "Hide" : "Show"} the ${row.subRows.length} transactions in ${row.original.rawIssuerString}`}
-              className="grid size-6 place-items-center rounded-full text-gousse-muted outline-none transition-colors hover:bg-gousse-bg hover:text-gousse-ink focus-visible:ring-2 focus-visible:ring-gousse-accent"
-            >
-              <ChevronRight
-                size={14}
-                className={cn("transition-transform", expanded && "rotate-90")}
-                aria-hidden
-              />
-            </button>
-          );
-        },
-      }),
+      //
+      // Dropped entirely when the page holds no bundle: with nothing to expand
+      // the column is empty in every row, and an empty column still costs a
+      // header cell, a tab stop for the inspectors that probe one, and a strip
+      // of dead space beside the Date. It comes back the moment a parent does,
+      // the same way the selection column only exists where selection does.
+      ...(expandable
+        ? [
+            columnHelper.display({
+              id: "expand",
+              // Header intentionally blank (screen-reader only): the column is a
+              // per-row control, not a labelled dimension of the data.
+              header: () => <span className="sr-only">Expand</span>,
+              cell: ({ row }) => {
+                // A member marks itself as one — the indent is what says "this row
+                // is here because of the row above it", not a colour of its own.
+                if (row.depth > 0)
+                  return (
+                    <CornerDownRight size={14} className="ml-2 text-gousse-muted" aria-hidden />
+                  );
+                if (!row.getCanExpand()) return null;
+                const expanded = row.getIsExpanded();
+                return (
+                  <button
+                    type="button"
+                    onClick={row.getToggleExpandedHandler()}
+                    aria-expanded={expanded}
+                    aria-label={`${expanded ? "Hide" : "Show"} the ${row.subRows.length} transactions in ${row.original.rawIssuerString}`}
+                    className="grid size-6 place-items-center rounded-full text-gousse-muted outline-none transition-colors hover:bg-gousse-bg hover:text-gousse-ink focus-visible:ring-2 focus-visible:ring-gousse-accent"
+                  >
+                    <ChevronRight
+                      size={14}
+                      className={cn("transition-transform", expanded && "rotate-90")}
+                      aria-hidden
+                    />
+                  </button>
+                );
+              },
+            }),
+          ]
+        : []),
       columnHelper.accessor("date", {
         header: "Date",
         cell: (info) => <span className="tabular-nums">{formatShortDate(info.getValue())}</span>,
@@ -460,7 +476,15 @@ export function TransactionsTable({
           ]
         : []),
     ],
-    [accountsById, issuersById, categoriesById, categoryColorById, selectable, renderActions],
+    [
+      accountsById,
+      issuersById,
+      categoriesById,
+      categoryColorById,
+      selectable,
+      expandable,
+      renderActions,
+    ],
   );
 
   const table = useReactTable({
