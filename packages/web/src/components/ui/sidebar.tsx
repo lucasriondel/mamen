@@ -165,14 +165,8 @@ const TITLE_BASE =
  */
 const TITLE_MARK = "grid h-6.5 w-6.5 shrink-0 place-items-center overflow-hidden";
 
-/**
- * Worn only while a mark is present: the radius clips a full-bleed logo image,
- * and the hairline ring keeps it from reading as a sticker pasted on the flat
- * panel. An empty slot stays invisible — a ring around nothing would paint a
- * ghost square.
- */
-const TITLE_MARK_FILLED =
-  "rounded-lg shadow-[0_0_0_1px_rgb(var(--gousse-ink)/0.07)]";
+/** Worn only while a mark is present: the radius clips a full-bleed logo image. */
+const TITLE_MARK_FILLED = "rounded-lg";
 
 /**
  * What `render` receives. Deliberately element-agnostic — a div-typed prop bag
@@ -340,7 +334,7 @@ export function sidebarRowClass(active: boolean, className?: string): string {
 export function SidebarGlyph({ className, ...props }: ComponentProps<"span">) {
   return (
     <span
-      className={cn("grid h-4 w-4 shrink-0 place-items-center", className)}
+      className={cn("sidebar-glyph grid h-4 w-4 shrink-0 place-items-center", className)}
       {...props}
     />
   );

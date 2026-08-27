@@ -41,9 +41,9 @@ export function TransactionDetailPage() {
         back={<BackLink to="/transactions">Transactions</BackLink>}
         title={
           <>
-            {/* `h-7`: one line of the title's `text-2xl`, which is what lands
-                in its place. */}
-            <Skeleton as="span" className="block h-7 w-56" />
+            {/* `h-5`: one line of the top bar's `text-sm` title, which is what
+                lands in its place. */}
+            <Skeleton as="span" className="block h-5 w-56" />
             {/* Never an empty heading: until the row names it, the page is
                 titled by what it is — the same stand-in the not-found state
                 below settles on, for the same reason. The wait itself is

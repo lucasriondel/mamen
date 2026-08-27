@@ -94,7 +94,11 @@ export function IssuerNameField({ issuer }: IssuerNameFieldProps) {
   // `block` so the button is a full-width box rather than an inline one that
   // shrink-wraps the name — the whole row is the click target, which is what
   // makes the heading read as a field.
-  const HEADING_CLASS = "block w-full min-w-0 truncate text-2xl font-semibold text-gousse-ink";
+  //
+  // `text-sm`: the heading lives in the shell's top bar now, at the bar's own
+  // title scale; `py-1` gives the field a hit target taller than one text line
+  // without outgrowing the h-14 bar.
+  const HEADING_CLASS = "block w-full min-w-0 truncate py-1 text-sm font-semibold text-gousse-ink";
 
   if (isEditing) {
     return (

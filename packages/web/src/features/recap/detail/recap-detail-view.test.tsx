@@ -171,16 +171,16 @@ describe("RecapDetailView", () => {
     expect(await screen.findByRole("button", { name: "Open sidebar" })).toBeInTheDocument();
   });
 
-  it("keeps the way back, the scope and the total in one topbar", async () => {
+  it("keeps the way back and the total in the topbar, and states the scope under it", async () => {
     renderView("/recap-detail?by=issuer&bucket=10&period=month&month=2026-07");
 
     const topbar = (await screen.findByRole("heading", { name: /Carrefour/ })).closest(
       "header",
     ) as HTMLElement;
     expect(within(topbar).getByRole("link", { name: /Recap/ })).toBeInTheDocument();
-    expect(within(topbar).getByText(/Issuer ·/)).toHaveTextContent(
-      "Issuer · Jul 2026 · All accounts",
-    );
+    // The scope line is the page's description, which the shared layout now
+    // renders at the top of the scroll region rather than in the bar itself.
+    expect(screen.getByText(/Issuer ·/)).toHaveTextContent("Issuer · Jul 2026 · All accounts");
     await waitFor(() =>
       expect(within(topbar).getByLabelText("Detail total")).toHaveTextContent(/-42,50/),
     );

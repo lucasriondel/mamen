@@ -35,9 +35,10 @@ function BoolField({ value }: { value: boolean }) {
  * The row's amount, the one number this surface is about — and, since issue
  * #129, a number at the end of a title row rather than a headline of its own. So
  * it is set like the other two title-row numbers (a category's total, a recap
- * line's) instead of the headline scale it wore when it had a line to itself —
- * beside a `text-2xl` title, a bigger number reads as the page's name. Exported
- * because the **detail panel** ends its own header with the same number.
+ * line's) instead of the headline scale it wore when it had a line to itself.
+ * `text-base` since the shell's top bar: beside the bar's `text-sm` title, the
+ * old `text-xl` read as the page's name. Exported because the **detail panel**
+ * ends its own header with the same number.
  *
  * A `span`, not the `<output>` those two are: this is a field of the row, fixed
  * for as long as the page is open, not a total the filters recompute — there is
@@ -47,7 +48,7 @@ export function DetailAmount({ amount }: { amount: number }) {
   return (
     <span
       className={cn(
-        "shrink-0 font-medium text-xl tabular-nums",
+        "shrink-0 font-medium text-base tabular-nums",
         amount < 0 && "text-gousse-high",
         amount > 0 && "text-gousse-low",
         amount === 0 && "text-gousse-ink",

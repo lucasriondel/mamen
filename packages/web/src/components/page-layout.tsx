@@ -1,50 +1,51 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useCallback, useState } from "react";
+import { AppContent, TopBar, TopBarEnd, TopBarStart, TopBarTitle } from "@/components/ui/app-shell";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useSidebarCollapsedContext } from "@/lib/sidebar-collapsed-context";
 import { cn } from "@/lib/utils";
 
 export interface PageLayoutProps {
-  /** The page's name — the topbar's `h1`, and the only required prop. */
+  /** The page's name — the top bar's `h1`, and the only required prop. */
   title: ReactNode;
   /**
-   * The way *out* of a drill-down — a back link or breadcrumb, above the title
-   * row. A page reached from another page has one; a nav destination does not.
+   * The way *out* of a drill-down — a back link or breadcrumb, leading the bar.
+   * A page reached from another page has one; a nav destination does not.
    */
   back?: ReactNode;
-  /** The sentence under the title, for pages that carry one. */
+  /** The sentence under the bar, for pages that carry one. */
   description?: ReactNode;
-  /** This page's own controls, pinned to the far end of the topbar row. */
+  /** This page's own controls, pinned to the far end of the top bar. */
   actions?: ReactNode;
   /**
-   * Extra classes for the page column. Tailwind-merged over the default, so a
-   * page can cap its width or re-space itself without restating the column.
+   * Extra classes for the content region. Tailwind-merged over the default, so
+   * a page can cap its width or re-space itself without restating the column.
    */
   className?: string;
-  /** The page itself, below the topbar. */
+  /** The page itself, in the scroll region below the bar. */
   children?: ReactNode;
 }
 
 /**
- * The shape every page shares: a **topbar row** — title, the sidebar-reopen
- * trigger, and that page's own actions — above the page's content (issues #125,
- * #129).
+ * The shape every page shares: gousse's **top bar** — title, the
+ * sidebar-reopen trigger, the way back, and that page's own actions — over the
+ * shell's scrolling content region (issues #125, #129).
  *
- * Before this, each page composed that row itself: an `<h1>` with the same three
- * classes, half of them wrapped in a `PageHeader` for the trigger and half not,
- * plus a `justify-between` header laid out by hand wherever a page had actions.
- * Twelve copies that agreed only by inspection — and the ones that skipped the
- * wrapper stranded anyone who collapsed the sidebar there. This owns the row
- * instead, so a page names what is *in* it and nothing about how it is laid out,
- * and a trigger is a property of being a page rather than of remembering.
+ * Before the vendored app-shell, this layout drew the row itself: an `<h1>`
+ * and a hand-laid `justify-between` header at the top of the page column. The
+ * bar is now the registry's `TopBar`, rendered per page rather than once in
+ * the shell, because its contents — the title, the way back, the actions —
+ * are the page's to name. The shell's `AppMain` is a flex column, so the bar
+ * and the `AppContent` under it land exactly where a shell-owned pair would.
  *
- * The trigger is rendered here rather than in a component of its own: with every
- * page going through this layout there is exactly one place that decides when it
- * appears (collapsed only) and one place that hands `AppShell` the ref it
- * focuses — which is what `PageHeader` existed to guarantee across many callers.
+ * The trigger is this layout's own child rather than `TopBar`'s `collapsed`
+ * prop: the bar would mount an unref'd button, and `AppShell`'s focus handoff
+ * needs to reach the element. Rendered in the same leading position, it keeps
+ * the bar's `data-scrolled` contract — the trigger takes a panel surface once
+ * content scrolls under it, driven by the content node this layout wires in.
  *
  * The collapse flag stays `AppShell`'s. This layout only reads it, through the
- * sidebar-collapsed context, and drives the shell's toggle — which is what keeps
- * the focus handoff working no matter which page mounted the trigger.
+ * sidebar-collapsed context, and drives the shell's toggle — which is what
+ * keeps the focus handoff working no matter which page mounted the trigger.
  */
 export function PageLayout({
   title,
@@ -56,35 +57,34 @@ export function PageLayout({
 }: PageLayoutProps) {
   const { collapsed, toggle, triggerRef } = useSidebarCollapsedContext();
 
-  return (
-    <section className={cn("flex flex-col gap-6", className)}>
-      <header className="flex flex-col gap-2">
-        {back}
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          {/* `min-w-0` so a long title truncates inside the row rather than
-           * pushing this page's actions off the end of it. */}
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-3">
-              {/* Only while the panel is collapsed: an open one is closed from
-               * the control inside it, and a collapsed one is `inert`, so this
-               * is the only way back. */}
-              {collapsed ? <SidebarTrigger ref={triggerRef} onClick={toggle} /> : null}
-              {/* A flex row, so a title that carries a glyph — a category's
-               * icon, an issuer's avatar — sets it beside the name rather than
-               * each page re-deciding the gap. */}
-              <h1 className="flex min-w-0 flex-1 items-center gap-2 text-balance text-2xl font-semibold text-gousse-ink">
-                {title}
-              </h1>
-            </div>
-            {description != null ? <p className="mt-1 text-gousse-muted">{description}</p> : null}
-          </div>
-          {/* Only when a page has any: an empty flex item would still take the
-           * `gap` beside the title. */}
-          {actions != null ? <div className="flex items-center gap-2">{actions}</div> : null}
-        </div>
-      </header>
+  // A callback ref, as in gousse's own `useAppShell`: the bar renders before
+  // the content region below it, so a ref object would still be empty on the
+  // bar's first pass and nothing would re-render it once it filled. Routing
+  // the node through state re-renders the bar the moment there is something
+  // to watch.
+  const [contentNode, setContentNode] = useState<HTMLElement | null>(null);
+  const contentRef = useCallback((node: HTMLDivElement | null) => setContentNode(node), []);
 
-      {children}
-    </section>
+  return (
+    <>
+      <TopBar scrollNode={contentNode}>
+        {/* Only while the panel is collapsed: an open one is closed from the
+         * control inside it, and a collapsed one is `inert`, so this is the
+         * only way back. */}
+        {collapsed ? <SidebarTrigger ref={triggerRef} onClick={toggle} /> : null}
+        {back != null ? <TopBarStart>{back}</TopBarStart> : null}
+        {/* A flex row, so a title that carries a glyph — a category's icon, an
+         * issuer's avatar — sets it beside the name rather than each page
+         * re-deciding the gap. */}
+        <TopBarTitle className="flex items-center gap-2">{title}</TopBarTitle>
+        {actions != null ? <TopBarEnd>{actions}</TopBarEnd> : null}
+      </TopBar>
+      <AppContent ref={contentRef} className={cn("flex flex-col gap-6", className)}>
+        {description != null ? (
+          <p className="max-w-prose text-sm text-gousse-muted">{description}</p>
+        ) : null}
+        {children}
+      </AppContent>
+    </>
   );
 }

@@ -62,15 +62,15 @@ export function IssuerAvatarMenu({
             <IssuerAvatar
               imageUrl={issuer.imageUrl}
               defaultCategoryId={issuer.defaultCategoryId}
-              size="lg"
+              size="md"
             />
             {/* The affordance: without it the avatar is just a picture, and
                 nothing says the actions are under it. */}
             <span
               aria-hidden
-              className="absolute -right-0.5 -bottom-0.5 flex size-5 items-center justify-center rounded-full border border-gousse-line bg-gousse-panel text-gousse-muted transition-colors group-hover:text-gousse-ink group-data-[popup-open]:text-gousse-ink"
+              className="absolute -right-1 -bottom-1 flex size-4 items-center justify-center rounded-full border border-gousse-line bg-gousse-panel text-gousse-muted transition-colors group-hover:text-gousse-ink group-data-[popup-open]:text-gousse-ink"
             >
-              <ChevronDown className="size-3" />
+              <ChevronDown className="size-2.5" />
             </span>
           </button>
         }

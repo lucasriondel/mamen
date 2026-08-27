@@ -31,8 +31,10 @@ export function BackLink({ to, children, className }: BackLinkProps) {
   const router = useRouter();
   const canGoBack = useCanGoBack();
 
+  // No `self-start`: the link now sits in the top bar's centered flex row
+  // (`TopBarStart`), where it aligns with the controls beside it.
   const classes = cn(
-    "flex items-center gap-1 self-start text-sm text-gousse-muted transition-colors hover:text-gousse-ink",
+    "flex items-center gap-1 text-sm text-gousse-muted transition-colors hover:text-gousse-ink",
     className,
   );
 

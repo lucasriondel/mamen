@@ -12,6 +12,9 @@ import { issuerAvatarFallback } from "./avatar-fallback";
  */
 const SIZES = {
   sm: { chip: "size-6", text: "text-xs", glyph: 14 },
+  // Top-bar scale: big enough to read as the page's identity, small enough to
+  // sit in the shell's h-14 bar beside the name.
+  md: { chip: "size-8", text: "text-sm", glyph: 18 },
   lg: { chip: "size-12", text: "text-base", glyph: 26 },
 } as const;
 

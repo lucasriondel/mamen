@@ -47,6 +47,7 @@
     "**/dist/**",
     "packages/web/src/styles/gousse",
     "packages/web/src/components/ui/sidebar.tsx",
+    "packages/web/src/components/ui/app-shell.tsx",
     "**/*.gen.ts",
     "**/*.gen.tsx",
     "packages/api/openapi.json",

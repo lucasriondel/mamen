@@ -159,7 +159,7 @@ export function RecapDetailView() {
         <output
           aria-label="Detail total"
           className={cn(
-            "shrink-0 font-medium text-xl tabular-nums",
+            "shrink-0 font-medium text-base tabular-nums",
             total < 0 && "text-gousse-high",
             total > 0 && "text-gousse-low",
           )}

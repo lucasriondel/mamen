@@ -24,6 +24,7 @@ import { describe, expect, it } from "vitest";
 const read = (path: string) => readFileSync(path, "utf8");
 
 const sidebar = read("src/components/ui/sidebar.tsx");
+const appShell = read("src/components/ui/app-shell.tsx");
 const chrome = read("src/styles/gousse/sidebar-chrome.css");
 const indexCss = read("src/index.css");
 const appSidebar = read("src/components/app-sidebar.tsx");
@@ -116,6 +117,49 @@ describe("the vendored gousse sidebar", () => {
     // because a file nobody may edit is a file whose findings nobody can fix.
     for (const rc of ["../../.oxfmtrc.json", "../../.oxlintrc.json"]) {
       expect(ignorePatterns(rc), rc).toContain("packages/web/src/components/ui/sidebar.tsx");
+    }
+  });
+});
+
+describe("the vendored gousse app shell", () => {
+  it("publishes the registry's compound surface", () => {
+    for (const part of [
+      // frame
+      "AppShell",
+      "AppMain",
+      // top bar
+      "TopBar",
+      "TopBarStart",
+      "TopBarTitle",
+      "TopBarEnd",
+      // scroll region
+      "AppContent",
+      // state
+      "useAppShell",
+    ]) {
+      expect(appShell).toContain(`export function ${part}(`);
+    }
+  });
+
+  it("owns the two-tone split — panel column over the recessed ground", () => {
+    // The colour contract is the point of the frame: `AppShell` paints the
+    // ground, `AppMain` raises the working surface behind the seam hairline
+    // that survives the sidebar's collapse.
+    expect(appShell).toContain("bg-gousse-bg");
+    expect(appShell).toContain("bg-gousse-panel");
+    expect(appShell).toContain("border-l");
+  });
+
+  it("keeps the bar's scrolled contract the trigger reads", () => {
+    // `group/bar` + `data-scrolled` is what `SidebarTrigger` keys its panel
+    // surface off once content scrolls under the bar.
+    expect(appShell).toContain("group/bar");
+    expect(appShell).toContain("data-scrolled");
+  });
+
+  it("is excluded from both ox tools, so a re-install is not churned", () => {
+    for (const rc of ["../../.oxfmtrc.json", "../../.oxlintrc.json"]) {
+      expect(ignorePatterns(rc), rc).toContain("packages/web/src/components/ui/app-shell.tsx");
     }
   });
 });

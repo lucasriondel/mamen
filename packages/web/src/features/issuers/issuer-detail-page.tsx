@@ -60,10 +60,10 @@ export function IssuerDetailPage() {
         back={<BackLink to="/issuers">Issuers</BackLink>}
         title={
           <>
-            {/* `size-12` and `h-7`: the avatar's `lg` chip and one line of the
-                title's `text-2xl`, which is what lands in their place. */}
-            <Skeleton as="span" className="block size-12 shrink-0" />
-            <Skeleton as="span" className="block h-7 w-56" />
+            {/* `size-8` and `h-5`: the avatar's `md` chip and one line of the
+                top bar's `text-sm` title, which is what lands in their place. */}
+            <Skeleton as="span" className="block size-8 shrink-0" />
+            <Skeleton as="span" className="block h-5 w-56" />
             {/* Never an empty heading: until the issuer names it, the page is
                 titled by what it is — the same stand-in the error state below
                 settles on. The wait itself is announced by the skeleton's live
