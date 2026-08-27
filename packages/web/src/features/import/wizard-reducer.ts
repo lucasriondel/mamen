@@ -59,11 +59,27 @@ export type RowId = number & { readonly __brand: "RowId" };
  * import being set up rather than as a file being rejected (issue #186), and it
  * is the only difference between the three routes into the mapping step.
  *
- * A format is set exactly under `detected` and `manual`; the other three leave
+ * `mismatch` is the fourth and it is **PDF-only** (issue #221): a format *was*
+ * chosen, extraction ran, and the statement did not carry the columns it
+ * declares — the bank changed its export. Detection never returns it, since a
+ * CSV's verdict is a fingerprint test the wizard performs itself and a file that
+ * fails it is `none`. It is here rather than beside `mismatch` in state because
+ * this field is the one that outlives the run: `extract-mismatch` records which
+ * columns were missing, and *that* is cleared the moment discovery starts over
+ * the same file, while the sentence at the top of the mapping step still has to
+ * say why the user is there.
+ *
+ * A format is set exactly under `detected` and `manual`; the other four leave
  * it `null`, which is what keeps the wizard off the preview until someone
  * decides.
  */
-export type FormatSelection = "detected" | "manual" | "none" | "several" | "no-formats";
+export type FormatSelection =
+  | "detected"
+  | "manual"
+  | "none"
+  | "several"
+  | "no-formats"
+  | "mismatch";
 
 /** Local state for the 3-step import wizard (no global store — PRD). */
 export type WizardState = {
@@ -299,8 +315,17 @@ export type WizardAction =
    * A second action rather than a flag on `extract-start`: that one is a request
    * made *against a format*, and this one is what happens when the account has
    * none. What it seats is a table of strings to map, not rows to review.
+   *
+   * Since issue #221 there are three screens it is taken from and the run
+   * carries which: no PDF format at all, several with none chosen, or the one
+   * that was chosen having reported a **format verdict** mismatch. They behave
+   * identically from here on and differ only in the sentence the mapping step
+   * opens with — the same trio the CSV routes have. It travels with the action
+   * because the step is opened by the run: by the time it is on screen the
+   * mismatch has been cleared and the file has left `pendingPdf`, so the reason
+   * is no longer readable off the state that had it.
    */
-  | { type: "discover-start"; file: File }
+  | { type: "discover-start"; file: File; reason: FormatSelection }
   /**
    * Discovery succeeded — the statement's table **as printed** is in hand
    * (issue #217), and the wizard opens the mapping step on it.
@@ -759,7 +784,10 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         headers: [],
         rows: [],
         formatId: null,
-        formatSelection: null,
+        // …but *why* no format reads this statement is exactly what the step
+        // about to open has to say (issue #221), and it is the one thing about
+        // the dead end the user came from that outlives it.
+        formatSelection: action.reason,
         draftFormat: null,
         skippedRows: [],
         rowIds: [],

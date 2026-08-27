@@ -138,13 +138,15 @@ three CSV routes, and they behave identically apart from the sentence at the top
 the format's name, the four mapped targets, the sign rule, the date order, the
 decimal separator and the optional row filter.
 
-Since issue #218 a **PDF** reaches it too, by a fourth route: the account has no
-PDF format, so **discovery extraction** transcribes the statement's table and
-the step opens over *that* — the bank's own columns as the choices, the
-transcribed cells under them. Nothing in the step knows which of the two it is
+Since issue #218 a **PDF** reaches it too, and by three routes of its own since
+issue #221 — no PDF format on the account, several with none chosen, a **format
+verdict** mismatch — each of which spends a **discovery extraction** that
+transcribes the statement's table so the step can open over *that*: the bank's
+own columns as the choices, the transcribed cells under them. Six routes, six
+sentences, one step. Nothing in the step knows which of the two file shapes it is
 looking at, because a discovered table and a parsed CSV are the same shape; the
-draft's `kind` decides the sentence at the top and which half of the format union
-the commit writes, and nothing else.
+draft's `kind` decides which half of the format union the commit writes, and —
+with the route — which of the six sentences is at the top. Nothing else.
 
 **On that route the step is three panes** (issue #219): the **statement pane**
 leftmost as reference, the transcribed table in the middle as the click-to-assign
@@ -213,7 +215,10 @@ there is and it is used without an ask. With several, the file is held in wizard
 state (`pendingPdf`) and the user picks; the model is never asked to choose the
 format as well as apply it (PRD #180). With none, the file waits in that same
 `pendingPdf` and the step offers **discovery extraction** instead of a picker
-(issue #218) — the drop used to be refused there.
+(issue #218) — the drop used to be refused there. Since issue #221 the several
+case offers it *beside* the picker, and so does a **format verdict** mismatch:
+wherever a PDF is in hand and no stored format reads it, building one from the
+statement is on screen.
 _Avoid_: Parsing (reserved for CSV), OCR, scanning.
 
 **Discovery extraction**:
@@ -267,6 +272,24 @@ document it was read off rather than from memory of it. The preview after it
 stays two: correcting a cell there is an answer the user already has, and the
 statement has done its work by then.
 
+**Three screens are entries to it** (issue #221), and they are the three states
+where no stored format reads the PDF in hand: no PDF format on the account at
+all, several with none chosen, or the one chosen having reported a **format
+verdict** mismatch. Each already holds the file, so none asks for it again, and
+from the click onwards there is one path — one discovery run, one mapping step,
+one commit. They differ only in the sentence the step opens with, which mirrors
+the CSV routes' trio: a first import is not a failure, a mismatch is the bank
+having changed its export (and mappings are immutable, so the answer is a *new*
+format), and an ambiguity still allows picking. On the two screens that have a
+list, the offer is **secondary to the pick**: a saved format that reads the
+statement costs nothing where an AI run costs something, and the format that
+failed is not the only one an account has.
+
+The reason travels **with the run** (`discover-start` carries it, and it is kept
+in `formatSelection`): by the time the step is on screen the verdict has been
+cleared and the file has left `pendingPdf`, so the state that knew which dead
+end this was is gone.
+
 **Its preview is where the transcription is corrected and completed** (issue
 #220). Any transcribed cell is editable in the **file pane**, an **Add row**
 control appends an operation the model missed, and the **reconciliation check**
@@ -298,8 +321,12 @@ retryable, and the drop zone is the wrong thing to send the user back to. The
 file stays in hand, which puts the upload step's *which format reads this?*
 control back on screen for a second answer that costs no second upload; only the
 copy differs from the several-formats case, and it names the missing columns.
-Issue #186's mapping step is reached from here, for when none of the offered
-formats fit.
+Since issue #221 the mapping step is reached from here too, for when none of the
+offered formats fit: *Build a format from this statement* sits beside the picker
+and spends a **discovery extraction** on the upload the verdict was given on. It
+is the honest answer to a bank that renamed a column, mappings being immutable —
+the old format is not editable into the new export, and a new one is what the
+statement earns.
 
 **Extracted transaction**:
 One candidate record the model reads off a PDF Statement: `{ date, amount,

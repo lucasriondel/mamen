@@ -4,6 +4,7 @@ import { blankDraft } from "./parsers/format-draft";
 import {
   canAcceptFile,
   canPreview,
+  type FormatSelection,
   initialWizardState,
   makeInitialWizardState,
   wizardReducer,
@@ -773,9 +774,13 @@ describe("wizardReducer — the first PDF import", () => {
     { "Date opération": "11/04/2026", Libellé: "SALAIRE", Crédit: "2 500,00" },
   ];
 
-  /** The offer taken, the run away, and the table back. */
-  const discovered = () =>
-    wizardReducer(wizardReducer(withAccount, { type: "discover-start", file: PDF }), {
+  /**
+   * The offer taken, the run away, and the table back — from whichever of the
+   * three screens offered it (issue #221). The account having no PDF format is
+   * the entry this describe is about, so it is the default.
+   */
+  const discovered = (reason: FormatSelection = "no-formats") =>
+    wizardReducer(wizardReducer(withAccount, { type: "discover-start", file: PDF, reason }), {
       type: "discover-success",
       columns: COLUMNS,
       rows: DISCOVERED,
@@ -795,7 +800,7 @@ describe("wizardReducer — the first PDF import", () => {
   it("spends the wait on the offer being taken, not on the drop", () => {
     const state = wizardReducer(
       wizardReducer(withAccount, { type: "pdf-awaits-format", file: PDF }),
-      { type: "discover-start", file: PDF },
+      { type: "discover-start", file: PDF, reason: "no-formats" },
     );
 
     expect(state.extracting).toBe(true);
@@ -877,9 +882,46 @@ describe("wizardReducer — the first PDF import", () => {
     expect(reopened.draftFormat).toEqual(blankDraft("pdf"));
   });
 
+  /**
+   * Issue #221 — three screens spend this run, and which one is the sentence the
+   * mapping step opens with. It travels *with* the run because by the time the
+   * step is on screen the state that knew is gone: the verdict has been cleared
+   * as the request went out, and a waiting file has left `pendingPdf`.
+   */
+  it("carries the dead end it was spent from through to the mapping step", () => {
+    const verdict = wizardReducer(withAccount, {
+      type: "extract-mismatch",
+      missingColumns: ["Débit"],
+    });
+    const running = wizardReducer(verdict, {
+      type: "discover-start",
+      file: PDF,
+      reason: "mismatch",
+    });
+
+    expect(running.formatSelection).toBe("mismatch");
+    // Cleared with the attempt it was about — which is why the reason cannot be
+    // read back off it once the run is away.
+    expect(running.mismatch).toBeNull();
+
+    const state = wizardReducer(running, {
+      type: "discover-success",
+      columns: COLUMNS,
+      rows: DISCOVERED,
+      declaredTotals: null,
+    });
+    expect(state.formatSelection).toBe("mismatch");
+
+    // …and it still says so on the way back in, the draft having been discarded.
+    const reopened = wizardReducer(wizardReducer(state, { type: "discard-format-draft" }), {
+      type: "build-format",
+    });
+    expect(reopened.formatSelection).toBe("mismatch");
+  });
+
   it("leaves nothing previewable behind a failed discovery", () => {
     const failed = wizardReducer(
-      wizardReducer(withAccount, { type: "discover-start", file: PDF }),
+      wizardReducer(withAccount, { type: "discover-start", file: PDF, reason: "no-formats" }),
       {
         type: "extract-error",
         message: "No.",
@@ -978,7 +1020,11 @@ describe("wizardReducer — the first PDF import", () => {
 
     // Nothing has been transcribed, so there are no columns to write a row in.
     it("appends nothing before there is a table", () => {
-      const waiting = wizardReducer(withAccount, { type: "discover-start", file: PDF });
+      const waiting = wizardReducer(withAccount, {
+        type: "discover-start",
+        file: PDF,
+        reason: "no-formats",
+      });
       expect(wizardReducer(waiting, { type: "add-transcribed-row", cells: {} })).toBe(waiting);
     });
   });

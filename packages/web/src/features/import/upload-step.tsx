@@ -20,6 +20,7 @@ import { parseCsvFile } from "./parse-file";
 import {
   canAcceptFile,
   canPreview,
+  type FormatSelection,
   type WizardAction,
   type WizardSource,
   type WizardState,
@@ -130,6 +131,12 @@ function isPdf(file: File): boolean {
  * statement — a **discovery extraction** that transcribes its table and hands
  * the user the mapping step over it. Offered rather than run on the drop, so a
  * mistaken drop spends nothing.
+ *
+ * Since issue #221 the same offer stands on the other two states where a PDF is
+ * in hand and no stored format reads it: the mismatch above, and the
+ * several-formats question. Both already hold the file, so neither re-uploads
+ * it, and there it sits *beside* the picker rather than instead of it — one of
+ * the account's formats may still be the answer, and only the user knows.
  */
 export function UploadStep({
   formats,
@@ -243,17 +250,21 @@ export function UploadStep({
    * The **first PDF import** (issue #218, PRD #216): transcribe the statement's
    * table as printed, then hand the user the mapping step over it.
    *
-   * Run from the offer's button and from nowhere else, which is what makes the
+   * Run from an offer's button and from nowhere else, which is what makes the
    * AI call the user's decision — a mistaken drop costs nothing, because the
    * drop itself sends nothing. It takes the file and no format, that absence
-   * being the whole of what tells it apart from {@link handlePdf}: there is no
-   * format on the account, which is the dead end this opens.
+   * being the whole of what tells it apart from {@link handlePdf}: no format on
+   * the account reads this statement, which is the dead end this opens.
+   *
+   * Three screens offer it (issue #221) and each says why the user is on it, so
+   * the reason travels with the run — see {@link buildFormatReason}. Everything
+   * downstream of the click is identical on all three.
    *
    * Failures ride the extraction path's alert unchanged, the AI-settings link
    * included — the same collapse, plus `NoTransactionTable` for the one failure
    * that is about the file rather than the run.
    */
-  const handleDiscover = async (file: File) => {
+  const handleDiscover = async (file: File, reason: FormatSelection) => {
     // Same pre-check, same reason as {@link handlePdf}: oversize is a framework
     // error upstream, so it would otherwise reach the user as the generic retry.
     if (file.size > MAX_PDF_BYTES) {
@@ -263,7 +274,7 @@ export function UploadStep({
       });
       return;
     }
-    dispatch({ type: "discover-start", file });
+    dispatch({ type: "discover-start", file, reason });
     try {
       const result = await importMutations.discoverPdf(file);
       dispatch({
@@ -361,6 +372,35 @@ export function UploadStep({
   const askingWhichFormat = awaitingFormat !== null && pdfFormats.length > 0;
   const offeringFirstFormat = awaitingFormat !== null && pdfFormats.length === 0;
 
+  /**
+   * Which of the three dead ends the offer is being taken from (issue #221) —
+   * the one thing that survives the run, since it is what the mapping step opens
+   * by saying.
+   *
+   * The three are exhaustive and this is the only place they are told apart,
+   * because this component is the one that renders all three. A **mismatch** is
+   * asked first: it is a fact about the extraction that just ran, and the
+   * account's format count says nothing about it — the format that failed is
+   * still in the list. Otherwise an empty list is the **first import** and a
+   * populated one is the **ambiguity** nobody has answered.
+   */
+  const buildFormatReason: FormatSelection =
+    state.mismatch !== null ? "mismatch" : pdfFormats.length === 0 ? "no-formats" : "several";
+
+  /** The offer itself, identical on both panels — only what leads up to it differs. */
+  const buildFormatButton = (variant: "primary" | "secondary") => (
+    <Button
+      variant={variant}
+      size="md"
+      onClick={() => {
+        if (awaitingFormat === null) return;
+        void handleDiscover(awaitingFormat, buildFormatReason);
+      }}
+    >
+      {buildFormatLabel("pdf")}
+    </Button>
+  );
+
   const onDrop = (event: DragEvent<HTMLElement>) => {
     event.preventDefault();
     setDragging(false);
@@ -431,18 +471,7 @@ export function UploadStep({
             no PDF statement format yet. Build one from this statement and it will be saved with
             this import.
           </p>
-          <div>
-            <Button
-              variant="primary"
-              size="md"
-              onClick={() => {
-                if (awaitingFormat === null) return;
-                void handleDiscover(awaitingFormat);
-              }}
-            >
-              {buildFormatLabel("pdf")}
-            </Button>
-          </div>
+          <div>{buildFormatButton("primary")}</div>
         </div>
       ) : null}
 
@@ -453,14 +482,16 @@ export function UploadStep({
             {state.mismatch === null ? (
               <>
                 {" "}
-                — this account has several PDF statement formats. Which one reads this statement?
+                — this account has several PDF statement formats. Which one reads this statement? Or
+                build a new one from it.
               </>
             ) : (
               <>
                 {" "}
                 — that format doesn't read this statement: it carries no{" "}
                 <span className="text-gousse-ink">{state.mismatch.missingColumns.join(", ")}</span>.
-                Pick the one that does — the file is still here.
+                Pick the one that does, or build a format from this statement — the file is still
+                here either way.
               </>
             )}
           </p>
@@ -487,7 +518,14 @@ export function UploadStep({
               ))}
             </Select>
           </label>
-          <div>
+          {/* Two answers to the same question, and the offer is the secondary
+              one on purpose (issue #221): a saved format that reads this
+              statement costs nothing and an AI run does, so building one is
+              what a user reaches for when the list in front of them has
+              nothing. Which is also why the list stays — on the mismatch screen
+              as much as on the ambiguity, since the format that failed is not
+              the only one the account has. */}
+          <div className="flex flex-wrap items-center gap-3">
             <Button
               variant="primary"
               size="md"
@@ -502,6 +540,7 @@ export function UploadStep({
             >
               Extract transactions
             </Button>
+            {buildFormatButton("secondary")}
           </div>
         </div>
       ) : null}

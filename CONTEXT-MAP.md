@@ -407,6 +407,15 @@ repeated per package.
   is seated as the wizard's headers and rows — which is the whole of how a PDF
   joins the CSV machinery — and the commit saves a `kind: "pdf"` format declaring
   **every** discovered column before it writes the rows.
+  **Three screens offer it** (issue #221), and they are the three states in which
+  no stored format reads the statement in hand: the account has no PDF format at
+  all, it has several and none was chosen, or the one that was chosen came back a
+  **format verdict** mismatch. All three already hold the file, so none re-uploads
+  it, and from the click onwards there is one path. What differs is only the
+  sentence the mapping step opens with — the same trio the CSV routes have, and
+  for the same reason: a first import is not a failure, a mismatch is the bank
+  having changed its export, and an ambiguity is one where picking is still
+  allowed.
   Since issue #220 it is also **correctable**: a transcription is a *reading* of
   a statement and can be wrong where a parsed file cannot, so the preview lets
   the user fix any transcribed cell and add an operation the model missed, and
@@ -432,6 +441,10 @@ repeated per package.
   only ever names columns the format declares, in the format's own words.
   A mismatch is **reported, not raised** — the response is a 200 carrying a
   verdict, not an `ExtractionFailed`: nothing failed.
+  Since issue #221 it is also an **entry into building a format**: a bank that
+  drops or renames a column is a format nobody can fix (mappings are immutable),
+  so the mismatch screen offers *Build a format from this statement* beside the
+  picker, over the very upload the verdict was given on.
   _Avoid_: extraction error, validation failure (nothing was rejected and
   nothing is retryable).
 

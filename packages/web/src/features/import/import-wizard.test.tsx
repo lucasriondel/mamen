@@ -2274,6 +2274,156 @@ describe("ImportWizard", () => {
         expect(paneDivider()).toHaveAttribute("aria-valuenow", "80");
       });
     });
+
+    /**
+     * Issue #221, under PRD #216 — **the other two ways in**. #218 opened the
+     * offer on the entry that had nothing else to give; these two screens each
+     * already hold a PDF the app could not read, and each used to end there.
+     *
+     * A **mismatch verdict** means the bank changed its export: the format's
+     * columns are not on the statement, and until now the only answers were the
+     * formats that had already failed. The **several-formats picker** is an
+     * ambiguity where none of the offered formats need be right either. Both
+     * hold the file, so both spend a discovery run on the statement in hand and
+     * land in the very mapping step and commit the zero-format entry does —
+     * differing only in the sentence that says why the user is there.
+     */
+    describe("the mismatch verdict and the format picker offer it too", () => {
+      /**
+       * The mismatch entry: the account's one PDF format is used without an ask,
+       * and the statement turns out not to carry its columns.
+       */
+      async function dropOntoAMismatch(user: ReturnType<typeof userEvent.setup>) {
+        withFormats(csvFormat(1, "Green-Got"), pdfFormat(7, "CCF — old layout"));
+        extractPdf.mockResolvedValue({
+          verdict: mismatched("Débit", "Crédit"),
+          transactions: [],
+          declaredTotals: null,
+        });
+        discoverPdf.mockResolvedValue(DISCOVERED);
+        renderWizard();
+        await chooseAccount(user);
+        const file = await dropPdf(user);
+        // The verdict is on screen; nothing has been decided yet.
+        await screen.findByText(/Débit, Crédit/);
+        return file;
+      }
+
+      /** The ambiguity entry: two PDF formats, and nobody has said which reads this. */
+      async function dropOntoSeveralFormats(user: ReturnType<typeof userEvent.setup>) {
+        withFormats(pdfFormat(7, "CCF — old layout"), pdfFormat(8, "CCF — since 2026"));
+        discoverPdf.mockResolvedValue(DISCOVERED);
+        renderWizard();
+        await chooseAccount(user);
+        const file = await dropPdf(user);
+        await screen.findByLabelText("PDF statement format");
+        return file;
+      }
+
+      /** The tail both entries share with the zero-format one, whole. */
+      async function mapAndCommit(user: ReturnType<typeof userEvent.setup>) {
+        await mapDiscoveredColumns(user);
+        await user.click(screen.getByRole("button", { name: "Continue to preview" }));
+        await findImportTable();
+        await user.click(screen.getByRole("button", { name: "Commit import" }));
+        await waitFor(() => expect(createFormat).toHaveBeenCalledTimes(1));
+      }
+
+      // The point of holding the file since issue #188: the way out of a changed
+      // export is a mapping session over the statement already uploaded.
+      it("builds a format from the statement the mismatch left in hand", async () => {
+        const user = userEvent.setup();
+        const file = await dropOntoAMismatch(user);
+
+        await takeTheOffer(user);
+
+        // The very object that was dropped — no second upload, no re-drop.
+        expect(discoverPdf).toHaveBeenCalledTimes(1);
+        expect(discoverPdf.mock.calls[0]?.[0]).toBe(file);
+        expect(screen.getByLabelText("Format name")).toBeInTheDocument();
+      });
+
+      // Offered *alongside* the pick, never instead of it: one of the saved
+      // formats may still be the right answer, and only the user knows.
+      it("offers building a format beside the picker when several are saved", async () => {
+        const user = userEvent.setup();
+        const file = await dropOntoSeveralFormats(user);
+
+        expect(screen.getByLabelText("PDF statement format")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Extract transactions" })).toBeInTheDocument();
+
+        await takeTheOffer(user);
+
+        expect(discoverPdf).toHaveBeenCalledTimes(1);
+        expect(discoverPdf.mock.calls[0]?.[0]).toBe(file);
+        // The run the user did not ask for was never spent: nothing was
+        // extracted against a format nobody chose.
+        expect(extractPdf).not.toHaveBeenCalled();
+      });
+
+      /**
+       * Three entries, three reasons. A first import is not a failure, a
+       * mismatch is the bank having changed its export, and an ambiguity is one
+       * where picking is still allowed — so the sentence at the top of the
+       * mapping step is not the same sentence on all three.
+       */
+      it("says the bank's export changed on the mismatch entry", async () => {
+        const user = userEvent.setup();
+        await dropOntoAMismatch(user);
+        await takeTheOffer(user);
+
+        expect(screen.getByText(/no longer carries the columns/)).toBeInTheDocument();
+        expect(screen.queryByText(/This account has no PDF statement format yet/)).toBeNull();
+      });
+
+      it("says one of the saved formats may still be picked on the several entry", async () => {
+        const user = userEvent.setup();
+        await dropOntoSeveralFormats(user);
+        await takeTheOffer(user);
+
+        expect(screen.getByText(/More than one PDF statement format/)).toBeInTheDocument();
+        expect(screen.queryByText(/This account has no PDF statement format yet/)).toBeNull();
+      });
+
+      // From the click onwards there is one path, and it ends where #218's does:
+      // a `kind: "pdf"` format over every discovered column, then the rows.
+      it("commits a new pdf format and its rows from the mismatch entry", async () => {
+        const user = userEvent.setup();
+        await dropOntoAMismatch(user);
+        await takeTheOffer(user);
+        await mapAndCommit(user);
+
+        expect(createFormat).toHaveBeenCalledWith(
+          expect.objectContaining({
+            kind: "pdf",
+            accountId: 1,
+            name: "CCF (PDF)",
+            columns: ["Date opération", "Libellé", "Débit", "Crédit", "Type"],
+          }),
+        );
+        await waitFor(() => expect(bulkCreate).toHaveBeenCalledTimes(1));
+        expect(bulkCreate.mock.calls[0][0]).toHaveLength(2);
+        expect(await screen.findByText("Transactions page")).toBeInTheDocument();
+      });
+
+      it("commits a new pdf format and its rows from the several-formats entry", async () => {
+        const user = userEvent.setup();
+        await dropOntoSeveralFormats(user);
+        await takeTheOffer(user);
+        await mapAndCommit(user);
+
+        expect(createFormat).toHaveBeenCalledWith(
+          expect.objectContaining({
+            kind: "pdf",
+            accountId: 1,
+            name: "CCF (PDF)",
+            columns: ["Date opération", "Libellé", "Débit", "Crédit", "Type"],
+          }),
+        );
+        await waitFor(() => expect(bulkCreate).toHaveBeenCalledTimes(1));
+        expect(bulkCreate.mock.calls[0][0]).toHaveLength(2);
+      });
+    });
   });
 
   /**
