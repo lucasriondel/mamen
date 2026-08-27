@@ -79,12 +79,15 @@ export function RecapView() {
   };
 
   return (
-    <PageLayout title="Recap" description="Where your money went, by issuer and by category.">
-      <div className="flex flex-wrap items-center gap-3">
-        <PeriodSelector period={period} months={months} years={years} onChange={setPeriod} />
-        <AccountMultiSelect accounts={accounts} selected={accountIds} onChange={setAccounts} />
-      </div>
-
+    <PageLayout
+      title="Recap"
+      actions={
+        <div className="flex flex-wrap items-center gap-3">
+          <PeriodSelector period={period} months={months} years={years} onChange={setPeriod} />
+          <AccountMultiSelect accounts={accounts} selected={accountIds} onChange={setAccounts} />
+        </div>
+      }
+    >
       {isError ? (
         <Empty
           title="Couldn't load your recap"
