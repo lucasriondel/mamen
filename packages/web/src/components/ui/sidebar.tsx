@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
  *
  * The active row is marked by a stroke on its right edge — a per-row `::after`
  * in `sidebar-chrome.css`, pure CSS. Rows are full-bleed, so the stroke lands
- * against the shell's `border-r` without any positioning script, scrolls with
+ * against the shell's right edge without any positioning script, scrolls with
  * its row for free, and fades/grows in and out as `data-active` /
  * `aria-current` come and go. `markHue` on a row recolors the stroke alone;
  * `--mark-height` / `--mark-width` are the CSS-only knobs for its size.
@@ -31,13 +31,17 @@ import { cn } from "@/lib/utils";
 /**
  * The collapse behaviour, shared by both shells.
  *
+ * The shell draws no seam of its own: in the app frame the seam is the content
+ * column's `border-l` (see `app-shell.tsx`), and a `border-r` here would stack
+ * against it into a double hairline.
+ *
  * Collapsing animates `width` to 0 rather than narrowing to an icon rail, so the
  * page beside it reflows into the reclaimed space. The panel stays mounted
  * throughout so the transition has something to tween, and takes `inert` while
  * collapsed so its rows leave the tab order and the a11y tree.
  */
 const SHELL_BASE =
-  "sidebar-shell relative flex h-full shrink-0 flex-col overflow-hidden border-r border-gousse-line/60 bg-gousse-bg text-gousse-ink";
+  "sidebar-shell relative flex h-full shrink-0 flex-col overflow-hidden bg-gousse-bg text-gousse-ink";
 
 /**
  * Fixed inner width so children don't reflow while the shell's width animates.
@@ -72,7 +76,7 @@ export function Sidebar({
       className={cn(
         SHELL_BASE,
         "group/sidebar w-62 transition-[width,opacity] duration-300 ease-out motion-reduce:transition-none",
-        collapsed ? "w-0 border-r-0 opacity-0" : "w-62 opacity-100",
+        collapsed ? "w-0 opacity-0" : "w-62 opacity-100",
         className,
       )}
       {...props}
@@ -122,7 +126,7 @@ export function SidebarShell({
           SHELL_BASE,
           "group/sidebar fixed inset-y-0 left-0 z-[60] w-62 transition-[width,transform,opacity] duration-300 ease-out motion-reduce:transition-none sm:static sm:z-auto sm:translate-x-0",
           collapsed
-            ? "-translate-x-full sm:w-0 sm:border-r-0 sm:opacity-0"
+            ? "-translate-x-full sm:w-0 sm:opacity-0"
             : "translate-x-0 sm:w-62 sm:opacity-100",
           className,
         )}

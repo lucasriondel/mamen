@@ -15,9 +15,9 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
  * `bg-gousse-bg` — the page's recessed ground — and the content column sits on
  * `bg-gousse-panel`, one step lighter (in dark mode, one step *less* black), so
  * the working surface reads as raised out of the chrome around it. A single
- * `border-l` hairline on the content column is the seam; the sidebar's own
- * `border-r` disappears with it when the sidebar collapses to zero width, so
- * the seam has to belong to the side that never goes away.
+ * `border-l` hairline on the content column is the only seam — the sidebar
+ * deliberately draws none, since a `border-r` there would stack into a double
+ * hairline and would vanish anyway when the sidebar collapses to zero width.
  *
  * Nothing here owns the collapsed state. `AppShell` is layout only; the flag
  * lives in the consumer and is passed to both `SidebarShell` and `TopBar`,

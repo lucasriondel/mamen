@@ -43,7 +43,7 @@
 /* ------------------------------------------------------------
    MARK — the active indicator, a stroke on the active row's right
    edge. Rows are full-bleed, so the stroke lands flush against the
-   shell's `border-r` with no positioning script: it scrolls with
+   shell's right edge with no positioning script: it scrolls with
    its row, clips with the scroll region, and needs no re-measuring
    on resize, font swap, or branch collapse.
 
