@@ -308,6 +308,9 @@ async function dropFrenchCsv(user: ReturnType<typeof userEvent.setup>) {
 
 /** Everything the French export needs, less whatever the case is about. */
 async function mapFrenchColumns(user: ReturnType<typeof userEvent.setup>) {
+  // The field arrives holding the suggestion (`Checking CSV`), so naming it
+  // something else is an overwrite — which is the gesture a user makes too.
+  await user.clear(screen.getByLabelText("Format name"));
   await user.type(screen.getByLabelText("Format name"), "CCF");
   await user.selectOptions(screen.getByLabelText("Operation date column"), "Date opération");
   await user.selectOptions(screen.getByLabelText("Operation label columns"), "Libellé");
@@ -336,6 +339,8 @@ async function takeTheOffer(user: ReturnType<typeof userEvent.setup>) {
 
 /** Answer the whole form over the columns discovery transcribed. */
 async function mapDiscoveredColumns(user: ReturnType<typeof userEvent.setup>) {
+  // As above: the suggestion (`Checking PDF`) is already there to be replaced.
+  await user.clear(screen.getByLabelText("Format name"));
   await user.type(screen.getByLabelText("Format name"), "CCF (PDF)");
   await user.selectOptions(screen.getByLabelText("Operation date column"), "Date opération");
   await user.selectOptions(screen.getByLabelText("Operation label columns"), "Libellé");
@@ -1889,6 +1894,18 @@ describe("ImportWizard", () => {
           .getAllByRole("option")
           .map((option) => option.textContent),
       ).toEqual(["Pick a column…", "Date opération", "Libellé", "Débit", "Crédit", "Type"]);
+    });
+
+    // The PDF half of the suggested name (the CSV half is under "building a
+    // format from the file in front of you"): the kind comes off the file in
+    // hand, and it is spelled the way the rest of the surface spells it.
+    it("suggests <account> PDF as the name of a format built from a statement", async () => {
+      const user = userEvent.setup();
+      discoverPdf.mockResolvedValue(DISCOVERED);
+      await dropOnAccountWithNoPdfFormat(user);
+      await takeTheOffer(user);
+
+      expect(screen.getByLabelText("Format name")).toHaveValue("Checking PDF");
     });
 
     // The whole point of transcribing rather than extracting: the strings are
@@ -3840,6 +3857,80 @@ describe("ImportWizard", () => {
       expect(screen.getByRole("button", { name: "Continue to preview" })).toBeEnabled();
     });
 
+    /**
+     * The suggested name — the required field, answered in advance.
+     *
+     * The account and the file kind are both settled by the time this step opens,
+     * and `<account> CSV` is what the first format for an account is almost
+     * always called, so the field opens holding it rather than empty. What makes
+     * it a *suggestion* is everything below: it is real text in a real field, it
+     * is what gets saved if the user leaves it alone, and it never argues with an
+     * answer the user has given.
+     */
+    describe("the suggested format name", () => {
+      it("opens the field on <account> CSV, and saves that when it is left alone", async () => {
+        const user = userEvent.setup();
+        withFormats();
+        await dropFrenchCsv(user);
+
+        expect(screen.getByLabelText("Format name")).toHaveValue("Checking CSV");
+
+        // Everything *but* the name, so the suggestion is what reaches the commit.
+        await user.selectOptions(screen.getByLabelText("Operation date column"), "Date opération");
+        await user.selectOptions(screen.getByLabelText("Operation label columns"), "Libellé");
+        await user.selectOptions(
+          screen.getByLabelText("How the amount is signed"),
+          "debit-credit-columns",
+        );
+        await user.selectOptions(screen.getByLabelText("Debit column"), "Débit");
+        await user.selectOptions(screen.getByLabelText("Credit column"), "Crédit");
+        await user.selectOptions(screen.getByLabelText("Date order"), "day-first");
+        await user.selectOptions(screen.getByLabelText("Decimal separator"), "comma");
+
+        await user.click(screen.getByRole("button", { name: "Continue to preview" }));
+        await user.click(await screen.findByRole("button", { name: "Commit import" }));
+
+        await waitFor(() => expect(createFormat).toHaveBeenCalled());
+        expect(createFormat.mock.calls[0][0]).toMatchObject({ name: "Checking CSV" });
+      });
+
+      /**
+       * The do-not-clobber rule, and the race it is really about: the account's
+       * *name* comes off the network while its id was in hand all along, so a
+       * re-render carrying a freshly-resolved account must not reach into a field
+       * the user has already answered.
+       */
+      it("leaves a name the user typed alone across re-renders", async () => {
+        const user = userEvent.setup();
+        withFormats();
+        await dropFrenchCsv(user);
+
+        await user.clear(screen.getByLabelText("Format name"));
+        await user.type(screen.getByLabelText("Format name"), "CCF");
+
+        // Every one of these re-renders the step with the same draft; none of
+        // them is a new draft, so none of them re-arms the suggestion.
+        await user.selectOptions(screen.getByLabelText("Operation date column"), "Date opération");
+        await user.selectOptions(screen.getByLabelText("Date order"), "day-first");
+
+        expect(screen.getByLabelText("Format name")).toHaveValue("CCF");
+      });
+
+      // Clearing the field is an answer too — "not this one" — and it has to
+      // stick, or the user would be typing against a field that types back.
+      it("does not restore the suggestion after the user empties the field", async () => {
+        const user = userEvent.setup();
+        withFormats();
+        await dropFrenchCsv(user);
+
+        await user.clear(screen.getByLabelText("Format name"));
+        await user.selectOptions(screen.getByLabelText("Operation date column"), "Date opération");
+
+        expect(screen.getByLabelText("Format name")).toHaveValue("");
+        expect(screen.getByRole("button", { name: "Continue to preview" })).toBeDisabled();
+      });
+    });
+
     // The optional row filter, which is how "settled operations only" is said.
     it("drops the rows the optional filter excludes, and says how many are left", async () => {
       const user = userEvent.setup();
@@ -3895,7 +3986,8 @@ describe("ImportWizard", () => {
         await screen.findByRole("button", { name: "Build a format from this file" }),
       );
 
-      await user.type(await screen.findByLabelText("Format name"), "Green-Got");
+      await user.clear(await screen.findByLabelText("Format name"));
+      await user.type(screen.getByLabelText("Format name"), "Green-Got");
       await user.selectOptions(screen.getByLabelText("Operation date column"), "Date");
       await user.selectOptions(screen.getByLabelText("Operation label columns"), "Intitulé");
       await user.selectOptions(
@@ -4629,6 +4721,7 @@ describe("ImportWizard", () => {
       withFormats();
       await dropFrenchCsv(user);
 
+      await user.clear(screen.getByLabelText("Format name"));
       await user.type(screen.getByLabelText("Format name"), "CCF");
       await pickFromFile(user, "Date", "Date opération");
       await pickFromFile(user, "Label", "Libellé");
@@ -4703,6 +4796,130 @@ describe("ImportWizard", () => {
       await findImportTable();
       expect(pickControls()).toEqual([]);
       expect(screen.queryByText(/Click a column header/)).toBeNull();
+    });
+  });
+
+  /**
+   * The two **value rules** read off the columns the user maps (issue #222).
+   *
+   * PRD #180 refuses to *guess* at date order and the decimal separator, and
+   * that stands: what these cases pin is the difference between a guess and a
+   * reading. A column of `23/04/2026` has no month-first reading, so mapping it
+   * answers the field; `FRENCH_CSV`'s own `03/04/2026` has both readings, so
+   * mapping *that* answers nothing and the field stays as empty as it ever was.
+   *
+   * The unambiguous export below is a separate fixture for exactly that reason —
+   * the French one is the ambiguous case, and it is worth keeping ambiguous.
+   */
+  describe("the value rules inferred from the mapped columns", () => {
+    /** A day-first export that proves it: `23` is a day under any calendar. */
+    const UNAMBIGUOUS_CSV = [
+      '"Date","Libellé","Montant"',
+      '"23/04/2026","SHOP A","-1 929,71"',
+      '"01/05/2026","SALAIRE","2 500,00"',
+    ].join("\n");
+
+    async function dropUnambiguousCsv(user: ReturnType<typeof userEvent.setup>) {
+      renderWizard();
+      await chooseAccount(user);
+      await user.upload(
+        await screen.findByLabelText("CSV or PDF statement"),
+        new File([UNAMBIGUOUS_CSV], "releve.csv", { type: "text/csv" }),
+      );
+      await user.click(
+        await screen.findByRole("button", { name: "Build a format from this file" }),
+      );
+      await screen.findByLabelText("Format name");
+    }
+
+    it("pre-sets the date order from the column the user maps", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropUnambiguousCsv(user);
+
+      // Unanswered until there is a column to read it from.
+      expect(screen.getByLabelText("Date order")).toHaveValue("");
+
+      await user.selectOptions(screen.getByLabelText("Operation date column"), "Date");
+
+      expect(screen.getByLabelText("Date order")).toHaveValue("day-first");
+    });
+
+    it("pre-sets the decimal separator from the amount column", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropUnambiguousCsv(user);
+
+      expect(screen.getByLabelText("Decimal separator")).toHaveValue("");
+
+      await user.selectOptions(screen.getByLabelText("Amount column"), "Montant");
+
+      expect(screen.getByLabelText("Decimal separator")).toHaveValue("comma");
+    });
+
+    // The refusal, still intact where the file genuinely does not answer.
+    it("leaves the date order unanswered when the file settles nothing", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+
+      await user.selectOptions(screen.getByLabelText("Operation date column"), "Date opération");
+
+      // `03/04/2026` and `11/04/2026` are dates under either order.
+      expect(screen.getByLabelText("Date order")).toHaveValue("");
+    });
+
+    /**
+     * The override, and the whole reason inference is a *default*. A user who
+     * disagrees with a reading and then goes on mapping columns must not watch
+     * their correction undone by a later assignment — nothing on screen would
+     * explain it.
+     */
+    it("keeps an override across a later re-mapping of the same column", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropUnambiguousCsv(user);
+
+      await user.selectOptions(screen.getByLabelText("Operation date column"), "Date");
+      expect(screen.getByLabelText("Date order")).toHaveValue("day-first");
+
+      // The user disagrees.
+      await user.selectOptions(screen.getByLabelText("Date order"), "month-first");
+
+      // …and goes on mapping. Neither the date column re-assigned nor any other
+      // field may take that answer back.
+      await user.selectOptions(screen.getByLabelText("Operation date column"), "Date");
+      await user.selectOptions(screen.getByLabelText("Operation label columns"), "Libellé");
+      await user.selectOptions(screen.getByLabelText("Amount column"), "Montant");
+
+      expect(screen.getByLabelText("Date order")).toHaveValue("month-first");
+    });
+
+    it("keeps a decimal separator the user overrode", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropUnambiguousCsv(user);
+
+      await user.selectOptions(screen.getByLabelText("Amount column"), "Montant");
+      expect(screen.getByLabelText("Decimal separator")).toHaveValue("comma");
+
+      await user.selectOptions(screen.getByLabelText("Decimal separator"), "dot");
+      await user.selectOptions(screen.getByLabelText("Amount column"), "Montant");
+
+      expect(screen.getByLabelText("Decimal separator")).toHaveValue("dot");
+    });
+
+    // One override does not silence the other: they are two decisions.
+    it("still infers the rule the user has not touched", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropUnambiguousCsv(user);
+
+      await user.selectOptions(screen.getByLabelText("Decimal separator"), "dot");
+      await user.selectOptions(screen.getByLabelText("Operation date column"), "Date");
+
+      expect(screen.getByLabelText("Date order")).toHaveValue("day-first");
+      expect(screen.getByLabelText("Decimal separator")).toHaveValue("dot");
     });
   });
 

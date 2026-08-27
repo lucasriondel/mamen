@@ -1,5 +1,6 @@
 import type { CsvStatementFormat, StatementFormatId } from "@mamen/shared/contract";
 import { Select } from "@/components/ui/select";
+import { Field } from "./field";
 import type { WizardAction, WizardState } from "./wizard-reducer";
 
 /**
@@ -26,8 +27,7 @@ export function FormatPicker({
   dispatch: (action: WizardAction) => void;
 }) {
   return (
-    <label className="flex flex-col gap-1 text-sm text-gousse-muted">
-      Format
+    <Field label="Format">
       <Select
         value={state.formatId === null ? "" : String(state.formatId)}
         onChange={(event) =>
@@ -48,7 +48,7 @@ export function FormatPicker({
         ))}
       </Select>
       <FormatHint state={state} />
-    </label>
+    </Field>
   );
 }
 

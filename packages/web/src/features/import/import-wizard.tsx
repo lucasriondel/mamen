@@ -16,6 +16,7 @@ import type { ParsedTransaction } from "./parsers/types";
 import { PdfValidationStep } from "./pdf-validation-step";
 import { PreviewStep } from "./preview-step";
 import { UploadStep } from "./upload-step";
+import { useSuggestedFormatName } from "./use-suggested-format-name";
 import {
   makeInitialWizardState,
   type RowId,
@@ -199,7 +200,23 @@ export function ImportWizard({
       selectedFormat?.name) ??
     "—";
 
-  const accountName = accounts.find((account) => account.id === state.accountId)?.name ?? "—";
+  // The chosen account's own name, or `null` while it is unchosen or while the
+  // accounts query is still in flight. Kept apart from the `"—"` below because
+  // the two want opposite things from "unknown": the summary line needs
+  // *something* to render, the format-name suggestion needs to know to wait.
+  const selectedAccountName =
+    accounts.find((account) => account.id === state.accountId)?.name ?? null;
+
+  const accountName = selectedAccountName ?? "—";
+
+  // Offer `<account> CSV` / `<account> PDF` as the new format's name, once, on a
+  // draft nobody has named yet (issue #186's required field, PRD #180).
+  useSuggestedFormatName({
+    draftName: state.draftFormat?.name ?? null,
+    draftKind: state.draftFormat?.kind ?? null,
+    accountName: selectedAccountName,
+    dispatch,
+  });
 
   // A step that puts the dropped file beside the work needs the full width to
   // show both — the PDF path's **side-by-side validation**, the CSV preview

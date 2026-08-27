@@ -1,7 +1,8 @@
-import { Button } from "@/components/ui/button";
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { AddRowButton } from "./add-row-button";
 import type { ColumnMarks } from "./column-marks";
+import { editableCellClass } from "./editable-cell";
 import { ROW_HIGHLIGHT_TINT, type RowHighlight } from "./row-highlight";
 import type { RowId } from "./wizard-reducer";
 
@@ -268,7 +269,9 @@ export function FileTable({
                           aria-label={`${header}, row ${index + 1}`}
                           value={row[header] ?? ""}
                           onChange={(event) => onEditCell(index, header, event.target.value)}
-                          className="w-full min-w-32 rounded-full border border-gousse-line bg-gousse-bg px-3 py-1 text-gousse-ink"
+                          // Wide enough that a label is readable in it, where the
+                          // panel opposite sizes its inputs to its own columns.
+                          className={editableCellClass({ className: "min-w-32" })}
                         />
                       )}
                     </TableCell>
@@ -283,13 +286,7 @@ export function FileTable({
       {/* Outside the scroller, so the control stays put however far down the
           rows the user has gone — the same place the PDF path's has always
           been, under the rows it appends to. */}
-      {onAddRow === undefined ? null : (
-        <div className="px-2 pb-2">
-          <Button variant="secondary" size="sm" onClick={onAddRow}>
-            Add row
-          </Button>
-        </div>
-      )}
+      {onAddRow === undefined ? null : <AddRowButton onClick={onAddRow} />}
     </div>
   );
 }
