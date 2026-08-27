@@ -344,12 +344,23 @@ async function pickAccounts(user: ReturnType<typeof userEvent.setup>, names: rea
 }
 
 /**
- * Pick a month in the **period** picker: open it, then click the month cell in
- * the grid. The flat `<select>` of every distinct month became a year of cells
- * (see `PeriodMonthGrid`), so a test aims at the cell rather than at an option.
+ * Open the **period** picker's month grid: the trigger, then the *Pick month*
+ * item. The panel's resting face is a five-item menu (see `PeriodPicker`), so
+ * the grid is one step in rather than the thing the popover opens onto.
+ */
+async function openMonthGrid(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("button", { name: /Filter by period/ }));
+  await user.click(await screen.findByRole("option", { name: "Pick month" }));
+  return screen.getByRole("group", { name: "Month" });
+}
+
+/**
+ * Pick a month in the **period** picker: open the grid, then click the cell.
+ * The flat `<select>` of every distinct month became a year of cells (see
+ * `PeriodMonthGrid`), so a test aims at the cell rather than at an option.
  */
 async function pickMonth(user: ReturnType<typeof userEvent.setup>, short: string, year?: number) {
-  await user.click(screen.getByRole("button", { name: /Filter by period/ }));
+  await openMonthGrid(user);
   if (year != null) {
     // The grid opens on the selection's year, or this one; page back if the
     // month wanted is older.
@@ -552,8 +563,7 @@ describe("TransactionsView", () => {
     await renderView();
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: /Filter by period/ }));
-    const grid = screen.getByRole("group", { name: "Month" });
+    const grid = await openMonthGrid(user);
 
     // The month the rows fall in is selectable; the one they were merely filed
     // under is not — the cell stays in place and is disabled, so "no rows here"

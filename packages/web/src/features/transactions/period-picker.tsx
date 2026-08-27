@@ -1,8 +1,8 @@
-import { CalendarRange, ChevronDown } from "lucide-react";
+import { CalendarRange, ChevronDown, ChevronLeft } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Command, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Segmented } from "@/components/ui/segmented";
 import { formatMonth } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
@@ -16,7 +16,7 @@ import {
   resolveQuickPick,
 } from "./period-filter";
 import { PeriodMonthGrid } from "./period-month-grid";
-import { PeriodRangeFields } from "./period-range-fields";
+import { PeriodRangeCalendar } from "./period-range-calendar";
 
 export interface PeriodPickerProps {
   /** The `YYYY-MM` values the data holds, for the grid's enabled cells. */
@@ -27,13 +27,11 @@ export interface PeriodPickerProps {
   onChange: (fields: PeriodFilterFields) => void;
 }
 
-/** Which face of the panel is showing. */
-type Mode = "month" | "range";
-
-const MODES = [
-  { value: "month", label: "Month" },
-  { value: "range", label: "Date range" },
-] as const;
+/**
+ * Which face of the panel is showing. `menu` is the resting one; the other two
+ * are pushed onto it by the last two menu items.
+ */
+type View = "menu" | "month" | "range";
 
 /**
  * The **Period** filter — the transactions bar's month picker, grown into the
@@ -46,13 +44,29 @@ const MODES = [
  * had no control at all, so a link could pin a period the bar could not show and
  * the user could only undo by clearing every filter.
  *
- * So the panel offers three ways in, ordered by how often they are wanted:
+ * **The panel is a menu, not a form.** It used to open onto everything at once:
+ * a row of quick-pick pills, a mode toggle, and whichever picker that toggle
+ * selected — three kinds of control stacked in one small popover, so the two
+ * rare paths (a specific month, an arbitrary span) were permanently occupying
+ * the space and the attention of the three common ones. Now the panel opens as
+ * five items in a {@link Command} list:
  *
- * 1. **Quick picks** — *This month*, *Last month*, *This year*. Resolved against
+ * 1. **This year** · 2. **This month** · 3. **Last month** — resolved against
  *    the clock at click time (see `resolveQuickPick`) so a bookmark keeps
- *    meaning the period it named rather than drifting with the calendar.
- * 2. **Month** — a year of cells with a pager, months without data disabled.
- * 3. **Date range** — the arbitrary span, writing the same bounds the recap uses.
+ *    meaning the period it named rather than drifting with the calendar. These
+ *    apply and close.
+ * 4. **Pick month** — pushes the year-of-cells grid onto the panel.
+ * 5. **Pick date range** — widens the panel and pushes two months of days onto
+ *    it, for the arbitrary span.
+ *
+ * The last two *navigate* rather than apply, which is why they carry a chevron
+ * and the first three do not: one glance says which items cost a click and
+ * which open a room. Each sub-view has a back affordance in its header, so the
+ * menu is never a one-way door.
+ *
+ * A `Command` list rather than hand-rolled buttons: it brings type-ahead and
+ * arrow-key navigation for free, and it is the same list surface as the issuer
+ * and category pickers — the bar's popovers all behave alike.
  *
  * The trigger labels itself from the applied period, so the bar states what it
  * is showing instead of a control name: "March 2026", "This year", "1 Jan – 15 Mar",
@@ -61,14 +75,15 @@ const MODES = [
 export function PeriodPicker({ months, value, onChange }: PeriodPickerProps) {
   const period = filterToPeriod(value);
   // One `now` per render: the quick picks resolve and match against the same
-  // instant, so a pill cannot light against a different day than it applied.
+  // instant, so an item cannot tick against a different day than it applied.
   const now = useMemo(() => new Date(), []);
   const activePick = matchQuickPick(period, now);
 
   const available = useMemo(() => new Set(months), [months]);
   const maxYear = now.getFullYear();
 
-  const [mode, setMode] = useState<Mode>(period.kind === "range" ? "range" : "month");
+  const [open, setOpen] = useState(false);
+  const [view, setView] = useState<View>("menu");
   // The year the grid is showing — seeded from the selection so opening the
   // panel on a filtered view lands on the month in force, not on this year.
   const [year, setYear] = useState(() =>
@@ -77,11 +92,25 @@ export function PeriodPicker({ months, value, onChange }: PeriodPickerProps) {
 
   const apply = (next: Period) => onChange(periodToFilter(next));
 
+  /** Apply and dismiss — for the three items that settle the period outright. */
+  const applyAndClose = (next: Period) => {
+    apply(next);
+    setOpen(false);
+  };
+
   const selectedMonth = period.kind === "month" ? period.month : undefined;
   const bounds = period.kind === "range" ? period : { startDate: "", endDate: "" };
 
   return (
-    <Popover>
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        // Reopening always lands on the menu: the sub-view you left is a step
+        // in a finished errand, not a preference to be restored.
+        if (!next) setView("menu");
+      }}
+    >
       <PopoverTrigger
         render={
           <Button
@@ -96,81 +125,140 @@ export function PeriodPicker({ months, value, onChange }: PeriodPickerProps) {
         }
       />
 
-      <PopoverContent className="w-64 p-2">
-        <div className="flex items-center justify-between gap-2 px-2 pb-1.5">
-          <span className="text-[11px] tracking-wider text-gousse-muted uppercase">Period</span>
-          {period.kind !== "all" ? (
-            <button
-              type="button"
-              onClick={() => apply({ kind: "all" })}
-              className="cursor-pointer rounded-full px-1.5 py-0.5 text-xs text-gousse-accent outline-none hover:bg-gousse-accent/10 focus-visible:ring-2 focus-visible:ring-gousse-accent"
-            >
-              Clear
-            </button>
-          ) : null}
-        </div>
-
-        {/* Quick picks first: they are what most visits want, and putting them
-            above the pickers means the common case costs one click. */}
-        <div className="flex flex-wrap gap-1.5 px-1 pb-2">
-          {QUICK_PICKS.map((pick) => {
-            const active = activePick === pick.id;
-            return (
-              <button
-                key={pick.id}
-                type="button"
-                aria-pressed={active}
-                onClick={() => apply(active ? { kind: "all" } : resolveQuickPick(pick.id, now))}
-                className={cn(
-                  "cursor-pointer rounded-full border px-2.5 py-1 text-xs whitespace-nowrap transition-colors",
-                  "outline-none focus-visible:ring-2 focus-visible:ring-gousse-accent",
-                  active
-                    ? "border-gousse-accent/45 bg-gousse-accent/10 font-medium text-gousse-ink"
-                    : "border-gousse-line bg-gousse-panel text-gousse-muted hover:text-gousse-ink",
-                )}
-              >
-                {pick.label}
-              </button>
-            );
-          })}
-        </div>
-
-        <Segmented
-          label="How to choose the period"
-          options={MODES}
-          value={mode}
-          onChange={setMode}
-          className="mb-2 flex w-full"
-        />
-
-        {mode === "month" ? (
-          <PeriodMonthGrid
-            year={year}
-            onYearChange={setYear}
-            maxYear={maxYear}
-            selected={selectedMonth}
-            available={available}
-            onSelect={(month) =>
-              // Re-picking the month in force clears it, so the grid can undo
-              // itself without reaching for Clear.
-              apply(month === selectedMonth ? { kind: "all" } : { kind: "month", month })
-            }
+      {/* The range view needs room for two months abreast; the other two are the
+          narrow panel the bar's other filters use. */}
+      <PopoverContent className={cn("p-0", view === "range" ? "w-auto" : "w-60")}>
+        {view === "menu" ? (
+          <PeriodMenu
+            activePick={activePick}
+            period={period}
+            onPick={(id) => applyAndClose(resolveQuickPick(id, now))}
+            onClear={() => applyAndClose({ kind: "all" })}
+            onOpenView={setView}
           />
         ) : (
-          <PeriodRangeFields
-            startDate={bounds.startDate}
-            endDate={bounds.endDate}
-            onChange={({ startDate, endDate }) =>
-              // Commit only once both ends exist: a half-typed range would
-              // otherwise refetch against a bound the user has not finished.
-              startDate !== "" && endDate !== ""
-                ? apply({ kind: "range", startDate, endDate })
-                : undefined
-            }
-          />
+          <div className="p-2">
+            <SubViewHeader
+              title={view === "month" ? "Pick month" : "Pick date range"}
+              onBack={() => setView("menu")}
+            />
+
+            {view === "month" ? (
+              <PeriodMonthGrid
+                year={year}
+                onYearChange={setYear}
+                maxYear={maxYear}
+                selected={selectedMonth}
+                available={available}
+                onSelect={(month) =>
+                  // Re-picking the month in force clears it, so the grid can undo
+                  // itself without reaching for Clear.
+                  applyAndClose(
+                    month === selectedMonth ? { kind: "all" } : { kind: "month", month },
+                  )
+                }
+              />
+            ) : (
+              <PeriodRangeCalendar
+                startDate={bounds.startDate}
+                endDate={bounds.endDate}
+                onChange={({ startDate, endDate }) => apply({ kind: "range", startDate, endDate })}
+              />
+            )}
+          </div>
         )}
       </PopoverContent>
     </Popover>
+  );
+}
+
+/** The ids of the quick picks, in the order the menu offers them. */
+const MENU_PICKS = ["this-year", "this-month", "last-month"] as const;
+
+/** The two items that open a sub-view rather than applying a period. */
+const MENU_VIEWS = [
+  { view: "month", label: "Pick month" },
+  { view: "range", label: "Pick date range" },
+] as const;
+
+interface PeriodMenuProps {
+  /** Which quick pick the applied period *is*, when it is one of them. */
+  activePick: ReturnType<typeof matchQuickPick>;
+  period: Period;
+  onPick: (id: (typeof MENU_PICKS)[number]) => void;
+  onClear: () => void;
+  onOpenView: (view: Exclude<View, "menu">) => void;
+}
+
+/** The five items the panel rests on, plus the header that can undo them. */
+function PeriodMenu({ activePick, period, onPick, onClear, onOpenView }: PeriodMenuProps) {
+  return (
+    <Command>
+      <div className="flex items-center justify-between gap-2 px-3 pt-2.5 pb-1">
+        <span className="text-[11px] text-gousse-muted uppercase tracking-wider">Period</span>
+        {period.kind !== "all" ? (
+          <button
+            type="button"
+            onClick={onClear}
+            className="cursor-pointer rounded-full px-1.5 py-0.5 text-gousse-accent text-xs outline-none hover:bg-gousse-accent/10 focus-visible:ring-2 focus-visible:ring-gousse-accent"
+          >
+            Clear
+          </button>
+        ) : null}
+      </div>
+
+      <CommandList className="max-h-none">
+        {MENU_PICKS.map((id) => {
+          const pick = QUICK_PICKS.find((p) => p.id === id);
+          if (pick == null) return null;
+          const active = activePick === id;
+          return (
+            <CommandItem
+              key={id}
+              value={pick.label}
+              onSelect={() => onPick(id)}
+              className={cn("justify-between", active && "font-medium text-gousse-accent")}
+            >
+              <span>{pick.label}</span>
+              {/* The tick states which period is applied without spending a
+                  colour the accent already owns elsewhere in the list. */}
+              {active ? <span aria-hidden>✓</span> : null}
+            </CommandItem>
+          );
+        })}
+
+        {MENU_VIEWS.map(({ view, label }) => (
+          <CommandItem
+            key={view}
+            value={label}
+            onSelect={() => onOpenView(view)}
+            className="justify-between"
+          >
+            <span>{label}</span>
+            {/* A right-pointing chevron is the menu convention for "opens a
+                further step", which is exactly what these two do. */}
+            <ChevronLeft size={14} className="rotate-180 text-gousse-muted" aria-hidden />
+          </CommandItem>
+        ))}
+      </CommandList>
+    </Command>
+  );
+}
+
+/** A sub-view's title bar, with the way back to the menu. */
+function SubViewHeader({ title, onBack }: { title: string; onBack: () => void }) {
+  return (
+    <div className="flex items-center gap-1 pb-2">
+      <button
+        type="button"
+        onClick={onBack}
+        aria-label="Back to period menu"
+        className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full text-gousse-muted outline-none transition-colors hover:bg-gousse-line/60 hover:text-gousse-ink focus-visible:ring-2 focus-visible:ring-gousse-accent"
+      >
+        <ChevronLeft size={16} aria-hidden />
+      </button>
+      <span className="text-[11px] text-gousse-muted uppercase tracking-wider">{title}</span>
+    </div>
   );
 }
 
