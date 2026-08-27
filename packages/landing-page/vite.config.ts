@@ -30,7 +30,12 @@ export default defineConfig({
     // Pinned, and strict: the registry carries a row for this package
     // (`@mamen/shared/ports`), so a silent hop to the next free port would
     // make that row a lie — and would land on whatever the next row owns.
-    port: LANDING_PAGE_DEV_PORT,
+    //
+    // Portless (`portless.json`) hands the child an ephemeral port in `PORT`
+    // and fronts it at `landing.mamen.localhost`; the row is what this binds
+    // when run directly (`PORTLESS=0 bun dev:app`). Reading `PORT` first is
+    // what lets one config serve both.
+    port: Number(process.env.PORT ?? LANDING_PAGE_DEV_PORT),
     strictPort: true,
   },
 });

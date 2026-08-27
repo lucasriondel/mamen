@@ -8,17 +8,23 @@ export { APP_BASE_PATH, APP_BASE_PATH_SLASH } from "./app-base-path.ts";
 // path so a build config need not pull the contract in behind a number.
 export {
   API_DEV_PORT,
+  API_PORTLESS_HOST,
+  API_PORTLESS_ORIGIN,
   COMPOSE_STACK_WEB_PORT,
   DEMO_STACK_API_PORT,
   DEMO_STACK_WEB_PORT,
   DOCKER_HOST_PORT_FLOOR,
   LANDING_PAGE_DEV_PORT,
+  LANDING_PAGE_PORTLESS_HOST,
+  LANDING_PAGE_PORTLESS_ORIGIN,
   PORT_TAKEN_ELSEWHERE,
   PORTS,
   type PortKind,
   type PortRow,
   portsOfKind,
   WEB_DEV_PORT,
+  WEB_PORTLESS_HOST,
+  WEB_PORTLESS_ORIGIN,
 } from "./ports.ts";
 export type { Account, AccountType } from "./types/account.types";
 export type { AnomalyFlag, AnomalySettings, AnomalyType } from "./types/anomaly.types";

@@ -189,7 +189,10 @@ function Install() {
       <ul className="servers">
         {INSTALL.servers.map((server) => (
           <li key={server.name}>
-            <strong>{server.name}</strong> <code>{server.url}</code> {server.serves}
+            {/* Both addresses, because the reader may or may not have portless:
+                the name it is fronted at, and the port it binds without it. */}
+            <strong>{server.name}</strong> <code>{server.url}</code> <code>{server.directUrl}</code>{" "}
+            {server.serves}
           </li>
         ))}
       </ul>

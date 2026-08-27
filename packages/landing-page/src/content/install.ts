@@ -1,5 +1,12 @@
 import { APP_BASE_PATH_SLASH } from "@mamen/shared/app-base-path";
-import { API_DEV_PORT, LANDING_PAGE_DEV_PORT, WEB_DEV_PORT } from "@mamen/shared/ports";
+import {
+  API_DEV_PORT,
+  API_PORTLESS_ORIGIN,
+  LANDING_PAGE_DEV_PORT,
+  LANDING_PAGE_PORTLESS_ORIGIN,
+  WEB_DEV_PORT,
+  WEB_PORTLESS_ORIGIN,
+} from "@mamen/shared/ports";
 import { SITE } from "./site";
 
 /**
@@ -61,7 +68,21 @@ export type InstallStep = {
 /** One of the servers `bun dev` brings up, and where it answers. */
 export type DevServer = {
   readonly name: string;
+  /**
+   * The address to open. This is the portless hostname (`portless.json`),
+   * because that is what `bun dev` puts a reader in front of.
+   */
   readonly url: string;
+  /**
+   * The same server reached without the proxy, on the port it binds directly
+   * (`PORTLESS=0 bun dev:app`).
+   *
+   * Both are listed because portless is a machine-level tool, not a
+   * dependency of this repo: a reader who has not installed it still needs an
+   * address that works, and a reader who has needs the one that survives the
+   * ephemeral port. Naming only one of them strands one of the two.
+   */
+  readonly directUrl: string;
   /** What is served there. */
   readonly serves: string;
 };
@@ -97,6 +118,13 @@ export const INSTALL: InstallGuide = {
       required: true,
     },
     {
+      name: "portless",
+      url: "https://portless.sh",
+      detail:
+        "Fronts each dev server at a name instead of a port, which is what the start command expects. Without it, the same servers run directly on the ports listed below.",
+      required: false,
+    },
+    {
       name: "The claude CLI",
       url: "https://docs.claude.com/en/docs/claude-code/overview",
       detail:
@@ -123,7 +151,7 @@ export const INSTALL: InstallGuide = {
     {
       title: "Start it",
       detail:
-        "One command runs every dev server through Turborepo. The database is created and migrated on first boot, seeded with a base category tree.",
+        "One command runs every dev server through Turborepo. The database is created and migrated on first boot, seeded with a base category tree. The servers come up behind portless, each fronted at a name instead of a port; without it installed they run directly, at the second address listed below.",
       commands: ["bun dev"],
     },
   ],
@@ -131,17 +159,20 @@ export const INSTALL: InstallGuide = {
   servers: [
     {
       name: "web",
-      url: `http://localhost:${WEB_DEV_PORT}${APP_BASE_PATH_SLASH}`,
+      url: `${WEB_PORTLESS_ORIGIN}${APP_BASE_PATH_SLASH}`,
+      directUrl: `http://localhost:${WEB_DEV_PORT}${APP_BASE_PATH_SLASH}`,
       serves: "The app itself, under the prefix it is served at in production too.",
     },
     {
       name: "API",
-      url: `http://localhost:${API_DEV_PORT}`,
+      url: API_PORTLESS_ORIGIN,
+      directUrl: `http://localhost:${API_DEV_PORT}`,
       serves: "The HTTP API, with its Scalar docs and the OpenAPI spec it emits.",
     },
     {
       name: "landing page",
-      url: `http://localhost:${LANDING_PAGE_DEV_PORT}`,
+      url: LANDING_PAGE_PORTLESS_ORIGIN,
+      directUrl: `http://localhost:${LANDING_PAGE_DEV_PORT}`,
       serves: "This page, as the deployed site serves it at its root.",
     },
   ],

@@ -90,6 +90,39 @@ export const DEMO_STACK_API_PORT = 5401;
  */
 export const COMPOSE_STACK_WEB_PORT = 5402;
 
+/**
+ * The hostnames portless fronts the dev servers at (each package's own
+ * `portless.json`), which are the addresses a reader actually opens.
+ *
+ * These sit beside the ports rather than replacing them because the two answer
+ * different questions. A port is what a process **binds**; a hostname is what
+ * a browser **opens**. Run behind portless the bound port is ephemeral —
+ * portless assigns it and injects it as `PORT` — and the hostname is the only
+ * stable address. Run directly (`PORTLESS=0 bun dev:app`) there is no proxy
+ * and the registry's row is both. Every config that needs an address therefore
+ * needs both spellings, and gets them from here.
+ *
+ * The scheme is portless's own: one name per app, subdomains for the rest of
+ * the packages, all under `.localhost` — which resolves to `127.0.0.1` without
+ * touching DNS. HTTPS is portless's default, so these are `https://`.
+ */
+export const WEB_PORTLESS_HOST = "mamen.localhost";
+
+/** The API's hostname behind portless. */
+export const API_PORTLESS_HOST = "api.mamen.localhost";
+
+/** The landing page's hostname behind portless. */
+export const LANDING_PAGE_PORTLESS_HOST = "landing.mamen.localhost";
+
+/** The SPA's origin behind portless — what the API must allow through CORS. */
+export const WEB_PORTLESS_ORIGIN = `https://${WEB_PORTLESS_HOST}`;
+
+/** The API's origin behind portless — what the web dev server proxies to. */
+export const API_PORTLESS_ORIGIN = `https://${API_PORTLESS_HOST}`;
+
+/** The landing page's origin behind portless. */
+export const LANDING_PAGE_PORTLESS_ORIGIN = `https://${LANDING_PAGE_PORTLESS_HOST}`;
+
 /** The lowest host port a Docker row may take, by registry convention. */
 export const DOCKER_HOST_PORT_FLOOR = 5400;
 
