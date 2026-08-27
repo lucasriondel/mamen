@@ -1,5 +1,5 @@
 import type { Category, Issuer } from "@mamen/shared/contract";
-import { ArrowLeftRight, CircleHelp, Pin, StickyNote } from "lucide-react";
+import { ArrowLeftRight, Check, CircleHelp, Pin, StickyNote } from "lucide-react";
 import { CategoryIcon } from "@/components/category-icon";
 import { IssuerAvatar } from "@/features/issuers/issuer-avatar";
 import { NEUTRAL_CATEGORY_COLOR } from "@/lib/category-tree";
@@ -11,15 +11,25 @@ import { cn } from "@/lib/utils";
  * leg of an internal transfer, so grouped rows are recognisable at a glance in
  * the grid without opening the detail page. Rendered only for legs (the caller
  * checks `transferGroupId`); its legs are netted out of the recap.
+ *
+ * **Settled**, and it reads that way: green (`low`, the same token a credit
+ * wears) and a check over the transfer glyph. It shares its column with the
+ * unsettled suggestion indicator, which wears amber and a question mark
+ * (issue #91) — one glyph pair, one colour pair, so which of the two states a
+ * row is in is legible before either tooltip is read.
+ *
+ * Wordless: "Transfer" spelled out was the column's only text, and it repeated
+ * on every settled row what the icon already says. The name lives on the
+ * `title` for anyone who needs it.
  */
 export function TransferBadge() {
   return (
     <span
-      className="inline-flex items-center gap-1 rounded-full bg-gousse-bg px-2 py-0.5 text-gousse-muted text-xs"
+      className="inline-flex items-center gap-1 rounded-full bg-gousse-low/10 px-2 py-0.5 text-gousse-low text-xs"
       title="Part of an internal transfer — excluded from your recap spend"
     >
       <ArrowLeftRight size={12} aria-hidden />
-      Transfer
+      <Check size={12} aria-hidden />
     </span>
   );
 }
