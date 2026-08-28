@@ -2,16 +2,12 @@ import { createColumnHelper } from "@tanstack/react-table";
 import { useMemo } from "react";
 import { amountColumn, amountToneClass, dateColumn, rawIssuerColumn } from "./candidate-columns";
 import { CandidatePane } from "./candidate-pane";
-import {
-  importColumn,
-  type PreviewColumn,
-  strikeWhileSkipped,
-  useCandidateTable,
-} from "./candidate-table";
+import { importColumn, type PreviewColumn, useCandidateTable } from "./candidate-table";
 import type { CandidateRow } from "./candidate-rows";
 import type { ParsedTransaction } from "./parsers/types";
 import { readableAmount, readableDate } from "./readable-cell";
 import type { RowHighlight } from "./row-highlight";
+import { strikeWhileSkipped } from "./row-skip";
 import type { RowId, WizardAction } from "./wizard-reducer";
 
 const columnHelper = createColumnHelper<CandidateRow<ParsedTransaction>>();

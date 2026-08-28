@@ -89,35 +89,12 @@ export function importColumn<T>(): PreviewColumn<T> {
 /**
  * Whether a previewed row is held out of the commit, asked of the row rather than
  * of its selection: selection means *kept* since the checkbox was turned the right
- * way round, and a cell that wants to strike itself through, disable its input or
- * print the {@link SkippedNote} wants the other one. One place spells the negation
- * so no cell has to read `!row.getIsSelected()` and mean "skipped".
+ * way round, and a cell that wants to strike itself through or disable its input
+ * wants the other one. One place spells the negation so no cell has to read
+ * `!row.getIsSelected()` and mean "skipped".
  */
 export function isRowSkipped<T>(row: TanStackRow<CandidateRow<T>>): boolean {
   return !row.getIsSelected();
-}
-
-/**
- * What a **skipped row** says for itself, in the cell carrying the operation
- * label. Both previews said this in identical markup in the same place, so it is
- * one component: a row cannot announce itself skipped one way on one path and
- * another way on the other, any more than an **already imported** mark can.
- */
-export function SkippedNote() {
-  return (
-    <span className="whitespace-nowrap text-gousse-muted text-xs">Skipped — won't be imported</span>
-  );
-}
-
-/**
- * The strike a skipped row's own cells wear. The shell only marks the row
- * `data-skipped` — what striking *means* differs between the previews (this is
- * the text half; the editable panel also fades and disables its inputs) — so the
- * cells ask for it, and they ask in one place rather than spelling the class out
- * per column.
- */
-export function strikeWhileSkipped(isSkipped: boolean): string {
-  return isSkipped ? "line-through" : "";
 }
 
 /**

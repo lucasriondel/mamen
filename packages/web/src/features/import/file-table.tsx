@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { AddRowButton } from "./add-row-button";
 import type { ColumnMarks } from "./column-marks";
 import { editableCellClass } from "./editable-cell";
 import { ROW_HIGHLIGHT_TINT, type RowHighlight } from "./row-highlight";
+import { strikeWhileSkipped } from "./row-skip";
 import type { RowId } from "./wizard-reducer";
 
 /**
@@ -89,7 +91,10 @@ function columnTint(mark: ColumnMark): string | false {
  * its identity and lights up with the record it produced. The join is the id,
  * never the position — a line the format's filter dropped is on screen here and
  * absent there, and lights nothing. A caller that hands over neither (the
- * mapping step, whose right pane is a form) declares no identities at all.
+ * mapping step, whose right pane is a form) declares no identities at all. The
+ * same ids carry the **skips**: a line whose record the user held out is struck
+ * here as its record is struck there, so the file on the left reads as the
+ * import that will be written rather than as everything that was offered.
  *
  * **And answered from it, in pick mode** (issue #214): while a field is picking,
  * every header is a button that assigns its column to that field, and the pane
@@ -111,6 +116,7 @@ export function FileTable({
   headers,
   rows,
   rowIds,
+  skippedRows,
   highlight,
   marks,
   activeColumn = null,
@@ -127,6 +133,13 @@ export function FileTable({
   rows: ReadonlyArray<Record<string, string>>;
   /** Positional with `rows`: the **stable row id** each line is paired by (issue #215). */
   rowIds?: readonly RowId[];
+  /**
+   * The row ids the user held out of the commit, struck here as they are in the
+   * pane opposite (issue #215) — one decision, drawn on both halves of the split
+   * so the file reads as the import it will produce. Absent where nothing is
+   * being skipped, and inert without `rowIds`, which is what names a line.
+   */
+  skippedRows?: readonly RowId[];
   /** The pairing with the table opposite; absent where there is no table of rows to pair with. */
   highlight?: RowHighlight;
   /** What each mapped column feeds, derived from the draft; absent when none is being built. */
@@ -148,6 +161,17 @@ export function FileTable({
   // Pick mode needs somewhere to send the answer, so a caller that offers no
   // handler cannot put the table into it by accident.
   const picking = pickingFor !== null && onPickColumn !== undefined;
+  // Which column the pointer is over, while picking. A column is a set of cells
+  // scattered down the table rather than an element, so "hover the column" is a
+  // fact the table has to hold: no selector reaches a cell's siblings a row
+  // away. Only tracked in pick mode, where the whole column is the target.
+  const [hoveredColumn, setHoveredColumn] = useState<number | null>(null);
+  // A cell is only a route to the answer where it holds a value; where it holds
+  // an input, the click belongs to the input and the header stays the control.
+  const pickableCells = picking && onEditCell === undefined;
+  // Looked up per row rather than scanned: a statement of a few thousand lines
+  // asks this question once per line, and the skips are a list of ids.
+  const skipped = new Set(skippedRows);
   // What the draft makes of each column, once for the whole table: its badges,
   // and which of the three marked states it is in.
   const columns = headers.map((header) => {
@@ -208,7 +232,11 @@ export function FileTable({
                     "whitespace-nowrap",
                     columnTint(mark),
                     labels.length > 0 && "text-gousse-ink",
+                    picking && "cursor-pointer px-0",
+                    picking && hoveredColumn === index && "bg-gousse-accent/20",
                   )}
+                  onMouseEnter={picking ? () => setHoveredColumn(index) : undefined}
+                  onMouseLeave={picking ? () => setHoveredColumn(null) : undefined}
                 >
                   {/* In pick mode the header *is* the control — a real button,
                       so the route is a keyboard's as much as a pointer's, and
@@ -218,7 +246,10 @@ export function FileTable({
                     <button
                       type="button"
                       aria-label={`Use ${header} as the ${pickingFor} column`}
-                      className="-mx-1 rounded-full px-1 outline-none hover:bg-gousse-accent/20 focus-visible:ring-2 focus-visible:ring-gousse-accent"
+                      // Filling its cell rather than hugging its text: the whole
+                      // column is the target in pick mode, and a header whose
+                      // hit area stops at the word is a header the user misses.
+                      className="flex h-10 w-full cursor-pointer items-center px-3 text-left outline-none focus-visible:-outline-offset-2 focus-visible:outline-2 focus-visible:outline-gousse-accent"
                       onClick={() => onPickColumn?.(header)}
                     >
                       <HeaderName header={header} labels={labels} />
@@ -234,51 +265,72 @@ export function FileTable({
             {/* Keyed by position: nothing here selects, edits or reorders the
                 rows, and the **stable row id** below is a claim about which
                 *record* a line produced rather than a key for this table. */}
-            {rows.map((row, index) => (
-              <TableRow
-                key={index}
-                className={ROW_HIGHLIGHT_TINT}
-                {...highlight?.row(rowIds?.[index])}
-              >
-                {headers.map((header, column) => {
-                  // The tint runs the height of the column, not just its
-                  // header: what makes a mapping judgeable is the *values*
-                  // under it, so those are what has to be picked out. Read off
-                  // the header row's pass rather than re-derived here, which a
-                  // few-thousand-row statement would do a few thousand times.
-                  const mark = columns[column]?.mark;
-                  return (
-                    <TableCell
-                      key={column}
-                      data-column-mark={mark}
-                      className={cn(
-                        "whitespace-nowrap",
-                        mark === undefined ? "text-gousse-muted" : "text-gousse-ink",
-                        columnTint(mark),
-                      )}
-                    >
-                      {onEditCell === undefined ? (
-                        (row[header] ?? "")
-                      ) : (
-                        // Named by the bank's own word for the column and the
-                        // line it is on: what the user is fixing is "the label
-                        // on row three", and there is no room beside a cell for
-                        // a visible label saying so.
-                        <input
-                          type="text"
-                          aria-label={`${header}, row ${index + 1}`}
-                          value={row[header] ?? ""}
-                          onChange={(event) => onEditCell(index, header, event.target.value)}
-                          // Wide enough that a label is readable in it, where the
-                          // panel opposite sizes its inputs to its own columns.
-                          className={editableCellClass({ className: "min-w-32" })}
-                        />
-                      )}
-                    </TableCell>
-                  );
-                })}
-              </TableRow>
-            ))}
+            {rows.map((row, index) => {
+              // A line the format's filter dropped produced no record, so nobody
+              // could have skipped it: it is unstruck, exactly as it pairs with
+              // nothing.
+              const rowId = rowIds?.[index];
+              const isSkipped = rowId !== undefined && skipped.has(rowId);
+              return (
+                <TableRow
+                  key={index}
+                  data-skipped={isSkipped ? "true" : undefined}
+                  className={ROW_HIGHLIGHT_TINT}
+                  {...highlight?.row(rowId)}
+                >
+                  {headers.map((header, column) => {
+                    // The tint runs the height of the column, not just its
+                    // header: what makes a mapping judgeable is the *values*
+                    // under it, so those are what has to be picked out. Read off
+                    // the header row's pass rather than re-derived here, which a
+                    // few-thousand-row statement would do a few thousand times.
+                    const mark = columns[column]?.mark;
+                    return (
+                      <TableCell
+                        key={column}
+                        data-column-mark={mark}
+                        className={cn(
+                          "whitespace-nowrap",
+                          mark === undefined ? "text-gousse-muted" : "text-gousse-ink",
+                          columnTint(mark),
+                          strikeWhileSkipped(isSkipped),
+                          pickableCells && "cursor-pointer",
+                          picking && hoveredColumn === column && "bg-gousse-accent/20",
+                        )}
+                        onMouseEnter={picking ? () => setHoveredColumn(column) : undefined}
+                        onMouseLeave={picking ? () => setHoveredColumn(null) : undefined}
+                        // The values are what settles which column this is, so
+                        // they answer too — the pointer's route only. The header
+                        // stays the button, so the keyboard's route is unchanged
+                        // and the rows are not a few thousand tab stops.
+                        onClick={pickableCells ? () => onPickColumn?.(header) : undefined}
+                      >
+                        {onEditCell === undefined ? (
+                          (row[header] ?? "")
+                        ) : (
+                          // Named by the bank's own word for the column and the
+                          // line it is on: what the user is fixing is "the label
+                          // on row three", and there is no room beside a cell for
+                          // a visible label saying so.
+                          <input
+                            type="text"
+                            aria-label={`${header}, row ${index + 1}`}
+                            value={row[header] ?? ""}
+                            onChange={(event) => onEditCell(index, header, event.target.value)}
+                            // Wide enough that a label is readable in it, where the
+                            // panel opposite sizes its inputs to its own columns.
+                            className={editableCellClass({
+                              struck: isSkipped,
+                              className: "min-w-32",
+                            })}
+                          />
+                        )}
+                      </TableCell>
+                    );
+                  })}
+                </TableRow>
+              );
+            })}
           </TableBody>
         </table>
       </div>

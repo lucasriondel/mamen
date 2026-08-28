@@ -12,8 +12,10 @@ import { cn } from "@/lib/utils";
  *
  * `struck` is what a **skipped row** does to it: struck through and faded, the
  * visual half of the disabling that keeps an edit to a row that will not commit
- * from being an edit thrown away. The file pane's cells never pass it — a line of
- * a file is not skippable, its *record* is — and nothing there reads as skipped.
+ * from being an edit thrown away. The file pane passes it for a line whose
+ * *record* the user held out (issue #215) — the skip is drawn on both halves of
+ * the split — but leaves the cell editable there, since correcting a
+ * transcription is what un-skipping a row is usually for.
  */
 export function editableCellClass({
   struck = false,

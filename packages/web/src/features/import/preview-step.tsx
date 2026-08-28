@@ -166,6 +166,7 @@ export function PreviewStep({
           headers={headers}
           rows={rows}
           rowIds={sourceRowIds}
+          skippedRows={skippedRows}
           highlight={highlight}
           onEditCell={onEditCell}
           onAddRow={onAddRow}

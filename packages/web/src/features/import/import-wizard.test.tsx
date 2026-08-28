@@ -837,12 +837,12 @@ describe("ImportWizard", () => {
 
     await user.click(screen.getByRole("checkbox", { name: "Import row 1" }));
 
-    // The row stays on screen — struck through, saying so, and the box that held
-    // it out is the one that takes it back — and the count it was the whole of
-    // goes with it.
+    // The row stays on screen — struck through on both halves of the split, and
+    // the box that held it out is the one that takes it back — and the count it
+    // was the whole of goes with it.
     expect(within(importTable()).getByText("SHOP A").className).toContain("line-through");
+    expect(bodyRow(fileTable(), 0)).toHaveAttribute("data-skipped", "true");
     expect(screen.getByRole("checkbox", { name: "Import row 1" })).not.toBeChecked();
-    expect(screen.getByText("Skipped — won't be imported")).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
 
     await user.click(screen.getByRole("button", { name: "Commit import" }));
@@ -3091,7 +3091,6 @@ describe("ImportWizard", () => {
     expect(issuer.className).toContain("line-through");
     expect(screen.getByLabelText("Date, row 1")).toBeDisabled();
     expect(screen.getByLabelText("Amount, row 1")).toBeDisabled();
-    expect(screen.getByText("Skipped — won't be imported")).toBeInTheDocument();
 
     // Only the kept row commits.
     await user.click(screen.getByRole("button", { name: "Commit import" }));

@@ -1,7 +1,7 @@
 import type { ColumnHelper } from "@tanstack/react-table";
 import type { ReactNode } from "react";
 import { AlreadyImportedMark } from "./already-imported-mark";
-import { type PreviewColumn, SkippedNote } from "./candidate-table";
+import type { PreviewColumn } from "./candidate-table";
 import type { CandidateRow } from "./candidate-rows";
 
 /**
@@ -45,10 +45,12 @@ export function dateColumn<T extends { date: Date }>(
  * The **Raw issuer** column — the operation label, and the two marks that hang
  * off it.
  *
- * The marks are here rather than in either cell body because they are the same
- * claim about the same row on both paths: **already imported** (issue #89) and
- * **skipped** (epic #85) must not be able to read one way in one preview and
- * another way in the other. What the caller supplies is the label itself, which
+ * The mark is here rather than in either cell body because it is the same claim
+ * about the same row on both paths: **already imported** (issue #89) must not be
+ * able to read one way in one preview and another way in the other. A skip says
+ * itself in the strike its cells wear and in the unticked box that made it, on
+ * both panes of the split (issue #215), so it needs no note of its own. What the
+ * caller supplies is the label itself, which
  * is a value on one path and an input on the other; how it is laid out beside the
  * marks is the caller's too, since a value sits inline with them and an input
  * stacks above them.
@@ -62,14 +64,7 @@ export function rawIssuerColumn<T extends { rawIssuerString: string }>(
     header: "Raw issuer",
     cell: ({ row }) => {
       const isSkipped = !row.getIsSelected();
-      return cell(
-        row.original,
-        isSkipped,
-        <>
-          {row.original.duplicate ? <AlreadyImportedMark /> : null}
-          {isSkipped ? <SkippedNote /> : null}
-        </>,
-      );
+      return cell(row.original, isSkipped, row.original.duplicate ? <AlreadyImportedMark /> : null);
     },
   });
 }
