@@ -1,5 +1,5 @@
 import type { Account } from "@mamen/shared/contract";
-import { act, render, screen, within } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type TransactionFilterValues, TransactionsFilters } from "./transactions-filters";
 
@@ -74,7 +74,7 @@ describe("TransactionsFilters — search box", () => {
 // toggle: "excluded only" and "counted only" are both views the user asks for,
 // so the off state is a third option rather than the absence of the control.
 describe("TransactionsFilters — recap exclusion", () => {
-  const selectRecap = (label: string) => clickSegment("Filter by recap exclusion", label);
+  const selectRecap = (label: string) => pickFromMenu(/^Recap:/, label);
 
   it("emits the excluded-only view", () => {
     const { onChange } = renderFilters();
@@ -108,7 +108,7 @@ describe("TransactionsFilters — recap exclusion", () => {
 // that" are both views the user asks for. This is what the recap's *Internal
 // transfers* line opens.
 describe("TransactionsFilters — transfers", () => {
-  const selectTransfers = (label: string) => clickSegment("Filter by transfer", label);
+  const selectTransfers = (label: string) => pickFromMenu(/^Transfers:/, label);
 
   it("emits the transfers-only view", () => {
     const { onChange } = renderFilters();
@@ -132,6 +132,26 @@ describe("TransactionsFilters — transfers", () => {
     const { onChange } = renderFilters({ isTransferLeg: false });
     screen.getByRole("button", { name: /clear/i }).click();
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ isTransferLeg: undefined }));
+  });
+
+  // The tint is the whole reason the icon can replace a segmented control: it
+  // is what still answers "is this list narrowed?" without opening the menu.
+  it("tints its trigger only while it is narrowing the list", () => {
+    renderFilters();
+    expect(screen.getByRole("button", { name: /^Transfers:/ }).className).toContain(
+      "border-transparent",
+    );
+
+    renderFilters({ isTransferLeg: true });
+    const [, applied] = screen.getAllByRole("button", { name: /^Transfers:/ });
+    expect(applied?.className).toContain("bg-gousse-accent/15");
+  });
+
+  // The trigger has to say what it is set to, since the options are behind a
+  // click — otherwise the applied state is a tint with no name anywhere.
+  it("names its applied value on the trigger", () => {
+    renderFilters({ isTransferLeg: true });
+    expect(screen.getByRole("button", { name: "Transfers: Only" })).toBeInTheDocument();
   });
 });
 
@@ -175,13 +195,22 @@ describe("TransactionsFilters — shape", () => {
     expect(rail?.className).toContain("border-gousse-line");
   });
 
-  it("gives the tri-states pill-shaped segments", () => {
+  it("keeps every narrow filter to one round icon button in the rail", () => {
     renderFilters();
-    const group = screen.getByRole("radiogroup", { name: "Filter by recap exclusion" });
-    expect(group.className).toContain("rounded-full");
-    for (const option of within(group).getAllByRole("radio")) {
-      expect(option.className).toContain("rounded-full");
+    // The four are one shape now — two toggles and two menus — so the rail
+    // reads as one row of controls rather than as two kinds of thing.
+    for (const name of [/grouped/i, /uncurated/i, /^Recap:/, /^Transfers:/]) {
+      const button = screen.getByRole("button", { name });
+      expect(button.className).toContain("rounded-full");
+      expect(button.className).toContain("size-9");
     }
+  });
+
+  it("holds the whole bar on one row — no second rank under the rail", () => {
+    const { container } = renderFilters({ excludedFromRecap: true });
+    // The rail is the root: a wrapper stacking it over a second row is exactly
+    // what this layout removed, so its absence is the assertion.
+    expect(container.firstElementChild?.className).toContain("rounded-full");
   });
 
   it("keeps the search field borderless — the rail draws the border", () => {
@@ -194,14 +223,17 @@ describe("TransactionsFilters — shape", () => {
 });
 
 /**
- * Click one segment of a {@link Segmented} tri-state by its visible text. The
- * three-way filters were `<select>`s; they are radio groups now, so a test
- * drives them by clicking the option rather than by setting a value.
+ * Choose one option of a tri-state filter by its visible text.
+ *
+ * The three-way filters were `<select>`s, then segmented radio groups; they are
+ * icon buttons opening a {@link FilterIconMenu} now, so a test opens the menu
+ * and clicks the item. The trigger is found by its `aria-label`, which carries
+ * the control's name *and* its current value ("Recap: All") — hence a prefix
+ * pattern rather than an exact string.
  */
-function clickSegment(groupLabel: string, optionText: string) {
-  const group = screen.getByRole("radiogroup", { name: groupLabel });
-  const option = within(group).getByRole("radio", { name: optionText });
-  act(() => option.click());
+function pickFromMenu(triggerLabel: RegExp, optionText: string) {
+  act(() => screen.getByRole("button", { name: triggerLabel }).click());
+  act(() => screen.getByRole("option", { name: optionText }).click());
 }
 
 /** Set an input's value and dispatch a React-observed `input` event. */

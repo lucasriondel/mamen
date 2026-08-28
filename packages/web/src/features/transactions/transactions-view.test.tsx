@@ -579,12 +579,10 @@ describe("TransactionsView", () => {
     const router = await renderView();
     const user = userEvent.setup();
 
-    await user.click(
-      within(screen.getByRole("radiogroup", { name: "Filter by recap exclusion" })).getByRole(
-        "radio",
-        { name: "Excluded" },
-      ),
-    );
+    // The recap filter is an icon button opening a menu, so a pick is two
+    // clicks: open, then choose. Its label carries the applied value.
+    await user.click(screen.getByRole("button", { name: /^Recap:/ }));
+    await user.click(screen.getByRole("option", { name: "Excluded" }));
 
     await waitFor(() => {
       expect(router.state.location.search).toMatchObject({
@@ -596,12 +594,8 @@ describe("TransactionsView", () => {
     );
 
     // The other half is a filter too, not the absence of one.
-    await user.click(
-      within(screen.getByRole("radiogroup", { name: "Filter by recap exclusion" })).getByRole(
-        "radio",
-        { name: "Counted" },
-      ),
-    );
+    await user.click(screen.getByRole("button", { name: /^Recap:/ }));
+    await user.click(screen.getByRole("option", { name: "Counted" }));
     await waitFor(() => {
       expect(router.state.location.search).toMatchObject({
         excludedFromRecap: false,
