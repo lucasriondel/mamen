@@ -1,0 +1,140 @@
+/**
+ * The transactions grid's **gutter rail** — the 3px edge in a row's leading
+ * cell that says what state the row is in.
+ *
+ * It replaces the three background washes the table used to paint (uncurated
+ * red, bundle accent, excluded grey). Those had to be *ranked*, because only
+ * one background can win a row, and the ranking threw away true facts: a bundle
+ * parent that was also uncurated could only ever say one of the two. A rail can
+ * be split, so the states stack instead — see the two-state rule below.
+ *
+ * Declared as its own sheet rather than as Tailwind utilities on the row for
+ * two reasons: a stacked row needs a `linear-gradient`, which no utility
+ * spells; and the rail has to compose with the open-row edge in a single
+ * `box-shadow` on the same element, which is far clearer as one rule than as a
+ * chain of conditional class strings. Feature-local and imported from
+ * `index.css`, the same shape as the recap's `chart-palette.css` — the vendored
+ * gousse sheets under `src/styles/gousse/` are overwritten by `shadcn add`, so
+ * mamen's own rules live outside them.
+ *
+ * The hooks are the `data-` marks `transactions-table.tsx` already sets, which
+ * are also what the tests assert on: `data-uncurated`, `data-kind="bundle"`,
+ * `data-excluded`.
+ *
+ * Colour is never the only carrier. Each state also shows itself in the cell it
+ * is actually about — uncurated marks the empty Issuer/Category cells, excluded
+ * mutes the amount, a bundle parent carries its member count — so a reader who
+ * cannot separate the three hues still has every state. The rail is the
+ * at-a-glance summary, not the sole channel.
+ */
+
+/* The rail is painted on the row's first cell, as a pseudo-element pinned to
+   its leading edge. Absolutely positioned, so it costs no layout and nothing
+   shifts as a rail appears or the detail panel opens.
+
+   A pseudo-element rather than the `box-shadow` an earlier pass used: a shadow
+   cannot carry the `linear-gradient` a two-state rail needs, and its spread
+   does not animate smoothly, which the hover below depends on. One mechanism
+   for every rail is also simply less to keep in step. */
+[data-uncurated="true"] > td:first-child,
+[data-kind="bundle"] > td:first-child,
+[data-excluded="true"] > td:first-child {
+  position: relative;
+}
+
+[data-uncurated="true"] > td:first-child::before,
+[data-kind="bundle"] > td:first-child::before,
+[data-excluded="true"] > td:first-child::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 3px;
+  background: var(--row-rail);
+  /* Purely decorative: `pointer-events: none` is what keeps it out of the way
+     of the tooltip trigger that fills this cell and the selection checkbox
+     above it, so neither loses its hit area.
+
+     NOT `z-index: -1`. The cell is `position: relative` with `z-index: auto`,
+     which establishes no stacking context, so a negative index does not put the
+     rail behind the *cell's* content — it escapes to the nearest ancestor that
+     does establish one and paints behind the table itself, where it is
+     invisible. `z-index: 0` keeps it inside the cell, under the trigger (z-0,
+     later in paint order) and the checkbox (z-10). */
+  z-index: 0;
+  pointer-events: none;
+  transition: width 120ms ease;
+}
+
+/* Hovering anywhere on the row widens its rail. The 3px paint is far too thin
+   to be a hover target of its own — and unhittable by touch — so the row is
+   what is hovered and the rail is what answers, which also matches where the
+   tooltip's trigger sits (it fills the whole leading cell, not the paint).
+   Width alone: the colour is the state and must not shift, or the widening
+   would read as a fourth thing rather than as the row acknowledging the
+   pointer. */
+[data-uncurated="true"]:hover > td:first-child::before,
+[data-kind="bundle"]:hover > td:first-child::before,
+[data-excluded="true"]:hover > td:first-child::before,
+[data-uncurated="true"]:focus-visible > td:first-child::before,
+[data-kind="bundle"]:focus-visible > td:first-child::before,
+[data-excluded="true"]:focus-visible > td:first-child::before {
+  width: 5px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-uncurated="true"] > td:first-child::before,
+  [data-kind="bundle"] > td:first-child::before,
+  [data-excluded="true"] > td:first-child::before {
+    transition: none;
+  }
+}
+
+[data-uncurated="true"] {
+  --row-rail: rgb(var(--gousse-high));
+}
+
+[data-kind="bundle"] {
+  --row-rail: rgb(var(--gousse-accent));
+}
+
+[data-excluded="true"] {
+  --row-rail: rgb(var(--gousse-muted) / 0.55);
+}
+
+/* Two states at once — the case the old washes could not express at all. The
+   rail splits rather than one state losing: red over grey for a row that is
+   both a to-do and out of the totals, accent over grey for a bundle parent
+   held out of the recap. A bundle parent is uncurated by construction when it
+   is fresh (no issuer, category or note of its own), so that pair is the
+   common one, not an edge case. */
+[data-uncurated="true"][data-excluded="true"] {
+  --row-rail: linear-gradient(
+    to bottom,
+    rgb(var(--gousse-high)) 0 50%,
+    rgb(var(--gousse-muted) / 0.55) 50% 100%
+  );
+}
+
+[data-kind="bundle"][data-excluded="true"] {
+  --row-rail: linear-gradient(
+    to bottom,
+    rgb(var(--gousse-accent)) 0 50%,
+    rgb(var(--gousse-muted) / 0.55) 50% 100%
+  );
+}
+
+/* The **open row** (issue #154) keeps its accent edge and must win: "this is
+   the row you are reading" is orthogonal to the three states, so on a row that
+   is both it paints over the rail rather than queueing behind it. Drawn by the
+   `box-shadow` utility on the row itself, which sits on the cell — the same
+   element the rail's pseudo-element hangs off, so the two compose without
+   either needing to know about the other. The rail is suppressed underneath:
+   two edges in the same 3px would only muddy which one is being read. */
+[data-selected="true"] > td:first-child::before {
+  content: none;
+}
+
+[data-selected="true"] > td:first-child::before {
+  content: none;
+}

@@ -606,15 +606,19 @@ describe("TransactionsView", () => {
 
   // An excluded row stays fully visible — exclusion is about arithmetic, not
   // visibility — so it must be legible *as* excluded at a glance (issue #67).
-  it("paints an excluded row in its own colour, distinct from the uncurated tint", async () => {
+  // The row is marked for the gutter rail; the money itself is what goes muted.
+  it("marks an excluded row, and mutes the amount rather than the row", async () => {
     listRows = [{ ...TXNS[0], excludedFromRecap: true }, TXNS[1]];
     await renderView();
 
     const excludedRow = screen.getByText("SPOTIFY P2A34").closest("tr");
     expect(excludedRow).toHaveAttribute("data-excluded", "true");
-    expect(excludedRow?.className).toContain("bg-gousse-muted");
-    // The uncurated (red) tint is a different state and must not double up.
-    expect(excludedRow?.className).not.toContain("bg-gousse-high");
+
+    // The amount says it: muted, and no longer wearing the debit red that
+    // stands for a contribution to a total this row is held out of.
+    const amount = excludedRow?.querySelector("[data-excluded='true']");
+    expect(amount).toHaveClass("text-gousse-muted");
+    expect(amount).not.toHaveClass("text-gousse-high");
 
     // The unexcluded row carries neither marker.
     const countedRow = screen.getAllByText("ACME PAYROLL")[0].closest("tr");
@@ -626,7 +630,7 @@ describe("TransactionsView", () => {
   // issuer is (no `manualExcluded`) and one the user flagged by hand must be
   // indistinguishable here. Anything else would make the table re-implement the
   // derivation — the drift ADR 0002 exists to stop.
-  it("paints an inherited exclusion exactly like a hand-flagged one", async () => {
+  it("marks an inherited exclusion exactly like a hand-flagged one", async () => {
     listRows = [
       // Inherited: the row carries no manual flag of its own.
       { ...TXNS[0], excludedFromRecap: true },
@@ -638,19 +642,22 @@ describe("TransactionsView", () => {
     const manual = screen.getAllByText("ACME PAYROLL")[0].closest("tr");
     expect(inherited).toHaveAttribute("data-excluded", "true");
     expect(manual).toHaveAttribute("data-excluded", "true");
-    expect(inherited?.className).toContain("bg-gousse-muted");
-    expect(manual?.className).toContain("bg-gousse-muted");
   });
 
-  // An excluded row that is *also* bare would otherwise carry two washes; the
-  // exclusion is the stronger statement, so it wins (ADR 0008).
-  it("prefers the exclusion colour over the uncurated tint on a bare row", async () => {
-    listRows = [{ ...TXNS[1], excludedFromRecap: true }];
+  // The old row washes had to be *ranked*, because only one background can win
+  // a row: an excluded row was never also marked uncurated. The gutter rail
+  // splits instead, so a row that is both now says both — and `data-uncurated`
+  // matches the server's `uncurated` filter on every row, where the wash it
+  // replaced disagreed with the filter exactly here.
+  it("marks a bare excluded row as both uncurated and excluded", async () => {
+    listRows = [
+      { ...TXNS[1], issuerId: null, categoryId: null, notes: null, excludedFromRecap: true },
+    ];
     await renderView();
 
     const row = screen.getAllByText("ACME PAYROLL")[0].closest("tr");
     expect(row).toHaveAttribute("data-excluded", "true");
-    expect(row?.className).not.toContain("bg-gousse-high");
+    expect(row).toHaveAttribute("data-uncurated", "true");
   });
 
   it("clears filters back to the full history", async () => {
@@ -936,21 +943,20 @@ describe("TransactionsView", () => {
       expect(unmatched?.querySelector("[data-unresolved='true']")).not.toBeNull();
     });
 
-    // Three washes can apply to one row; the component settles the order rather
-    // than leaving it to CSS. Exclusion (arithmetic) beats bundle (structure),
-    // which beats uncurated (a to-do) — and they never stack.
-    it("paints the parent as a bundle, under the exclusion colour", async () => {
+    // All three states can be true of one row. They used to be washes, so they
+    // had to be ranked and only one could show; they are a split gutter rail
+    // now, so a row simply carries every mark that applies to it.
+    it("marks the parent as a bundle and says how many rows it stands for", async () => {
       await renderWithBundle();
 
       const parent = screen.getAllByText("Weekend away")[0].closest("tr");
       expect(parent).toHaveAttribute("data-kind", "bundle");
-      expect(parent?.className).toContain("bg-gousse-accent");
-      // A fresh parent has no issuer, category or note, but it is not an
-      // unreviewed import — the bundle wash replaces the uncurated tint.
-      expect(parent?.className).not.toContain("bg-gousse-high");
+      // The count is the fact the old bundle wash was gesturing at, and unlike
+      // a colour it survives the row also being uncurated or excluded.
+      expect(parent).toHaveTextContent(String(BUNDLE_MEMBERS.length));
     });
 
-    it("lets the exclusion colour win over the bundle colour", async () => {
+    it("marks an excluded parent as both a bundle and excluded", async () => {
       listRows = [{ ...BUNDLE_PARENT, excludedFromRecap: true }];
       listMembers = BUNDLE_MEMBERS;
       listTotal = 1;
@@ -958,10 +964,11 @@ describe("TransactionsView", () => {
       renderRouter(router);
       await screen.findAllByText("Weekend away");
 
+      // Two states, both stated: the rail splits rather than one of them
+      // losing, which is what the old single-wash precedence forced.
       const parent = screen.getAllByText("Weekend away")[0].closest("tr");
       expect(parent).toHaveAttribute("data-excluded", "true");
-      expect(parent?.className).toContain("bg-gousse-muted");
-      expect(parent?.className).not.toContain("bg-gousse-accent");
+      expect(parent).toHaveAttribute("data-kind", "bundle");
     });
 
     it("offers no expand affordance on an ordinary row", async () => {
