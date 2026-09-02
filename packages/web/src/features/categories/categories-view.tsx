@@ -1,6 +1,7 @@
 import type { CategoryTreeNode } from "@mamen/shared";
 import type { Category, CategoryId } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
+import { Plus } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import type { Appearance } from "@/components/appearance-picker";
 import { PageLayout } from "@/components/page-layout";
@@ -143,7 +144,12 @@ export function CategoriesView() {
       title="Categories"
       description="The shape of your spending, nested to any depth."
       actions={
-        <Button variant="primary" onClick={() => setEditor({ kind: "create", parent: null })}>
+        <Button
+          variant="primary"
+          className="h-auto gap-1.5 bg-gousse-accent py-1.5 hover:bg-gousse-accent/90"
+          onClick={() => setEditor({ kind: "create", parent: null })}
+        >
+          <Plus size={16} aria-hidden />
           New category
         </Button>
       }
