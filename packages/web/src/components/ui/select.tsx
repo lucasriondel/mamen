@@ -17,6 +17,14 @@ import { cn } from "@/lib/utils";
  * arrow, an absolutely-positioned {@link ChevronDown} replaces it, and the
  * text side gets enough right padding (`pr-9`) to clear the icon instead of
  * running under it.
+ *
+ * The resting *and* hover chrome are `Button`'s `secondary` variant, verbatim
+ * (`bg-gousse-panel` / `hover:bg-gousse-bg`, over `border-gousse-line`). Both
+ * kinds of picker sit side by side in a top bar — the recap's period `<select>`
+ * next to `AccountMultiSelect`'s button trigger — and read as one control type,
+ * so a hover that lands on one and not the other reads as a bug rather than a
+ * distinction. A `<select>` has no `secondary` variant to compose with, so the
+ * pair is kept honest by matching the class here.
  */
 export type SelectProps = React.ComponentProps<"select">;
 
@@ -27,8 +35,9 @@ export function Select({ className, children, ...props }: SelectProps) {
         className={cn(
           FIELD_PILL,
           "h-9 w-full appearance-none border border-gousse-line bg-gousse-panel py-1.5 pr-9 pl-4 text-sm text-gousse-ink",
+          "transition-colors hover:bg-gousse-bg",
           "outline-none focus:border-gousse-accent focus-visible:ring-2 focus-visible:ring-gousse-accent focus-visible:ring-offset-1 focus-visible:ring-offset-gousse-bg",
-          "disabled:cursor-not-allowed disabled:opacity-50",
+          "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-gousse-panel",
           className,
         )}
         {...props}
