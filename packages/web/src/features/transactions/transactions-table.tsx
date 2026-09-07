@@ -29,6 +29,7 @@ import { CategoryPicker } from "./category-picker";
 import { ExcludedCell } from "./excluded-cell";
 import { IssuerPicker } from "./issuer-picker";
 import { NotesPicker } from "./notes-picker";
+import { RowStateTooltip } from "./row-state-tooltip";
 import { AmountCell, TransferBadge } from "./transaction-cells";
 import { TransferSuggestionCell } from "./transfer-suggestion-popover";
 
@@ -254,6 +255,10 @@ export function TransactionsTable({
     }
     return byParent;
   }, [bundleMembers]);
+  // Whether anything on this page can expand at all (issue #73). A page with no
+  // bundle parent has no chevron to draw in any row, so the column that would
+  // hold them is not rendered — see the column definition below.
+  const expandable = membersByParent.size > 0;
   // Every category's **Resolved colour**, in one pass over the tree: an
   // inheriting leaf's colour lives on an ancestor, so a row cannot resolve its
   // own. `categoriesById` is the whole (small) tree, ancestors included.
@@ -310,35 +315,47 @@ export function TransactionsTable({
       // a hit area of its own and the nested rows have a left edge to sit
       // under. Empty on every row that stands for nothing else, exactly as the
       // transfer-badge column is empty on every row that is not a leg.
-      columnHelper.display({
-        id: "expand",
-        // Header intentionally blank (screen-reader only): the column is a
-        // per-row control, not a labelled dimension of the data.
-        header: () => <span className="sr-only">Expand</span>,
-        cell: ({ row }) => {
-          // A member marks itself as one — the indent is what says "this row
-          // is here because of the row above it", not a colour of its own.
-          if (row.depth > 0)
-            return <CornerDownRight size={14} className="ml-2 text-gousse-muted" aria-hidden />;
-          if (!row.getCanExpand()) return null;
-          const expanded = row.getIsExpanded();
-          return (
-            <button
-              type="button"
-              onClick={row.getToggleExpandedHandler()}
-              aria-expanded={expanded}
-              aria-label={`${expanded ? "Hide" : "Show"} the ${row.subRows.length} transactions in ${row.original.rawIssuerString}`}
-              className="grid size-6 place-items-center rounded-full text-gousse-muted outline-none transition-colors hover:bg-gousse-bg hover:text-gousse-ink focus-visible:ring-2 focus-visible:ring-gousse-accent"
-            >
-              <ChevronRight
-                size={14}
-                className={cn("transition-transform", expanded && "rotate-90")}
-                aria-hidden
-              />
-            </button>
-          );
-        },
-      }),
+      //
+      // Dropped entirely when the page holds no bundle: with nothing to expand
+      // the column is empty in every row, and an empty column still costs a
+      // header cell, a tab stop for the inspectors that probe one, and a strip
+      // of dead space beside the Date. It comes back the moment a parent does,
+      // the same way the selection column only exists where selection does.
+      ...(expandable
+        ? [
+            columnHelper.display({
+              id: "expand",
+              // Header intentionally blank (screen-reader only): the column is a
+              // per-row control, not a labelled dimension of the data.
+              header: () => <span className="sr-only">Expand</span>,
+              cell: ({ row }) => {
+                // A member marks itself as one — the indent is what says "this row
+                // is here because of the row above it", not a colour of its own.
+                if (row.depth > 0)
+                  return (
+                    <CornerDownRight size={14} className="ml-2 text-gousse-muted" aria-hidden />
+                  );
+                if (!row.getCanExpand()) return null;
+                const expanded = row.getIsExpanded();
+                return (
+                  <button
+                    type="button"
+                    onClick={row.getToggleExpandedHandler()}
+                    aria-expanded={expanded}
+                    aria-label={`${expanded ? "Hide" : "Show"} the ${row.subRows.length} transactions in ${row.original.rawIssuerString}`}
+                    className="grid size-6 place-items-center rounded-full text-gousse-muted outline-none transition-colors hover:bg-gousse-bg hover:text-gousse-ink focus-visible:ring-2 focus-visible:ring-gousse-accent"
+                  >
+                    <ChevronRight
+                      size={14}
+                      className={cn("transition-transform", expanded && "rotate-90")}
+                      aria-hidden
+                    />
+                  </button>
+                );
+              },
+            }),
+          ]
+        : []),
       columnHelper.accessor("date", {
         header: "Date",
         cell: (info) => <span className="tabular-nums">{formatShortDate(info.getValue())}</span>,
@@ -361,7 +378,7 @@ export function TransactionsTable({
           // Both states are curation surfaces: a resolved row opens the
           // issuer picker (why this issuer, re-pick, go to its page); an
           // unresolved row opens the assignment picker (PRD).
-          return issuer ? (
+          const cell = issuer ? (
             <IssuerPicker transaction={row.original} issuer={issuer} />
           ) : (
             <AssignmentPicker
@@ -369,6 +386,23 @@ export function TransactionsTable({
               rawIssuerString={row.original.rawIssuerString}
               date={row.original.date}
             />
+          );
+          // A **bundle parent** carries how many rows it stands for. Structure
+          // shown as a number rather than as the row tint it used to be: the
+          // count is the fact the tint was gesturing at, and unlike a colour it
+          // survives the row also being uncurated or excluded. The chevron
+          // beside it opens them; this says how many are behind it.
+          if (row.original.kind !== "bundle") return cell;
+          return (
+            <span className="flex items-center gap-1.5">
+              {cell}
+              <span
+                className="rounded-full bg-gousse-accent/15 px-1.5 font-medium text-[10px] text-gousse-accent tabular-nums"
+                title={`A bundle of ${row.subRows.length} transactions`}
+              >
+                {row.subRows.length}
+              </span>
+            </span>
           );
         },
       }),
@@ -405,7 +439,15 @@ export function TransactionsTable({
       }),
       columnHelper.accessor("amount", {
         header: () => <span className="block text-right">Amount</span>,
-        cell: (info) => <AmountCell amount={info.getValue()} />,
+        // An excluded row's amount is muted rather than sign-coloured: the
+        // exclusion is arithmetic, so it is stated on the money it holds out of
+        // the totals (issue #67).
+        cell: (info) => (
+          <AmountCell
+            amount={info.getValue()}
+            excluded={info.row.original.excludedFromRecap === true}
+          />
+        ),
       }),
       columnHelper.display({
         id: "transfer",
@@ -460,7 +502,15 @@ export function TransactionsTable({
           ]
         : []),
     ],
-    [accountsById, issuersById, categoriesById, categoryColorById, selectable, renderActions],
+    [
+      accountsById,
+      issuersById,
+      categoriesById,
+      categoryColorById,
+      selectable,
+      expandable,
+      renderActions,
+    ],
   );
 
   const table = useReactTable({
@@ -553,54 +603,35 @@ export function TransactionsTable({
         </TableHeader>
         <TableBody>
           {table.getRowModel().rows.map((row) => {
-            // ---- Row colour: ONE wash per row, in this order (issue #73) ----
+            // ---- Row state: carried by the gutter rail, not a wash ----
             //
-            //   1. excluded  2. bundle parent  3. uncurated
+            // The three states below used to each paint the whole row, which
+            // forced a precedence (excluded > bundle > uncurated) because only
+            // one background can win. That ranking threw away true facts: a
+            // bundle parent that was *also* uncurated could only say one of the
+            // two. They are drawn as a **rail** in the leading gutter now — a
+            // 3px edge that splits when a row carries more than one — so the
+            // states simply stack and none has to yield to another.
             //
-            // Settled here rather than left to CSS order, because all three can
-            // be true of one row at once and each says something different:
-            //
-            // - **Excluded** is about arithmetic — this money is outside every
-            //   total — and outranks both of the others, as it already did the
-            //   uncurated tint (issues #67/#70). A parent held out of the recap
-            //   is grey; its chevron still says it is a bundle.
-            // - **Bundle parent** is *structural*: this row stands for the rows
-            //   beneath it. It has to survive the parent's curation state, or
-            //   the one row whose background carries structure would lose it
-            //   exactly when the bundle is new — a fresh parent has no issuer,
-            //   category or note, so it is uncurated by construction.
-            // - **Uncurated** is a to-do, and yields to both. The row is still
-            //   uncurated *as a fact* — the server's predicate is untouched and
-            //   the *Uncurated only* filter still returns it; it is the colour
-            //   that gives way, not the state.
-            //
-            // A **bundle member** (a nested row) is an ordinary bank row shown
-            // for reading, so it keeps its own wash and is marked as nested by
-            // its indent, not by a fourth colour.
+            // Each also shows itself where it actually lives, which is what
+            // makes the rail legible rather than a colour code to memorise:
+            // uncurated marks the empty Issuer/Category cells, excluded dims
+            // the amount, a bundle parent carries its member count.
             const isBundleParent = row.original.kind === "bundle";
             const isBundleMember = row.depth > 0;
             // **Excluded from recap** (issue #67): the row stays fully
-            // visible — exclusion is arithmetic, not visibility — but it is
-            // washed grey so a page reads at a glance as "this one is out of
-            // the totals". Grey, not the uncurated red: nothing is owed on it.
-            // The wire hands us one answer whether the row was flagged by hand
-            // or inherited its issuer's default (ADR 0008) — the table never
-            // re-derives it.
+            // visible — exclusion is arithmetic, not visibility — so it is the
+            // *amount* that goes muted, not the row. The wire hands us one
+            // answer whether the row was flagged by hand or inherited its
+            // issuer's default (ADR 0008) — the table never re-derives it.
             const isExcluded = row.original.excludedFromRecap === true;
             // A row with no issuer, no category and no note is entirely
-            // uncurated: nothing about it has been reviewed yet. Tint it in the
-            // `high` (red) token at low alpha so a page of them reads as a
-            // to-do pile without shouting over the resolved rows. An excluded
-            // row is never uncurated (issue #70) — curating it moves no total,
-            // so it is not a to-do — which is also what settles the precedence
-            // between the two washes: they never stack. Same shape as the
-            // server's `uncurated` filter, so the tint and the filter agree
-            // about which rows are to-dos — with the one exception the
-            // precedence above states: a **bundle parent** wears the bundle
-            // wash instead, while still counting as a to-do for the filter.
+            // uncurated: nothing about it has been reviewed yet. Exactly the
+            // server's `uncurated` predicate, with nothing subtracted — the
+            // mark and the *Uncurated only* filter now agree on every row,
+            // where the old wash disagreed on excluded rows and bundle parents
+            // because it had to lose the colour contest to them.
             const isUncurated =
-              !isExcluded &&
-              !isBundleParent &&
               row.original.issuerId == null &&
               row.original.categoryId == null &&
               (row.original.notes == null || row.original.notes.trim() === "");
@@ -641,6 +672,7 @@ export function TransactionsTable({
               <TableRow
                 key={row.id}
                 data-excluded={isExcluded ? "true" : undefined}
+                data-uncurated={isUncurated ? "true" : undefined}
                 data-kind={isBundleParent ? "bundle" : undefined}
                 data-bundle-member={isBundleMember ? "true" : undefined}
                 data-selected={isSelected ? "true" : undefined}
@@ -648,13 +680,6 @@ export function TransactionsTable({
                 // what `aria-current` says. Not `"page"` — the panel is beside
                 // this page, not another one.
                 aria-current={isSelected ? "true" : undefined}
-                title={
-                  isExcluded
-                    ? "Excluded from your recap spend"
-                    : isBundleParent
-                      ? "A bundle — expand it to see the transactions it stands for"
-                      : undefined
-                }
                 // A row that leads nowhere (issue #197) carries none of the
                 // link's machinery: no handlers, no tab stop, no role and no
                 // name promising a destination.
@@ -669,32 +694,30 @@ export function TransactionsTable({
                 className={cn(
                   "transition-colors",
                   rowLinks && "cursor-pointer focus:outline-none focus-visible:bg-gousse-bg",
-                  // Each tint has to restate hover/focus too: `TableRow`'s own
-                  // `hover:bg-gousse-bg` would otherwise wash it away on hover.
-                  // Written in the precedence order documented above; the three
-                  // conditions are mutually exclusive by construction, so no
-                  // later class ever paints over an earlier one.
-                  isUncurated &&
-                    "bg-gousse-high/5 hover:bg-gousse-high/10 focus-visible:bg-gousse-high/10",
-                  isBundleParent &&
-                    !isExcluded &&
-                    "bg-gousse-accent/5 hover:bg-gousse-accent/10 focus-visible:bg-gousse-accent/10",
-                  isExcluded &&
-                    "bg-gousse-muted/10 text-gousse-muted hover:bg-gousse-muted/15 focus-visible:bg-gousse-muted/15",
-                  // The open row, marked along its leading edge (issue #154).
-                  // A bar rather than a fourth wash: "this is the row you are
-                  // reading" is orthogonal to the three states above — an
-                  // excluded row is still the open one — so it has to survive
-                  // whichever of them the row wears instead of queueing behind
-                  // them. Drawn as an inset shadow on the first *cell*: a `tr`
-                  // paints no shadow of its own under `border-collapse`, and an
-                  // inset one costs no layout, so the row does not shift 3px as
-                  // the panel opens and closes.
+                  // The row background is `TableRow`'s own again: hover and
+                  // focus own it outright, so no state has to restate them to
+                  // keep from being washed away.
+                  //
+                  // The **rail** and the **open-row edge** (issue #154) are both
+                  // drawn as an inset shadow on the first *cell*: a `tr` paints
+                  // no shadow of its own under `border-collapse`, and an inset
+                  // one costs no layout, so the row does not shift as the panel
+                  // opens. The rail itself is a stylesheet rule keyed off the
+                  // `data-` marks above — a stacked row needs a gradient, which
+                  // no utility spells — and lives beside the open-row edge here
+                  // because the two share one `box-shadow`: the edge is listed
+                  // first so it paints outermost, over the rail rather than
+                  // under it, on a row that is both.
                   isSelected &&
                     "[&>td:first-child]:shadow-[inset_3px_0_0_0_rgb(var(--gousse-accent))]",
+                  // Excluded is about arithmetic, so it marks the money, not the
+                  // row: the amount goes muted (see `AmountCell`) and the rest
+                  // of the row stays at full contrast — an excluded row is still
+                  // read, not dismissed.
+                  isExcluded && "text-gousse-muted",
                 )}
               >
-                {row.getVisibleCells().map((cell) => {
+                {row.getVisibleCells().map((cell, index) => {
                   // The issuer/category/notes cells are inline curation surfaces
                   // (their own click targets), the select cell is the selection
                   // surface, the expand cell opens the bundle in place, the
@@ -712,12 +735,35 @@ export function TransactionsTable({
                     cell.column.id === "notes" ||
                     cell.column.id === "transfer" ||
                     cell.column.id === "actions";
+                  // The leading cell carries the gutter rail, so it also carries
+                  // what explains it. `relative` is what the tooltip's trigger
+                  // anchors to — it fills this cell rather than the 3px paint,
+                  // which no pointer could reliably hit.
+                  const isRailCell = index === 0;
                   return (
                     <TableCell
                       key={cell.id}
+                      className={cn(isRailCell && "relative")}
                       onClick={isOwnClickTarget ? (event) => event.stopPropagation() : undefined}
                     >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      {isRailCell ? (
+                        <>
+                          <RowStateTooltip
+                            uncurated={isUncurated}
+                            bundle={isBundleParent}
+                            excluded={isExcluded}
+                          />
+                          {/* Above the tooltip's trigger, which fills this cell:
+                              whatever the leading column holds (the selection
+                              checkbox, or the expand chevron where there is no
+                              selection) has to keep its own hit area. */}
+                          <span className="relative z-10">
+                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          </span>
+                        </>
+                      ) : (
+                        flexRender(cell.column.columnDef.cell, cell.getContext())
+                      )}
                     </TableCell>
                   );
                 })}

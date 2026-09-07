@@ -11,10 +11,10 @@ const months = ["2026-03", "2026-02"];
 
 function renderFilters(value: TransactionFilterValues = {}) {
   const onChange = vi.fn();
-  render(
+  const { container } = render(
     <TransactionsFilters accounts={accounts} months={months} value={value} onChange={onChange} />,
   );
-  return { onChange };
+  return { onChange, container };
 }
 
 /** The **Grouped** toggle, the control this suite drives. */
@@ -55,13 +55,18 @@ describe("TransactionsFilters — search box", () => {
   });
 
   it("Clear resets every filter, search included", () => {
-    const { onChange } = renderFilters({ accountId: 1, search: "spar" });
+    const { onChange } = renderFilters({ accountId: [1], search: "spar" });
     screen.getByRole("button", { name: /clear/i }).click();
-    expect(onChange).toHaveBeenCalledWith({
-      accountId: undefined,
-      importMonth: undefined,
-      search: undefined,
-    });
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accountId: undefined,
+        importMonth: undefined,
+        search: undefined,
+        // The period picker writes these, so Clear has to drop them too.
+        startDate: undefined,
+        endDate: undefined,
+      }),
+    );
   });
 });
 
@@ -69,23 +74,23 @@ describe("TransactionsFilters — search box", () => {
 // toggle: "excluded only" and "counted only" are both views the user asks for,
 // so the off state is a third option rather than the absence of the control.
 describe("TransactionsFilters — recap exclusion", () => {
-  const selectRecap = (label: string) => selectByLabel("Filter by recap exclusion", label);
+  const selectRecap = (label: string) => pickFromMenu(/^Recap:/, label);
 
   it("emits the excluded-only view", () => {
     const { onChange } = renderFilters();
-    selectRecap("Excluded only");
+    selectRecap("Excluded");
     expect(onChange).toHaveBeenCalledWith({ excludedFromRecap: true });
   });
 
   it("emits the counted-only view — the other half, not 'no filter'", () => {
     const { onChange } = renderFilters();
-    selectRecap("Counted only");
+    selectRecap("Counted");
     expect(onChange).toHaveBeenCalledWith({ excludedFromRecap: false });
   });
 
   it("goes back to every row", () => {
     const { onChange } = renderFilters({ excludedFromRecap: true });
-    selectRecap("All rows");
+    selectRecap("All");
     expect(onChange).toHaveBeenCalledWith({ excludedFromRecap: undefined });
   });
 
@@ -103,23 +108,23 @@ describe("TransactionsFilters — recap exclusion", () => {
 // that" are both views the user asks for. This is what the recap's *Internal
 // transfers* line opens.
 describe("TransactionsFilters — transfers", () => {
-  const selectTransfers = (label: string) => selectByLabel("Filter by transfer", label);
+  const selectTransfers = (label: string) => pickFromMenu(/^Transfers:/, label);
 
   it("emits the transfers-only view", () => {
     const { onChange } = renderFilters();
-    selectTransfers("Transfers only");
+    selectTransfers("Only");
     expect(onChange).toHaveBeenCalledWith({ isTransferLeg: true });
   });
 
   it("emits the exclude-transfers view — the other half, not 'no filter'", () => {
     const { onChange } = renderFilters();
-    selectTransfers("Exclude transfers");
+    selectTransfers("Exclude");
     expect(onChange).toHaveBeenCalledWith({ isTransferLeg: false });
   });
 
   it("goes back to every row", () => {
     const { onChange } = renderFilters({ isTransferLeg: true });
-    selectTransfers("All rows");
+    selectTransfers("All");
     expect(onChange).toHaveBeenCalledWith({ isTransferLeg: undefined });
   });
 
@@ -127,6 +132,26 @@ describe("TransactionsFilters — transfers", () => {
     const { onChange } = renderFilters({ isTransferLeg: false });
     screen.getByRole("button", { name: /clear/i }).click();
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ isTransferLeg: undefined }));
+  });
+
+  // The tint is the whole reason the icon can replace a segmented control: it
+  // is what still answers "is this list narrowed?" without opening the menu.
+  it("tints its trigger only while it is narrowing the list", () => {
+    renderFilters();
+    expect(screen.getByRole("button", { name: /^Transfers:/ }).className).toContain(
+      "border-transparent",
+    );
+
+    renderFilters({ isTransferLeg: true });
+    const [, applied] = screen.getAllByRole("button", { name: /^Transfers:/ });
+    expect(applied?.className).toContain("bg-gousse-accent/15");
+  });
+
+  // The trigger has to say what it is set to, since the options are behind a
+  // click — otherwise the applied state is a tint with no name anywhere.
+  it("names its applied value on the trigger", () => {
+    renderFilters({ isTransferLeg: true });
+    expect(screen.getByRole("button", { name: "Transfers: Only" })).toBeInTheDocument();
   });
 });
 
@@ -159,49 +184,56 @@ describe("TransactionsFilters — grouped", () => {
  * React observes. Shared by the three-way filters, which differ only in which
  * control and which option they drive.
  */
-// The bar's fields are the densest controls in the app (`h-9`), which is exactly
-// where a shape sweep is likeliest to leave something behind — they sit beside
-// the vendored `Button`, so a square field next to a pill button is visible.
+// The bar's controls are the densest in the app, and the rail is what holds
+// them to one shape — so the sweep now checks the rail and the pill-shaped
+// controls inside it rather than the padding of `<select>`s that are gone.
 describe("TransactionsFilters — shape", () => {
-  it("draws its fields as pills, widened for the corner arc", () => {
+  it("draws the rail as a pill around the value controls", () => {
+    const { container } = renderFilters();
+    const rail = container.querySelector(".rounded-full.border");
+    expect(rail).not.toBeNull();
+    expect(rail?.className).toContain("border-gousse-line");
+  });
+
+  it("keeps every narrow filter to one round icon button in the rail", () => {
     renderFilters();
-
-    expect(screen.getByLabelText("Search transactions").className).toContain("px-4");
-
-    // The `<select>` fields carry their own drawn chevron (issue: the UA arrow
-    // sits flush against the border regardless of padding), so their inset is
-    // asymmetric — `pl-4` matching the pill's text side, `pr-9` clearing the icon
-    // — rather than the search box's symmetric `px-4`.
-    for (const label of ["Filter by month", "Filter by recap exclusion"]) {
-      const field = screen.getByLabelText(label);
-      expect(field.className).toContain("pl-4");
-      expect(field.className).toContain("pr-9");
-    }
-
-    for (const label of ["Filter by month", "Filter by recap exclusion", "Search transactions"]) {
-      expect(screen.getByLabelText(label).className).toContain("rounded-full");
+    // The four are one shape now — two toggles and two menus — so the rail
+    // reads as one row of controls rather than as two kinds of thing.
+    for (const name of [/grouped/i, /uncurated/i, /^Recap:/, /^Transfers:/]) {
+      const button = screen.getByRole("button", { name });
+      expect(button.className).toContain("rounded-full");
+      expect(button.className).toContain("size-9");
     }
   });
 
-  it("moves the search icon in with the field's own inset", () => {
-    renderFilters();
+  it("holds the whole bar on one row — no second rank under the rail", () => {
+    const { container } = renderFilters({ excludedFromRecap: true });
+    // The rail is the root: a wrapper stacking it over a second row is exactly
+    // what this layout removed, so its absence is the assertion.
+    expect(container.firstElementChild?.className).toContain("rounded-full");
+  });
 
-    // The glyph is decorative, so it is reached through the field's wrapper
-    // rather than by role — it has no accessible name to query by.
-    const wrapper = screen.getByLabelText("Search transactions").parentElement;
-    expect(wrapper?.querySelector("svg")?.getAttribute("class")).toContain("left-3");
-    expect(screen.getByLabelText("Search transactions").className).toContain("pl-8");
+  it("keeps the search field borderless — the rail draws the border", () => {
+    renderFilters();
+    const input = screen.getByLabelText("Search transactions");
+    expect(input.className).toContain("border-0");
+    // The magnifier stays as the field's own mark inside the shared rail.
+    expect(input.parentElement?.querySelector("svg")).not.toBeNull();
   });
 });
 
-function selectByLabel(ariaLabel: string, optionText: string) {
-  const select = screen.getByLabelText(ariaLabel) as HTMLSelectElement;
-  const option = [...select.options].find((o) => o.text === optionText);
-  act(() => {
-    const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")?.set;
-    setter?.call(select, option?.value);
-    select.dispatchEvent(new Event("change", { bubbles: true }));
-  });
+/**
+ * Choose one option of a tri-state filter by its visible text.
+ *
+ * The three-way filters were `<select>`s, then segmented radio groups; they are
+ * icon buttons opening a {@link FilterIconMenu} now, so a test opens the menu
+ * and clicks the item. The trigger is found by its `aria-label`, which carries
+ * the control's name *and* its current value ("Recap: All") — hence a prefix
+ * pattern rather than an exact string.
+ */
+function pickFromMenu(triggerLabel: RegExp, optionText: string) {
+  act(() => screen.getByRole("button", { name: triggerLabel }).click());
+  act(() => screen.getByRole("option", { name: optionText }).click());
 }
 
 /** Set an input's value and dispatch a React-observed `input` event. */

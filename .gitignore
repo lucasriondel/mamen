@@ -70,3 +70,5 @@ relev*_de_compte*.csv
 *.sw?
 coverage/
 .dokploy.yml
+
+.sandcastle

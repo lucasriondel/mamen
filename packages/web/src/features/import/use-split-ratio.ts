@@ -4,6 +4,19 @@ import { useCallback, useEffect, useState } from "react";
 export const IMPORT_SPLIT_RATIO_STORAGE_KEY = "mamen:import:split-ratio";
 
 /**
+ * Where the *reference statement*'s divider is persisted — the leftmost pane of
+ * the three-pane mapping step (issue #219, PRD #216).
+ *
+ * A second key rather than a second reader of the first, because a screen with
+ * two dividers on it asks two questions: how much room the statement takes, and
+ * how the discovered table divides with the form. One stored answer would lock
+ * the pair together — dragging either would jump the other on the next render —
+ * and the second of the two is the divider every step already shares, which must
+ * go on meaning what it means on the steps that have only it.
+ */
+export const STATEMENT_SPLIT_RATIO_STORAGE_KEY = "mamen:import:statement-ratio";
+
+/**
  * How far the divider may be dragged, as the left pane's share of the width.
  *
  * The ends are not 0 and 1: a pane dragged to nothing is a pane whose content
@@ -30,10 +43,10 @@ export function clampSplitRatio(ratio: number): number {
  * evidence of anything the user did, and the step's default is a better answer
  * than a repaired one.
  */
-function readStored(): number | null {
+function readStored(key: string): number | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = window.localStorage.getItem(IMPORT_SPLIT_RATIO_STORAGE_KEY);
+    const raw = window.localStorage.getItem(key);
     if (raw == null) return null;
     const value = JSON.parse(raw) as unknown;
     if (typeof value !== "number" || !Number.isFinite(value)) return null;
@@ -44,9 +57,9 @@ function readStored(): number | null {
   }
 }
 
-function writeStored(ratio: number): void {
+function writeStored(key: string, ratio: number): void {
   try {
-    window.localStorage.setItem(IMPORT_SPLIT_RATIO_STORAGE_KEY, JSON.stringify(ratio));
+    window.localStorage.setItem(key, JSON.stringify(ratio));
   } catch {
     // Storage full or blocked — the position just doesn't survive a reload.
   }
@@ -76,6 +89,13 @@ export interface UseSplitRatioResult {
  * room beside an import table than beside a form, and guessing one number for
  * both would be worse than either default. The first drag replaces both.
  *
+ * `key` is the one exception, and it is a *second divider on one screen* rather
+ * than a second opinion about this one (issue #219): the three-pane mapping step
+ * asks how much room the reference statement takes as well as how the table
+ * divides with the form, and two dividers reading one entry would jump each
+ * other. Left unsaid it is the shared position, which is what every step that
+ * has a single divider wants.
+ *
  * Storage is read once, to seed the state. Re-reading per render would race the
  * hook's own writes and could jump the divider out from under a drag in
  * progress.
@@ -83,8 +103,10 @@ export interface UseSplitRatioResult {
 export function useSplitRatio(
   /** What this step shows until the user has dragged anything, in `0..1`. */
   fallback: number,
+  /** Which stored position this divider is; the shared one unless said otherwise. */
+  key: string = IMPORT_SPLIT_RATIO_STORAGE_KEY,
 ): UseSplitRatioResult {
-  const [dragged, setDragged] = useState<number | null>(readStored);
+  const [dragged, setDragged] = useState<number | null>(() => readStored(key));
 
   // Persisted as an effect rather than from inside the updater, for the reason
   // the sidebar's flag is: React treats updaters as pure and may run one twice
@@ -94,8 +116,8 @@ export function useSplitRatio(
   // The `null` guard is the "until the user drags" half of the contract: a step
   // that merely *rendered* must not write its own default over the other step's.
   useEffect(() => {
-    if (dragged !== null) writeStored(dragged);
-  }, [dragged]);
+    if (dragged !== null) writeStored(key, dragged);
+  }, [key, dragged]);
 
   const setRatio = useCallback((next: number) => setDragged(clampSplitRatio(next)), []);
 

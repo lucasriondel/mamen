@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { build, type UserConfig } from "vite";
 import { describe, expect, it } from "vitest";
 import viteConfig from "../vite.config";
+import { HERO } from "./content";
 
 /**
  * The site root, from the build that ships it (issues #145, #148).
@@ -72,7 +73,7 @@ describe("the built site", async () => {
     // the built HTML, and there is no script tag to assemble it. React ran in
     // Node and nothing of it is in the output.
     const page = html("index.html") as string;
-    expect(page).toMatch(/<h1[^>]*>mamen<\/h1>/);
+    expect(page).toContain(`<h1>${HERO.heading}</h1>`);
     expect(page).toMatch(/single-user/i);
     expect(page).not.toMatch(/<script\b/);
     expect(chunks.filter((chunk) => chunk.fileName.endsWith(".js"))).toStrictEqual([]);

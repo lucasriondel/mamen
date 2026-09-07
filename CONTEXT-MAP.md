@@ -380,6 +380,51 @@ repeated per package.
   [ADR 0005](./docs/adr/0005-pdf-extraction-runs-server-side.md) and
   [ADR 0014](./docs/adr/0014-pdf-extraction-is-account-aware-through-its-format.md).
 
+- **Discovery extraction** — the other way a PDF statement is read: with **no
+  Statement Format at all**, transcribing the transaction table *as printed* —
+  every column under the bank's own labels, every cell a string, plus the
+  **declared totals** (issue #217, PRD #216). It is what makes a *first* PDF
+  import possible, an account with no format having nothing to name; the
+  discovered columns are then mapped in the shared mapping step and read by the
+  same client-side parsing pipeline the CSV path uses.
+  A **second operation** beside **server-side extraction**, never an optional
+  `formatId` on it: the two differ in prompt, in answer and in what they promise,
+  and folding them together would restore the "read it however you can" contract
+  issue #185 removed. It carries **no format verdict** — there are no expected
+  columns to verdict against — and a file with no transaction table is a typed
+  **`NoTransactionTable`** rather than an empty table, because an empty table
+  would reach the user as a mapping step with nothing to map.
+  It is *transcription*, not canonical extraction: nothing is parsed, folded or
+  renamed, which is what lets the user check it against the statement beside it —
+  the supervision #185's unsupervised guessing lacked, and *beside it* is literal
+  since issue #219: the source PDF is the leftmost of the mapping step's three
+  panes, so the reading and the thing read are on screen together. It spends the same **task
+  choice** as extraction (there is no second **AI task** to configure), so a
+  missing credential fails identically on both.
+  Since issue #218 the web side runs it, and it is **offered rather than
+  automatic**: an account with no PDF format shows *Build a format from this
+  statement* on the drop, and the click is what spends the run. What comes back
+  is seated as the wizard's headers and rows — which is the whole of how a PDF
+  joins the CSV machinery — and the commit saves a `kind: "pdf"` format declaring
+  **every** discovered column before it writes the rows.
+  **Three screens offer it** (issue #221), and they are the three states in which
+  no stored format reads the statement in hand: the account has no PDF format at
+  all, it has several and none was chosen, or the one that was chosen came back a
+  **format verdict** mismatch. All three already hold the file, so none re-uploads
+  it, and from the click onwards there is one path. What differs is only the
+  sentence the mapping step opens with — the same trio the CSV routes have, and
+  for the same reason: a first import is not a failure, a mismatch is the bank
+  having changed its export, and an ambiguity is one where picking is still
+  allowed.
+  Since issue #220 it is also **correctable**: a transcription is a *reading* of
+  a statement and can be wrong where a parsed file cannot, so the preview lets
+  the user fix any transcribed cell and add an operation the model missed, and
+  cross-checks what they end up importing against the **declared totals**. The
+  corrections land on the transcribed cells, so the same `applyFormat` re-reads
+  them and each row's **raw source** carries the statement's words as corrected.
+  _Avoid_: format detection, auto-mapping (the model transcribes; assigning the
+  columns to the transaction model is the user's act).
+
 - **Format verdict** — what **PDF extraction** reports about the **Statement
   Format** it was given: `{ matched, missingColumns }` — whether the statement
   carried every column that format declares, and which expected ones it did not
@@ -396,6 +441,10 @@ repeated per package.
   only ever names columns the format declares, in the format's own words.
   A mismatch is **reported, not raised** — the response is a 200 carrying a
   verdict, not an `ExtractionFailed`: nothing failed.
+  Since issue #221 it is also an **entry into building a format**: a bank that
+  drops or renames a column is a format nobody can fix (mappings are immutable),
+  so the mismatch screen offers *Build a format from this statement* beside the
+  picker, over the very upload the verdict was given on.
   _Avoid_: extraction error, validation failure (nothing was rejected and
   nothing is retryable).
 
@@ -432,7 +481,7 @@ repeated per package.
   _Avoid_: LLM client, AI service (it runs named tasks; it is not a wrapper
   around a model API).
 
-- **Task table** — every **AI task** as data: its output contract, the tools the
+- **Task table** — every **AI run** as data: its output contract, the tools the
   CLI may reach for, and **two prompt columns**, one per transport. Two, not one,
   and deliberately so: the CLI prompt runs with tools and may name things only
   this machine has — the absolute path of the staged PDF, which the model opens
@@ -473,7 +522,16 @@ repeated per package.
   the set worth offering, not the set that exists).
 
 - **AI task** — a job an **AI provider** and model can be chosen for. One member,
-  `extract-pdf`: pulling transactions out of an uploaded PDF bank statement.
+  `extract-pdf`: reading an uploaded PDF bank statement.
+  _Avoid_: confusing it with an **AI run**. A task is a *choice the user makes*
+  on the settings page; a run is a prompt and an output contract. They were the
+  same list until **discovery extraction**, which added a run and no choice.
+
+- **AI run** — one row of the **task table**: a question put to a model, with its
+  own prompts and its own output contract. Two of them, `extract-pdf` and
+  `discover-pdf`, and each names the **AI task** whose **task choice** it spends
+  — discovery spending extraction's, since it is the same statement read a second
+  way and not a second thing to configure.
 
 - **Task choice** — which **AI provider** and which of its models runs one **AI
   task**. One stored row per task, and an absent row means *the default*

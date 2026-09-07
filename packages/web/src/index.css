@@ -40,6 +40,7 @@
 @import "./styles/gousse/effects.css";
 @import "./styles/gousse/sidebar-chrome.css";
 @import "./features/recap/charts/chart-palette.css";
+@import "./features/transactions/row-rail.css";
 
 /* mamen's accent tint. gousse ships a warm orange default; we track miel's blue
  * so the two apps read as one design language. Bare channel triples — the

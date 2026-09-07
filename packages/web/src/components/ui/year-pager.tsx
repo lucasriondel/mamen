@@ -60,9 +60,12 @@ export function YearPager({ value, maxYear, onChange, label = "Year", className 
           <ChevronLeft className="size-4" aria-hidden />
         </button>
 
+        {/* The year is the label of the state the arrows move through, not an
+            action or a selection — so it reads as plain ink like the rest of the
+            chrome, rather than wearing the accent a chosen option would. */}
         <output
           aria-live="polite"
-          className="rounded-full bg-gousse-accent/15 px-3 py-1 text-center font-semibold text-gousse-accent text-sm tabular-nums"
+          className="px-2 text-center font-medium text-gousse-ink text-sm tabular-nums"
         >
           {value}
         </output>

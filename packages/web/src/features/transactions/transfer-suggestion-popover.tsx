@@ -1,6 +1,6 @@
 import type { Account, Transaction, TransactionId } from "@mamen/shared/contract";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeftRight } from "lucide-react";
+import { ArrowLeftRight, CircleHelp } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -109,6 +109,13 @@ function CounterpartRow({
  *
  * The panel closes on either action, so the interface acknowledges the decision
  * instead of leaving a settled question on screen while the refetch lands.
+ *
+ * Its trigger is the **unsettled** half of the transfer column's state pair:
+ * amber (`medium`) and a trailing question mark, against the settled badge's
+ * green and check. The amber is the point — a suggestion is a question the
+ * machine is asking, not a fact it has recorded, and it stays amber until a
+ * person answers it by confirming or dismissing. The count sits between the
+ * two glyphs because it is *how many* answers are on offer, not a status.
  */
 export function TransferSuggestionPanel({
   transaction,
@@ -135,10 +142,11 @@ export function TransferSuggestionPanel({
           <button
             type="button"
             aria-label={`${count} possible transfer ${count === 1 ? "match" : "matches"} for ${transaction.rawIssuerString}`}
-            className="inline-flex items-center gap-1 rounded-full bg-gousse-accent/10 px-2 py-0.5 text-gousse-accent text-xs outline-none transition-colors hover:bg-gousse-accent/20 focus-visible:ring-2 focus-visible:ring-gousse-accent"
+            className="inline-flex items-center gap-1 rounded-full bg-gousse-medium/10 px-2 py-0.5 text-gousse-medium text-xs outline-none transition-colors hover:bg-gousse-medium/20 focus-visible:ring-2 focus-visible:ring-gousse-medium"
           >
             <ArrowLeftRight size={12} aria-hidden />
             {count}
+            <CircleHelp size={12} aria-hidden />
           </button>
         }
       />

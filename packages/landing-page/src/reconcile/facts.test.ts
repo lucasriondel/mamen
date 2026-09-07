@@ -1,4 +1,10 @@
 import { readFileSync } from "node:fs";
+import {
+  API_PORTLESS_HOST,
+  LANDING_PAGE_PORTLESS_HOST,
+  WEB_PORTLESS_HOST,
+  WEB_PORTLESS_ORIGIN,
+} from "@mamen/shared/ports";
 import { describe, expect, it } from "vitest";
 import { INSTALL } from "../content/install";
 import { REPO_ROOT } from "./commands";
@@ -139,9 +145,43 @@ describe("the prerequisite the documents ask for", () => {
 
     // So both documents have to say *default*, rather than presenting the CLI
     // as what PDF import is.
-    const optional = INSTALL.prerequisites.filter((prerequisite) => !prerequisite.required);
-    expect(optional.length).toBe(1);
-    expect(optional[0]?.detail).toMatch(/default provider/);
+    //
+    // The CLI is found by name rather than by being the only optional entry:
+    // portless is a second one, and this assertion is about how the CLI is
+    // described, not about how many optional prerequisites there are.
+    const claudeCli = INSTALL.prerequisites.find(
+      (prerequisite) => prerequisite.name === "The claude CLI",
+    );
+    expect(claudeCli?.required).toBe(false);
+    expect(claudeCli?.detail).toMatch(/default provider/);
     expect(README.replace(/\s+/g, " ")).toMatch(/PDF import on its default provider/);
+  });
+});
+
+describe("the hostnames the documents send a reader to", () => {
+  it("are the names the packages register, not the ones the docs remember", () => {
+    // The same trap as the CLI, one layer down. `ports.ts` writes the hostnames
+    // as literals and both documents import them from there, so the two agree
+    // with each other by construction — and neither can see it when a package
+    // renames itself. What decides a hostname is that package's own
+    // `portless.json`; anything else is a copy.
+    //
+    // Read as text, like the API's config above: this package is held to two
+    // subpaths of `@mamen/shared`, and reaching into another package's config
+    // to import it would be the dependency that rule forbids.
+    const registered = (path: string): string =>
+      JSON.parse(read(`packages/${path}/portless.json`)).name;
+
+    expect(WEB_PORTLESS_HOST).toBe(`${registered("web")}.localhost`);
+    expect(API_PORTLESS_HOST).toBe(`${registered("api")}.localhost`);
+    expect(LANDING_PAGE_PORTLESS_HOST).toBe(`${registered("landing-page")}.localhost`);
+  });
+
+  it("is what the API allows through CORS, so the browser is not refused", () => {
+    // The web origin appears twice for one reason: the SPA calls the API from
+    // it, and the API has to name it. A rename that moved only the registry
+    // would leave every request from the dev server blocked at the browser.
+    expect(API_CONFIG).toContain("WEB_PORTLESS_ORIGIN");
+    expect(README).toContain(WEB_PORTLESS_ORIGIN);
   });
 });

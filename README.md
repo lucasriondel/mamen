@@ -104,6 +104,10 @@ on its default provider, the
 [`claude` CLI](https://docs.claude.com/en/docs/claude-code/overview) on your
 `PATH`. Pick a hosted vendor in **Settings** instead and nothing needs the CLI.
 
+[portless](https://portless.sh) is optional too: it fronts each dev server at a
+name rather than a port, and is what the addresses below assume. Without it,
+`PORTLESS=0 bun dev` runs the same servers on the ports in [Ports](#ports).
+
 ```sh
 git clone https://github.com/lucasriondel/mamen.git
 cd mamen
@@ -134,14 +138,21 @@ Then:
 bun dev
 ```
 
-That runs every dev server through Turborepo:
+That runs every dev server through Turborepo, behind
+[portless](https://portless.sh) — which fronts each one at a name rather than a
+port:
 
-- web — <http://localhost:5070/app/> (the site root redirects there)
-- API — <http://localhost:5500>, with Scalar docs at
-  <http://localhost:5500/docs> and the spec at
-  <http://localhost:5500/api/openapi.json>
-- landing page — <http://localhost:5080>, the public page the deployed site
-  serves at its root
+- web — <https://mamen.localhost/app/> (the site root redirects there)
+- API — <https://api.mamen.localhost>, with Scalar docs at
+  <https://api.mamen.localhost/docs> and the spec at
+  <https://api.mamen.localhost/api/openapi.json>
+- landing page — <https://landing.mamen.localhost>, the public page the
+  deployed site serves at its root
+
+portless is a machine-level tool, not a dependency of this repo. Without it
+installed, `PORTLESS=0 bun dev` runs the same servers directly on the ports
+in [Ports](#ports) — <http://localhost:5070/app/>, <http://localhost:5500> and
+<http://localhost:5080>.
 
 The app is served under `/app` in development and in production alike, so the
 deployed site keeps its root for public landing pages. `/api` and `/uploads`
@@ -220,6 +231,12 @@ Every port mamen binds on the host, the reserved ones included. The numbers live
 in `packages/shared/src/ports.ts`, which the Vite configs and the API's `PORT`
 default import — so this table and the running servers cannot disagree.
 
+These are the ports bound when the servers are run **directly**
+(`PORTLESS=0 bun dev`). Under portless — what plain `bun dev` does — each
+server binds an ephemeral port portless assigns and is reached at its name
+instead; the hostnames live in the same module. The rows below still matter:
+they are what the containers publish, and what the direct path binds.
+
 | Port | Bound by | What answers there |
 | --- | --- | --- |
 | 5070 | web dev server | the SPA under its path prefix, proxying `/api` and `/uploads` |
@@ -249,7 +266,7 @@ Everything else has a working default. The API reads:
 | `PORT` | `5500` | API listen port. |
 | `DB_PATH` | `mamen.db` | SQLite file, relative to the API's working directory. |
 | `UPLOADS_DIR` | `uploads` | Where issuer images are written and served from. |
-| `CORS_ORIGINS` | `http://localhost:5070` | Comma-separated allowed origins. Unused in production, where the SPA and the API share an origin. |
+| `CORS_ORIGINS` | `http://localhost:5070,https://mamen.localhost` | Comma-separated allowed origins — the web dev server under both spellings, direct and behind portless. Unused in production, where the SPA and the API share an origin. |
 | `LOGODEV_TOKEN` | *(unset)* | Publishable logo.dev key backing issuer **Logo search**. Unset, the feature reports itself unconfigured and refuses. See [docs/operations/logo-search-setup.md](docs/operations/logo-search-setup.md). |
 | `TOKEN_ENCRYPTION_KEY` | *(unset)* | 64 hex characters (`openssl rand -hex 32`) — the key AI provider credentials are encrypted with. Unset, storing one fails and stored ones read back as unreadable. No default, because a default would be a published encryption key. See [ADR 0011](docs/adr/0011-credentials-are-encrypted-at-rest.md). |
 

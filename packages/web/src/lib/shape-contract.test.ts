@@ -60,6 +60,14 @@ const EXCEPTIONS: Record<string, { count: number; why: string }> = {
     count: 1,
     why: "the 16px tick mark mirrors Checkbox above, so the two read as one control",
   },
+  "src/features/transactions/account-filter-picker.tsx": {
+    count: 3,
+    why: "three marks: the 17px tick box mirroring Checkbox, and the two 10px account swatches — the same mark AccountBadge paints, where a pill would read as a dot and lose the badge's kinship",
+  },
+  "src/features/transactions/columns-toggle.tsx": {
+    count: 1,
+    why: "the 17px tick mark, the same mark the account filter draws so the bar's two checkbox menus agree",
+  },
   "src/features/transactions/transaction-cells.tsx": {
     count: 1,
     why: "the 16px override marker — a tinted square holding a pin glyph, not a surface",

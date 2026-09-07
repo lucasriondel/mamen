@@ -29,6 +29,23 @@
   --chart-series-7: #4a3aa7; /* violet */
   --chart-series-8: #e34948; /* red */
 
+  /* Text-weight variants of the same eight hues, for the rare place a series
+     colour lands on *type* rather than on a mark — the single-series tooltip
+     title. The fills above are tuned for arcs and bars against the panel, and
+     six of the eight sit under 4.5:1 as small text on white; each variant here
+     is the same hue walked down in lightness only until it clears that floor,
+     so identity is preserved and the text is legible. Marks keep the fills. */
+  --chart-series-1-text: #2875d1; /* 4.61:1 on white */
+  --chart-series-2-text: #cd4914; /* 4.61:1 */
+  --chart-series-3-text: #15855d; /* 4.62:1 */
+  --chart-series-4-text: #9e6b00; /* 4.61:1 */
+  --chart-series-5-text: #da2c6d; /* 4.60:1 */
+  --chart-series-6-text: #008300; /* 4.95:1 — already clears, unchanged */
+  --chart-series-7-text: #4a3aa7; /* 8.56:1 — already clears, unchanged */
+  --chart-series-8-text: #df2d2c; /* 4.62:1 */
+
+  --chart-other-text: #6f6d67;
+
   /* The tail bucket and de-emphasised marks — a neutral, never a ninth hue. */
   --chart-other: #9a978f;
 
@@ -55,6 +72,18 @@
   --chart-series-6: #008300;
   --chart-series-7: #9085e9;
   --chart-series-8: #e66767;
+
+  /* Walked up in lightness against #171716, same floor. */
+  --chart-series-1-text: #3987e5; /* 4.93:1 on panel — unchanged */
+  --chart-series-2-text: #d95926; /* 4.62:1 — unchanged */
+  --chart-series-3-text: #199e70; /* 5.27:1 — unchanged */
+  --chart-series-4-text: #c98500; /* 5.84:1 — unchanged */
+  --chart-series-5-text: #d55382; /* 4.60:1 */
+  --chart-series-6-text: #009700; /* 4.64:1 */
+  --chart-series-7-text: #9085e9; /* 5.74:1 — unchanged */
+  --chart-series-8-text: #e66767; /* 5.55:1 — unchanged */
+
+  --chart-other-text: #9a978f;
 
   --chart-other: #6f6d67;
 

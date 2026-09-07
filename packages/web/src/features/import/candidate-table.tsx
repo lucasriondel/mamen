@@ -4,6 +4,7 @@ import {
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
+  type Row as TanStackRow,
   type Table as TanStackTable,
   useReactTable,
 } from "@tanstack/react-table";
@@ -51,28 +52,34 @@ import type { RowId, WizardAction } from "./wizard-reducer";
 export type PreviewColumn<T> = ColumnDef<CandidateRow<T>, any>;
 
 /**
- * The skip column — the leading control column on both previews. A checkbox
+ * The import column — the leading control column on both previews. A checkbox
  * rather than the pair of icon buttons the panels used to carry: checked *is*
- * skipped, so one control both says the state and reverses it, and the header
+ * imported, so one control both says the state and reverses it, and the header
  * that holds out a whole filtered set (issue #195) is the same control again.
  *
- * Named per row for assistive tech (`Skip row 3`), since the column is pure
+ * Checked means **import this row**, and every row starts checked, because the
+ * default is to import the statement the user just handed over — unticking is how
+ * they hold a row out. The reducer still records the *skip* (see
+ * {@link useSkipSelection}); the tick is the inverse of it, and nothing but that
+ * one projection knows.
+ *
+ * Named per row for assistive tech (`Import row 3`), since the column is pure
  * control with no room for a visible label beside it — the same shape the
  * transactions grid's selection column uses. The label does not change with the
  * state: a checkbox says that itself.
  */
-export function skipColumn<T>(): PreviewColumn<T> {
+export function importColumn<T>(): PreviewColumn<T> {
   return {
     id: "skip",
     // The header *is* the control since issue #195 — no text beside it, named
     // for assistive tech the way the per-row boxes are, because the column is a
     // decision rather than a dimension of the data.
-    header: ({ table }) => <SkipAllCheckbox table={table} />,
+    header: ({ table }) => <ImportAllCheckbox table={table} />,
     cell: ({ row }) => (
       <Checkbox
         checked={row.getIsSelected()}
         onChange={() => row.toggleSelected(!row.getIsSelected())}
-        aria-label={`Skip row ${row.original.index + 1}`}
+        aria-label={`Import row ${row.original.index + 1}`}
         className="align-middle"
       />
     ),
@@ -80,52 +87,40 @@ export function skipColumn<T>(): PreviewColumn<T> {
 }
 
 /**
- * What a **skipped row** says for itself, in the cell carrying the operation
- * label. Both previews said this in identical markup in the same place, so it is
- * one component: a row cannot announce itself skipped one way on one path and
- * another way on the other, any more than an **already imported** mark can.
+ * Whether a previewed row is held out of the commit, asked of the row rather than
+ * of its selection: selection means *kept* since the checkbox was turned the right
+ * way round, and a cell that wants to strike itself through or disable its input
+ * wants the other one. One place spells the negation so no cell has to read
+ * `!row.getIsSelected()` and mean "skipped".
  */
-export function SkippedNote() {
-  return (
-    <span className="whitespace-nowrap text-gousse-muted text-xs">Skipped — won't be imported</span>
-  );
+export function isRowSkipped<T>(row: TanStackRow<CandidateRow<T>>): boolean {
+  return !row.getIsSelected();
 }
 
 /**
- * The strike a skipped row's own cells wear. The shell only marks the row
- * `data-skipped` — what striking *means* differs between the previews (this is
- * the text half; the editable panel also fades and disables its inputs) — so the
- * cells ask for it, and they ask in one place rather than spelling the class out
- * per column.
- */
-export function strikeWhileSkipped(isSkipped: boolean): string {
-  return isSkipped ? "line-through" : "";
-}
-
-/**
- * The select-all control at the head of the skip column: it holds out **the rows
- * on screen**, and takes them back when they already are (issue #195).
+ * The select-all control at the head of the import column: it takes in **the rows
+ * on screen**, and holds them all out when they already are in (issue #195).
  *
  * *On screen* is the whole point. A filtered table is the one place where "all"
- * is ambiguous, and this is a control that removes rows from an import — reading
- * it as "every row the statement holds" would skip rows the user cannot see and
- * has not looked at. So it acts over the filtered row model, which is also what
- * makes narrowing to `TYPE = Exécution d'ordre` and clicking once the two clicks
- * this feature exists for.
+ * is ambiguous, and unticking this removes rows from an import — reading it as
+ * "every row the statement holds" would skip rows the user cannot see and has not
+ * looked at. So it acts over the filtered row model, which is also what makes
+ * narrowing to `TYPE = Exécution d'ordre` and clicking once the two clicks this
+ * feature exists for.
  *
  * TanStack spells that model's select-all `toggleAllPageRowsSelected` — *page*
  * because it stops at the pagination boundary, and this table has no pagination,
  * so the page is exactly the rows on screen. The `…AllRows…` siblings are the
- * wrong half of that pair: `getIsSomeRowsSelected` counts **every** skip, the
+ * wrong half of that pair: `getIsSomeRowsSelected` counts **every** kept row, the
  * ones a filter is hiding included, so a narrowed table whose visible rows are
- * all kept would still draw itself part-skipped because of a row the user cannot
- * see.
+ * all skipped would still draw itself part-checked because of a row the user
+ * cannot see.
  *
  * Indeterminate is set on the DOM node rather than through an attribute, because
  * there is no `indeterminate` content attribute — a partly-skipped table would
- * otherwise read as an unskipped one.
+ * otherwise read as a fully imported one.
  */
-function SkipAllCheckbox<T>({ table }: { table: TanStackTable<CandidateRow<T>> }) {
+function ImportAllCheckbox<T>({ table }: { table: TanStackTable<CandidateRow<T>> }) {
   const all = table.getIsAllPageRowsSelected();
   const some = table.getIsSomePageRowsSelected();
 
@@ -136,7 +131,7 @@ function SkipAllCheckbox<T>({ table }: { table: TanStackTable<CandidateRow<T>> }
         if (node !== null) node.indeterminate = some && !all;
       }}
       onChange={() => table.toggleAllPageRowsSelected(!all)}
-      aria-label="Skip all shown rows"
+      aria-label="Import all shown rows"
       className="align-middle"
     />
   );
@@ -232,7 +227,7 @@ export function useCandidateTable<T extends ArchivedRow>({
   rowIds: readonly RowId[];
   /** Positional with `rows`: does each one look **already imported**? */
   duplicateFlags: readonly boolean[];
-  /** The preview's own columns, behind the shared {@link skipColumn}. */
+  /** The preview's own columns, behind the shared {@link importColumn}. */
   columns: ReadonlyArray<PreviewColumn<T>>;
   /** The row ids the user held out of the commit. */
   skippedRows: readonly RowId[];
@@ -272,7 +267,7 @@ export function useCandidateTable<T extends ArchivedRow>({
     [columns, rawColumnNames],
   );
 
-  const { rowSelection, onRowSelectionChange } = useSkipSelection(skippedRows, dispatch);
+  const { rowSelection, onRowSelectionChange } = useSkipSelection(rowIds, skippedRows, dispatch);
   const { columnVisibility, setColumnVisibility } = usePreviewColumnVisibility(hideableColumnIds);
 
   const table = useReactTable({
@@ -346,7 +341,7 @@ export function CandidateTable<T>({
           <TableRow
             key={row.id}
             className={ROW_HIGHLIGHT_TINT}
-            data-skipped={row.getIsSelected() ? "true" : undefined}
+            data-skipped={isRowSkipped(row) ? "true" : undefined}
             {...highlight?.row(row.original.rowId)}
           >
             {row.getVisibleCells().map((cell) => (

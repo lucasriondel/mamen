@@ -39,7 +39,7 @@ function formatWith(rules: Partial<ValueRules>): CsvStatementFormat {
     headers: ["Date", "Label", "Amount"],
     // No counterparty IBAN: this format's bank writes none, which it has to say.
     // The promotion itself is Green-Got's, and is held in `formats.test.ts`.
-    mapping: { date: "Date", rawIssuerString: "Label", counterpartyIban: null },
+    mapping: { date: "Date", rawIssuerString: ["Label"], counterpartyIban: null },
     rules: {
       sign: { strategy: "signed-column", amountColumn: "Amount" },
       dateOrder: "iso",
@@ -333,7 +333,7 @@ describe("the counterparty IBAN column", () => {
   /** The plainest format, told to read the IBAN out of `column`. */
   const reading = (column: string | null): CsvStatementFormat => ({
     ...formatWith({}),
-    mapping: { date: "Date", rawIssuerString: "Label", counterpartyIban: column },
+    mapping: { date: "Date", rawIssuerString: ["Label"], counterpartyIban: column },
   });
 
   /** One row carrying two account numbers, in two differently-named columns. */
@@ -419,5 +419,88 @@ describe("every record", () => {
 
   it("archives a copy, so a later edit of the record cannot rewrite the row", () => {
     expect(records[0].rawSource).not.toBe(rows[0]);
+  });
+});
+
+// ── the label, read from several columns ─────────────────────────────────────
+
+/**
+ * The **issuer string** assembled from more than one column (PRD #208).
+ *
+ * A bank that splits what a human reads as one label — a payee, a free-text
+ * memo, a reference — is ordinary, and each part alone identifies nothing. These
+ * hold the join to what the format declares: its columns, its order, and no
+ * artefact where a part is missing.
+ */
+describe("a label read from several columns", () => {
+  function labelFormat(columns: readonly string[]): CsvStatementFormat {
+    return {
+      ...formatWith({}),
+      headers: ["Date", "Payee", "Memo", "Reference", "Amount"],
+      mapping: { date: "Date", rawIssuerString: columns, counterpartyIban: null },
+    };
+  }
+
+  const full = row({
+    Date: "2026-01-15",
+    Payee: "SNCF CONNECT",
+    Memo: "CARTE 12/04",
+    Reference: "REF-88",
+    Amount: "-42.50",
+  });
+
+  function labelOf(columns: readonly string[], source: Record<string, string> = full): string {
+    return applyFormat(labelFormat(columns), [source], ctx)[0].record.rawIssuerString;
+  }
+
+  it("joins the columns with a spaced hyphen", () => {
+    expect(labelOf(["Payee", "Memo"])).toBe("SNCF CONNECT - CARTE 12/04");
+  });
+
+  it("reads them in the order the format names, not the order the file writes", () => {
+    // The order is the user's, recorded as they picked the columns — so a bank
+    // that writes the payee second still reads payee-first if that is the
+    // format's declaration.
+    expect(labelOf(["Memo", "Payee"])).toBe("CARTE 12/04 - SNCF CONNECT");
+  });
+
+  it("still reads a single column, which is what every old format names", () => {
+    expect(labelOf(["Payee"])).toBe("SNCF CONNECT");
+  });
+
+  it("drops a blank part rather than leaving its joiner behind", () => {
+    // The whole point of dropping it: two rows from the same shop, one with a
+    // memo and one without, must still look alike to the issuer matching this
+    // string exists for.
+    const noMemo = row({ ...full, Memo: "" });
+    expect(labelOf(["Payee", "Memo", "Reference"], noMemo)).toBe("SNCF CONNECT - REF-88");
+  });
+
+  it("stays legible against a part that carries a hyphen of its own", () => {
+    // The reason the joiner is spaced: "SNCF CONNECT-REF-88" cannot be read
+    // back as two parts, and the seam has to be the thing that stands out.
+    expect(labelOf(["Payee", "Reference"])).toBe("SNCF CONNECT - REF-88");
+  });
+
+  it("drops a whitespace-only part too, and trims the ones it keeps", () => {
+    const padded = row({ ...full, Memo: "   ", Payee: "  SNCF CONNECT " });
+    expect(labelOf(["Payee", "Memo"], padded)).toBe("SNCF CONNECT");
+  });
+
+  it("drops a column the file does not carry, rather than reading it as blank", () => {
+    expect(labelOf(["Payee", "Absent"])).toBe("SNCF CONNECT");
+  });
+
+  it("reads an empty label where no part survives", () => {
+    const blank = row({ ...full, Payee: "", Memo: "" });
+    expect(labelOf(["Payee", "Memo"], blank)).toBe("");
+  });
+
+  it("archives every part untouched, whatever the join made of them", () => {
+    // The join is lossy in `rawIssuerString` and nothing is lost overall: the
+    // columns are in the raw source, separately, as ADR 0012 says they are.
+    const [{ record }] = applyFormat(labelFormat(["Payee", "Memo"]), [full], ctx);
+    expect(record.rawSource).toStrictEqual(full);
+    expect(record.rawIssuerString).toBe("SNCF CONNECT - CARTE 12/04");
   });
 });

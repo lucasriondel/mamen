@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { APP_BASE_PATH, APP_BASE_PATH_SLASH } from "@mamen/shared/app-base-path";
 import { describe, expect, it } from "vitest";
-import { CONTRIBUTING, INSTALL, SCREENSHOTS, screenshotFigures } from "./content";
+import { CONTRIBUTING, HERO, INSTALL, SCREENSHOTS, screenshotFigures } from "./content";
 import { renderPage } from "./page";
 import { SHIPPED_DIR, SHIPPED_URL_PREFIX } from "./screenshots/manifest";
 
@@ -44,7 +44,7 @@ const attr = (tag: string, name: string) =>
   tag.match(new RegExp(`\\s${name}="([^"]*)"`, "i"))?.[1] as string | undefined;
 
 /** Every `<picture>` the page renders, as its dark `<source>` and its `<img>`. */
-const pictures = [...html.matchAll(/<picture>([\s\S]*?)<\/picture>/g)].map((match) => {
+const pictures = [...html.matchAll(/<picture\b[^>]*>([\s\S]*?)<\/picture>/g)].map((match) => {
   const block = match[1] as string;
   return {
     source: block.match(/<source\b[^>]*>/)?.[0] ?? "",
@@ -56,7 +56,11 @@ describe("the landing page", () => {
   it("carries the content React rendered, not an empty shell", () => {
     // The point of the whole exercise: the components ran at build time, so
     // the text is in the bytes a browser downloads.
-    expect(html).toMatch(/<h1[^>]*>mamen<\/h1>/);
+    //
+    // Read from the content module rather than spelled out: the headline is a
+    // sentence someone will reword, and an assertion carrying its own copy of
+    // it fails the day they do — for no reason connected to what it tests.
+    expect(html).toContain(`<h1>${HERO.heading}</h1>`);
   });
 
   it("links into the app under its prefix", () => {
@@ -122,6 +126,16 @@ describe("the landing page", () => {
     expect(html.match(/<h1\b/g)).toHaveLength(1);
   });
 
+  it("names the product in the wordmark and says what it is for in the h1", () => {
+    // These were one field, and the first screen printed "mamen" twice: once
+    // as the mark and once as the headline under the screenshot. They are two
+    // now, and this is what keeps them two — a headline reset to the product
+    // name reads as a design decision in a diff and as a repeat on the page.
+    expect(HERO.name).not.toBe(HERO.heading);
+    expect(html).toContain(`<span>${HERO.name}</span>`);
+    expect(html).toContain(`<h1>${HERO.heading}</h1>`);
+  });
+
   it("needs no JavaScript to say any of it", () => {
     // Prerendered means the text is in the bytes nginx sends. A `<script>`
     // here would mean the content is assembled in the browser, which is the
@@ -153,6 +167,9 @@ describe("the screenshots the page shows", () => {
     // without running it, in the scheme they are already reading in. The
     // swap is `<picture>` and a media query rather than a script, which is
     // the only mechanism a page shipping no JavaScript has.
+    // Every surface is in the hero now, cross-faded in one frame, so the page
+    // carries each `<picture>` exactly once — a section repeating them is the
+    // thing that was removed.
     expect(pictures).toHaveLength(SCREENSHOTS.shots.length);
     expect(pictures.length).toBeGreaterThan(1);
 
@@ -162,10 +179,34 @@ describe("the screenshots the page shows", () => {
       expect(attr(picture.source, "media"), figure.name).toBe("(prefers-color-scheme: dark)");
       expect(attr(picture.source, "srcset"), figure.name).toBe(figure.dark.src);
       expect(attr(picture.img, "src"), figure.name).toBe(figure.light.src);
-      // The description a reader who cannot see the image gets — the same
-      // one the README carries, held equal in `screenshots/sync.test.ts`.
-      expect(attr(picture.img, "alt"), figure.name).toBe(figure.alt);
     }
+  });
+
+  it("describes the surface it leads with, and hides the ones that replace it", () => {
+    // The frames swap themselves visually, so announcing all of them would
+    // read a screen-reader user two descriptions of one picture. The leading
+    // surface carries the README's alt text — held equal in
+    // `screenshots/sync.test.ts` — and the rest are decoration by then.
+    const [leading, ...rest] = pictures;
+    const [first] = screenshotFigures();
+
+    expect(attr((leading as (typeof pictures)[number]).img, "alt")).toBe(first?.alt);
+    expect(attr((leading as (typeof pictures)[number]).img, "aria-hidden")).toBeUndefined();
+
+    expect(rest.length).toBeGreaterThan(0);
+    for (const picture of rest) {
+      expect(attr(picture.img, "alt")).toBe("");
+      expect(attr(picture.img, "aria-hidden")).toBe("true");
+    }
+  });
+
+  it("defers every frame but the one a visitor opens on", () => {
+    // The first frame is above every fold and deferring it is how a page
+    // renders empty; the others are not needed until the cycle reaches them.
+    const loading = pictures.map((picture) => attr(picture.img, "loading"));
+
+    expect(loading[0]).toBe("eager");
+    expect(loading.slice(1).every((value) => value === "lazy")).toBe(true);
   });
 
   it("reserves the space each image takes before it loads", () => {

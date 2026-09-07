@@ -33,10 +33,18 @@ WORKDIR /app
 # Every workspace package is copied, not just `api`: the lockfile is resolved
 # for the whole workspace, so a missing member fails `--frozen-lockfile`.
 COPY package.json bun.lock ./
+# `patchedDependencies` in the root manifest names a file under `patches/`,
+# and bun validates that entry for the whole workspace — `--filter` does not
+# narrow it. Without this the install fails on a patch file it cannot find.
+COPY patches ./patches
 COPY packages/api/package.json ./packages/api/
 COPY packages/web/package.json ./packages/web/
 COPY packages/sdk/package.json ./packages/sdk/
 COPY packages/shared/package.json ./packages/shared/
+# Every workspace member the lockfile resolves must be present, or bun sees a
+# changed lockfile and --frozen-lockfile fails — even though --filter means
+# this package's dependencies are never installed.
+COPY packages/landing-page/package.json ./packages/landing-page/
 
 # `--filter @mamen/api` installs only this package's subgraph, so web's
 # dependencies are never resolved here. (It also used to be what kept the api

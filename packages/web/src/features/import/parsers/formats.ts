@@ -45,7 +45,9 @@ export const greenGotFormat: CsvStatementFormat = {
   headers: GREEN_GOT_HEADERS,
   mapping: {
     date: "Date",
-    rawIssuerString: "Intitulé",
+    // One column, said as the list every format now names: Green-Got writes the
+    // whole label in `Intitulé`, and a bank that split it would name several.
+    rawIssuerString: ["Intitulé"],
     counterpartyIban: "IBAN du tiers",
   },
   rules: {

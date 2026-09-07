@@ -74,7 +74,7 @@ const TIED_CSV_FORMAT = {
  * several it asks which — so those cases stand a list up per case as well, from
  * the builders below.
  */
-const MAPPING = { date: "Date", rawIssuerString: "Libellé", counterpartyIban: null };
+const MAPPING = { date: "Date", rawIssuerString: ["Libellé"], counterpartyIban: null };
 const RULES = {
   sign: { strategy: "debit-credit-columns", debitColumn: "Débit", creditColumn: "Crédit" },
   dateOrder: "day-first",
@@ -124,6 +124,11 @@ const mismatched = (...missingColumns: readonly string[]) => ({
 // missing function.
 const bulkCreate = vi.fn();
 const extractPdf = vi.fn();
+// The **discovery extraction** (issue #217): the statement's table as printed,
+// asked for when the account has no PDF **Statement Format** to read it with. It
+// costs an AI run, so a case that asserts it was *not* called is asserting that
+// nothing was spent.
+const discoverPdf = vi.fn();
 // The **Statement Format** a mapping-step import authors (issue #186). It is
 // written by the commit and by nothing else, so a call to this outside one is
 // the "abandoning leaves a draft behind" bug.
@@ -169,6 +174,9 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
       // Both arguments are recorded: since issue #185 an extraction is run
       // *against* a format, and which id travelled is the assertion.
       extractPdf: (file: unknown, formatId: unknown) => extractPdf(file, formatId),
+      // The file and nothing else: discovery is what the user reaches for when
+      // there is no format to name (issue #217).
+      discoverPdf: (file: unknown) => discoverPdf(file),
     },
   };
 });
@@ -300,9 +308,42 @@ async function dropFrenchCsv(user: ReturnType<typeof userEvent.setup>) {
 
 /** Everything the French export needs, less whatever the case is about. */
 async function mapFrenchColumns(user: ReturnType<typeof userEvent.setup>) {
+  // The field arrives holding the suggestion (`Checking CSV`), so naming it
+  // something else is an overwrite — which is the gesture a user makes too.
+  await user.clear(screen.getByLabelText("Format name"));
   await user.type(screen.getByLabelText("Format name"), "CCF");
   await user.selectOptions(screen.getByLabelText("Operation date column"), "Date opération");
-  await user.selectOptions(screen.getByLabelText("Operation label column"), "Libellé");
+  await user.selectOptions(screen.getByLabelText("Operation label columns"), "Libellé");
+  await user.selectOptions(
+    screen.getByLabelText("How the amount is signed"),
+    "debit-credit-columns",
+  );
+  await user.selectOptions(screen.getByLabelText("Debit column"), "Débit");
+  await user.selectOptions(screen.getByLabelText("Credit column"), "Crédit");
+  await user.selectOptions(screen.getByLabelText("Date order"), "day-first");
+  await user.selectOptions(screen.getByLabelText("Decimal separator"), "comma");
+}
+
+/**
+ * Take the offer a PDF dropped on an account with no PDF format is given (issue
+ * #218) — the click that spends the discovery run — and wait for the mapping
+ * step it lands on.
+ */
+async function takeTheOffer(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(
+    await screen.findByRole("button", { name: "Build a format from this statement" }),
+  );
+  // The step transition is animated, so the form arrives a beat after the click.
+  await screen.findByLabelText("Format name");
+}
+
+/** Answer the whole form over the columns discovery transcribed. */
+async function mapDiscoveredColumns(user: ReturnType<typeof userEvent.setup>) {
+  // As above: the suggestion (`Checking PDF`) is already there to be replaced.
+  await user.clear(screen.getByLabelText("Format name"));
+  await user.type(screen.getByLabelText("Format name"), "CCF (PDF)");
+  await user.selectOptions(screen.getByLabelText("Operation date column"), "Date opération");
+  await user.selectOptions(screen.getByLabelText("Operation label columns"), "Libellé");
   await user.selectOptions(
     screen.getByLabelText("How the amount is signed"),
     "debit-credit-columns",
@@ -355,6 +396,14 @@ function fileRows(name?: string): string[][] {
         .getAllByRole("cell")
         .map((cell) => cell.textContent ?? ""),
     );
+}
+
+/**
+ * One editable cell of a **transcription** (issue #220), named the way the pane
+ * names it: the bank's own word for the column, and the line it is on.
+ */
+function transcribedCell(column: string, row: number): HTMLElement {
+  return screen.getByLabelText(`${column}, row ${row}`);
 }
 
 /**
@@ -419,15 +468,29 @@ function declaredRowIds(table: HTMLElement): (string | null)[] {
 }
 
 /**
- * Which rows of a pane are lit, by the text in one of their cells.
+ * Which rows of a pane are lit, by what one of their cells says.
  *
  * The highlight itself is a tint, and jsdom lays out no colour, so what is
  * asserted is the named contract the tint is written against (PRD #208).
+ *
+ * "What a cell says" is its text on every read-only pane and its input's value
+ * on the one editable one — the transcription beside a discovered PDF (issue
+ * #220), whose every cell is a field the user may correct. Which of the two a
+ * pane is has nothing to do with which rows are lit, so the reading is folded in
+ * here rather than making the highlight cases care.
  */
+function cellText(cell: HTMLElement): string {
+  const field = within(cell).queryByRole("textbox");
+  return field === null ? (cell.textContent ?? "") : (field as HTMLInputElement).value;
+}
+
 function highlighted(table: HTMLElement, cell: number): string[] {
   return bodyRows(table)
     .filter((row) => row.getAttribute("data-row-highlight") === "true")
-    .map((row) => within(row).getAllByRole("cell")[cell]?.textContent ?? "");
+    .map((row) => {
+      const target = within(row).getAllByRole("cell")[cell];
+      return target === undefined ? "" : cellText(target);
+    });
 }
 
 /** The lit lines of the file pane, by the label the bank wrote (issue #215). */
@@ -454,6 +517,30 @@ function pickControls(): string[] {
     .map((button) =>
       (button.getAttribute("aria-label") ?? "").replace(/^Pick the | column.*$/g, ""),
     );
+}
+
+/**
+ * The columns the **Label** reads, in the order they will be joined — the
+ * chips, which is where a list-valued field's answer is shown rather than in a
+ * select (PRD #208).
+ *
+ * Read off the list's own items, so the order asserted is the order drawn.
+ */
+function labelColumns(): string[] {
+  const list = screen.queryByRole("list", { name: "Label columns, in order" });
+  if (list === null) return [];
+  return (
+    within(list)
+      .getAllByRole("listitem")
+      // The chip carries its place in the list before its name; the assertion is
+      // about which columns and in what order, not about the numbering.
+      .map((item) => (item.textContent ?? "").replace(/^\d+/, "").replace(/×$/, "").trim())
+  );
+}
+
+/** Take one column back out of the Label, the way its chip offers. */
+async function removeLabelColumn(user: ReturnType<typeof userEvent.setup>, column: string) {
+  await user.click(screen.getByRole("button", { name: `Remove ${column} from the Label columns` }));
 }
 
 /** The control that opens pick mode for one field. */
@@ -484,6 +571,15 @@ function expectSplitWithFile(name = "statement.csv"): HTMLElement {
 /** The divider, for asking which side of it something is on. */
 function paneDivider(): HTMLElement {
   return screen.getByRole("separator", { name: "Resize the panes" });
+}
+
+/**
+ * The *other* divider, on the one step that has two (issue #219): the one
+ * between the reference statement and the mapping beside it. Named apart from
+ * the shared one above, since "the panes" would name either of them.
+ */
+function statementDivider(): HTMLElement {
+  return screen.getByRole("separator", { name: "Resize the statement pane" });
 }
 
 /**
@@ -527,6 +623,7 @@ beforeEach(() => {
   window.localStorage.clear();
   bulkCreate.mockReset().mockResolvedValue([]);
   extractPdf.mockReset();
+  discoverPdf.mockReset();
   createFormat.mockReset().mockResolvedValue({ ...greenGotFormat, id: 12 });
   listTransactions.mockReset().mockResolvedValue({ items: [], total: 0, bundleMembers: [] });
   // The common case for both paths: the account has the Green-Got format the CSV
@@ -738,14 +835,14 @@ describe("ImportWizard", () => {
       "1 of these rows looks already imported.",
     );
 
-    await user.click(screen.getByRole("checkbox", { name: "Skip row 1" }));
+    await user.click(screen.getByRole("checkbox", { name: "Import row 1" }));
 
-    // The row stays on screen — struck through, saying so, and the box that held
-    // it out is the one that takes it back — and the count it was the whole of
-    // goes with it.
+    // The row stays on screen — struck through on both halves of the split, and
+    // the box that held it out is the one that takes it back — and the count it
+    // was the whole of goes with it.
     expect(within(importTable()).getByText("SHOP A").className).toContain("line-through");
-    expect(screen.getByRole("checkbox", { name: "Skip row 1" })).toBeChecked();
-    expect(screen.getByText("Skipped — won't be imported")).toBeInTheDocument();
+    expect(bodyRow(fileTable(), 0)).toHaveAttribute("data-skipped", "true");
+    expect(screen.getByRole("checkbox", { name: "Import row 1" })).not.toBeChecked();
     await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
 
     await user.click(screen.getByRole("button", { name: "Commit import" }));
@@ -769,11 +866,11 @@ describe("ImportWizard", () => {
 
     await user.click(screen.getByRole("button", { name: "Continue to preview" }));
 
-    // One control, both ways: unchecking the box that held the row out is what
+    // One control, both ways: re-checking the box that held the row out is what
     // takes it back, so a mis-click costs the click that undoes it.
-    await user.click(await screen.findByRole("checkbox", { name: "Skip row 2" }));
-    await user.click(screen.getByRole("checkbox", { name: "Skip row 2" }));
-    expect(screen.getByRole("checkbox", { name: "Skip row 2" })).not.toBeChecked();
+    await user.click(await screen.findByRole("checkbox", { name: "Import row 2" }));
+    await user.click(screen.getByRole("checkbox", { name: "Import row 2" }));
+    expect(screen.getByRole("checkbox", { name: "Import row 2" })).toBeChecked();
 
     await user.click(screen.getByRole("button", { name: "Commit import" }));
     await waitFor(() => expect(bulkCreate).toHaveBeenCalledTimes(1));
@@ -813,7 +910,7 @@ describe("ImportWizard", () => {
     // where the user reads why it is missing here.
     expect(within(importTable()).queryByText("NOT SETTLED")).toBeNull();
 
-    await user.click(screen.getByRole("checkbox", { name: "Skip row 2" }));
+    await user.click(screen.getByRole("checkbox", { name: "Import row 2" }));
 
     expect(within(importTable()).getByText("SHOP B").className).toContain("line-through");
     expect(within(importTable()).getByText("SHOP A").className).not.toContain("line-through");
@@ -854,15 +951,17 @@ describe("ImportWizard", () => {
         .map((th) => th.textContent),
     ).toEqual(["", "Date", "Raw issuer", "Amount"]);
     expect(
-      within(table).getByRole("checkbox", { name: "Skip all shown rows" }),
+      within(table).getByRole("checkbox", { name: "Import all shown rows" }),
     ).toBeInTheDocument();
 
     // The skip is a checkbox, not the × / undo-arrow pair this path used to
-    // carry: checked *is* skipped, so one control says the state and reverses
-    // it — the same control as the PDF panel's, not merely the same look.
-    const skip = within(table).getByRole("checkbox", { name: "Skip row 1" });
-    expect(skip).not.toBeChecked();
-    expect(screen.queryByRole("button", { name: "Skip row 1" })).toBeNull();
+    // carry: checked *is* imported, so one control says the state and reverses
+    // it — the same control as the PDF panel's, not merely the same look. Every
+    // row starts checked, because the default is to import the file the user
+    // just handed over.
+    const skip = within(table).getByRole("checkbox", { name: "Import row 1" });
+    expect(skip).toBeChecked();
+    expect(screen.queryByRole("button", { name: "Import row 1" })).toBeNull();
     // It leads the row — whether the row belongs at all sits in front of the
     // values it carries.
     expect(skip.closest("td")).toBe(firstRow.firstElementChild);
@@ -922,13 +1021,14 @@ describe("ImportWizard", () => {
       // are still going to commit.
       expect(screen.getByText(/2 of 4 rows/)).toBeInTheDocument();
 
-      // One click holds out the rows on screen, and only those.
-      await user.click(screen.getByRole("checkbox", { name: "Skip all shown rows" }));
+      // One click holds out the rows on screen, and only those: every row starts
+      // checked, so unchecking the header unchecks exactly the shown ones.
+      await user.click(screen.getByRole("checkbox", { name: "Import all shown rows" }));
       await user.click(screen.getByRole("button", { name: "Clear filters" }));
-      expect(screen.getByRole("checkbox", { name: "Skip row 1" })).toBeChecked();
-      expect(screen.getByRole("checkbox", { name: "Skip row 3" })).toBeChecked();
-      expect(screen.getByRole("checkbox", { name: "Skip row 2" })).not.toBeChecked();
-      expect(screen.getByRole("checkbox", { name: "Skip row 4" })).not.toBeChecked();
+      expect(screen.getByRole("checkbox", { name: "Import row 1" })).not.toBeChecked();
+      expect(screen.getByRole("checkbox", { name: "Import row 3" })).not.toBeChecked();
+      expect(screen.getByRole("checkbox", { name: "Import row 2" })).toBeChecked();
+      expect(screen.getByRole("checkbox", { name: "Import row 4" })).toBeChecked();
 
       await user.click(screen.getByRole("button", { name: "Commit import" }));
       await waitFor(() => expect(bulkCreate).toHaveBeenCalledTimes(1));
@@ -1032,7 +1132,7 @@ describe("ImportWizard", () => {
       // The import table is untouched: the parsed rows, their skips and the
       // commit rail all still there and still saying what they said.
       expect(shownCsvRows()).toEqual(["SHOP A", "SHOP B"]);
-      expect(screen.getByRole("checkbox", { name: "Skip row 1" })).toBeInTheDocument();
+      expect(screen.getByRole("checkbox", { name: "Import row 1" })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Commit import" })).toBeInTheDocument();
     });
 
@@ -1231,7 +1331,7 @@ describe("ImportWizard", () => {
       const user = userEvent.setup();
       await previewCsv(user, WITH_PENDING_FIRST);
 
-      await user.click(screen.getByRole("checkbox", { name: "Skip row 1" }));
+      await user.click(screen.getByRole("checkbox", { name: "Import row 1" }));
       await user.hover(bodyRow(importTable(), 0));
 
       expect(highlightedFileLines()).toEqual(["SHOP A"]);
@@ -1575,10 +1675,11 @@ describe("ImportWizard", () => {
       expect(await screen.findByTitle("PDF statement")).toBeInTheDocument();
     });
 
-    // Nothing can be extracted against no format, and a generic prompt is the
-    // guessing this ticket removes — so the drop is refused, in the sentence the
-    // rest of the step already uses for a file it cannot take.
-    it("refuses the drop when the account has no PDF format at all", async () => {
+    // An account with no PDF format at all is no longer a refusal — it is the
+    // first import, and issue #218's offer is what it leads to. What stays true
+    // here is the half this describe is about: nothing is sent, because there is
+    // no format to send it against.
+    it("sends nothing when the account has no PDF format at all", async () => {
       const user = userEvent.setup();
       withFormats(csvFormat(1, "Green-Got"));
       renderWizard();
@@ -1586,9 +1687,7 @@ describe("ImportWizard", () => {
       await chooseAccount(user);
       await dropPdf(user);
 
-      expect(await screen.findByRole("alert")).toHaveTextContent(
-        "This account has no PDF statement format yet.",
-      );
+      expect(await screen.findByText("statement.pdf", { exact: false })).toBeInTheDocument();
       expect(extractPdf).not.toHaveBeenCalled();
       expect(screen.getByRole("button", { name: "Continue to preview" })).toBeDisabled();
     });
@@ -1689,6 +1788,859 @@ describe("ImportWizard", () => {
       await waitFor(() => expect(extractPdf).toHaveBeenCalledTimes(1));
       expect(await screen.findByLabelText("PDF statement format")).toBeInTheDocument();
       expect(screen.getByText("statement.pdf", { exact: false })).toBeInTheDocument();
+    });
+  });
+
+  /**
+   * Issue #218, under PRD #216 — **the first PDF import**. A user whose bank only
+   * exports PDFs used to be refused outright: no PDF **Statement Format** on the
+   * account, and no surface anywhere that could author one.
+   *
+   * The dead end becomes the CSV path's own story. The drop is *offered* a
+   * discovery extraction rather than refused; taking the offer transcribes the
+   * statement's table as printed (issue #217) and lands the user in the very
+   * mapping step a CSV reaches, with the discovered columns as the choices; the
+   * shared client-side pipeline reads the transcribed strings; and the commit
+   * saves a `kind: "pdf"` format with the rows it read.
+   */
+  describe("the first PDF import builds a format from the statement", () => {
+    /**
+     * What discovery makes of a French statement (issue #217): the table as
+     * printed — the bank's own column names, every cell a string, `1 929,71`
+     * still written the way the bank wrote it and a debit carrying no sign.
+     *
+     * The blank halves of the debit/credit pair are **absent** rather than empty,
+     * which is what the contract promises for a cell the row leaves blank.
+     */
+    const DISCOVERED = {
+      columns: ["Date opération", "Libellé", "Débit", "Crédit", "Type"],
+      rows: [
+        { "Date opération": "03/04/2026", Libellé: "SHOP A", Débit: "1 929,71", Type: "CARTE" },
+        {
+          "Date opération": "11/04/2026",
+          Libellé: "SALAIRE",
+          Crédit: "2 500,00",
+          Type: "VIREMENT",
+        },
+      ],
+      declaredTotals: { debit: 1929.71, credit: 2500 },
+    };
+
+    /** An account with no PDF format at all — the entry this ticket is about. */
+    async function dropOnAccountWithNoPdfFormat(user: ReturnType<typeof userEvent.setup>) {
+      withFormats(csvFormat(1, "Green-Got"));
+      renderWizard();
+      await chooseAccount(user);
+      return dropPdf(user);
+    }
+
+    // The refusal is gone, and what replaces it is an *offer*: the file is in
+    // hand, nothing has been sent, and the AI run happens because the user asked
+    // for it — a mistaken drop costs nothing (PRD #216, story 3).
+    it("offers to build a format from the statement instead of refusing the drop", async () => {
+      const user = userEvent.setup();
+      await dropOnAccountWithNoPdfFormat(user);
+
+      expect(
+        await screen.findByRole("button", { name: "Build a format from this statement" }),
+      ).toBeInTheDocument();
+      // The sentence that used to close this path off is nowhere on screen.
+      expect(screen.queryByText(/Import a CSV export from your bank instead/)).toBeNull();
+      expect(screen.queryByRole("alert")).toBeNull();
+      expect(discoverPdf).not.toHaveBeenCalled();
+      expect(extractPdf).not.toHaveBeenCalled();
+    });
+
+    // The click is what spends the run, and it spends it on the very file that
+    // was dropped — no second upload.
+    it("runs discovery on the dropped statement only once the offer is taken", async () => {
+      const user = userEvent.setup();
+      discoverPdf.mockResolvedValue(DISCOVERED);
+      const file = await dropOnAccountWithNoPdfFormat(user);
+
+      await takeTheOffer(user);
+
+      expect(discoverPdf).toHaveBeenCalledTimes(1);
+      expect(discoverPdf.mock.calls[0]?.[0]).toBe(file);
+      expect(extractPdf).not.toHaveBeenCalled();
+    });
+
+    // The discovered table *is* the mapping step's file pane: the bank's own
+    // column names as the choices, the transcribed cells under them.
+    it("lands on the mapping step over the discovered table", async () => {
+      const user = userEvent.setup();
+      discoverPdf.mockResolvedValue(DISCOVERED);
+      await dropOnAccountWithNoPdfFormat(user);
+      await takeTheOffer(user);
+
+      // The step reads as a first import being set up, and says which kind.
+      expect(screen.getByText(/This account has no PDF statement format yet/)).toBeInTheDocument();
+
+      const table = expectSplitWithFile("statement.pdf");
+      expect(
+        within(table)
+          .getAllByRole("columnheader")
+          .map((th) => th.textContent),
+      ).toEqual(["Date opération", "Libellé", "Débit", "Crédit", "Type"]);
+      // As printed: the blank half of the pair is blank, and nothing is parsed.
+      expect(fileRows("statement.pdf")).toEqual([
+        ["03/04/2026", "SHOP A", "1 929,71", "", "CARTE"],
+        ["11/04/2026", "SALAIRE", "", "2 500,00", "VIREMENT"],
+      ]);
+
+      // The choices are the discovered columns, and nothing invented.
+      expect(
+        within(screen.getByLabelText("Operation date column"))
+          .getAllByRole("option")
+          .map((option) => option.textContent),
+      ).toEqual(["Pick a column…", "Date opération", "Libellé", "Débit", "Crédit", "Type"]);
+    });
+
+    // The PDF half of the suggested name (the CSV half is under "building a
+    // format from the file in front of you"): the kind comes off the file in
+    // hand, and it is spelled the way the rest of the surface spells it.
+    it("suggests <account> PDF as the name of a format built from a statement", async () => {
+      const user = userEvent.setup();
+      discoverPdf.mockResolvedValue(DISCOVERED);
+      await dropOnAccountWithNoPdfFormat(user);
+      await takeTheOffer(user);
+
+      expect(screen.getByLabelText("Format name")).toHaveValue("Checking PDF");
+    });
+
+    // The whole point of transcribing rather than extracting: the strings are
+    // read by the *client-side* pipeline, so date order, decimal separator and
+    // the sign rule are the user's answers and not the model's guesses.
+    it("reads the transcribed strings through the shared parsing pipeline", async () => {
+      const user = userEvent.setup();
+      discoverPdf.mockResolvedValue(DISCOVERED);
+      await dropOnAccountWithNoPdfFormat(user);
+      await takeTheOffer(user);
+      await mapDiscoveredColumns(user);
+
+      expect(previewedRows()).toEqual([
+        expect.stringContaining("03 Apr 2026 | SHOP A"),
+        expect.stringContaining("11 Apr 2026 | SALAIRE"),
+      ]);
+      expect(previewedRows()[0]).toMatch(/-1\s?929,71/);
+      expect(previewedRows()[1]).toMatch(/\+2\s?500,00/);
+
+      // Read month-first, the third of April is the fourth of March — the answer
+      // nothing but this preview could tell the user they had given.
+      await user.selectOptions(screen.getByLabelText("Date order"), "month-first");
+      expect(previewedRows()[0]).toContain("04 Mar 2026");
+    });
+
+    // The row filter applies to a transcribed table exactly as to a parsed file.
+    it("drops the rows the filter excludes from a discovered table", async () => {
+      const user = userEvent.setup();
+      discoverPdf.mockResolvedValue(DISCOVERED);
+      await dropOnAccountWithNoPdfFormat(user);
+      await takeTheOffer(user);
+      await mapDiscoveredColumns(user);
+
+      await user.selectOptions(screen.getByLabelText("Only import rows where"), "Type");
+      await user.type(screen.getByLabelText("…equals"), "CARTE");
+
+      expect(previewedRows()).toHaveLength(1);
+      expect(previewedRows()[0]).toContain("SHOP A");
+      expect(screen.getByText("1 of 2 rows will be imported.")).toBeInTheDocument();
+    });
+
+    // The discovered table is the click-to-assign surface too — the same marks,
+    // the same pick controls the CSV path has had since #213 and #214.
+    it("assigns a discovered column by clicking its header, and marks it on the table", async () => {
+      const user = userEvent.setup();
+      discoverPdf.mockResolvedValue(DISCOVERED);
+      await dropOnAccountWithNoPdfFormat(user);
+      await takeTheOffer(user);
+
+      await pickFromFile(user, "Date", "Date opération");
+
+      expect(screen.getByLabelText("Operation date column")).toHaveValue("Date opération");
+      expect(fileHeaderNames("statement.pdf")[0]).toBe("Date opération — mapped to Date");
+      expect(columnMarks(0, "statement.pdf")).toEqual(["active", "active", "active"]);
+    });
+
+    /**
+     * The acceptance criterion the whole ticket is for: a first-ever PDF import
+     * completes. One decision writes the format — `kind: "pdf"`, **every**
+     * discovered column, not the subset the mapping reads — and then the rows the
+     * user validated, with every unmapped column archived on each of them.
+     */
+    it("commits a pdf format over every discovered column, then the previewed rows", async () => {
+      const user = userEvent.setup();
+      discoverPdf.mockResolvedValue(DISCOVERED);
+      await dropOnAccountWithNoPdfFormat(user);
+      await takeTheOffer(user);
+      await mapDiscoveredColumns(user);
+
+      await user.click(screen.getByRole("button", { name: "Continue to preview" }));
+      await findImportTable();
+      // The preview is CSV-grade on this slice: the rows, their skips, and the
+      // format being built named above them.
+      expect(screen.getByText("CCF (PDF)")).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Commit import" }));
+
+      // The format first — and it declares the columns the *statement* carries.
+      await waitFor(() => expect(createFormat).toHaveBeenCalledTimes(1));
+      expect(createFormat).toHaveBeenCalledWith({
+        kind: "pdf",
+        accountId: 1,
+        name: "CCF (PDF)",
+        columns: ["Date opération", "Libellé", "Débit", "Crédit", "Type"],
+        mapping: {
+          date: "Date opération",
+          rawIssuerString: ["Libellé"],
+          counterpartyIban: null,
+        },
+        rules: {
+          sign: { strategy: "debit-credit-columns", debitColumn: "Débit", creditColumn: "Crédit" },
+          dateOrder: "day-first",
+          decimalSeparator: "comma",
+          filter: null,
+        },
+      });
+
+      // …then the rows, read the way the format says they are written.
+      await waitFor(() => expect(bulkCreate).toHaveBeenCalledTimes(1));
+      const records = bulkCreate.mock.calls[0][0];
+      expect(records).toHaveLength(2);
+      expect(records[0]).toMatchObject({
+        accountId: 1,
+        amount: -1929.71,
+        rawIssuerString: "SHOP A",
+        importMonth: "2026-04",
+      });
+      expect(records[1]).toMatchObject({ amount: 2500, rawIssuerString: "SALAIRE" });
+      // Every column the statement carried is archived, mapped or not — `Type`
+      // feeds nothing and is kept all the same (ADR 0012, PRD #216 story 15).
+      expect(records[0].rawSource).toEqual({
+        "Date opération": "03/04/2026",
+        Libellé: "SHOP A",
+        Débit: "1 929,71",
+        Type: "CARTE",
+      });
+
+      expect(await screen.findByText("Transactions page")).toBeInTheDocument();
+    });
+
+    // The preview is the CSV path's own, whole: the transcribed statement in the
+    // left pane, the rows that will be written in the right, and each row of one
+    // lighting its pair in the other (issue #215). Two panes, since the source
+    // PDF beside them is a later ticket.
+    it("puts the transcribed statement beside the import table in the preview", async () => {
+      const user = userEvent.setup();
+      discoverPdf.mockResolvedValue(DISCOVERED);
+      await dropOnAccountWithNoPdfFormat(user);
+      await takeTheOffer(user);
+      await mapDiscoveredColumns(user);
+      await user.click(screen.getByRole("button", { name: "Continue to preview" }));
+
+      const table = await findImportTable();
+      expect(expectSplitWithFile("statement.pdf")).toBeInTheDocument();
+      expect(shownCsvRows()).toEqual(["SHOP A", "SALAIRE"]);
+
+      await user.hover(bodyRow(table, 1));
+      expect(highlightedFileLines("statement.pdf")).toEqual(["VIREMENT"]);
+      expect(highlightedImportRows()).toEqual(["SALAIRE"]);
+    });
+
+    // Once the account has one, the feature costs nothing: the next statement
+    // from the same bank goes straight down the format-driven path.
+    it("goes through the saved format with no mapping step on the next statement", async () => {
+      const user = userEvent.setup();
+      extractPdf.mockResolvedValue({
+        verdict: MATCHED,
+        transactions: [
+          { date: new Date("2026-05-02T00:00:00.000Z"), amount: -12, rawIssuerString: "SHOP C" },
+        ],
+        declaredTotals: { debit: 12, credit: 0 },
+      });
+      withFormats(csvFormat(1, "Green-Got"), pdfFormat(9, "CCF (PDF)"));
+      renderWizard();
+      await chooseAccount(user);
+      await dropPdf(user);
+
+      await waitFor(() => expect(extractPdf).toHaveBeenCalledTimes(1));
+      expect(discoverPdf).not.toHaveBeenCalled();
+      expect(
+        screen.queryByRole("button", { name: "Build a format from this statement" }),
+      ).toBeNull();
+      // Straight to validation — no format form anywhere on the way.
+      expect(await screen.findByTitle("PDF statement")).toBeInTheDocument();
+      expect(screen.queryByLabelText("Format name")).toBeNull();
+    });
+
+    // Discovery fails the way extraction already does: the alert on the upload
+    // step, and nothing previewable behind it.
+    it("surfaces a discovery failure on the upload step", async () => {
+      const user = userEvent.setup();
+      discoverPdf.mockRejectedValue({ _tag: "ExtractionFailed" });
+      await dropOnAccountWithNoPdfFormat(user);
+
+      await user.click(
+        await screen.findByRole("button", { name: "Build a format from this statement" }),
+      );
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        /couldn't extract transactions from that PDF/i,
+      );
+      expect(screen.queryByLabelText("Format name")).toBeNull();
+      expect(screen.getByRole("button", { name: "Continue to preview" })).toBeDisabled();
+    });
+
+    // The one failure a retry cannot fix, so the alert carries the way to fix it.
+    it("sends the user to AI settings when discovery finds no credential stored", async () => {
+      const user = userEvent.setup();
+      discoverPdf.mockRejectedValue({ _tag: "AiProviderNotConfigured", provider: "claude-code" });
+      await dropOnAccountWithNoPdfFormat(user);
+
+      await user.click(
+        await screen.findByRole("button", { name: "Build a format from this statement" }),
+      );
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(/no credential stored/);
+      await user.click(screen.getByRole("link", { name: "Open AI settings" }));
+      expect(await screen.findByText("AI settings page")).toBeInTheDocument();
+    });
+
+    // A file with no transaction table is the file's problem, and saying which
+    // of the two happened is why the error has its own tag (issue #217).
+    it("names a statement that carries no transaction table", async () => {
+      const user = userEvent.setup();
+      discoverPdf.mockRejectedValue({ _tag: "NoTransactionTable" });
+      await dropOnAccountWithNoPdfFormat(user);
+
+      await user.click(
+        await screen.findByRole("button", { name: "Build a format from this statement" }),
+      );
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        /no transaction table we could read/i,
+      );
+    });
+
+    // A transcription costs a run, so going back to the form must not spend a
+    // second one: the table is already in hand.
+    it("reopens the mapping step from the discovered table without a second run", async () => {
+      const user = userEvent.setup();
+      discoverPdf.mockResolvedValue(DISCOVERED);
+      await dropOnAccountWithNoPdfFormat(user);
+      await takeTheOffer(user);
+
+      await user.click(screen.getByRole("button", { name: "Discard this format" }));
+      await user.click(
+        await screen.findByRole("button", { name: "Build a format from this statement" }),
+      );
+
+      expect(await screen.findByLabelText("Format name")).toBeInTheDocument();
+      expect(discoverPdf).toHaveBeenCalledTimes(1);
+    });
+
+    /**
+     * Issue #219, under PRD #216 — **three-pane mapping**. What the middle table
+     * shows is a *model's reading* of a statement, and until now the statement
+     * itself was nowhere on screen while it was being mapped: the transcription
+     * had to be trusted, or checked in another application. The source PDF joins
+     * the step as the leftmost pane — the same blob-URL native viewer
+     * **side-by-side validation** renders — with the discovered table in the
+     * middle, still the click-to-assign surface, and the format form on the
+     * right.
+     *
+     * Two dividers, so two questions: how much room the statement takes, which
+     * only this layout asks, and how the table divides with the form, which is
+     * the divider the CSV mapping step already has and shares with every other
+     * step (PRD #208).
+     */
+    describe("the statement is beside the table it was transcribed from", () => {
+      /** Drop, transcribe, and land on the mapping step over the discovered table. */
+      async function mapADiscoveredStatement(user: ReturnType<typeof userEvent.setup>) {
+        discoverPdf.mockResolvedValue(DISCOVERED);
+        await dropOnAccountWithNoPdfFormat(user);
+        await takeTheOffer(user);
+      }
+
+      // The arrangement itself: three panes in the order the PRD names them,
+      // each divider with the pane it is about on one side of it.
+      it("renders the statement, the discovered table and the form, in that order", async () => {
+        const user = userEvent.setup();
+        await mapADiscoveredStatement(user);
+
+        // The statement as the browser renders it — the very pane the PDF path's
+        // validation view puts the file in.
+        const statement = await screen.findByTitle("PDF statement");
+        const table = fileTable("statement.pdf");
+        const form = screen.getByLabelText("Format name");
+
+        expect(statementDivider().compareDocumentPosition(statement)).toBe(
+          Node.DOCUMENT_POSITION_PRECEDING,
+        );
+        expect(statementDivider().compareDocumentPosition(table)).toBe(
+          Node.DOCUMENT_POSITION_FOLLOWING,
+        );
+        expect(paneDivider().compareDocumentPosition(table)).toBe(Node.DOCUMENT_POSITION_PRECEDING);
+        expect(paneDivider().compareDocumentPosition(form)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+      });
+
+      // The middle pane is what it was: the columns are still assigned by
+      // clicking its headers, the marks still land on it, and the draft's own
+      // reading of the rows is still opposite in the third pane.
+      it("keeps the middle table the click-to-assign surface, the live preview beside it", async () => {
+        const user = userEvent.setup();
+        await mapADiscoveredStatement(user);
+        await mapDiscoveredColumns(user);
+
+        await pickFromFile(user, "IBAN", "Type");
+
+        expect(screen.getByLabelText("Counterparty IBAN column")).toHaveValue("Type");
+        expect(fileHeaderNames("statement.pdf")[4]).toBe("Type — mapped to IBAN");
+        expect(columnMarks(4, "statement.pdf")).toEqual(["active", "active", "active"]);
+
+        // The parsed reading sits on the far side of the second divider, the
+        // statement on the far side of the first — which is the whole point of
+        // three panes: the bank's words, the transcription, and what the draft
+        // makes of it, all at once.
+        expect(previewedRows()).toEqual([
+          expect.stringContaining("03 Apr 2026 | SHOP A"),
+          expect.stringContaining("11 Apr 2026 | SALAIRE"),
+        ]);
+        const preview = screen.getByRole("table", { name: "Preview of the parsed rows" });
+        expect(paneDivider().compareDocumentPosition(preview)).toBe(
+          Node.DOCUMENT_POSITION_FOLLOWING,
+        );
+        expect(statementDivider().compareDocumentPosition(screen.getByTitle("PDF statement"))).toBe(
+          Node.DOCUMENT_POSITION_PRECEDING,
+        );
+      });
+
+      // Each divider opens where this arrangement wants it, and moving one says
+      // nothing about the other: they are two questions, not one control drawn
+      // twice.
+      it("moves the statement's divider without moving the one beside it", async () => {
+        const user = userEvent.setup();
+        await mapADiscoveredStatement(user);
+
+        // Three panes divide a width two used to, so the file/form split opens
+        // narrower here than the 80 the two-pane step chose.
+        expect(statementDivider()).toHaveAttribute("aria-valuenow", "40");
+        expect(paneDivider()).toHaveAttribute("aria-valuenow", "65");
+
+        await user.click(statementDivider());
+        await user.keyboard("{ArrowRight}");
+
+        expect(statementDivider()).toHaveAttribute("aria-valuenow", "45");
+        expect(paneDivider()).toHaveAttribute("aria-valuenow", "65");
+
+        // And each is found where it was left on the way back in. One stored
+        // position for the two would show here and nowhere else: within a single
+        // mount each divider holds its own state, so it is the *reading* that
+        // would have them adopt each other's.
+        await user.click(screen.getByRole("button", { name: "Discard this format" }));
+        await user.click(
+          await screen.findByRole("button", { name: "Build a format from this statement" }),
+        );
+        await screen.findByLabelText("Format name");
+
+        expect(statementDivider()).toHaveAttribute("aria-valuenow", "45");
+        expect(paneDivider()).toHaveAttribute("aria-valuenow", "65");
+      });
+
+      /**
+       * And the two are kept apart. The divider between the table and the form
+       * is the one PRD #208 made a *preference* — one drag answering for every
+       * step — so a drag on it here has to reach the CSV mapping step, while the
+       * statement's own divider, which no other step has, must not have written
+       * over it on the way.
+       */
+      it("carries the shared divider to the CSV path, the statement's own left behind", async () => {
+        const user = userEvent.setup();
+        await mapADiscoveredStatement(user);
+
+        await user.click(statementDivider());
+        await user.keyboard("{ArrowRight}");
+        await user.click(paneDivider());
+        await user.keyboard("{ArrowLeft}{ArrowLeft}");
+        expect(paneDivider()).toHaveAttribute("aria-valuenow", "55");
+
+        // Out of this import and in with a CSV nothing on the account reads.
+        await user.click(screen.getByRole("button", { name: "Discard this format" }));
+        await user.upload(
+          await screen.findByLabelText("CSV or PDF statement"),
+          new File([FRENCH_CSV], "releve.csv", { type: "text/csv" }),
+        );
+        await user.click(
+          await screen.findByRole("button", { name: "Build a format from this file" }),
+        );
+        await screen.findByLabelText("Format name");
+
+        // Two panes, the drag carried into them — and no statement to reference,
+        // so no divider offering to resize one.
+        expect(paneDivider()).toHaveAttribute("aria-valuenow", "55");
+        expect(screen.queryByRole("separator", { name: "Resize the statement pane" })).toBeNull();
+      });
+
+      // The asymmetry is deliberate and belongs to the PDF path alone: a CSV was
+      // read by the browser and has no rendering to check it against.
+      it("leaves CSV mapping two-pane", async () => {
+        const user = userEvent.setup();
+        await dropFrenchCsv(user);
+
+        expect(screen.queryByTitle("PDF statement")).toBeNull();
+        expect(screen.getAllByRole("separator", { name: /^Resize/ })).toHaveLength(1);
+        expect(paneDivider()).toHaveAttribute("aria-valuenow", "80");
+      });
+    });
+
+    /**
+     * Issue #221, under PRD #216 — **the other two ways in**. #218 opened the
+     * offer on the entry that had nothing else to give; these two screens each
+     * already hold a PDF the app could not read, and each used to end there.
+     *
+     * A **mismatch verdict** means the bank changed its export: the format's
+     * columns are not on the statement, and until now the only answers were the
+     * formats that had already failed. The **several-formats picker** is an
+     * ambiguity where none of the offered formats need be right either. Both
+     * hold the file, so both spend a discovery run on the statement in hand and
+     * land in the very mapping step and commit the zero-format entry does —
+     * differing only in the sentence that says why the user is there.
+     */
+    describe("the mismatch verdict and the format picker offer it too", () => {
+      /**
+       * The mismatch entry: the account's one PDF format is used without an ask,
+       * and the statement turns out not to carry its columns.
+       */
+      async function dropOntoAMismatch(user: ReturnType<typeof userEvent.setup>) {
+        withFormats(csvFormat(1, "Green-Got"), pdfFormat(7, "CCF — old layout"));
+        extractPdf.mockResolvedValue({
+          verdict: mismatched("Débit", "Crédit"),
+          transactions: [],
+          declaredTotals: null,
+        });
+        discoverPdf.mockResolvedValue(DISCOVERED);
+        renderWizard();
+        await chooseAccount(user);
+        const file = await dropPdf(user);
+        // The verdict is on screen; nothing has been decided yet.
+        await screen.findByText(/Débit, Crédit/);
+        return file;
+      }
+
+      /** The ambiguity entry: two PDF formats, and nobody has said which reads this. */
+      async function dropOntoSeveralFormats(user: ReturnType<typeof userEvent.setup>) {
+        withFormats(pdfFormat(7, "CCF — old layout"), pdfFormat(8, "CCF — since 2026"));
+        discoverPdf.mockResolvedValue(DISCOVERED);
+        renderWizard();
+        await chooseAccount(user);
+        const file = await dropPdf(user);
+        await screen.findByLabelText("PDF statement format");
+        return file;
+      }
+
+      /** The tail both entries share with the zero-format one, whole. */
+      async function mapAndCommit(user: ReturnType<typeof userEvent.setup>) {
+        await mapDiscoveredColumns(user);
+        await user.click(screen.getByRole("button", { name: "Continue to preview" }));
+        await findImportTable();
+        await user.click(screen.getByRole("button", { name: "Commit import" }));
+        await waitFor(() => expect(createFormat).toHaveBeenCalledTimes(1));
+      }
+
+      // The point of holding the file since issue #188: the way out of a changed
+      // export is a mapping session over the statement already uploaded.
+      it("builds a format from the statement the mismatch left in hand", async () => {
+        const user = userEvent.setup();
+        const file = await dropOntoAMismatch(user);
+
+        await takeTheOffer(user);
+
+        // The very object that was dropped — no second upload, no re-drop.
+        expect(discoverPdf).toHaveBeenCalledTimes(1);
+        expect(discoverPdf.mock.calls[0]?.[0]).toBe(file);
+        expect(screen.getByLabelText("Format name")).toBeInTheDocument();
+      });
+
+      // Offered *alongside* the pick, never instead of it: one of the saved
+      // formats may still be the right answer, and only the user knows.
+      it("offers building a format beside the picker when several are saved", async () => {
+        const user = userEvent.setup();
+        const file = await dropOntoSeveralFormats(user);
+
+        expect(screen.getByLabelText("PDF statement format")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Extract transactions" })).toBeInTheDocument();
+
+        await takeTheOffer(user);
+
+        expect(discoverPdf).toHaveBeenCalledTimes(1);
+        expect(discoverPdf.mock.calls[0]?.[0]).toBe(file);
+        // The run the user did not ask for was never spent: nothing was
+        // extracted against a format nobody chose.
+        expect(extractPdf).not.toHaveBeenCalled();
+      });
+
+      /**
+       * Three entries, three reasons. A first import is not a failure, a
+       * mismatch is the bank having changed its export, and an ambiguity is one
+       * where picking is still allowed — so the sentence at the top of the
+       * mapping step is not the same sentence on all three.
+       */
+      it("says the bank's export changed on the mismatch entry", async () => {
+        const user = userEvent.setup();
+        await dropOntoAMismatch(user);
+        await takeTheOffer(user);
+
+        expect(screen.getByText(/no longer carries the columns/)).toBeInTheDocument();
+        expect(screen.queryByText(/This account has no PDF statement format yet/)).toBeNull();
+      });
+
+      it("says one of the saved formats may still be picked on the several entry", async () => {
+        const user = userEvent.setup();
+        await dropOntoSeveralFormats(user);
+        await takeTheOffer(user);
+
+        expect(screen.getByText(/More than one PDF statement format/)).toBeInTheDocument();
+        expect(screen.queryByText(/This account has no PDF statement format yet/)).toBeNull();
+      });
+
+      // From the click onwards there is one path, and it ends where #218's does:
+      // a `kind: "pdf"` format over every discovered column, then the rows.
+      it("commits a new pdf format and its rows from the mismatch entry", async () => {
+        const user = userEvent.setup();
+        await dropOntoAMismatch(user);
+        await takeTheOffer(user);
+        await mapAndCommit(user);
+
+        expect(createFormat).toHaveBeenCalledWith(
+          expect.objectContaining({
+            kind: "pdf",
+            accountId: 1,
+            name: "CCF (PDF)",
+            columns: ["Date opération", "Libellé", "Débit", "Crédit", "Type"],
+          }),
+        );
+        await waitFor(() => expect(bulkCreate).toHaveBeenCalledTimes(1));
+        expect(bulkCreate.mock.calls[0][0]).toHaveLength(2);
+        expect(await screen.findByText("Transactions page")).toBeInTheDocument();
+      });
+
+      it("commits a new pdf format and its rows from the several-formats entry", async () => {
+        const user = userEvent.setup();
+        await dropOntoSeveralFormats(user);
+        await takeTheOffer(user);
+        await mapAndCommit(user);
+
+        expect(createFormat).toHaveBeenCalledWith(
+          expect.objectContaining({
+            kind: "pdf",
+            accountId: 1,
+            name: "CCF (PDF)",
+            columns: ["Date opération", "Libellé", "Débit", "Crédit", "Type"],
+          }),
+        );
+        await waitFor(() => expect(bulkCreate).toHaveBeenCalledTimes(1));
+        expect(bulkCreate.mock.calls[0][0]).toHaveLength(2);
+      });
+    });
+  });
+
+  /**
+   * Issue #220, under PRD #216. A transcription can be wrong in ways a parsed
+   * file cannot, so the discovery preview is where it is *corrected and
+   * completed*: the statement pane holds the model's reading of each cell and
+   * every one of them is editable, an **Add row** control appends the operation
+   * it missed, and the soft **reconciliation check** cross-checks what is about
+   * to be imported against the totals the statement itself printed.
+   *
+   * The corrections land on the transcribed cells rather than on the parsed
+   * values, which is what keeps one reading of one table: `applyFormat` re-reads
+   * the corrected string, so the import table beside it, the commit and the row's
+   * **raw source** cannot come to disagree about what the statement says.
+   */
+  describe("correcting and completing a transcription in the preview", () => {
+    /** The same French statement #218 transcribes, and its printed totals. */
+    const DISCOVERED = {
+      columns: ["Date opération", "Libellé", "Débit", "Crédit", "Type"],
+      rows: [
+        { "Date opération": "03/04/2026", Libellé: "SHOP A", Débit: "1 929,71", Type: "CARTE" },
+        {
+          "Date opération": "11/04/2026",
+          Libellé: "SALAIRE",
+          Crédit: "2 500,00",
+          Type: "VIREMENT",
+        },
+      ],
+      declaredTotals: { debit: 1929.71, credit: 2500 },
+    };
+
+    /** Drop a PDF on an account with no PDF format, transcribe it, map it, preview it. */
+    async function previewTranscription(
+      user: ReturnType<typeof userEvent.setup>,
+      { filterOn }: { filterOn?: string } = {},
+    ) {
+      discoverPdf.mockResolvedValue(DISCOVERED);
+      withFormats(csvFormat(1, "Green-Got"));
+      renderWizard();
+      await chooseAccount(user);
+      await dropPdf(user);
+      await takeTheOffer(user);
+      await mapDiscoveredColumns(user);
+      if (filterOn !== undefined) {
+        await user.selectOptions(screen.getByLabelText("Only import rows where"), "Type");
+        await user.type(screen.getByLabelText("…equals"), filterOn);
+      }
+      await user.click(screen.getByRole("button", { name: "Continue to preview" }));
+      await findImportTable();
+    }
+
+    /** Retype one transcribed cell from scratch. */
+    async function correct(
+      user: ReturnType<typeof userEvent.setup>,
+      column: string,
+      row: number,
+      value: string,
+    ) {
+      await user.clear(transcribedCell(column, row));
+      if (value !== "") await user.type(transcribedCell(column, row), value);
+    }
+
+    /** What the import table makes of each row's amount, in table order. */
+    function importedAmounts(): string[] {
+      return within(importTable())
+        .getAllByRole("row")
+        .slice(1)
+        .map((row) => within(row).getAllByRole("cell")[3]?.textContent ?? "");
+    }
+
+    // The correction is to the *transcription*, so the archive carries it too:
+    // the bank's own words, as the user says the statement actually prints them
+    // (ADR 0012). Nothing else in the record is invented.
+    it("commits a corrected cell, in the statement's own words", async () => {
+      const user = userEvent.setup();
+      await previewTranscription(user);
+
+      await correct(user, "Libellé", 1, "SHOP AB");
+
+      expect(shownCsvRows()).toEqual(["SHOP AB", "SALAIRE"]);
+
+      await user.click(screen.getByRole("button", { name: "Commit import" }));
+
+      await waitFor(() => expect(bulkCreate).toHaveBeenCalledTimes(1));
+      const [first] = bulkCreate.mock.calls[0][0];
+      expect(first.rawIssuerString).toBe("SHOP AB");
+      expect(first.rawSource).toEqual({
+        "Date opération": "03/04/2026",
+        Libellé: "SHOP AB",
+        Débit: "1 929,71",
+        Type: "CARTE",
+      });
+    });
+
+    // A corrected string is read by the format the user just built — the decimal
+    // separator, the date order and the sign rule all apply to it, exactly as
+    // they do to the cells the model got right.
+    it("re-reads a corrected cell through the format the user built", async () => {
+      const user = userEvent.setup();
+      await previewTranscription(user);
+
+      await correct(user, "Débit", 1, "12,00");
+      expect(importedAmounts()[0]).toMatch(/-12,00/);
+
+      await correct(user, "Date opération", 1, "05/12/2026");
+      expect(shownCsvRows()).toEqual(["SHOP A", "SALAIRE"]);
+      expect(within(importTable()).getByText("05 Dec 2026")).toBeInTheDocument();
+    });
+
+    // The model missed an operation: the user types it in, and it commits with
+    // the rest. Its archive is what they supplied and nothing more.
+    it("commits a row the transcription missed", async () => {
+      const user = userEvent.setup();
+      await previewTranscription(user);
+
+      await user.click(screen.getByRole("button", { name: "Add row" }));
+
+      await correct(user, "Date opération", 3, "20/04/2026");
+      await correct(user, "Libellé", 3, "SHOP C");
+      await correct(user, "Débit", 3, "12,00");
+
+      expect(shownCsvRows()).toEqual(["SHOP A", "SALAIRE", "SHOP C"]);
+
+      await user.click(screen.getByRole("button", { name: "Commit import" }));
+
+      await waitFor(() => expect(bulkCreate).toHaveBeenCalledTimes(1));
+      const records = bulkCreate.mock.calls[0][0];
+      expect(records).toHaveLength(3);
+      expect(records[2]).toMatchObject({
+        amount: -12,
+        rawIssuerString: "SHOP C",
+        importMonth: "2026-04",
+      });
+      // Only what the user actually typed — no column of a statement line that
+      // never existed.
+      expect(records[2].rawSource).toEqual({
+        "Date opération": "20/04/2026",
+        Libellé: "SHOP C",
+        Débit: "12,00",
+      });
+    });
+
+    // An added row the format's own row filter would hide is an **Add row**
+    // control that does nothing, so the blank row is seeded to survive it.
+    it("shows an added row even when the format filters rows", async () => {
+      const user = userEvent.setup();
+      await previewTranscription(user, { filterOn: "CARTE" });
+
+      expect(shownCsvRows()).toEqual(["SHOP A"]);
+
+      await user.click(screen.getByRole("button", { name: "Add row" }));
+      await correct(user, "Libellé", 3, "SHOP C");
+
+      expect(shownCsvRows()).toEqual(["SHOP A", "SHOP C"]);
+      expect(transcribedCell("Type", 3)).toHaveValue("CARTE");
+    });
+
+    // The one automated cross-check on an AI-transcribed table (PRD #216, story
+    // 11). It is over the rows being **kept** — the import the user is about to
+    // make — so holding one out is exactly what makes the sums stop agreeing.
+    it("warns when the kept rows stop adding up to the declared totals", async () => {
+      const user = userEvent.setup();
+      await previewTranscription(user);
+
+      // As transcribed, the statement reconciles and nothing is said.
+      expect(screen.queryByText(/Reconciliation mismatch/)).toBeNull();
+
+      await user.click(screen.getByLabelText("Import row 2"));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(/Reconciliation mismatch/);
+      // It warns and never blocks.
+      expect(screen.getByRole("button", { name: "Commit import" })).toBeEnabled();
+
+      await user.click(screen.getByLabelText("Import row 2"));
+      expect(screen.queryByText(/Reconciliation mismatch/)).toBeNull();
+    });
+
+    // …and it moves with a correction, which is the other half of what it is for:
+    // a mistyped magnitude is exactly what the statement's own totals catch.
+    it("warns when a corrected amount stops matching the declared totals", async () => {
+      const user = userEvent.setup();
+      await previewTranscription(user);
+
+      await correct(user, "Débit", 1, "1 929,17");
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(/Reconciliation mismatch/);
+    });
+
+    // The deliberate asymmetry (PRD #216): the file said what it said, so there
+    // is nothing to correct and nothing to add on the CSV path.
+    it("leaves the CSV preview non-editable, with no add-row and no banner", async () => {
+      const user = userEvent.setup();
+      await dropFrenchCsv(user);
+      await mapFrenchColumns(user);
+      await user.click(screen.getByRole("button", { name: "Continue to preview" }));
+      await findImportTable();
+
+      expect(within(fileTable("releve.csv")).queryAllByRole("textbox")).toHaveLength(0);
+      expect(screen.queryByRole("button", { name: "Add row" })).toBeNull();
+      expect(screen.queryByRole("alert")).toBeNull();
     });
   });
 
@@ -1916,14 +2868,15 @@ describe("ImportWizard", () => {
         .map((th) => th.textContent),
     ).toEqual(["", "Date", "Raw issuer", "Amount"]);
     expect(
-      within(table).getByRole("checkbox", { name: "Skip all shown rows" }),
+      within(table).getByRole("checkbox", { name: "Import all shown rows" }),
     ).toBeInTheDocument();
 
     // The skip is a checkbox on the row, not the icon button it used to be:
-    // checked means skipped, so one control says the state and reverses it.
-    const skip = within(table).getByRole("checkbox", { name: "Skip row 1" });
-    expect(skip).not.toBeChecked();
-    expect(screen.queryByRole("button", { name: "Skip row 1" })).toBeNull();
+    // checked means imported, so one control says the state and reverses it, and
+    // a freshly extracted row starts checked.
+    const skip = within(table).getByRole("checkbox", { name: "Import row 1" });
+    expect(skip).toBeChecked();
+    expect(screen.queryByRole("button", { name: "Import row 1" })).toBeNull();
     // It leads the row — the decision about whether the row belongs at all sits
     // in front of the values it carries.
     expect(skip.closest("td")).toBe(rows.closest("tr")?.firstElementChild);
@@ -2129,7 +3082,7 @@ describe("ImportWizard", () => {
     // Deleting is gone — skipping subsumes it and is reversible.
     expect(screen.queryByRole("button", { name: "Delete row 1" })).toBeNull();
 
-    await user.click(screen.getByRole("checkbox", { name: "Skip row 1" }));
+    await user.click(screen.getByRole("checkbox", { name: "Import row 1" }));
 
     // The row is still on screen, struck through, and every field it offers is
     // inert: an edit to a row that will not commit is an edit thrown away.
@@ -2138,7 +3091,6 @@ describe("ImportWizard", () => {
     expect(issuer.className).toContain("line-through");
     expect(screen.getByLabelText("Date, row 1")).toBeDisabled();
     expect(screen.getByLabelText("Amount, row 1")).toBeDisabled();
-    expect(screen.getByText("Skipped — won't be imported")).toBeInTheDocument();
 
     // Only the kept row commits.
     await user.click(screen.getByRole("button", { name: "Commit import" }));
@@ -2172,11 +3124,11 @@ describe("ImportWizard", () => {
 
     // One control both ways since issue #193: the checkbox that skipped the row
     // is the one that takes it back, so there is no second button to find.
-    const skip = await screen.findByRole("checkbox", { name: "Skip row 1" });
-    await user.click(skip);
-    expect(skip).toBeChecked();
+    const skip = await screen.findByRole("checkbox", { name: "Import row 1" });
     await user.click(skip);
     expect(skip).not.toBeChecked();
+    await user.click(skip);
+    expect(skip).toBeChecked();
 
     const issuer = screen.getByLabelText("Raw issuer, row 1");
     expect(issuer).toBeEnabled();
@@ -2225,7 +3177,7 @@ describe("ImportWizard", () => {
 
     // Skipping the row that *was* extracted leaves the added one, which is the
     // proof the skip named a row rather than the position it was clicked at.
-    await user.click(screen.getByRole("checkbox", { name: "Skip row 1" }));
+    await user.click(screen.getByRole("checkbox", { name: "Import row 1" }));
     expect(screen.getByLabelText("Raw issuer, row 2")).toBeEnabled();
 
     await user.click(screen.getByRole("button", { name: "Commit import" }));
@@ -2276,7 +3228,7 @@ describe("ImportWizard", () => {
     expect(await screen.findByTitle("PDF statement")).toBeInTheDocument();
     expect(await screen.findByText(/1 of these rows looks already imported/)).toBeInTheDocument();
 
-    await user.click(screen.getByRole("checkbox", { name: "Skip row 1" }));
+    await user.click(screen.getByRole("checkbox", { name: "Import row 1" }));
 
     // The marked row is held out, so the bar has nothing left to advise about…
     await waitFor(() => expect(screen.queryByText(/looks already imported/)).toBeNull());
@@ -2438,15 +3390,15 @@ describe("ImportWizard", () => {
       await dropFaceted(user);
 
       await chooseFacetValue(user, "TYPE", "Exécution d'ordre (2)");
-      await user.click(screen.getByRole("checkbox", { name: "Skip all shown rows" }));
+      await user.click(screen.getByRole("checkbox", { name: "Import all shown rows" }));
 
       // The two executions are held out — and they are rows 2 and 4 of the
       // statement, so the skip named rows rather than the first two positions.
       await user.click(screen.getByRole("button", { name: "Clear filters" }));
-      expect(screen.getByRole("checkbox", { name: "Skip row 2" })).toBeChecked();
-      expect(screen.getByRole("checkbox", { name: "Skip row 4" })).toBeChecked();
-      expect(screen.getByRole("checkbox", { name: "Skip row 1" })).not.toBeChecked();
-      expect(screen.getByRole("checkbox", { name: "Skip row 3" })).not.toBeChecked();
+      expect(screen.getByRole("checkbox", { name: "Import row 2" })).not.toBeChecked();
+      expect(screen.getByRole("checkbox", { name: "Import row 4" })).not.toBeChecked();
+      expect(screen.getByRole("checkbox", { name: "Import row 1" })).toBeChecked();
+      expect(screen.getByRole("checkbox", { name: "Import row 3" })).toBeChecked();
 
       await user.click(screen.getByRole("button", { name: "Commit import" }));
       await waitFor(() => expect(bulkCreate).toHaveBeenCalledTimes(1));
@@ -2461,20 +3413,21 @@ describe("ImportWizard", () => {
       const user = userEvent.setup();
       await dropFaceted(user);
 
-      // Everything is held out to begin with — the whole statement.
-      await user.click(screen.getByRole("checkbox", { name: "Skip all shown rows" }));
-      expect(screen.getByRole("checkbox", { name: "Skip row 1" })).toBeChecked();
+      // Everything is held out to begin with — the whole statement, unchecked in
+      // one click from the header.
+      await user.click(screen.getByRole("checkbox", { name: "Import all shown rows" }));
+      expect(screen.getByRole("checkbox", { name: "Import row 1" })).not.toBeChecked();
 
       // Narrow, then take the shown rows back: the rows a filter is hiding are
       // not the rows the user is looking at, and must not move.
       await chooseFacetValue(user, "TYPE", "Exécution d'ordre (2)");
-      await user.click(screen.getByRole("checkbox", { name: "Skip all shown rows" }));
+      await user.click(screen.getByRole("checkbox", { name: "Import all shown rows" }));
 
       await user.click(screen.getByRole("button", { name: "Clear filters" }));
-      expect(screen.getByRole("checkbox", { name: "Skip row 2" })).not.toBeChecked();
-      expect(screen.getByRole("checkbox", { name: "Skip row 4" })).not.toBeChecked();
-      expect(screen.getByRole("checkbox", { name: "Skip row 1" })).toBeChecked();
-      expect(screen.getByRole("checkbox", { name: "Skip row 3" })).toBeChecked();
+      expect(screen.getByRole("checkbox", { name: "Import row 2" })).toBeChecked();
+      expect(screen.getByRole("checkbox", { name: "Import row 4" })).toBeChecked();
+      expect(screen.getByRole("checkbox", { name: "Import row 1" })).not.toBeChecked();
+      expect(screen.getByRole("checkbox", { name: "Import row 3" })).not.toBeChecked();
     });
 
     it("offers every raw-source column as a hidden column, and never the three that always show", async () => {
@@ -2903,6 +3856,80 @@ describe("ImportWizard", () => {
       expect(screen.getByRole("button", { name: "Continue to preview" })).toBeEnabled();
     });
 
+    /**
+     * The suggested name — the required field, answered in advance.
+     *
+     * The account and the file kind are both settled by the time this step opens,
+     * and `<account> CSV` is what the first format for an account is almost
+     * always called, so the field opens holding it rather than empty. What makes
+     * it a *suggestion* is everything below: it is real text in a real field, it
+     * is what gets saved if the user leaves it alone, and it never argues with an
+     * answer the user has given.
+     */
+    describe("the suggested format name", () => {
+      it("opens the field on <account> CSV, and saves that when it is left alone", async () => {
+        const user = userEvent.setup();
+        withFormats();
+        await dropFrenchCsv(user);
+
+        expect(screen.getByLabelText("Format name")).toHaveValue("Checking CSV");
+
+        // Everything *but* the name, so the suggestion is what reaches the commit.
+        await user.selectOptions(screen.getByLabelText("Operation date column"), "Date opération");
+        await user.selectOptions(screen.getByLabelText("Operation label columns"), "Libellé");
+        await user.selectOptions(
+          screen.getByLabelText("How the amount is signed"),
+          "debit-credit-columns",
+        );
+        await user.selectOptions(screen.getByLabelText("Debit column"), "Débit");
+        await user.selectOptions(screen.getByLabelText("Credit column"), "Crédit");
+        await user.selectOptions(screen.getByLabelText("Date order"), "day-first");
+        await user.selectOptions(screen.getByLabelText("Decimal separator"), "comma");
+
+        await user.click(screen.getByRole("button", { name: "Continue to preview" }));
+        await user.click(await screen.findByRole("button", { name: "Commit import" }));
+
+        await waitFor(() => expect(createFormat).toHaveBeenCalled());
+        expect(createFormat.mock.calls[0][0]).toMatchObject({ name: "Checking CSV" });
+      });
+
+      /**
+       * The do-not-clobber rule, and the race it is really about: the account's
+       * *name* comes off the network while its id was in hand all along, so a
+       * re-render carrying a freshly-resolved account must not reach into a field
+       * the user has already answered.
+       */
+      it("leaves a name the user typed alone across re-renders", async () => {
+        const user = userEvent.setup();
+        withFormats();
+        await dropFrenchCsv(user);
+
+        await user.clear(screen.getByLabelText("Format name"));
+        await user.type(screen.getByLabelText("Format name"), "CCF");
+
+        // Every one of these re-renders the step with the same draft; none of
+        // them is a new draft, so none of them re-arms the suggestion.
+        await user.selectOptions(screen.getByLabelText("Operation date column"), "Date opération");
+        await user.selectOptions(screen.getByLabelText("Date order"), "day-first");
+
+        expect(screen.getByLabelText("Format name")).toHaveValue("CCF");
+      });
+
+      // Clearing the field is an answer too — "not this one" — and it has to
+      // stick, or the user would be typing against a field that types back.
+      it("does not restore the suggestion after the user empties the field", async () => {
+        const user = userEvent.setup();
+        withFormats();
+        await dropFrenchCsv(user);
+
+        await user.clear(screen.getByLabelText("Format name"));
+        await user.selectOptions(screen.getByLabelText("Operation date column"), "Date opération");
+
+        expect(screen.getByLabelText("Format name")).toHaveValue("");
+        expect(screen.getByRole("button", { name: "Continue to preview" })).toBeDisabled();
+      });
+    });
+
     // The optional row filter, which is how "settled operations only" is said.
     it("drops the rows the optional filter excludes, and says how many are left", async () => {
       const user = userEvent.setup();
@@ -2958,9 +3985,10 @@ describe("ImportWizard", () => {
         await screen.findByRole("button", { name: "Build a format from this file" }),
       );
 
-      await user.type(await screen.findByLabelText("Format name"), "Green-Got");
+      await user.clear(await screen.findByLabelText("Format name"));
+      await user.type(screen.getByLabelText("Format name"), "Green-Got");
       await user.selectOptions(screen.getByLabelText("Operation date column"), "Date");
-      await user.selectOptions(screen.getByLabelText("Operation label column"), "Intitulé");
+      await user.selectOptions(screen.getByLabelText("Operation label columns"), "Intitulé");
       await user.selectOptions(
         screen.getByLabelText("How the amount is signed"),
         "direction-column",
@@ -2987,7 +4015,7 @@ describe("ImportWizard", () => {
         // The fingerprint is the file's own header row, whole — not the subset
         // the mapping reads.
         headers: ["Statut", "Date", "Montant", "Direction", "Intitulé"],
-        mapping: { date: "Date", rawIssuerString: "Intitulé", counterpartyIban: null },
+        mapping: { date: "Date", rawIssuerString: ["Intitulé"], counterpartyIban: null },
         rules: {
           sign: {
             strategy: "direction-column",
@@ -3108,7 +4136,7 @@ describe("ImportWizard", () => {
       for (const label of [
         "Format name",
         "Operation date column",
-        "Operation label column",
+        "Operation label columns",
         "Counterparty IBAN column",
         "How the amount is signed",
         "Amount column",
@@ -3214,7 +4242,7 @@ describe("ImportWizard", () => {
       expect(fileHeaderNames()).toEqual(["Date opération", "Libellé", "Débit", "Crédit", "Type"]);
 
       await user.selectOptions(screen.getByLabelText("Operation date column"), "Date opération");
-      await user.selectOptions(screen.getByLabelText("Operation label column"), "Libellé");
+      await user.selectOptions(screen.getByLabelText("Operation label columns"), "Libellé");
 
       // Announced from the header, not left to a badge and a tint (PRD #208).
       expect(fileHeaderNames()).toEqual([
@@ -3238,7 +4266,7 @@ describe("ImportWizard", () => {
       await dropFrenchCsv(user);
 
       await user.selectOptions(screen.getByLabelText("Operation date column"), "Date opération");
-      await user.selectOptions(screen.getByLabelText("Operation label column"), "Libellé");
+      await user.selectOptions(screen.getByLabelText("Operation label columns"), "Libellé");
 
       // Header cell then both rows, for the two mapped columns and one of the
       // three the user has said nothing about.
@@ -3257,7 +4285,7 @@ describe("ImportWizard", () => {
       await dropFrenchCsv(user);
 
       await user.selectOptions(screen.getByLabelText("Operation date column"), "Date opération");
-      await user.selectOptions(screen.getByLabelText("Operation label column"), "Libellé");
+      await user.selectOptions(screen.getByLabelText("Operation label columns"), "Libellé");
 
       // The label is the field just answered, so its column is the one lit.
       expect(columnMarks(1)).toEqual(["active", "active", "active"]);
@@ -3367,7 +4395,7 @@ describe("ImportWizard", () => {
       withFormats();
       await dropFrenchCsv(user);
 
-      await user.selectOptions(screen.getByLabelText("Operation label column"), "Type");
+      await user.selectOptions(screen.getByLabelText("Operation label columns"), "Type");
       await user.selectOptions(screen.getByLabelText("Only import rows where"), "Type");
 
       expect(fileHeaderNames()[4]).toBe("Type — mapped to Label, Filter");
@@ -3400,6 +4428,151 @@ describe("ImportWizard", () => {
    * truth — so a picked column shows in the select, and a column chosen in the
    * select is marked on the file exactly as before.
    */
+  /**
+   * The **Label** is the one question several columns answer (PRD #208): banks
+   * split what a human reads as one label across a payee, a memo and a
+   * reference, and a format that could name only one of them would drop the
+   * rest.
+   *
+   * So its control is a list rather than a choice, and its pick mode stays open
+   * — the parts of a split label are found together. These hold that behaviour
+   * where the user meets it: the chips, their order, and the two ways back out.
+   */
+  describe("a label built from several of the file's columns", () => {
+    it("keeps every column picked, in the order they were picked", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+
+      await user.selectOptions(screen.getByLabelText("Operation label columns"), "Libellé");
+      await user.selectOptions(screen.getByLabelText("Operation label columns"), "Type");
+
+      expect(labelColumns()).toEqual(["Libellé", "Type"]);
+      // Both are marked on the file: one field, its badge in two places.
+      expect(fileHeaderNames()[1]).toBe("Libellé — mapped to Label");
+      expect(fileHeaderNames()[4]).toBe("Type — mapped to Label");
+    });
+
+    it("offers only the columns not already picked", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+
+      await user.selectOptions(screen.getByLabelText("Operation label columns"), "Libellé");
+
+      // The way to take a column back out is its own chip, so the select does
+      // not offer it a second time.
+      const options = within(screen.getByLabelText("Operation label columns"))
+        .getAllByRole("option")
+        .map((option) => option.textContent);
+      expect(options).not.toContain("Libellé");
+      expect(options).toContain("Type");
+    });
+
+    it("takes a column back out through its chip", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+
+      await user.selectOptions(screen.getByLabelText("Operation label columns"), "Libellé");
+      await user.selectOptions(screen.getByLabelText("Operation label columns"), "Type");
+      await removeLabelColumn(user, "Libellé");
+
+      expect(labelColumns()).toEqual(["Type"]);
+      // The mark goes with it — the derivation no longer names that column.
+      expect(fileHeaderNames()[1]).toBe("Libellé");
+    });
+
+    it("stays in pick mode so the parts of a split label are picked together", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+
+      await user.click(pickControl("Label"));
+      await user.click(screen.getByRole("button", { name: "Use Libellé as the Label column" }));
+
+      // Still open, unlike a single-column field, which closes on its answer.
+      expect(pickControl("Label")).toHaveAttribute("aria-pressed", "true");
+      await user.click(screen.getByRole("button", { name: "Use Type as the Label column" }));
+
+      expect(labelColumns()).toEqual(["Libellé", "Type"]);
+    });
+
+    it("takes a column back out when its header is clicked a second time", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+
+      await user.click(pickControl("Label"));
+      await user.click(screen.getByRole("button", { name: "Use Libellé as the Label column" }));
+      await user.click(screen.getByRole("button", { name: "Use Type as the Label column" }));
+      // The same gesture, undone: the way a toggle is expected to behave.
+      await user.click(screen.getByRole("button", { name: "Use Libellé as the Label column" }));
+
+      expect(labelColumns()).toEqual(["Type"]);
+    });
+
+    it("leaves pick mode by the control that opened it, having kept its answers", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+
+      await user.click(pickControl("Label"));
+      await user.click(screen.getByRole("button", { name: "Use Libellé as the Label column" }));
+      await user.click(pickControl("Label"));
+
+      expect(pickControl("Label")).toHaveAttribute("aria-pressed", "false");
+      expect(labelColumns()).toEqual(["Libellé"]);
+    });
+
+    it("refuses to read the file until the label names a column", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+      await mapFrenchColumns(user);
+
+      // Everything mapped: the preview is there.
+      expect(screen.queryByText(/will be read here as you go/)).toBeNull();
+
+      await removeLabelColumn(user, "Libellé");
+
+      // And gone with the label, which is required: a format that reads no
+      // label column produces rows with no identity.
+      expect(screen.getByText(/will be read here as you go/)).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Continue to preview" })).toBeDisabled();
+    });
+
+    it("joins the mapped columns in the preview, as the import will", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+      await mapFrenchColumns(user);
+      await user.selectOptions(screen.getByLabelText("Operation label columns"), "Type");
+
+      // The preview runs the very function the commit does, so what is read
+      // here is what will be stored.
+      expect(await screen.findByText("SHOP A - CARTE")).toBeTruthy();
+    });
+
+    it("saves the label's columns as the list the user built", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+      await mapFrenchColumns(user);
+      await user.selectOptions(screen.getByLabelText("Operation label columns"), "Type");
+      await user.click(screen.getByRole("button", { name: "Continue to preview" }));
+      await user.click(await screen.findByRole("button", { name: "Commit import" }));
+
+      await waitFor(() => {
+        expect(createFormat).toHaveBeenCalledWith(
+          expect.objectContaining({
+            mapping: expect.objectContaining({ rawIssuerString: ["Libellé", "Type"] }),
+          }),
+        );
+      });
+    });
+  });
+
   describe("assigning a column by clicking its header", () => {
     it("assigns the clicked header to the field that opened pick mode, and the select shows it", async () => {
       const user = userEvent.setup();
@@ -3482,7 +4655,9 @@ describe("ImportWizard", () => {
 
       await user.click(screen.getByRole("button", { name: "Use Libellé as the Label column" }));
 
-      expect(screen.getByLabelText("Operation label column")).toHaveValue("Libellé");
+      // The Label holds a list, so a picked column reads as a chip rather than
+      // as the select's value — the select goes on offering the columns left.
+      expect(labelColumns()).toEqual(["Libellé"]);
       expect(screen.getByLabelText("Operation date column")).toHaveValue("");
     });
 
@@ -3545,6 +4720,7 @@ describe("ImportWizard", () => {
       withFormats();
       await dropFrenchCsv(user);
 
+      await user.clear(screen.getByLabelText("Format name"));
       await user.type(screen.getByLabelText("Format name"), "CCF");
       await pickFromFile(user, "Date", "Date opération");
       await pickFromFile(user, "Label", "Libellé");
@@ -3573,7 +4749,7 @@ describe("ImportWizard", () => {
         expect.objectContaining({
           mapping: {
             date: "Date opération",
-            rawIssuerString: "Libellé",
+            rawIssuerString: ["Libellé"],
             counterpartyIban: null,
           },
           rules: expect.objectContaining({
@@ -3623,6 +4799,130 @@ describe("ImportWizard", () => {
   });
 
   /**
+   * The two **value rules** read off the columns the user maps (issue #222).
+   *
+   * PRD #180 refuses to *guess* at date order and the decimal separator, and
+   * that stands: what these cases pin is the difference between a guess and a
+   * reading. A column of `23/04/2026` has no month-first reading, so mapping it
+   * answers the field; `FRENCH_CSV`'s own `03/04/2026` has both readings, so
+   * mapping *that* answers nothing and the field stays as empty as it ever was.
+   *
+   * The unambiguous export below is a separate fixture for exactly that reason —
+   * the French one is the ambiguous case, and it is worth keeping ambiguous.
+   */
+  describe("the value rules inferred from the mapped columns", () => {
+    /** A day-first export that proves it: `23` is a day under any calendar. */
+    const UNAMBIGUOUS_CSV = [
+      '"Date","Libellé","Montant"',
+      '"23/04/2026","SHOP A","-1 929,71"',
+      '"01/05/2026","SALAIRE","2 500,00"',
+    ].join("\n");
+
+    async function dropUnambiguousCsv(user: ReturnType<typeof userEvent.setup>) {
+      renderWizard();
+      await chooseAccount(user);
+      await user.upload(
+        await screen.findByLabelText("CSV or PDF statement"),
+        new File([UNAMBIGUOUS_CSV], "releve.csv", { type: "text/csv" }),
+      );
+      await user.click(
+        await screen.findByRole("button", { name: "Build a format from this file" }),
+      );
+      await screen.findByLabelText("Format name");
+    }
+
+    it("pre-sets the date order from the column the user maps", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropUnambiguousCsv(user);
+
+      // Unanswered until there is a column to read it from.
+      expect(screen.getByLabelText("Date order")).toHaveValue("");
+
+      await user.selectOptions(screen.getByLabelText("Operation date column"), "Date");
+
+      expect(screen.getByLabelText("Date order")).toHaveValue("day-first");
+    });
+
+    it("pre-sets the decimal separator from the amount column", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropUnambiguousCsv(user);
+
+      expect(screen.getByLabelText("Decimal separator")).toHaveValue("");
+
+      await user.selectOptions(screen.getByLabelText("Amount column"), "Montant");
+
+      expect(screen.getByLabelText("Decimal separator")).toHaveValue("comma");
+    });
+
+    // The refusal, still intact where the file genuinely does not answer.
+    it("leaves the date order unanswered when the file settles nothing", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropFrenchCsv(user);
+
+      await user.selectOptions(screen.getByLabelText("Operation date column"), "Date opération");
+
+      // `03/04/2026` and `11/04/2026` are dates under either order.
+      expect(screen.getByLabelText("Date order")).toHaveValue("");
+    });
+
+    /**
+     * The override, and the whole reason inference is a *default*. A user who
+     * disagrees with a reading and then goes on mapping columns must not watch
+     * their correction undone by a later assignment — nothing on screen would
+     * explain it.
+     */
+    it("keeps an override across a later re-mapping of the same column", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropUnambiguousCsv(user);
+
+      await user.selectOptions(screen.getByLabelText("Operation date column"), "Date");
+      expect(screen.getByLabelText("Date order")).toHaveValue("day-first");
+
+      // The user disagrees.
+      await user.selectOptions(screen.getByLabelText("Date order"), "month-first");
+
+      // …and goes on mapping. Neither the date column re-assigned nor any other
+      // field may take that answer back.
+      await user.selectOptions(screen.getByLabelText("Operation date column"), "Date");
+      await user.selectOptions(screen.getByLabelText("Operation label columns"), "Libellé");
+      await user.selectOptions(screen.getByLabelText("Amount column"), "Montant");
+
+      expect(screen.getByLabelText("Date order")).toHaveValue("month-first");
+    });
+
+    it("keeps a decimal separator the user overrode", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropUnambiguousCsv(user);
+
+      await user.selectOptions(screen.getByLabelText("Amount column"), "Montant");
+      expect(screen.getByLabelText("Decimal separator")).toHaveValue("comma");
+
+      await user.selectOptions(screen.getByLabelText("Decimal separator"), "dot");
+      await user.selectOptions(screen.getByLabelText("Amount column"), "Montant");
+
+      expect(screen.getByLabelText("Decimal separator")).toHaveValue("dot");
+    });
+
+    // One override does not silence the other: they are two decisions.
+    it("still infers the rule the user has not touched", async () => {
+      const user = userEvent.setup();
+      withFormats();
+      await dropUnambiguousCsv(user);
+
+      await user.selectOptions(screen.getByLabelText("Decimal separator"), "dot");
+      await user.selectOptions(screen.getByLabelText("Operation date column"), "Date");
+
+      expect(screen.getByLabelText("Date order")).toHaveValue("day-first");
+      expect(screen.getByLabelText("Decimal separator")).toHaveValue("dot");
+    });
+  });
+
+  /**
    * PRD #208's closing promise, and the one no single ticket under it could
    * keep: the divider is **the user's**, not the wizard's. Each of #210–#215 put
    * a split on one more step; what is only true once all six are merged is that
@@ -3656,8 +4956,9 @@ describe("ImportWizard", () => {
       withFormats();
       await dropFrenchCsv(user);
 
-      // The file is what is being read *from* here, so it takes the greater share.
-      expect(paneDivider()).toHaveAttribute("aria-valuenow", "60");
+      // The file is what is being read *from* here, so it takes nearly all of the
+      // width — the widest the divider goes at all.
+      expect(paneDivider()).toHaveAttribute("aria-valuenow", "80");
 
       await mapFrenchColumns(user);
       await user.click(screen.getByRole("button", { name: "Continue to preview" }));
@@ -3674,7 +4975,10 @@ describe("ImportWizard", () => {
       withFormats();
       await dropFrenchCsv(user);
 
-      await dragDivider(user, 2);
+      // Left, because this step opens at the widest the divider goes: dragging
+      // right from 80 would be clamped back to it, and a case whose value cannot
+      // move proves nothing about what is carried.
+      await dragDivider(user, -2);
       expect(paneDivider()).toHaveAttribute("aria-valuenow", "70");
 
       await mapFrenchColumns(user);

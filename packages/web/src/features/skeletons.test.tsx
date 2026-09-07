@@ -5,6 +5,7 @@ import { CategoriesTreeSkeleton } from "./categories/categories-tree-skeleton";
 import { IssuerDetailSkeleton } from "./issuers/issuer-detail-skeleton";
 import { IssuersTableSkeleton } from "./issuers/issuers-table-skeleton";
 import { RecapSkeleton } from "./recap/recap-skeleton";
+import { StatementFormatsSkeleton } from "./accounts/statement-formats-skeleton";
 import { RuleFormSkeleton } from "./rules/rule-form-skeleton";
 import { RulePreviewGridSkeleton } from "./rules/rule-preview-grid-skeleton";
 import { RulePreviewSkeleton } from "./rules/rule-preview-skeleton";
@@ -25,6 +26,7 @@ const SKELETONS: ReadonlyArray<[string, () => React.ReactElement]> = [
   ["RulePreviewGridSkeleton", () => <RulePreviewGridSkeleton label="Loading preview…" />],
   ["RulePreviewSkeleton", () => <RulePreviewSkeleton label="Loading preview…" />],
   ["RulesListSkeleton", () => <RulesListSkeleton />],
+  ["StatementFormatsSkeleton", () => <StatementFormatsSkeleton />],
   ["TransactionDetailSkeleton", () => <TransactionDetailSkeleton />],
   ["TransactionsTableSkeleton", () => <TransactionsTableSkeleton />],
   ["TransferLegsSkeleton", () => <TransferLegsSkeleton label="Loading legs…" />],

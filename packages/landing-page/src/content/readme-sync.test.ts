@@ -89,13 +89,22 @@ describe("the prerequisites", () => {
     }
   });
 
-  it("keep the optional one optional", () => {
+  it("keep the optional ones optional", () => {
     // The `claude` CLI is needed by PDF import on its default provider alone;
     // a page that presents it as required turns a reader away from an app that
     // would have run. What makes it the *default's* rather than PDF import's
     // is the code, and `src/reconcile/facts.test.ts` is where that is read.
-    const optional = INSTALL.prerequisites.filter((p) => !p.required);
-    expect(optional.map((p) => p.name)).toStrictEqual(["The claude CLI"]);
+    //
+    // Named rather than counted: portless is a second optional prerequisite —
+    // it fronts the dev servers at names, and `PORTLESS=0` runs them without
+    // it — so a count of one would fail for a reason that is not the one this
+    // test is about. What must hold is that Bun is the only *required* entry
+    // and that the CLI is not among the required ones.
+    const optional = INSTALL.prerequisites.filter((p) => !p.required).map((p) => p.name);
+    expect(optional).toContain("The claude CLI");
+    expect(INSTALL.prerequisites.filter((p) => p.required).map((p) => p.name)).toStrictEqual([
+      "Bun",
+    ]);
     expect(README_PROSE).toContain("for PDF import on its default provider, the");
   });
 });

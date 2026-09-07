@@ -12,6 +12,12 @@ export type TooltipEntry = {
 export interface ChartTooltipProps {
   /** What the hovered position is — a bucket key, a category name. */
   title: string;
+  /**
+   * The title's own colour, when the tooltip stands for exactly one series —
+   * the donut's arcs. Charts whose readout spans several series leave this
+   * unset and the title stays plain ink.
+   */
+  titleColor?: string;
   entries: readonly TooltipEntry[];
 }
 
@@ -30,25 +36,42 @@ export interface ChartTooltipProps {
  *   *only* by pointing at it — which is what keeps the charts usable on a
  *   touchscreen and to a screen reader.
  *
- * Series are keyed with a short **stroke** rather than a filled box: at tooltip
- * density a solid swatch is data-weight ink doing a label's job. Names arrive
- * from the API (issuer and category names the user typed), so they are rendered
- * as React children — text nodes, never interpolated markup.
+ * A single-series readout carries its colour on the **title** rather than on a
+ * swatch beside the value: the name is already the thing the colour identifies,
+ * so tinting it keys the tooltip to its arc without spending a second element
+ * on the job. Colour is never the only carrier — the name is still written out.
+ * Names arrive from the API (issuer and category names the user typed), so they
+ * are rendered as React children — text nodes, never interpolated markup.
  */
-export function ChartTooltip({ title, entries }: ChartTooltipProps) {
+export function ChartTooltip({ title, titleColor, entries }: ChartTooltipProps) {
   return (
     <div className="min-w-40 rounded-xl border border-gousse-line bg-gousse-panel p-3 shadow-gousse-lg">
-      <p className="mb-2 text-xs font-medium text-gousse-muted">{title}</p>
+      <p
+        className="mb-2 text-xs font-medium text-gousse-ink"
+        style={titleColor ? { color: titleColor } : undefined}
+      >
+        {title}
+      </p>
       <ul className="flex flex-col gap-1.5">
         {entries.map((entry) => (
           <li key={entry.label} className="flex items-baseline justify-between gap-4">
+            {/* One line, never wrapped: a row label is a short fixed phrase
+                ("12% of spending", "Earned"), so the row reads as a single
+                sentence against its figure. The series name — the part that can
+                be arbitrarily long — is the title, which wraps freely. */}
             <span className="flex min-w-0 items-center gap-2">
-              <span
-                aria-hidden
-                className="h-0.5 w-3 shrink-0 rounded-full"
-                style={{ backgroundColor: entry.color }}
-              />
-              <span className="truncate text-xs text-gousse-muted">{entry.label}</span>
+              {/* A stroke only where it still has a job: multi-series readouts
+                  key each row by colour. A single-series tooltip carries its
+                  colour on the title instead, so a swatch here would be a
+                  second element saying what the title already says. */}
+              {titleColor ? null : (
+                <span
+                  aria-hidden
+                  className="h-0.5 w-3 shrink-0 rounded-full"
+                  style={{ backgroundColor: entry.color }}
+                />
+              )}
+              <span className="whitespace-nowrap text-xs text-gousse-muted">{entry.label}</span>
             </span>
             <span className="shrink-0 text-right">
               <span className="block text-sm font-medium tabular-nums text-gousse-ink">

@@ -1,4 +1,4 @@
-import { API_DEV_PORT, WEB_DEV_PORT } from "@mamen/shared/ports";
+import { API_DEV_PORT, WEB_DEV_PORT, WEB_PORTLESS_ORIGIN } from "@mamen/shared/ports";
 import { Config } from "effect";
 
 /**
@@ -57,8 +57,20 @@ export const LogodevToken = Config.option(Config.string("LOGODEV_TOKEN"));
  */
 export const TokenEncryptionKey = Config.option(Config.redacted("TOKEN_ENCRYPTION_KEY"));
 
-/** Comma-separated allowed CORS origins; defaults to the Vite dev server. */
+/**
+ * Comma-separated allowed CORS origins; defaults to the web dev server, under
+ * both the spellings it is reachable by.
+ *
+ * The package has two ways to be run and the browser's origin differs between
+ * them: the registry's row when run directly (`PORTLESS=0 bun dev:app`), and
+ * the portless hostname when run behind the proxy (`portless.json`). Both are
+ * defaulted because the default's whole job is that a fresh clone works
+ * without an `.env` — naming only one makes the other's requests fail
+ * preflight, which reads as a broken API rather than a missing variable.
+ *
+ * Unused in production, where the SPA and the API share an origin.
+ */
 export const CorsOrigins = Config.string("CORS_ORIGINS").pipe(
-  Config.withDefault(`http://localhost:${WEB_DEV_PORT}`),
+  Config.withDefault([`http://localhost:${WEB_DEV_PORT}`, WEB_PORTLESS_ORIGIN].join(",")),
   Config.map((raw) => raw.split(",").map((s) => s.trim())),
 );

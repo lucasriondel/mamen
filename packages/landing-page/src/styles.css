@@ -20,6 +20,14 @@
    for the paragraphs this page sets in it, so it is stepped down the same warm
    ramp until it clears 4.5:1. Dark needs no such step.
 
+   The **layout and the colour placement** are the sibling project's: an icon
+   and an accent wordmark over a full-width hero, an accent-filled call to
+   action, a sticky section rail beside the prose that collapses to a scrolling
+   row of pills on a phone, and accent section headings. The accent fills here
+   rather than only highlighting, which is a deliberate change from what this
+   page did before — the two products are meant to read as one design language,
+   and the button a reader is meant to press is the place that shows it.
+
    Dark is a media query, not a class: the app resolves a stored choice with a
    script before first paint, and this page ships no JavaScript at all, so the
    reader's preference is the whole input. */
@@ -31,10 +39,15 @@
   --muted: #6b6b67;
   --line: #e2ded7;
   --accent: #2563eb;
+  /* The label struck against the accent fill. Light's accent is dark enough to
+     carry near-white; dark's is a pale blue, so the label there is the page's
+     own ink rather than white on light blue. */
+  --accent-contrast: #fbfaf8;
   /* One step off the background, for the command blocks. Stepped along the
      same warm ramp as the rest, so a `pre` reads as a raised panel rather
      than a grey patch. */
   --raised: #f2efe9;
+  --shadow-lg: 0 6px 16px rgba(0, 0, 0, 0.1);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -44,7 +57,9 @@
     --muted: #9c9c96;
     --line: #44423c;
     --accent: #60a5fa;
+    --accent-contrast: #0d0d0c;
     --raised: #131311;
+    --shadow-lg: 0 6px 16px rgba(0, 0, 0, 0.5);
   }
 }
 
@@ -54,9 +69,12 @@
   box-sizing: border-box;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
   margin: 0;
-  padding: 4rem 1.5rem;
   background: var(--bg);
   color: var(--ink);
   font-family:
@@ -67,17 +85,86 @@ body {
     Roboto,
     sans-serif;
   line-height: 1.6;
+  overflow-wrap: break-word;
   -webkit-font-smoothing: antialiased;
 }
 
-main {
-  max-width: 42rem;
+/* The page runs wider than a reading column because it carries the app
+   screenshot and a second column beside the prose. The prose inside it stays
+   at reading width — see `.layout main`. */
+.page {
+  max-width: 66rem;
   margin: 0 auto;
+  padding: 3.5rem 1.5rem 4rem;
+}
+
+/* ── The wordmark ────────────────────────────────────────────────────────── */
+
+.site-header {
+  padding-top: 1.5rem;
+}
+
+/* The app icon beside the product name, in the accent, exactly as the app's own
+   sidebar opens. Centred, because the hero under it is. */
+.wordmark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  margin: 0 0 2.5rem;
+  font-size: clamp(1.6rem, 4vw, 2.1rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--accent);
+}
+
+/* Sized in em so it tracks the text it sits beside. The radius is the app's
+   own on this mark. */
+.wordmark-mark {
+  width: 1.5em;
+  height: 1.5em;
+  flex: none;
+  border-radius: 0.35em;
+}
+
+/* ── Hero ────────────────────────────────────────────────────────────────── */
+
+/* Screenshot on top, copy under it, one column at every width. The frame is
+   the whole point of the page's first screen, so it takes the full column
+   rather than half of it — at half width the rows inside it stop being
+   legible, which is the thing a reader came to see. */
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2.5rem;
+  width: 100%;
+}
+
+/* The copy is a reading column, not the full width of the image above it, and
+   it is centred under the shot so the two share an axis. */
+.hero-copy {
+  min-width: 0;
+  max-width: 42rem;
+  margin-inline: auto;
+  text-align: center;
+}
+
+/* Centred copy stops paying its way once the lines are short enough to wrap
+   three or four times; below the page's one breakpoint it reads left. */
+@media (max-width: 52rem) {
+  .hero {
+    gap: 2rem;
+  }
+
+  .hero-copy {
+    text-align: left;
+  }
 }
 
 h1 {
   margin: 0 0 0.5rem;
-  font-size: 3rem;
+  font-size: clamp(2rem, 7vw, 3rem);
+  line-height: 1.15;
   letter-spacing: -0.03em;
   color: var(--ink);
 }
@@ -89,10 +176,11 @@ h1 {
 }
 
 .points {
-  margin: 0 0 2.5rem;
+  margin: 0 0 2rem;
   padding: 0;
   list-style: none;
   border-top: 1px solid var(--line);
+  text-align: left;
 }
 
 .points li {
@@ -106,67 +194,109 @@ h1 {
   font-weight: 600;
 }
 
-/* The screenshots (issue #149). The heaviest thing the page ships and the
-   only part of it that shows the app rather than describing it, so they are
-   given the width the page can spare and nothing else changes for them.
+/* ── Two-column layout: sticky section rail beside the prose ─────────────── */
 
-   The frames are captured at 2880×1800 — a 1440×900 app at a device scale
-   factor of 2 — and the tag carries that size so the browser can reserve the
-   box before the bytes land. Scaling them back down here is what makes them
-   sharp on a retina screen and, more importantly, what stops an intrinsic
-   width four times the reading column from deciding the width of the page. */
-
-.screenshots figure {
-  margin: 0 0 2rem;
+.layout {
+  display: grid;
+  grid-template-columns: 13rem minmax(0, 1fr);
+  gap: 2.5rem;
+  align-items: start;
+  margin-top: 3.5rem;
 }
 
-.screenshots img {
+/* The prose keeps its reading width inside the wider page. */
+.layout main {
+  min-width: 0;
+  max-width: 42rem;
+}
+
+.side-menu {
+  position: sticky;
+  top: 1.5rem;
+}
+
+/* The app's mark above the entries, where the app's own sidebar puts it. */
+.side-menu-brand {
+  margin: 0 0 1rem;
+  padding-left: 0.35rem;
+}
+
+.side-menu-mark {
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 0.375rem;
+}
+
+.side-menu-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* The app's sidebar row: a full-width pill that fills on hover. The fill is a
+   tint of the accent mixed into the page, not the accent itself — see the note
+   on `.cta` below. */
+.side-menu-link {
   display: block;
-  max-width: 100%;
-  /* The attribute pins the intrinsic height; without this the scaled frame
-     keeps it and the app comes out squashed. */
-  height: auto;
-  border: 1px solid var(--line);
-  border-radius: 0.5rem;
-}
-
-.screenshots figcaption {
-  margin: 0.75rem 0 0;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.15rem;
+  border-radius: 0.6rem;
   color: var(--muted);
-  font-size: 0.9375rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+  text-decoration: none;
 }
 
-.screenshots figcaption strong {
+.side-menu-link:hover,
+.side-menu-link:focus-visible {
+  background: color-mix(in srgb, var(--ink) 6%, var(--bg));
   color: var(--ink);
-  font-weight: 600;
 }
 
-/* Wider than the prose, where the screen has the room. A screenshot of a
-   1440-px app is readable in the 42rem reading column and considerably better
-   in 56rem, but the reading column is 42rem because that is how wide prose
-   wants to be — so the figures step out of it rather than the page widening.
+section[id] {
+  scroll-margin-top: 1.5rem;
+}
 
-   The query is what keeps that safe: below 64rem the section is left in the
-   column, which is already the viewport minus the body's padding, so nothing
-   is ever pulled under the edge of a phone. 64rem is the narrowest viewport
-   where 56rem of figure plus that padding still fits, with room over. */
-@media (min-width: 64rem) {
-  .screenshots {
-    width: 56rem;
-    /* Centred on the column rather than auto-margined: a block wider than its
-       parent over-constrains `auto` to zero and would hang off one side. */
-    margin-left: -7rem;
+@media (max-width: 52rem) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.5rem;
+  }
+
+  .side-menu {
+    position: static;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 0.75rem;
+  }
+
+  /* A logo in front of a scrolling row of pills only pushes them sideways. */
+  .side-menu-brand {
+    display: none;
+  }
+
+  /* A row of pills that scrolls on its own rather than widening the page. */
+  .side-menu-list {
+    display: flex;
+    gap: 0.4rem;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .side-menu-link {
+    white-space: nowrap;
+    margin-bottom: 0;
   }
 }
 
-/* The install guide (issue #147). Running mamen yourself is the only call to
-   action the page can honestly make, so the steps get the room to be read as
-   instructions rather than as a feature list. */
+/* ── Sections ────────────────────────────────────────────────────────────── */
 
+/* The accent names the section, which is what the rail's entries point at —
+   so a reader scanning for one is looking for the coloured line. */
 h2 {
   margin: 0 0 0.5rem;
   font-size: 1.5rem;
   letter-spacing: -0.02em;
+  color: var(--accent);
 }
 
 h3 {
@@ -181,10 +311,209 @@ section {
   border-top: 1px solid var(--line);
 }
 
+/* The first section sits under the hero, which already carries a rule of its
+   own along the bottom of the points list. */
+.layout main > section:first-of-type {
+  padding-top: 0;
+  border-top: none;
+}
+
 .section-lead {
   margin: 0 0 1.5rem;
   color: var(--muted);
 }
+
+/* ── The screenshots ─────────────────────────────────────────────────────── */
+
+/* The heaviest thing the page ships and the only part of it that shows the app
+   rather than describing it.
+
+   The frames are captured at 2880×1800 — a 1440×900 app at a device scale
+   factor of 2 — and the tag carries that size so the browser can reserve the
+   box before the bytes land. Scaling them back down here is what makes them
+   sharp on a retina screen and, more importantly, what stops an intrinsic
+   width four times the reading column from deciding the width of the page. */
+
+figure {
+  margin: 0 0 2rem;
+}
+
+figure img {
+  display: block;
+  max-width: 100%;
+  /* The attribute pins the intrinsic height; without this the scaled frame
+     keeps it and the app comes out squashed. */
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: 0.9rem;
+}
+
+/* The frames are the page's first screen, so they are given depth: they sit on
+   the page rather than in the prose.
+
+   The border is brightened rather than left at `--line`. Every frame is a
+   screenshot of the app in the reader's own scheme, which in dark means a
+   near-black UI on a near-black page — at `--line` the edge disappears and the
+   first thing a visitor sees is an unresolved dark rectangle. This is the
+   contrast that says where the app stops and the page starts. */
+.hero-cycle img {
+  border-color: color-mix(in srgb, var(--ink) 22%, var(--bg));
+  box-shadow: var(--shadow-lg);
+}
+
+/* ── The hero's cycle ────────────────────────────────────────────────────── */
+
+/* Every surface, stacked in one frame and cross-faded
+   (`src/components/HeroScreenshotCycle.tsx`).
+
+   The stack is positioned rather than gridded because the frames must not
+   affect each other's box at all: the first stays in flow and gives the figure
+   its height, and the rest are laid over it. They are the same intrinsic size —
+   one capture viewport, `src/screenshots/manifest.ts` — so "over it" is exactly
+   on top of it.
+
+   `--turn` is how long one surface holds before handing over. The rotation is
+   that times the number of surfaces, and the keyframes below are written for
+   the two the capture ships — `--frames`, which the component writes on the
+   element, is what `styles.test.ts` reads to hold the two in step. */
+.hero-cycle {
+  --turn: 5s;
+
+  position: relative;
+  margin: 0;
+}
+
+.hero-frame {
+  display: block;
+}
+
+/* Every frame after the first is lifted out of flow onto the first one. */
+.hero-frame:not(:first-child) {
+  position: absolute;
+  inset: 0;
+}
+
+/* Without motion, the page shows the frame it leads with and nothing moves.
+   That is the honest still of a cycle rather than a degraded one: the leading
+   surface is the one the alt text describes, and it is the one that stays. */
+.hero-frame:not(:first-child) img {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* One animation per frame, all the same length — the whole rotation — each
+     started at its own offset into it. A frame is opaque for its turn and
+     transparent for the rest, so the two either side of a hand-off overlap for
+     the length of the fade: a cross-fade, from one declaration and no script.
+
+     The offsets run backwards — frame 0 at zero, each later one further into
+     the past — so that the page opens on the surface the alt text describes
+     rather than on whichever one the cycle happened to reach. A visitor's
+     first sight of the app and a screen reader's account of it are then the
+     same screen.
+
+     The stops are literal because a keyframe's stops have to be — `calc()` is
+     not allowed there, so the shape below is written for the two surfaces the
+     capture ships and `styles.test.ts` holds the count to it. A third surface
+     is a real change to this rule, not a variable it can absorb, and that test
+     is what says so out loud. */
+  .hero-frame img {
+    animation: hero-cycle calc(var(--turn) * 2) ease-in-out infinite;
+    animation-delay: calc(var(--frame) * var(--turn) * -1);
+  }
+}
+
+/* Two surfaces: opaque for the first half of the rotation, transparent for the
+   second, with a ramp on either side of each hand-off. The hand-off is 9% of
+   the rotation — 900ms of the 10s the two turns add up to — taken off the end
+   of each half, which is long enough to read as a dissolve and short enough
+   that neither surface spends its turn half-transparent. */
+@keyframes hero-cycle {
+  0%,
+  41% {
+    opacity: 1;
+  }
+
+  50%,
+  91% {
+    opacity: 0;
+  }
+
+  100% {
+    opacity: 1;
+  }
+}
+
+/* ── The feature list ────────────────────────────────────────────────────── */
+
+/* Ruled rows rather than a grid of cards. Two things follow from that, and
+   both are the reason for it: the number of features stops affecting the
+   layout — a ninth is another row, where a two-column grid left the ninth
+   alone on a row of its own — and a short description no longer sits in a box
+   stretched to the height of a long one beside it. */
+.feature-list {
+  margin: 1.25rem 0 0;
+  border-top: 1px solid var(--line);
+}
+
+/* Three columns: the glyph, the name, the description. The name column is
+   bounded rather than fluid so every description starts on the same axis down
+   the list, and it is a max rather than a fixed width so a long name wraps
+   inside its own column instead of pushing the description narrower. */
+.feature {
+  display: grid;
+  grid-template-columns: 1.6rem minmax(0, 11rem) minmax(0, 1fr);
+  gap: 0 1rem;
+  align-items: start;
+  padding: 0.95rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.feature dt {
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+/* `dd` carries a default indent in every browser; the columns are the
+   alignment here, so it is removed rather than added to. */
+.feature dd {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+/* The glyph is the row's own column. The top margin is optical — a 24x24
+   square hung from the grid row's top edge sits high against the first line of
+   a 1.5 line-height name. */
+.feature-icon {
+  width: 1.15rem;
+  height: 1.15rem;
+  flex: none;
+  margin-top: 0.25rem;
+  color: var(--accent);
+}
+
+/* Below the point where a name and its description stop both fitting, the two
+   stack under the glyph rather than the columns squeezing. The description
+   moves into the name's column so it stays aligned with it, indented past the
+   glyph that labels the pair. */
+@media (max-width: 40rem) {
+  .feature {
+    grid-template-columns: 1.6rem minmax(0, 1fr);
+  }
+
+  .feature dd {
+    grid-column: 2;
+    margin-top: 0.15rem;
+  }
+}
+
+/* ── The install guide ───────────────────────────────────────────────────── */
+
+/* Running mamen yourself is the only call to action the page can honestly
+   make, so the steps get the room to be read as instructions rather than as a
+   feature list. */
 
 .prerequisites,
 .servers,
@@ -201,13 +530,39 @@ section {
   margin: 0 0 0.5rem;
 }
 
+/* The number sits in the gutter as a filled disc, the way the app numbers a
+   sequence — so the list's own marker is dropped and a counter takes over. */
 .steps {
+  list-style: none;
+  counter-reset: step;
   margin: 0 0 1.5rem;
-  padding: 0 0 0 1.25rem;
+  padding: 0;
 }
 
-.steps li {
-  margin: 0 0 1.5rem;
+.step {
+  counter-increment: step;
+  position: relative;
+  padding-left: 2.5rem;
+  margin: 0 0 1.75rem;
+}
+
+/* Absolute, so a wrapped title lines up under itself rather than under the
+   disc. Tinted with ink rather than filled with the accent: blue is the
+   highlight in this design language, never the fill. */
+.step::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: 0.15rem;
+  display: grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--ink) 8%, var(--bg));
+  color: var(--ink);
+  font-size: 0.85rem;
+  font-weight: 700;
 }
 
 .steps p {
@@ -242,12 +597,21 @@ code {
   color: var(--muted);
 }
 
+/* ── Actions ─────────────────────────────────────────────────────────────── */
+
 .actions {
   display: flex;
   flex-wrap: wrap;
   gap: 1rem;
   align-items: center;
+  justify-content: center;
   margin: 0;
+}
+
+@media (max-width: 52rem) {
+  .actions {
+    justify-content: flex-start;
+  }
 }
 
 /* The accent's job on this page: the colour a link is, and the ring a keyboard
@@ -263,25 +627,29 @@ a:focus-visible {
   border-radius: 0.375rem;
 }
 
-/* The app's primary button, in plain CSS: an **ink**-filled pill with a
-   background-coloured label, not an accent-filled one. Blue is the highlight in
-   this design language, never the fill, and a call to action that got that
-   wrong would misrepresent the screen it opens. */
+/* The call to action: an accent-filled pill carrying the mark of where it
+   goes. The label colour is not the page background but a near-white struck
+   against the accent itself, so the text clears contrast in both schemes —
+   the dark scheme's accent is light enough that a `--bg`-coloured label on it
+   would be pale-on-pale (`styles.test.ts` holds the ratio). */
 .cta {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
   padding: 0.625rem 1.25rem;
   border-radius: 9999px;
-  background: var(--ink);
-  color: var(--bg);
-  font-weight: 500;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-weight: 600;
   text-decoration: none;
 }
 
-/* `hover:bg-gousse-ink/90` over the page background, resolved statically — the
-   app's ink at 90% opacity is its ink mixed a tenth of the way to what is
-   behind it. */
+.cta-icon {
+  flex-shrink: 0;
+}
+
 .cta:hover {
-  background: color-mix(in srgb, var(--ink) 90%, var(--bg));
+  background: color-mix(in srgb, var(--accent) 88%, var(--ink));
 }
 
 .cta:active {
@@ -295,6 +663,23 @@ a:focus-visible {
 
 .secondary:hover {
   color: var(--ink);
+}
+
+/* ── Footer ──────────────────────────────────────────────────────────────── */
+
+.site-footer {
+  border-top: 1px solid var(--line);
+  margin-top: 3rem;
+  padding-top: 1.5rem;
+}
+
+/* The third-party notice the icon licence asks for: present and readable, and
+   set below the page's own words so it does not compete with them. */
+.colophon {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
 }
 
 @media (prefers-reduced-motion: no-preference) {

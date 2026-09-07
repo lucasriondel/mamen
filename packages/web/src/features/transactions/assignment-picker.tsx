@@ -17,7 +17,9 @@ import { hasExactIssuerName } from "@/features/issuers/issuer-name";
 import { useIssuerSearch } from "@/features/issuers/use-issuer-search";
 import { escapeRegex } from "@/features/rules/escape-regex";
 import { formatShortDate } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { isPaypalRawIssuer, paypalActivityUrl } from "./paypal-activity";
+import { UNRESOLVED_CELL } from "./transaction-cells";
 import { useAssignIssuer } from "./use-assign-issuer";
 
 export interface AssignmentPickerProps {
@@ -173,7 +175,13 @@ export function AssignmentPicker({ transactionId, rawIssuerString, date }: Assig
         render={
           <button
             type="button"
-            className="flex items-center gap-1.5 rounded-full px-2 py-0.5 text-gousse-muted italic outline-none transition-colors hover:text-gousse-ink focus-visible:ring-2 focus-visible:ring-gousse-accent"
+            className={cn(
+              "flex items-center gap-1.5 rounded-full px-2 py-0.5 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-gousse-accent",
+              // The same unfilled-cell mark the read-only `IssuerCell` wears —
+              // one state, one look, whether or not the row can be curated here.
+              UNRESOLVED_CELL,
+              "hover:decoration-gousse-high",
+            )}
             title="Assign an issuer"
             data-unresolved="true"
           >

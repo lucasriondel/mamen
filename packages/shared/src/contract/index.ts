@@ -66,13 +66,16 @@ export {
 } from "./ids";
 export {
   DeclaredTotals,
+  DiscoverPdfResult,
   ExtractedTransaction,
   ExtractionFailed,
   ExtractPdfResult,
   FormatVerdict,
   ImportGroup,
   MAX_PDF_BYTES,
+  NoTransactionTable,
   PdfUpload,
+  StatementUpload,
 } from "./import";
 export {
   Issuer,
@@ -119,12 +122,14 @@ export {
   DecimalSeparator,
   MappedTarget,
   PdfStatementFormat,
+  RAW_ISSUER_JOINER,
   RowFilter,
   SignRule,
   StatementFormat,
   StatementFormatCreate,
   StatementFormatListFilters,
   StatementFormatsGroup,
+  StatementFormatUpdate,
   ValueRules,
 } from "./statement-formats";
 export {

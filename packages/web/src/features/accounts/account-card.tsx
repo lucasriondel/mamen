@@ -10,6 +10,7 @@ import { formatIban } from "./account-iban";
 import { AccountMonthStrip } from "./account-month-strip";
 import { accountTypeLabel } from "./account-type";
 import { type MonthCellSpec, monthProgress } from "./month-grid";
+import { StatementFormatsDialog } from "./statement-formats-dialog";
 import { useAccountMutations } from "./use-account-mutations";
 
 export interface AccountCardProps {
@@ -55,6 +56,7 @@ export interface AccountCardProps {
 export function AccountCard({ account, year, cells }: AccountCardProps) {
   const { edit, recolor, remove } = useAccountMutations();
   const [editing, setEditing] = useState(false);
+  const [formatsOpen, setFormatsOpen] = useState(false);
 
   const countQuery = useQuery(transactionQueries.count({ accountId: account.id }));
   const transactionCount = countQuery.data?.count ?? 0;
@@ -120,6 +122,7 @@ export function AccountCard({ account, year, cells }: AccountCardProps) {
           <AccountActionsMenu
             name={account.name}
             onEdit={() => setEditing(true)}
+            onViewFormats={() => setFormatsOpen(true)}
             onDelete={handleDelete}
             blocked={hasTransactions}
             deleting={remove.isPending}
@@ -144,6 +147,13 @@ export function AccountCard({ account, year, cells }: AccountCardProps) {
         accountName={account.name}
         year={year}
         cells={cells}
+      />
+
+      <StatementFormatsDialog
+        open={formatsOpen}
+        onOpenChange={setFormatsOpen}
+        accountId={account.id}
+        accountName={account.name}
       />
     </li>
   );

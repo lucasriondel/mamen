@@ -30,7 +30,7 @@ const asId = Schema.decodeSync(StatementFormatId);
 
 const MAPPING = {
   date: "Date",
-  rawIssuerString: "Intitulé",
+  rawIssuerString: ["Intitulé"],
   counterpartyIban: "IBAN du tiers",
 } as const;
 
@@ -221,6 +221,116 @@ describe("statement-formats endpoints", () => {
       // The discriminant decides which list a format declares. A CSV format
       // with no header fingerprint could never be detected against a file.
       assert.strictEqual(res.status, 400);
+    }).pipe(Effect.provide(HttpLive)),
+  );
+
+  it.effect("update renames the format and leaves its mapping alone", () =>
+    Effect.gen(function* () {
+      const client = yield* HttpApiClient.make(Api);
+      const created = yield* client.statementFormats.create({ payload: csvFormat() });
+
+      const renamed = yield* client.statementFormats.update({
+        path: { id: created.id },
+        payload: { name: "Green-Got (2026 export)" },
+      });
+
+      assert.strictEqual(renamed.name, "Green-Got (2026 export)");
+      // A rename is the *only* edit: what the format reads is untouched, which
+      // is what keeps it describing the rows it has already parsed.
+      assert.deepStrictEqual(renamed.mapping, MAPPING);
+      assert.deepStrictEqual(renamed.rules, RULES);
+      assert.deepStrictEqual(renamed.kind === "csv" ? renamed.headers : [], [
+        "Statut",
+        "Date",
+        "Montant",
+        "Direction",
+        "Intitulé",
+      ]);
+    }).pipe(Effect.provide(HttpLive)),
+  );
+
+  // `updatedAt` was stamped once and equalled `createdAt` for a row's whole life
+  // until a rename existed. This is the assertion that it now means something.
+  it.effect("update moves updatedAt past createdAt", () =>
+    Effect.gen(function* () {
+      const client = yield* HttpApiClient.make(Api);
+      const created = yield* client.statementFormats.create({ payload: csvFormat() });
+      assert.strictEqual(created.createdAt.getTime(), created.updatedAt.getTime());
+
+      const renamed = yield* client.statementFormats.update({
+        path: { id: created.id },
+        payload: { name: "Renamed" },
+      });
+      assert.isAtLeast(renamed.updatedAt.getTime(), renamed.createdAt.getTime());
+      assert.strictEqual(renamed.createdAt.getTime(), created.createdAt.getTime());
+    }).pipe(Effect.provide(HttpLive)),
+  );
+
+  it.effect("update 404s on a missing id", () =>
+    Effect.gen(function* () {
+      const client = yield* HttpApiClient.make(Api);
+      const error = yield* client.statementFormats
+        .update({ path: { id: asId(404) }, payload: { name: "Nope" } })
+        .pipe(Effect.flip);
+      assert.strictEqual(error._tag, "NotFound");
+    }).pipe(Effect.provide(HttpLive)),
+  );
+
+  it.effect("remove deletes the format and leaves the account's others", () =>
+    Effect.gen(function* () {
+      const client = yield* HttpApiClient.make(Api);
+      const doomed = yield* client.statementFormats.create({
+        payload: csvFormat({ name: "Junk" }),
+      });
+      yield* client.statementFormats.create({ payload: csvFormat({ name: "Keep" }) });
+
+      yield* client.statementFormats.remove({ path: { id: doomed.id } });
+
+      const left = yield* client.statementFormats.list({
+        urlParams: { limit: 50, offset: 0, accountId: asAccount(1) },
+      });
+      assert.deepStrictEqual(
+        left.items.map((f) => f.name),
+        ["Keep"],
+      );
+      assert.strictEqual(left.total, 1);
+    }).pipe(Effect.provide(HttpLive)),
+  );
+
+  it.effect("remove makes the format unreadable afterwards", () =>
+    Effect.gen(function* () {
+      const client = yield* HttpApiClient.make(Api);
+      const created = yield* client.statementFormats.create({ payload: csvFormat() });
+      yield* client.statementFormats.remove({ path: { id: created.id } });
+
+      const error = yield* client.statementFormats
+        .getById({ path: { id: created.id } })
+        .pipe(Effect.flip);
+      assert.strictEqual(error._tag, "NotFound");
+    }).pipe(Effect.provide(HttpLive)),
+  );
+
+  // Deleting twice is not idempotent, deliberately: the second call is asking
+  // about a format that does not exist, which is the same question `getById`
+  // answers with a 404.
+  it.effect("remove 404s on a missing id", () =>
+    Effect.gen(function* () {
+      const client = yield* HttpApiClient.make(Api);
+      const error = yield* client.statementFormats
+        .remove({ path: { id: asId(404) } })
+        .pipe(Effect.flip);
+      assert.strictEqual(error._tag, "NotFound");
+    }).pipe(Effect.provide(HttpLive)),
+  );
+
+  it.effect("remove answers 204", () =>
+    Effect.gen(function* () {
+      const client = yield* HttpApiClient.make(Api);
+      yield* client.statementFormats.create({ payload: csvFormat() });
+
+      const http = yield* HttpClient.HttpClient;
+      const res = yield* http.del("/api/statement-formats/1");
+      assert.strictEqual(res.status, 204);
     }).pipe(Effect.provide(HttpLive)),
   );
 

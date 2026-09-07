@@ -18,6 +18,24 @@ describe("AmountCell", () => {
     expect(el).toHaveClass("text-gousse-low");
     expect(el.textContent).toMatch(/^\+/);
   });
+
+  // Excluded money is outside every total, so it drops the sign colour that
+  // stands for a contribution to one (issue #67). Muted, not struck: the
+  // transaction was really spent, it is simply not counted here.
+  it("excluded: mutes the amount and drops the sign colour, keeping the figure", () => {
+    render(<AmountCell amount={-42} excluded />);
+    const el = screen.getByText(/42/);
+    expect(el).toHaveClass("text-gousse-muted");
+    expect(el).not.toHaveClass("text-gousse-high");
+    // Still legible as the debit it is — nothing is struck through or hidden.
+    expect(el).toHaveClass("tabular-nums");
+    expect(el.textContent).toMatch(/^-/);
+  });
+
+  it("excluded: leaves a counted amount untouched", () => {
+    render(<AmountCell amount={-42} excluded={false} />);
+    expect(screen.getByText(/42/)).toHaveClass("text-gousse-high");
+  });
 });
 
 const issuer: Issuer = {
@@ -39,12 +57,16 @@ describe("IssuerCell", () => {
     expect(screen.getByTestId("issuer-avatar")).toHaveAttribute("data-avatar", "none");
   });
 
-  it("unresolved: shows the muted raw text with a needs-issuer affordance", () => {
+  it("unresolved: marks the raw text as a field still to fill", () => {
     render(<IssuerCell rawIssuerString="SPOTIFY P2A34" />);
     expect(screen.getByText("SPOTIFY P2A34")).toBeInTheDocument();
     const cell = screen.getByText("SPOTIFY P2A34").closest("[data-unresolved]");
     expect(cell).toHaveAttribute("data-unresolved", "true");
-    expect(cell).toHaveClass("text-gousse-muted");
+    // The to-do is said here, in the field that is empty — red with a dotted
+    // underline, matching the row's gutter rail. Muted italic (what this was)
+    // read as "unimportant" rather than "unfinished".
+    expect(cell).toHaveClass("text-gousse-high");
+    expect(cell).toHaveClass("decoration-dotted");
   });
 
   it("manual: marks a hand-picked issuer, mirroring an overridden category", () => {

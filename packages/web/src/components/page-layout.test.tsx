@@ -100,7 +100,7 @@ describe("PageLayout", () => {
     expect(screen.queryByRole("link")).toBeNull();
   });
 
-  it("renders a drill-down's way back above the title row", () => {
+  it("renders a drill-down's way back ahead of the title", () => {
     renderLayout(
       <PageLayout title="Groceries" back={<a href="/categories">Categories</a>}>
         <p>body</p>
@@ -111,8 +111,8 @@ describe("PageLayout", () => {
       name: "Categories",
     });
     const heading = screen.getByRole("heading", { name: "Groceries" });
-    // Above the title, not beside it: it is the way out of this page, not one
-    // of its actions.
+    // Leading the bar, before the title: it is the way out of this page, not
+    // one of its actions pinned to the far end.
     expect(back.compareDocumentPosition(heading)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
@@ -125,30 +125,31 @@ describe("PageLayout", () => {
     expect(trigger()).not.toBeNull();
   });
 
-  it("renders the title's description under it, and the page under both", () => {
+  it("renders the description in the content region, ahead of the page", () => {
     renderLayout(
       <PageLayout title="Accounts" description="The accounts your statements belong to.">
         <p>body</p>
       </PageLayout>,
     );
 
-    expect(
-      within(topbar("Accounts")).getByText("The accounts your statements belong to."),
-    ).toBeInTheDocument();
-    // The page itself is outside the topbar — a layout, not a header.
+    const description = screen.getByText("The accounts your statements belong to.");
+    // The bar holds the compact title row; the sentence lives under it, at the
+    // top of the scroll region, ahead of the page itself.
+    expect(within(topbar("Accounts")).queryByText(description.textContent as string)).toBeNull();
+    const body = screen.getByText("body");
+    expect(description.compareDocumentPosition(body)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    // Both share the scroll region, outside the bar.
     expect(within(topbar("Accounts")).queryByText("body")).toBeNull();
-    expect(screen.getByText("body")).toBeInTheDocument();
   });
 
   it("takes the page's own width and rhythm without losing its own", () => {
-    const { container } = renderLayout(
-      <PageLayout title="Accounts" className="mx-auto max-w-4xl gap-8" />,
-    );
+    renderLayout(<PageLayout title="Accounts" className="mx-auto max-w-4xl gap-8" />);
 
-    const section = container.querySelector("section") as HTMLElement;
+    // The content region is the sibling after the bar — gousse's `AppContent`.
+    const content = topbar("Accounts").nextElementSibling as HTMLElement;
     // Tailwind-merged, so a page can widen or re-space itself without having to
     // restate the column the layout is.
-    expect(section).toHaveClass("mx-auto", "max-w-4xl", "gap-8", "flex-col");
-    expect(section).not.toHaveClass("gap-6");
+    expect(content).toHaveClass("mx-auto", "max-w-4xl", "gap-8", "flex-col");
+    expect(content).not.toHaveClass("gap-6");
   });
 });

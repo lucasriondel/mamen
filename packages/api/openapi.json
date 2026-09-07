@@ -5873,7 +5873,10 @@
                             "type": "string"
                           },
                           "rawIssuerString": {
-                            "type": "string"
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
                           },
                           "counterpartyIban": {
                             "anyOf": [
@@ -6057,7 +6060,10 @@
                             "type": "string"
                           },
                           "rawIssuerString": {
-                            "type": "string"
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
                           },
                           "counterpartyIban": {
                             "anyOf": [
@@ -6252,6 +6258,129 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NotFound",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFound"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Statement formats"
+        ],
+        "operationId": "statementFormats.update",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": {
+              "$ref": "#/components/schemas/NumberFromString"
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "CsvStatementFormat",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/CsvStatementFormat"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PdfStatementFormat"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NotFound",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFound"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        }
+      },
+      "delete": {
+        "tags": [
+          "Statement formats"
+        ],
+        "operationId": "statementFormats.remove",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": {
+              "$ref": "#/components/schemas/NumberFromString"
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "204": {
+            "description": "Success"
           },
           "400": {
             "description": "The request did not match the expected schema",
@@ -7055,6 +7184,107 @@
                   },
                   "formatId": {
                     "$ref": "#/components/schemas/NumberFromString"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/import/discover-pdf": {
+      "post": {
+        "tags": [
+          "Import"
+        ],
+        "operationId": "import.discoverPdf",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "DiscoverPdfResult",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscoverPdfResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request did not match the expected schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpApiDecodeError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "InvalidFileType",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidFileType"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "NoTransactionTable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoTransactionTable"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "InternalServerError"
+          },
+          "501": {
+            "description": "AiProviderNotConfigured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiProviderNotConfigured"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "ExtractionFailed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtractionFailed"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PersistedFile"
+                    },
+                    "description": "an array of exactly 1 item(s)",
+                    "title": "itemsCount(1)",
+                    "minItems": 1,
+                    "maxItems": 1
                   }
                 },
                 "additionalProperties": false
@@ -8084,7 +8314,10 @@
                 "type": "string"
               },
               "rawIssuerString": {
-                "type": "string"
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
               },
               "counterpartyIban": {
                 "anyOf": [
@@ -8282,7 +8515,10 @@
                 "type": "string"
               },
               "rawIssuerString": {
-                "type": "string"
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
               },
               "counterpartyIban": {
                 "anyOf": [
@@ -8841,6 +9077,51 @@
             "type": "string",
             "enum": [
               "AiProviderNotConfigured"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "DiscoverPdfResult": {
+        "type": "object",
+        "required": [
+          "columns",
+          "rows"
+        ],
+        "properties": {
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [],
+              "properties": {},
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          },
+          "declaredTotals": {
+            "$ref": "#/components/schemas/DeclaredTotals"
+          }
+        },
+        "additionalProperties": false
+      },
+      "NoTransactionTable": {
+        "type": "object",
+        "required": [
+          "_tag"
+        ],
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "NoTransactionTable"
             ]
           }
         },

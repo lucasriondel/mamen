@@ -249,6 +249,15 @@ function transferInvalidMessage(error: unknown): string {
  *   advice, which is exactly why the server keeps it out of the collapse — so
  *   this is the one line that sends the user somewhere instead of back to the
  *   drop zone.
+ * - `NoTransactionTable`: **discovery** read the PDF and found no transaction
+ *   table in it (issue #217) — a payslip, a marketing letter, a scan of nothing.
+ *   The only one of these that is about the *file*, so it is the only one that
+ *   asks for a different file rather than for another attempt at this one.
+ * - `NotFound`: the **Statement Format** this extraction names is gone —
+ *   deleted from the account's formats while this import was open. Also a
+ *   failure a retry cannot fix, and one whose generic wording ("that item no
+ *   longer exists") would leave the user hunting for which item, so it says
+ *   which and what to do instead: map the file again.
  *
  * Any other throwable (network failure, unknown tag) falls back to the retry
  * wording — from the user's seat it's the same "extraction didn't complete".
@@ -257,8 +266,12 @@ export function pdfExtractionErrorMessage(error: unknown): string {
   switch (tagOf(error)) {
     case "InvalidFileType":
       return "That file isn't a supported PDF. Upload a PDF bank statement under 10 MB, or import a CSV export instead.";
+    case "NoTransactionTable":
+      return "That PDF carries no transaction table we could read. Check it's a bank statement rather than a summary or a receipt.";
     case "AiProviderNotConfigured":
       return aiProviderNotConfiguredMessage(error);
+    case "NotFound":
+      return "That statement format was deleted while this import was open. Drop the file again to map it afresh.";
     default:
       return "We couldn't extract transactions from that PDF. Try dropping it again, or import a CSV export from your bank instead.";
   }

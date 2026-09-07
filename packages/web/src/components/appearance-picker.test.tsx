@@ -89,13 +89,12 @@ describe("AppearancePicker", () => {
 
     const inherited = chip();
     expect(inherited).toHaveAttribute("data-appearance-inherited", "");
-    expect(inherited?.className).toContain("border-dashed");
+    expect(inherited).toHaveAttribute("data-appearance-color", "#ef4444");
     unmount();
 
     renderPicker({});
     const chosen = chip();
     expect(chosen).not.toHaveAttribute("data-appearance-inherited");
-    expect(chosen?.className).not.toContain("border-dashed");
     expect(chosen).toHaveAttribute("data-appearance-color", "#ef4444");
   });
 

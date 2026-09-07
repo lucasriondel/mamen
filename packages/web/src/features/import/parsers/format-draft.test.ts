@@ -24,9 +24,9 @@ const HEADERS = ["Statut", "Date", "Montant", "Direction", "Intitulé"];
 /** A draft with everything the applying half needs, ready to be narrowed from. */
 function filled(over: Partial<FormatDraft> = {}): FormatDraft {
   return {
-    ...blankDraft(),
+    ...blankDraft("csv"),
     name: "Green-Got",
-    mapping: { date: "Date", rawIssuerString: "Intitulé", counterpartyIban: null },
+    mapping: { date: "Date", rawIssuerString: ["Intitulé"], counterpartyIban: null },
     sign: { strategy: "signed-column", amountColumn: "Montant" },
     dateOrder: "iso",
     decimalSeparator: "dot",
@@ -36,7 +36,7 @@ function filled(over: Partial<FormatDraft> = {}): FormatDraft {
 
 describe("a blank draft", () => {
   it("declares nothing — no date order, no decimal separator, no columns", () => {
-    const draft = blankDraft();
+    const draft = blankDraft("csv");
 
     // The two unguessable rules start *unset* rather than defaulted (PRD #180).
     // A default would be a guess made on the user's behalf, and this is the pair
@@ -54,8 +54,8 @@ describe("a blank draft", () => {
   });
 
   it("is not ready to parse anything", () => {
-    expect(draftRules(blankDraft())).toBeNull();
-    expect(draftComplete(blankDraft())).toBe(false);
+    expect(draftRules(blankDraft("csv"))).toBeNull();
+    expect(draftComplete(blankDraft("csv"))).toBe(false);
   });
 });
 
@@ -63,7 +63,7 @@ describe("when a draft is ready to parse", () => {
   it("is ready as soon as the mapping and the two rules are answered", () => {
     expect(draftRules(filled())).toEqual({
       kind: "csv",
-      mapping: { date: "Date", rawIssuerString: "Intitulé", counterpartyIban: null },
+      mapping: { date: "Date", rawIssuerString: ["Intitulé"], counterpartyIban: null },
       rules: {
         sign: { strategy: "signed-column", amountColumn: "Montant" },
         dateOrder: "iso",
@@ -88,9 +88,9 @@ describe("when a draft is ready to parse", () => {
     ["a decimal separator", { decimalSeparator: null }],
     [
       "a date column",
-      { mapping: { date: "", rawIssuerString: "Intitulé", counterpartyIban: null } },
+      { mapping: { date: "", rawIssuerString: ["Intitulé"], counterpartyIban: null } },
     ],
-    ["a label column", { mapping: { date: "Date", rawIssuerString: "", counterpartyIban: null } }],
+    ["a label column", { mapping: { date: "Date", rawIssuerString: [], counterpartyIban: null } }],
     ["an amount column", { sign: { strategy: "signed-column", amountColumn: "" } as const }],
   ])("parses nothing without %s", (_what, over) => {
     expect(draftRules(filled(over))).toBeNull();
@@ -153,8 +153,40 @@ describe("the create payload a commit saves", () => {
   });
 
   it("is nothing at all while the draft is incomplete", () => {
-    expect(draftCreate(blankDraft(), accountId, HEADERS)).toBeNull();
+    expect(draftCreate(blankDraft("csv"), accountId, HEADERS)).toBeNull();
     expect(draftCreate(filled({ name: "" }), accountId, HEADERS)).toBeNull();
+  });
+
+  /**
+   * Issue #218 — a draft authored against a **discovered** PDF statement saves
+   * the other half of the union. Same mapping, same rules, same trimmed name;
+   * what differs is where the column set lands, because the contract puts it to
+   * two different jobs: a CSV's `headers` fingerprint a file, a PDF's `columns`
+   * are what the extraction prompt asks the model for next time.
+   */
+  it("declares the discovered columns, not a header fingerprint, for a PDF draft", () => {
+    const COLUMNS = ["Date opération", "Libellé", "Débit", "Crédit", "Type"];
+
+    expect(draftCreate(filled({ kind: "pdf" }), accountId, COLUMNS)).toEqual({
+      kind: "pdf",
+      accountId,
+      name: "Green-Got",
+      // Every column the statement carried, not the subset the mapping reads —
+      // so a bank that later drops one is a mismatch verdict rather than a
+      // silently narrower read.
+      columns: COLUMNS,
+      mapping: filled().mapping,
+      rules: draftRules(filled())?.rules,
+    });
+    // …and there is no `headers` on it at all: a PDF has no header row.
+    expect(draftCreate(filled({ kind: "pdf" }), accountId, COLUMNS)).not.toHaveProperty("headers");
+  });
+
+  // The draft's kind travels into the applying half too, which is what keeps a
+  // PDF draft from being handed to the CSV parser by a type nobody checked.
+  it("carries the draft's kind into the rules a parser applies", () => {
+    expect(draftRules(filled({ kind: "pdf" }))?.kind).toBe("pdf");
+    expect(draftRules(filled())?.kind).toBe("csv");
   });
 });
 

@@ -136,7 +136,7 @@ export function CategoryTransactionsView() {
         <output
           aria-label="Category total"
           className={cn(
-            "font-medium text-xl tabular-nums",
+            "font-medium text-base tabular-nums",
             categoryTotal < 0 && "text-gousse-high",
             categoryTotal > 0 && "text-gousse-low",
           )}

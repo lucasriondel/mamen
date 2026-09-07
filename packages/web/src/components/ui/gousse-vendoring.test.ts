@@ -24,6 +24,7 @@ import { describe, expect, it } from "vitest";
 const read = (path: string) => readFileSync(path, "utf8");
 
 const sidebar = read("src/components/ui/sidebar.tsx");
+const appShell = read("src/components/ui/app-shell.tsx");
 const chrome = read("src/styles/gousse/sidebar-chrome.css");
 const indexCss = read("src/index.css");
 const appSidebar = read("src/components/app-sidebar.tsx");
@@ -120,6 +121,49 @@ describe("the vendored gousse sidebar", () => {
   });
 });
 
+describe("the vendored gousse app shell", () => {
+  it("publishes the registry's compound surface", () => {
+    for (const part of [
+      // frame
+      "AppShell",
+      "AppMain",
+      // top bar
+      "TopBar",
+      "TopBarStart",
+      "TopBarTitle",
+      "TopBarEnd",
+      // scroll region
+      "AppContent",
+      // state
+      "useAppShell",
+    ]) {
+      expect(appShell).toContain(`export function ${part}(`);
+    }
+  });
+
+  it("owns the two-tone split — panel column over the recessed ground", () => {
+    // The colour contract is the point of the frame: `AppShell` paints the
+    // ground, `AppMain` raises the working surface behind the seam hairline
+    // that survives the sidebar's collapse.
+    expect(appShell).toContain("bg-gousse-bg");
+    expect(appShell).toContain("bg-gousse-panel");
+    expect(appShell).toContain("border-l");
+  });
+
+  it("keeps the bar's scrolled contract the trigger reads", () => {
+    // `group/bar` + `data-scrolled` is what `SidebarTrigger` keys its panel
+    // surface off once content scrolls under the bar.
+    expect(appShell).toContain("group/bar");
+    expect(appShell).toContain("data-scrolled");
+  });
+
+  it("is excluded from both ox tools, so a re-install is not churned", () => {
+    for (const rc of ["../../.oxfmtrc.json", "../../.oxlintrc.json"]) {
+      expect(ignorePatterns(rc), rc).toContain("packages/web/src/components/ui/app-shell.tsx");
+    }
+  });
+});
+
 describe("the sidebar chrome sheet", () => {
   it("is installed beside the theme layers it depends on", () => {
     expect(chrome.length).toBeGreaterThan(0);
@@ -139,7 +183,13 @@ describe("the sidebar chrome sheet", () => {
   it("owns the row surfaces the component leaves to it", () => {
     // Without these the rows lay out correctly and render flat.
     expect(chrome).toMatch(/\.sidebar-row:hover\s*\{[^}]*background:/);
-    expect(chrome).toMatch(/\.sidebar-row::before\s*\{/);
+    // The active indicator is a stroke on the active row's own right edge — a
+    // per-row `::after`, pure CSS. It replaced `.sidebar-mark`, the single
+    // travelling element that had to be measured and positioned from
+    // `sidebar.tsx`; rows are full-bleed, so the stroke lands against the
+    // shell's `border-r` by construction, scrolls with its row and needs no
+    // script. Without this rule it has no size and no colour.
+    expect(chrome).toMatch(/\.sidebar-row::after\s*\{/);
     expect(chrome).toContain(".sidebar-scroll");
   });
 
@@ -159,13 +209,16 @@ describe("the sidebar chrome sheet", () => {
   it("lights the active row from aria-current as well as data-active", () => {
     // The router sets `aria-current="page"`; nothing sets `data-active` on a
     // row built by `createLink`. Both halves of each active rule are asserted
-    // because the app's mark rides on the second one alone.
-    for (const rule of [
+    // because the app's rows light up through the second one alone.
+    expect(chrome).toMatch(
       /\.sidebar-row\[data-active="true"\],\s*\.sidebar-row\[aria-current="page"\]\s*\{/,
-      /\.sidebar-row\[data-active="true"\]::before,\s*\.sidebar-row\[aria-current="page"\]::before\s*\{/,
-    ]) {
-      expect(chrome).toMatch(rule);
-    }
+    );
+    // The active stroke is now CSS-only, so the pair has to be spelled out for
+    // the `::after` too — this is what `sidebar.tsx`'s measuring script used to
+    // do by querying for the same two selectors.
+    expect(chrome).toMatch(
+      /\.sidebar-row\[data-active="true"\]::after,\s*\.sidebar-row\[aria-current="page"\]::after\s*\{/,
+    );
   });
 });
 

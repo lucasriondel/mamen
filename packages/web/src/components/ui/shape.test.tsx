@@ -7,6 +7,7 @@ import { Command, CommandItem, CommandList } from "./command";
 import { Dialog, DialogContent, DialogTitle } from "./dialog";
 import { Input } from "./input";
 import { Popover, PopoverContent, PopoverTrigger } from "./popover";
+import { Select } from "./select";
 import { Skeleton } from "./skeleton";
 import { Textarea } from "./textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./tooltip";
@@ -112,6 +113,36 @@ describe("the shape contract", () => {
     const row = screen.getByText("Checking");
     expect(row.className).toContain("rounded-full");
     expect(row.className).toContain("px-3");
+  });
+
+  it("gives both pickers the same resting and hover chrome", () => {
+    // The recap's top bar puts these two side by side: a native <select> for the
+    // period, AccountMultiSelect's button trigger for the accounts. They read as
+    // one control type, so hover has to land on both or neither — a `secondary`
+    // Button hovers to `bg-gousse-bg`, and the <select> has no variant to inherit
+    // that from, so the agreement is asserted rather than assumed.
+    const { unmount } = render(
+      <Select aria-label="Select month">
+        <option value="2026-08">Aug 2026</option>
+      </Select>,
+    );
+    const select = screen.getByRole("combobox", { name: "Select month" });
+    const selectChrome = select.className;
+    unmount();
+
+    render(
+      <AccountMultiSelect
+        accounts={[{ id: 1, name: "Checking" } as unknown as Account]}
+        selected={[]}
+        onChange={vi.fn()}
+      />,
+    );
+    const trigger = screen.getByRole("button", { name: /all accounts/i });
+
+    for (const chrome of ["rounded-full", "bg-gousse-panel", "hover:bg-gousse-bg"]) {
+      expect(selectChrome).toContain(chrome);
+      expect(trigger.className).toContain(chrome);
+    }
   });
 
   it("makes a command row a pill, widened like the sidebar's", () => {

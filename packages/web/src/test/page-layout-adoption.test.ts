@@ -43,6 +43,17 @@ const FILES = sources("src").map((path) => ({
 
 const LAYOUT = "src/components/page-layout.tsx";
 
+/**
+ * The vendored gousse primitives the layout renders through. Their sources
+ * carry an `<h1>` (`TopBarTitle`) and a `SidebarTrigger` mount (`TopBar`'s
+ * `collapsed` prop) of their own — they are the one implementation, not a
+ * second one, so the only-writer assertions read past them.
+ */
+const VENDORED = [
+  join("src", "components", "ui", "app-shell.tsx"),
+  join("src", "components", "ui", "sidebar.tsx"),
+];
+
 /** Every page route, and the file that writes that page's topbar. */
 const PAGES: Record<string, string> = {
   "accounts.tsx": "src/features/accounts/accounts-view.tsx",
@@ -76,7 +87,9 @@ describe("the shared page layout", () => {
   it("is the only thing in the app that renders a page title", () => {
     // A hand-rolled `<h1>` is how a page ends up with a different title size,
     // no trigger, or both — every one of the twelve started that way.
-    const files = FILES.filter(({ text }) => text.includes("<h1")).map(({ path }) => path);
+    const files = FILES.filter(
+      ({ path, text }) => !VENDORED.includes(path) && text.includes("<h1"),
+    ).map(({ path }) => path);
 
     expect(files).toStrictEqual([LAYOUT]);
   });
@@ -86,8 +99,7 @@ describe("the shared page layout", () => {
     // hands `AppShell` the ref it focuses — which is what `PageHeader` existed
     // to guarantee back when a dozen pages mounted it themselves.
     const files = FILES.filter(
-      ({ path, text }) =>
-        path !== join("src", "components", "ui", "sidebar.tsx") && text.includes("<SidebarTrigger"),
+      ({ path, text }) => !VENDORED.includes(path) && text.includes("<SidebarTrigger"),
     ).map(({ path }) => path);
 
     expect(files).toStrictEqual([LAYOUT]);

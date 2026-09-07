@@ -29,7 +29,7 @@ const RULES = {
 
 const MAPPING = {
   date: "Date",
-  rawIssuerString: "Intitulé",
+  rawIssuerString: ["Intitulé"],
   counterpartyIban: "IBAN du tiers",
 } as const;
 

@@ -9,12 +9,14 @@ import { enrichExtracted } from "./enrich-extracted";
 import { takeHandoff } from "./import-handoff";
 import { MappingStep } from "./mapping-step";
 import { applyFormat, type FormatToApply } from "./parsers/apply-format";
+import { blankRow } from "./parsers/blank-row";
 import { csvFormats, detectFormat } from "./parsers/detect-format";
 import { draftCreate, draftRules } from "./parsers/format-draft";
 import type { ParsedTransaction } from "./parsers/types";
 import { PdfValidationStep } from "./pdf-validation-step";
 import { PreviewStep } from "./preview-step";
 import { UploadStep } from "./upload-step";
+import { useSuggestedFormatName } from "./use-suggested-format-name";
 import {
   makeInitialWizardState,
   type RowId,
@@ -161,10 +163,15 @@ export function ImportWizard({
       accountId: state.accountId,
       importBatchId: state.importBatchId,
     };
-    // PDF path: the extracted candidates rejoin the shared commit rail once
-    // enriched with account/batch/month — no parser (the file has no headers).
-    if (state.source === "pdf") {
-      if (!state.extracted) return { records: [], rowIds: [] };
+    // Format-driven **PDF extraction**: the candidates come back typed, so they
+    // rejoin the shared commit rail once enriched with account/batch/month —
+    // no parser, there being no table of strings to read.
+    //
+    // A **discovered** PDF (issue #218) has no `extracted` and falls through to
+    // the branch below on purpose: its rows *are* a table of strings, read by
+    // the same `applyFormat` a CSV's are. Which is what makes the mapping step's
+    // live preview, the preview step's table and the commit one reading.
+    if (state.source === "pdf" && state.extracted !== null) {
       return { records: enrichExtracted(state.extracted, ctx), rowIds: state.rowIds };
     }
     if (!activeFormat) return { records: [], rowIds: [] };
@@ -184,13 +191,32 @@ export function ImportWizard({
   ]);
 
   // What the preview calls the format it read the rows with. A draft has no
-  // stored name to look up — it is named in the step that is building it.
+  // stored name to look up — it is named in the step that is building it — and
+  // it comes first on both paths since issue #218: a discovered PDF is read by a
+  // format the user is authoring, not by an extraction that answered for itself.
   const sourceLabel =
-    state.source === "pdf"
-      ? "PDF extraction"
-      : ((state.draftFormat?.name.trim() || selectedFormat?.name) ?? "—");
+    (state.draftFormat?.name.trim() ||
+      (state.source === "pdf" ? "PDF extraction" : undefined) ||
+      selectedFormat?.name) ??
+    "—";
 
-  const accountName = accounts.find((account) => account.id === state.accountId)?.name ?? "—";
+  // The chosen account's own name, or `null` while it is unchosen or while the
+  // accounts query is still in flight. Kept apart from the `"—"` below because
+  // the two want opposite things from "unknown": the summary line needs
+  // *something* to render, the format-name suggestion needs to know to wait.
+  const selectedAccountName =
+    accounts.find((account) => account.id === state.accountId)?.name ?? null;
+
+  const accountName = selectedAccountName ?? "—";
+
+  // Offer `<account> CSV` / `<account> PDF` as the new format's name, once, on a
+  // draft nobody has named yet (issue #186's required field, PRD #180).
+  useSuggestedFormatName({
+    draftName: state.draftFormat?.name ?? null,
+    draftKind: state.draftFormat?.kind ?? null,
+    accountName: selectedAccountName,
+    dispatch,
+  });
 
   // A step that puts the dropped file beside the work needs the full width to
   // show both — the PDF path's **side-by-side validation**, the CSV preview
@@ -207,6 +233,12 @@ export function ImportWizard({
     stepContent = (
       <MappingStep
         fileName={state.fileName ?? "this file"}
+        // The statement the table below was transcribed from, on the one path
+        // that has one (issue #219): a **discovered** PDF is a model's reading
+        // of a document, and the document is what makes the reading checkable.
+        // A CSV holds no file here — the browser parsed it — so the step is the
+        // two panes it has always been.
+        statement={state.source === "pdf" ? state.file : null}
         headers={state.headers}
         rows={state.rows}
         reason={state.formatSelection}
@@ -242,9 +274,16 @@ export function ImportWizard({
       />
     );
   } else if (state.accountId !== null && activeFormat !== undefined) {
-    // The CSV preview, beside the file it read (issue #211). Only a CSV reaches
-    // here — a PDF drop clears the format and the rows both, so there is always
-    // a parsed file in hand to put in the left pane.
+    // The preview, beside the table it read (issue #211): a dropped CSV, or a
+    // PDF statement **discovery** transcribed (issue #218) — the same step, the
+    // same two panes, since both are the bank's own columns over string cells.
+    //
+    // Which of the two it is decides one thing, and it is the whole of issue
+    // #220: a transcription is a *reading* of a statement and can be wrong, so
+    // its cells are correctable, an operation the model missed can be typed in,
+    // and the totals the statement printed are there to cross-check against. A
+    // file is none of those things and gets none of them.
+    const transcribed = state.source === "pdf";
     wide = true;
     stepContent = (
       <PreviewStep
@@ -262,8 +301,25 @@ export function ImportWizard({
         // #215).
         sourceRowIds={state.rowIds}
         formatToCreate={formatToCreate}
+        declaredTotals={transcribed ? state.declaredTotals : null}
         onBack={() => dispatch({ type: "back-to-upload" })}
         dispatch={dispatch}
+        onEditCell={
+          transcribed
+            ? (index, column, value) =>
+                dispatch({ type: "edit-transcribed-cell", index, column, value })
+            : undefined
+        }
+        // The blank line is written in *this* format's vocabulary, which is why
+        // it is minted here rather than in the reducer: what reads sensibly
+        // under a day-first debit/credit format with a row filter is not what
+        // reads sensibly under an ISO signed-column one.
+        onAddRow={
+          transcribed
+            ? () =>
+                dispatch({ type: "add-transcribed-row", cells: blankRow(activeFormat, new Date()) })
+            : undefined
+        }
       />
     );
   }

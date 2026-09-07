@@ -33,6 +33,15 @@ vi.mock("@mamen/sdk", async (importOriginal) => {
         queryFn: async () => ({ count: transactionCount }),
       }),
     },
+    // The formats dialog mounts its list only once opened, but the menu item
+    // that opens it is on every card — so this stub is what keeps the one test
+    // that opens it from reaching a real endpoint.
+    statementFormatQueries: {
+      list: (params: unknown) => ({
+        queryKey: ["statement-formats", "list", params],
+        queryFn: async () => ({ items: [], total: 0 }),
+      }),
+    },
   };
 });
 
@@ -186,6 +195,19 @@ describe("AccountCard", () => {
 
     expect(await screen.findByRole("menuitem", { name: /Edit Everyday/ })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: /Delete Everyday/ })).toBeInTheDocument();
+  });
+
+  // The account has no details surface — the card is all there is — so the
+  // formats it reads statements with are reached the way its other occasional
+  // actions are: from the ··· menu, as a dialog over the page.
+  it("opens the account's statement formats from the ··· menu", async () => {
+    renderCard();
+    const user = await openMenu();
+
+    await user.click(await screen.findByRole("menuitem", { name: /Statement formats/ }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Statement formats" });
+    expect(dialog).toHaveTextContent("How Everyday's files get read");
   });
 
   it("renames through the update mutation", async () => {

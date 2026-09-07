@@ -215,13 +215,31 @@ describe("the landing page's text", () => {
 });
 
 describe("the landing page's accent", () => {
-  it("highlights rather than fills", () => {
-    // The app's primary button is filled with **ink**; blue is a focus ring,
-    // an active state, a tint. A page drenched in it would misrepresent what
-    // the reader is about to open.
-    expect(css).not.toMatch(/background(-color)?:\s*var\(--accent\)/);
-    expect(block(css, ".cta")).toMatch(/background:\s*var\(--ink\)/);
-    expect(block(css, ".cta")).toMatch(/color:\s*var\(--bg\)/);
+  it("fills the one call to action, and carries a label that reads on it", () => {
+    // The accent *is* the fill here — the wordmark, the section headings and
+    // the button a reader is meant to press, so this page and its sibling read
+    // as one design language. That is a deliberate reversal of what this page
+    // did before, when blue was a highlight and never a fill.
+    //
+    // What the reversal costs is a label colour that has to be chosen per
+    // scheme rather than assumed: the light accent is dark enough to carry
+    // near-white, and the dark scheme's is a pale blue that would hide one.
+    // Hence a token of its own, and the ratio asserted rather than trusted.
+    expect(block(css, ".cta")).toMatch(/background:\s*var\(--accent\)/);
+    expect(block(css, ".cta")).toMatch(/color:\s*var\(--accent-contrast\)/);
+
+    for (const scheme of SCHEMES) {
+      const ratio = contrast(
+        landing[scheme]["--accent-contrast"] as string,
+        landing[scheme]["--accent"] as string,
+      );
+      expect({ scheme, readable: ratio >= 4.5 }).toStrictEqual({ scheme, readable: true });
+    }
+  });
+
+  it("names the sections, so the rail's entries point at something coloured", () => {
+    expect(block(css, "h2")).toMatch(/color:\s*var\(--accent\)/);
+    expect(block(css, ".wordmark")).toMatch(/color:\s*var\(--accent\)/);
   });
 
   it("is where the app puts it: links, and the keyboard focus ring", () => {
@@ -265,6 +283,34 @@ describe("the landing page's stylesheet", () => {
   });
 });
 
+describe("the hero's cycle", () => {
+  it("is written for exactly the surfaces the capture ships", () => {
+    // The keyframes are literal percentages, because a keyframe's stops have
+    // to be — `calc()` is not allowed in them, so the halves below cannot be
+    // derived from a count the way the delay is. That makes the shape of
+    // `hero-cycle` a statement about how many surfaces there are.
+    //
+    // A third pair arriving from the capture would be shown for a third of
+    // the rotation by the delay and for half of it by the keyframes, and the
+    // two would drift past each other on the page. This is the failure that
+    // says so, at the point where the number changes rather than in review.
+    expect(SHIPPED_SCREENSHOTS).toHaveLength(2);
+    expect(block(css, "@keyframes hero-cycle")).toMatch(/50%/);
+  });
+
+  it("holds each surface still for a reader who asked for no motion", () => {
+    // The animation is declared inside `prefers-reduced-motion: no-preference`
+    // and nowhere else, so a reader who asked for stillness gets the frame the
+    // page leads with — the one the alt text describes — and nothing moving
+    // over it. The `opacity: 0` that hides the rest sits outside the query,
+    // which is what makes that the still rather than two frames stacked.
+    const motion = css.slice(css.indexOf("@media (prefers-reduced-motion: no-preference)"));
+
+    expect(motion).toMatch(/animation:\s*hero-cycle/);
+    expect(block(css, ".hero-frame:not(:first-child) img")).toMatch(/opacity:\s*0/);
+  });
+});
+
 describe("the screenshots the page shows", () => {
   it("scales every frame down into the column it is read in", () => {
     // The frames are 2880 px wide — four times the reading column and wider
@@ -272,7 +318,7 @@ describe("the screenshots the page shows", () => {
     // width, and every line of prose on it would scroll sideways. The
     // `width`/`height` attributes stay on the tag (`page.test.ts`), so the
     // height has to be released here or a scaled frame is squashed.
-    const rule = block(css, ".screenshots img");
+    const rule = block(css, "figure img");
 
     expect(rule).toMatch(/max-width:\s*100%/);
     expect(rule).toMatch(/height:\s*auto/);
@@ -281,31 +327,61 @@ describe("the screenshots the page shows", () => {
   it("has pixels to spare at the widest size it shows them", () => {
     // Sharpness is a ratio, not a file size: the frames are captured at a
     // device scale factor of 2 so that a retina screen has two image pixels
-    // for every CSS pixel it paints. Widening the figures spends that ratio —
-    // this is the assertion that ties the two numbers together, so a section
+    // for every CSS pixel it paints. Widening the page spends that ratio —
+    // this is the assertion that ties the two numbers together, so a layout
     // widened past what the capture can cover fails here rather than shipping
     // a soft screenshot nobody notices in review.
-    const widest = Number(block(css, ".screenshots").match(/width:\s*([\d.]+)rem/)?.[1]) * 16;
-    expect(widest).toBeGreaterThan(0);
+    //
+    // The widest a frame is ever painted is the hero's, which fills `.page`'s
+    // content box: its `max-width` less the padding it carries on both sides.
+    // That is a larger number than the prose column the section's frames sit
+    // in, so holding the ratio here holds it for every figure on the page.
+    const page = block(css, ".page");
+    const maxWidth = Number(page.match(/max-width:\s*([\d.]+)rem/)?.[1]);
+    const sidePadding = Number(page.match(/padding:\s*[\d.]+rem\s+([\d.]+)rem/)?.[1]);
+    expect(maxWidth).toBeGreaterThan(0);
+    expect(sidePadding).toBeGreaterThan(0);
+
+    const widest = (maxWidth - sidePadding * 2) * 16;
 
     for (const shot of SHIPPED_SCREENSHOTS) {
       expect(shot.width / widest, shot.name).toBeGreaterThanOrEqual(2);
     }
   });
 
-  it("steps outside that column only where there is room to", () => {
-    // A screenshot of a 1440-px app is legible in a 42rem column and better
-    // in a wider one, so the figures widen past the prose on a screen that
-    // can hold it. What makes that safe is where the rule lives: a negative
-    // margin outside a `min-width` query pulls the image under the body's
-    // padding — off the side of a phone — and takes the horizontal scrollbar
-    // with it. So the assertion is on the sheet a narrow viewport sees.
-    expect(css).toMatch(/@media\s*\(min-width:/);
+  it("never gives anything a width the narrow viewport might not have", () => {
+    // The failure this guards is an image pulled out past the page's own
+    // padding — off the side of a phone, taking the horizontal scrollbar with
+    // it. The layout widens by *narrowing* on a small screen (the rail
+    // collapses under a `max-width` query) rather than by pulling anything
+    // out from the column with a negative margin, so the sheet a narrow
+    // viewport sees may contain neither.
     expect(narrow).not.toMatch(/margin[\w-]*:\s*-/);
 
-    // Nothing in the narrow sheet may be given a width the viewport might not
-    // have. `100%`, `auto` and the `max-width`s above are the whole vocabulary.
+    // `100%` and `auto` are the vocabulary for anything that spans the
+    // column. A fixed length is allowed only where it is small enough that no
+    // viewport can be narrower than it — the step counter's disc is 1.6rem —
+    // so the rule is a bound rather than an exemption: widen that disc to
+    // something a phone cannot hold and this fails.
+    //
+    // The rail's own fixed track is not caught here and does not need to be:
+    // it is declared in `grid-template-columns`, bounded by the grid, and the
+    // narrow sheet collapses it to a single column anyway.
+    const NARROWEST_VIEWPORT_REM = 20; // 320 px, the narrowest phone in use.
+
     const widths = [...narrow.matchAll(/^\s*width:\s*([^;]+);/gm)].map((m) => m[1] as string);
-    for (const width of widths) expect(width.trim()).toMatch(/^(?:100%|auto)$/);
+    for (const width of widths) {
+      const value = width.trim();
+      if (/^(?:100%|auto)$/.test(value)) continue;
+
+      // `em` is allowed on the same bound as `rem`: a mark sized against the
+      // text beside it is a glyph, and the heading it tracks is itself capped
+      // by a `clamp` well under any viewport's width.
+      const length = Number(/^([\d.]+)r?em$/.exec(value)?.[1]);
+      expect(Number.isFinite(length), `width the viewport may not have: ${value}`).toBe(true);
+      expect(length, `width the viewport may not have: ${value}`).toBeLessThan(
+        NARROWEST_VIEWPORT_REM,
+      );
+    }
   });
 });

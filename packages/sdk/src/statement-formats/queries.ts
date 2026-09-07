@@ -1,4 +1,9 @@
-import type { AccountId, StatementFormatCreate, StatementFormatId } from "@mamen/shared/contract";
+import type {
+  AccountId,
+  StatementFormatCreate,
+  StatementFormatId,
+  StatementFormatUpdate,
+} from "@mamen/shared/contract";
 import { PaginationDefaults } from "@mamen/shared/contract";
 import { queryOptions } from "@tanstack/react-query";
 import { Effect } from "effect";
@@ -50,12 +55,13 @@ export const statementFormatQueries = {
 };
 
 /**
- * Mutation functions for the statement-formats resource. `create` is the only
- * one: a format is never edited or deleted, so a bank that changes its export
- * gets a new record and the statements downloaded before the change keep one
- * that reads them.
+ * Mutation functions for the statement-formats resource: `create`, `update` (a
+ * rename, and only that — a bank that changes its export gets a new record, so
+ * the statements downloaded before the change keep one that reads them) and
+ * `remove` (a hard delete; the transactions imported under a format hold no
+ * reference to it, so nothing is orphaned by its going).
  *
- * Returned as a plain `mutationFn` — the caller owns invalidation. Invalidate
+ * Returned as plain `mutationFn`s — the caller owns invalidation. Invalidate
  * `statementFormatKeys.all` after a write.
  */
 export const statementFormatMutations = {
@@ -72,4 +78,12 @@ export const statementFormatMutations = {
           : client.statementFormats.create({ payload }),
       ),
     ),
+
+  update: (id: StatementFormatId, payload: StatementFormatUpdate) =>
+    runQuery(
+      Effect.flatMap(Client, (client) => client.statementFormats.update({ path: { id }, payload })),
+    ),
+
+  remove: (id: StatementFormatId) =>
+    runQuery(Effect.flatMap(Client, (client) => client.statementFormats.remove({ path: { id } }))),
 };

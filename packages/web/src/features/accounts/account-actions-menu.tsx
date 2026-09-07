@@ -1,4 +1,4 @@
-import { EllipsisVertical, Pencil, Trash2 } from "lucide-react";
+import { EllipsisVertical, FileText, Pencil, Trash2 } from "lucide-react";
 import {
   Menu,
   MenuContent,
@@ -13,6 +13,8 @@ export interface AccountActionsMenuProps {
   /** The account these actions belong to — names every item. */
   name: string;
   onEdit: () => void;
+  /** Opens the account's statement formats, for a look or a clean-up. */
+  onViewFormats: () => void;
   onDelete: () => void;
   /** The account still has transactions, so deleting it would orphan them. */
   blocked: boolean;
@@ -32,6 +34,10 @@ export interface AccountActionsMenuProps {
  * the IBAN, and a menu item that names one of the two fields it reveals sends
  * anyone looking for the other one somewhere else.
  *
+ * *Statement formats* sits beside it as the account's other occasional errand:
+ * the formats an account reads its files with are looked at rarely, when one
+ * needs renaming or throwing away, which is exactly what this menu is for.
+ *
  * The delete guard is client-side by necessity: the API's `remove` does not
  * check for referencing transactions (see the accounts repository), so deleting
  * a busy account would orphan its rows. `blocked` disables the item and puts the
@@ -45,6 +51,7 @@ export interface AccountActionsMenuProps {
 export function AccountActionsMenu({
   name,
   onEdit,
+  onViewFormats,
   onDelete,
   blocked,
   deleting,
@@ -68,6 +75,14 @@ export function AccountActionsMenu({
           <MenuItem onClick={onEdit}>
             <Pencil className="size-3.5 text-gousse-muted" aria-hidden />
             Edit {name}
+          </MenuItem>
+          {/* Not named for its account, unlike its neighbours: the dialog it
+              opens is titled and says which account it is about, and "Statement
+              formats for Everyday" in a menu already opened from Everyday's own
+              card is a longer way to say the same thing. */}
+          <MenuItem onClick={onViewFormats}>
+            <FileText className="size-3.5 text-gousse-muted" aria-hidden />
+            Statement formats
           </MenuItem>
         </MenuGroup>
 

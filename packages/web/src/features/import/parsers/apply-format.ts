@@ -1,8 +1,10 @@
-import type {
-  CsvStatementFormat,
-  DateOrder,
-  DecimalSeparator,
-  SignRule,
+import {
+  type CsvStatementFormat,
+  type DateOrder,
+  type DecimalSeparator,
+  RAW_ISSUER_JOINER,
+  type SignRule,
+  type StatementFormat,
 } from "@mamen/shared/contract";
 import { isPlausibleIban, normalizeIban } from "@/features/accounts/account-iban";
 import { importMonthKey } from "./month";
@@ -92,6 +94,32 @@ function signedAmount(
 }
 
 /**
+ * The row's **issuer string**: the mapped columns read in the order the format
+ * names them and joined by {@link RAW_ISSUER_JOINER}.
+ *
+ * More than one column because banks split a label — a payee, a memo, a
+ * reference — and each part alone identifies nothing. The format's order is the
+ * user's, recorded as they assigned the columns, so a bank that writes the payee
+ * second reads that way round without the parser guessing.
+ *
+ * **Blank parts are dropped, not spaced over.** A memo column empty on half the
+ * file would otherwise leave a trailing joiner on those rows, and two rows from
+ * the same shop would stop looking alike to the issuer matching this string
+ * exists for. Positional stability has nothing to offer here: nobody reads this
+ * string by column, and the untouched columns are in the **raw source** anyway
+ * (ADR 0012).
+ *
+ * A missing column reads as blank and so drops out too, which is what a format
+ * naming a column its file no longer carries does.
+ */
+function rawIssuerStringOf(row: Record<string, string>, columns: readonly string[]): string {
+  return columns
+    .map((column) => row[column]?.trim() ?? "")
+    .filter((value) => value !== "")
+    .join(RAW_ISSUER_JOINER);
+}
+
+/**
  * The **counterparty IBAN** promoted out of the row, or `undefined` when there
  * is none to promote (issue #178, PRD #175). `column` is `null` for a format
  * whose bank never writes one.
@@ -146,12 +174,22 @@ function counterpartyIbanOf(
  * *by* (issue #186). The live preview is then the real thing rather than a
  * second reading of the rules that could disagree with the import's.
  *
- * `kind` is part of it though nothing here branches on it: it is what keeps a
- * `PdfStatementFormat` — which carries a mapping and rules too — from being
- * assignable, so handing one to a CSV parser stays the type error issue #184
- * made it rather than a `mapping.date` that reads a column no CSV has.
+ * `kind` is carried though nothing here branches on it, and since issue #218 it
+ * admits **both** halves of the discriminant. What this function needs is a
+ * table of string rows keyed by column names, and a *discovered* PDF statement
+ * (issue #217) is exactly that — the bank's own columns, every cell as printed.
+ * So a PDF format's mapping and rules genuinely do read a table client-side now,
+ * which is what makes the two paths one pipeline rather than two.
+ *
+ * What it does not admit is a *stored* `PdfStatementFormat`'s rows: those come
+ * back typed from server extraction and never pass through here. The wizard
+ * narrows its stored formats to the CSV ones before it ever reaches this, so the
+ * only PDF-kinded value that arrives is the draft being authored against a
+ * discovered table.
  */
-export type FormatToApply = Pick<CsvStatementFormat, "kind" | "mapping" | "rules">;
+export type FormatToApply = Pick<CsvStatementFormat, "mapping" | "rules"> & {
+  kind: StatementFormat["kind"];
+};
 
 /**
  * Apply a **Statement Format** to raw CSV rows — the primary import seam, and
@@ -194,7 +232,7 @@ export function applyFormat(
         accountId: ctx.accountId,
         date,
         amount: signedAmount(row, rules.sign, rules.decimalSeparator),
-        rawIssuerString: row[mapping.rawIssuerString],
+        rawIssuerString: rawIssuerStringOf(row, mapping.rawIssuerString),
         // A copy rather than the row itself, so a caller reusing its parsed rows
         // cannot see one of them mutated through a record it handed us.
         rawSource: { ...row },

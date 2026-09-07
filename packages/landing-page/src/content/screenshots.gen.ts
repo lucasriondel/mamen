@@ -34,14 +34,14 @@ export const SHIPPED_SCREENSHOTS: readonly ShippedScreenshot[] = [
     name: "recap",
     width: 2880,
     height: 1800,
-    light: { src: "/screenshots/recap-light.webp", bytes: 116936, digest: "9517d61c39d4" },
-    dark: { src: "/screenshots/recap-dark.webp", bytes: 116516, digest: "192399c9c996" },
+    light: { src: "/screenshots/recap-light.webp", bytes: 108076, digest: "af95b0863125" },
+    dark: { src: "/screenshots/recap-dark.webp", bytes: 107878, digest: "edbb2ec967bf" },
   },
   {
     name: "transactions",
     width: 2880,
     height: 1800,
-    light: { src: "/screenshots/transactions-light.webp", bytes: 131952, digest: "b29dbd0fbab9" },
-    dark: { src: "/screenshots/transactions-dark.webp", bytes: 132882, digest: "ff02af5bf581" },
+    light: { src: "/screenshots/transactions-light.webp", bytes: 145764, digest: "4ee47b37055e" },
+    dark: { src: "/screenshots/transactions-dark.webp", bytes: 138526, digest: "025c86c8e421" },
   },
 ];

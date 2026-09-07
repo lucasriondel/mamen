@@ -33,6 +33,21 @@ export const MappedTarget = Schema.Literal("date", "amount", "rawIssuerString", 
 export type MappedTarget = typeof MappedTarget.Type;
 
 /**
+ * What separates the values of a multi-column `rawIssuerString` once joined.
+ *
+ * A spaced hyphen rather than a bare one: the parts being joined are themselves
+ * phrases with spaces in them, so a plain space would leave no visible seam
+ * between "CARTE 12/04" and "SNCF CONNECT" — and an unspaced hyphen would run
+ * the two together as one word. The joined string is read by a human in the
+ * transactions table, not only matched against.
+ *
+ * Fixed rather than a {@link ValueRules} entry. It is a presentation choice that
+ * applies to every bank alike, and the vocabulary is for the things banks
+ * genuinely disagree about.
+ */
+export const RAW_ISSUER_JOINER = " - ";
+
+/**
  * Which column becomes which property, for every target except `amount`: which
  * column(s) carry the amount is inseparable from **how the sign is written**, so
  * it is stated by {@link SignRule} instead — the debit-and-credit strategy reads
@@ -43,12 +58,35 @@ export type MappedTarget = typeof MappedTarget.Type;
  * "nobody got round to it" would look alike in a stored row — and, in the
  * mapping UI that writes these, in the form too.
  *
+ * `rawIssuerString` is a **list** and every other target a single column. That
+ * asymmetry is the point rather than an inconsistency: it is the one target
+ * assembled from parts, because banks split a label across columns and join
+ * nothing else.
+ *
  * A fifth mapped target adds a field here; `statement-formats.test.ts` holds the
  * two lists to each other so it cannot be promoted and left unfillable.
  */
 export const ColumnMapping = Schema.Struct({
   date: Schema.String,
-  rawIssuerString: Schema.String,
+  /**
+   * The columns whose values, joined, become the issuer string — **a list, and
+   * the only mapped target that is one**.
+   *
+   * Banks routinely split what a human reads as one label across several
+   * columns: a payee, a free-text memo, a reference. Each alone identifies
+   * nothing, so a format that could name only one of them would have to throw
+   * the rest away — and `rawIssuerString` is the string every downstream issuer
+   * match is made against.
+   *
+   * Ordered, and the order is the user's: the columns are read in the order they
+   * were assigned, which is the order the mapping UI records header clicks in.
+   * Joined by {@link RAW_ISSUER_JOINER}, empties dropped.
+   *
+   * Never empty on a stored format. A format mapping no column here produces
+   * rows with no identity, which is not a format that has been half-filled but
+   * one that cannot be applied; the draft is what holds "not yet".
+   */
+  rawIssuerString: Schema.Array(Schema.String),
   /** `null` when this bank's export carries no counterparty IBAN to promote. */
   counterpartyIban: Schema.NullOr(Schema.String),
 });
@@ -211,10 +249,11 @@ const createFields = {
  * union on `kind`, so a payload cannot name both a header fingerprint and a
  * column list, and cannot name neither.
  *
- * There is no update and no delete payload, and that is the PRD's scope call: a
- * bank that changes its export gets a *new* format, so statements downloaded
- * before the change keep one that reads them. What a delete would mean for
- * imports already made under a format is a question nothing here answers.
+ * The **mapping is immutable**: there is no payload that rewrites one. A bank
+ * that changes its export gets a *new* format, so statements downloaded before
+ * the change keep one that reads them — and a mapping edited after an import
+ * would silently stop describing the rows it produced, since nothing re-parses
+ * them. {@link StatementFormatUpdate} renames, and that is all it does.
  */
 export const StatementFormatCreate = Schema.Union(
   Schema.Struct({
@@ -231,6 +270,27 @@ export const StatementFormatCreate = Schema.Union(
 export type StatementFormatCreate = typeof StatementFormatCreate.Type;
 
 /**
+ * Update payload — the **name, and nothing else**.
+ *
+ * Not a partial of the entity: `mapping`, `rules` and the declared columns are
+ * what a format *is*, and they are fixed at authoring time for the reason
+ * {@link StatementFormatCreate} gives. What is left is the label, which is
+ * user-entered and therefore wrong sometimes — a format auto-named from the file
+ * it was built with is exactly the kind of name someone wants to fix later.
+ *
+ * A rename is also what finally gives `updatedAt` a job: until this endpoint
+ * existed it was stamped once and equalled `createdAt` for the row's whole life.
+ *
+ * Still no uniqueness constraint, so a rename declares no `Conflict` — two
+ * formats on one account may share a name, and the mapped columns are what tell
+ * them apart.
+ */
+export const StatementFormatUpdate = Schema.Struct({
+  name: CsvStatementFormat.fields.name,
+});
+export type StatementFormatUpdate = typeof StatementFormatUpdate.Type;
+
+/**
  * `list` filter set: `accountId?`. Formats are account-scoped, and this is the
  * only way the picker ever wants them — an unfiltered list exists because every
  * list endpoint in this contract does, not because a surface asks for one.
@@ -241,14 +301,23 @@ export const StatementFormatListFilters = {
 
 /**
  * Statement formats group, prefix `/statement-formats`. `list` (account-scoped),
- * `getById` (404 on a missing id) and `create` (201). No uniqueness constraint —
- * two formats may share a name, since a user who wants two called "Green-Got"
- * has said something about their own bank rather than made a mistake — so
- * `create` declares no `Conflict`.
+ * `getById` (404 on a missing id), `create` (201), `update` (a rename) and
+ * `remove` (204). No uniqueness constraint — two formats may share a name, since
+ * a user who wants two called "Green-Got" has said something about their own
+ * bank rather than made a mistake — so neither write declares a `Conflict`.
  *
- * Nothing consumes this group yet: it lands ahead of the wizard that authors
- * these records and the **Parser** that applies them, so the table and the codec
- * are settled before either is written against them.
+ * `remove` is a **hard delete with no cascade**, and that is safe for a reason
+ * worth stating: a format is a parse-time recipe. Transactions imported under
+ * one are already parsed and store no reference back to it (they carry an
+ * `importBatchId`, never a `statementFormatId`), so deleting a format cannot
+ * orphan a row or change a figure. What it does end is the ability to recognise
+ * *the next* file of that shape, which is the user's call to make.
+ *
+ * The one live read of a stored format is the PDF extraction path, which takes a
+ * `formatId` mid-import — so a format deleted while an import is open makes that
+ * extraction 404. That race is accepted rather than locked against: the wizard
+ * reports it, and tracking in-flight imports to forbid it would cost more than
+ * the window is worth.
  */
 export class StatementFormatsGroup extends HttpApiGroup.make("statementFormats")
   .add(
@@ -267,5 +336,20 @@ export class StatementFormatsGroup extends HttpApiGroup.make("statementFormats")
     HttpApiEndpoint.post("create")`/statement-formats`
       .setPayload(StatementFormatCreate)
       .addSuccess(StatementFormatCreated),
+  )
+  .add(
+    HttpApiEndpoint.patch(
+      "update",
+    )`/statement-formats/${HttpApiSchema.param("id", numFromStr(StatementFormatId))}`
+      .setPayload(StatementFormatUpdate)
+      .addSuccess(StatementFormat)
+      .addError(NotFound),
+  )
+  .add(
+    HttpApiEndpoint.del(
+      "remove",
+    )`/statement-formats/${HttpApiSchema.param("id", numFromStr(StatementFormatId))}`
+      .addSuccess(HttpApiSchema.NoContent)
+      .addError(NotFound),
   )
   .annotateContext(OpenApi.annotations({ title: "Statement formats" })) {}

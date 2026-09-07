@@ -15,15 +15,26 @@ export type Point = {
   readonly detail: string;
 };
 
-/** The heading, the sentence under it, and the three points. */
+/** The name, the headline, the sentence under it, and the three points. */
 export type Hero = {
+  /**
+   * The product's name, for the wordmark and nothing else.
+   *
+   * Kept apart from `heading` because the two say different things: the mark
+   * names the thing, the headline says what it is for. They were one field
+   * while the headline *was* the name, which printed "mamen" twice on the
+   * first screen.
+   */
+  readonly name: string;
+  /** The page's `h1` — what mamen is for, not what it is called. */
   readonly heading: string;
   readonly lead: string;
   readonly points: readonly Point[];
 };
 
 export const HERO: Hero = {
-  heading: "mamen",
+  name: "mamen",
+  heading: "Personal accounting that just feels right.",
   lead:
     "A personal-finance app for one person's own accounts. Import bank " +
     "statements, curate the raw rows into issuers and categories, and read back " +

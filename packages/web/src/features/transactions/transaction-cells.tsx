@@ -1,5 +1,5 @@
 import type { Category, Issuer } from "@mamen/shared/contract";
-import { ArrowLeftRight, CircleHelp, Pin, StickyNote } from "lucide-react";
+import { ArrowLeftRight, Check, CircleHelp, Pin, StickyNote } from "lucide-react";
 import { CategoryIcon } from "@/components/category-icon";
 import { IssuerAvatar } from "@/features/issuers/issuer-avatar";
 import { NEUTRAL_CATEGORY_COLOR } from "@/lib/category-tree";
@@ -7,19 +7,52 @@ import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 /**
+ * How an **unfilled curation cell** looks: the `high` (red) token with a dotted
+ * underline. Shared by the Issuer cell, the Category cell and the assignment
+ * picker's trigger, so the three cannot drift apart — they are one state seen
+ * in three places.
+ *
+ * This is where "needs curating" is actually *said*. The row's gutter rail is
+ * the at-a-glance summary; the mark here points at the field you have to fill,
+ * which is also what makes a half-curated row (an issuer resolved but no
+ * category) legible — the old all-or-nothing row wash could not show one.
+ *
+ * **Dotted**, not solid: a solid underline reads as a link, and these cells are
+ * not links — the row is. Dotted is the long-standing convention for "something
+ * is missing here, click to supply it", so it doubles as the affordance the
+ * previous muted italic never signalled. It also survives the row's own hover
+ * fill without needing a second colour.
+ *
+ * Not italic any more either: the red *is* the signal, and italic on top of it
+ * only cost legibility at 13px.
+ */
+export const UNRESOLVED_CELL =
+  "text-gousse-high underline decoration-dotted decoration-gousse-high/55 underline-offset-4";
+
+/**
  * The **internal-transfer badge** (PRD #48) — a small chip marking a row as a
  * leg of an internal transfer, so grouped rows are recognisable at a glance in
  * the grid without opening the detail page. Rendered only for legs (the caller
  * checks `transferGroupId`); its legs are netted out of the recap.
+ *
+ * **Settled**, and it reads that way: green (`low`, the same token a credit
+ * wears) and a check over the transfer glyph. It shares its column with the
+ * unsettled suggestion indicator, which wears amber and a question mark
+ * (issue #91) — one glyph pair, one colour pair, so which of the two states a
+ * row is in is legible before either tooltip is read.
+ *
+ * Wordless: "Transfer" spelled out was the column's only text, and it repeated
+ * on every settled row what the icon already says. The name lives on the
+ * `title` for anyone who needs it.
  */
 export function TransferBadge() {
   return (
     <span
-      className="inline-flex items-center gap-1 rounded-full bg-gousse-bg px-2 py-0.5 text-gousse-muted text-xs"
+      className="inline-flex items-center gap-1 rounded-full bg-gousse-low/10 px-2 py-0.5 text-gousse-low text-xs"
       title="Part of an internal transfer — excluded from your recap spend"
     >
       <ArrowLeftRight size={12} aria-hidden />
-      Transfer
+      <Check size={12} aria-hidden />
     </span>
   );
 }
@@ -54,15 +87,26 @@ function OverrideMarker() {
  * The signed **Amount** cell: right-aligned, `tabular-nums` for digit alignment,
  * and colored by sign via the gousse severity tokens — debits (negative) red
  * (`high`), credits (positive) green (`low`). Zero stays neutral (`ink`).
+ *
+ * **Excluded** (issue #67) drops the sign colour for `muted` at regular weight.
+ * Exclusion is about arithmetic — this money is outside every total — so it is
+ * the number that says so, not a wash over the whole row. Muted rather than
+ * struck: struck text reads as *void*, and an excluded transaction is not
+ * undone, it was really spent and simply sits outside the recap. The sign
+ * colour is what goes, because that colour is the row's contribution to a total
+ * this row makes no contribution to.
  */
-export function AmountCell({ amount }: { amount: number }) {
+export function AmountCell({ amount, excluded = false }: { amount: number; excluded?: boolean }) {
   return (
     <span
       className={cn(
-        "block text-right font-medium tabular-nums",
-        amount < 0 && "text-gousse-high",
-        amount > 0 && "text-gousse-low",
+        "block text-right tabular-nums",
+        excluded
+          ? "text-gousse-muted"
+          : cn("font-medium", amount < 0 && "text-gousse-high", amount > 0 && "text-gousse-low"),
       )}
+      title={excluded ? "Not counted in your recap spend" : undefined}
+      data-excluded={excluded ? "true" : undefined}
     >
       {formatCurrency(amount)}
     </span>
@@ -118,7 +162,7 @@ export function IssuerCell({
 
   return (
     <span
-      className="flex items-center gap-1.5 text-gousse-muted italic"
+      className={cn("flex items-center gap-1.5", UNRESOLVED_CELL)}
       title="Needs an issuer"
       data-unresolved="true"
     >
@@ -188,7 +232,7 @@ export function CategoryCell({
   }
 
   return (
-    <span className="text-gousse-muted italic" title="No category yet" data-unassigned="true">
+    <span className={UNRESOLVED_CELL} title="No category yet" data-unassigned="true">
       Unassigned
     </span>
   );

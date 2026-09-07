@@ -34,7 +34,13 @@ describe("the documented dev server", () => {
   it("tees to the log file CLAUDE.md tells an agent to read", () => {
     // The dev script writes it; CLAUDE.md is where an agent looks for it
     // before starting a second server on an already-bound port.
-    const log = manifest.scripts.dev.match(/logs\/[\w.-]+\.log/)?.[0];
+    //
+    // `dev:app`, not `dev`: portless (`portless.json`) took the `dev` name —
+    // it is what turbo runs, and it re-invokes the package manager on the
+    // script named here — so the command that actually starts vite, and tees,
+    // is one level down. The assertion is unchanged in substance: whichever
+    // script carries the server must carry the log file too.
+    const log = manifest.scripts["dev:app"].match(/logs\/[\w.-]+\.log/)?.[0];
     expect(log).toBeDefined();
     expect(CLAUDE).toContain(log);
   });

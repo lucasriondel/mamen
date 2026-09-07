@@ -81,7 +81,11 @@ export function AccountMultiSelect({ accounts, selected, onChange }: AccountMult
       </Button>
 
       {open ? (
-        <fieldset className="absolute z-10 mt-1 flex min-w-52 flex-col gap-0.5 rounded-2xl border border-gousse-line bg-gousse-panel p-1 shadow-lg">
+        // Right-anchored: on the recap this control is the last thing in the
+        // page's right-hand actions slot, so a left-anchored panel grows off the
+        // viewport's right edge. Opening leftward keeps it on the page in both
+        // that spot and the transactions filter bar.
+        <fieldset className="absolute right-0 z-10 mt-1 flex min-w-52 max-w-[min(18rem,calc(100vw-2rem))] flex-col gap-0.5 rounded-2xl border border-gousse-line bg-gousse-panel p-1 shadow-lg">
           <legend className="sr-only">Filter by account</legend>
           {accounts.length === 0 ? (
             <p className="px-2 py-1.5 text-sm text-gousse-muted">No accounts</p>
@@ -102,7 +106,7 @@ export function AccountMultiSelect({ accounts, selected, onChange }: AccountMult
                   <span
                     aria-hidden
                     className={cn(
-                      "flex h-4 w-4 items-center justify-center rounded border",
+                      "flex h-4 w-4 shrink-0 items-center justify-center rounded border",
                       checked
                         ? "border-gousse-accent bg-gousse-accent text-white"
                         : "border-gousse-line",

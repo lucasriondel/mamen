@@ -5,6 +5,7 @@ import type {
   DecimalSeparator,
   RowFilter,
   SignRule,
+  StatementFormat,
   StatementFormatCreate,
 } from "@mamen/shared/contract";
 import type { FormatToApply } from "./apply-format";
@@ -13,17 +14,19 @@ import type { FormatToApply } from "./apply-format";
  * A **Statement Format** under construction — what the mapping step holds while
  * the user builds one against the file in front of them (issue #186, PRD #180).
  *
- * It is the contract's create payload with three things taken out and two
+ * It is the contract's create payload with two things taken out and two
  * loosened:
  *
- * - `accountId` and `headers` are not the user's to answer. The account was
- *   settled before the file was taken (issue #181) and the fingerprint is the
- *   dropped file's own header row, so both are supplied by
- *   {@link draftCreate} at the moment of saving rather than carried here as a
- *   second copy of state the wizard already holds.
- * - `kind` is `csv` and not a choice. A PDF format declares the columns to ask a
- *   model for and has no file of rows to preview a mapping against, so it cannot
- *   be authored from the file in front of the user the way this step means it.
+ * - `accountId` and the file's own column set are not the user's to answer. The
+ *   account was settled before the file was taken (issue #181) and the columns
+ *   are the dropped file's own, so both are supplied by {@link draftCreate} at
+ *   the moment of saving rather than carried here as a second copy of state the
+ *   wizard already holds.
+ * - `kind` **is** carried, since issue #218: a draft is authored against a
+ *   dropped CSV or against a **discovered** PDF table (issue #217), and which of
+ *   the two decides what the saved record declares — a header fingerprint or the
+ *   statement's columns. Nothing else about the two differs, which is the point:
+ *   the same form, the same live preview and the same commit.
  * - `dateOrder` and `decimalSeparator` are **nullable here and only here**. The
  *   contract has no unset case because a stored format must have answered; a
  *   *draft* has to be able to say "not yet", or the form would open with a
@@ -38,8 +41,18 @@ import type { FormatToApply } from "./apply-format";
  * {@link draftRules} folds them back into the contract's shape.
  */
 export type FormatDraft = {
+  /**
+   * Which kind of statement this format reads — decided by the file it is being
+   * authored against, never asked of the user. `csv` for a dropped export, `pdf`
+   * for a **discovered** statement table (issue #218).
+   */
+  kind: StatementFormat["kind"];
   name: string;
-  /** `""` for a target the user has not mapped yet; `null` IBAN means none. */
+  /**
+   * `""` for a target the user has not mapped yet, `null` IBAN means none, and
+   * an **empty label list** is the label question still unanswered — a draft's
+   * spelling of "not yet", where a stored format's list is never empty.
+   */
   mapping: ColumnMapping;
   sign: SignRule;
   /** `null` until the user says — never defaulted, never detected. */
@@ -58,11 +71,15 @@ export type FormatDraft = {
  * strategy has to be chosen for the form to know *which* column questions to
  * ask, and the simplest one asks for a single column that is still blank — so
  * the draft cannot be completed without the user answering it.
+ *
+ * `kind` is required rather than defaulted to `csv`: which file is being mapped
+ * is known at every call site and is the one thing a blank draft *does* declare.
  */
-export function blankDraft(): FormatDraft {
+export function blankDraft(kind: StatementFormat["kind"]): FormatDraft {
   return {
+    kind,
     name: "",
-    mapping: { date: "", rawIssuerString: "", counterpartyIban: null },
+    mapping: { date: "", rawIssuerString: [], counterpartyIban: null },
     sign: { strategy: "signed-column", amountColumn: "" },
     dateOrder: null,
     decimalSeparator: null,
@@ -102,12 +119,14 @@ function signAnswered(sign: SignRule): boolean {
  */
 export function draftRules(draft: FormatDraft): FormatToApply | null {
   const { mapping, sign, dateOrder, decimalSeparator, filter } = draft;
-  if (mapping.date === "" || mapping.rawIssuerString === "") return null;
+  // The label is required and a list: no column named is the unanswered
+  // question, and a format that reads none produces rows with no identity.
+  if (mapping.date === "" || mapping.rawIssuerString.length === 0) return null;
   if (!signAnswered(sign)) return null;
   if (dateOrder === null || decimalSeparator === null) return null;
 
   return {
-    kind: "csv",
+    kind: draft.kind,
     mapping,
     rules: {
       sign,
@@ -134,29 +153,32 @@ export function draftComplete(draft: FormatDraft): boolean {
  * The draft as the create payload the commit sends — or `null` while it is not
  * ready to be saved.
  *
- * `headers` is the **whole header row of the file it was built from**, not the
- * subset the mapping happens to read. The fingerprint's job is to recognise
- * *this bank's export* on a later import, and a format that fingerprinted only
- * its mapped columns would answer to any file that happened to carry a `Date`
- * and a `Montant`. It is also what makes a bank adding a column produce a
- * strictly more specific new format, which is what most-specific-wins detection
- * is built on (PRD #180).
+ * `columns` is the **whole column set of the file it was built from**, not the
+ * subset the mapping happens to read — a CSV's header row, or every column a
+ * **discovered** statement table carries (issue #218). The fingerprint's job is
+ * to recognise *this bank's export* on a later import, and a format that
+ * fingerprinted only its mapped columns would answer to any file that happened
+ * to carry a `Date` and a `Montant`. It is also what makes a bank adding a
+ * column produce a strictly more specific new format, which is what
+ * most-specific-wins detection is built on (PRD #180) — and, on the PDF side,
+ * what makes a bank *dropping* one report a mismatch verdict.
+ *
+ * The two halves spell it differently because the contract does: a CSV format's
+ * `headers` are a fingerprint to match a file against, a PDF format's `columns`
+ * are what the extraction prompt asks the model for. The same list, put to two
+ * jobs, which is why the union names them apart.
  */
 export function draftCreate(
   draft: FormatDraft,
   accountId: AccountId,
-  headers: readonly string[],
+  columns: readonly string[],
 ): StatementFormatCreate | null {
   const applied = draftRules(draft);
   const name = draft.name.trim();
   if (applied === null || name === "") return null;
 
-  return {
-    kind: "csv",
-    accountId,
-    name,
-    headers,
-    mapping: applied.mapping,
-    rules: applied.rules,
-  };
+  const shared = { accountId, name, mapping: applied.mapping, rules: applied.rules };
+  return draft.kind === "pdf"
+    ? { kind: "pdf", ...shared, columns }
+    : { kind: "csv", ...shared, headers: columns };
 }
