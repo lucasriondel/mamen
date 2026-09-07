@@ -24,7 +24,7 @@ export type ContributingSection = {
 };
 
 export const CONTRIBUTING: ContributingSection = {
-  heading: "Contributing",
+  heading: "How to contribute",
   body: [
     "The repository is public because there is no reason for it not to be, not " +
       "because it is looking for users. There is no roadmap, no release cadence " +

@@ -1,6 +1,6 @@
 import { APP_BASE_PATH_SLASH } from "@mamen/shared/app-base-path";
 import { describe, expect, it } from "vitest";
-import { ACTIONS, CONTRIBUTING, HERO, INSTALL, SCREENSHOTS, SITE } from ".";
+import { ACTIONS, CONTRIBUTING, HERO, INSTALL, NAV, SCREENSHOTS, SITE } from ".";
 
 /**
  * The rules every sentence in `src/content/` obeys (issue #147).
@@ -19,9 +19,10 @@ import { ACTIONS, CONTRIBUTING, HERO, INSTALL, SCREENSHOTS, SITE } from ".";
  * Fields that are not prose: identifiers, URLs and the lines a reader types.
  *
  * `name` is a screenshot's key into the generated module (issue #149) — the
- * capture's file name for the surface, not a word anybody reads.
+ * capture's file name for the surface, not a word anybody reads. `id` is a
+ * section's anchor, which is a fragment in a URL rather than a sentence.
  */
-const NOT_PROSE = new Set(["url", "href", "commands", "variable", "version", "kind", "name"]);
+const NOT_PROSE = new Set(["url", "href", "commands", "variable", "version", "kind", "name", "id"]);
 
 /** Every prose string in the content, wherever it sits in the structure. */
 const proseOf = (value: unknown, key = ""): readonly string[] => {
@@ -33,7 +34,7 @@ const proseOf = (value: unknown, key = ""): readonly string[] => {
   return [];
 };
 
-const PROSE = proseOf({ SITE, HERO, SCREENSHOTS, INSTALL, CONTRIBUTING, ACTIONS });
+const PROSE = proseOf({ SITE, HERO, SCREENSHOTS, INSTALL, CONTRIBUTING, ACTIONS, NAV });
 
 /** Every line a reader is told to type, across the guide. */
 const COMMANDS = INSTALL.steps.flatMap((step) => step.commands);
@@ -113,10 +114,18 @@ describe("the call to action", () => {
     expect(ACTIONS.map((action) => action.href)).toContain(SITE.repositoryUrl);
   });
 
+  it("makes the source the one primary, since there is nothing hosted", () => {
+    const primary = ACTIONS.find((action) => action.kind === "primary");
+    expect(primary?.href).toBe(SITE.repositoryUrl);
+  });
+
   it("reads the app's prefix from the constant rather than restating it", () => {
     // The one fact this package shares with the app. Written out by hand it
     // becomes a link that survives a rename by pointing at nothing.
-    const primary = ACTIONS.find((action) => action.kind === "primary");
-    expect(primary?.href).toBe(APP_BASE_PATH_SLASH);
+    //
+    // The assertion is that *an* action points at the app, not that the
+    // primary one does: the source is the page's primary destination, because
+    // there is no hosted mamen to send a stranger to (`actions.ts`).
+    expect(ACTIONS.map((action) => action.href)).toContain(APP_BASE_PATH_SLASH);
   });
 });

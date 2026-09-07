@@ -67,9 +67,6 @@ const page = await renderPage();
 const SENTENCES = [
   HERO.lead,
   ...HERO.points.flatMap((point) => [point.term, point.detail]),
-  SCREENSHOTS.heading,
-  SCREENSHOTS.lead,
-  ...SCREENSHOTS.shots.flatMap((shot) => [shot.title, shot.caption]),
   INSTALL.heading,
   INSTALL.lead,
   ...INSTALL.prerequisites.map((prerequisite) => prerequisite.detail),

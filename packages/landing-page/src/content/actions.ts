@@ -15,6 +15,12 @@ import { SITE } from "./site";
  * `kind` is the action's **standing**, not its styling — which of the two is
  * the page's primary destination. Each renderer maps it onto its own class;
  * neither gets to decide there are suddenly two primaries.
+ *
+ * The **source** is the primary one. There is no hosted mamen and no account,
+ * so the only thing a stranger reading this page can actually do is read the
+ * code and run it; the deployed app behind the link is the author's own, and
+ * it is offered second because for everyone else it is a login-less page they
+ * have no use for.
  */
 
 /** Where a reader can go from the end of the page. */
@@ -26,6 +32,5 @@ export type Action = {
 };
 
 export const ACTIONS: readonly Action[] = [
-  { label: "Open the app", href: APP_BASE_PATH_SLASH, kind: "primary" },
-  { label: "Source on GitHub", href: SITE.repositoryUrl, kind: "secondary" },
+  { label: "Get the code on GitHub", href: SITE.repositoryUrl, kind: "primary" },
 ];

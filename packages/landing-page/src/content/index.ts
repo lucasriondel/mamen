@@ -27,8 +27,10 @@
  * page implying otherwise is worse than none.
  */
 
+export { ABOUT, type AboutSection, type Feature } from "./about";
 export { type Action, ACTIONS } from "./actions";
 export { CONTRIBUTING, type ContributingSection, type Link } from "./contributing";
+export { ICONS, type IconName, type IconShape, LUCIDE_LICENSE } from "./icons";
 export { HERO, type Hero, type Point } from "./hero";
 export {
   type DevServer,
@@ -39,6 +41,7 @@ export {
   type Prerequisite,
   prerequisiteLabel,
 } from "./install";
+export { NAV, type NavEntry, sectionId } from "./nav";
 export {
   SCREENSHOTS,
   type ScreenshotCopy,
