@@ -21,6 +21,10 @@ WORKDIR /app
 # only — no application source is copied into this image, and none of these
 # packages' dependencies are installed (see the filter below).
 COPY package.json bun.lock ./
+# `patchedDependencies` in the root manifest names a file under `patches/`, and
+# bun validates that entry for the whole workspace — `--filter` does not narrow
+# it. Without this the install fails on a patch file it cannot find.
+COPY patches ./patches
 COPY packages/api/package.json ./packages/api/
 COPY packages/web/package.json ./packages/web/
 COPY packages/sdk/package.json ./packages/sdk/
