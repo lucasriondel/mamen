@@ -140,7 +140,13 @@ describe("the landing image", () => {
 
 describe("the web image", () => {
   it("carries no landing content", () => {
+    // The manifest is the exception, and it is not content: bun resolves the
+    // lockfile across the whole workspace, so every member's `package.json`
+    // has to be present or `--frozen-lockfile` fails on a lockfile it thinks
+    // changed. What must not appear is the package's *source* — that is what
+    // would put the landing page inside the app's image.
     for (const line of copies(webDockerfile)) {
+      if (line.includes("packages/landing-page/package.json")) continue;
       expect(line).not.toMatch(/landing-page/);
     }
   });

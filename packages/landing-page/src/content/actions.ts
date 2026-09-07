@@ -33,4 +33,5 @@ export type Action = {
 
 export const ACTIONS: readonly Action[] = [
   { label: "Get the code on GitHub", href: SITE.repositoryUrl, kind: "primary" },
+  { label: "Open the app", href: APP_BASE_PATH_SLASH, kind: "secondary" },
 ];
