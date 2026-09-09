@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    // `src/index.ts` is imported by `packages/web/vite.config.ts`, which Node
+    // loads with its own ESM resolver — extensionless relative specifiers fail
+    // there, so the source keeps the `.ts` extension. Consumers all resolve
+    // this package through `exports` (which points at `src/*.ts`), not `dist`.
+    "allowImportingTsExtensions": true,
+    // Required to pair with the above while still emitting. Note it does not
+    // actually rewrite under `module: ESNext` — TS leaves the specifier to the
+    // bundler — so `dist/` keeps the `.ts` spelling. Harmless while nothing
+    // loads `dist`; revisit if it ever becomes a real consumed output.
+    "rewriteRelativeImportExtensions": true
+  },
+  "include": ["src"]
+}

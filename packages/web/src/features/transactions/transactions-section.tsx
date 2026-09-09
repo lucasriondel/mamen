@@ -1,0 +1,366 @@
+import type {
+  Account,
+  AccountId,
+  Category,
+  Transaction,
+  TransactionId,
+} from "@mamen/shared/contract";
+import { hashKey, useQuery } from "@tanstack/react-query";
+import type { RowSelectionState } from "@tanstack/react-table";
+import { useMemo, useState } from "react";
+import { Empty } from "@/components/ui/empty";
+import { useIssuerLookup } from "@/features/issuers/use-issuer-lookup";
+import { monthKey } from "@/lib/month";
+import {
+  accountQueries,
+  categoryQueries,
+  type TransactionCountParams,
+  type TransactionListParams,
+  transactionQueries,
+} from "@/lib/sdk";
+import { indexById, NO_ITEMS } from "@/lib/utils";
+import { BundleActionBar } from "./bundle-action-bar";
+import { pageToOffset, TRANSACTIONS_PAGE_SIZE, type TransactionsSearch } from "./search";
+import { type TransactionFilterValues, TransactionsFilters } from "./transactions-filters";
+import { TransactionsPagination } from "./transactions-pagination";
+import { TransactionsTable } from "./transactions-table";
+import { TransactionsTableSkeleton } from "./transactions-table-skeleton";
+
+/** How many transactions to scan when deriving the distinct-month filter options. */
+const MONTH_SCAN_LIMIT = 1000;
+
+/**
+ * AND-compose a page's `scope` (the identity filter it is *about*) with the
+ * user's account/month/search filters from the URL — the exact set the rows
+ * describe. Exported so a page's total header can query `count` with the very
+ * same object the list uses, and can never disagree with the rows beneath it.
+ */
+export function composeTransactionFilters(
+  scope: TransactionCountParams,
+  search: TransactionsSearch,
+): TransactionCountParams {
+  return {
+    ...scope,
+    // An empty set is the absent filter, not "the accounts in an empty set":
+    // passing `[]` through would ask for nothing and return nothing.
+    ...(search.accountId != null && search.accountId.length > 0
+      ? { accountId: search.accountId as unknown as ReadonlyArray<AccountId> }
+      : {}),
+    ...(search.importMonth != null ? { importMonth: search.importMonth } : {}),
+    // The recap period, as bounds on the row's own date. Parsed here because
+    // the URL carries strings and the SDK filter takes `Date`s; the validator
+    // has already rejected anything unparseable.
+    ...(search.startDate != null ? { startDate: new Date(search.startDate) } : {}),
+    ...(search.endDate != null ? { endDate: new Date(search.endDate) } : {}),
+    ...(search.search != null ? { search: search.search } : {}),
+    ...(search.uncurated ? { uncurated: true } : {}),
+    // Both halves of the recap-exclusion filter reach the query (issue #67), so
+    // `false` — the rows that count — must survive this fold, not be read as
+    // "no filter" the way the uncurated toggle's off state is.
+    ...(search.excludedFromRecap != null ? { excludedFromRecap: search.excludedFromRecap } : {}),
+    // Tri-state too, so `false` survives the fold for the same reason.
+    ...(search.isTransferLeg != null ? { isTransferLeg: search.isTransferLeg } : {}),
+    ...(search.kind != null ? { kind: search.kind } : {}),
+  };
+}
+
+export interface TransactionsSectionProps {
+  /**
+   * The scope this section is pinned to — the owning page's identity filter
+   * (`{ categoryId: [...] }`, `{ issuerId }`), AND-composed with the user's
+   * account/month/search filters. An empty object is the unscoped view.
+   */
+  scope: TransactionCountParams;
+  /** The route's typed search params (filters, sort, page). */
+  search: TransactionsSearch;
+  /** Apply a filter patch; the caller writes it to the URL and resets `page`. */
+  onFiltersChange: (patch: TransactionFilterValues) => void;
+  /** Toggle the date sort order (asc ⇄ desc). */
+  onToggleSort: () => void;
+  /** Jump to a new 1-based page. */
+  onPageChange: (page: number) => void;
+  /**
+   * Whether the section may query at all. A scope that isn't resolved yet (a
+   * category page whose id set is still empty) passes `false` — querying with a
+   * dropped filter would return the *whole* table rather than nothing.
+   */
+  enabled?: boolean;
+  /**
+   * Rendered above the filter bar. A page's *title* is not this — since issue
+   * #129 every page's topbar is a `PageLayout`, so this is only for a heading
+   * the table needs *within* a page that is about something else (the issuer
+   * detail page's "Transactions").
+   */
+  children?: React.ReactNode;
+  /** Description for the empty state when no filter is active. */
+  emptyDescription?: string;
+  /** Extra controls rendered beside the filter bar (e.g. the columns toggle). */
+  actions?: React.ReactNode;
+  /** Controlled column visibility; omitted means every column shows. */
+  columnVisibility?: React.ComponentProps<typeof TransactionsTable>["columnVisibility"];
+  onColumnVisibilityChange?: React.ComponentProps<
+    typeof TransactionsTable
+  >["onColumnVisibilityChange"];
+  /**
+   * What opening a row means on this page (issue #154) — see
+   * {@link TransactionsTable.onOpenTransaction}. Omitted by the scoped
+   * drill-downs, which have no panel beside their table, so a row click there
+   * goes to the standalone detail page as it always has.
+   */
+  onOpenTransaction?: React.ComponentProps<typeof TransactionsTable>["onOpenTransaction"];
+  /** The row that panel is showing, marked in the table. */
+  selectedId?: number;
+}
+
+/**
+ * The shared transactions surface — filter bar, table, and pagination — used by
+ * every page that lists transactions: the global view, a category's drill-down,
+ * and an issuer's detail page. Each caller supplies only its `scope` (the
+ * identity filter that page is *about*) and the URL plumbing; everything else —
+ * the account/month/search filters, server-driven date sort, offset pagination,
+ * and the loading/error/empty states — is identical by construction, so the
+ * three pages can't drift apart.
+ *
+ * The user's filters are AND-composed onto `scope` into one object shared by the
+ * list query and the month scan, so the rows and the filter options always
+ * describe the same set.
+ */
+export function TransactionsSection({
+  scope,
+  search,
+  onFiltersChange,
+  onToggleSort,
+  onPageChange,
+  enabled = true,
+  children,
+  emptyDescription,
+  actions,
+  columnVisibility,
+  onColumnVisibilityChange,
+  onOpenTransaction,
+  selectedId,
+}: TransactionsSectionProps) {
+  // The scope + the user's filters — the exact set the rows describe.
+  const filters = useMemo<TransactionCountParams>(
+    () => composeTransactionFilters(scope, search),
+    [scope, search],
+  );
+
+  // The URL carries a 1-based page; the SDK list is offset-paginated, so the
+  // multiplication happens here — once, for every page that lists transactions.
+  const page = search.page ?? 1;
+
+  const listParams = useMemo<TransactionListParams>(
+    () => ({
+      limit: TRANSACTIONS_PAGE_SIZE,
+      offset: pageToOffset(page, TRANSACTIONS_PAGE_SIZE),
+      orderBy: "date",
+      direction: search.direction ?? "desc",
+      ...filters,
+    }),
+    [filters, page, search.direction],
+  );
+
+  const transactionsQuery = useQuery({
+    ...transactionQueries.list(listParams),
+    enabled,
+  });
+
+  // Row selection (issue #68) — keyed by transaction id, and deliberately
+  // **page-scoped**: the ids it holds are the rows on screen, so it is dropped
+  // whenever the query behind them changes. Carrying a selection across a filter
+  // change would let a user bundle rows they can no longer see.
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  // Reset during render against the params the selection was made under, rather
+  // than in an effect: React's own "adjusting state when a prop changes" — the
+  // selection is dropped in the same pass that swaps the rows, so no frame ever
+  // shows ticks belonging to a page that has gone.
+  //
+  // Compared by **value**, through the same structural hash the query cache
+  // keys on, rather than by object identity: `listParams` is rebuilt whenever
+  // the search object is, and since issue #154 the URL carries something that
+  // is not a filter — the open panel's row. Identity would read that as a new
+  // page of rows and drop the ticks, so opening a row would silently clear a
+  // selection the user had built to bundle with.
+  const selectionKey = hashKey([listParams]);
+  const [selectionScope, setSelectionScope] = useState(selectionKey);
+  if (selectionScope !== selectionKey) {
+    setSelectionScope(selectionKey);
+    setRowSelection({});
+  }
+  const selectedIds = useMemo(
+    () =>
+      Object.entries(rowSelection)
+        .filter(([, selected]) => selected)
+        .map(([id]) => Number(id) as TransactionId),
+    [rowSelection],
+  );
+  const accountsQuery = useQuery(accountQueries.list());
+  // The whole (small) category tree, for the derived-category column's name
+  // lookup. Wide limit — a single user's taxonomy is coarse (PRD).
+  const categoriesQuery = useQuery(categoryQueries.list({ limit: 200 }));
+  // Distinct months come from a scope-scoped scan (minus the month filter
+  // itself), so the picker offers only months this page actually spans and
+  // doesn't collapse to the one already selected.
+  const monthsQuery = useQuery({
+    ...transactionQueries.list({
+      limit: MONTH_SCAN_LIMIT,
+      offset: 0,
+      ...scope,
+    }),
+    enabled,
+  });
+
+  const accounts = (accountsQuery.data?.items ?? NO_ITEMS) as readonly Account[];
+  const categories = (categoriesQuery.data?.items ?? NO_ITEMS) as readonly Category[];
+  const transactions = (transactionsQuery.data?.items ?? NO_ITEMS) as readonly Transaction[];
+  // The **bundle members** of the parents on this page (issue #73) — they ride
+  // with the list response, so a parent expands with no fetch of its own. Beside
+  // the rows, never among them: `total` and the page are the top-level set.
+  const bundleMembers = (transactionsQuery.data?.bundleMembers ??
+    NO_ITEMS) as readonly Transaction[];
+  const total = transactionsQuery.data?.total ?? 0;
+
+  // The ticked ROWS, not just their ids: the selection is page-scoped, so every
+  // ticked row is one of the rows on screen — and the action bar has to read
+  // them to know whether anything already claims one (issue #75).
+  const selectedRows = useMemo(
+    () => transactions.filter((t) => selectedIds.includes(t.id)),
+    [transactions, selectedIds],
+  );
+
+  // The issuers *this page* names — its rows' ids, not the issuer table. Reading
+  // a page of that table instead is what once rendered a correctly-matched row
+  // as unresolved, once the ids outgrew the page (#62).
+  //
+  // The **bundle members** are part of what this page names: expanding a parent
+  // shows them as rows, and a member whose issuer was never asked for renders
+  // unresolved under a parent that resolves fine — the same #62 symptom, one
+  // level down.
+  const issuerIds = useMemo(
+    () => [...transactions.map((t) => t.issuerId), ...bundleMembers.map((t) => t.issuerId)],
+    [transactions, bundleMembers],
+  );
+  const {
+    issuersById,
+    isPending: issuersPending,
+    isError: issuersError,
+  } = useIssuerLookup(issuerIds);
+
+  const accountsById = useMemo(() => indexById(accounts), [accounts]);
+  const categoriesById = useMemo(() => indexById(categories), [categories]);
+
+  // Minted from each row's own **date**, the field the month filter matches
+  // (issue #87) — never from the `importMonth` stamp, which is provenance and
+  // can name another month entirely once a date has been overridden or
+  // corrected. Options derived from the stamp would offer a month the query no
+  // longer returns anything for, and would leave the month the row is actually
+  // in missing from the list: the row would be unreachable from this control.
+  const months = useMemo(() => {
+    const items = (monthsQuery.data?.items ?? NO_ITEMS) as readonly Transaction[];
+    return [...new Set(items.map((t) => monthKey(t.date)))].sort().reverse();
+  }, [monthsQuery.data]);
+
+  const hasFilters =
+    (search.accountId != null && search.accountId.length > 0) ||
+    search.importMonth != null ||
+    search.startDate != null ||
+    search.endDate != null ||
+    search.search != null ||
+    search.uncurated === true ||
+    search.excludedFromRecap != null ||
+    search.isTransferLeg != null ||
+    search.kind != null;
+
+  return (
+    // The section owns the rhythm between its own parts. Every caller used to
+    // be a `PageLayout` child, so a bare fragment inherited that layout's
+    // `gap-6` for free — until the issuer detail page put it inside a tab panel,
+    // which is not a flex column: the bundle bar sat flush under the filter bar
+    // and the pagination against the table. Spacing that belongs to the stack
+    // lives with the stack, not in whatever happens to wrap it.
+    <div className="flex flex-col gap-6">
+      {children}
+
+      {/* `actions` goes *into* the bar rather than beside it: the columns menu
+          is one of the bar's controls (it narrows what the table shows, beside
+          the filters that narrow which rows it shows), and the rail is where
+          the icon-sized controls live. */}
+      <TransactionsFilters
+        accounts={accounts}
+        months={months}
+        value={{
+          accountId: search.accountId,
+          importMonth: search.importMonth,
+          // The date bounds reach the bar now, so the period picker can show a
+          // recap link's period instead of the bar silently applying one.
+          startDate: search.startDate,
+          endDate: search.endDate,
+          search: search.search,
+          uncurated: search.uncurated,
+          excludedFromRecap: search.excludedFromRecap,
+          isTransferLeg: search.isTransferLeg,
+          kind: search.kind,
+        }}
+        onChange={onFiltersChange}
+        actions={actions}
+      />
+
+      {transactionsQuery.isError || issuersError ? (
+        <Empty
+          title="Couldn't load transactions"
+          description="Something went wrong reading these transactions. Try again in a moment."
+        />
+      ) : /* The issuer lookup reads the ids of the rows, so it lands a beat
+             after them. Hold the skeleton until it does: a row rendered before
+             its issuer arrives is a row rendered as *unresolved*, which is the
+             state this whole read exists to prevent. */
+      enabled && (transactionsQuery.isPending || issuersPending) ? (
+        <TransactionsTableSkeleton />
+      ) : transactions.length === 0 ? (
+        <Empty
+          title="No transactions"
+          description={
+            hasFilters
+              ? "No transactions match the current filters."
+              : (emptyDescription ?? "There are no transactions to show here yet.")
+          }
+        />
+      ) : (
+        // The rows and everything that frames them — the same rhythm as the
+        // stack above, so the branch does not flatten what its parent spaces.
+        <div className="flex flex-col gap-6">
+          <BundleActionBar selected={selectedRows} onClear={() => setRowSelection({})} />
+          <TransactionsPagination
+            position="top"
+            page={page}
+            pageSize={TRANSACTIONS_PAGE_SIZE}
+            total={total}
+            onPageChange={onPageChange}
+          />
+          <TransactionsTable
+            transactions={transactions}
+            accountsById={accountsById}
+            issuersById={issuersById}
+            categoriesById={categoriesById}
+            direction={search.direction ?? "desc"}
+            onToggleSort={onToggleSort}
+            columnVisibility={columnVisibility}
+            onColumnVisibilityChange={onColumnVisibilityChange}
+            rowSelection={rowSelection}
+            onRowSelectionChange={setRowSelection}
+            bundleMembers={bundleMembers}
+            onOpenTransaction={onOpenTransaction}
+            selectedId={selectedId}
+          />
+          <TransactionsPagination
+            page={page}
+            pageSize={TRANSACTIONS_PAGE_SIZE}
+            total={total}
+            onPageChange={onPageChange}
+          />
+        </div>
+      )}
+    </div>
+  );
+}

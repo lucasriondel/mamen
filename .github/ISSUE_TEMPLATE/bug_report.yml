@@ -1,0 +1,60 @@
+name: Bug report
+description: Something in mamen behaves differently from how it should
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this. The three questions below are
+        the ones a maintainer would otherwise have to come back and ask.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you saw, including any error message, verbatim.
+      placeholder: The import stopped at "Parsing" and never finished.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+      placeholder: The 40 rows from the file appear in the review step.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: >-
+        Numbered, starting from a fresh app. If it depends on the data, say what
+        the data looks like — but do not attach a real bank statement: it
+        carries account numbers and counterparty names. A few invented rows in
+        the same format is what we need.
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Browser and OS
+      placeholder: Firefox 142, macOS 15
+    validations:
+      required: false
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: >-
+        Console output, a screenshot, how often it happens, or what you were
+        doing just before.
+    validations:
+      required: false

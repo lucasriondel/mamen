@@ -1,0 +1,44 @@
+node_modules
+**/node_modules
+dist
+**/dist
+.turbo
+**/.turbo
+*.tsbuildinfo
+**/*.tsbuildinfo
+
+logs
+*.log
+
+# Local state that must never bake into an image — production keeps these on
+# mounted volumes (see DEPLOY.md).
+uploads
+mamen.db
+mamen.db-shm
+mamen.db-wal
+# Patterns match from the context root, so the bare form covers `/.env` alone —
+# and this repo's development env file is `packages/api/.env`. A build from a
+# working tree (`docker compose up --build`, issue #140) would otherwise copy a
+# real TOKEN_ENCRYPTION_KEY into an image layer. `.env.example` is not matched
+# by any of these and still ships.
+.env
+.env.local
+.env.*.local
+**/.env
+**/.env.local
+**/.env.*.local
+
+.git
+.github
+.vscode
+.idea
+.DS_Store
+coverage
+**/coverage
+
+graphify-out
+.sandcastle
+.claude
+.cursor
+docs
+*.csv

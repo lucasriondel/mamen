@@ -1,0 +1,300 @@
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index a13df46..0d30589 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -39,6 +39,7 @@
+  */
+ export type { TaskInput, TaskName, TaskOutput, TaskSpec, TaskTable, } from "./src/task.ts";
+ export { taskSpec } from "./src/task.ts";
++export type { HostedPrompt, HostedPromptBuilt, TaskDocument, } from "./prompt.ts";
+ export { CLAUDE_CODE_PROVIDER, HOSTED_VENDORS, isHostedVendor, isProvider, } from "./src/providers.ts";
+ export type { HostedVendor, Provider } from "./src/providers.ts";
+ export { makeTaskRunner } from "./src/runner.ts";
+diff --git a/dist/prompt.d.ts b/dist/prompt.d.ts
+new file mode 100644
+index 0000000..75cab08
+--- /dev/null
++++ b/dist/prompt.d.ts
+@@ -0,0 +1,47 @@
++/**
++ * What a task contributes to the hosted turn.
++ *
++ * The hosted transport used to take a `string` and nothing else, so a task
++ * whose input *is* a file — a scanned statement, a contract — had no way to
++ * hand that file over: it could only describe it. The CLI transport never had
++ * the problem, because it has tools and a filesystem and the prompt can name a
++ * path. A vendor over HTTP has neither, so the bytes have to travel.
++ *
++ * A task therefore returns either a `string` (what every text-only task already
++ * returns, unchanged and still the common case) or a {@link HostedPrompt}, the
++ * same text with a document beside it.
++ */
++/**
++ * One document attached to a task's hosted turn.
++ *
++ * `data` is the bytes, deliberately as a `Uint8Array` and not a base64 string:
++ * one representation means "the right bytes" is a single unambiguous thing for
++ * a test to assert, and the encoding a vendor wants is the transport's business
++ * rather than the task's. `mediaType` is the IANA type (`application/pdf`), the
++ * name the current ai-sdk uses; the transport maps it onto whatever field the
++ * pinned SDK version spells it as.
++ */
++export interface TaskDocument {
++    readonly data: Uint8Array;
++    readonly mediaType: string;
++}
++/** A hosted turn that carries a document beside its text. */
++export interface HostedPrompt {
++    readonly text: string;
++    readonly document: TaskDocument;
++}
++/**
++ * What a task's `hostedPrompt` may return. `string` is listed first because it
++ * is what a task that has nothing to attach still returns, and what every
++ * existing table returns without being touched.
++ */
++export type HostedPromptBuilt = string | HostedPrompt;
++/**
++ * The one place the two forms become one. Written here rather than at the
++ * transport so the widening is a single named function with a single test,
++ * and so a task's builder is called exactly once per run.
++ */
++export declare const hostedTurn: (built: HostedPromptBuilt) => {
++    readonly text: string;
++    readonly document?: TaskDocument;
++};
+diff --git a/dist/prompt.js b/dist/prompt.js
+new file mode 100644
+index 0000000..91fb305
+--- /dev/null
++++ b/dist/prompt.js
+@@ -0,0 +1,19 @@
++/**
++ * What a task contributes to the hosted turn.
++ *
++ * The hosted transport used to take a `string` and nothing else, so a task
++ * whose input *is* a file — a scanned statement, a contract — had no way to
++ * hand that file over: it could only describe it. The CLI transport never had
++ * the problem, because it has tools and a filesystem and the prompt can name a
++ * path. A vendor over HTTP has neither, so the bytes have to travel.
++ *
++ * A task therefore returns either a `string` (what every text-only task already
++ * returns, unchanged and still the common case) or a {@link HostedPrompt}, the
++ * same text with a document beside it.
++ */
++/**
++ * The one place the two forms become one. Written here rather than at the
++ * transport so the widening is a single named function with a single test,
++ * and so a task's builder is called exactly once per run.
++ */
++export const hostedTurn = (built) => typeof built === "string" ? { text: built } : built;
+diff --git a/dist/src/hosted.d.ts b/dist/src/hosted.d.ts
+index c5e42e0..769dd40 100644
+--- a/dist/src/hosted.d.ts
++++ b/dist/src/hosted.d.ts
+@@ -1,6 +1,8 @@
++import { type CoreMessage } from "ai";
+ import { Effect, Redacted } from "effect";
+ import type { ObjectCodec } from "claude-code-effect";
+ import { HostedApiError, TaskSchemaError } from "./errors.ts";
++import type { TaskDocument } from "../prompt.ts";
+ import type { HostedVendor } from "./providers.ts";
+ import type { TaskRunResult } from "./result.ts";
+ /**
+@@ -27,9 +29,43 @@ export type HostedGenerate = (args: {
+     readonly apiKey: string;
+     readonly system: string;
+     readonly prompt: string;
++    /**
++     * The document the task attached, absent for a text-only task. Optional so
++     * that every fake written against the text-only seam still compiles, and so
++     * that a fake which *does* care asserts one property — `args.document.data`
++     * and `.mediaType` are the bytes and the type the task handed over, carried
++     * here untranslated.
++     */
++    readonly document?: TaskDocument;
+     /** The codec's JSON Schema, verbatim — `unknown` because it is not ours to inspect. */
+     readonly jsonSchema: unknown;
+ }) => Promise<unknown>;
++/**
++ * The ai-sdk's prompt fields for one call, chosen by whether a document came
++ * with the turn.
++ *
++ * `prompt:` is text and only text; a document is a *content part*, which exists
++ * only inside the `messages:` form. So a document-bearing call is a one-message
++ * user turn holding the instruction and the file side by side, and a text-only
++ * call keeps the exact `prompt:` field it has always sent — the text path's
++ * request is byte-for-byte what it was.
++ *
++ * Split out and exported because the seam above it is faked in every other
++ * test: this is the one piece of ai-sdk-shaped code no fake exercises, so it
++ * gets a test of its own, and the `CoreMessage` return type makes the compiler
++ * check the part shape against the pinned SDK rather than a comment doing it.
++ */
++export declare const hostedPromptFields: (args: {
++    readonly system: string;
++    readonly prompt: string;
++    readonly document?: TaskDocument | undefined;
++}) => {
++    readonly system: string;
++    readonly prompt: string;
++} | {
++    readonly system: string;
++    readonly messages: CoreMessage[];
++};
+ /** The real ai-sdk call. The codec's JSON Schema is handed over verbatim. */
+ export declare const generateHostedLive: HostedGenerate;
+ /** One generation against one vendor, decoded through the task's codec. */
+@@ -39,6 +75,8 @@ export declare const runHosted: <Output>(args: {
+     readonly modelId: string;
+     readonly system: string;
+     readonly instruction: string;
++    /** The task's document, if it attached one — passed through untouched. */
++    readonly document?: TaskDocument | undefined;
+     readonly codec: ObjectCodec<Output>;
+     readonly apiKey: Redacted.Redacted<string>;
+     readonly generate: HostedGenerate;
+diff --git a/dist/src/hosted.js b/dist/src/hosted.js
+index 90fb2e4..794d33c 100644
+--- a/dist/src/hosted.js
++++ b/dist/src/hosted.js
+@@ -19,13 +19,51 @@ const createModel = (vendor, apiKey, modelId) => {
+             return createOpenAI({ apiKey })(modelId);
+     }
+ };
++/**
++ * The ai-sdk's prompt fields for one call, chosen by whether a document came
++ * with the turn.
++ *
++ * `prompt:` is text and only text; a document is a *content part*, which exists
++ * only inside the `messages:` form. So a document-bearing call is a one-message
++ * user turn holding the instruction and the file side by side, and a text-only
++ * call keeps the exact `prompt:` field it has always sent — the text path's
++ * request is byte-for-byte what it was.
++ *
++ * Split out and exported because the seam above it is faked in every other
++ * test: this is the one piece of ai-sdk-shaped code no fake exercises, so it
++ * gets a test of its own, and the `CoreMessage` return type makes the compiler
++ * check the part shape against the pinned SDK rather than a comment doing it.
++ */
++export const hostedPromptFields = (args) => {
++    if (args.document === undefined) {
++        return { system: args.system, prompt: args.prompt };
++    }
++    return {
++        system: args.system,
++        messages: [
++            {
++                role: "user",
++                content: [
++                    { type: "text", text: args.prompt },
++                    {
++                        type: "file",
++                        data: args.document.data,
++                        // The pinned ai-sdk spells the IANA type `mimeType`; the task's
++                        // word for it is `mediaType`, which is what the current SDK and
++                        // every vendor's own docs call it. The rename lives here, once.
++                        mimeType: args.document.mediaType,
++                    },
++                ],
++            },
++        ],
++    };
++};
+ /** The real ai-sdk call. The codec's JSON Schema is handed over verbatim. */
+ export const generateHostedLive = async (args) => {
+     const model = createModel(args.vendor, args.apiKey, args.modelId);
+     const result = await generateObject({
+         model,
+-        system: args.system,
+-        prompt: args.prompt,
++        ...hostedPromptFields(args),
+         // The codec built this schema; ai-sdk only forwards it to the vendor.
+         schema: jsonSchema(args.jsonSchema),
+     });
+@@ -52,6 +90,10 @@ export const runHosted = (args) => Effect.gen(function* () {
+             apiKey,
+             system: args.system,
+             prompt: args.instruction,
++            // Spread rather than assigned: a text-only call must have no
++            // `document` property at all, not one holding `undefined`, so an
++            // existing fake sees the object it has always seen.
++            ...(args.document === undefined ? {} : { document: args.document }),
+             jsonSchema: args.codec.jsonSchema,
+         }),
+         catch: (err) => failure(args.vendor, err, apiKey),
+diff --git a/dist/src/runner.js b/dist/src/runner.js
+index 35b7f0b..6939dff 100644
+--- a/dist/src/runner.js
++++ b/dist/src/runner.js
+@@ -2,6 +2,7 @@ import { Effect } from "effect";
+ import { ClaudeCode, } from "claude-code-effect";
+ import { TaskNotRunnableError, } from "./errors.js";
+ import { generateHostedLive, runHosted, } from "./hosted.js";
++import { hostedTurn } from "../prompt.js";
+ import { isHostedVendor } from "./providers.js";
+ import { taskSpec, } from "./task.js";
+ /**
+@@ -23,14 +24,18 @@ export const makeTaskRunner = (table, deps, internals = {}) => {
+                         reason: "missing_credential",
+                     });
+                 }
++                // The task's hosted prompt, never its CLI one: no tools over
++                // there, and the CLI column is the one allowed to carry secrets.
++                // Built once — a builder that reads a file should be called once —
++                // and normalized here, so both forms are one shape past this line.
++                const turn = hostedTurn(spec.hostedPrompt(input));
+                 return yield* runHosted({
+                     task,
+                     vendor: provider,
+                     modelId: model,
+-                    // The task's hosted prompt, never its CLI one: no tools over
+-                    // there, and the CLI column is the one allowed to carry secrets.
+-                    system: spec.hostedPrompt(input),
++                    system: turn.text,
+                     instruction: spec.hostedInstruction,
++                    document: turn.document,
+                     codec: spec.output,
+                     apiKey,
+                     generate,
+diff --git a/dist/src/task.d.ts b/dist/src/task.d.ts
+index 299619a..6862473 100644
+--- a/dist/src/task.d.ts
++++ b/dist/src/task.d.ts
+@@ -1,4 +1,5 @@
+ import type { ObjectCodec } from "claude-code-effect";
++import type { HostedPromptBuilt } from "../prompt.ts";
+ /**
+  * The task table shape — everything one named task needs, as data, so the
+  * transports can be code written once.
+@@ -16,8 +17,14 @@ import type { ObjectCodec } from "claude-code-effect";
+  *   therefore carry material (a bearer token, a path) that must never be posted
+  *   to a vendor. Where a task has nothing to say differently, the same builder
+  *   sits in both columns — a statement, not an omission.
++ *   `hostedPrompt` may also return a {@link HostedPromptBuilt} object to attach
++ *   a document to the turn — the file itself, for a task whose input is one.
++ *   The CLI column has no equivalent and needs none: it can name a path and let
++ *   the CLI's own `Read` tool fetch it.
+  * - `hostedInstruction` — the one-line user turn the hosted transport puts on
+- *   top of the prompt, which is a system message there.
++ *   top of the prompt, which is a system message there. A document attached by
++ *   `hostedPrompt` rides beside *this* text, in the user turn, because that is
++ *   the only turn a vendor accepts content parts in.
+  * - `allowedTools` — the CLI transport's `--allowedTools`, and empty for every
+  *   task with no escape hatch to reach for.
+  */
+@@ -25,8 +32,12 @@ export interface TaskSpec<Input, Output> {
+     readonly output: ObjectCodec<Output>;
+     /** The prompt for the CLI transport, which has `allowedTools`. */
+     readonly cliPrompt: (input: Input) => string;
+-    /** The prompt for the hosted transport, which has no tools at all. */
+-    readonly hostedPrompt: (input: Input) => string;
++    /**
++     * The prompt for the hosted transport, which has no tools at all — so a task
++     * whose input is a file returns `{ text, document }` rather than describing
++     * a path the vendor cannot reach. A plain `string` is the text-only form.
++     */
++    readonly hostedPrompt: (input: Input) => HostedPromptBuilt;
+     readonly hostedInstruction: string;
+     readonly allowedTools: readonly string[];
+ }

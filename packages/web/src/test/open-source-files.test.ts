@@ -1,0 +1,323 @@
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { portsOfKind } from "@mamen/shared/ports";
+import { describe, expect, it } from "vitest";
+
+/**
+ * The four files a visitor to the public repo reads first — `README.md`,
+ * `LICENSE`, `CONTRIBUTING.md`, `SECURITY.md` — say only things the code still
+ * agrees with (issue #110).
+ *
+ * The README this replaced was the stock `React + TypeScript + Vite` template:
+ * it documented an ESLint config for a project that has never had one, in a
+ * monorepo it never mentioned. That is the failure mode these tests are aimed
+ * at — prose that was true of something else and rotted quietly, because
+ * nothing reads a README on the way to a green build.
+ *
+ * So the assertions are **derived** wherever a fact has a home in the code: the
+ * dev ports come out of `@mamen/shared/ports`, the
+ * commands out of the root `package.json` scripts, the package list out of the
+ * workspace manifests, the nav surfaces out of `app-sidebar.tsx`. A hardcoded
+ * copy of any of those would rot the same way the template text did — it would
+ * assert the README against the README.
+ *
+ * This lives under `src/test/` rather than beside a component because its
+ * subject is the repo, not a component (same as
+ * `bank-statement-scrubbed.test.ts`). Paths are cwd-relative — vitest runs from
+ * the package root — so the repo root is `../../`.
+ */
+
+const ROOT = "../..";
+
+const read = (path: string) => readFileSync(`${ROOT}/${path}`, "utf8");
+
+const README = read("README.md");
+const CONTRIBUTING = existsSync(`${ROOT}/CONTRIBUTING.md`) ? read("CONTRIBUTING.md") : "";
+const SECURITY = existsSync(`${ROOT}/SECURITY.md`) ? read("SECURITY.md") : "";
+const LICENSE = existsSync(`${ROOT}/LICENSE`) ? read("LICENSE") : "";
+/** The runbook, at the repo root since issue #114 rather than under `docs/`. */
+const DEPLOY = existsSync(`${ROOT}/DEPLOY.md`) ? read("DEPLOY.md") : "";
+
+const rootManifest = JSON.parse(read("package.json"));
+const rootScripts: Record<string, string> = rootManifest.scripts ?? {};
+
+/**
+ * The workspace packages, by their manifest `name`. Read off disk rather than
+ * listed here: a package added to the monorepo (`packages/landing-page`, issue
+ * #113) has to reach the README, and a hardcoded list would let it land
+ * unmentioned — the exact rot these tests exist to catch.
+ */
+const WORKSPACES = readdirSync(`${ROOT}/packages`, {
+  withFileTypes: true,
+})
+  .filter(
+    (entry) => entry.isDirectory() && existsSync(`${ROOT}/packages/${entry.name}/package.json`),
+  )
+  .map((entry) => entry.name);
+const packageNames = WORKSPACES.map(
+  (dir) => JSON.parse(read(`packages/${dir}/package.json`)).name as string,
+);
+
+/** `bun` subcommands that are the tool's own, not one of our scripts. */
+const BUN_BUILTINS = new Set(["install", "add", "remove", "x", "create"]);
+
+/** Every fenced code block in a markdown document, as raw text. */
+function codeBlocks(markdown: string): string[] {
+  return [...markdown.matchAll(/```[\w]*\n([\s\S]*?)```/g)].map((m) => m[1]);
+}
+
+interface BunCommand {
+  /** Workspace name when the line carries `--filter`, else `null` (root). */
+  pkg: string | null;
+  script: string;
+  line: string;
+}
+
+/**
+ * Every `bun …` invocation a document tells the reader to run, as the script it
+ * would resolve to. Builtins (`bun install`) resolve to nothing and are
+ * dropped: the point is that no documented *script* is one the repo does not
+ * define.
+ */
+function bunCommands(markdown: string): BunCommand[] {
+  const out: BunCommand[] = [];
+
+  for (const block of codeBlocks(markdown)) {
+    for (const raw of block.split("\n")) {
+      const line = raw.trim();
+      if (!line.startsWith("bun ")) continue;
+
+      const tokens = line.split(/\s+/).slice(1);
+      if (BUN_BUILTINS.has(tokens[0])) continue;
+
+      const rest = tokens[0] === "run" ? tokens.slice(1) : tokens;
+      const filterAt = rest.indexOf("--filter");
+
+      if (filterAt === -1) {
+        const script = rest.find((token) => !token.startsWith("-"));
+        if (script) out.push({ pkg: null, script, line });
+        continue;
+      }
+
+      const after = rest.slice(filterAt + 2).filter((t) => !t.startsWith("-"));
+      const script = after.at(-1);
+      if (script) out.push({ pkg: rest[filterAt + 1], script, line });
+    }
+  }
+
+  return out;
+}
+
+/**
+ * Every relative link target in a markdown document, anchors stripped. External
+ * links are not this repo's to keep alive; in-page anchors have no file.
+ */
+function relativeLinks(markdown: string): string[] {
+  return [...markdown.matchAll(/\]\(([^)\s]+)\)/g)]
+    .map((m) => m[1])
+    .filter((href) => !/^(https?:|mailto:|#)/.test(href))
+    .map((href) => href.split("#")[0])
+    .filter(Boolean)
+    .map((href) => href.replace(/^\.\//, ""));
+}
+
+/** Environment variable names a document names, as `UPPER_SNAKE` words. */
+const envNames = (text: string) => new Set(text.match(/\b[A-Z][A-Z0-9]*_[A-Z0-9_]+\b/g) ?? []);
+
+/** The env names `packages/api/src/config.ts` actually reads. */
+const apiConfigEnv = new Set(
+  [...read("packages/api/src/config.ts").matchAll(/Config\.\w+\("(\w+)"\)/g)].map((m) => m[1]),
+);
+
+/** The env names the web app documents for itself. */
+const webEnv = new Set(
+  [...read("packages/web/.env.example").matchAll(/^(\w+)=/gm)].map((m) => m[1]),
+);
+
+/**
+ * The env names the self-hosting compose file reads (issue #140). Not the API's
+ * and not the SPA's: `WEB_PORT` is the published-port knob, consumed by
+ * `docker-compose.yml` and by nothing that runs inside a container. The root
+ * `.env.example` is where it is documented, and `docker-compose.test.ts` holds
+ * that file to the variables the compose file actually interpolates.
+ */
+const composeEnv = new Set([...read(".env.example").matchAll(/^#?\s*(\w+)=/gm)].map((m) => m[1]));
+
+/** The env names the operations docs already own (the `claude` CLI token). */
+const opsEnv = new Set(
+  [...read("docs/operations/claude-cli-dependency.md").matchAll(/\b([A-Z][A-Z0-9_]{3,})\b/g)].map(
+    (m) => m[1],
+  ),
+);
+
+describe("README.md", () => {
+  it("is no longer the Vite starter template", () => {
+    expect(README).not.toContain("This template provides a minimal setup");
+    expect(README).not.toContain("Expanding the ESLint configuration");
+    expect(README.trimStart().startsWith("# mamen")).toBe(true);
+  });
+
+  it("names the tools the repo actually lints and formats with", () => {
+    // The template's whole body was ESLint configuration; this repo has no
+    // ESLint config at all. Derived from the manifest so a toolchain swap
+    // (issue #138 was one) cannot leave the README naming the tool it dropped.
+    for (const tool of ["oxlint", "oxfmt"]) {
+      expect(rootManifest.devDependencies[tool], tool).toBeDefined();
+      expect(README, tool).toContain(tool);
+    }
+
+    expect(README).not.toContain("ESLint");
+  });
+
+  it("lists every workspace package and invents none", () => {
+    for (const name of packageNames) expect(README).toContain(name);
+
+    const mentioned = new Set(README.match(/@mamen\/[a-z-]+/g) ?? []);
+    expect([...mentioned].filter((n) => !packageNames.includes(n))).toStrictEqual([]);
+  });
+
+  it("only tells the reader to run scripts that exist", () => {
+    const commands = bunCommands(README);
+    expect(commands.length).toBeGreaterThan(0);
+
+    for (const { pkg, script, line } of commands) {
+      const scripts = pkg
+        ? JSON.parse(
+            read(
+              `packages/${WORKSPACES.find((dir) => JSON.parse(read(`packages/${dir}/package.json`)).name === pkg)}/package.json`,
+            ),
+          ).scripts
+        : rootScripts;
+
+      expect(Object.keys(scripts), line).toContain(script);
+    }
+  });
+
+  it("names the dev ports the code actually binds", () => {
+    // The ports have had a home in code since issue #137 — the registry's
+    // rows in `@mamen/shared/ports`, which `vite.config.ts` and the API's
+    // `PORT` default import. So this reads the constants rather than
+    // grepping a number back out of a config that no longer states one.
+    for (const row of portsOfKind("dev")) {
+      expect(README).toContain(`localhost:${row.port}`);
+    }
+  });
+
+  it("names the pinned Bun version, not some other one", () => {
+    const pinned = rootManifest.packageManager.split("@")[1];
+    expect(README).toContain(pinned);
+  });
+
+  it("names no environment variable the code does not read", () => {
+    const known = new Set([...apiConfigEnv, ...webEnv, ...composeEnv, ...opsEnv]);
+    const named = [...envNames(README)].filter((name) => !known.has(name));
+
+    expect(named).toStrictEqual([]);
+  });
+
+  it("does not tell a reader to put the claude token in the environment", () => {
+    // It used to, and correctly: the token was checked when
+    // `ClaudeCodeProdLive` was built, so an unset one took the whole API down at
+    // startup. Since issue #122 the token is a credential pasted in Settings
+    // with **no environment fallback**, so that instruction is now advice that
+    // silently does nothing — the worst kind of stale setup step. The server
+    // still provides the layer unconditionally; what changed is where it reads.
+    expect(read("packages/api/src/server.ts")).toContain("Layer.provide(ClaudeCodeProdLive)");
+    expect(README).not.toContain("CLAUDE_CODE_OAUTH_TOKEN");
+    expect(README).toMatch(/paste[^.]*Settings|Settings[^.]*paste/i);
+  });
+
+  it("names every navigation surface the app ships", () => {
+    const sidebar = read("packages/web/src/components/app-sidebar.tsx");
+    const nav = sidebar.slice(sidebar.indexOf("NAV_SECTIONS"));
+    // A destination is a `label` that comes with a `to` — the nav is grouped
+    // now, so a bare `label:` is just as likely to be a section heading
+    // ("Money", "Data"), and those name no surface the README documents.
+    const labels = [...nav.matchAll(/to:\s*"[^"]+",\s*label:\s*"([^"]+)"/g)].map((m) => m[1]);
+
+    // Settings is declared apart from the groups, so it is matched separately
+    // rather than left out of the check it was covered by before.
+    expect(labels).toContain("Settings");
+    expect(labels.length).toBeGreaterThan(0);
+    for (const label of labels) expect(README).toContain(label);
+  });
+
+  it("points at the agent-facing docs", () => {
+    expect(README).toContain("CLAUDE.md");
+    expect(README).toContain("CONTEXT-MAP.md");
+  });
+});
+
+describe("LICENSE", () => {
+  it("is MIT, held by the repository owner", () => {
+    expect(LICENSE).toContain("MIT License");
+    expect(LICENSE).toMatch(/Copyright \(c\) 2026 Lucas Riondel/);
+    expect(LICENSE).toContain('THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND');
+  });
+
+  it("agrees with the licence the root manifest declares", () => {
+    expect(rootManifest.license).toBe("MIT");
+  });
+});
+
+describe("CONTRIBUTING.md", () => {
+  it("covers the four checks, and each is a real root script", () => {
+    for (const script of ["typecheck", "test", "lint", "format:check"]) {
+      expect(rootScripts[script]).toBeDefined();
+      expect(CONTRIBUTING).toContain(`bun run ${script}`);
+    }
+  });
+
+  it("only tells the reader to run scripts that exist", () => {
+    for (const { pkg, script, line } of bunCommands(CONTRIBUTING)) {
+      const scripts = pkg
+        ? JSON.parse(
+            read(
+              `packages/${WORKSPACES.find((dir) => JSON.parse(read(`packages/${dir}/package.json`)).name === pkg)}/package.json`,
+            ),
+          ).scripts
+        : rootScripts;
+
+      expect(Object.keys(scripts), line).toContain(script);
+    }
+  });
+
+  it("points at CLAUDE.md as the agent-facing version", () => {
+    expect(CONTRIBUTING).toContain("CLAUDE.md");
+  });
+});
+
+describe("SECURITY.md", () => {
+  it("gives a reporting address", () => {
+    expect(SECURITY).toMatch(/[\w.+-]+@[\w-]+\.[\w.]+/);
+  });
+
+  it("says what an instance holds", () => {
+    expect(SECURITY.toLowerCase()).toContain("bank statement");
+    expect(SECURITY.toLowerCase()).toContain("transaction");
+  });
+
+  it("does not promise a bounty or a security team", () => {
+    // Both are things this project does not have; the issue asks the file to be
+    // honest about that rather than borrow a big project's boilerplate.
+    expect(SECURITY).toMatch(/no bounty|not offer.{0,20}bounty/i);
+  });
+});
+
+describe("every relative link in the root documents", () => {
+  it("resolves to a file that exists", () => {
+    const broken: string[] = [];
+
+    for (const [name, text] of [
+      ["README.md", README],
+      ["CONTRIBUTING.md", CONTRIBUTING],
+      ["SECURITY.md", SECURITY],
+      ["DEPLOY.md", DEPLOY],
+    ] as const) {
+      for (const href of relativeLinks(text)) {
+        if (!existsSync(`${ROOT}/${href}`)) broken.push(`${name} -> ${href}`);
+      }
+    }
+
+    expect(broken).toStrictEqual([]);
+  });
+});

@@ -1,0 +1,41 @@
+{
+  "name": "mamen",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "workspaces": [
+    "packages/*"
+  ],
+  "type": "module",
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "test": "turbo test",
+    "lint": "turbo run lint",
+    "format": "turbo run format",
+    "format:check": "turbo run format:check",
+    "typecheck": "turbo typecheck",
+    "seed:demo": "bun packages/api/scripts/seed-demo.ts",
+    "demo:up": "docker compose -f docker-compose.demo.yml up --build",
+    "demo:down": "docker compose -f docker-compose.demo.yml down --volumes --rmi local",
+    "demo:shots": "bun .claude/skills/demo-screenshots/capture.ts",
+    "landing:screenshots": "bun packages/landing-page/src/screenshots/sync.ts",
+    "landing:reconcile": "bun packages/landing-page/src/reconcile/reconcile.ts",
+    "sandcastle:implement": "bun .sandcastle/run.ts implement",
+    "sandcastle:implement-once": "bun .sandcastle/run.ts implement --no-relaunch",
+    "sandcastle:implement-review": "bun .sandcastle/run.ts implement-review",
+    "sandcastle:implement-review-once": "bun .sandcastle/run.ts implement-review --no-relaunch"
+  },
+  "devDependencies": {
+    "@ai-hero/sandcastle": "^0.12.0",
+    "oxfmt": "^0.63.0",
+    "oxlint": "^1.78.0",
+    "turbo": "^2.10.5",
+    "typescript": "~5.9.3",
+    "zod": "^4.4.3"
+  },
+  "packageManager": "bun@1.3.4",
+  "patchedDependencies": {
+    "ai-task-runner-effect@0.1.0": "patches/ai-task-runner-effect@0.1.0.patch"
+  }
+}

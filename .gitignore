@@ -1,0 +1,72 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Turborepo
+.turbo
+
+# TypeScript incremental build info
+*.tsbuildinfo
+
+# Generated knowledge graph (issue #134)
+# Rebuilt from the source beside it, and the tool rewrites the whole directory
+# on every run — so tracking it made each regeneration a diff of hundreds of
+# files with nothing in it, which is what buries the next real change.
+graphify-out/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Uploads
+uploads/
+
+# SQLite database (dev)
+mamen.db
+mamen.db-shm
+mamen.db-wal
+
+# Seeded demo database (issue #139)
+# Rebuilt from `packages/api/src/demo/dataset.ts` by `bun run seed:demo`, which
+# is deterministic — so the file is output, and tracking a binary regenerated on
+# demand only makes it something to keep in sync.
+demo.db
+demo.db-shm
+demo.db-wal
+
+# Bank statements (issue #108)
+# A real export carries IBANs, counterparty names, amounts and payment
+# references. One was tracked here for months under the bank's own download
+# filename, so the repo root — where a download lands — is where this has to
+# bite: no CSV belongs there, and fixtures live beside the parser that reads
+# them. The named patterns catch the same file wherever else it is dropped,
+# because the copy that mattered was not at the root but four directories down,
+# named like a fixture. Synthetic fixtures under
+# packages/web/src/features/import/__fixtures__/ are unaffected.
+/*.csv
+relev*_de_compte*.csv
+*bank-statement*.csv
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+coverage/
+.dokploy.yml

@@ -1,0 +1,142 @@
+import type { Account, Category, Issuer, Transaction } from "@mamen/shared/contract";
+import { useQuery } from "@tanstack/react-query";
+import type { VisibilityState } from "@tanstack/react-table";
+import { useMemo } from "react";
+import { TransactionsTable } from "@/features/transactions/transactions-table";
+import { accountQueries, categoryQueries } from "@/lib/sdk";
+import { indexById } from "@/lib/utils";
+
+/** How many categories to pull for the derived-Category column, as elsewhere. */
+const CATEGORY_SCAN_LIMIT = 200;
+
+/**
+ * A preview reads newest-first, like every other list of transactions in the
+ * app — and is *put* in that order here (issue #204). The dry-run reads
+ * `SELECT * FROM transactions` with no `ORDER BY` and buckets the rows as it
+ * walks them, so a list arrives in insertion order: a January statement
+ * imported before a February one comes back January-first. The sort is total
+ * rather than a page's: the lists are uncapped, so every row the rule claims is
+ * already in hand.
+ *
+ * It is also a **fixed** order. The rows are a dry-run's answer, not a query the
+ * Date header could re-ask, so no toggle is offered — the header states the
+ * order and promises nothing (see `TransactionsTable`'s `onToggleSort`).
+ */
+const PREVIEW_ORDER = "desc" as const;
+
+/** Newest first, by date. Stable, so same-date rows keep the order they came in. */
+function newestFirst(transactions: readonly Transaction[]): readonly Transaction[] {
+  return [...transactions].sort((a, b) => b.date.getTime() - a.date.getTime());
+}
+
+/**
+ * Columns the preview hides. The rule is being judged on **which rows it
+ * claims and what they are**, so the curation levers that answer a different
+ * question — is this row held out of the recap, what did I write on it — are
+ * off. They are still one click away on the transaction itself; carrying them
+ * here would widen the grid past the form for two columns nobody is deciding
+ * with.
+ */
+const PREVIEW_COLUMNS: VisibilityState = { excluded: false, notes: false };
+
+/**
+ * How tall a preview list may get before its rows scroll (issue #203). A dry-run
+ * returns *every* matching row, so this is the only thing standing between a
+ * broad pattern and a grid thousands of rows tall — which is the same job the
+ * `max-h-72` box around the old bespoke preview did, at the height the grid now
+ * needs: 24rem is the header plus seven rows, where 18rem was five.
+ */
+const PREVIEW_MAX_HEIGHT = "max-h-96";
+
+export interface RulePreviewTableProps {
+  /** The rows of the selected preview list. */
+  transactions: readonly Transaction[];
+  /** The issuers those rows point at, resolved by id (#62) by the caller. */
+  issuersById: ReadonlyMap<number, Issuer>;
+  /** Shown in place of the grid when the selected list is empty. */
+  emptyLabel: string;
+  /** Per-row trailing action (the manual-collision list's remove control). */
+  renderActions?: (transaction: Transaction) => React.ReactNode;
+}
+
+/**
+ * One preview list, rendered in **the app's own transactions grid**.
+ *
+ * The preview used to have a bespoke four-field line per row — date, raw
+ * string, issuer, amount — which is both less than the grid shows and
+ * different from how the same transactions read everywhere else. The rows are
+ * ordinary transactions, so they get the ordinary table: the Account badge,
+ * the issuer cell with its manual-assignment pin, the sign-coloured amount,
+ * the derived Category. That the pin is the *same* marker the grid uses is
+ * what makes a manual collision legible as the thing it is.
+ *
+ * The lookups the grid needs beyond the issuers — accounts and categories —
+ * are read here rather than by the form: they belong to the table this
+ * component owns, and a form that isn't previewing anything shouldn't fetch
+ * them. A failed or pending read leaves the affected cell with its own
+ * placeholder (the badge renders a dash), so the rows still render.
+ *
+ * The one thing the preview takes *off* the grid is the row link (issue #197).
+ * Everywhere else the table is the page, so opening a row costs a
+ * back-navigation; here it is mounted inside an unsaved form, and following a
+ * row — the very gesture a reader makes to check a row the rule claims — would
+ * unmount the form and silently discard every predicate typed into it. The
+ * bespoke lines this grid replaced led nowhere, which is what made adopting the
+ * grid a new way to lose a rule. The inline curation cells stay: they act on
+ * the row where they are, and stop their own clicks from reaching it.
+ *
+ * The rows are put in **date order** here (issue #204, {@link PREVIEW_ORDER}):
+ * they arrive from the dry-run in insertion order, and the grid's Date header
+ * is the only thing on screen that could be read as saying otherwise. The
+ * header is left saying which way the rows run and nothing more — there is no
+ * query behind this list for a toggle to re-ask.
+ *
+ * The rows are **bounded and scroll** inside their own frame
+ * ({@link PREVIEW_MAX_HEIGHT}, issue #203): the lists come back uncapped, so at
+ * natural height a broad pattern would push the form's Save and Cancel far below
+ * the fold and move them again on every debounce. Only the rows scroll — the tab
+ * strip above says which list this is and the summary below is the sentence the
+ * save decision turns on, so neither may scroll away from the rows it is about.
+ */
+export function RulePreviewTable({
+  transactions,
+  issuersById,
+  emptyLabel,
+  renderActions,
+}: RulePreviewTableProps) {
+  const accountsQuery = useQuery(accountQueries.list());
+  const accountsById = useMemo(
+    () => indexById((accountsQuery.data?.items ?? []) as readonly Account[]),
+    [accountsQuery.data],
+  );
+
+  const categoriesQuery = useQuery(categoryQueries.list({ limit: CATEGORY_SCAN_LIMIT }));
+  const categoriesById = useMemo(
+    () => indexById((categoriesQuery.data?.items ?? []) as readonly Category[]),
+    [categoriesQuery.data],
+  );
+
+  const rows = useMemo(() => newestFirst(transactions), [transactions]);
+
+  if (transactions.length === 0) {
+    return (
+      <p className="rounded-2xl border border-gousse-line px-4 py-6 text-center text-sm text-gousse-muted italic">
+        {emptyLabel}
+      </p>
+    );
+  }
+
+  return (
+    <TransactionsTable
+      transactions={rows}
+      accountsById={accountsById}
+      issuersById={issuersById}
+      categoriesById={categoriesById}
+      direction={PREVIEW_ORDER}
+      columnVisibility={PREVIEW_COLUMNS}
+      renderActions={renderActions}
+      rowLinks={false}
+      maxHeight={PREVIEW_MAX_HEIGHT}
+    />
+  );
+}

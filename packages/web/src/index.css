@@ -1,0 +1,71 @@
+/**
+ * Global stylesheet.
+ *
+ * Tailwind v4 first, then the real gousse theme layers (ADR 0003). gousse owns
+ * the token contract end to end:
+ *
+ * - `tokens.css`  — the `--gousse-*` channel triples + `.dark` ramp
+ * - `theme.css`   — the v4 `@theme` mapping onto `--color-gousse-*`,
+ *                   `shadow-gousse-{sm,md,lg,xl}` and the animation utilities.
+ *                   It also declares the `dark` custom variant, so this file
+ *                   must not declare a second (conflicting) one.
+ * - `effects.css` — RainbowGlow / Sheen keyframes and classes
+ * - `sidebar-chrome.css` — the sidebar row's hue-driven surfaces (hover fill,
+ *                   left active bar, glyph tint) and the hidden scroller.
+ *                   `sidebar.tsx`'s companion sheet, installed with it as a
+ *                   registry dependency (issue #105); without it the rows lay
+ *                   out correctly and render flat.
+ *
+ * The sheets are **vendored source** under `src/styles/gousse/`, installed
+ * from gousse's shadcn registry (`@gousse/{tokens,theme,effects}` in
+ * `components.json`) — issue #92. They are gousse's files, not ours: re-running
+ * `shadcn add` overwrites them, so mamen's own tint stays below, in this file.
+ * The token contract is unchanged by the move; only where it comes from is.
+ *
+ * Colour utilities are therefore namespaced `*-gousse-*` (`bg-gousse-panel`,
+ * `text-gousse-ink`, …), matching miel. There is no local token stub and no
+ * hand-rolled `@theme inline` bridge any more.
+ *
+ * There is no `@source` over the package's `dist` either (issue #93). It was
+ * here because Tailwind v4 skips `node_modules`, so the utilities baked into
+ * the primitives' compiled JS were never generated and a `primary` Button
+ * rendered invisible. The primitives are vendored source now, under
+ * `src/components/ui/`, which Tailwind scans by default.
+ */
+
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "./styles/gousse/tokens.css";
+@import "./styles/gousse/theme.css";
+@import "./styles/gousse/effects.css";
+@import "./styles/gousse/sidebar-chrome.css";
+@import "./features/recap/charts/chart-palette.css";
+@import "./features/transactions/row-rail.css";
+
+/* mamen's accent tint. gousse ships a warm orange default; we track miel's blue
+ * so the two apps read as one design language. Bare channel triples — the
+ * `rgb(var(--gousse-*))` wrapping lives in gousse's theme.css. */
+:root {
+  --gousse-accent: 37 99 235;
+}
+
+.dark {
+  --gousse-accent: 96 165 250;
+}
+
+body {
+  margin: 0;
+  background-color: rgb(var(--gousse-bg));
+  color: rgb(var(--gousse-ink));
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
+  /* Crisper glyph rendering on macOS/WebKit (make-interfaces-feel-better #8). */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

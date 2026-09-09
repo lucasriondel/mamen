@@ -1,0 +1,20 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "ignorePatterns": [
+    "**/dist/**",
+    "packages/web/src/styles/gousse",
+    "packages/web/src/components/ui/sidebar.tsx",
+    "packages/web/src/components/ui/app-shell.tsx",
+    "**/*.gen.ts",
+    "**/*.gen.tsx",
+    "packages/api/openapi.json",
+    "graphify-out",
+    // Prose. oxfmt pads every table cell to the widest one in its column, and
+    // this repo's tables hold sentences — the env-var table in `README.md`
+    // becomes 400-character lines. Several suites also assert on exact rows of
+    // `DEPLOY.md` and `README.md`; loosening those guards so a formatter can
+    // repaginate a document is the wrong way round. `.ts`/`.tsx` is what issue
+    // #135 set out to format.
+    "**/*.md"
+  ]
+}

@@ -1,0 +1,95 @@
+/**
+ * The recap charts' colour tokens (issue #113) — the light/dark values behind
+ * the `var(--chart-*)` roles `chart-palette.ts` documents.
+ *
+ * Declared as their own sheet rather than in `index.css` because these are the
+ * charts' tokens, not gousse's: the vendored gousse sheets under
+ * `src/styles/gousse/` are overwritten by `shadcn add`, and mamen's own tint
+ * already lives outside them for that reason.
+ *
+ * Dark is **selected**, not flipped — each hue is re-stepped for the dark
+ * surface (OKLCH L ≈ 0.48–0.67, ≥ 3:1 against `#171716`) and validated as a set,
+ * because an automatic lighten/darken of a light-mode palette lands outside the
+ * band and collapses the CVD separation the order was chosen for.
+ *
+ * The theme hook is `.dark` on the root, matching gousse's own `tokens.css` —
+ * there is no `data-theme` attribute in this app, and `next-themes` toggles that
+ * class.
+ */
+
+:root {
+  /* Categorical — the validated order. Never re-sort these for looks: the
+     ordering is what keeps adjacent pairs apart under colour-vision deficiency. */
+  --chart-series-1: #2a78d6; /* blue */
+  --chart-series-2: #eb6834; /* orange */
+  --chart-series-3: #1baf7a; /* aqua */
+  --chart-series-4: #eda100; /* yellow */
+  --chart-series-5: #e87ba4; /* magenta */
+  --chart-series-6: #008300; /* green */
+  --chart-series-7: #4a3aa7; /* violet */
+  --chart-series-8: #e34948; /* red */
+
+  /* Text-weight variants of the same eight hues, for the rare place a series
+     colour lands on *type* rather than on a mark — the single-series tooltip
+     title. The fills above are tuned for arcs and bars against the panel, and
+     six of the eight sit under 4.5:1 as small text on white; each variant here
+     is the same hue walked down in lightness only until it clears that floor,
+     so identity is preserved and the text is legible. Marks keep the fills. */
+  --chart-series-1-text: #2875d1; /* 4.61:1 on white */
+  --chart-series-2-text: #cd4914; /* 4.61:1 */
+  --chart-series-3-text: #15855d; /* 4.62:1 */
+  --chart-series-4-text: #9e6b00; /* 4.61:1 */
+  --chart-series-5-text: #da2c6d; /* 4.60:1 */
+  --chart-series-6-text: #008300; /* 4.95:1 — already clears, unchanged */
+  --chart-series-7-text: #4a3aa7; /* 8.56:1 — already clears, unchanged */
+  --chart-series-8-text: #df2d2c; /* 4.62:1 */
+
+  --chart-other-text: #6f6d67;
+
+  /* The tail bucket and de-emphasised marks — a neutral, never a ninth hue. */
+  --chart-other: #9a978f;
+
+  /* Diverging poles: money in vs money out. Blue (cool) against red (warm), so
+     the two read as genuine opposites around a neutral zero — an aqua/blue pair
+     would put two cool hues on the axis and the baseline would stop reading as
+     "nothing". Deliberately NOT the gousse status ramp: earning is not "good"
+     and spending is not "critical", they are only directions. Both clear 3:1 on
+     each surface, so neither pole needs relief to be seen. */
+  --chart-earned: #2a78d6;
+  --chart-spent: #e34948;
+
+  /* Recessive chrome, one shade off the surface. */
+  --chart-grid: rgb(226 222 215 / 0.7);
+  --chart-axis: rgb(120 120 116);
+}
+
+.dark {
+  --chart-series-1: #3987e5;
+  --chart-series-2: #d95926;
+  --chart-series-3: #199e70;
+  --chart-series-4: #c98500;
+  --chart-series-5: #d55181;
+  --chart-series-6: #008300;
+  --chart-series-7: #9085e9;
+  --chart-series-8: #e66767;
+
+  /* Walked up in lightness against #171716, same floor. */
+  --chart-series-1-text: #3987e5; /* 4.93:1 on panel — unchanged */
+  --chart-series-2-text: #d95926; /* 4.62:1 — unchanged */
+  --chart-series-3-text: #199e70; /* 5.27:1 — unchanged */
+  --chart-series-4-text: #c98500; /* 5.84:1 — unchanged */
+  --chart-series-5-text: #d55382; /* 4.60:1 */
+  --chart-series-6-text: #009700; /* 4.64:1 */
+  --chart-series-7-text: #9085e9; /* 5.74:1 — unchanged */
+  --chart-series-8-text: #e66767; /* 5.55:1 — unchanged */
+
+  --chart-other-text: #9a978f;
+
+  --chart-other: #6f6d67;
+
+  --chart-earned: #3987e5;
+  --chart-spent: #e66767;
+
+  --chart-grid: rgb(68 66 60 / 0.8);
+  --chart-axis: rgb(156 156 150);
+}
