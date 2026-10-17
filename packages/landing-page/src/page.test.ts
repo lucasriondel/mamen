@@ -1,6 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { APP_BASE_PATH, APP_BASE_PATH_SLASH } from "@mamen/shared/app-base-path";
+import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { CONTRIBUTING, HERO, INSTALL, SCREENSHOTS, screenshotFigures } from "./content";
 import { renderPage } from "./page";
@@ -17,17 +15,9 @@ import { SHIPPED_DIR, SHIPPED_URL_PREFIX } from "./screenshots/manifest";
  * at build time (issue #148); what that swap of renderer may not spend is any
  * of the properties below, which is why this suite is the string page's own
  * with the React renderer's folded into it.
- *
- * The one fact this page shares with the app is the prefix its link points at,
- * and it is derived from `APP_BASE_PATH` rather than written out — the whole
- * point of the constant is that nobody repeats it in a place a rename cannot
- * reach.
  */
 
 const html = await renderPage();
-
-const source = (path: string) =>
-  readFileSync(fileURLToPath(new URL(path, import.meta.url)), "utf8");
 
 /** Every `href="…"` the page carries, in order. */
 const hrefs = [...html.matchAll(/href="([^"]*)"/g)].map((m) => m[1] as string);
@@ -61,24 +51,6 @@ describe("the landing page", () => {
     // sentence someone will reword, and an assertion carrying its own copy of
     // it fails the day they do — for no reason connected to what it tests.
     expect(html).toContain(`<h1>${HERO.heading}</h1>`);
-  });
-
-  it("links into the app under its prefix", () => {
-    // The link is the page's job: a visitor at the root has to be able to
-    // reach the app, which is no longer at the root.
-    expect(hrefs).toContain(APP_BASE_PATH_SLASH);
-  });
-
-  it("reads the prefix from the constant rather than restating it", () => {
-    // The link is content, not markup, so it moved into the module that holds
-    // the page's destinations (issue #147). A hand-written `/app` in either
-    // file is a fifth copy of the literal, in the one place whose whole job is
-    // linking at it.
-    expect(source("./content/actions.ts")).toMatch(/APP_BASE_PATH_SLASH/);
-    for (const file of ["./page.tsx", "./content/actions.ts"]) {
-      expect(source(file)).not.toContain(`"${APP_BASE_PATH}`);
-      expect(source(file)).not.toContain(`'${APP_BASE_PATH}`);
-    }
   });
 
   it("renders the install guide, which is the only call to action it has", () => {

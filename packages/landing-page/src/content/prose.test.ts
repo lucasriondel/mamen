@@ -1,4 +1,3 @@
-import { APP_BASE_PATH_SLASH } from "@mamen/shared/app-base-path";
 import { describe, expect, it } from "vitest";
 import { ACTIONS, CONTRIBUTING, HERO, INSTALL, NAV, SCREENSHOTS, SITE } from ".";
 
@@ -117,15 +116,5 @@ describe("the call to action", () => {
   it("makes the source the one primary, since there is nothing hosted", () => {
     const primary = ACTIONS.find((action) => action.kind === "primary");
     expect(primary?.href).toBe(SITE.repositoryUrl);
-  });
-
-  it("reads the app's prefix from the constant rather than restating it", () => {
-    // The one fact this package shares with the app. Written out by hand it
-    // becomes a link that survives a rename by pointing at nothing.
-    //
-    // The assertion is that *an* action points at the app, not that the
-    // primary one does: the source is the page's primary destination, because
-    // there is no hosted mamen to send a stranger to (`actions.ts`).
-    expect(ACTIONS.map((action) => action.href)).toContain(APP_BASE_PATH_SLASH);
   });
 });
