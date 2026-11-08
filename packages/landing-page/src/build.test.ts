@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { build, type UserConfig } from "vite";
+import { ANALYTICS } from "@mamen/shared/analytics";
 import { describe, expect, it } from "vitest";
 import viteConfig from "../vite.config";
 import { HERO } from "./content";
@@ -71,11 +72,14 @@ describe("the built site", async () => {
   it("carries the page's content in the bytes, with no JavaScript to run", () => {
     // This is the criterion the whole expand–contract turns on: the text is in
     // the built HTML, and there is no script tag to assemble it. React ran in
-    // Node and nothing of it is in the output.
+    // Node and nothing of it is in the output. The one script left is the
+    // visit counter, loaded from its own host; Vite leaves it as written.
     const page = html("index.html") as string;
     expect(page).toContain(`<h1>${HERO.heading}</h1>`);
     expect(page).toMatch(/single-user/i);
-    expect(page).not.toMatch(/<script\b/);
+    const scripts = page.match(/<script\b[^>]*>/g) ?? [];
+    expect(scripts).toHaveLength(1);
+    expect(scripts[0]).toContain(`src="${ANALYTICS.src}"`);
     expect(chunks.filter((chunk) => chunk.fileName.endsWith(".js"))).toStrictEqual([]);
   });
 

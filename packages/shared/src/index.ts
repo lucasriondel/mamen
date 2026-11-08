@@ -3,6 +3,9 @@
 // Deployment constant, not a domain type: where the SPA is served from. Kept
 // dependency-free so a build config can import it (see `./app-base-path`).
 export { APP_BASE_PATH, APP_BASE_PATH_SLASH } from "./app-base-path.ts";
+// Deployment constant: the visit counter both public documents load (see
+// `./analytics`). Dependency-free for the same reason.
+export { ANALYTICS } from "./analytics.ts";
 // The ports mamen binds, mamen's rows of the machine's registry (see
 // `./ports`). Dependency-free for the same reason, and reachable on its own
 // path so a build config need not pull the contract in behind a number.

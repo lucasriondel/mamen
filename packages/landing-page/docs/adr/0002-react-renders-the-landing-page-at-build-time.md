@@ -51,7 +51,10 @@ allowed to spend.
   hydration, no `<script>` — `renderToStaticMarkup` rather than
   `renderToString` because there is nothing to hydrate. `src/build.test.ts`
   asserts it against a real Vite build: the output has one HTML file, no
-  JavaScript chunk, and the content in its bytes.
+  JavaScript chunk, and the content in its bytes. Since then the head carries
+  one third-party tag, the visit counter (`ANALYTICS` in `@mamen/shared`): it
+  renders nothing and is loaded from its own host, so the page still emits no
+  JavaScript of its own, and the tests take it out before they look.
 - **The page's own contract is the string renderer's, unchanged.** One `h1`, a
   document rather than a fragment, the app's prefix read from the constant, no
   link at a path this container does not own, no script tag: `src/page.test.ts`

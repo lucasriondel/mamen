@@ -6,6 +6,7 @@ import {
   Outlet,
   RouterProvider,
 } from "@tanstack/react-router";
+import { ANALYTICS } from "@mamen/shared/analytics";
 import { renderToStaticMarkup } from "react-dom/server";
 import { About } from "./components/About";
 import { Contributing } from "./components/Contributing";
@@ -35,8 +36,13 @@ import { SITE } from "./content";
  *
  * Nothing here runs in a browser. Components take no props from a loader, hold
  * no state and register no effects; the tree is rendered once, in Node, and the
- * result is static HTML with no script tag. A `useState` in this file would
- * typecheck, ship, and quietly do nothing.
+ * result is static HTML with no script of its own. A `useState` in this file
+ * would typecheck, ship, and quietly do nothing.
+ *
+ * The one `<script>` in the head is the visit counter (`ANALYTICS`, from
+ * `@mamen/shared`), loaded from its own host and deferred. It renders nothing
+ * and the page reads the same without it; the SPA at `/app` carries the same
+ * tag with the same website id, because the two share one host.
  *
  * Every word comes from `src/content/` (issue #147) — this file and the
  * components under `src/components/` decide elements and class names, and
@@ -64,6 +70,12 @@ function Document() {
         <meta name="description" content={SITE.description} />
         <title>{SITE.title}</title>
         <link rel="stylesheet" href="/src/styles.css" />
+        <script
+          defer
+          src={ANALYTICS.src}
+          data-website-id={ANALYTICS.websiteId}
+          data-domains={ANALYTICS.domains}
+        />
       </head>
       <body>
         <Outlet />

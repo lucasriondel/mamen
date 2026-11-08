@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { ANALYTICS } from "@mamen/shared/analytics";
 import { describe, expect, it } from "vitest";
 import { CONTRIBUTING, HERO, INSTALL, SCREENSHOTS, screenshotFigures } from "./content";
 import { renderPage } from "./page";
@@ -18,6 +19,9 @@ import { SHIPPED_DIR, SHIPPED_URL_PREFIX } from "./screenshots/manifest";
  */
 
 const html = await renderPage();
+
+/** The visit counter's tag, the one script the head carries (`ANALYTICS`). */
+const tracker = html.match(/<script\b[^>]*\bdata-website-id="[^"]*"[^>]*><\/script>/)?.[0];
 
 /** Every `href="…"` the page carries, in order. */
 const hrefs = [...html.matchAll(/href="([^"]*)"/g)].map((m) => m[1] as string);
@@ -112,8 +116,23 @@ describe("the landing page", () => {
     // Prerendered means the text is in the bytes nginx sends. A `<script>`
     // here would mean the content is assembled in the browser, which is the
     // thing this package exists not to do — and the property the port to React
-    // was not allowed to spend.
-    expect(html).not.toMatch(/<script\b/);
+    // was not allowed to spend. The visit counter is the one exception, and it
+    // is taken out before the check: it renders nothing.
+    expect(tracker).toBeDefined();
+    expect(html.replace(tracker as string, "")).not.toMatch(/<script\b/);
+  });
+
+  it("counts visits with the tag the app at /app carries", () => {
+    // One host, two containers: a different website id here would split the
+    // site's visits across two dashboards.
+    const tag = tracker as string;
+    expect(attr(tag, "src")).toBe(ANALYTICS.src);
+    expect(attr(tag, "data-website-id")).toBe(ANALYTICS.websiteId);
+    expect(attr(tag, "data-domains")).toBe(ANALYTICS.domains);
+    // Deferred, so it never holds up the first paint of a page that has none
+    // of its own JavaScript to wait for.
+    expect(tag).toMatch(/\sdefer(=""|\s|>)/);
+    expect(html.indexOf(tag)).toBeLessThan(html.indexOf("</head>"));
   });
 
   it("leaves the root paths it does not own alone", () => {

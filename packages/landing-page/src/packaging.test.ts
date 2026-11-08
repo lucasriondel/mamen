@@ -36,11 +36,15 @@ const locations = [...nginx.matchAll(/^\s*location\s+(.+?)\s*\{/gm)].map((m) => 
 
 /**
  * The subpaths the landing page reaches `@mamen/shared` through: the
- * import-free deployment constants — the app's prefix, and the port registry's
- * rows (issue #137) — never the package root, which re-exports the contract and
- * pulls `effect` in behind it.
+ * import-free deployment constants — the app's prefix, the port registry's
+ * rows (issue #137) and the visit counter's tag — never the package root, which
+ * re-exports the contract and pulls `effect` in behind it.
  */
-const SHARED_SUBPATHS = ["@mamen/shared/app-base-path", "@mamen/shared/ports"] as const;
+const SHARED_SUBPATHS = [
+  "@mamen/shared/analytics",
+  "@mamen/shared/app-base-path",
+  "@mamen/shared/ports",
+] as const;
 
 describe("the landing package's dependencies", () => {
   it("shares nothing with the app but the constant", () => {

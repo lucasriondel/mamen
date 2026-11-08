@@ -199,7 +199,9 @@ _Avoid_: partial update (that is the other thing).
 A plain value every deployed layer has to agree on, exported from the package
 root because more than one package reads it and none of them owns it —
 `APP_BASE_PATH` / `APP_BASE_PATH_SLASH` (`src/app-base-path.ts`), the prefix the
-SPA is served under, and the **port registry** rows (`src/ports.ts`). Not a
+SPA is served under, `ANALYTICS` (`src/analytics.ts`), the visit counter the
+landing page and the SPA both load under one website id, and the **port
+registry** rows (`src/ports.ts`). Not a
 domain type and not part of the **contract**: it
 describes where the app is *hosted*, not what it exchanges. Each such module
 stays import-free so a build config (`vite.config.ts`) can read it without

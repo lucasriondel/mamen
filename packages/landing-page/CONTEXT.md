@@ -77,8 +77,12 @@ firewall (it is an identity check, not an address one).
 **Prerendered page**:
 The finished HTML `renderPage()` returns, written into `dist/index.html` at
 build time by the `mamen:prerender-landing-page` plugin. Prerendered means the
-text is in the bytes nginx sends: the built output contains no `<script>` at
-all, so nothing is assembled in the browser. The page lives in TypeScript rather
+text is in the bytes nginx sends: the built output contains no `<script>` of
+its own, so nothing is assembled in the browser. The one tag in its head is the
+**visit counter** — the self-hosted Umami tracker, `ANALYTICS` from
+`@mamen/shared`, deferred and loaded from its own host. It renders nothing, the
+page reads the same without it, and the SPA at `/app` carries the same website
+id because both share one host. The page lives in TypeScript rather
 than in `index.html` so it can read a constant and be asserted by a test; the
 HTML entry on disk is a stub the plugin replaces wholesale, and the plugin runs
 `pre` so Vite's own HTML pass still rewrites the stylesheet to its hashed asset.
@@ -89,8 +93,8 @@ one page — no generator, no routes, no data).
 React and `@tanstack/react-router` are **devDependencies** here, and that is a
 statement rather than a technicality: `src/page.tsx` runs the router on a memory
 history and `renderToStaticMarkup`s the tree in Node, so what reaches the image
-is HTML. No client entry, no hydration, no `<script>` — the built page is
-asserted to carry none, and there is no framework plugin in `vite.config.ts`,
+is HTML. No client entry, no hydration, no `<script>` but the visit counter —
+the built page is asserted to carry no other, and there is no framework plugin in `vite.config.ts`,
 because a framework plugin's job is serving React to a browser. A runtime
 dependency on React would mean the browser assembling a page this package exists
 to serve finished. That line is where the superseding decision draws itself

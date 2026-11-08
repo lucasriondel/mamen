@@ -1129,6 +1129,18 @@ is checked against neither surface — a pale colour is weak on the light panel
 exactly as a dark one is on the dark panel. Prefer it as a fill with
 `readableInk()` on top (`lib/color.ts`), as the issuer avatar does.
 
+**Visit counter**:
+The self-hosted Umami tracker in `index.html`'s head, deferred, loaded from
+`stats.gousse.cool`. The site root and `/app` share one host across two
+containers, so the landing page carries the same tag and both must name the same
+website id; the values are `ANALYTICS` in `@mamen/shared`, and
+`test/analytics.test.ts` holds this file's copy to them. `data-domains` limits
+counting to the public host, so a dev server, the demo stack and a self-hosted
+copy record nothing. Umami sets no cookie and follows the router's client-side
+navigation itself — nothing in the app calls it.
+_Avoid_: telemetry (it counts page views on one public deployment; the app
+reports nothing about its data).
+
 **AI settings**:
 See [CONTEXT-MAP.md](../../CONTEXT-MAP.md). Built in `features/ai-settings/`,
 the second section of the settings page. Two things about it are this package's,
